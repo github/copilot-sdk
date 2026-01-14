@@ -19,6 +19,10 @@ tools:
 safe-outputs:
   add-comment:
     max: 2
+  add-labels:
+    allowed: [bug, enhancement, question, documentation, sdk/dotnet, sdk/go, sdk/nodejs, sdk/python, priority/high, priority/low, testing, security, needs-info, duplicate]
+    max: 10
+    target: triggering
   update-issue:
     target: triggering
   close-issue:
