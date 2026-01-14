@@ -81,7 +81,7 @@ function getTrafficCapturePath(testContext: TestContext): string {
     }
 
     const testFileName = basename(testFilePath, suffix);
-    const taskNameAsFilename = testContext.task.name.replace(/[^a-z0-9]/gi, "_");
+    const taskNameAsFilename = testContext.task.name.replace(/[^a-z0-9]/gi, "_").toLowerCase();
     return join(SNAPSHOTS_DIR, testFileName, `${taskNameAsFilename}.yaml`);
 }
 

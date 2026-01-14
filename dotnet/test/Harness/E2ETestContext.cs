@@ -70,12 +70,9 @@ public class E2ETestContext : IAsyncDisposable
 
     public async Task ConfigureForTestAsync(string testFile, [CallerMemberName] string? testName = null)
     {
-        // Convert PascalCase method names to snake_case matching snapshot filenames
-        // e.g., Should_Create_A_Session_With_AvailableTools -> should_create_a_session_with_availableTools
-        var sanitizedName = Regex.Replace(testName!, @"_([A-Z])([A-Z]+)(_|$)", m =>
-            "_" + char.ToLowerInvariant(m.Groups[1].Value[0]) + m.Groups[2].Value.ToLowerInvariant() + m.Groups[3].Value);
-        sanitizedName = Regex.Replace(sanitizedName, @"(^|_)([A-Z])(?=[a-z]|_|$)", m =>
-            m.Groups[1].Value + char.ToLowerInvariant(m.Groups[2].Value[0]));
+        // Convert test method names to lowercase snake_case for snapshot filenames
+        // to avoid case collisions on case-insensitive filesystems (macOS/Windows)
+        var sanitizedName = Regex.Replace(testName!, @"[^a-zA-Z0-9]", "_").ToLowerInvariant();
         var snapshotPath = Path.Combine(_repoRoot, "test", "snapshots", testFile, $"{sanitizedName}.yaml");
         await _proxy.ConfigureAsync(snapshotPath, WorkDir);
     }

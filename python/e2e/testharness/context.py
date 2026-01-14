@@ -97,7 +97,7 @@ class E2ETestContext:
             test_file: The test file name (e.g., "session" from "test_session.py")
             test_name: The test name (e.g., "should_have_stateful_conversation")
         """
-        sanitized_name = re.sub(r"[^a-zA-Z0-9]", "_", test_name)
+        sanitized_name = re.sub(r"[^a-zA-Z0-9]", "_", test_name).lower()
         snapshot_path = SNAPSHOTS_DIR / test_file / f"{sanitized_name}.yaml"
         abs_snapshot_path = str(snapshot_path.resolve())
 

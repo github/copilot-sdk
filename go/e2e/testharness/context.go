@@ -99,7 +99,7 @@ func (c *TestContext) ConfigureForTest(t *testing.T) {
 	parts := strings.SplitN(testName, "/", 2)
 
 	testFile := strings.ToLower(strings.TrimPrefix(parts[0], "Test"))
-	sanitizedName := regexp.MustCompile(`[^a-zA-Z0-9]`).ReplaceAllString(parts[1], "_")
+	sanitizedName := strings.ToLower(regexp.MustCompile(`[^a-zA-Z0-9]`).ReplaceAllString(parts[1], "_"))
 	snapshotPath := filepath.Join("..", "..", "test", "snapshots", testFile, sanitizedName+".yaml")
 
 	absSnapshotPath, err := filepath.Abs(snapshotPath)
