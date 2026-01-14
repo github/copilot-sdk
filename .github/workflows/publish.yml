@@ -107,9 +107,8 @@ jobs:
         with:
           name: nodejs-package
           path: nodejs/*.tgz
-      # TODO: Re-enable npm publish once ready
-      # - name: Publish to npm
-      #   run: npm publish --tag ${{ github.event.inputs.dist-tag }} --access public --registry https://registry.npmjs.org
+      - name: Publish to npm
+        run: npm publish --tag ${{ github.event.inputs.dist-tag }} --access public --registry https://registry.npmjs.org
 
   publish-dotnet:
     name: Publish .NET SDK
