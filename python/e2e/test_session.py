@@ -326,6 +326,40 @@ class TestSessions:
         assistant_message = await get_final_assistant_message(session)
         assert "2" in assistant_message.data.content
 
+    async def test_should_receive_session_events(self, ctx: E2ETestContext):
+        import asyncio
+
+        session = await ctx.client.create_session()
+        received_events = []
+        idle_event = asyncio.Event()
+
+        def on_event(event):
+            received_events.append(event)
+            if event.type.value == "session.idle":
+                idle_event.set()
+
+        session.on(on_event)
+
+        # Send a message to trigger events
+        await session.send({"prompt": "What is 100+200?"})
+
+        # Wait for session to become idle
+        try:
+            await asyncio.wait_for(idle_event.wait(), timeout=60)
+        except asyncio.TimeoutError:
+            pytest.fail("Timed out waiting for session.idle")
+
+        # Should have received multiple events
+        assert len(received_events) > 0
+        event_types = [e.type.value for e in received_events]
+        assert "user.message" in event_types
+        assert "assistant.message" in event_types
+        assert "session.idle" in event_types
+
+        # Verify the assistant response contains the expected answer
+        assistant_message = await get_final_assistant_message(session)
+        assert "300" in assistant_message.data.content
+
 
 def _get_system_message(exchange: dict) -> str:
     messages = exchange.get("request", {}).get("messages", [])

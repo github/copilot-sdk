@@ -614,6 +614,79 @@ func TestSession(t *testing.T) {
 			t.Errorf("Expected assistant message to contain '2', got %v", assistantMessage.Data.Content)
 		}
 	})
+
+	t.Run("should receive session events", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		session, err := client.CreateSession(nil)
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		var receivedEvents []copilot.SessionEvent
+		idle := make(chan bool)
+
+		session.On(func(event copilot.SessionEvent) {
+			receivedEvents = append(receivedEvents, event)
+			if event.Type == "session.idle" {
+				select {
+				case idle <- true:
+				default:
+				}
+			}
+		})
+
+		// Send a message to trigger events
+		_, err = session.Send(copilot.MessageOptions{Prompt: "What is 100+200?"})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		// Wait for session to become idle
+		select {
+		case <-idle:
+		case <-time.After(60 * time.Second):
+			t.Fatal("Timed out waiting for session.idle")
+		}
+
+		// Should have received multiple events
+		if len(receivedEvents) == 0 {
+			t.Error("Expected to receive events, got none")
+		}
+
+		hasUserMessage := false
+		hasAssistantMessage := false
+		hasSessionIdle := false
+		for _, evt := range receivedEvents {
+			switch evt.Type {
+			case "user.message":
+				hasUserMessage = true
+			case "assistant.message":
+				hasAssistantMessage = true
+			case "session.idle":
+				hasSessionIdle = true
+			}
+		}
+
+		if !hasUserMessage {
+			t.Error("Expected to receive user.message event")
+		}
+		if !hasAssistantMessage {
+			t.Error("Expected to receive assistant.message event")
+		}
+		if !hasSessionIdle {
+			t.Error("Expected to receive session.idle event")
+		}
+
+		// Verify the assistant response contains the expected answer
+		assistantMessage, err := testharness.GetFinalAssistantMessage(session, 60*time.Second)
+		if err != nil {
+			t.Fatalf("Failed to get assistant message: %v", err)
+		}
+		if assistantMessage.Data.Content == nil || !strings.Contains(*assistantMessage.Data.Content, "300") {
+			t.Errorf("Expected assistant message to contain '300', got %v", assistantMessage.Data.Content)
+		}
+	})
 }
 
 func getSystemMessage(exchange testharness.ParsedHttpExchange) string {

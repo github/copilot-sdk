@@ -299,6 +299,41 @@ describe("Sessions", async () => {
         const assistantMessage = await getFinalAssistantMessage(session);
         expect(assistantMessage.data.content).toContain("2");
     });
+
+    it("should receive session events", async () => {
+        const session = await client.createSession();
+        const receivedEvents: Array<{ type: string }> = [];
+        let idleResolve: () => void;
+        const idlePromise = new Promise<void>((resolve) => {
+            idleResolve = resolve;
+        });
+
+        session.on((event) => {
+            receivedEvents.push(event);
+            if (event.type === "session.idle") {
+                idleResolve();
+            }
+        });
+
+        // Send a message to trigger events
+        await session.send({ prompt: "What is 100+200?" });
+
+        // Wait for session to become idle
+        await Promise.race([
+            idlePromise,
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 60000)),
+        ]);
+
+        // Should have received multiple events
+        expect(receivedEvents.length).toBeGreaterThan(0);
+        expect(receivedEvents.some((e) => e.type === "user.message")).toBe(true);
+        expect(receivedEvents.some((e) => e.type === "assistant.message")).toBe(true);
+        expect(receivedEvents.some((e) => e.type === "session.idle")).toBe(true);
+
+        // Verify the assistant response contains the expected answer
+        const assistantMessage = await getFinalAssistantMessage(session);
+        expect(assistantMessage.data.content).toContain("300");
+    });
 });
 
 function getSystemMessage(exchange: ParsedHttpExchange): string | undefined {

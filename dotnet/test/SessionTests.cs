@@ -287,7 +287,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     }
 
     [Fact]
-    public async Task Should_SessionEvt_Subscribed()
+    public async Task Should_Receive_Session_Events()
     {
         var session = await Client.CreateSessionAsync();
         var receivedEvents = new List<SessionEvent>();
@@ -303,7 +303,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         });
 
         // Send a message to trigger events
-        await session.SendAsync(new MessageOptions { Prompt = "Hello!" });
+        await session.SendAsync(new MessageOptions { Prompt = "What is 100+200?" });
 
         // Wait for session to become idle (indicating message processing is complete)
         var completed = await Task.WhenAny(idleReceived.Task, Task.Delay(TimeSpan.FromSeconds(60)));
@@ -314,6 +314,11 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         Assert.Contains(receivedEvents, evt => evt is UserMessageEvent);
         Assert.Contains(receivedEvents, evt => evt is AssistantMessageEvent);
         Assert.Contains(receivedEvents, evt => evt is SessionIdleEvent);
+
+        // Verify the assistant response contains the expected answer
+        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        Assert.NotNull(assistantMessage);
+        Assert.Contains("300", assistantMessage!.Data.Content);
 
         await session.DisposeAsync();
     }
