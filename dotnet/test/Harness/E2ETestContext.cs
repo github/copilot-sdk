@@ -101,7 +101,9 @@ public class E2ETestContext : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await _proxy.DisposeAsync();
+        // Skip writing snapshots in CI to avoid corrupting them on test failures
+        var isCI = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CI"));
+        await _proxy.StopAsync(skipWritingCache: isCI);
 
         try { if (Directory.Exists(HomeDir)) Directory.Delete(HomeDir, true); } catch { }
         try { if (Directory.Exists(WorkDir)) Directory.Delete(WorkDir, true); } catch { }

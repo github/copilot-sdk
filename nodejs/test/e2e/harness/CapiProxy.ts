@@ -43,8 +43,11 @@ export class CapiProxy {
         return await response.json();
     }
 
-    async stop(): Promise<void> {
-        const response = await fetch(`${this.proxyUrl}/stop`, { method: "POST" });
+    async stop(skipWritingCache?: boolean): Promise<void> {
+        const url = skipWritingCache
+            ? `${this.proxyUrl}/stop?skipWritingCache=true`
+            : `${this.proxyUrl}/stop`;
+        const response = await fetch(url, { method: "POST" });
         expect(response.ok).toBe(true);
     }
 }

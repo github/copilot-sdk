@@ -84,15 +84,16 @@ public class CapiProxy : IAsyncDisposable
         }
     }
 
-    public async Task StopAsync()
+    public async Task StopAsync(bool skipWritingCache = false)
     {
         if (_startupTask != null)
         {
             try
             {
                 var url = await _startupTask;
+                var stopUrl = skipWritingCache ? $"{url}/stop?skipWritingCache=true" : $"{url}/stop";
                 using var client = new HttpClient();
-                await client.PostAsync($"{url}/stop", null);
+                await client.PostAsync(stopUrl, null);
             }
             catch { /* Best effort */ }
         }

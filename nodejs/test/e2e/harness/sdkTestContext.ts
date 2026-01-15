@@ -8,7 +8,7 @@ import os from "os";
 import { basename, dirname, join, resolve } from "path";
 import { rimraf } from "rimraf";
 import { fileURLToPath } from "url";
-import { afterAll, afterEach, beforeEach, TestContext } from "vitest";
+import { afterAll, afterEach, beforeEach, onTestFailed, TestContext } from "vitest";
 import { CopilotClient } from "../../../src";
 import { CapiProxy } from "./CapiProxy";
 import { retry } from "./sdkTestHelper";
@@ -44,8 +44,15 @@ export async function createSdkTestContext() {
 
     const harness = { homeDir, workDir, openAiEndpoint, copilotClient, env };
 
+    // Track if any test fails to avoid writing corrupted snapshots
+    let anyTestFailed = false;
+
     // Wire up to Vitest lifecycle
     beforeEach(async (testContext) => {
+        onTestFailed(() => {
+            anyTestFailed = true;
+        });
+
         await openAiEndpoint.updateConfig({
             filePath: getTrafficCapturePath(testContext),
             workDir,
@@ -63,7 +70,7 @@ export async function createSdkTestContext() {
 
     afterAll(async () => {
         await copilotClient.stop();
-        await openAiEndpoint.stop();
+        await openAiEndpoint.stop(anyTestFailed);
         await rmDir("remove e2e test homeDir", homeDir);
         await rmDir("remove e2e test workDir", workDir);
     });
