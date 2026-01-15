@@ -400,6 +400,11 @@ class CopilotClient:
                 self._convert_custom_agent_to_wire_format(agent) for agent in custom_agents
             ]
 
+        # Add config directory override if provided
+        config_dir = cfg.get("config_dir")
+        if config_dir:
+            payload["configDir"] = config_dir
+
         if not self._client:
             raise RuntimeError("Client not connected")
         response = await self._client.request("session.create", payload)

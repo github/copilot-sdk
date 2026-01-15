@@ -534,6 +534,10 @@ func (c *Client) CreateSession(config *SessionConfig) (*Session, error) {
 			}
 			params["customAgents"] = customAgents
 		}
+		// Add config directory override
+		if config.ConfigDir != "" {
+			params["configDir"] = config.ConfigDir
+		}
 	}
 
 	result, err := c.client.Request("session.create", params)

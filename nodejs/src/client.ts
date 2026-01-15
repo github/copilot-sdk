@@ -446,6 +446,7 @@ export class CopilotClient {
             streaming: config.streaming,
             mcpServers: config.mcpServers,
             customAgents: config.customAgents,
+            configDir: config.configDir,
         });
 
         const sessionId = (response as { sessionId: string }).sessionId;

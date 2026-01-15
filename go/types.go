@@ -144,6 +144,9 @@ type SessionConfig struct {
 	SessionID string
 	// Model to use for this session
 	Model string
+	// ConfigDir overrides the default configuration directory location.
+	// When specified, the session will use this directory for storing config and state.
+	ConfigDir string
 	// Tools exposes caller-implemented tools to the CLI
 	Tools []Tool
 	// SystemMessage configures system message customization
