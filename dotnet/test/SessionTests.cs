@@ -285,4 +285,36 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         Assert.NotNull(assistantMessage);
         Assert.Contains("2", assistantMessage!.Data.Content);
     }
+
+    [Fact]
+    public async Task Should_SessionEvt_Subscribed()
+    {
+        var session = await Client.CreateSessionAsync();
+        var receivedEvents = new List<SessionEvent>();
+        var idleReceived = new TaskCompletionSource<bool>();
+
+        session.On(evt =>
+        {
+            receivedEvents.Add(evt);
+            if (evt is SessionIdleEvent)
+            {
+                idleReceived.TrySetResult(true);
+            }
+        });
+
+        // Send a message to trigger events
+        await session.SendAsync(new MessageOptions { Prompt = "Hello!" });
+
+        // Wait for session to become idle (indicating message processing is complete)
+        var completed = await Task.WhenAny(idleReceived.Task, Task.Delay(TimeSpan.FromSeconds(60)));
+        Assert.Equal(idleReceived.Task, completed);
+
+        // Should have received multiple events (user message, assistant message, idle, etc.)
+        Assert.NotEmpty(receivedEvents);
+        Assert.Contains(receivedEvents, evt => evt is UserMessageEvent);
+        Assert.Contains(receivedEvents, evt => evt is AssistantMessageEvent);
+        Assert.Contains(receivedEvents, evt => evt is SessionIdleEvent);
+
+        await session.DisposeAsync();
+    }
 }
