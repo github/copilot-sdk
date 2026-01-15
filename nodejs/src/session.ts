@@ -100,7 +100,7 @@ export class CopilotSession {
      * Events are still delivered to handlers registered via {@link on} while waiting.
      *
      * @param options - The message options including the prompt and optional attachments
-     * @param timeout - Timeout in milliseconds (default: 60000)
+     * @param timeout - Timeout in milliseconds (default: 60000). Controls how long to wait; does not abort in-flight agent work.
      * @returns A promise that resolves with the final assistant message when the session becomes idle,
      *          or undefined if no assistant message was received
      * @throws Error if the timeout is reached before the session becomes idle

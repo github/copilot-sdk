@@ -384,4 +384,12 @@ describe("Send Blocking Behavior", async () => {
         expect(events).toContain("session.idle");
         expect(events).toContain("assistant.message");
     });
+
+    it("sendAndWait throws on timeout", async () => {
+        const session = await client.createSession();
+
+        await expect(session.sendAndWait({ prompt: "What is 3+3?" }, 1)).rejects.toThrow(
+            /Timeout after 1ms/
+        );
+    });
 });
