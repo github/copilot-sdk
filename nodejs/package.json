@@ -26,7 +26,7 @@
     "lint:fix": "eslint --fix \"src/**/*.ts\" \"test/**/*.ts\"",
     "typecheck": "tsc --noEmit",
     "generate:session-types": "tsx scripts/generate-session-types.ts",
-    "update:protocol-version": "tsx scripts/generate-protocol-version.ts",
+    "update:protocol-version": "tsx scripts/update-protocol-version.ts",
     "prepublishOnly": "npm run build",
     "package": "npm run clean && npm run build && node scripts/set-version.js && npm pack && npm version 0.1.0 --no-git-tag-version --allow-same-version"
   },
