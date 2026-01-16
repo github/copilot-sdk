@@ -51,6 +51,10 @@ jobs:
         working-directory: ./test/harness
         run: npm ci --ignore-scripts
 
+      - name: Warm up PowerShell
+        if: runner.os == 'Windows'
+        run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
+
       - name: Run Node.js SDK tests
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
@@ -99,6 +103,10 @@ jobs:
         working-directory: ./test/harness
         run: npm ci --ignore-scripts
 
+      - name: Warm up PowerShell
+        if: runner.os == 'Windows'
+        run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
+
       - name: Run Go SDK tests
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
@@ -143,6 +151,10 @@ jobs:
       - name: Install test harness dependencies
         working-directory: ./test/harness
         run: npm ci --ignore-scripts
+
+      - name: Warm up PowerShell
+        if: runner.os == 'Windows'
+        run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
 
       - name: Run Python SDK tests
         env:
@@ -195,6 +207,10 @@ jobs:
       - name: Install test harness dependencies
         working-directory: ./test/harness
         run: npm ci --ignore-scripts
+
+      - name: Warm up PowerShell
+        if: runner.os == 'Windows'
+        run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
 
       - name: Run .NET SDK tests
         env:
