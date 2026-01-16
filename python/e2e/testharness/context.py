@@ -73,14 +73,18 @@ class E2ETestContext:
             }
         )
 
-    async def teardown(self):
-        """Clean up the test context."""
+    async def teardown(self, test_failed: bool = False):
+        """Clean up the test context.
+
+        Args:
+            test_failed: If True, skip writing snapshots to avoid corruption.
+        """
         if self._client:
             await self._client.stop()
             self._client = None
 
         if self._proxy:
-            await self._proxy.stop()
+            await self._proxy.stop(skip_writing_cache=test_failed)
             self._proxy = None
 
         if self.home_dir and os.path.exists(self.home_dir):

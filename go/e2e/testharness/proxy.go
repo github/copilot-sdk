@@ -75,6 +75,12 @@ func (p *CapiProxy) Start() (string, error) {
 
 // Stop gracefully shuts down the proxy server.
 func (p *CapiProxy) Stop() error {
+	return p.StopWithOptions(false)
+}
+
+// StopWithOptions gracefully shuts down the proxy server.
+// If skipWritingCache is true, the proxy won't write captured exchanges to disk.
+func (p *CapiProxy) StopWithOptions(skipWritingCache bool) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -84,8 +90,12 @@ func (p *CapiProxy) Stop() error {
 
 	// Send stop request to the server
 	if p.proxyURL != "" {
+		stopURL := p.proxyURL + "/stop"
+		if skipWritingCache {
+			stopURL += "?skipWritingCache=true"
+		}
 		// Best effort - ignore errors
-		resp, err := http.Post(p.proxyURL+"/stop", "application/json", nil)
+		resp, err := http.Post(stopURL, "application/json", nil)
 		if err == nil {
 			resp.Body.Close()
 		}

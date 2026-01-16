@@ -59,16 +59,23 @@ class CapiProxy:
         self._proxy_url = match.group(1)
         return self._proxy_url
 
-    async def stop(self):
-        """Gracefully shut down the proxy server."""
+    async def stop(self, skip_writing_cache: bool = False):
+        """Gracefully shut down the proxy server.
+
+        Args:
+            skip_writing_cache: If True, the proxy won't write captured exchanges to disk.
+        """
         if not self._process:
             return
 
         # Send stop request to the server
         if self._proxy_url:
             try:
+                stop_url = f"{self._proxy_url}/stop"
+                if skip_writing_cache:
+                    stop_url += "?skipWritingCache=true"
                 async with httpx.AsyncClient() as client:
-                    await client.post(f"{self._proxy_url}/stop")
+                    await client.post(stop_url)
             except Exception:
                 pass  # Best effort
 

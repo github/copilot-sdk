@@ -5,7 +5,7 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: Run 'echo hello world' and tell me the output
+        content: Run 'echo hello' and tell me the output
       - role: assistant
         tool_calls:
           - id: toolcall_0
@@ -19,14 +19,31 @@ conversations:
             type: function
             function:
               name: ${shell}
-              arguments: '{"command":"echo hello world","description":"Run echo hello world"}'
+              arguments: '{"command":"echo hello","description":"Run echo hello"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Run 'echo hello' and tell me the output
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Running echo command"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"echo hello","description":"Run echo hello"}'
       - role: tool
         tool_call_id: toolcall_0
         content: Intent logged
       - role: tool
         tool_call_id: toolcall_1
         content: |-
-          hello world
+          hello
           <exited with exit code 0>
       - role: assistant
-        content: "The output is: **hello world**"
+        content: The output is `hello` with exit code 0 (success).

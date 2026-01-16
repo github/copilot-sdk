@@ -99,7 +99,7 @@ func TestPermissions(t *testing.T) {
 		}
 
 		_, err = session.Send(copilot.MessageOptions{
-			Prompt: "Run 'echo hello world' and tell me the output",
+			Prompt: "Run 'echo hello' and tell me the output",
 		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)

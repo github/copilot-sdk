@@ -8,7 +8,7 @@ import os from "os";
 import { basename, dirname, join, resolve } from "path";
 import { rimraf } from "rimraf";
 import { fileURLToPath } from "url";
-import { afterAll, afterEach, beforeEach, TestContext } from "vitest";
+import { afterAll, afterEach, beforeEach, onTestFailed, TestContext } from "vitest";
 import { CopilotClient } from "../../../src";
 import { CapiProxy } from "./CapiProxy";
 import { retry } from "./sdkTestHelper";
@@ -17,7 +17,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const SNAPSHOTS_DIR = resolve(__dirname, "../../../../test/snapshots");
 
-export const CLI_PATH = resolve(__dirname, "../../../node_modules/@github/copilot/index.js");
+export const CLI_PATH =
+    process.env.COPILOT_CLI_PATH ||
+    resolve(__dirname, "../../../node_modules/@github/copilot/index.js");
 
 export async function createSdkTestContext() {
     const homeDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-config-")));
@@ -44,8 +46,16 @@ export async function createSdkTestContext() {
 
     const harness = { homeDir, workDir, openAiEndpoint, copilotClient, env };
 
+    // Track if any test fails to avoid writing corrupted snapshots
+    let anyTestFailed = false;
+
     // Wire up to Vitest lifecycle
     beforeEach(async (testContext) => {
+        // Must be inside beforeEach - vitest requires test context
+        onTestFailed(() => {
+            anyTestFailed = true;
+        });
+
         await openAiEndpoint.updateConfig({
             filePath: getTrafficCapturePath(testContext),
             workDir,
@@ -63,7 +73,7 @@ export async function createSdkTestContext() {
 
     afterAll(async () => {
         await copilotClient.stop();
-        await openAiEndpoint.stop();
+        await openAiEndpoint.stop(anyTestFailed);
         await rmDir("remove e2e test homeDir", homeDir);
         await rmDir("remove e2e test workDir", workDir);
     });

@@ -146,12 +146,13 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
 
         // Handle /stop endpoint for stopping the proxy
         if (
-          options.requestOptions.path === "/stop" &&
+          options.requestOptions.path?.startsWith("/stop") &&
           options.requestOptions.method === "POST"
         ) {
+          const skipWritingCache = options.requestOptions.path.includes("skipWritingCache=true");
           options.onResponseStart(200, {});
           options.onResponseEnd();
-          await this.stop();
+          await this.stop(skipWritingCache);
           process.exit(0);
         }
 

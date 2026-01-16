@@ -19,7 +19,24 @@ conversations:
             type: function
             function:
               name: ${shell}
-              arguments: '{"command":"echo test","description":"Run echo test"}'
+              arguments: '{"command":"echo test","description":"Run echo test command"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Run 'echo test' and tell me what happens
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Running echo command"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"echo test","description":"Run echo test command"}'
       - role: tool
         tool_call_id: toolcall_0
         content: Intent logged
@@ -29,4 +46,5 @@ conversations:
           test
           <exited with exit code 0>
       - role: assistant
-        content: The command printed "test" to the console and exited successfully with exit code 0.
+        content: The command successfully executed and outputted "test" to the console, then exited with code 0 (indicating
+          success).
