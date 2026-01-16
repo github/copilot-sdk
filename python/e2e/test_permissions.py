@@ -8,7 +8,7 @@ import pytest
 
 from copilot import PermissionRequest, PermissionRequestResult
 
-from .testharness import E2ETestContext, get_final_assistant_message
+from .testharness import E2ETestContext
 from .testharness.helper import read_file, write_file
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")

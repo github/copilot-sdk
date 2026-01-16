@@ -334,7 +334,8 @@ describe("Send Blocking Behavior", async () => {
             events.push(event.type);
         });
 
-        await session.send({ prompt: "What is 1+1?" });
+        // Use a slow command so we can verify send() returns before completion
+        await session.send({ prompt: "Run 'sleep 2 && echo done'" });
 
         // send() should return before turn completes (no session.idle yet)
         expect(events).not.toContain("session.idle");
@@ -342,7 +343,7 @@ describe("Send Blocking Behavior", async () => {
         // Wait for turn to complete
         const message = await getFinalAssistantMessage(session);
 
-        expect(message.data.content).toContain("2");
+        expect(message.data.content).toContain("done");
         expect(events).toContain("session.idle");
         expect(events).toContain("assistant.message");
     });
@@ -367,8 +368,9 @@ describe("Send Blocking Behavior", async () => {
     it("sendAndWait throws on timeout", async () => {
         const session = await client.createSession();
 
-        await expect(session.sendAndWait({ prompt: "What is 3+3?" }, 1)).rejects.toThrow(
-            /Timeout after 1ms/
-        );
+        // Use a slow command to ensure timeout triggers before completion
+        await expect(
+            session.sendAndWait({ prompt: "Run 'sleep 2 && echo done'" }, 100)
+        ).rejects.toThrow(/Timeout after 100ms/);
     });
 });

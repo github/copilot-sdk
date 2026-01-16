@@ -329,15 +329,16 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
 
         session.On(evt => events.Add(evt.Type));
 
-        await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
+        // Use a slow command so we can verify SendAsync() returns before completion
+        await session.SendAsync(new MessageOptions { Prompt = "Run 'sleep 2 && echo done'" });
 
-        // send() should return before turn completes (no session.idle yet)
+        // SendAsync() should return before turn completes (no session.idle yet)
         Assert.DoesNotContain("session.idle", events);
 
         // Wait for turn to complete
         var message = await TestHelper.GetFinalAssistantMessageAsync(session);
 
-        Assert.Contains("2", message?.Data.Content ?? string.Empty);
+        Assert.Contains("done", message?.Data.Content ?? string.Empty);
         Assert.Contains("session.idle", events);
         Assert.Contains("assistant.message", events);
     }
@@ -364,8 +365,9 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     {
         var session = await Client.CreateSessionAsync();
 
+        // Use a slow command to ensure timeout triggers before completion
         var ex = await Assert.ThrowsAsync<TimeoutException>(() =>
-            session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 3+3?" }, TimeSpan.FromMilliseconds(1)));
+            session.SendAndWaitAsync(new MessageOptions { Prompt = "Run 'sleep 2 && echo done'" }, TimeSpan.FromMilliseconds(100)));
 
         Assert.Contains("timed out", ex.Message);
     }

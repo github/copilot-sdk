@@ -152,17 +152,18 @@ func (s *Session) SendAndWait(options MessageOptions, timeout time.Duration) (*S
 	var mu sync.Mutex
 
 	unsubscribe := s.On(func(event SessionEvent) {
-		if event.Type == generated.AssistantMessage {
+		switch event.Type {
+		case generated.AssistantMessage:
 			mu.Lock()
 			eventCopy := event
 			lastAssistantMessage = &eventCopy
 			mu.Unlock()
-		} else if event.Type == generated.SessionIdle {
+		case generated.SessionIdle:
 			select {
 			case idleCh <- struct{}{}:
 			default:
 			}
-		} else if event.Type == generated.SessionError {
+		case generated.SessionError:
 			errMsg := "session error"
 			if event.Data.Message != nil {
 				errMsg = *event.Data.Message

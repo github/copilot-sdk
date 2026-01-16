@@ -14,9 +14,11 @@ from .generated.session_events import SessionEvent, SessionEventType, session_ev
 from .types import (
     MessageOptions,
     PermissionHandler,
-    SessionEvent as SessionEventTypeAlias,
     Tool,
     ToolHandler,
+)
+from .types import (
+    SessionEvent as SessionEventTypeAlias,
 )
 
 
