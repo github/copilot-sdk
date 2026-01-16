@@ -205,3 +205,20 @@ jobs:
             --target ${{ github.sha }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag Go SDK submodule
+        if: github.event.inputs.dist-tag == 'latest' || github.event.inputs.dist-tag == 'prerelease'
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch --tags
+          TAG_NAME="go/v${{ needs.version.outputs.version }}"
+          # Try to create the tag - will fail if it already exists
+          if git tag "$TAG_NAME" ${{ github.sha }} 2>/dev/null; then
+            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git "$TAG_NAME"
+            echo "Created and pushed tag $TAG_NAME"
+          else
+            echo "Tag $TAG_NAME already exists, skipping"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
