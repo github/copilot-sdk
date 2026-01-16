@@ -213,12 +213,18 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch --tags
           TAG_NAME="go/v${{ needs.version.outputs.version }}"
-          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+          # Check if tag exists locally or remotely
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1 || git ls-remote --tags origin "refs/tags/$TAG_NAME" | grep -q "$TAG_NAME"; then
             echo "Tag $TAG_NAME already exists, skipping"
           else
             git tag "$TAG_NAME"
-            git push origin "$TAG_NAME"
-            echo "Created and pushed tag $TAG_NAME"
+            if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+              git push origin "$TAG_NAME"
+              echo "Created and pushed tag $TAG_NAME"
+            else
+              echo "Failed to create tag $TAG_NAME"
+              exit 1
+            fi
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
