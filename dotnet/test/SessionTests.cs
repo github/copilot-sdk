@@ -322,4 +322,25 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
 
         await session.DisposeAsync();
     }
+
+    [Fact]
+    public async Task Should_Create_Session_With_Custom_Config_Dir()
+    {
+        var customConfigDir = Path.Combine(Ctx.HomeDir, "custom-config");
+        var session = await Client.CreateSessionAsync(new SessionConfig { ConfigDir = customConfigDir });
+
+        Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
+
+        // Verify config.json was written to the custom config dir
+        var configPath = Path.Combine(customConfigDir, "github-copilot", "config.json");
+        Assert.True(File.Exists(configPath), $"Expected config.json at {configPath}");
+        var configContent = System.Text.Json.JsonDocument.Parse(await File.ReadAllTextAsync(configPath));
+        Assert.Equal(session.SessionId, configContent.RootElement.GetProperty("sessionId").GetString());
+
+        // Session should work normally with custom config dir
+        await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
+        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        Assert.NotNull(assistantMessage);
+        Assert.Contains("2", assistantMessage!.Data.Content);
+    }
 }

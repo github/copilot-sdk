@@ -343,7 +343,8 @@ public class CopilotClient : IDisposable, IAsyncDisposable
             config?.OnPermissionRequest != null ? true : null,
             config?.Streaming == true ? true : null,
             config?.McpServers,
-            config?.CustomAgents);
+            config?.CustomAgents,
+            config?.ConfigDir);
 
         var response = await connection.Rpc.InvokeWithCancellationAsync<CreateSessionResponse>(
             "session.create", [request], cancellationToken);
@@ -922,7 +923,8 @@ public class CopilotClient : IDisposable, IAsyncDisposable
         bool? RequestPermission,
         bool? Streaming,
         Dictionary<string, object>? McpServers,
-        List<CustomAgentConfig>? CustomAgents);
+        List<CustomAgentConfig>? CustomAgents,
+        string? ConfigDir);
 
     private record ToolDefinition(
         string Name,

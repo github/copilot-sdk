@@ -1,6 +1,8 @@
 package e2e
 
 import (
+	"encoding/json"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -685,6 +687,52 @@ func TestSession(t *testing.T) {
 		}
 		if assistantMessage.Data.Content == nil || !strings.Contains(*assistantMessage.Data.Content, "300") {
 			t.Errorf("Expected assistant message to contain '300', got %v", assistantMessage.Data.Content)
+		}
+	})
+
+	t.Run("should create session with custom config dir", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		customConfigDir := ctx.HomeDir + "/custom-config"
+		session, err := client.CreateSession(&copilot.SessionConfig{
+			ConfigDir: customConfigDir,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session with custom config dir: %v", err)
+		}
+
+		matched, _ := regexp.MatchString(`^[a-f0-9-]+$`, session.SessionID)
+		if !matched {
+			t.Errorf("Expected session ID to match UUID pattern, got %q", session.SessionID)
+		}
+
+		// Verify config.json was written to the custom config dir
+		configPath := customConfigDir + "/github-copilot/config.json"
+		configData, err := os.ReadFile(configPath)
+		if err != nil {
+			t.Fatalf("Failed to read config.json at %s: %v", configPath, err)
+		}
+		var configContent map[string]interface{}
+		if err := json.Unmarshal(configData, &configContent); err != nil {
+			t.Fatalf("Failed to parse config.json: %v", err)
+		}
+		if configContent["sessionId"] != session.SessionID {
+			t.Errorf("Expected config.json sessionId to be %q, got %v", session.SessionID, configContent["sessionId"])
+		}
+
+		// Session should work normally with custom config dir
+		_, err = session.Send(copilot.MessageOptions{Prompt: "What is 1+1?"})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		assistantMessage, err := testharness.GetFinalAssistantMessage(session, 60*time.Second)
+		if err != nil {
+			t.Fatalf("Failed to get assistant message: %v", err)
+		}
+
+		if assistantMessage.Data.Content == nil || !strings.Contains(*assistantMessage.Data.Content, "2") {
+			t.Errorf("Expected assistant message to contain '2', got %v", assistantMessage.Data.Content)
 		}
 	})
 }

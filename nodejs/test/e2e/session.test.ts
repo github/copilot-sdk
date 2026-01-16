@@ -1,3 +1,4 @@
+import * as fs from "node:fs";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { ParsedHttpExchange } from "../../../test/harness/replayingCapiProxy.js";
 import { CopilotClient } from "../../src/index.js";
@@ -333,6 +334,26 @@ describe("Sessions", async () => {
         // Verify the assistant response contains the expected answer
         const assistantMessage = await getFinalAssistantMessage(session);
         expect(assistantMessage.data.content).toContain("300");
+    });
+
+    it("should create session with custom config dir", async () => {
+        const customConfigDir = `${homeDir}/custom-config`;
+        const session = await client.createSession({
+            configDir: customConfigDir,
+        });
+
+        expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
+
+        // Verify config.json was written to the custom config dir
+        const configPath = `${customConfigDir}/github-copilot/config.json`;
+        expect(fs.existsSync(configPath)).toBe(true);
+        const configContent = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+        expect(configContent).toHaveProperty("sessionId", session.sessionId);
+
+        // Session should work normally with custom config dir
+        await session.send({ prompt: "What is 1+1?" });
+        const assistantMessage = await getFinalAssistantMessage(session);
+        expect(assistantMessage.data.content).toContain("2");
     });
 });
 
