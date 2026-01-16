@@ -48,10 +48,10 @@ class ShortReadStream:
         """Read until newline"""
         end = self.data.find(b"\n", self.pos) + 1
         if end == 0:  # Not found
-            result = self.data[self.pos :]
+            result = self.data[self.pos:]
             self.pos = len(self.data)
         else:
-            result = self.data[self.pos : end]
+            result = self.data[self.pos:end]
             self.pos = end
         return result
 
@@ -65,7 +65,7 @@ class ShortReadStream:
         available = len(self.data) - self.pos
         to_read = min(n, available, self.chunk_size)
 
-        result = self.data[self.pos : self.pos + to_read]
+        result = self.data[self.pos:self.pos + to_read]
         self.pos += to_read
         return result
 
