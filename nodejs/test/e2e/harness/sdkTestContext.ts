@@ -51,6 +51,7 @@ export async function createSdkTestContext() {
 
     // Wire up to Vitest lifecycle
     beforeEach(async (testContext) => {
+        // Must be inside beforeEach - vitest requires test context
         onTestFailed(() => {
             anyTestFailed = true;
         });

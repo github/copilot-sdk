@@ -5,29 +5,26 @@ import pytest_asyncio
 
 from .testharness import E2ETestContext
 
-# Track if any test failed to avoid writing corrupted snapshots
-_any_test_failed = False
-
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_makereport(item, call):
     """Track test failures to avoid writing corrupted snapshots."""
-    global _any_test_failed
     outcome = yield
     rep = outcome.get_result()
     if rep.when == "call" and rep.failed:
-        _any_test_failed = True
+        # Store on the item's stash so the fixture can access it
+        item.session.stash.setdefault("any_test_failed", False)
+        item.session.stash["any_test_failed"] = True
 
 
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
-async def ctx():
+async def ctx(request):
     """Create and teardown a test context shared across all tests in this module."""
-    global _any_test_failed
-    _any_test_failed = False  # Reset for each module
     context = E2ETestContext()
     await context.setup()
     yield context
-    await context.teardown(test_failed=_any_test_failed)
+    any_failed = request.session.stash.get("any_test_failed", False)
+    await context.teardown(test_failed=any_failed)
 
 
 @pytest_asyncio.fixture(autouse=True, loop_scope="module")
