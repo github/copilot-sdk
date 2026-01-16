@@ -206,6 +206,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Tag Go SDK submodule
+        if: github.event.inputs.dist-tag == 'latest' || github.event.inputs.dist-tag == 'prerelease'
         run: |
           set -e
           git config user.name "github-actions[bot]"
