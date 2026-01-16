@@ -5,7 +5,6 @@ import pytest_asyncio
 
 from .testharness import E2ETestContext
 
-
 # Track if any test failed to avoid writing corrupted snapshots
 _any_test_failed = False
 

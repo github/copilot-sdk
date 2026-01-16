@@ -75,7 +75,7 @@ class E2ETestContext:
 
     async def teardown(self, test_failed: bool = False):
         """Clean up the test context.
-        
+
         Args:
             test_failed: If True, skip writing snapshots to avoid corruption.
         """

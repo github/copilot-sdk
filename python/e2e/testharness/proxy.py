@@ -61,7 +61,7 @@ class CapiProxy:
 
     async def stop(self, skip_writing_cache: bool = False):
         """Gracefully shut down the proxy server.
-        
+
         Args:
             skip_writing_cache: If True, the proxy won't write captured exchanges to disk.
         """

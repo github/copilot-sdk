@@ -42,8 +42,7 @@ type TestContext struct {
 	WorkDir  string
 	ProxyURL string
 
-	proxy      *CapiProxy
-	testFailed bool
+	proxy *CapiProxy
 }
 
 // NewTestContext creates a new test context with isolated directories and a replaying proxy.
