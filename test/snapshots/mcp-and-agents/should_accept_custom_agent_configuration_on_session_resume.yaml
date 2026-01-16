@@ -7,8 +7,8 @@ conversations:
       - role: user
         content: What is 1+1?
       - role: assistant
-        content: 1 + 1 = 2
+        content: 1+1 equals 2.
       - role: user
         content: What is 6+6?
       - role: assistant
-        content: 6 + 6 = 12
+        content: 6+6 equals 12.

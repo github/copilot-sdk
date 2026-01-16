@@ -42,7 +42,8 @@ type TestContext struct {
 	WorkDir  string
 	ProxyURL string
 
-	proxy *CapiProxy
+	proxy      *CapiProxy
+	testFailed bool
 }
 
 // NewTestContext creates a new test context with isolated directories and a replaying proxy.
@@ -82,7 +83,7 @@ func NewTestContext(t *testing.T) *TestContext {
 	}
 
 	t.Cleanup(func() {
-		ctx.Close()
+		ctx.Close(t.Failed())
 	})
 
 	return ctx
@@ -113,9 +114,9 @@ func (c *TestContext) ConfigureForTest(t *testing.T) {
 }
 
 // Close cleans up the test context resources.
-func (c *TestContext) Close() {
+func (c *TestContext) Close(testFailed bool) {
 	if c.proxy != nil {
-		c.proxy.Stop()
+		c.proxy.StopWithOptions(testFailed)
 	}
 	if c.HomeDir != "" {
 		os.RemoveAll(c.HomeDir)

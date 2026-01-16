@@ -7,7 +7,7 @@ conversations:
       - role: user
         content: What is 1+1?
       - role: assistant
-        content: 1 + 1 = 2
+        content: 1+1 equals 2.
       - role: user
         content: Run 'echo resumed' for me
       - role: assistant
@@ -24,6 +24,27 @@ conversations:
             function:
               name: ${shell}
               arguments: '{"command":"echo resumed","description":"Run echo resumed"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: What is 1+1?
+      - role: assistant
+        content: 1+1 equals 2.
+      - role: user
+        content: Run 'echo resumed' for me
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Running echo command"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"echo resumed","description":"Run echo resumed"}'
       - role: tool
         tool_call_id: toolcall_0
         content: Intent logged
@@ -33,4 +54,4 @@ conversations:
           resumed
           <exited with exit code 0>
       - role: assistant
-        content: "The command executed successfully and output: `resumed`"
+        content: 'Command executed successfully - output: "resumed"'

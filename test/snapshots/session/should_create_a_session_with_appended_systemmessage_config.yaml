@@ -8,8 +8,8 @@ conversations:
         content: What is your full name?
       - role: assistant
         content: >-
-          My full name is **GitHub Copilot CLI**. I'm a terminal assistant built by GitHub to help you with software
-          engineering tasks directly from the command line.
+          I am the GitHub Copilot CLI, a terminal assistant built by GitHub. I'm an interactive command-line tool
+          designed to help with software engineering tasks.
 
 
           Have a nice day!

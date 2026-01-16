@@ -7,8 +7,6 @@ conversations:
       - role: user
         content: What is the secret number for key ALPHA?
       - role: assistant
-        content: I'll get the secret number for key ALPHA.
-      - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function

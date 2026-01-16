@@ -7,6 +7,8 @@ conversations:
       - role: user
         content: Edit test.txt and replace 'original' with 'modified'
       - role: assistant
+        content: I'll view the file first to see its contents, then make the replacement.
+      - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
@@ -15,6 +17,24 @@ conversations:
               arguments: '{"intent":"Editing test.txt file"}'
       - role: assistant
         tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test.txt"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Edit test.txt and replace 'original' with 'modified'
+      - role: assistant
+        content: I'll view the file first to see its contents, then make the replacement.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Editing test.txt file"}'
           - id: toolcall_1
             type: function
             function:
@@ -37,4 +57,4 @@ conversations:
         tool_call_id: toolcall_2
         content: File ${workdir}/test.txt updated with changes.
       - role: assistant
-        content: Done! Replaced 'original' with 'modified' in test.txt.
+        content: Done! I've replaced 'original' with 'modified' in test.txt.
