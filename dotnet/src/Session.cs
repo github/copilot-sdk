@@ -157,9 +157,9 @@ public class CopilotSession : IAsyncDisposable
             {
                 tcs.TrySetResult(lastAssistantMessage);
             }
-            else if (evt.Type == "session.error")
+            else if (evt is SessionErrorEvent errorEvent)
             {
-                var message = evt.Data?.ToString() ?? "session error";
+                var message = errorEvent.Data?.Message ?? "session error";
                 tcs.TrySetException(new InvalidOperationException($"Session error: {message}"));
             }
         }
@@ -340,7 +340,10 @@ public class CopilotSession : IAsyncDisposable
         var response = await _rpc.InvokeWithCancellationAsync<GetMessagesResponse>(
             "session.getMessages", [new { sessionId = SessionId }], cancellationToken);
 
-        return response.Events.Select(e => SessionEvent.FromJson(e.ToJsonString())).ToList();
+        return response.Events
+            .Select(e => SessionEvent.FromJson(e.ToJsonString()))
+            .Where(e => e != null)
+            .ToList()!;
     }
 
     /// <summary>

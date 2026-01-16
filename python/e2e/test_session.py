@@ -204,8 +204,8 @@ class TestSessions:
             }
         )
 
-        await session.send_and_wait({"prompt": "What is the secret number for key ALPHA?"})
-        answer = await get_final_assistant_message(session)
+        answer = await session.send_and_wait({"prompt": "What is the secret number for key ALPHA?"})
+        assert answer is not None
         assert "54321" in answer.data.content
 
     async def test_should_create_session_with_custom_provider(self, ctx: E2ETestContext):
