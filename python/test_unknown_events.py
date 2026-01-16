@@ -54,7 +54,7 @@ class TestUnknownEventHandling:
             "data": {},
         }
         
-        with pytest.raises(Exception):
+        with pytest.raises((ValueError, TypeError, OSError)):
             session_event_from_dict(malformed_event2)
 
     def test_handler_catches_parsing_exceptions(self):
