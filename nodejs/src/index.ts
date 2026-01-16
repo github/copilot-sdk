@@ -9,7 +9,7 @@
  */
 
 export { CopilotClient } from "./client.js";
-export { CopilotSession } from "./session.js";
+export { CopilotSession, type AssistantMessageEvent } from "./session.js";
 export { defineTool } from "./types.js";
 export type {
     ConnectionState,

@@ -47,8 +47,7 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
         // Create a session first
         var session1 = await Client.CreateSessionAsync();
         var sessionId = session1.SessionId;
-        await session1.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
-        await TestHelper.GetFinalAssistantMessageAsync(session1);
+        await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
 
         // Resume with MCP servers
         var mcpServers = new Dictionary<string, object>
@@ -69,9 +68,7 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
 
         Assert.Equal(sessionId, session2.SessionId);
 
-        await session2.SendAsync(new MessageOptions { Prompt = "What is 3+3?" });
-
-        var message = await TestHelper.GetFinalAssistantMessageAsync(session2);
+        var message = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "What is 3+3?" });
         Assert.NotNull(message);
         Assert.Contains("6", message!.Data.Content);
 
@@ -146,8 +143,7 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
         // Create a session first
         var session1 = await Client.CreateSessionAsync();
         var sessionId = session1.SessionId;
-        await session1.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
-        await TestHelper.GetFinalAssistantMessageAsync(session1);
+        await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
 
         // Resume with custom agents
         var customAgents = new List<CustomAgentConfig>
@@ -168,9 +164,7 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
 
         Assert.Equal(sessionId, session2.SessionId);
 
-        await session2.SendAsync(new MessageOptions { Prompt = "What is 6+6?" });
-
-        var message = await TestHelper.GetFinalAssistantMessageAsync(session2);
+        var message = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "What is 6+6?" });
         Assert.NotNull(message);
         Assert.Contains("12", message!.Data.Content);
 

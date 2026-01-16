@@ -36,8 +36,8 @@ namespace GitHub.Copilot.SDK;
 ///     }
 /// });
 ///
-/// // Send a message
-/// await session.SendAsync(new MessageOptions { Prompt = "Hello, world!" });
+/// // Send a message and wait for completion
+/// await session.SendAndWaitAsync(new MessageOptions { Prompt = "Hello, world!" });
 /// </code>
 /// </example>
 public class CopilotSession : IAsyncDisposable
@@ -76,8 +76,13 @@ public class CopilotSession : IAsyncDisposable
     /// <returns>A task that resolves with the ID of the response message, which can be used to correlate events.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the session has been disposed.</exception>
     /// <remarks>
-    /// The message is processed asynchronously. Subscribe to events via <see cref="On"/> to receive
-    /// streaming responses and other session events.
+    /// <para>
+    /// This method returns immediately after the message is queued. Use <see cref="SendAndWaitAsync"/>
+    /// if you need to wait for the assistant to finish processing.
+    /// </para>
+    /// <para>
+    /// Subscribe to events via <see cref="On"/> to receive streaming responses and other session events.
+    /// </para>
     /// </remarks>
     /// <example>
     /// <code>
@@ -105,6 +110,70 @@ public class CopilotSession : IAsyncDisposable
             "session.send", [request], cancellationToken);
 
         return response.MessageId;
+    }
+
+    /// <summary>
+    /// Sends a message to the Copilot session and waits until the session becomes idle.
+    /// </summary>
+    /// <param name="options">Options for the message to be sent, including the prompt and optional attachments.</param>
+    /// <param name="timeout">Timeout duration (default: 60 seconds). Controls how long to wait; does not abort in-flight agent work.</param>
+    /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
+    /// <returns>A task that resolves with the final assistant message event, or null if none was received.</returns>
+    /// <exception cref="TimeoutException">Thrown if the timeout is reached before the session becomes idle.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if the session has been disposed.</exception>
+    /// <remarks>
+    /// <para>
+    /// This is a convenience method that combines <see cref="SendAsync"/> with waiting for
+    /// the <c>session.idle</c> event. Use this when you want to block until the assistant
+    /// has finished processing the message.
+    /// </para>
+    /// <para>
+    /// Events are still delivered to handlers registered via <see cref="On"/> while waiting.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Send and wait for completion with default 60s timeout
+    /// var response = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" });
+    /// Console.WriteLine(response?.Data?.Content); // "4"
+    /// </code>
+    /// </example>
+    public async Task<AssistantMessageEvent?> SendAndWaitAsync(
+        MessageOptions options,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default)
+    {
+        var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(60);
+        var tcs = new TaskCompletionSource<AssistantMessageEvent?>();
+        AssistantMessageEvent? lastAssistantMessage = null;
+
+        void Handler(SessionEvent evt)
+        {
+            if (evt is AssistantMessageEvent assistantMessage)
+            {
+                lastAssistantMessage = assistantMessage;
+            }
+            else if (evt.Type == "session.idle")
+            {
+                tcs.TrySetResult(lastAssistantMessage);
+            }
+            else if (evt is SessionErrorEvent errorEvent)
+            {
+                var message = errorEvent.Data?.Message ?? "session error";
+                tcs.TrySetException(new InvalidOperationException($"Session error: {message}"));
+            }
+        }
+
+        using var subscription = On(Handler);
+
+        await SendAsync(options, cancellationToken);
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(effectiveTimeout);
+
+        using var registration = cts.Token.Register(() =>
+            tcs.TrySetException(new TimeoutException($"SendAndWaitAsync timed out after {effectiveTimeout}")));
+        return await tcs.Task;
     }
 
     /// <summary>
@@ -271,7 +340,10 @@ public class CopilotSession : IAsyncDisposable
         var response = await _rpc.InvokeWithCancellationAsync<GetMessagesResponse>(
             "session.getMessages", [new { sessionId = SessionId }], cancellationToken);
 
-        return response.Events.Select(e => SessionEvent.FromJson(e.ToJsonString())).ToList();
+        return response.Events
+            .Select(e => SessionEvent.FromJson(e.ToJsonString()))
+            .OfType<SessionEvent>()
+            .ToList();
     }
 
     /// <summary>

@@ -5,7 +5,6 @@
 import { describe, expect, it } from "vitest";
 import type { CustomAgentConfig, MCPLocalServerConfig, MCPServerConfig } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
-import { getFinalAssistantMessage } from "./harness/sdkTestHelper.js";
 
 describe("MCP Servers and Custom Agents", async () => {
     const { copilotClient: client } = await createSdkTestContext();
@@ -28,11 +27,9 @@ describe("MCP Servers and Custom Agents", async () => {
             expect(session.sessionId).toBeDefined();
 
             // Simple interaction to verify session works
-            await session.send({
+            const message = await session.sendAndWait({
                 prompt: "What is 2+2?",
             });
-
-            const message = await getFinalAssistantMessage(session);
             expect(message?.data.content).toContain("4");
 
             await session.destroy();
@@ -42,8 +39,7 @@ describe("MCP Servers and Custom Agents", async () => {
             // Create a session first
             const session1 = await client.createSession();
             const sessionId = session1.sessionId;
-            await session1.send({ prompt: "What is 1+1?" });
-            await getFinalAssistantMessage(session1);
+            await session1.sendAndWait({ prompt: "What is 1+1?" });
 
             // Resume with MCP servers
             const mcpServers: Record<string, MCPServerConfig> = {
@@ -61,11 +57,9 @@ describe("MCP Servers and Custom Agents", async () => {
 
             expect(session2.sessionId).toBe(sessionId);
 
-            await session2.send({
+            const message = await session2.sendAndWait({
                 prompt: "What is 3+3?",
             });
-
-            const message = await getFinalAssistantMessage(session2);
             expect(message?.data.content).toContain("6");
 
             await session2.destroy();
@@ -115,11 +109,9 @@ describe("MCP Servers and Custom Agents", async () => {
             expect(session.sessionId).toBeDefined();
 
             // Simple interaction to verify session works
-            await session.send({
+            const message = await session.sendAndWait({
                 prompt: "What is 5+5?",
             });
-
-            const message = await getFinalAssistantMessage(session);
             expect(message?.data.content).toContain("10");
 
             await session.destroy();
@@ -129,8 +121,7 @@ describe("MCP Servers and Custom Agents", async () => {
             // Create a session first
             const session1 = await client.createSession();
             const sessionId = session1.sessionId;
-            await session1.send({ prompt: "What is 1+1?" });
-            await getFinalAssistantMessage(session1);
+            await session1.sendAndWait({ prompt: "What is 1+1?" });
 
             // Resume with custom agents
             const customAgents: CustomAgentConfig[] = [
@@ -148,11 +139,9 @@ describe("MCP Servers and Custom Agents", async () => {
 
             expect(session2.sessionId).toBe(sessionId);
 
-            await session2.send({
+            const message = await session2.sendAndWait({
                 prompt: "What is 6+6?",
             });
-
-            const message = await getFinalAssistantMessage(session2);
             expect(message?.data.content).toContain("12");
 
             await session2.destroy();
@@ -257,11 +246,9 @@ describe("MCP Servers and Custom Agents", async () => {
 
             expect(session.sessionId).toBeDefined();
 
-            await session.send({
+            const message = await session.sendAndWait({
                 prompt: "What is 7+7?",
             });
-
-            const message = await getFinalAssistantMessage(session);
             expect(message?.data.content).toContain("14");
 
             await session.destroy();

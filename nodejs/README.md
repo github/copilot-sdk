@@ -120,7 +120,7 @@ Represents a single conversation session.
 
 ##### `send(options: MessageOptions): Promise<string>`
 
-Send a message to the session.
+Send a message to the session. Returns immediately after the message is queued; use event handlers or `sendAndWait()` to wait for completion.
 
 **Options:**
 
@@ -129,6 +129,19 @@ Send a message to the session.
 - `mode?: "enqueue" | "immediate"` - Delivery mode
 
 Returns the message ID.
+
+##### `sendAndWait(options: MessageOptions, timeout?: number): Promise<AssistantMessageEvent | undefined>`
+
+Send a message and wait until the session becomes idle.
+
+**Options:**
+
+- `prompt: string` - The message/prompt to send
+- `attachments?: Array<{type, path, displayName}>` - File attachments
+- `mode?: "enqueue" | "immediate"` - Delivery mode
+- `timeout?: number` - Optional timeout in milliseconds
+
+Returns the final assistant message event, or undefined if none was received.
 
 ##### `on(handler: SessionEventHandler): () => void`
 
@@ -299,8 +312,8 @@ const session1 = await client.createSession({ model: "gpt-5" });
 const session2 = await client.createSession({ model: "claude-sonnet-4.5" });
 
 // Both sessions are independent
-await session1.send({ prompt: "Hello from session 1" });
-await session2.send({ prompt: "Hello from session 2" });
+await session1.sendAndWait({ prompt: "Hello from session 1" });
+await session2.sendAndWait({ prompt: "Hello from session 2" });
 ```
 
 ### Custom Session IDs

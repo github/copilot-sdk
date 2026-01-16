@@ -67,13 +67,9 @@ func TestMCPServers(t *testing.T) {
 		}
 		sessionID := session1.SessionID
 
-		_, err = session1.Send(copilot.MessageOptions{Prompt: "What is 1+1?"})
+		_, err = session1.SendAndWait(copilot.MessageOptions{Prompt: "What is 1+1?"}, 60*time.Second)
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-		_, err = testharness.GetFinalAssistantMessage(session1, 60*time.Second)
-		if err != nil {
-			t.Fatalf("Failed to get final message: %v", err)
 		}
 
 		// Resume with MCP servers
@@ -97,14 +93,9 @@ func TestMCPServers(t *testing.T) {
 			t.Errorf("Expected session ID %s, got %s", sessionID, session2.SessionID)
 		}
 
-		_, err = session2.Send(copilot.MessageOptions{Prompt: "What is 3+3?"})
+		message, err := session2.SendAndWait(copilot.MessageOptions{Prompt: "What is 3+3?"}, 60*time.Second)
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		message, err := testharness.GetFinalAssistantMessage(session2, 60*time.Second)
-		if err != nil {
-			t.Fatalf("Failed to get final message: %v", err)
 		}
 
 		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "6") {
@@ -207,13 +198,9 @@ func TestCustomAgents(t *testing.T) {
 		}
 		sessionID := session1.SessionID
 
-		_, err = session1.Send(copilot.MessageOptions{Prompt: "What is 1+1?"})
+		_, err = session1.SendAndWait(copilot.MessageOptions{Prompt: "What is 1+1?"}, 60*time.Second)
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-		_, err = testharness.GetFinalAssistantMessage(session1, 60*time.Second)
-		if err != nil {
-			t.Fatalf("Failed to get final message: %v", err)
 		}
 
 		// Resume with custom agents
@@ -237,14 +224,9 @@ func TestCustomAgents(t *testing.T) {
 			t.Errorf("Expected session ID %s, got %s", sessionID, session2.SessionID)
 		}
 
-		_, err = session2.Send(copilot.MessageOptions{Prompt: "What is 6+6?"})
+		message, err := session2.SendAndWait(copilot.MessageOptions{Prompt: "What is 6+6?"}, 60*time.Second)
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		message, err := testharness.GetFinalAssistantMessage(session2, 60*time.Second)
-		if err != nil {
-			t.Fatalf("Failed to get final message: %v", err)
 		}
 
 		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "12") {

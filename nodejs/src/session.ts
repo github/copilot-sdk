@@ -19,6 +19,9 @@ import type {
     ToolHandler,
 } from "./types.js";
 
+/** Assistant message event - the final response from the assistant. */
+export type AssistantMessageEvent = Extract<SessionEvent, { type: "assistant.message" }>;
+
 /**
  * Represents a single conversation session with the Copilot CLI.
  *
@@ -31,17 +34,16 @@ import type {
  * const session = await client.createSession({ model: "gpt-4" });
  *
  * // Subscribe to events
- * const unsubscribe = session.on((event) => {
+ * session.on((event) => {
  *   if (event.type === "assistant.message") {
  *     console.log(event.data.content);
  *   }
  * });
  *
- * // Send a message
- * await session.send({ prompt: "Hello, world!" });
+ * // Send a message and wait for completion
+ * await session.sendAndWait({ prompt: "Hello, world!" });
  *
  * // Clean up
- * unsubscribe();
  * await session.destroy();
  * ```
  */
@@ -89,6 +91,80 @@ export class CopilotSession {
         });
 
         return (response as { messageId: string }).messageId;
+    }
+
+    /**
+     * Sends a message to this session and waits until the session becomes idle.
+     *
+     * This is a convenience method that combines {@link send} with waiting for
+     * the `session.idle` event. Use this when you want to block until the
+     * assistant has finished processing the message.
+     *
+     * Events are still delivered to handlers registered via {@link on} while waiting.
+     *
+     * @param options - The message options including the prompt and optional attachments
+     * @param timeout - Timeout in milliseconds (default: 60000). Controls how long to wait; does not abort in-flight agent work.
+     * @returns A promise that resolves with the final assistant message when the session becomes idle,
+     *          or undefined if no assistant message was received
+     * @throws Error if the timeout is reached before the session becomes idle
+     * @throws Error if the session has been destroyed or the connection fails
+     *
+     * @example
+     * ```typescript
+     * // Send and wait for completion with default 60s timeout
+     * const response = await session.sendAndWait({ prompt: "What is 2+2?" });
+     * console.log(response?.data.content); // "4"
+     * ```
+     */
+    async sendAndWait(
+        options: MessageOptions,
+        timeout?: number
+    ): Promise<AssistantMessageEvent | undefined> {
+        const effectiveTimeout = timeout ?? 60_000;
+
+        let resolveIdle: () => void;
+        let rejectWithError: (error: Error) => void;
+        const idlePromise = new Promise<void>((resolve, reject) => {
+            resolveIdle = resolve;
+            rejectWithError = reject;
+        });
+
+        let lastAssistantMessage: AssistantMessageEvent | undefined;
+
+        // Register event handler BEFORE calling send to avoid race condition
+        // where session.idle fires before we start listening
+        const unsubscribe = this.on((event) => {
+            if (event.type === "assistant.message") {
+                lastAssistantMessage = event;
+            } else if (event.type === "session.idle") {
+                resolveIdle();
+            } else if (event.type === "session.error") {
+                const error = new Error(event.data.message);
+                error.stack = event.data.stack;
+                rejectWithError(error);
+            }
+        });
+
+        try {
+            await this.send(options);
+
+            const timeoutPromise = new Promise<never>((_, reject) => {
+                setTimeout(
+                    () =>
+                        reject(
+                            new Error(
+                                `Timeout after ${effectiveTimeout}ms waiting for session.idle`
+                            )
+                        ),
+                    effectiveTimeout
+                );
+            });
+            await Promise.race([idlePromise, timeoutPromise]);
+
+            return lastAssistantMessage;
+        } finally {
+            unsubscribe();
+        }
     }
 
     /**

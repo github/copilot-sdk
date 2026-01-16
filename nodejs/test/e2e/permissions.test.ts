@@ -7,7 +7,6 @@ import { join } from "path";
 import { describe, expect, it } from "vitest";
 import type { PermissionRequest, PermissionRequestResult } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
-import { getFinalAssistantMessage } from "./harness/sdkTestHelper.js";
 
 describe("Permission callbacks", async () => {
     const { copilotClient: client, workDir } = await createSdkTestContext();
@@ -28,11 +27,9 @@ describe("Permission callbacks", async () => {
 
         await writeFile(join(workDir, "test.txt"), "original content");
 
-        await session.send({
+        await session.sendAndWait({
             prompt: "Edit test.txt and replace 'original' with 'modified'",
         });
-
-        await getFinalAssistantMessage(session);
 
         // Should have received at least one permission request
         expect(permissionRequests.length).toBeGreaterThan(0);
@@ -55,11 +52,9 @@ describe("Permission callbacks", async () => {
         const testFile = join(workDir, "protected.txt");
         await writeFile(testFile, originalContent);
 
-        await session.send({
+        await session.sendAndWait({
             prompt: "Edit protected.txt and replace 'protected' with 'hacked'.",
         });
-
-        await getFinalAssistantMessage(session);
 
         // Verify the file was NOT modified
         const content = await readFile(testFile, "utf-8");
@@ -72,11 +67,9 @@ describe("Permission callbacks", async () => {
         // Create session without onPermissionRequest handler
         const session = await client.createSession();
 
-        await session.send({
+        const message = await session.sendAndWait({
             prompt: "What is 2+2?",
         });
-
-        const message = await getFinalAssistantMessage(session);
         expect(message?.data.content).toContain("4");
 
         await session.destroy();
@@ -96,11 +89,9 @@ describe("Permission callbacks", async () => {
             },
         });
 
-        await session.send({
+        await session.sendAndWait({
             prompt: "Run 'echo test' and tell me what happens",
         });
-
-        await getFinalAssistantMessage(session);
 
         expect(permissionRequests.length).toBeGreaterThan(0);
 
@@ -113,8 +104,7 @@ describe("Permission callbacks", async () => {
         // Create session without permission handler
         const session1 = await client.createSession();
         const sessionId = session1.sessionId;
-        await session1.send({ prompt: "What is 1+1?" });
-        await getFinalAssistantMessage(session1);
+        await session1.sendAndWait({ prompt: "What is 1+1?" });
 
         // Resume with permission handler
         const session2 = await client.resumeSession(sessionId, {
@@ -124,11 +114,9 @@ describe("Permission callbacks", async () => {
             },
         });
 
-        await session2.send({
+        await session2.sendAndWait({
             prompt: "Run 'echo resumed' for me",
         });
-
-        await getFinalAssistantMessage(session2);
 
         // Should have permission requests from resumed session
         expect(permissionRequests.length).toBeGreaterThan(0);
@@ -143,11 +131,9 @@ describe("Permission callbacks", async () => {
             },
         });
 
-        await session.send({
+        const message = await session.sendAndWait({
             prompt: "Run 'echo test'. If you can't, say 'failed'.",
         });
-
-        const message = await getFinalAssistantMessage(session);
 
         // Should handle the error and deny permission
         expect(message?.data.content?.toLowerCase()).toMatch(/fail|cannot|unable|permission/);
@@ -169,11 +155,9 @@ describe("Permission callbacks", async () => {
             },
         });
 
-        await session.send({
+        await session.sendAndWait({
             prompt: "Run 'echo test'",
         });
-
-        await getFinalAssistantMessage(session);
 
         expect(receivedToolCallId).toBe(true);
 

@@ -28,8 +28,8 @@ class TestMCPServers:
         assert session.session_id is not None
 
         # Simple interaction to verify session works
-        await session.send({"prompt": "What is 2+2?"})
-        message = await get_final_assistant_message(session)
+        message = await session.send_and_wait({"prompt": "What is 2+2?"})
+        assert message is not None
         assert "4" in message.data.content
 
         await session.destroy()
@@ -39,8 +39,7 @@ class TestMCPServers:
         # Create a session first
         session1 = await ctx.client.create_session()
         session_id = session1.session_id
-        await session1.send({"prompt": "What is 1+1?"})
-        await get_final_assistant_message(session1)
+        await session1.send_and_wait({"prompt": "What is 1+1?"})
 
         # Resume with MCP servers
         mcp_servers: dict[str, MCPServerConfig] = {
@@ -56,8 +55,8 @@ class TestMCPServers:
 
         assert session2.session_id == session_id
 
-        await session2.send({"prompt": "What is 3+3?"})
-        message = await get_final_assistant_message(session2)
+        message = await session2.send_and_wait({"prompt": "What is 3+3?"})
+        assert message is not None
         assert "6" in message.data.content
 
         await session2.destroy()
@@ -103,8 +102,8 @@ class TestCustomAgents:
         assert session.session_id is not None
 
         # Simple interaction to verify session works
-        await session.send({"prompt": "What is 5+5?"})
-        message = await get_final_assistant_message(session)
+        message = await session.send_and_wait({"prompt": "What is 5+5?"})
+        assert message is not None
         assert "10" in message.data.content
 
         await session.destroy()
@@ -114,8 +113,7 @@ class TestCustomAgents:
         # Create a session first
         session1 = await ctx.client.create_session()
         session_id = session1.session_id
-        await session1.send({"prompt": "What is 1+1?"})
-        await get_final_assistant_message(session1)
+        await session1.send_and_wait({"prompt": "What is 1+1?"})
 
         # Resume with custom agents
         custom_agents: list[CustomAgentConfig] = [
@@ -131,8 +129,8 @@ class TestCustomAgents:
 
         assert session2.session_id == session_id
 
-        await session2.send({"prompt": "What is 6+6?"})
-        message = await get_final_assistant_message(session2)
+        message = await session2.send_and_wait({"prompt": "What is 6+6?"})
+        assert message is not None
         assert "12" in message.data.content
 
         await session2.destroy()

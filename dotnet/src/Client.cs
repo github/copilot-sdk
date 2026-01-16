@@ -766,7 +766,10 @@ public class CopilotClient : IDisposable, IAsyncDisposable
             if (session != null && @event != null)
             {
                 var evt = SessionEvent.FromJson(@event.Value.GetRawText());
-                session.DispatchEvent(evt);
+                if (evt != null)
+                {
+                    session.DispatchEvent(evt);
+                }
             }
         }
 
