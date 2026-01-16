@@ -96,22 +96,17 @@ async function main() {
 
         // Send a simple message
         console.log("💬 Sending message...");
-        const messageId = await session.send({
+        await session.sendAndWait({
             prompt: "You can call the lookup_fact tool. First, please tell me 2+2.",
         });
-        console.log(`✅ Message sent: ${messageId}\n`);
-
-        // Wait a bit for events to arrive
-        await new Promise((resolve) => setTimeout(resolve, 5000));
+        console.log("✅ Message completed\n");
 
         // Send another message
         console.log("\n💬 Sending follow-up message...");
-        await session.send({
+        await session.sendAndWait({
             prompt: "Great. Now use lookup_fact to tell me something about Node.js.",
         });
-
-        // Wait for response
-        await new Promise((resolve) => setTimeout(resolve, 5000));
+        console.log("✅ Follow-up completed\n");
 
         // Clean up
         console.log("\n🧹 Cleaning up...");

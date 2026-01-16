@@ -118,8 +118,7 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
         // Create session without permission handler
         var session1 = await Client.CreateSessionAsync();
         var sessionId = session1.SessionId;
-        await session1.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
-        await TestHelper.GetFinalAssistantMessageAsync(session1);
+        await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
 
         // Resume with permission handler
         var session2 = await Client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
@@ -131,12 +130,10 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
             }
         });
 
-        await session2.SendAsync(new MessageOptions
+        await session2.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Run 'echo resumed' for me"
         });
-
-        await TestHelper.GetFinalAssistantMessageAsync(session2);
 
         Assert.True(permissionRequestReceived, "Permission request should have been received");
     }

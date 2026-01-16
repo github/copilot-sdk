@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/github/copilot-sdk/go/generated"
 )
@@ -111,6 +112,86 @@ func (s *Session) Send(options MessageOptions) (string, error) {
 	}
 
 	return messageID, nil
+}
+
+// SendAndWait sends a message to this session and waits until the session becomes idle.
+//
+// This is a convenience method that combines [Session.Send] with waiting for
+// the session.idle event. Use this when you want to block until the assistant
+// has finished processing the message.
+//
+// Events are still delivered to handlers registered via [Session.On] while waiting.
+//
+// Parameters:
+//   - options: The message options including the prompt and optional attachments.
+//   - timeout: How long to wait for completion. Defaults to 60 seconds if zero.
+//     Controls how long to wait; does not abort in-flight agent work.
+//
+// Returns the final assistant message event, or nil if none was received.
+// Returns an error if the timeout is reached or the connection fails.
+//
+// Example:
+//
+//	response, err := session.SendAndWait(copilot.MessageOptions{
+//	    Prompt: "What is 2+2?",
+//	}, 0) // Use default 60s timeout
+//	if err != nil {
+//	    log.Printf("Failed: %v", err)
+//	}
+//	if response != nil {
+//	    fmt.Println(*response.Data.Content)
+//	}
+func (s *Session) SendAndWait(options MessageOptions, timeout time.Duration) (*SessionEvent, error) {
+	if timeout == 0 {
+		timeout = 60 * time.Second
+	}
+
+	idleCh := make(chan struct{}, 1)
+	errCh := make(chan error, 1)
+	var lastAssistantMessage *SessionEvent
+	var mu sync.Mutex
+
+	unsubscribe := s.On(func(event SessionEvent) {
+		switch event.Type {
+		case generated.AssistantMessage:
+			mu.Lock()
+			eventCopy := event
+			lastAssistantMessage = &eventCopy
+			mu.Unlock()
+		case generated.SessionIdle:
+			select {
+			case idleCh <- struct{}{}:
+			default:
+			}
+		case generated.SessionError:
+			errMsg := "session error"
+			if event.Data.Message != nil {
+				errMsg = *event.Data.Message
+			}
+			select {
+			case errCh <- fmt.Errorf("session error: %s", errMsg):
+			default:
+			}
+		}
+	})
+	defer unsubscribe()
+
+	_, err := s.Send(options)
+	if err != nil {
+		return nil, err
+	}
+
+	select {
+	case <-idleCh:
+		mu.Lock()
+		result := lastAssistantMessage
+		mu.Unlock()
+		return result, nil
+	case err := <-errCh:
+		return nil, err
+	case <-time.After(timeout):
+		return nil, fmt.Errorf("timeout after %v waiting for session.idle", timeout)
+	}
 }
 
 // On subscribes to events from this session.

@@ -63,28 +63,18 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.Send(copilot.MessageOptions{Prompt: "What is 1+1?"})
+		assistantMessage, err := session.SendAndWait(copilot.MessageOptions{Prompt: "What is 1+1?"}, 60*time.Second)
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		assistantMessage, err := testharness.GetFinalAssistantMessage(session, 60*time.Second)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
 		if assistantMessage.Data.Content == nil || !strings.Contains(*assistantMessage.Data.Content, "2") {
 			t.Errorf("Expected assistant message to contain '2', got %v", assistantMessage.Data.Content)
 		}
 
-		_, err = session.Send(copilot.MessageOptions{Prompt: "Now if you double that, what do you get?"})
+		secondMessage, err := session.SendAndWait(copilot.MessageOptions{Prompt: "Now if you double that, what do you get?"}, 60*time.Second)
 		if err != nil {
 			t.Fatalf("Failed to send second message: %v", err)
-		}
-
-		secondMessage, err := testharness.GetFinalAssistantMessage(session, 60*time.Second)
-		if err != nil {
-			t.Fatalf("Failed to get second assistant message: %v", err)
 		}
 
 		if secondMessage.Data.Content == nil || !strings.Contains(*secondMessage.Data.Content, "4") {
@@ -106,18 +96,13 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.Send(copilot.MessageOptions{Prompt: "What is your full name?"})
+		assistantMessage, err := session.SendAndWait(copilot.MessageOptions{Prompt: "What is your full name?"}, 60*time.Second)
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		assistantMessage, err := testharness.GetFinalAssistantMessage(session, 60*time.Second)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
-		}
-
 		content := ""
-		if assistantMessage.Data.Content != nil {
+		if assistantMessage != nil && assistantMessage.Data.Content != nil {
 			content = *assistantMessage.Data.Content
 		}
 

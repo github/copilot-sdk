@@ -5,17 +5,20 @@ This module provides the CopilotSession class for managing individual
 conversation sessions with the Copilot CLI.
 """
 
+import asyncio
 import inspect
 import threading
 from typing import Any, Callable, Dict, List, Optional, Set
 
-from .generated.session_events import session_event_from_dict
+from .generated.session_events import SessionEvent, SessionEventType, session_event_from_dict
 from .types import (
     MessageOptions,
     PermissionHandler,
-    SessionEvent,
     Tool,
     ToolHandler,
+)
+from .types import (
+    SessionEvent as SessionEventTypeAlias,
 )
 
 
@@ -100,6 +103,67 @@ class CopilotSession:
             },
         )
         return response["messageId"]
+
+    async def send_and_wait(
+        self, options: MessageOptions, timeout: Optional[float] = None
+    ) -> Optional[SessionEvent]:
+        """
+        Send a message to this session and wait until the session becomes idle.
+
+        This is a convenience method that combines :meth:`send` with waiting for
+        the session.idle event. Use this when you want to block until the assistant
+        has finished processing the message.
+
+        Events are still delivered to handlers registered via :meth:`on` while waiting.
+
+        Args:
+            options: Message options including the prompt and optional attachments.
+            timeout: Timeout in seconds (default: 60). Controls how long to wait;
+                does not abort in-flight agent work.
+
+        Returns:
+            The final assistant message event, or None if none was received.
+
+        Raises:
+            asyncio.TimeoutError: If the timeout is reached before session becomes idle.
+            Exception: If the session has been destroyed or the connection fails.
+
+        Example:
+            >>> response = await session.send_and_wait({"prompt": "What is 2+2?"})
+            >>> if response:
+            ...     print(response.data.content)
+        """
+        effective_timeout = timeout if timeout is not None else 60.0
+
+        idle_event = asyncio.Event()
+        error_event: Optional[Exception] = None
+        last_assistant_message: Optional[SessionEvent] = None
+
+        def handler(event: SessionEventTypeAlias) -> None:
+            nonlocal last_assistant_message, error_event
+            if event.type == SessionEventType.ASSISTANT_MESSAGE:
+                last_assistant_message = event
+            elif event.type == SessionEventType.SESSION_IDLE:
+                idle_event.set()
+            elif event.type == SessionEventType.SESSION_ERROR:
+                error_event = Exception(
+                    f"Session error: {getattr(event.data, 'message', str(event.data))}"
+                )
+                idle_event.set()
+
+        unsubscribe = self.on(handler)
+        try:
+            await self.send(options)
+            await asyncio.wait_for(idle_event.wait(), timeout=effective_timeout)
+            if error_event:
+                raise error_event
+            return last_assistant_message
+        except asyncio.TimeoutError:
+            raise asyncio.TimeoutError(
+                f"Timeout after {effective_timeout}s waiting for session.idle"
+            )
+        finally:
+            unsubscribe()
 
     def on(self, handler: Callable[[SessionEvent], None]) -> Callable[[], None]:
         """

@@ -35,13 +35,11 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     {
         var session = await Client.CreateSessionAsync();
 
-        await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        var assistantMessage = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
         Assert.NotNull(assistantMessage);
         Assert.Contains("2", assistantMessage!.Data.Content);
 
-        await session.SendAsync(new MessageOptions { Prompt = "Now if you double that, what do you get?" });
-        var secondMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        var secondMessage = await session.SendAndWaitAsync(new MessageOptions { Prompt = "Now if you double that, what do you get?" });
         Assert.NotNull(secondMessage);
         Assert.Contains("4", secondMessage!.Data.Content);
     }
@@ -321,5 +319,56 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         Assert.Contains("300", assistantMessage!.Data.Content);
 
         await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Send_Returns_Immediately_While_Events_Stream_In_Background()
+    {
+        var session = await Client.CreateSessionAsync();
+        var events = new List<string>();
+
+        session.On(evt => events.Add(evt.Type));
+
+        // Use a slow command so we can verify SendAsync() returns before completion
+        await session.SendAsync(new MessageOptions { Prompt = "Run 'sleep 2 && echo done'" });
+
+        // SendAsync() should return before turn completes (no session.idle yet)
+        Assert.DoesNotContain("session.idle", events);
+
+        // Wait for turn to complete
+        var message = await TestHelper.GetFinalAssistantMessageAsync(session);
+
+        Assert.Contains("done", message?.Data.Content ?? string.Empty);
+        Assert.Contains("session.idle", events);
+        Assert.Contains("assistant.message", events);
+    }
+
+    [Fact]
+    public async Task SendAndWait_Blocks_Until_Session_Idle_And_Returns_Final_Assistant_Message()
+    {
+        var session = await Client.CreateSessionAsync();
+        var events = new List<string>();
+
+        session.On(evt => events.Add(evt.Type));
+
+        var response = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" });
+
+        Assert.NotNull(response);
+        Assert.Equal("assistant.message", response!.Type);
+        Assert.Contains("4", response.Data.Content ?? string.Empty);
+        Assert.Contains("session.idle", events);
+        Assert.Contains("assistant.message", events);
+    }
+
+    [Fact]
+    public async Task SendAndWait_Throws_On_Timeout()
+    {
+        var session = await Client.CreateSessionAsync();
+
+        // Use a slow command to ensure timeout triggers before completion
+        var ex = await Assert.ThrowsAsync<TimeoutException>(() =>
+            session.SendAndWaitAsync(new MessageOptions { Prompt = "Run 'sleep 2 && echo done'" }, TimeSpan.FromMilliseconds(100)));
+
+        Assert.Contains("timed out", ex.Message);
     }
 }

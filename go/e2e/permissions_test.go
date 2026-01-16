@@ -48,16 +48,11 @@ func TestPermissions(t *testing.T) {
 			t.Fatalf("Failed to write test file: %v", err)
 		}
 
-		_, err = session.Send(copilot.MessageOptions{
+		_, err = session.SendAndWait(copilot.MessageOptions{
 			Prompt: "Edit test.txt and replace 'original' with 'modified'",
-		})
+		}, 60*time.Second)
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		_, err = testharness.GetFinalAssistantMessage(session, 60*time.Second)
-		if err != nil {
-			t.Fatalf("Failed to get final message: %v", err)
 		}
 
 		mu.Lock()
@@ -98,16 +93,11 @@ func TestPermissions(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.Send(copilot.MessageOptions{
-			Prompt: "Run 'echo hello' and tell me the output",
-		})
+		_, err = session.SendAndWait(copilot.MessageOptions{
+			Prompt: "Run 'echo hello world' and tell me the output",
+		}, 60*time.Second)
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		_, err = testharness.GetFinalAssistantMessage(session, 60*time.Second)
-		if err != nil {
-			t.Fatalf("Failed to get final message: %v", err)
 		}
 
 		mu.Lock()

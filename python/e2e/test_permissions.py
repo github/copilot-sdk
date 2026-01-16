@@ -8,7 +8,7 @@ import pytest
 
 from copilot import PermissionRequest, PermissionRequestResult
 
-from .testharness import E2ETestContext, get_final_assistant_message
+from .testharness import E2ETestContext
 from .testharness.helper import read_file, write_file
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
@@ -31,8 +31,9 @@ class TestPermissions:
 
         write_file(ctx.work_dir, "test.txt", "original content")
 
-        await session.send({"prompt": "Edit test.txt and replace 'original' with 'modified'"})
-        await get_final_assistant_message(session)
+        await session.send_and_wait(
+            {"prompt": "Edit test.txt and replace 'original' with 'modified'"}
+        )
 
         # Should have received at least one permission request
         assert len(permission_requests) > 0
@@ -56,8 +57,7 @@ class TestPermissions:
 
         session = await ctx.client.create_session({"on_permission_request": on_permission_request})
 
-        await session.send({"prompt": "Run 'echo hello' and tell me the output"})
-        await get_final_assistant_message(session)
+        await session.send_and_wait({"prompt": "Run 'echo hello world' and tell me the output"})
 
         # Should have received at least one shell permission request
         shell_requests = [req for req in permission_requests if req.get("kind") == "shell"]
@@ -79,8 +79,9 @@ class TestPermissions:
         original_content = "protected content"
         write_file(ctx.work_dir, "protected.txt", original_content)
 
-        await session.send({"prompt": "Edit protected.txt and replace 'protected' with 'hacked'."})
-        await get_final_assistant_message(session)
+        await session.send_and_wait(
+            {"prompt": "Edit protected.txt and replace 'protected' with 'hacked'."}
+        )
 
         # Verify the file was NOT modified
         content = read_file(ctx.work_dir, "protected.txt")
@@ -93,9 +94,9 @@ class TestPermissions:
         # Create session without on_permission_request handler
         session = await ctx.client.create_session()
 
-        await session.send({"prompt": "What is 2+2?"})
-        message = await get_final_assistant_message(session)
+        message = await session.send_and_wait({"prompt": "What is 2+2?"})
 
+        assert message is not None
         assert "4" in message.data.content
 
         await session.destroy()
@@ -114,8 +115,7 @@ class TestPermissions:
 
         session = await ctx.client.create_session({"on_permission_request": on_permission_request})
 
-        await session.send({"prompt": "Run 'echo test' and tell me what happens"})
-        await get_final_assistant_message(session)
+        await session.send_and_wait({"prompt": "Run 'echo test' and tell me what happens"})
 
         assert len(permission_requests) > 0
 
@@ -128,8 +128,7 @@ class TestPermissions:
         # Create session without permission handler
         session1 = await ctx.client.create_session()
         session_id = session1.session_id
-        await session1.send({"prompt": "What is 1+1?"})
-        await get_final_assistant_message(session1)
+        await session1.send_and_wait({"prompt": "What is 1+1?"})
 
         # Resume with permission handler
         def on_permission_request(
@@ -142,8 +141,7 @@ class TestPermissions:
             session_id, {"on_permission_request": on_permission_request}
         )
 
-        await session2.send({"prompt": "Run 'echo resumed' for me"})
-        await get_final_assistant_message(session2)
+        await session2.send_and_wait({"prompt": "Run 'echo resumed' for me"})
 
         # Should have permission requests from resumed session
         assert len(permission_requests) > 0
@@ -160,10 +158,12 @@ class TestPermissions:
 
         session = await ctx.client.create_session({"on_permission_request": on_permission_request})
 
-        await session.send({"prompt": "Run 'echo test'. If you can't, say 'failed'."})
-        message = await get_final_assistant_message(session)
+        message = await session.send_and_wait(
+            {"prompt": "Run 'echo test'. If you can't, say 'failed'."}
+        )
 
         # Should handle the error and deny permission
+        assert message is not None
         content_lower = message.data.content.lower()
         assert any(word in content_lower for word in ["fail", "cannot", "unable", "permission"])
 
@@ -185,8 +185,7 @@ class TestPermissions:
 
         session = await ctx.client.create_session({"on_permission_request": on_permission_request})
 
-        await session.send({"prompt": "Run 'echo test'"})
-        await get_final_assistant_message(session)
+        await session.send_and_wait({"prompt": "Run 'echo test'"})
 
         assert received_tool_call_id
 

@@ -655,6 +655,7 @@ class SessionEventType(Enum):
     TOOL_EXECUTION_START = "tool.execution_start"
     TOOL_USER_REQUESTED = "tool.user_requested"
     USER_MESSAGE = "user.message"
+    UNKNOWN = "unknown"  # For forward compatibility with new event types
 
 
 @dataclass
@@ -672,7 +673,10 @@ class SessionEvent:
         data = Data.from_dict(obj.get("data"))
         id = UUID(obj.get("id"))
         timestamp = from_datetime(obj.get("timestamp"))
-        type = SessionEventType(obj.get("type"))
+        try:
+            type = SessionEventType(obj.get("type"))
+        except ValueError:
+            type = SessionEventType.UNKNOWN  # Forward compatibility
         ephemeral = from_union([from_bool, from_none], obj.get("ephemeral"))
         parent_id = from_union([from_none, lambda x: UUID(x)], obj.get("parentId"))
         return SessionEvent(data, id, timestamp, type, ephemeral, parent_id)

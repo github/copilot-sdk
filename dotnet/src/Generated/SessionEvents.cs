@@ -78,7 +78,7 @@ namespace GitHub.Copilot.SDK
                 throw new JsonException("Missing 'type' discriminator property");
 
             if (!TypeMap.TryGetValue(typeProp, out var targetType))
-                throw new JsonException($"Unknown event type: {typeProp}");
+                return null; // Ignore unknown event types for forward compatibility
 
             // Deserialize to the concrete type without using this converter (to avoid recursion)
             return (SessionEvent?)obj.Deserialize(targetType, SerializerOptions.WithoutConverter);

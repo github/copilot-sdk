@@ -5,46 +5,45 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: Run 'echo test' and tell me what happens
+        content: Run 'sleep 2 && echo done'
       - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: report_intent
-              arguments: '{"intent":"Running echo command"}'
+              arguments: '{"intent":"Running sleep command"}'
       - role: assistant
         tool_calls:
           - id: toolcall_1
             type: function
             function:
               name: ${shell}
-              arguments: '{"command":"echo test","description":"Run echo test"}'
+              arguments: '{"command":"sleep 2 && echo done","description":"Run sleep 2 and echo done","initial_wait":5}'
   - messages:
       - role: system
         content: ${system}
       - role: user
-        content: Run 'echo test' and tell me what happens
+        content: Run 'sleep 2 && echo done'
       - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: report_intent
-              arguments: '{"intent":"Running echo command"}'
+              arguments: '{"intent":"Running sleep command"}'
           - id: toolcall_1
             type: function
             function:
               name: ${shell}
-              arguments: '{"command":"echo test","description":"Run echo test"}'
+              arguments: '{"command":"sleep 2 && echo done","description":"Run sleep 2 and echo done","initial_wait":5}'
       - role: tool
         tool_call_id: toolcall_0
         content: Intent logged
       - role: tool
         tool_call_id: toolcall_1
         content: |-
-          test
+          done
           <exited with exit code 0>
       - role: assistant
-        content: The command successfully executed and printed "test" to the console, then exited with exit code 0 (indicating
-          success).
+        content: The command completed successfully after a 2-second sleep and output "done".

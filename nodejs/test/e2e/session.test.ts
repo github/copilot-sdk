@@ -24,13 +24,13 @@ describe("Sessions", async () => {
 
     it("should have stateful conversation", async () => {
         const session = await client.createSession();
-        await session.send({ prompt: "What is 1+1?" });
-        const assistantMessage = await getFinalAssistantMessage(session);
-        expect(assistantMessage.data.content).toContain("2");
+        const assistantMessage = await session.sendAndWait({ prompt: "What is 1+1?" });
+        expect(assistantMessage?.data.content).toContain("2");
 
-        await session.send({ prompt: "Now if you double that, what do you get?" });
-        const secondAssistantMessage = await getFinalAssistantMessage(session);
-        expect(secondAssistantMessage.data.content).toContain("4");
+        const secondAssistantMessage = await session.sendAndWait({
+            prompt: "Now if you double that, what do you get?",
+        });
+        expect(secondAssistantMessage?.data.content).toContain("4");
     });
 
     it("should create a session with appended systemMessage config", async () => {
@@ -42,10 +42,9 @@ describe("Sessions", async () => {
             },
         });
 
-        await session.send({ prompt: "What is your full name?" });
-        const assistantMessage = await getFinalAssistantMessage(session);
-        expect(assistantMessage.data.content).toContain("GitHub");
-        expect(assistantMessage.data.content).toContain("Have a nice day!");
+        const assistantMessage = await session.sendAndWait({ prompt: "What is your full name?" });
+        expect(assistantMessage?.data.content).toContain("GitHub");
+        expect(assistantMessage?.data.content).toContain("Have a nice day!");
 
         // Also validate the underlying traffic
         const traffic = await openAiEndpoint.getExchanges();
@@ -60,10 +59,9 @@ describe("Sessions", async () => {
             systemMessage: { mode: "replace", content: testSystemMessage },
         });
 
-        await session.send({ prompt: "What is your full name?" });
-        const assistantMessage = await getFinalAssistantMessage(session);
-        expect(assistantMessage.data.content).not.toContain("GitHub");
-        expect(assistantMessage.data.content).toContain("Testy");
+        const assistantMessage = await session.sendAndWait({ prompt: "What is your full name?" });
+        expect(assistantMessage?.data.content).not.toContain("GitHub");
+        expect(assistantMessage?.data.content).toContain("Testy");
 
         // Also validate the underlying traffic
         const traffic = await openAiEndpoint.getExchanges();
@@ -76,8 +74,7 @@ describe("Sessions", async () => {
             availableTools: ["view", "edit"],
         });
 
-        await session.send({ prompt: "What is 1+1?" });
-        await getFinalAssistantMessage(session);
+        await session.sendAndWait({ prompt: "What is 1+1?" });
 
         // It only tells the model about the specified tools and no others
         const traffic = await openAiEndpoint.getExchanges();
@@ -92,8 +89,7 @@ describe("Sessions", async () => {
             excludedTools: ["view"],
         });
 
-        await session.send({ prompt: "What is 1+1?" });
-        await getFinalAssistantMessage(session);
+        await session.sendAndWait({ prompt: "What is 1+1?" });
 
         // It has other tools, but not the one we excluded
         const traffic = await openAiEndpoint.getExchanges();
@@ -141,24 +137,23 @@ describe("Sessions", async () => {
         // Create initial session
         const session1 = await client.createSession();
         const sessionId = session1.sessionId;
-        await session1.send({ prompt: "What is 1+1?" });
-        const answer = await getFinalAssistantMessage(session1);
-        expect(answer.data.content).toContain("2");
+        const answer = await session1.sendAndWait({ prompt: "What is 1+1?" });
+        expect(answer?.data.content).toContain("2");
 
         // Resume using the same client
         const session2 = await client.resumeSession(sessionId);
         expect(session2.sessionId).toBe(sessionId);
-        const answer2 = await getFinalAssistantMessage(session2);
-        expect(answer2.data.content).toContain("2");
+        const messages = await session2.getMessages();
+        const assistantMessages = messages.filter((m) => m.type === "assistant.message");
+        expect(assistantMessages[assistantMessages.length - 1].data.content).toContain("2");
     });
 
     it("should resume a session using a new client", async () => {
         // Create initial session
         const session1 = await client.createSession();
         const sessionId = session1.sessionId;
-        await session1.send({ prompt: "What is 1+1?" });
-        const answer = await getFinalAssistantMessage(session1);
-        expect(answer.data.content).toContain("2");
+        const answer = await session1.sendAndWait({ prompt: "What is 1+1?" });
+        expect(answer?.data.content).toContain("2");
 
         // Resume using a new client
         const newClient = new CopilotClient({
@@ -210,9 +205,10 @@ describe("Sessions", async () => {
             ],
         });
 
-        await session.send({ prompt: "What is the secret number for key ALPHA?" });
-        const session1Answer = await getFinalAssistantMessage(session);
-        expect(session1Answer.data.content).toContain("54321");
+        const answer = await session.sendAndWait({
+            prompt: "What is the secret number for key ALPHA?",
+        });
+        expect(answer?.data.content).toContain("54321");
     });
 
     it("should resume session with a custom provider", async () => {
@@ -235,7 +231,7 @@ describe("Sessions", async () => {
         const session = await client.createSession();
 
         // Send a message that will take some time to process
-        await session.send({ prompt: "What is 1+1?" });
+        await session.sendAndWait({ prompt: "What is 1+1?" });
 
         // Abort the session immediately
         await session.abort();
@@ -245,9 +241,8 @@ describe("Sessions", async () => {
         expect(messages.length).toBeGreaterThan(0);
 
         // We should be able to send another message
-        await session.send({ prompt: "What is 2+2?" });
-        const answer = await getFinalAssistantMessage(session);
-        expect(answer.data.content).toContain("4");
+        const answer = await session.sendAndWait({ prompt: "What is 2+2?" });
+        expect(answer?.data.content).toContain("4");
     });
 
     it("should receive streaming delta events when streaming is enabled", async () => {
@@ -270,8 +265,7 @@ describe("Sessions", async () => {
             }
         });
 
-        await session.send({ prompt: "What is 2+2?" });
-        const assistantMessage = await getFinalAssistantMessage(session);
+        const assistantMessage = await session.sendAndWait({ prompt: "What is 2+2?" });
 
         unsubscribe();
 
@@ -280,10 +274,10 @@ describe("Sessions", async () => {
 
         // Accumulated deltas should equal the final message
         const accumulated = deltaContents.join("");
-        expect(accumulated).toBe(assistantMessage.data.content);
+        expect(accumulated).toBe(assistantMessage?.data.content);
 
         // Final message should contain the answer
-        expect(assistantMessage.data.content).toContain("4");
+        expect(assistantMessage?.data.content).toContain("4");
     });
 
     it("should pass streaming option to session creation", async () => {
@@ -295,34 +289,20 @@ describe("Sessions", async () => {
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
 
         // Session should still work normally
-        await session.send({ prompt: "What is 1+1?" });
-        const assistantMessage = await getFinalAssistantMessage(session);
-        expect(assistantMessage.data.content).toContain("2");
+        const assistantMessage = await session.sendAndWait({ prompt: "What is 1+1?" });
+        expect(assistantMessage?.data.content).toContain("2");
     });
 
     it("should receive session events", async () => {
         const session = await client.createSession();
         const receivedEvents: Array<{ type: string }> = [];
-        let idleResolve: () => void;
-        const idlePromise = new Promise<void>((resolve) => {
-            idleResolve = resolve;
-        });
 
         session.on((event) => {
             receivedEvents.push(event);
-            if (event.type === "session.idle") {
-                idleResolve();
-            }
         });
 
-        // Send a message to trigger events
-        await session.send({ prompt: "What is 100+200?" });
-
-        // Wait for session to become idle
-        await Promise.race([
-            idlePromise,
-            new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 60000)),
-        ]);
+        // Send a message and wait for completion
+        const assistantMessage = await session.sendAndWait({ prompt: "What is 100+200?" });
 
         // Should have received multiple events
         expect(receivedEvents.length).toBeGreaterThan(0);
@@ -331,8 +311,7 @@ describe("Sessions", async () => {
         expect(receivedEvents.some((e) => e.type === "session.idle")).toBe(true);
 
         // Verify the assistant response contains the expected answer
-        const assistantMessage = await getFinalAssistantMessage(session);
-        expect(assistantMessage.data.content).toContain("300");
+        expect(assistantMessage?.data.content).toContain("300");
     });
 });
 
@@ -342,3 +321,56 @@ function getSystemMessage(exchange: ParsedHttpExchange): string | undefined {
         | undefined;
     return systemMessage?.content;
 }
+
+describe("Send Blocking Behavior", async () => {
+    // Tests for Issue #17: send() should return immediately, not block until turn completes
+    const { copilotClient: client } = await createSdkTestContext();
+
+    it("send returns immediately while events stream in background", async () => {
+        const session = await client.createSession();
+
+        const events: string[] = [];
+        session.on((event) => {
+            events.push(event.type);
+        });
+
+        // Use a slow command so we can verify send() returns before completion
+        await session.send({ prompt: "Run 'sleep 2 && echo done'" });
+
+        // send() should return before turn completes (no session.idle yet)
+        expect(events).not.toContain("session.idle");
+
+        // Wait for turn to complete
+        const message = await getFinalAssistantMessage(session);
+
+        expect(message.data.content).toContain("done");
+        expect(events).toContain("session.idle");
+        expect(events).toContain("assistant.message");
+    });
+
+    it("sendAndWait blocks until session.idle and returns final assistant message", async () => {
+        const session = await client.createSession();
+
+        const events: string[] = [];
+        session.on((event) => {
+            events.push(event.type);
+        });
+
+        const response = await session.sendAndWait({ prompt: "What is 2+2?" });
+
+        expect(response).toBeDefined();
+        expect(response?.type).toBe("assistant.message");
+        expect(response?.data.content).toContain("4");
+        expect(events).toContain("session.idle");
+        expect(events).toContain("assistant.message");
+    });
+
+    it("sendAndWait throws on timeout", async () => {
+        const session = await client.createSession();
+
+        // Use a slow command to ensure timeout triggers before completion
+        await expect(
+            session.sendAndWait({ prompt: "Run 'sleep 2 && echo done'" }, 100)
+        ).rejects.toThrow(/Timeout after 100ms/);
+    });
+});
