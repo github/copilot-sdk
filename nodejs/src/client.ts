@@ -21,6 +21,7 @@ import {
 } from "vscode-jsonrpc/node.js";
 import { CopilotSession } from "./session.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
+import { PluginManager, type Plugin } from "./plugins.js";
 import type {
     ConnectionState,
     CopilotClientOptions,
@@ -100,9 +101,10 @@ export class CopilotClient {
     private actualHost: string = "localhost";
     private state: ConnectionState = "disconnected";
     private sessions: Map<string, CopilotSession> = new Map();
-    private options: Required<Omit<CopilotClientOptions, "cliUrl">> & { cliUrl?: string };
+    private options: Required<Omit<CopilotClientOptions, "cliUrl" | "plugins">> & { cliUrl?: string; plugins?: Plugin[] };
     private isExternalServer: boolean = false;
     private forceStopping: boolean = false;
+    private pluginManager: PluginManager;
 
     /**
      * Creates a new CopilotClient instance.
@@ -144,13 +146,18 @@ export class CopilotClient {
             cliArgs: options.cliArgs ?? [],
             cwd: options.cwd ?? process.cwd(),
             port: options.port || 0,
-            useStdio: options.cliUrl ? false : (options.useStdio ?? true), // Default to stdio unless cliUrl is provided
+            useStdio: options.cliUrl ? false : (options.useStdio ?? true),
             cliUrl: options.cliUrl,
             logLevel: options.logLevel || "info",
             autoStart: options.autoStart ?? true,
             autoRestart: options.autoRestart ?? true,
             env: options.env ?? process.env,
+            plugins: options.plugins,
         };
+
+        // Initialize plugin manager
+        console.log('🔧 CopilotClient: Initializing PluginManager with plugins:', options.plugins);
+        this.pluginManager = new PluginManager(this.options.plugins ?? []);
     }
 
     /**
@@ -210,6 +217,9 @@ export class CopilotClient {
         this.state = "connecting";
 
         try {
+            // Load plugins
+            await this.pluginManager.executeOnLoad();
+
             // Only start CLI server process if not connecting to external server
             if (!this.isExternalServer) {
                 await this.startCLIServer();
@@ -449,12 +459,15 @@ export class CopilotClient {
         });
 
         const sessionId = (response as { sessionId: string }).sessionId;
-        const session = new CopilotSession(sessionId, this.connection!);
+        const session = new CopilotSession(sessionId, this.connection!, this.pluginManager);
         session.registerTools(config.tools);
         if (config.onPermissionRequest) {
             session.registerPermissionHandler(config.onPermissionRequest);
         }
         this.sessions.set(sessionId, session);
+
+        // Execute plugin onSessionCreated hooks
+        await this.pluginManager.executeOnSessionCreated(session);
 
         return session;
     }

@@ -8,6 +8,7 @@
  */
 
 import type { MessageConnection } from "vscode-jsonrpc/node";
+import type { PluginManager } from "./plugins.js";
 import type {
     MessageOptions,
     PermissionHandler,
@@ -57,11 +58,13 @@ export class CopilotSession {
      *
      * @param sessionId - The unique identifier for this session
      * @param connection - The JSON-RPC message connection to the Copilot CLI
+     * @param pluginManager - The plugin manager for this session
      * @internal This constructor is internal. Use {@link CopilotClient.createSession} to create sessions.
      */
     constructor(
         public readonly sessionId: string,
-        private connection: MessageConnection
+        private connection: MessageConnection,
+        private pluginManager?: PluginManager
     ) {}
 
     /**
@@ -83,11 +86,17 @@ export class CopilotSession {
      * ```
      */
     async send(options: MessageOptions): Promise<string> {
+        // Execute plugin onBeforeSend hooks
+        let modifiedOptions = options;
+        if (this.pluginManager) {
+            modifiedOptions = await this.pluginManager.executeOnBeforeSend(this, options);
+        }
+
         const response = await this.connection.sendRequest("session.send", {
             sessionId: this.sessionId,
-            prompt: options.prompt,
-            attachments: options.attachments,
-            mode: options.mode,
+            prompt: modifiedOptions.prompt,
+            attachments: modifiedOptions.attachments,
+            mode: modifiedOptions.mode,
         });
 
         return (response as { messageId: string }).messageId;
@@ -331,6 +340,12 @@ export class CopilotSession {
         await this.connection.sendRequest("session.destroy", {
             sessionId: this.sessionId,
         });
+
+        // Execute plugin onSessionEnd hooks
+        if (this.pluginManager) {
+            await this.pluginManager.executeOnSessionEnd(this);
+        }
+
         this.eventHandlers.clear();
         this.toolHandlers.clear();
         this.permissionHandler = undefined;

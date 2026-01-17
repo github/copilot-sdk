@@ -11,6 +11,7 @@
 export { CopilotClient } from "./client.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
 export { defineTool } from "./types.js";
+export { PluginManager, type Plugin, type PluginContext } from "./plugins.js";
 export type {
     ConnectionState,
     CopilotClientOptions,
