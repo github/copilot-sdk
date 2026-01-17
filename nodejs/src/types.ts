@@ -10,6 +10,10 @@
 import type { SessionEvent as GeneratedSessionEvent } from "./generated/session-events.js";
 export type SessionEvent = GeneratedSessionEvent;
 
+// Import plugin types
+import type { Plugin } from "./plugins.js";
+export type { Plugin, PluginContext } from "./plugins.js";
+
 /**
  * Options for creating a CopilotClient
  */
@@ -74,6 +78,19 @@ export interface CopilotClientOptions {
      * Environment variables to pass to the CLI process. If not set, inherits process.env.
      */
     env?: Record<string, string | undefined>;
+
+    /**
+     * Plugins to load
+     */
+    plugins?: Plugin[];
+    
+    /**
+     * Plugin manager configuration
+     */
+    pluginManagerConfig?: {
+        availablePlugins?: Map<string, () => Plugin | Promise<Plugin>>;
+        debug?: boolean;
+    };
 }
 
 /**
