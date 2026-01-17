@@ -216,6 +216,11 @@ export class CopilotSession {
      * @internal This method is for internal use by the SDK.
      */
     _dispatchEvent(event: SessionEvent): void {
+        // Execute plugin hooks for session events
+        if (this.pluginManager) {
+            this.pluginManager.executeOnSessionEvent(this, event).catch(console.error);
+        }
+
         for (const handler of this.eventHandlers) {
             try {
                 handler(event);

@@ -129,9 +129,9 @@ export class AnalyticsPlugin implements Plugin {
     if (this.debug) console.log('📊 AnalyticsPlugin loaded');
   }
 
-  async onBeforeSend(): Promise<any> {
+  async onBeforeSend(context: PluginContext, options: any): Promise<any> {
     this.messageCount++;
-    return arguments[1]; // Return options unchanged
+    return options;
   }
 
   async onCompactionComplete(context: PluginContext, data: any): Promise<void> {
@@ -141,7 +141,7 @@ export class AnalyticsPlugin implements Plugin {
     }
   }
 
-  async onSessionEnd(): Promise<void> {
+  async onSessionEnd(context: PluginContext): Promise<void> {
     console.log(`\n📊 Session Stats:`);
     console.log(`   Messages sent: ${this.messageCount}`);
     console.log(`   Total tokens compacted: ${this.totalTokens}`);

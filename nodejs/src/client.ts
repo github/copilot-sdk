@@ -153,10 +153,10 @@ export class CopilotClient {
             autoRestart: options.autoRestart ?? true,
             env: options.env ?? process.env,
             plugins: options.plugins,
+            pluginManagerConfig: options.pluginManagerConfig,
         };
 
         // Initialize plugin manager
-        console.log('🔧 CopilotClient: Initializing PluginManager with plugins:', options.plugins);
         this.pluginManager = new PluginManager(this.options.plugins ?? [], options.pluginManagerConfig || {});
     }
 

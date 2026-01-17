@@ -18,7 +18,7 @@
  * For issue: https://github.com/github/copilot-cli/issues/947
  */
 
-import type { Plugin, PluginContext } from './types.js';
+import type { Plugin, PluginContext } from './plugins.js';
 
 export interface AntiCompactionOptions {
   /** Alert user when compaction occurs */
@@ -102,7 +102,7 @@ export class AntiCompactionPlugin implements Plugin {
       console.log(`   Pre-compaction tokens: ${data.preCompactionTokens || this.tokenCount}`);
       console.log(`   Messages: ${data.preCompactionMessagesLength || this.conversationHistory.length}`);
       console.log('\n   ⛔ NOTE: SDK does not support preventing this compaction');
-      console.log('   �� History is being preserved...\n');
+      console.log('   💾 History is being preserved...\n');
     }
 
     if (this.options.preserve) {

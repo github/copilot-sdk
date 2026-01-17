@@ -28,6 +28,9 @@ export interface Plugin {
     /** Unique plugin identifier */
     name: string;
 
+    /** Optional plugin description */
+    description?: string;
+
     /** Called when plugin is loaded */
     onLoad?(): Promise<void> | void;
 
@@ -70,6 +73,9 @@ export interface Plugin {
     /** Called when session ends */
     onSessionEnd?(context: PluginContext): Promise<void> | void;
 
+    /** Called after receiving a response (optional hook for logging/processing) */
+    onAfterReceive?(context: PluginContext, response: any): Promise<any> | any;
+
     /** Called when plugin is unloaded */
     onUnload?(): Promise<void> | void;
 }
@@ -85,7 +91,6 @@ export class PluginManager {
     private debug: boolean;
 
     constructor(plugins: Plugin[] = [], config: { availablePlugins?: Map<string, () => Plugin | Promise<Plugin>>; debug?: boolean } = {}) {
-        console.log('🔧 PluginManager: Constructor called with', plugins.length, 'plugins');
         this.debug = config.debug || false;
         this.availablePlugins = config.availablePlugins || new Map();
         
@@ -325,10 +330,8 @@ export class PluginManager {
      * Execute onLoad hooks for all plugins
      */
     async executeOnLoad(): Promise<void> {
-        console.log('🔧 PluginManager: executeOnLoad() called for', this.plugins.size, 'plugins');
         for (const [name, plugin] of this.plugins.entries()) {
             if (this.enabledPlugins.has(name)) {
-                console.log('🔧 PluginManager: Calling onLoad for plugin:', plugin.name);
                 await plugin.onLoad?.();
             }
         }
@@ -392,6 +395,9 @@ export class PluginManager {
 
     /**
      * Execute onCompactionStart hooks
+     * 
+     * NOTE: Not yet integrated - SDK does not currently expose compaction events.
+     * This method exists for future use when SDK adds compaction event support.
      */
     async executeOnCompactionStart(
         session: CopilotSession,
@@ -407,6 +413,9 @@ export class PluginManager {
 
     /**
      * Execute onCompactionComplete hooks
+     * 
+     * NOTE: Not yet integrated - SDK does not currently expose compaction events.
+     * This method exists for future use when SDK adds compaction event support.
      */
     async executeOnCompactionComplete(
         session: CopilotSession,
