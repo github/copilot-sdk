@@ -151,7 +151,7 @@ session = await client.create_session({
         )
     ],
 })
-````
+```
 
 The SDK automatically handles `tool.call`, executes your handler (sync or async), and responds with the final result when the tool completes.
 
