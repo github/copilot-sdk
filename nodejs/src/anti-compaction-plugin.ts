@@ -33,6 +33,7 @@ export interface AntiCompactionOptions {
 
 export class AntiCompactionPlugin implements Plugin {
   name = 'anti-compaction';
+  description = 'Monitors and preserves conversation history during context compaction';
   private options: Required<AntiCompactionOptions>;
   private conversationHistory: any[] = [];
   private tokenCount: number = 0;

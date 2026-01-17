@@ -13,6 +13,7 @@ import type { Plugin, PluginContext } from './plugins.js';
  */
 export class MemoryPreservationPlugin implements Plugin {
   name = 'memory-preservation';
+  description = 'Preserves important conversation data before context compaction';
   private importantData: any[] = [];
   private debug: boolean;
 
@@ -69,6 +70,7 @@ export class MemoryPreservationPlugin implements Plugin {
  */
 export class LoggerPlugin implements Plugin {
   name = 'logger';
+  description = 'Logs all session interactions for debugging';
   private debug: boolean;
 
   constructor(options: { debug?: boolean } = {}) {
@@ -86,6 +88,13 @@ export class LoggerPlugin implements Plugin {
   async onBeforeSend(context: PluginContext, options: any): Promise<any> {
     console.log(`📤 → ${options.prompt?.substring(0, 100)}${options.prompt?.length > 100 ? '...' : ''}`);
     return options;
+  }
+
+  async onSessionEvent(context: PluginContext, event: any): Promise<any> {
+    if (this.debug) {
+      console.log(`📡 Event: ${event.type || 'unknown'}`);
+    }
+    return event;
   }
 
   async onAfterReceive(context: PluginContext, response: any): Promise<any> {
@@ -107,6 +116,7 @@ export class LoggerPlugin implements Plugin {
  */
 export class AnalyticsPlugin implements Plugin {
   name = 'analytics';
+  description = 'Tracks usage statistics and message counts';
   private messageCount = 0;
   private totalTokens = 0;
   private debug: boolean;

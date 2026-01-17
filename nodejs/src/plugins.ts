@@ -246,7 +246,7 @@ export class PluginManager {
     private async uninstallPlugin(name: string): Promise<string> {
         const plugin = this.plugins.get(name);
         if (!plugin) {
-            return `❌ Plugin "${name}" is not installed`;
+            return `❌ Plugin "${name}" not found`;
         }
 
         await plugin.onUnload?.();
