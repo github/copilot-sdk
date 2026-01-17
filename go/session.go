@@ -10,6 +10,11 @@ import (
 	"github.com/github/copilot-sdk/go/generated"
 )
 
+type sessionHandler struct {
+	id uint64
+	fn SessionEventHandler
+}
+
 // Session represents a single conversation session with the Copilot CLI.
 //
 // A session maintains conversation state, handles events, and manages tool execution.
@@ -45,7 +50,8 @@ type Session struct {
 	// SessionID is the unique identifier for this session.
 	SessionID         string
 	client            *JSONRPCClient
-	handlers          []SessionEventHandler
+	handlers          []sessionHandler
+	nextHandlerID     uint64
 	handlerMutex      sync.RWMutex
 	toolHandlers      map[string]ToolHandler
 	toolHandlersM     sync.RWMutex
@@ -61,7 +67,7 @@ func NewSession(sessionID string, client *JSONRPCClient) *Session {
 	return &Session{
 		SessionID:    sessionID,
 		client:       client,
-		handlers:     make([]SessionEventHandler, 0),
+		handlers:     make([]sessionHandler, 0),
 		toolHandlers: make(map[string]ToolHandler),
 	}
 }
@@ -220,7 +226,9 @@ func (s *Session) On(handler SessionEventHandler) func() {
 	s.handlerMutex.Lock()
 	defer s.handlerMutex.Unlock()
 
-	s.handlers = append(s.handlers, handler)
+	id := s.nextHandlerID
+	s.nextHandlerID++
+	s.handlers = append(s.handlers, sessionHandler{id: id, fn: handler})
 
 	// Return unsubscribe function
 	return func() {
@@ -228,8 +236,7 @@ func (s *Session) On(handler SessionEventHandler) func() {
 		defer s.handlerMutex.Unlock()
 
 		for i, h := range s.handlers {
-			// Compare function pointers
-			if &h == &handler {
+			if h.id == id {
 				s.handlers = append(s.handlers[:i], s.handlers[i+1:]...)
 				break
 			}
@@ -317,8 +324,10 @@ func (s *Session) handlePermissionRequest(requestData map[string]interface{}) (P
 // are recovered to prevent crashing the event dispatcher.
 func (s *Session) dispatchEvent(event SessionEvent) {
 	s.handlerMutex.RLock()
-	handlers := make([]SessionEventHandler, len(s.handlers))
-	copy(handlers, s.handlers)
+	handlers := make([]SessionEventHandler, 0, len(s.handlers))
+	for _, h := range s.handlers {
+		handlers = append(handlers, h.fn)
+	}
 	s.handlerMutex.RUnlock()
 
 	for _, handler := range handlers {
