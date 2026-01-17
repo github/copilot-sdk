@@ -12,6 +12,8 @@ export { CopilotClient } from "./client.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
 export { defineTool } from "./types.js";
 export { PluginManager, type Plugin, type PluginContext } from "./plugins.js";
+export { MemoryPreservationPlugin, LoggerPlugin, AnalyticsPlugin, BUILTIN_PLUGINS } from "./builtin-plugins.js";
+export { AntiCompactionPlugin, type AntiCompactionOptions } from "./anti-compaction-plugin.js";
 export type {
     ConnectionState,
     CopilotClientOptions,

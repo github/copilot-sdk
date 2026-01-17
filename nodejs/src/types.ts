@@ -83,6 +83,14 @@ export interface CopilotClientOptions {
      * Plugins to load
      */
     plugins?: Plugin[];
+    
+    /**
+     * Plugin manager configuration
+     */
+    pluginManagerConfig?: {
+        availablePlugins?: Map<string, () => Plugin | Promise<Plugin>>;
+        debug?: boolean;
+    };
 }
 
 /**

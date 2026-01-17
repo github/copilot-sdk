@@ -13,7 +13,7 @@
  * Plugins can be configured in ~/.copilot-plugins.json or passed as arguments
  */
 
-import { CopilotClient } from './dist/index.js';
+import { CopilotClient, BUILTIN_PLUGINS } from './dist/index.js';
 import { readFileSync, existsSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
@@ -22,30 +22,15 @@ import readline from 'readline';
 // Import built-in test plugins
 import { testPlugin } from './test-plugin.js';
 
-// Load plugin configuration from ~/.copilot-plugins.json
-const pluginConfigPath = join(homedir(), '.copilot-plugins.json');
-let plugins = [];
-
-// For now, use test plugin
-plugins = [testPlugin];
-
-if (existsSync(pluginConfigPath)) {
-    try {
-        const config = JSON.parse(readFileSync(pluginConfigPath, 'utf8'));
-        console.log('🏴‍☠️ Loaded plugin config from', pluginConfigPath);
-        
-        // TODO: Dynamic plugin loading from config
-        // For now, we use statically imported plugins
-    } catch (error) {
-        console.error('⚠️  Failed to load plugin config:', error.message);
-    }
-}
-
 console.log('🏴‍☠️ Starting Copilot CLI with plugin support...\n');
 
-// Create client with plugins
+// Create client with plugins and built-in registry
 const client = new CopilotClient({
-    plugins,
+    plugins: [testPlugin],
+    pluginManagerConfig: {
+        availablePlugins: BUILTIN_PLUGINS,
+        debug: false
+    },
     autoStart: true,
     useStdio: false, // Use TCP mode so we can intercept
     port: 0 // Random available port
@@ -55,12 +40,13 @@ console.log('🔌 Starting Copilot CLI server...');
 await client.start();
 
 console.log('✅ Connected to Copilot CLI');
-console.log(`📦 Loaded ${plugins.length} plugin(s)\n`);
+console.log(`📦 Loaded ${client._pluginManager?.getPlugins().length || 0} plugin(s)\n`);
 
 // Create a session
 const session = await client.createSession();
 
-console.log('🎯 Session created. Type your prompts (Ctrl+C to exit)\n');
+console.log('🎯 Session created. Type your prompts (Ctrl+C to exit)');
+console.log('💡 Try: /plugins available to see built-in plugins\n');
 
 // Setup readline for interactive input
 const rl = readline.createInterface({
