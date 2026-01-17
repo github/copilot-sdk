@@ -294,6 +294,9 @@ export class PluginManager {
         }
         this.plugins.set(plugin.name, plugin);
         this.pluginData.set(plugin.name, new Map());
+        
+        // Auto-enable plugins when registered
+        this.enabledPlugins.add(plugin.name);
     }
 
     /**
