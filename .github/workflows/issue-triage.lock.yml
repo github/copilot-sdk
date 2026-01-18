@@ -1126,7 +1126,7 @@ jobs:
         id: check_membership
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
-          GH_AW_REQUIRED_ROLES: admin,maintainer,write
+          GH_AW_REQUIRED_ROLES: admin,maintainer,write,triage
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
