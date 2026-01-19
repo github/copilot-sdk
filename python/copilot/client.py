@@ -726,11 +726,7 @@ class CopilotClient:
                 session_id = params["sessionId"]
                 event_dict = params["event"]
                 # Convert dict to SessionEvent object
-                try:
-                    event = session_event_from_dict(event_dict)
-                except Exception:
-                    # Silently ignore unknown/malformed event types for forward compatibility
-                    return
+                event = session_event_from_dict(event_dict)
                 with self._sessions_lock:
                     session = self._sessions.get(session_id)
                 if session:
@@ -805,11 +801,7 @@ class CopilotClient:
                 session_id = params["sessionId"]
                 event_dict = params["event"]
                 # Convert dict to SessionEvent object
-                try:
-                    event = session_event_from_dict(event_dict)
-                except Exception:
-                    # Silently ignore unknown/malformed event types for forward compatibility
-                    return
+                event = session_event_from_dict(event_dict)
                 session = self._sessions.get(session_id)
                 if session:
                     session._dispatch_event(event)
