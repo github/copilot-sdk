@@ -61,5 +61,5 @@ class TestEventForwardCompatibility:
         }
         
         # This should raise an error and NOT be silently suppressed
-        with pytest.raises(Exception):
+        with pytest.raises((ValueError, TypeError)):
             session_event_from_dict(malformed_event)
