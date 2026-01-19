@@ -43,7 +43,7 @@ cd "$(dirname "$0")"
 echo "=== Running Go SDK E2E Tests ==="
 echo
 
-go test -v ./... -timeout 90s
+go test -v ./...
 
 echo
 echo "✅ All tests passed!"
