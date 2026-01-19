@@ -24,7 +24,7 @@ def get_cli_path() -> str:
         return cli_path
 
     # Look for CLI in sibling nodejs directory's node_modules
-    base_path = Path(__file__).parent.parent.parent.parent
+    base_path = Path(__file__).parents[3]  # equivalent to: path.parent.parent.parent.parent
     full_path = base_path / "nodejs" / "node_modules" / "@github" / "copilot" / "index.js"
     if full_path.exists():
         return str(full_path.resolve())
@@ -35,7 +35,7 @@ def get_cli_path() -> str:
 
 
 CLI_PATH = get_cli_path()
-SNAPSHOTS_DIR = Path(__file__).parent.parent.parent.parent / "test" / "snapshots"
+SNAPSHOTS_DIR = Path(__file__).parents[3] / "test" / "snapshots"
 
 
 class E2ETestContext:
