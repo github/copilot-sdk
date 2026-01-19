@@ -31,10 +31,9 @@ class TestEventForwardCompatibility:
             "type": "session.future_feature_from_server",
             "data": {},
         }
-        
+
         event = session_event_from_dict(unknown_event)
-        assert event.type == SessionEventType.UNKNOWN, \
-            f"Expected UNKNOWN, got {event.type}"
+        assert event.type == SessionEventType.UNKNOWN, f"Expected UNKNOWN, got {event.type}"
 
     def test_malformed_uuid_raises_error(self):
         """Malformed UUIDs should raise ValueError for visibility, not be suppressed."""
@@ -45,7 +44,7 @@ class TestEventForwardCompatibility:
             "type": "session.start",
             "data": {},
         }
-        
+
         # This should raise an error and NOT be silently suppressed
         with pytest.raises(ValueError):
             session_event_from_dict(malformed_event)
@@ -59,7 +58,7 @@ class TestEventForwardCompatibility:
             "type": "session.start",
             "data": {},
         }
-        
+
         # This should raise an error and NOT be silently suppressed
         with pytest.raises((ValueError, TypeError)):
             session_event_from_dict(malformed_event)
