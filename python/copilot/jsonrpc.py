@@ -160,6 +160,29 @@ class JsonRpcClient:
             if self._running:
                 print(f"JSON-RPC read loop error: {e}")
 
+    def _read_exact(self, num_bytes: int) -> bytes:
+        """
+        Read exactly num_bytes, handling partial/short reads from pipes.
+
+        Args:
+            num_bytes: Number of bytes to read
+
+        Returns:
+            Bytes read from stream
+
+        Raises:
+            EOFError: If stream ends before reading all bytes
+        """
+        chunks = []
+        remaining = num_bytes
+        while remaining > 0:
+            chunk = self.process.stdout.read(remaining)
+            if not chunk:
+                raise EOFError("Unexpected end of stream while reading JSON-RPC message")
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        return b"".join(chunks)
+
     def _read_message(self) -> Optional[dict]:
         """
         Read a single JSON-RPC message with Content-Length header (blocking)
@@ -182,8 +205,8 @@ class JsonRpcClient:
         # Read empty line
         self.process.stdout.readline()
 
-        # Read exact content
-        content_bytes = self.process.stdout.read(content_length)
+        # Read exact content using loop to handle short reads
+        content_bytes = self._read_exact(content_length)
         content = content_bytes.decode("utf-8")
 
         return json.loads(content)
