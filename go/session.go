@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"sync"
 	"time"
-
-	"github.com/github/copilot-sdk/go/generated"
 )
 
 type sessionHandler struct {
@@ -159,17 +157,17 @@ func (s *Session) SendAndWait(options MessageOptions, timeout time.Duration) (*S
 
 	unsubscribe := s.On(func(event SessionEvent) {
 		switch event.Type {
-		case generated.AssistantMessage:
+		case AssistantMessage:
 			mu.Lock()
 			eventCopy := event
 			lastAssistantMessage = &eventCopy
 			mu.Unlock()
-		case generated.SessionIdle:
+		case SessionIdle:
 			select {
 			case idleCh <- struct{}{}:
 			default:
 			}
-		case generated.SessionError:
+		case SessionError:
 			errMsg := "session error"
 			if event.Data.Message != nil {
 				errMsg = *event.Data.Message
@@ -387,7 +385,7 @@ func (s *Session) GetMessages() ([]SessionEvent, error) {
 			continue
 		}
 
-		event, err := generated.UnmarshalSessionEvent(eventJSON)
+		event, err := UnmarshalSessionEvent(eventJSON)
 		if err != nil {
 			continue
 		}

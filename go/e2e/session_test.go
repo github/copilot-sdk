@@ -472,16 +472,42 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		// Send a message that will take some time to process
-		_, err = session.Send(copilot.MessageOptions{Prompt: "What is 1+1?"})
+		// Set up wait for tool.execution_start BEFORE sending
+		toolStartCh := make(chan *copilot.SessionEvent, 1)
+		toolStartErrCh := make(chan error, 1)
+		go func() {
+			evt, err := testharness.GetNextEventOfType(session, copilot.ToolExecutionStart, 60*time.Second)
+			if err != nil {
+				toolStartErrCh <- err
+			} else {
+				toolStartCh <- evt
+			}
+		}()
+
+		// Send a message that triggers a long-running shell command
+		_, err = session.Send(copilot.MessageOptions{Prompt: "run the shell command 'sleep 100' (note this works on both bash and PowerShell)"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		// Abort the session immediately
+		// Wait for tool.execution_start
+		select {
+		case <-toolStartCh:
+			// Tool execution has started
+		case err := <-toolStartErrCh:
+			t.Fatalf("Failed waiting for tool.execution_start: %v", err)
+		}
+
+		// Abort the session
 		err = session.Abort()
 		if err != nil {
 			t.Fatalf("Failed to abort session: %v", err)
+		}
+
+		// Wait for session.idle after abort
+		_, err = testharness.GetNextEventOfType(session, copilot.SessionIdle, 60*time.Second)
+		if err != nil {
+			t.Fatalf("Failed waiting for session.idle after abort: %v", err)
 		}
 
 		// The session should still be alive and usable after abort
@@ -493,15 +519,22 @@ func TestSession(t *testing.T) {
 			t.Error("Expected messages to exist after abort")
 		}
 
-		// We should be able to send another message
-		_, err = session.Send(copilot.MessageOptions{Prompt: "What is 2+2?"})
-		if err != nil {
-			t.Fatalf("Failed to send message after abort: %v", err)
+		// Verify messages contain an abort event
+		hasAbortEvent := false
+		for _, msg := range messages {
+			if msg.Type == copilot.Abort {
+				hasAbortEvent = true
+				break
+			}
+		}
+		if !hasAbortEvent {
+			t.Error("Expected messages to contain an 'abort' event")
 		}
 
-		answer, err := testharness.GetFinalAssistantMessage(session, 60*time.Second)
+		// We should be able to send another message
+		answer, err := session.SendAndWait(copilot.MessageOptions{Prompt: "What is 2+2?"}, 60*time.Second)
 		if err != nil {
-			t.Fatalf("Failed to get assistant message after abort: %v", err)
+			t.Fatalf("Failed to send message after abort: %v", err)
 		}
 
 		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "4") {
