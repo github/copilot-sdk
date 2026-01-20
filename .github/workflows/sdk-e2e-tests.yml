@@ -110,6 +110,7 @@ jobs:
       - name: Run Go SDK tests
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           COPILOT_CLI_PATH: ${{ steps.cli-path.outputs.path }}
         run: ./test.sh
 
@@ -159,6 +160,7 @@ jobs:
       - name: Run Python SDK tests
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           COPILOT_CLI_PATH: ${{ steps.cli-path.outputs.path }}
         run: uv run pytest -v -s
 
@@ -215,6 +217,7 @@ jobs:
       - name: Run .NET SDK tests
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
         run: dotnet test --no-build -v n
 
   java-sdk:
@@ -252,4 +255,5 @@ jobs:
       - name: Run Java SDK tests
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
         run: mvn verify
