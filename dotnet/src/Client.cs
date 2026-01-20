@@ -344,7 +344,9 @@ public class CopilotClient : IDisposable, IAsyncDisposable
             config?.Streaming == true ? true : null,
             config?.McpServers,
             config?.CustomAgents,
-            config?.ConfigDir);
+            config?.ConfigDir,
+            config?.SkillDirectories,
+            config?.DisabledSkills);
 
         var response = await connection.Rpc.InvokeWithCancellationAsync<CreateSessionResponse>(
             "session.create", [request], cancellationToken);
@@ -399,7 +401,9 @@ public class CopilotClient : IDisposable, IAsyncDisposable
             config?.OnPermissionRequest != null ? true : null,
             config?.Streaming == true ? true : null,
             config?.McpServers,
-            config?.CustomAgents);
+            config?.CustomAgents,
+            config?.SkillDirectories,
+            config?.DisabledSkills);
 
         var response = await connection.Rpc.InvokeWithCancellationAsync<ResumeSessionResponse>(
             "session.resume", [request], cancellationToken);
@@ -927,7 +931,9 @@ public class CopilotClient : IDisposable, IAsyncDisposable
         bool? Streaming,
         Dictionary<string, object>? McpServers,
         List<CustomAgentConfig>? CustomAgents,
-        string? ConfigDir);
+        string? ConfigDir,
+        List<string>? SkillDirectories,
+        List<string>? DisabledSkills);
 
     private record ToolDefinition(
         string Name,
@@ -948,7 +954,9 @@ public class CopilotClient : IDisposable, IAsyncDisposable
         bool? RequestPermission,
         bool? Streaming,
         Dictionary<string, object>? McpServers,
-        List<CustomAgentConfig>? CustomAgents);
+        List<CustomAgentConfig>? CustomAgents,
+        List<string>? SkillDirectories,
+        List<string>? DisabledSkills);
 
     private record ResumeSessionResponse(
         string SessionId);

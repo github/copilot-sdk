@@ -384,6 +384,16 @@ export interface SessionConfig {
      * Custom agent configurations for the session.
      */
     customAgents?: CustomAgentConfig[];
+
+    /**
+     * Directories to load skills from.
+     */
+    skillDirectories?: string[];
+
+    /**
+     * List of skill names to disable.
+     */
+    disabledSkills?: string[];
 }
 
 /**
@@ -391,7 +401,14 @@ export interface SessionConfig {
  */
 export type ResumeSessionConfig = Pick<
     SessionConfig,
-    "tools" | "provider" | "streaming" | "onPermissionRequest" | "mcpServers" | "customAgents"
+    | "tools"
+    | "provider"
+    | "streaming"
+    | "onPermissionRequest"
+    | "mcpServers"
+    | "customAgents"
+    | "skillDirectories"
+    | "disabledSkills"
 >;
 
 /**

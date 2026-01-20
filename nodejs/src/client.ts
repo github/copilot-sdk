@@ -447,6 +447,8 @@ export class CopilotClient {
             mcpServers: config.mcpServers,
             customAgents: config.customAgents,
             configDir: config.configDir,
+            skillDirectories: config.skillDirectories,
+            disabledSkills: config.disabledSkills,
         });
 
         const sessionId = (response as { sessionId: string }).sessionId;
@@ -507,6 +509,8 @@ export class CopilotClient {
             streaming: config.streaming,
             mcpServers: config.mcpServers,
             customAgents: config.customAgents,
+            skillDirectories: config.skillDirectories,
+            disabledSkills: config.disabledSkills,
         });
 
         const resumedSessionId = (response as { sessionId: string }).sessionId;
