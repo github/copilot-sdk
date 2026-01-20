@@ -724,7 +724,7 @@ export class CopilotClient {
             } else if (process.platform === "win32" && !isAbsolutePath) {
                 // On Windows, spawn doesn't search PATHEXT, so use cmd /c to resolve the executable.
                 command = "cmd";
-                spawnArgs = ["/c", `"${this.options.cliPath}"`, ...args];
+                spawnArgs = ["/c", `${this.options.cliPath}`, ...args];
             } else {
                 command = this.options.cliPath;
                 spawnArgs = args;
