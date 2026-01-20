@@ -375,7 +375,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     [Fact]
     public async Task Should_Create_Session_With_Custom_Config_Dir()
     {
-        var customConfigDir = Path.Combine(Ctx.HomeDir, "custom-config");
+        var customConfigDir = Path.Join(Ctx.HomeDir, "custom-config");
         var session = await Client.CreateSessionAsync(new SessionConfig { ConfigDir = customConfigDir });
 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
