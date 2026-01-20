@@ -63,8 +63,7 @@ class TestSkillBehavior:
     ):
         """Test that disabledSkills prevents skill from being applied"""
         session = await ctx.client.create_session(
-            {"skill_directories": [skills_dir],
-                "disabled_skills": ["test-skill"]}
+            {"skill_directories": [skills_dir], "disabled_skills": ["test-skill"]}
         )
 
         assert session.session_id is not None
