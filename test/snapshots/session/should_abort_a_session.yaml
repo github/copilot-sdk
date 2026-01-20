@@ -5,11 +5,45 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: What is 1+1?
+        content: run the shell command 'sleep 100' (note this works on both bash and PowerShell)
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Running sleep command"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"sleep 100","description":"Run sleep command for 100 seconds","initial_wait":105,"mode":"sync"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: run the shell command 'sleep 100' (note this works on both bash and PowerShell)
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Running sleep command"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"sleep 100","description":"Run sleep command for 100 seconds","initial_wait":105,"mode":"sync"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: The execution of this tool, or a previous tool was interrupted.
       - role: user
         content: What is 2+2?
       - role: assistant
-        content: |-
-          1+1 = 2
-
-          2+2 = 4
+        content: 2+2 equals 4.

@@ -2,7 +2,7 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import { ParsedHttpExchange } from "../../../test/harness/replayingCapiProxy.js";
 import { CopilotClient } from "../../src/index.js";
 import { CLI_PATH, createSdkTestContext } from "./harness/sdkTestContext.js";
-import { getFinalAssistantMessage } from "./harness/sdkTestHelper.js";
+import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
 
 describe("Sessions", async () => {
     const { copilotClient: client, openAiEndpoint, homeDir } = await createSdkTestContext();
@@ -231,14 +231,20 @@ describe("Sessions", async () => {
         const session = await client.createSession();
 
         // Send a message (don't wait - we want to abort while it's in progress)
-        await session.send({ prompt: "What is 1+1?" });
+        const nextToolCallStart = getNextEventOfType(session, "tool.execution_start");
+        await session.send({
+            prompt: "run the shell command 'sleep 100' (note this works on both bash and PowerShell)",
+        });
 
-        // Abort the session immediately
+        // Abort once we see a tool execution start
+        await nextToolCallStart;
         await session.abort();
+        await getNextEventOfType(session, "session.idle");
 
         // The session should still be alive and usable after abort
         const messages = await session.getMessages();
         expect(messages.length).toBeGreaterThan(0);
+        expect(messages.some((m) => m.type === "abort")).toBe(true);
 
         // We should be able to send another message
         const answer = await session.sendAndWait({ prompt: "What is 2+2?" });
