@@ -718,6 +718,38 @@ func TestSession(t *testing.T) {
 			t.Errorf("Expected assistant message to contain '300', got %v", assistantMessage.Data.Content)
 		}
 	})
+
+	t.Run("should create session with custom config dir", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		customConfigDir := ctx.HomeDir + "/custom-config"
+		session, err := client.CreateSession(&copilot.SessionConfig{
+			ConfigDir: customConfigDir,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session with custom config dir: %v", err)
+		}
+
+		matched, _ := regexp.MatchString(`^[a-f0-9-]+$`, session.SessionID)
+		if !matched {
+			t.Errorf("Expected session ID to match UUID pattern, got %q", session.SessionID)
+		}
+
+		// Session should work normally with custom config dir
+		_, err = session.Send(copilot.MessageOptions{Prompt: "What is 1+1?"})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		assistantMessage, err := testharness.GetFinalAssistantMessage(session, 60*time.Second)
+		if err != nil {
+			t.Fatalf("Failed to get assistant message: %v", err)
+		}
+
+		if assistantMessage.Data.Content == nil || !strings.Contains(*assistantMessage.Data.Content, "2") {
+			t.Errorf("Expected assistant message to contain '2', got %v", assistantMessage.Data.Content)
+		}
+	})
 }
 
 func getSystemMessage(exchange testharness.ParsedHttpExchange) string {

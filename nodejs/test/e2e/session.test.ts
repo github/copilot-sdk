@@ -321,6 +321,20 @@ describe("Sessions", async () => {
         // Verify the assistant response contains the expected answer
         expect(assistantMessage?.data.content).toContain("300");
     });
+
+    it("should create session with custom config dir", async () => {
+        const customConfigDir = `${homeDir}/custom-config`;
+        const session = await client.createSession({
+            configDir: customConfigDir,
+        });
+
+        expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
+
+        // Session should work normally with custom config dir
+        await session.send({ prompt: "What is 1+1?" });
+        const assistantMessage = await getFinalAssistantMessage(session);
+        expect(assistantMessage.data.content).toContain("2");
+    });
 });
 
 function getSystemMessage(exchange: ParsedHttpExchange): string | undefined {

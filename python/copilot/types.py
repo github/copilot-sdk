@@ -216,6 +216,9 @@ class SessionConfig(TypedDict, total=False):
     mcp_servers: Dict[str, MCPServerConfig]
     # Custom agent configurations for the session
     custom_agents: List[CustomAgentConfig]
+    # Override the default configuration directory location.
+    # When specified, the session will use this directory for storing config and state.
+    config_dir: str
 
 
 # Azure-specific provider options

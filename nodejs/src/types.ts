@@ -325,6 +325,12 @@ export interface SessionConfig {
     model?: string;
 
     /**
+     * Override the default configuration directory location.
+     * When specified, the session will use this directory for storing config and state.
+     */
+    configDir?: string;
+
+    /**
      * Tools exposed to the CLI server
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

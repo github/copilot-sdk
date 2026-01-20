@@ -383,6 +383,19 @@ class TestSessions:
         assistant_message = await get_final_assistant_message(session)
         assert "300" in assistant_message.data.content
 
+    async def test_should_create_session_with_custom_config_dir(self, ctx: E2ETestContext):
+        import os
+
+        custom_config_dir = os.path.join(ctx.home_dir, "custom-config")
+        session = await ctx.client.create_session({"config_dir": custom_config_dir})
+
+        assert session.session_id
+
+        # Session should work normally with custom config dir
+        await session.send({"prompt": "What is 1+1?"})
+        assistant_message = await get_final_assistant_message(session)
+        assert "2" in assistant_message.data.content
+
 
 def _get_system_message(exchange: dict) -> str:
     messages = exchange.get("request", {}).get("messages", [])
