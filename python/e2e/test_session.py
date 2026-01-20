@@ -260,9 +260,12 @@ class TestSessions:
 
         session = await ctx.client.create_session()
 
-        # Set up wait for tool.execution_start BEFORE sending
+        # Set up event listeners BEFORE sending to avoid race conditions
         wait_for_tool_start = asyncio.create_task(
             get_next_event_of_type(session, "tool.execution_start", timeout=60.0)
+        )
+        wait_for_session_idle = asyncio.create_task(
+            get_next_event_of_type(session, "session.idle", timeout=30.0)
         )
 
         # Send a message that will trigger a long-running shell command
@@ -277,7 +280,7 @@ class TestSessions:
         await session.abort()
 
         # Wait for session to become idle after abort
-        await get_next_event_of_type(session, "session.idle", timeout=30.0)
+        _ = await wait_for_session_idle
 
         # The session should still be alive and usable after abort
         messages = await session.get_messages()

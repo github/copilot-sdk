@@ -472,7 +472,7 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		// Set up wait for tool.execution_start BEFORE sending
+		// Set up event listeners BEFORE sending to avoid race conditions
 		toolStartCh := make(chan *copilot.SessionEvent, 1)
 		toolStartErrCh := make(chan error, 1)
 		go func() {
@@ -481,6 +481,17 @@ func TestSession(t *testing.T) {
 				toolStartErrCh <- err
 			} else {
 				toolStartCh <- evt
+			}
+		}()
+
+		sessionIdleCh := make(chan *copilot.SessionEvent, 1)
+		sessionIdleErrCh := make(chan error, 1)
+		go func() {
+			evt, err := testharness.GetNextEventOfType(session, copilot.SessionIdle, 60*time.Second)
+			if err != nil {
+				sessionIdleErrCh <- err
+			} else {
+				sessionIdleCh <- evt
 			}
 		}()
 
@@ -505,8 +516,10 @@ func TestSession(t *testing.T) {
 		}
 
 		// Wait for session.idle after abort
-		_, err = testharness.GetNextEventOfType(session, copilot.SessionIdle, 60*time.Second)
-		if err != nil {
+		select {
+		case <-sessionIdleCh:
+			// Session is idle
+		case err := <-sessionIdleErrCh:
 			t.Fatalf("Failed waiting for session.idle after abort: %v", err)
 		}
 

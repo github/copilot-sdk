@@ -230,8 +230,10 @@ describe("Sessions", async () => {
     it("should abort a session", async () => {
         const session = await client.createSession();
 
-        // Send a message (don't wait - we want to abort while it's in progress)
+        // Set up event listeners BEFORE sending to avoid race conditions
         const nextToolCallStart = getNextEventOfType(session, "tool.execution_start");
+        const nextSessionIdle = getNextEventOfType(session, "session.idle");
+
         await session.send({
             prompt: "run the shell command 'sleep 100' (note this works on both bash and PowerShell)",
         });
@@ -239,7 +241,7 @@ describe("Sessions", async () => {
         // Abort once we see a tool execution start
         await nextToolCallStart;
         await session.abort();
-        await getNextEventOfType(session, "session.idle");
+        await nextSessionIdle;
 
         // The session should still be alive and usable after abort
         const messages = await session.getMessages();

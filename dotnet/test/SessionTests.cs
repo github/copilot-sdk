@@ -203,6 +203,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
 
         // Set up wait for tool execution to start BEFORE sending
         var toolStartTask = TestHelper.GetNextEventOfTypeAsync<ToolExecutionStartEvent>(session);
+        var sessionIdleTask = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session);
 
         // Send a message that will take some time to process
         await session.SendAsync(new MessageOptions
@@ -215,9 +216,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
 
         // Abort the session
         await session.AbortAsync();
-
-        // Wait for session to become idle after abort
-        await TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session);
+        await sessionIdleTask;
 
         // The session should still be alive and usable after abort
         var messages = await session.GetMessagesAsync();
