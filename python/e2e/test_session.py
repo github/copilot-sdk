@@ -271,7 +271,7 @@ class TestSessions:
         )
 
         # Wait for the tool to start executing
-        await wait_for_tool_start
+        _ = await wait_for_tool_start
 
         # Abort the session while the tool is running
         await session.abort()
