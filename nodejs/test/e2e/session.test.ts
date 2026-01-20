@@ -230,8 +230,8 @@ describe("Sessions", async () => {
     it("should abort a session", async () => {
         const session = await client.createSession();
 
-        // Send a message that will take some time to process
-        await session.sendAndWait({ prompt: "What is 1+1?" });
+        // Send a message (don't wait - we want to abort while it's in progress)
+        await session.send({ prompt: "What is 1+1?" });
 
         // Abort the session immediately
         await session.abort();
