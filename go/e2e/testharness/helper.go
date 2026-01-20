@@ -60,12 +60,13 @@ func GetNextEventOfType(session *copilot.Session, eventType copilot.SessionEvent
 	errCh := make(chan error, 1)
 
 	unsubscribe := session.On(func(event copilot.SessionEvent) {
-		if event.Type == eventType {
+		switch event.Type {
+		case eventType:
 			select {
 			case result <- &event:
 			default:
 			}
-		} else if event.Type == copilot.SessionError {
+		case copilot.SessionError:
 			msg := "session error"
 			if event.Data.Message != nil {
 				msg = *event.Data.Message
