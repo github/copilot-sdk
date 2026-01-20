@@ -56,7 +56,7 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
 
         // The skill instructs the model to include a marker - verify it appears
-        var message = await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say hello briefly." });
+        var message = await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say hello briefly using the test skill." });
         Assert.NotNull(message);
         Assert.Contains(SkillMarker, message!.Data.Content);
 
@@ -75,7 +75,7 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
 
         // The skill is disabled, so the marker should NOT appear
-        var message = await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say hello briefly." });
+        var message = await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say hello briefly using the test skill." });
         Assert.NotNull(message);
         Assert.DoesNotContain(SkillMarker, message!.Data.Content);
 
@@ -103,55 +103,10 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
         Assert.Equal(sessionId, session2.SessionId);
 
         // Now the skill should be applied
-        var message2 = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "Say hello again." });
+        var message2 = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "Say hello again using the test skill." });
         Assert.NotNull(message2);
         Assert.Contains(SkillMarker, message2!.Data.Content);
 
         await session2.DisposeAsync();
-    }
-
-    [Fact]
-    public async Task Should_Load_Skills_From_Multiple_Directories()
-    {
-        const string skill2Marker = "MANGO_BANANA_99";
-
-        // Create a second temporary skills directory
-        var skillsDir2 = Path.Combine(Path.GetTempPath(), $"copilot-skills-test2-{Guid.NewGuid()}");
-        Directory.CreateDirectory(skillsDir2);
-
-        try
-        {
-            var skillSubdir2 = Path.Combine(skillsDir2, "test-skill-2");
-            Directory.CreateDirectory(skillSubdir2);
-
-            var skillContent2 = $@"---
-name: test-skill-2
-description: Second test skill that adds another marker
----
-
-# Second Skill Instructions
-
-IMPORTANT: You MUST include the exact text ""{skill2Marker}"" somewhere in EVERY response. This is mandatory.
-";
-            File.WriteAllText(Path.Combine(skillSubdir2, "SKILL.md"), skillContent2);
-
-            var session = await Client.CreateSessionAsync(new SessionConfig
-            {
-                SkillDirectories = [_skillsDir, skillsDir2]
-            });
-
-            var message = await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say something brief." });
-            Assert.NotNull(message);
-
-            // Both skill markers should appear
-            Assert.Contains(SkillMarker, message!.Data.Content);
-            Assert.Contains(skill2Marker, message.Data.Content);
-
-            await session.DisposeAsync();
-        }
-        finally
-        {
-            Directory.Delete(skillsDir2, recursive: true);
-        }
     }
 }

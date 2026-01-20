@@ -5,7 +5,11 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: Say hello briefly using the test skill.
+        content: Say hi.
+      - role: assistant
+        content: Hi! I'm GitHub Copilot CLI, ready to help with your software engineering tasks. What can I do for you?
+      - role: user
+        content: Say hello again using the test skill.
       - role: assistant
         tool_calls:
           - id: toolcall_0
@@ -20,7 +24,7 @@ conversations:
         content: >-
           <skill-context name="test-skill">
 
-          Base directory for this skill: /tmp/copilot-skills-test-eSUOPo/test-skill
+          Base directory for this skill: /tmp/copilot-skills-test-3578831123/test-skill
 
 
           ---
@@ -41,4 +45,4 @@ conversations:
 
           </skill-context>
       - role: assistant
-        content: Hello! PINEAPPLE_COCONUT_42 - the test skill is active and working.
+        content: Hello again! PINEAPPLE_COCONUT_42 - ready to assist you with the test skill activated!

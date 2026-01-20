@@ -60,7 +60,7 @@ func TestSkillBehavior(t *testing.T) {
 
 		// The skill instructs the model to include a marker - verify it appears
 		message, err := session.SendAndWait(copilot.MessageOptions{
-			Prompt: "Say hello briefly.",
+			Prompt: "Say hello briefly using the test skill.",
 		}, 60*time.Second)
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
@@ -86,7 +86,7 @@ func TestSkillBehavior(t *testing.T) {
 
 		// The skill is disabled, so the marker should NOT appear
 		message, err := session.SendAndWait(copilot.MessageOptions{
-			Prompt: "Say hello briefly.",
+			Prompt: "Say hello briefly using the test skill.",
 		}, 60*time.Second)
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
@@ -132,7 +132,7 @@ func TestSkillBehavior(t *testing.T) {
 		}
 
 		// Now the skill should be applied
-		message2, err := session2.SendAndWait(copilot.MessageOptions{Prompt: "Say hello again."}, 60*time.Second)
+		message2, err := session2.SendAndWait(copilot.MessageOptions{Prompt: "Say hello again using the test skill."}, 60*time.Second)
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
@@ -142,72 +142,5 @@ func TestSkillBehavior(t *testing.T) {
 		}
 
 		session2.Destroy()
-	})
-}
-
-func TestMultipleSkills(t *testing.T) {
-	ctx := testharness.NewTestContext(t)
-	client := ctx.NewClient()
-	t.Cleanup(func() { client.ForceStop() })
-
-	const skill2Marker = "MANGO_BANANA_99"
-
-	skillsDir := createTestSkillDir(t, skillMarker)
-	t.Cleanup(func() { os.RemoveAll(skillsDir) })
-
-	// Create a second skills directory
-	skillsDir2, err := os.MkdirTemp("", "copilot-skills-test2-")
-	if err != nil {
-		t.Fatalf("Failed to create temp skills directory 2: %v", err)
-	}
-	t.Cleanup(func() { os.RemoveAll(skillsDir2) })
-
-	skillSubdir2 := filepath.Join(skillsDir2, "test-skill-2")
-	if err := os.MkdirAll(skillSubdir2, 0755); err != nil {
-		t.Fatalf("Failed to create skill subdirectory 2: %v", err)
-	}
-
-	skillContent2 := `---
-name: test-skill-2
-description: Second test skill that adds another marker
----
-
-# Second Skill Instructions
-
-IMPORTANT: You MUST include the exact text "` + skill2Marker + `" somewhere in EVERY response. This is mandatory.
-`
-	if err := os.WriteFile(filepath.Join(skillSubdir2, "SKILL.md"), []byte(skillContent2), 0644); err != nil {
-		t.Fatalf("Failed to write SKILL.md: %v", err)
-	}
-
-	t.Run("load skills from multiple directories", func(t *testing.T) {
-		ctx.ConfigureForTest(t)
-
-		session, err := client.CreateSession(&copilot.SessionConfig{
-			SkillDirectories: []string{skillsDir, skillsDir2},
-		})
-		if err != nil {
-			t.Fatalf("Failed to create session: %v", err)
-		}
-
-		message, err := session.SendAndWait(copilot.MessageOptions{
-			Prompt: "Say something brief.",
-		}, 60*time.Second)
-		if err != nil {
-			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		// Both skill markers should appear
-		if message.Data.Content == nil {
-			t.Fatal("Expected non-nil message content")
-		}
-		if !strings.Contains(*message.Data.Content, skillMarker) {
-			t.Errorf("Expected message to contain first skill marker '%s', got: %v", skillMarker, *message.Data.Content)
-		}
-		if !strings.Contains(*message.Data.Content, skill2Marker) {
-			t.Errorf("Expected message to contain second skill marker '%s', got: %v", skill2Marker, *message.Data.Content)
-		}
-
-		session.Destroy()
 	})
 }

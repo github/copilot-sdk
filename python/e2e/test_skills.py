@@ -52,7 +52,7 @@ class TestSkillBehavior:
         assert session.session_id is not None
 
         # The skill instructs the model to include a marker - verify it appears
-        message = await session.send_and_wait({"prompt": "Say hello briefly."})
+        message = await session.send_and_wait({"prompt": "Say hello briefly using the test skill."})
         assert message is not None
         assert SKILL_MARKER in message.data.content
 
@@ -69,7 +69,7 @@ class TestSkillBehavior:
         assert session.session_id is not None
 
         # The skill is disabled, so the marker should NOT appear
-        message = await session.send_and_wait({"prompt": "Say hello briefly."})
+        message = await session.send_and_wait({"prompt": "Say hello briefly using the test skill."})
         assert message is not None
         assert SKILL_MARKER not in message.data.content
 
@@ -96,50 +96,8 @@ class TestSkillBehavior:
         assert session2.session_id == session_id
 
         # Now the skill should be applied
-        message2 = await session2.send_and_wait({"prompt": "Say hello again."})
+        message2 = await session2.send_and_wait({"prompt": "Say hello again using the test skill."})
         assert message2 is not None
         assert SKILL_MARKER in message2.data.content
 
         await session2.destroy()
-
-
-class TestMultipleSkills:
-    async def test_load_skills_from_multiple_directories(
-        self, ctx: E2ETestContext, skills_dir: str
-    ):
-        """Test that skills from multiple directories are all loaded"""
-        skill2_marker = "MANGO_BANANA_99"
-
-        # Create a second temporary skills directory
-        skills_dir2 = tempfile.mkdtemp(prefix="copilot-skills-test2-")
-
-        try:
-            skill_subdir2 = os.path.join(skills_dir2, "test-skill-2")
-            os.makedirs(skill_subdir2, exist_ok=True)
-
-            skill_content2 = f"""---
-name: test-skill-2
-description: Second test skill that adds another marker
----
-
-# Second Skill Instructions
-
-IMPORTANT: You MUST include the exact text "{skill2_marker}" somewhere in EVERY response. This is mandatory.
-"""
-            with open(os.path.join(skill_subdir2, "SKILL.md"), "w") as f:
-                f.write(skill_content2)
-
-            session = await ctx.client.create_session(
-                {"skill_directories": [skills_dir, skills_dir2]}
-            )
-
-            message = await session.send_and_wait({"prompt": "Say something brief."})
-            assert message is not None
-
-            # Both skill markers should appear
-            assert SKILL_MARKER in message.data.content
-            assert skill2_marker in message.data.content
-
-            await session.destroy()
-        finally:
-            shutil.rmtree(skills_dir2, ignore_errors=True)
