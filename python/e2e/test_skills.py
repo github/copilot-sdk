@@ -4,7 +4,7 @@ Tests for skills configuration functionality
 
 import os
 import shutil
-import tempfile
+
 import pytest
 
 from .testharness import E2ETestContext
@@ -16,8 +16,9 @@ SKILL_MARKER = "PINEAPPLE_COCONUT_42"
 
 @pytest.fixture(scope="module")
 def skills_dir():
-    """Create a temporary skills directory with a test skill"""
-    skills_dir = tempfile.mkdtemp(prefix="copilot-skills-test-")
+    """Create a skills directory in the working directory"""
+    skills_dir = os.path.join(os.getcwd(), "copilot-skills-test")
+    os.makedirs(skills_dir, exist_ok=True)
 
     # Create a skill subdirectory with SKILL.md
     skill_subdir = os.path.join(skills_dir, "test-skill")

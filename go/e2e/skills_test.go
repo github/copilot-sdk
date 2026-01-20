@@ -14,9 +14,13 @@ import (
 const skillMarker = "PINEAPPLE_COCONUT_42"
 
 func createTestSkillDir(t *testing.T, marker string) string {
-	skillsDir, err := os.MkdirTemp("", "copilot-skills-test-")
+	cwd, err := os.Getwd()
 	if err != nil {
-		t.Fatalf("Failed to create temp skills directory: %v", err)
+		t.Fatalf("Failed to get current working directory: %v", err)
+	}
+	skillsDir := filepath.Join(cwd, "copilot-skills-test")
+	if err := os.MkdirAll(skillsDir, 0755); err != nil {
+		t.Fatalf("Failed to create skills directory: %v", err)
 	}
 
 	skillSubdir := filepath.Join(skillsDir, "test-skill")

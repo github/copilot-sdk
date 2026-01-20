@@ -15,8 +15,8 @@ public class SkillsTests : E2ETestBase, IDisposable
 
     public SkillsTests(E2ETestFixture fixture, ITestOutputHelper output) : base(fixture, "skills", output)
     {
-        // Create a temporary skills directory with a test skill
-        _skillsDir = Path.Combine(Path.GetTempPath(), $"copilot-skills-test-{Guid.NewGuid()}");
+        // Create a skills directory in the working directory
+        _skillsDir = Path.Combine(Directory.GetCurrentDirectory(), "copilot-skills-test");
         Directory.CreateDirectory(_skillsDir);
 
         // Create a skill subdirectory with SKILL.md

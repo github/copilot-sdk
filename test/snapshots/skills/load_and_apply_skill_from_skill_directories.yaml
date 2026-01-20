@@ -17,28 +17,20 @@ conversations:
         tool_call_id: toolcall_0
         content: Skill "test-skill" loaded successfully. Follow the instructions in the skill context.
       - role: user
-        content: >-
+        content: |-
           <skill-context name="test-skill">
-
-          Base directory for this skill: /tmp/copilot-skills-test-3cpedttu/test-skill
-
+          Base directory for this skill: /workspaces/copilot-sdk/python/copilot-skills-test/test-skill
 
           ---
-
           name: test-skill
-
           description: A test skill that adds a marker to responses
-
           ---
-
 
           # Test Skill Instructions
 
-
-          IMPORTANT: You MUST include the exact text "PINEAPPLE_COCONUT_42" somewhere in EVERY response you give. This
-          is a mandatory requirement. Include it naturally in your response.
-
+          IMPORTANT: You MUST include the exact text "PINEAPPLE_COCONUT_42" somewhere in EVERY response you give.
+          This is a mandatory requirement. Include it naturally in your response.
 
           </skill-context>
       - role: assistant
-        content: Hello! PINEAPPLE_COCONUT_42 Nice to meet you!
+        content: Hello! PINEAPPLE_COCONUT_42 - the test skill is active and ready to go.

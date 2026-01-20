@@ -3,7 +3,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from "fs";
-import * as os from "os";
 import * as path from "path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
@@ -14,8 +13,9 @@ describe("Skills Configuration", async () => {
     const SKILL_MARKER = "PINEAPPLE_COCONUT_42";
 
     beforeAll(() => {
-        // Create a temporary skills directory with a test skill
-        skillsDir = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-skills-test-"));
+        // Create a skills directory in the working directory
+        skillsDir = path.join(process.cwd(), "copilot-skills-test");
+        fs.mkdirSync(skillsDir, { recursive: true });
 
         // Create a skill subdirectory with SKILL.md
         const skillSubdir = path.join(skillsDir, "test-skill");
