@@ -15,12 +15,13 @@ public class SkillsTests : E2ETestBase, IDisposable
 
     public SkillsTests(E2ETestFixture fixture, ITestOutputHelper output) : base(fixture, "skills", output)
     {
-        // Create a skills directory in the working directory
-        _skillsDir = Path.Combine(Directory.GetCurrentDirectory(), "copilot-skills-test");
+
+        // Create a temporary skills directory with a test skill
+        _skillsDir = Path.Join(fixture.Ctx.WorkDir, $"copilot-skills-test");
         Directory.CreateDirectory(_skillsDir);
 
         // Create a skill subdirectory with SKILL.md
-        var skillSubdir = Path.Combine(_skillsDir, "test-skill");
+        var skillSubdir = Path.Join(_skillsDir, "test-skill");
         Directory.CreateDirectory(skillSubdir);
 
         // Create a skill that instructs the model to include a specific marker in responses
@@ -32,8 +33,8 @@ description: A test skill that adds a marker to responses
 # Test Skill Instructions
 
 IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY response you give. This is a mandatory requirement. Include it naturally in your response.
-";
-        File.WriteAllText(Path.Combine(skillSubdir, "SKILL.md"), skillContent);
+".ReplaceLineEndings("\n");
+        File.WriteAllText(Path.Join(skillSubdir, "SKILL.md"), skillContent);
     }
 
     public void Dispose()

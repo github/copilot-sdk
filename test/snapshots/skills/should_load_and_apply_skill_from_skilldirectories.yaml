@@ -20,8 +20,7 @@ conversations:
         content: >-
           <skill-context name="test-skill">
 
-          Base directory for this skill:
-          /workspaces/copilot-sdk/dotnet/test/bin/Debug/net8.0/copilot-skills-test/test-skill
+          Base directory for this skill: ${workdir}/copilot-skills-test/test-skill
 
 
           ---
@@ -42,4 +41,4 @@ conversations:
 
           </skill-context>
       - role: assistant
-        content: Hello! PINEAPPLE_COCONUT_42 - Hope you're having a great day!
+        content: Hello! PINEAPPLE_COCONUT_42 - test skill is active and ready to help.
