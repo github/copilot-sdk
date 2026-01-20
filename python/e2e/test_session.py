@@ -5,7 +5,7 @@ import pytest
 from copilot import CopilotClient
 from copilot.types import Tool
 
-from .testharness import E2ETestContext, get_final_assistant_message
+from .testharness import E2ETestContext, get_final_assistant_message, get_next_event_of_type
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -256,21 +256,42 @@ class TestSessions:
         assert session2.session_id == session_id
 
     async def test_should_abort_a_session(self, ctx: E2ETestContext):
+        import asyncio
+
         session = await ctx.client.create_session()
 
-        # Send a message that will take some time to process
-        await session.send({"prompt": "What is 1+1?"})
+        # Set up event listeners BEFORE sending to avoid race conditions
+        wait_for_tool_start = asyncio.create_task(
+            get_next_event_of_type(session, "tool.execution_start", timeout=60.0)
+        )
+        wait_for_session_idle = asyncio.create_task(
+            get_next_event_of_type(session, "session.idle", timeout=30.0)
+        )
 
-        # Abort the session immediately
+        # Send a message that will trigger a long-running shell command
+        await session.send(
+            {"prompt": "run the shell command 'sleep 100' (works on bash and PowerShell)"}
+        )
+
+        # Wait for the tool to start executing
+        _ = await wait_for_tool_start
+
+        # Abort the session while the tool is running
         await session.abort()
+
+        # Wait for session to become idle after abort
+        _ = await wait_for_session_idle
 
         # The session should still be alive and usable after abort
         messages = await session.get_messages()
         assert len(messages) > 0
 
+        # Verify an abort event exists in messages
+        abort_events = [m for m in messages if m.type.value == "abort"]
+        assert len(abort_events) > 0, "Expected an abort event in messages"
+
         # We should be able to send another message
-        await session.send({"prompt": "What is 2+2?"})
-        answer = await get_final_assistant_message(session)
+        answer = await session.send_and_wait({"prompt": "What is 2+2?"})
         assert "4" in answer.data.content
 
     async def test_should_receive_streaming_delta_events_when_streaming_is_enabled(

@@ -39,8 +39,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/github/copilot-sdk/go/generated"
 )
 
 // Client manages the connection to the Copilot CLI server and provides session management.
@@ -923,7 +921,7 @@ func (c *Client) setupNotificationHandler() {
 				return
 			}
 
-			event, err := generated.UnmarshalSessionEvent(eventJSON)
+			event, err := UnmarshalSessionEvent(eventJSON)
 			if err != nil {
 				return
 			}

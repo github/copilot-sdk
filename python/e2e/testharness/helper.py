@@ -125,3 +125,39 @@ def read_file(work_dir: str, filename: str) -> str:
     filepath = os.path.join(work_dir, filename)
     with open(filepath) as f:
         return f.read()
+
+
+async def get_next_event_of_type(session: CopilotSession, event_type: str, timeout: float = 30.0):
+    """
+    Wait for and return the next event of a specific type from a session.
+
+    Args:
+        session: The session to wait on
+        event_type: The event type to wait for (e.g., "tool.execution_start", "session.idle")
+        timeout: Maximum time to wait in seconds
+
+    Returns:
+        The matching event
+
+    Raises:
+        TimeoutError: If no matching event arrives within timeout
+        RuntimeError: If a session error occurs
+    """
+    result_future: asyncio.Future = asyncio.get_event_loop().create_future()
+
+    def on_event(event):
+        if result_future.done():
+            return
+
+        if event.type.value == event_type:
+            result_future.set_result(event)
+        elif event.type.value == "session.error":
+            msg = event.data.message if event.data.message else "session error"
+            result_future.set_exception(RuntimeError(msg))
+
+    unsubscribe = session.on(on_event)
+
+    try:
+        return await asyncio.wait_for(result_future, timeout=timeout)
+    finally:
+        unsubscribe()

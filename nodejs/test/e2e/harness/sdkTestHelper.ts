@@ -2,8 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { AssistantMessageEvent } from "@github/copilot/sdk";
-import { CopilotSession } from "../../../src";
+import { AssistantMessageEvent, CopilotSession, SessionEvent } from "../../../src";
 
 export async function getFinalAssistantMessage(
     session: CopilotSession
@@ -54,13 +53,19 @@ function getExistingFinalResponse(
 }
 
 function getFutureFinalResponse(session: CopilotSession): Promise<AssistantMessageEvent> {
-    return new Promise<AssistantMessageEvent | undefined>((resolve, reject) => {
+    return new Promise<AssistantMessageEvent>((resolve, reject) => {
         let finalAssistantMessage: AssistantMessageEvent | undefined;
         session.on((event) => {
             if (event.type === "assistant.message") {
                 finalAssistantMessage = event;
             } else if (event.type === "session.idle") {
-                resolve(finalAssistantMessage);
+                if (!finalAssistantMessage) {
+                    reject(
+                        new Error("Received session.idle without a preceding assistant.message")
+                    );
+                } else {
+                    resolve(finalAssistantMessage);
+                }
             } else if (event.type === "session.error") {
                 const error = new Error(event.data.message);
                 error.stack = event.data.stack;
@@ -105,4 +110,21 @@ export function formatError(error: unknown): string {
     } else {
         return String(error);
     }
+}
+
+export function getNextEventOfType(
+    session: CopilotSession,
+    eventType: SessionEvent["type"]
+): Promise<SessionEvent> {
+    return new Promise<SessionEvent>((resolve, reject) => {
+        const unsubscribe = session.on((event) => {
+            if (event.type === eventType) {
+                unsubscribe();
+                resolve(event);
+            } else if (event.type === "session.error") {
+                unsubscribe();
+                reject(new Error(`${event.data.message}\n${event.data.stack}`));
+            }
+        });
+    });
 }

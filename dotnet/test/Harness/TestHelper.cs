@@ -73,4 +73,29 @@ public static class TestHelper
 
         return null;
     }
+
+    public static async Task<T> GetNextEventOfTypeAsync<T>(
+        CopilotSession session,
+        TimeSpan? timeout = null) where T : SessionEvent
+    {
+        var tcs = new TaskCompletionSource<T>();
+        using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(60));
+
+        using var subscription = session.On(evt =>
+        {
+            if (evt is T matched)
+            {
+                tcs.TrySetResult(matched);
+            }
+            else if (evt is SessionErrorEvent error)
+            {
+                tcs.TrySetException(new Exception(error.Data.Message ?? "session error"));
+            }
+        });
+
+        cts.Token.Register(() => tcs.TrySetException(
+            new TimeoutException($"Timeout waiting for event of type '{typeof(T).Name}'")));
+
+        return await tcs.Task;
+    }
 }

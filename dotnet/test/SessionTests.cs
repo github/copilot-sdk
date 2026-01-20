@@ -201,23 +201,32 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     {
         var session = await Client.CreateSessionAsync();
 
-        // Send a message that will take some time to process
-        await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
+        // Set up wait for tool execution to start BEFORE sending
+        var toolStartTask = TestHelper.GetNextEventOfTypeAsync<ToolExecutionStartEvent>(session);
+        var sessionIdleTask = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session);
 
-        // Abort the session immediately
+        // Send a message that will take some time to process
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "run the shell command 'sleep 100' (note this works on both bash and PowerShell)"
+        });
+
+        // Wait for tool execution to start
+        await toolStartTask;
+
+        // Abort the session
         await session.AbortAsync();
+        await sessionIdleTask;
 
         // The session should still be alive and usable after abort
         var messages = await session.GetMessagesAsync();
         Assert.NotEmpty(messages);
 
-        // TODO: We should do something to verify it really did abort (e.g., is there an abort event we can see,
-        // or can we check that the session became idle without receiving an assistant message?). Right now
-        // I'm not seeing any evidence that it actually does abort.
+        // Verify an abort event exists in messages
+        Assert.Contains(messages, m => m is AbortEvent);
 
         // We should be able to send another message
-        await session.SendAsync(new MessageOptions { Prompt = "What is 2+2?" });
-        var answer = await TestHelper.GetFinalAssistantMessageAsync(session);
+        var answer = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" });
         Assert.NotNull(answer);
         Assert.Contains("4", answer!.Data.Content ?? string.Empty);
     }
