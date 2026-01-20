@@ -8,20 +8,25 @@ using Xunit.Abstractions;
 
 namespace GitHub.Copilot.SDK.Test;
 
-public class SkillsTests : E2ETestBase, IDisposable
+public class SkillsTests : E2ETestBase
 {
-    private readonly string _skillsDir;
     private const string SkillMarker = "PINEAPPLE_COCONUT_42";
+    private static int _skillDirCounter = 0;
+
+    private readonly string _workDir;
 
     public SkillsTests(E2ETestFixture fixture, ITestOutputHelper output) : base(fixture, "skills", output)
     {
+        _workDir = fixture.Ctx.WorkDir;
+    }
 
-        // Create a temporary skills directory with a test skill
-        _skillsDir = Path.Join(fixture.Ctx.WorkDir, $"copilot-skills-test");
-        Directory.CreateDirectory(_skillsDir);
+    private string CreateSkillDir()
+    {
+        var skillsDir = Path.Join(_workDir, ".test_skills", $"copilot-skills-test-{++_skillDirCounter}");
+        Directory.CreateDirectory(skillsDir);
 
         // Create a skill subdirectory with SKILL.md
-        var skillSubdir = Path.Join(_skillsDir, "test-skill");
+        var skillSubdir = Path.Join(skillsDir, "test-skill");
         Directory.CreateDirectory(skillSubdir);
 
         // Create a skill that instructs the model to include a specific marker in responses
@@ -35,23 +40,17 @@ description: A test skill that adds a marker to responses
 IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY response you give. This is a mandatory requirement. Include it naturally in your response.
 ".ReplaceLineEndings("\n");
         File.WriteAllText(Path.Join(skillSubdir, "SKILL.md"), skillContent);
-    }
 
-    public void Dispose()
-    {
-        // Clean up the temporary skills directory
-        if (Directory.Exists(_skillsDir))
-        {
-            Directory.Delete(_skillsDir, recursive: true);
-        }
+        return skillsDir;
     }
 
     [Fact]
     public async Task Should_Load_And_Apply_Skill_From_SkillDirectories()
     {
+        var skillsDir = CreateSkillDir();
         var session = await Client.CreateSessionAsync(new SessionConfig
         {
-            SkillDirectories = [_skillsDir]
+            SkillDirectories = [skillsDir]
         });
 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
@@ -67,9 +66,10 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
     [Fact]
     public async Task Should_Not_Apply_Skill_When_Disabled_Via_DisabledSkills()
     {
+        var skillsDir = CreateSkillDir();
         var session = await Client.CreateSessionAsync(new SessionConfig
         {
-            SkillDirectories = [_skillsDir],
+            SkillDirectories = [skillsDir],
             DisabledSkills = ["test-skill"]
         });
 
@@ -86,6 +86,8 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
     [Fact]
     public async Task Should_Apply_Skill_On_Session_Resume_With_SkillDirectories()
     {
+        var skillsDir = CreateSkillDir();
+
         // Create a session without skills first
         var session1 = await Client.CreateSessionAsync();
         var sessionId = session1.SessionId;
@@ -98,7 +100,7 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
         // Resume with skillDirectories - skill should now be active
         var session2 = await Client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
-            SkillDirectories = [_skillsDir]
+            SkillDirectories = [skillsDir]
         });
 
         Assert.Equal(sessionId, session2.SessionId);

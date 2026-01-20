@@ -4,17 +4,20 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 describe("Skills Configuration", async () => {
-    const { copilotClient: client } = await createSdkTestContext({ logLevel: "debug" });
-    let skillsDir: string;
+    const { copilotClient: client, workDir } = await createSdkTestContext({ logLevel: "debug" });
     const SKILL_MARKER = "PINEAPPLE_COCONUT_42";
+    let skillDirCounter = 0;
 
-    beforeAll(() => {
-        // Create a skills directory in the working directory
-        skillsDir = path.join(process.cwd(), "copilot-skills-test");
+    function createSkillDir(): string {
+        const skillsDir = path.join(
+            workDir,
+            ".test_skills",
+            `copilot-skills-test-${++skillDirCounter}`
+        );
         fs.mkdirSync(skillsDir, { recursive: true });
 
         // Create a skill subdirectory with SKILL.md
@@ -32,17 +35,12 @@ description: A test skill that adds a marker to responses
 IMPORTANT: You MUST include the exact text "${SKILL_MARKER}" somewhere in EVERY response you give. This is a mandatory requirement. Include it naturally in your response.
 `;
         fs.writeFileSync(path.join(skillSubdir, "SKILL.md"), skillContent);
-    });
-
-    afterAll(() => {
-        // Clean up the temporary skills directory
-        if (skillsDir && fs.existsSync(skillsDir)) {
-            //fs.rmSync(skillsDir, { recursive: true, force: true });
-        }
-    });
+        return skillsDir;
+    }
 
     describe("Skill Behavior", () => {
         it("should load and apply skill from skillDirectories", async () => {
+            const skillsDir = createSkillDir();
             const session = await client.createSession({
                 skillDirectories: [skillsDir],
             });
@@ -60,6 +58,7 @@ IMPORTANT: You MUST include the exact text "${SKILL_MARKER}" somewhere in EVERY 
         });
 
         it("should not apply skill when disabled via disabledSkills", async () => {
+            const skillsDir = createSkillDir();
             const session = await client.createSession({
                 skillDirectories: [skillsDir],
                 disabledSkills: ["test-skill"],
@@ -78,6 +77,8 @@ IMPORTANT: You MUST include the exact text "${SKILL_MARKER}" somewhere in EVERY 
         });
 
         it("should apply skill on session resume with skillDirectories", async () => {
+            const skillsDir = createSkillDir();
+
             // Create a session without skills first
             const session1 = await client.createSession();
             const sessionId = session1.sessionId;

@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,12 +14,11 @@ import (
 
 const skillMarker = "PINEAPPLE_COCONUT_42"
 
-func createTestSkillDir(t *testing.T, marker string) string {
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get current working directory: %v", err)
-	}
-	skillsDir := filepath.Join(cwd, "copilot-skills-test")
+var skillDirCounter = 0
+
+func createTestSkillDir(t *testing.T, workDir string, marker string) string {
+	skillDirCounter++
+	skillsDir := filepath.Join(workDir, ".test_skills", fmt.Sprintf("copilot-skills-test-%d", skillDirCounter))
 	if err := os.MkdirAll(skillsDir, 0755); err != nil {
 		t.Fatalf("Failed to create skills directory: %v", err)
 	}
@@ -49,11 +49,9 @@ func TestSkillBehavior(t *testing.T) {
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
 
-	skillsDir := createTestSkillDir(t, skillMarker)
-	t.Cleanup(func() { os.RemoveAll(skillsDir) })
-
 	t.Run("load and apply skill from skillDirectories", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
+		skillsDir := createTestSkillDir(t, ctx.WorkDir, skillMarker)
 
 		session, err := client.CreateSession(&copilot.SessionConfig{
 			SkillDirectories: []string{skillsDir},
@@ -79,6 +77,7 @@ func TestSkillBehavior(t *testing.T) {
 
 	t.Run("not apply skill when disabled via disabledSkills", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
+		skillsDir := createTestSkillDir(t, ctx.WorkDir, skillMarker)
 
 		session, err := client.CreateSession(&copilot.SessionConfig{
 			SkillDirectories: []string{skillsDir},
@@ -105,6 +104,7 @@ func TestSkillBehavior(t *testing.T) {
 
 	t.Run("apply skill on session resume with skillDirectories", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
+		skillsDir := createTestSkillDir(t, ctx.WorkDir, skillMarker)
 
 		// Create a session without skills first
 		session1, err := client.CreateSession(nil)

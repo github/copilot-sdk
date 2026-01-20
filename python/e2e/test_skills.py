@@ -3,7 +3,6 @@ Tests for skills configuration functionality
 """
 
 import os
-import shutil
 
 import pytest
 
@@ -13,11 +12,14 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 SKILL_MARKER = "PINEAPPLE_COCONUT_42"
 
+_skill_dir_counter = 0
 
-@pytest.fixture(scope="module")
-def skills_dir():
+
+def create_skill_dir(work_dir: str) -> str:
     """Create a skills directory in the working directory"""
-    skills_dir = os.path.join(os.getcwd(), "copilot-skills-test")
+    global _skill_dir_counter
+    _skill_dir_counter += 1
+    skills_dir = os.path.join(work_dir, ".test_skills", f"copilot-skills-test-{_skill_dir_counter}")
     os.makedirs(skills_dir, exist_ok=True)
 
     # Create a skill subdirectory with SKILL.md
@@ -38,17 +40,13 @@ This is a mandatory requirement. Include it naturally in your response.
     with open(os.path.join(skill_subdir, "SKILL.md"), "w") as f:
         f.write(skill_content)
 
-    yield skills_dir
-
-    # Clean up
-    shutil.rmtree(skills_dir, ignore_errors=True)
+    return skills_dir
 
 
 class TestSkillBehavior:
-    async def test_load_and_apply_skill_from_skill_directories(
-        self, ctx: E2ETestContext, skills_dir: str
-    ):
+    async def test_load_and_apply_skill_from_skill_directories(self, ctx: E2ETestContext):
         """Test that skills are loaded and applied from skillDirectories"""
+        skills_dir = create_skill_dir(ctx.work_dir)
         session = await ctx.client.create_session({"skill_directories": [skills_dir]})
 
         assert session.session_id is not None
@@ -60,10 +58,9 @@ class TestSkillBehavior:
 
         await session.destroy()
 
-    async def test_not_apply_skill_when_disabled_via_disabled_skills(
-        self, ctx: E2ETestContext, skills_dir: str
-    ):
+    async def test_not_apply_skill_when_disabled_via_disabled_skills(self, ctx: E2ETestContext):
         """Test that disabledSkills prevents skill from being applied"""
+        skills_dir = create_skill_dir(ctx.work_dir)
         session = await ctx.client.create_session(
             {"skill_directories": [skills_dir], "disabled_skills": ["test-skill"]}
         )
@@ -77,10 +74,10 @@ class TestSkillBehavior:
 
         await session.destroy()
 
-    async def test_apply_skill_on_session_resume_with_skill_directories(
-        self, ctx: E2ETestContext, skills_dir: str
-    ):
+    async def test_apply_skill_on_session_resume_with_skill_directories(self, ctx: E2ETestContext):
         """Test that skills are applied when added on session resume"""
+        skills_dir = create_skill_dir(ctx.work_dir)
+
         # Create a session without skills first
         session1 = await ctx.client.create_session()
         session_id = session1.session_id
