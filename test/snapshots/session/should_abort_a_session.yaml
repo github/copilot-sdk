@@ -7,7 +7,7 @@ conversations:
       - role: user
         content: run the shell command 'sleep 100' (note this works on both bash and PowerShell)
       - role: assistant
-        content: I'll run the sleep command for 100 seconds.
+        content: I'll run the sleep command for 100 seconds in async mode.
       - role: assistant
         tool_calls:
           - id: toolcall_0
@@ -21,14 +21,14 @@ conversations:
             type: function
             function:
               name: ${shell}
-              arguments: '{"command":"sleep 100","description":"Run sleep 100 command","mode":"sync","initial_wait":105}'
+              arguments: '{"command":"sleep 100","description":"Sleep for 100 seconds","mode":"async"}'
   - messages:
       - role: system
         content: ${system}
       - role: user
         content: run the shell command 'sleep 100' (note this works on both bash and PowerShell)
       - role: assistant
-        content: I'll run the sleep command for 100 seconds.
+        content: I'll run the sleep command for 100 seconds in async mode.
         tool_calls:
           - id: toolcall_0
             type: function
@@ -39,7 +39,7 @@ conversations:
             type: function
             function:
               name: ${shell}
-              arguments: '{"command":"sleep 100","description":"Run sleep 100 command","mode":"sync","initial_wait":105}'
+              arguments: '{"command":"sleep 100","description":"Sleep for 100 seconds","mode":"async"}'
       - role: tool
         tool_call_id: toolcall_0
         content: Intent logged

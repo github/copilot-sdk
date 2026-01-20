@@ -20,7 +20,7 @@ conversations:
         content: >-
           <skill-context name="test-skill">
 
-          Base directory for this skill: /tmp/copilot-skills-test-21c50037-7c7d-406b-b336-3a384641e588/test-skill
+          Base directory for this skill: /tmp/copilot-skills-test-66b9932c-1b2a-42db-9105-15eab15106f2/test-skill
 
 
           ---

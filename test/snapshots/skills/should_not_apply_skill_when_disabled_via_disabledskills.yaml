@@ -7,4 +7,5 @@ conversations:
       - role: user
         content: Say hello briefly using the test skill.
       - role: assistant
-        content: Hello! I'm GitHub Copilot CLI, ready to help you with software engineering tasks in your terminal.
+        content: Hello! I'm the GitHub Copilot CLI, ready to help you with software engineering tasks. How can I assist you
+          today?

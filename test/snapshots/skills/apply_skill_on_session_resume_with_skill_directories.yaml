@@ -7,7 +7,8 @@ conversations:
       - role: user
         content: Say hi.
       - role: assistant
-        content: Hi! I'm GitHub Copilot in the CLI. How can I help you today?
+        content: Hi! I'm GitHub Copilot in the CLI. I can help you with coding tasks, file operations, git commands, and more.
+          What would you like to work on?
       - role: user
         content: Say hello again using the test skill.
       - role: assistant
@@ -24,7 +25,7 @@ conversations:
         content: >-
           <skill-context name="test-skill">
 
-          Base directory for this skill: /tmp/copilot-skills-test-brp0xbfl/test-skill
+          Base directory for this skill: /tmp/copilot-skills-test-3cpedttu/test-skill
 
 
           ---
@@ -45,4 +46,4 @@ conversations:
 
           </skill-context>
       - role: assistant
-        content: Hello again! PINEAPPLE_COCONUT_42 - How can I assist you today?
+        content: Hello again! PINEAPPLE_COCONUT_42 - I'm here to help you with your coding tasks!
