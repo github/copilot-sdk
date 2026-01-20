@@ -1,0 +1,14 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Say hi.
+      - role: assistant
+        content: Hi! I'm GitHub Copilot in the CLI, ready to help you with your software engineering tasks.
+      - role: user
+        content: Say hello again.
+      - role: assistant
+        content: Hello again! How can I help you today?
