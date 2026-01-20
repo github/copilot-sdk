@@ -272,7 +272,7 @@ async function generateGoTypes(schemaPath: string) {
         inputData,
         lang: "go",
         rendererOptions: {
-            package: "generated",
+            package: "copilot",
         },
     });
 
@@ -289,7 +289,7 @@ async function generateGoTypes(schemaPath: string) {
 
 `;
 
-    const outputPath = path.join(__dirname, "../../go/generated/session_events.go");
+    const outputPath = path.join(__dirname, "../../go/generated_session_events.go");
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
     await fs.writeFile(outputPath, banner + generatedCode, "utf-8");
 

@@ -2,7 +2,7 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import { ParsedHttpExchange } from "../../../test/harness/replayingCapiProxy.js";
 import { CopilotClient } from "../../src/index.js";
 import { CLI_PATH, createSdkTestContext } from "./harness/sdkTestContext.js";
-import { getFinalAssistantMessage } from "./harness/sdkTestHelper.js";
+import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
 
 describe("Sessions", async () => {
     const { copilotClient: client, openAiEndpoint, homeDir } = await createSdkTestContext();
@@ -230,15 +230,23 @@ describe("Sessions", async () => {
     it("should abort a session", async () => {
         const session = await client.createSession();
 
-        // Send a message that will take some time to process
-        await session.sendAndWait({ prompt: "What is 1+1?" });
+        // Set up event listeners BEFORE sending to avoid race conditions
+        const nextToolCallStart = getNextEventOfType(session, "tool.execution_start");
+        const nextSessionIdle = getNextEventOfType(session, "session.idle");
 
-        // Abort the session immediately
+        await session.send({
+            prompt: "run the shell command 'sleep 100' (note this works on both bash and PowerShell)",
+        });
+
+        // Abort once we see a tool execution start
+        await nextToolCallStart;
         await session.abort();
+        await nextSessionIdle;
 
         // The session should still be alive and usable after abort
         const messages = await session.getMessages();
         expect(messages.length).toBeGreaterThan(0);
+        expect(messages.some((m) => m.type === "abort")).toBe(true);
 
         // We should be able to send another message
         const answer = await session.sendAndWait({ prompt: "What is 2+2?" });
@@ -312,6 +320,20 @@ describe("Sessions", async () => {
 
         // Verify the assistant response contains the expected answer
         expect(assistantMessage?.data.content).toContain("300");
+    });
+
+    it("should create session with custom config dir", async () => {
+        const customConfigDir = `${homeDir}/custom-config`;
+        const session = await client.createSession({
+            configDir: customConfigDir,
+        });
+
+        expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
+
+        // Session should work normally with custom config dir
+        await session.send({ prompt: "What is 1+1?" });
+        const assistantMessage = await getFinalAssistantMessage(session);
+        expect(assistantMessage.data.content).toContain("2");
     });
 });
 

@@ -1,11 +1,5 @@
 package copilot
 
-import (
-	"github.com/github/copilot-sdk/go/generated"
-)
-
-type SessionEvent = generated.SessionEvent
-
 // ConnectionState represents the client connection state
 type ConnectionState string
 
@@ -144,6 +138,9 @@ type SessionConfig struct {
 	SessionID string
 	// Model to use for this session
 	Model string
+	// ConfigDir overrides the default configuration directory location.
+	// When specified, the session will use this directory for storing config and state.
+	ConfigDir string
 	// Tools exposes caller-implemented tools to the CLI
 	Tools []Tool
 	// SystemMessage configures system message customization
@@ -256,13 +253,6 @@ type MessageOptions struct {
 	Attachments []Attachment
 	// Mode is the message delivery mode (default: "enqueue")
 	Mode string
-}
-
-// Attachment represents a file or directory attachment
-type Attachment struct {
-	Type        string `json:"type"` // "file" or "directory"
-	Path        string `json:"path"`
-	DisplayName string `json:"displayName,omitempty"`
 }
 
 // SessionEventHandler is a callback for session events

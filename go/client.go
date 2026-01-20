@@ -39,8 +39,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/github/copilot-sdk/go/generated"
 )
 
 // Client manages the connection to the Copilot CLI server and provides session management.
@@ -534,6 +532,10 @@ func (c *Client) CreateSession(config *SessionConfig) (*Session, error) {
 			}
 			params["customAgents"] = customAgents
 		}
+		// Add config directory override
+		if config.ConfigDir != "" {
+			params["configDir"] = config.ConfigDir
+		}
 	}
 
 	result, err := c.client.Request("session.create", params)
@@ -923,7 +925,7 @@ func (c *Client) setupNotificationHandler() {
 				return
 			}
 
-			event, err := generated.UnmarshalSessionEvent(eventJSON)
+			event, err := UnmarshalSessionEvent(eventJSON)
 			if err != nil {
 				return
 			}

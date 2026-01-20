@@ -293,6 +293,13 @@ public class SessionConfig
 {
     public string? SessionId { get; set; }
     public string? Model { get; set; }
+
+    /// <summary>
+    /// Override the default configuration directory location.
+    /// When specified, the session will use this directory for storing config and state.
+    /// </summary>
+    public string? ConfigDir { get; set; }
+
     public ICollection<AIFunction>? Tools { get; set; }
     public SystemMessageConfig? SystemMessage { get; set; }
     public List<string>? AvailableTools { get; set; }
