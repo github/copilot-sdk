@@ -24,7 +24,7 @@ conversations:
         content: >-
           <skill-context name="test-skill">
 
-          Base directory for this skill: /tmp/copilot-skills-test-eSUOPo/test-skill
+          Base directory for this skill: /tmp/copilot-skills-test-f1ef743d-a194-4aa4-9809-43f2ce8086cb/test-skill
 
 
           ---
@@ -45,4 +45,4 @@ conversations:
 
           </skill-context>
       - role: assistant
-        content: Hello again! PINEAPPLE_COCONUT_42 - I'm here and ready to assist you with your development tasks!
+        content: Hello again! PINEAPPLE_COCONUT_42 - I'm here and ready to help with your tasks!

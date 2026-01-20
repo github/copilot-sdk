@@ -7,7 +7,7 @@ import shutil
 import tempfile
 import pytest
 
-from .testharness import E2ETestContext, get_final_assistant_message
+from .testharness import E2ETestContext
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -63,7 +63,8 @@ class TestSkillBehavior:
     ):
         """Test that disabledSkills prevents skill from being applied"""
         session = await ctx.client.create_session(
-            {"skill_directories": [skills_dir], "disabled_skills": ["test-skill"]}
+            {"skill_directories": [skills_dir],
+                "disabled_skills": ["test-skill"]}
         )
 
         assert session.session_id is not None
@@ -89,9 +90,7 @@ class TestSkillBehavior:
         assert SKILL_MARKER not in message1.data.content
 
         # Resume with skillDirectories - skill should now be active
-        session2 = await ctx.client.resume_session(
-            session_id, {"skill_directories": [skills_dir]}
-        )
+        session2 = await ctx.client.resume_session(session_id, {"skill_directories": [skills_dir]})
 
         assert session2.session_id == session_id
 

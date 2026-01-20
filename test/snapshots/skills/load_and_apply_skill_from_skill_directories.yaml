@@ -20,7 +20,7 @@ conversations:
         content: >-
           <skill-context name="test-skill">
 
-          Base directory for this skill: /tmp/copilot-skills-test-e_oppucn/test-skill
+          Base directory for this skill: /tmp/copilot-skills-test-brp0xbfl/test-skill
 
 
           ---
@@ -41,4 +41,4 @@ conversations:
 
           </skill-context>
       - role: assistant
-        content: Hello! PINEAPPLE_COCONUT_42 - the test skill is active and ready to go.
+        content: Hello! PINEAPPLE_COCONUT_42 - Hope you're having a great day!
