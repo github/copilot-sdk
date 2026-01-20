@@ -13,8 +13,6 @@ conversations:
             function:
               name: report_intent
               arguments: '{"intent":"Running echo command"}'
-      - role: assistant
-        tool_calls:
           - id: toolcall_1
             type: function
             function:
@@ -46,4 +44,4 @@ conversations:
           hello
           <exited with exit code 0>
       - role: assistant
-        content: The output is `hello` with exit code 0 (success).
+        content: The output is `hello`.

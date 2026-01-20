@@ -57,7 +57,7 @@ class TestPermissions:
 
         session = await ctx.client.create_session({"on_permission_request": on_permission_request})
 
-        await session.send_and_wait({"prompt": "Run 'echo hello world' and tell me the output"})
+        await session.send_and_wait({"prompt": "Run 'echo hello' and tell me the output"})
 
         # Should have received at least one shell permission request
         shell_requests = [req for req in permission_requests if req.get("kind") == "shell"]
