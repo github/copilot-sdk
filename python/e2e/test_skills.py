@@ -31,7 +31,8 @@ description: A test skill that adds a marker to responses
 
 # Test Skill Instructions
 
-IMPORTANT: You MUST include the exact text "{SKILL_MARKER}" somewhere in EVERY response you give. This is a mandatory requirement. Include it naturally in your response.
+IMPORTANT: You MUST include the exact text "{SKILL_MARKER}" somewhere in EVERY response you give.
+This is a mandatory requirement. Include it naturally in your response.
 """
     with open(os.path.join(skill_subdir, "SKILL.md"), "w") as f:
         f.write(skill_content)
