@@ -7,6 +7,8 @@ conversations:
       - role: user
         content: Edit test.txt and replace 'original' with 'modified'
       - role: assistant
+        content: I'll view the file first to see its contents, then make the replacement.
+      - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
@@ -26,6 +28,7 @@ conversations:
       - role: user
         content: Edit test.txt and replace 'original' with 'modified'
       - role: assistant
+        content: I'll view the file first to see its contents, then make the replacement.
         tool_calls:
           - id: toolcall_0
             type: function
@@ -44,6 +47,40 @@ conversations:
         tool_call_id: toolcall_1
         content: 1. original content
       - role: assistant
+        content: "Now I'll replace 'original' with 'modified':"
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: edit
+              arguments: '{"path":"${workdir}/test.txt","old_str":"original content","new_str":"modified content"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Edit test.txt and replace 'original' with 'modified'
+      - role: assistant
+        content: I'll view the file first to see its contents, then make the replacement.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Editing test.txt file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test.txt"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: 1. original content
+      - role: assistant
+        content: "Now I'll replace 'original' with 'modified':"
         tool_calls:
           - id: toolcall_2
             type: function
