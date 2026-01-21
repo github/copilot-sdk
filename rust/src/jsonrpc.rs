@@ -198,6 +198,11 @@ enum WriteMessage {
     Stop,
 }
 
+/// Disconnect handler function type.
+///
+/// Called when the connection is lost (read loop exits due to EOF or error).
+pub type DisconnectHandler = Arc<dyn Fn() + Send + Sync>;
+
 /// JSON-RPC client for stdio/TCP transport with Content-Length framing.
 ///
 /// This client handles bidirectional JSON-RPC 2.0 communication over async streams.
@@ -236,6 +241,7 @@ pub struct JsonRpcClient {
     notification_handler: Arc<RwLock<Option<NotificationHandler>>>,
     request_handlers: Arc<RwLock<HashMap<String, RequestHandler>>>,
     running: Arc<std::sync::atomic::AtomicBool>,
+    on_disconnect: Arc<RwLock<Option<DisconnectHandler>>>,
 }
 
 impl JsonRpcClient {
@@ -273,6 +279,7 @@ impl JsonRpcClient {
         let request_handlers: Arc<RwLock<HashMap<String, RequestHandler>>> =
             Arc::new(RwLock::new(HashMap::new()));
         let running = Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let on_disconnect: Arc<RwLock<Option<DisconnectHandler>>> = Arc::new(RwLock::new(None));
 
         let client = Self {
             write_tx: write_tx.clone(),
@@ -280,6 +287,7 @@ impl JsonRpcClient {
             notification_handler: notification_handler.clone(),
             request_handlers: request_handlers.clone(),
             running: running.clone(),
+            on_disconnect: on_disconnect.clone(),
         };
 
         // Spawn write loop
@@ -298,6 +306,7 @@ impl JsonRpcClient {
                 request_handlers,
                 running,
                 write_tx_for_read,
+                on_disconnect,
             )
             .await;
         });
@@ -341,6 +350,7 @@ impl JsonRpcClient {
         request_handlers: Arc<RwLock<HashMap<String, RequestHandler>>>,
         running: Arc<std::sync::atomic::AtomicBool>,
         write_tx: mpsc::Sender<WriteMessage>,
+        on_disconnect: Arc<RwLock<Option<DisconnectHandler>>>,
     ) where
         R: tokio::io::AsyncRead + Unpin,
     {
@@ -389,6 +399,11 @@ impl JsonRpcClient {
                 // Notification from server
                 Self::handle_notification(message, notification_handler.clone()).await;
             }
+        }
+
+        // Invoke disconnect callback when read loop exits
+        if let Some(callback) = on_disconnect.read().await.as_ref() {
+            callback();
         }
     }
 
@@ -546,6 +561,20 @@ impl JsonRpcClient {
     /// * `handler` - Function called for each notification
     pub async fn set_notification_handler(&self, handler: NotificationHandler) {
         let mut h = self.notification_handler.write().await;
+        *h = Some(handler);
+    }
+
+    /// Set the disconnect handler called when the connection is lost.
+    ///
+    /// The callback is invoked when the read loop exits due to EOF or error.
+    /// Only one handler can be active at a time. Setting a new handler
+    /// replaces the previous one.
+    ///
+    /// # Arguments
+    ///
+    /// * `handler` - Function called when disconnected
+    pub async fn set_on_disconnect(&self, handler: DisconnectHandler) {
+        let mut h = self.on_disconnect.write().await;
         *h = Some(handler);
     }
 

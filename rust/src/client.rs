@@ -15,7 +15,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::env;
 use std::process::Stdio;
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use tokio::io::{BufReader, BufWriter};
 use tokio::net::TcpStream;
 use tokio::process::{Child, Command};
@@ -59,9 +59,9 @@ pub struct CopilotClient {
     actual_host: RwLock<String>,
     is_external_server: bool,
     auto_start: bool,
-    /// TODO: Implement auto-restart functionality for reconnecting after connection loss.
-    #[allow(dead_code)]
     auto_restart: bool,
+    /// Weak self-reference for use in callbacks. Set by `start_arc()`.
+    self_ref: RwLock<Option<Weak<Self>>>,
 }
 
 impl CopilotClient {
@@ -148,6 +148,7 @@ impl CopilotClient {
             is_external_server,
             auto_start,
             auto_restart,
+            self_ref: RwLock::new(None),
         })
     }
 
@@ -526,6 +527,156 @@ impl CopilotClient {
             .unwrap_or_default();
 
         Ok(sessions)
+    }
+
+    /// Start the CLI server with auto-reconnect support.
+    ///
+    /// This method is similar to [`start()`](Self::start) but requires the client to be
+    /// wrapped in an `Arc`. When `auto_restart` is enabled in the client options, this
+    /// method sets up automatic reconnection when the connection is lost.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use copilot_sdk::{CopilotClient, ClientOptions};
+    /// use std::sync::Arc;
+    ///
+    /// let client = Arc::new(CopilotClient::new(Some(ClientOptions {
+    ///     auto_restart: Some(true),
+    ///     ..Default::default()
+    /// }))?);
+    ///
+    /// client.start_arc().await?;
+    /// // Connection will automatically reconnect if lost
+    /// ```
+    pub async fn start_arc(self: &Arc<Self>) -> Result<()> {
+        // Store weak self-reference for use in callbacks
+        {
+            let mut self_ref = self.self_ref.write().await;
+            *self_ref = Some(Arc::downgrade(self));
+        }
+
+        // Call the regular start method
+        self.start().await?;
+
+        // Set up disconnect handler if auto_restart is enabled
+        if self.auto_restart {
+            self.setup_disconnect_handler(Arc::clone(self)).await;
+        }
+
+        Ok(())
+    }
+
+    /// Set up the disconnect handler on the RPC client.
+    ///
+    /// This spawns a background task that listens for disconnect events
+    /// and handles reconnection.
+    async fn setup_disconnect_handler(&self, client_arc: Arc<Self>) {
+        // Get RPC client, ensuring the guard is dropped before the next await
+        let rpc = {
+            let guard = self.rpc_client.read().await;
+            guard.clone()
+        };
+
+        let Some(rpc) = rpc else {
+            return;
+        };
+
+        // Create a channel for disconnect notifications
+        let (tx, rx) = tokio::sync::mpsc::channel::<()>(1);
+
+        // Set up the callback to send on the channel (sync operation)
+        rpc.set_on_disconnect(Arc::new(move || {
+            // try_send is non-blocking and won't fail if receiver is ready
+            let _ = tx.try_send(());
+        }))
+        .await;
+
+        // Spawn the handler task with the Arc reference
+        Self::spawn_disconnect_handler(client_arc, rx);
+    }
+
+    /// Spawn a task to handle disconnect events.
+    ///
+    /// This is a separate function to ensure the spawned future doesn't capture
+    /// any non-Send types from the calling context.
+    fn spawn_disconnect_handler(
+        client: Arc<Self>,
+        mut rx: tokio::sync::mpsc::Receiver<()>,
+    ) {
+        tokio::spawn(async move {
+            // Wait for disconnect notification
+            if rx.recv().await.is_some() {
+                client.handle_disconnect().await;
+            }
+        });
+    }
+
+    /// Handle a disconnection event.
+    ///
+    /// Called when the RPC connection is lost. Triggers reconnection if
+    /// `auto_restart` is enabled and the client was in Connected state.
+    async fn handle_disconnect(&self) {
+        let should_reconnect = {
+            let state = self.state.read().await;
+            self.auto_restart && *state == ConnectionState::Connected
+        };
+
+        if should_reconnect {
+            self.reconnect().await;
+        }
+    }
+
+    /// Attempt to reconnect to the server.
+    ///
+    /// Notifies all active sessions of the disconnection, stops the current
+    /// connection, and attempts to establish a new one.
+    async fn reconnect(&self) {
+        // Notify sessions of disconnection
+        self.invalidate_sessions().await;
+
+        // Update state
+        {
+            let mut state = self.state.write().await;
+            *state = ConnectionState::Disconnected;
+        }
+
+        // Stop the current connection
+        let _ = self.stop().await;
+
+        // Attempt to restart
+        // Use the stored weak reference to call start_arc if available
+        let self_ref = self.self_ref.read().await.clone();
+        if let Some(weak_self) = self_ref {
+            if let Some(arc_self) = weak_self.upgrade() {
+                if let Err(e) = arc_self.start_arc().await {
+                    eprintln!("Reconnection failed: {}", e);
+                    let mut state = arc_self.state.write().await;
+                    *state = ConnectionState::Error;
+                }
+                return;
+            }
+        }
+
+        // Fallback to regular start if no Arc reference available
+        if let Err(e) = self.start().await {
+            eprintln!("Reconnection failed: {}", e);
+            let mut state = self.state.write().await;
+            *state = ConnectionState::Error;
+        }
+    }
+
+    /// Notify all sessions that the connection has been lost.
+    async fn invalidate_sessions(&self) {
+        // Collect sessions first to avoid holding the lock across await points
+        let sessions: Vec<Arc<CopilotSession>> = {
+            let guard = self.sessions.read().await;
+            guard.values().cloned().collect()
+        };
+
+        for session in sessions {
+            session.dispatch_error("Connection lost").await;
+        }
     }
 
     // Private methods

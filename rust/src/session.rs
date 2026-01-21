@@ -341,4 +341,25 @@ impl CopilotSession {
             }));
         }
     }
+
+    /// Dispatch an error event to all registered handlers.
+    ///
+    /// Used internally to notify session handlers when the connection is lost.
+    pub(crate) async fn dispatch_error(&self, message: &str) {
+        use crate::generated::SessionEventData;
+        use chrono::Utc;
+
+        let event = SessionEvent {
+            event_type: SessionEventType::SessionError,
+            id: uuid::Uuid::new_v4().to_string(),
+            timestamp: Utc::now(),
+            parent_id: None,
+            ephemeral: None,
+            data: SessionEventData {
+                message: Some(message.to_string()),
+                ..Default::default()
+            },
+        };
+        self.dispatch_event(event).await;
+    }
 }
