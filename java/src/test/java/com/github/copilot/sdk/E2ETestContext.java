@@ -187,6 +187,16 @@ public class E2ETestContext implements AutoCloseable {
     }
 
     private static Path findRepoRoot() throws IOException {
+        // First, check for copilot.sdk.dir system property (set by Maven during tests)
+        String sdkDir = System.getProperty("copilot.sdk.dir");
+        if (sdkDir != null && !sdkDir.isEmpty()) {
+            Path sdkPath = Paths.get(sdkDir);
+            if (Files.exists(sdkPath)) {
+                return sdkPath;
+            }
+        }
+
+        // Fallback: search up from current directory
         Path dir = Paths.get(System.getProperty("user.dir"));
         while (dir != null) {
             if (Files.exists(dir.resolve("nodejs")) && Files.exists(dir.resolve("test").resolve("harness"))) {
@@ -194,7 +204,8 @@ public class E2ETestContext implements AutoCloseable {
             }
             dir = dir.getParent();
         }
-        throw new IOException("Could not find repository root");
+        throw new IOException("Could not find repository root. Either set copilot.sdk.dir system property "
+                + "or run from within the copilot-sdk repository.");
     }
 
     private static String getCliPath(Path repoRoot) throws IOException {
