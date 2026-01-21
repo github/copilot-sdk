@@ -3,13 +3,13 @@ default:
     @just --list
 
 # Format all code across all languages
-format: format-go format-python format-nodejs format-dotnet
+format: format-go format-python format-nodejs format-dotnet format-rust
 
 # Lint all code across all languages
-lint: lint-go lint-python lint-nodejs lint-dotnet
+lint: lint-go lint-python lint-nodejs lint-dotnet lint-rust
 
 # Run tests for all languages
-test: test-go test-python test-nodejs test-dotnet
+test: test-go test-python test-nodejs test-dotnet test-rust
 
 # Format Go code
 format-go:
@@ -70,6 +70,21 @@ test-nodejs:
 test-dotnet:
     @echo "=== Testing .NET code ==="
     @cd dotnet && dotnet test test/GitHub.Copilot.SDK.Test.csproj
+
+# Format Rust code
+format-rust:
+    @echo "=== Formatting Rust code ==="
+    @cd rust && cargo fmt
+
+# Lint Rust code
+lint-rust:
+    @echo "=== Linting Rust code ==="
+    @cd rust && cargo clippy -- -D warnings
+
+# Test Rust code
+test-rust:
+    @echo "=== Testing Rust code ==="
+    @cd rust && cargo test
 
 # Install all dependencies
 install:

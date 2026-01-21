@@ -12,6 +12,7 @@ All SDKs are in technical preview and may change in breaking ways as we move tow
 | **Python**               | [`./python/`](./python/README.md) | `pip install github-copilot-sdk`          |
 | **Go**                   | [`./go/`](./go/README.md)         | `go get github.com/github/copilot-sdk/go` |
 | **.NET**                 | [`./dotnet/`](./dotnet/README.md) | `dotnet add package GitHub.Copilot.SDK`   |
+| **Rust**                 | [`./rust/`](./rust/README.md)     | `cargo add copilot-sdk`                   |
 
 See the individual SDK READMEs for installation, usage examples, and API reference.
 

@@ -34,6 +34,10 @@ This is a multi-language SDK repository. Install the tools for the SDK(s) you pl
 1. Install [.NET 8.0+](https://dotnet.microsoft.com/download)
 1. Install dependencies: `cd dotnet && dotnet restore`
 
+### Rust SDK
+1. Install [Rust 1.75+](https://www.rust-lang.org/tools/install) (2021 edition)
+1. Install dependencies: `cd rust && cargo build`
+
 ## Submitting a pull request
 
 1. [Fork][fork] and clone the repository
@@ -60,11 +64,13 @@ just test-nodejs   # Node.js tests
 just test-python   # Python tests
 just test-go       # Go tests
 just test-dotnet   # .NET tests
+just test-rust     # Rust tests
 
 just lint-nodejs   # Node.js linting
 just lint-python   # Python linting
 just lint-go       # Go linting
 just lint-dotnet   # .NET linting
+just lint-rust     # Rust linting
 ```
 
 Or run commands directly in each SDK directory:
@@ -81,6 +87,9 @@ cd go && go test ./... && golangci-lint run ./...
 
 # .NET
 cd dotnet && dotnet test test/GitHub.Copilot.SDK.Test.csproj
+
+# Rust
+cd rust && cargo test && cargo clippy -- -D warnings
 ```
 
 Here are a few things you can do that will increase the likelihood of your pull request being accepted:
