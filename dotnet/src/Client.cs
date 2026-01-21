@@ -5,7 +5,6 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Newtonsoft.Json.Linq;
 using StreamJsonRpc;
 using System.Collections.Concurrent;
 using System.Data;
@@ -13,7 +12,6 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Sockets;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
@@ -43,8 +41,8 @@ namespace GitHub.Copilot.SDK;
 /// // Handle events
 /// using var subscription = session.On(evt =>
 /// {
-///     if (evt.Type == "assistant.message")
-///         Console.WriteLine(evt.Data?.Content);
+///     if (evt is AssistantMessageEvent assistantMessage)
+///         Console.WriteLine(assistantMessage.Data?.Content);
 /// });
 ///
 /// // Send a message
@@ -724,12 +722,10 @@ public class CopilotClient : IDisposable, IAsyncDisposable
     {
         var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
         {
+            AllowOutOfOrderMetadataProperties = true,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
-        foreach (var converter in SerializerOptions.Default.Converters)
-        {
-            options.Converters.Add(converter);
-        }
+
         return new SystemTextJsonFormatter() { JsonSerializerOptions = options };
     }
 

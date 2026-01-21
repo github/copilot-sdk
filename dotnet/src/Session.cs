@@ -30,9 +30,9 @@ namespace GitHub.Copilot.SDK;
 /// // Subscribe to events
 /// using var subscription = session.On(evt =>
 /// {
-///     if (evt.Type == "assistant.message")
+///     if (evt is AssistantMessageEvent assistantMessage)
 ///     {
-///         Console.WriteLine($"Assistant: {evt.Data?.Content}");
+///         Console.WriteLine($"Assistant: {assistantMessage.Data?.Content}");
 ///     }
 /// });
 ///
@@ -149,18 +149,20 @@ public class CopilotSession : IAsyncDisposable
 
         void Handler(SessionEvent evt)
         {
-            if (evt is AssistantMessageEvent assistantMessage)
+            switch (evt)
             {
-                lastAssistantMessage = assistantMessage;
-            }
-            else if (evt.Type == "session.idle")
-            {
-                tcs.TrySetResult(lastAssistantMessage);
-            }
-            else if (evt is SessionErrorEvent errorEvent)
-            {
-                var message = errorEvent.Data?.Message ?? "session error";
-                tcs.TrySetException(new InvalidOperationException($"Session error: {message}"));
+                case AssistantMessageEvent assistantMessage:
+                    lastAssistantMessage = assistantMessage;
+                    break;
+
+                case SessionIdleEvent:
+                    tcs.TrySetResult(lastAssistantMessage);
+                    break;
+
+                case SessionErrorEvent errorEvent:
+                    var message = errorEvent.Data?.Message ?? "session error";
+                    tcs.TrySetException(new InvalidOperationException($"Session error: {message}"));
+                    break;
             }
         }
 
@@ -194,12 +196,12 @@ public class CopilotSession : IAsyncDisposable
     /// <code>
     /// using var subscription = session.On(evt =>
     /// {
-    ///     switch (evt.Type)
+    ///     switch (evt)
     ///     {
-    ///         case "assistant.message":
+    ///         case AssistantMessageEvent:
     ///             Console.WriteLine($"Assistant: {evt.Data?.Content}");
     ///             break;
-    ///         case "session.error":
+    ///         case SessionErrorEvent:
     ///             Console.WriteLine($"Error: {evt.Data?.Message}");
     ///             break;
     ///     }
@@ -328,7 +330,7 @@ public class CopilotSession : IAsyncDisposable
     /// var events = await session.GetMessagesAsync();
     /// foreach (var evt in events)
     /// {
-    ///     if (evt.Type == "assistant.message")
+    ///     if (evt is AssistantMessageEvent)
     ///     {
     ///         Console.WriteLine($"Assistant: {evt.Data?.Content}");
     ///     }
