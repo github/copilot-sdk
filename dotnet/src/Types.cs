@@ -8,11 +8,16 @@ using Microsoft.Extensions.Logging;
 
 namespace GitHub.Copilot.SDK;
 
+[JsonConverter(typeof(JsonStringEnumConverter<SystemMessageMode>))]
 public enum ConnectionState
 {
+    [JsonStringEnumMemberName("disconnected")]
     Disconnected,
+    [JsonStringEnumMemberName("connecting")]
     Connecting,
+    [JsonStringEnumMemberName("connected")]
     Connected,
+    [JsonStringEnumMemberName("error")]
     Error
 }
 
@@ -105,9 +110,12 @@ public class PermissionInvocation
 
 public delegate Task<PermissionRequestResult> PermissionHandler(PermissionRequest request, PermissionInvocation invocation);
 
+[JsonConverter(typeof(JsonStringEnumConverter<SystemMessageMode>))]
 public enum SystemMessageMode
 {
+    [JsonStringEnumMemberName("append")]
     Append,
+    [JsonStringEnumMemberName("replace")]
     Replace
 }
 
