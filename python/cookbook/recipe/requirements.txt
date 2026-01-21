@@ -1,0 +1,2 @@
+# Install the local Copilot SDK package in editable mode
+-e ../..
