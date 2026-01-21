@@ -1,78 +1,265 @@
 //! JSON-RPC 2.0 client implementation.
+//!
+//! This module provides a JSON-RPC 2.0 client implementation for communicating with the
+//! Copilot CLI server using either stdio or TCP transport with Content-Length framing.
+//!
+//! The client handles:
+//! - Sending requests and receiving responses
+//! - Receiving and dispatching notifications
+//! - Handling incoming requests from the server (for tool calls)
+//!
+//! # Protocol
+//!
+//! The client uses the Language Server Protocol (LSP) framing format:
+//! - Messages are preceded by a `Content-Length: <size>\r\n\r\n` header
+//! - Message bodies are JSON-encoded according to JSON-RPC 2.0
+//!
+//! # Security
+//!
+//! Messages larger than [`MAX_MESSAGE_SIZE`] (100 MB) are rejected to prevent
+//! denial-of-service attacks via unbounded memory allocation.
+//!
+//! # Example
+//!
+//! ```ignore
+//! use copilot_sdk::jsonrpc::JsonRpcClient;
+//! use serde_json::json;
+//!
+//! // Create client from stdio streams
+//! let client = JsonRpcClient::new(stdin, stdout);
+//!
+//! // Send a request
+//! let result = client.request("ping", json!({"message": "hello"})).await?;
+//! ```
 
 use crate::error::{CopilotError, JsonRpcError, Result};
+
+/// Maximum allowed message size (100 MB) to prevent DoS attacks via unbounded memory allocation.
+///
+/// Any incoming message with a `Content-Length` header exceeding this value will be rejected
+/// with an I/O error.
+pub const MAX_MESSAGE_SIZE: usize = 100 * 1024 * 1024;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
-use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
+use tokio::sync::{mpsc, oneshot, RwLock};
 
-/// JSON-RPC 2.0 request.
+/// JSON-RPC 2.0 request message.
+///
+/// Represents a request sent to the server that expects a response.
+///
+/// # JSON Format
+///
+/// ```json
+/// {
+///     "jsonrpc": "2.0",
+///     "id": "unique-request-id",
+///     "method": "method.name",
+///     "params": { ... }
+/// }
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcRequest {
+    /// JSON-RPC protocol version, always "2.0".
     pub jsonrpc: String,
+
+    /// Unique identifier for this request. Used to match responses to requests.
     pub id: Value,
+
+    /// The method name to invoke on the server.
     pub method: String,
+
+    /// Optional parameters for the method call.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub params: Option<Value>,
 }
 
-/// JSON-RPC 2.0 response.
+/// JSON-RPC 2.0 response message.
+///
+/// Represents a response from the server to a request.
+///
+/// # JSON Format
+///
+/// Success response:
+/// ```json
+/// {
+///     "jsonrpc": "2.0",
+///     "id": "request-id",
+///     "result": { ... }
+/// }
+/// ```
+///
+/// Error response:
+/// ```json
+/// {
+///     "jsonrpc": "2.0",
+///     "id": "request-id",
+///     "error": { "code": -32600, "message": "..." }
+/// }
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcResponse {
+    /// JSON-RPC protocol version, always "2.0".
     pub jsonrpc: String,
+
+    /// Request ID this response corresponds to.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Value>,
+
+    /// Result value on success.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<Value>,
+
+    /// Error information on failure.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<JsonRpcErrorResponse>,
 }
 
-/// JSON-RPC 2.0 error in response.
+/// JSON-RPC 2.0 error object in a response.
+///
+/// Contains error information when a request fails.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcErrorResponse {
+    /// Error code indicating the type of error.
+    /// Standard codes are defined in [`crate::JsonRpcError`].
     pub code: i32,
+
+    /// Human-readable error message.
     pub message: String,
+
+    /// Optional additional error data.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Value>,
 }
 
-/// JSON-RPC 2.0 notification.
+/// JSON-RPC 2.0 notification message.
+///
+/// Represents a one-way message that does not expect a response.
+///
+/// # JSON Format
+///
+/// ```json
+/// {
+///     "jsonrpc": "2.0",
+///     "method": "notification.name",
+///     "params": { ... }
+/// }
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcNotification {
+    /// JSON-RPC protocol version, always "2.0".
     pub jsonrpc: String,
+
+    /// The notification method name.
     pub method: String,
+
+    /// Optional parameters for the notification.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub params: Option<Value>,
 }
 
-/// Notification handler type.
+/// Notification handler function type.
+///
+/// Called when the server sends a notification. Receives the method name
+/// and parameters.
+///
+/// # Arguments
+///
+/// - First argument: Method name (e.g., `"session.event"`)
+/// - Second argument: Parameters as a JSON value
 pub type NotificationHandler = Arc<dyn Fn(String, Value) + Send + Sync>;
 
-/// Request handler type - handles incoming requests from the server.
-pub type RequestHandler =
-    Arc<dyn Fn(Value) -> Result<Value> + Send + Sync>;
+/// Request handler function type for incoming server requests.
+///
+/// Called when the server sends a request (e.g., tool calls).
+/// Returns a future that resolves to the response value or an error.
+///
+/// # Arguments
+///
+/// The handler receives the request parameters as a JSON value.
+///
+/// # Returns
+///
+/// A pinned boxed future that resolves to `Result<Value>`.
+pub type RequestHandler = Arc<
+    dyn Fn(Value) -> Pin<Box<dyn Future<Output = Result<Value>> + Send>> + Send + Sync
+>;
 
 /// Internal message types for the write loop.
 enum WriteMessage {
+    /// Send the given bytes to the writer.
     Send(Vec<u8>),
+    /// Stop the write loop.
     Stop,
 }
 
 /// JSON-RPC client for stdio/TCP transport with Content-Length framing.
+///
+/// This client handles bidirectional JSON-RPC 2.0 communication over async streams.
+/// It supports:
+///
+/// - Sending requests and receiving responses
+/// - Sending notifications (one-way messages)
+/// - Receiving notifications from the server
+/// - Handling incoming requests from the server (e.g., tool calls)
+///
+/// # Thread Safety
+///
+/// The client is `Send + Sync` and can be safely shared across tasks.
+///
+/// # Example
+///
+/// ```ignore
+/// use copilot_sdk::jsonrpc::JsonRpcClient;
+/// use serde_json::json;
+///
+/// let client = JsonRpcClient::new(reader, writer);
+///
+/// // Set up notification handler
+/// client.set_notification_handler(Arc::new(|method, params| {
+///     println!("Notification: {} {:?}", method, params);
+/// })).await;
+///
+/// // Send a request
+/// let result = client.request("session.create", json!({
+///     "model": "gpt-5"
+/// })).await?;
+/// ```
 pub struct JsonRpcClient {
     write_tx: mpsc::Sender<WriteMessage>,
     pending_requests: Arc<RwLock<HashMap<String, oneshot::Sender<JsonRpcResponse>>>>,
     notification_handler: Arc<RwLock<Option<NotificationHandler>>>,
     request_handlers: Arc<RwLock<HashMap<String, RequestHandler>>>,
     running: Arc<std::sync::atomic::AtomicBool>,
-    response_write_tx: Arc<Mutex<Option<mpsc::Sender<WriteMessage>>>>,
 }
 
 impl JsonRpcClient {
     /// Create a new JSON-RPC client from async read/write streams.
+    ///
+    /// This spawns two background tasks:
+    /// - A write loop that sends outgoing messages
+    /// - A read loop that receives and dispatches incoming messages
+    ///
+    /// # Arguments
+    ///
+    /// * `reader` - Async reader for incoming messages
+    /// * `writer` - Async writer for outgoing messages
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // From stdio
+    /// let client = JsonRpcClient::new(tokio::io::stdin(), tokio::io::stdout());
+    ///
+    /// // From TCP
+    /// let (reader, writer) = stream.into_split();
+    /// let client = JsonRpcClient::new(reader, writer);
+    /// ```
     pub fn new<R, W>(reader: R, writer: W) -> Self
     where
         R: tokio::io::AsyncRead + Unpin + Send + 'static,
@@ -93,7 +280,6 @@ impl JsonRpcClient {
             notification_handler: notification_handler.clone(),
             request_handlers: request_handlers.clone(),
             running: running.clone(),
-            response_write_tx: Arc::new(Mutex::new(Some(write_tx.clone()))),
         };
 
         // Spawn write loop
@@ -119,7 +305,7 @@ impl JsonRpcClient {
         client
     }
 
-    /// Write loop - sends messages to the writer.
+    /// Write loop - sends messages to the writer with Content-Length framing.
     async fn write_loop<W>(
         mut writer: W,
         mut write_rx: mpsc::Receiver<WriteMessage>,
@@ -184,12 +370,12 @@ impl JsonRpcClient {
                 Err(_) => continue,
             };
 
-            // Determine message type
+            // Determine message type and dispatch
             let has_id = message.get("id").is_some();
             let has_method = message.get("method").is_some();
 
             if has_id && has_method {
-                // Request from server
+                // Request from server (e.g., tool.call)
                 Self::handle_server_request(
                     message,
                     request_handlers.clone(),
@@ -200,13 +386,16 @@ impl JsonRpcClient {
                 // Response to our request
                 Self::handle_response(message, pending_requests.clone()).await;
             } else if has_method {
-                // Notification
+                // Notification from server
                 Self::handle_notification(message, notification_handler.clone()).await;
             }
         }
     }
 
-    /// Read Content-Length header.
+    /// Read the Content-Length header from the stream.
+    ///
+    /// Returns the content length, or an error if the message is too large
+    /// or the connection is closed.
     async fn read_content_length<R>(reader: &mut BufReader<R>) -> std::io::Result<Option<usize>>
     where
         R: tokio::io::AsyncRead + Unpin,
@@ -231,6 +420,12 @@ impl JsonRpcClient {
             // Parse Content-Length
             if let Some(len_str) = line.strip_prefix("Content-Length: ") {
                 if let Ok(len) = len_str.trim().parse::<usize>() {
+                    if len > MAX_MESSAGE_SIZE {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            format!("Message size {} exceeds maximum {}", len, MAX_MESSAGE_SIZE),
+                        ));
+                    }
                     content_length = len;
                 }
             }
@@ -239,7 +434,7 @@ impl JsonRpcClient {
         Ok(Some(content_length))
     }
 
-    /// Handle a response to our request.
+    /// Handle a response to one of our requests.
     async fn handle_response(
         message: Value,
         pending_requests: Arc<RwLock<HashMap<String, oneshot::Sender<JsonRpcResponse>>>>,
@@ -281,7 +476,7 @@ impl JsonRpcClient {
         }
     }
 
-    /// Handle a request from the server.
+    /// Handle a request from the server (e.g., tool.call).
     async fn handle_server_request(
         message: Value,
         request_handlers: Arc<RwLock<HashMap<String, RequestHandler>>>,
@@ -298,7 +493,7 @@ impl JsonRpcClient {
 
         let response = if let Some(handler) = handler {
             let params = request.params.unwrap_or(Value::Null);
-            match handler(params) {
+            match handler(params).await {
                 Ok(result) => JsonRpcResponse {
                     jsonrpc: "2.0".to_string(),
                     id: Some(request.id),
@@ -341,25 +536,61 @@ impl JsonRpcClient {
         }
     }
 
-    /// Set the notification handler.
+    /// Set the notification handler for incoming server notifications.
+    ///
+    /// Only one handler can be active at a time. Setting a new handler
+    /// replaces the previous one.
+    ///
+    /// # Arguments
+    ///
+    /// * `handler` - Function called for each notification
     pub async fn set_notification_handler(&self, handler: NotificationHandler) {
         let mut h = self.notification_handler.write().await;
         *h = Some(handler);
     }
 
     /// Set a request handler for a specific method.
+    ///
+    /// Used to handle incoming requests from the server, such as tool calls.
+    ///
+    /// # Arguments
+    ///
+    /// * `method` - The method name to handle (e.g., `"tool.call"`)
+    /// * `handler` - Async function to handle the request
     pub async fn set_request_handler(&self, method: &str, handler: RequestHandler) {
         let mut handlers = self.request_handlers.write().await;
         handlers.insert(method.to_string(), handler);
     }
 
-    /// Remove a request handler.
+    /// Remove a request handler for a specific method.
+    ///
+    /// # Arguments
+    ///
+    /// * `method` - The method name to stop handling
     pub async fn remove_request_handler(&self, method: &str) {
         let mut handlers = self.request_handlers.write().await;
         handlers.remove(method);
     }
 
     /// Send a JSON-RPC request and wait for the response.
+    ///
+    /// This method sends a request to the server and blocks until a response
+    /// is received or the connection is closed.
+    ///
+    /// # Arguments
+    ///
+    /// * `method` - The method name to call
+    /// * `params` - Parameters for the method call
+    ///
+    /// # Returns
+    ///
+    /// The result value from the server, or an error if the request failed.
+    ///
+    /// # Errors
+    ///
+    /// - [`CopilotError::JsonRpc`] - Server returned an error
+    /// - [`CopilotError::ClientStopped`] - Connection was closed
+    /// - [`CopilotError::Serialization`] - Failed to serialize request
     pub async fn request(&self, method: &str, params: Value) -> Result<Value> {
         let request_id = uuid::Uuid::new_v4().to_string();
 
@@ -407,6 +638,19 @@ impl JsonRpcClient {
     }
 
     /// Send a JSON-RPC notification (no response expected).
+    ///
+    /// Notifications are one-way messages that don't expect a response
+    /// from the server.
+    ///
+    /// # Arguments
+    ///
+    /// * `method` - The notification method name
+    /// * `params` - Parameters for the notification
+    ///
+    /// # Errors
+    ///
+    /// - [`CopilotError::ClientStopped`] - Connection was closed
+    /// - [`CopilotError::Serialization`] - Failed to serialize notification
     pub async fn notify(&self, method: &str, params: Value) -> Result<()> {
         let notification = JsonRpcNotification {
             jsonrpc: "2.0".to_string(),
@@ -423,7 +667,10 @@ impl JsonRpcClient {
         Ok(())
     }
 
-    /// Stop the client.
+    /// Stop the client and close the connection.
+    ///
+    /// This signals the read and write loops to terminate and closes
+    /// the underlying connection.
     pub async fn stop(&self) {
         self.running
             .store(false, std::sync::atomic::Ordering::SeqCst);

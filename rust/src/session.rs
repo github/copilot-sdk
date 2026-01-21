@@ -5,15 +5,19 @@ use crate::generated::{SessionEvent, SessionEventType};
 use crate::jsonrpc::JsonRpcClient;
 use crate::tool::{Tool, ToolHandler, ToolInvocation, ToolResult};
 use crate::types::MessageOptions;
+use futures::FutureExt;
 use serde_json::json;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, RwLock};
 
 /// Callback type for session events.
-pub type SessionEventHandler = Arc<dyn Fn(SessionEvent) + Send + Sync>;
+///
+/// Takes an `Arc<SessionEvent>` to avoid expensive clones in hot paths when
+/// dispatching events to multiple handlers.
+pub type SessionEventHandler = Arc<dyn Fn(Arc<SessionEvent>) + Send + Sync>;
 
 /// Unsubscribe function returned by `on()`.
 pub type UnsubscribeFn = Box<dyn FnOnce() + Send>;
@@ -26,23 +30,24 @@ struct EventHandler {
 /// A session for conversing with the Copilot CLI.
 ///
 /// Sessions maintain conversation state, handle events, and manage tool execution.
-/// Sessions are created via [`CopilotClient::create_session`] or resumed via
-/// [`CopilotClient::resume_session`].
+/// Sessions are created via [`CopilotClient::create_session()`](crate::CopilotClient::create_session) or resumed via
+/// [`CopilotClient::resume_session()`](crate::CopilotClient::resume_session).
 ///
 /// # Example
 ///
 /// ```ignore
 /// use copilot_sdk::{CopilotClient, MessageOptions};
+/// use std::sync::Arc;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-///     let client = CopilotClient::new(None);
+///     let client = CopilotClient::new(None)?;
 ///     let session = client.create_session(None).await?;
 ///
 ///     // Subscribe to events
-///     let _unsubscribe = session.on(|event| {
+///     let _unsubscribe = session.on(Arc::new(|event| {
 ///         println!("Event: {:?}", event.event_type);
-///     });
+///     }));
 ///
 ///     // Send a message
 ///     let message_id = session.send(MessageOptions {
@@ -56,9 +61,10 @@ struct EventHandler {
 pub struct CopilotSession {
     session_id: String,
     rpc_client: Arc<JsonRpcClient>,
-    handlers: Arc<RwLock<Vec<EventHandler>>>,
+    handlers: Arc<std::sync::Mutex<Vec<EventHandler>>>,
     next_handler_id: AtomicU64,
     tool_handlers: RwLock<HashMap<String, ToolHandler>>,
+    destroyed: AtomicBool,
 }
 
 impl CopilotSession {
@@ -70,9 +76,10 @@ impl CopilotSession {
         Self {
             session_id,
             rpc_client,
-            handlers: Arc::new(RwLock::new(Vec::new())),
+            handlers: Arc::new(std::sync::Mutex::new(Vec::new())),
             next_handler_id: AtomicU64::new(0),
             tool_handlers: RwLock::new(HashMap::new()),
+            destroyed: AtomicBool::new(false),
         }
     }
 
@@ -83,7 +90,7 @@ impl CopilotSession {
 
     /// Send a message to this session.
     ///
-    /// The message is processed asynchronously. Subscribe to events via [`on`]
+    /// The message is processed asynchronously. Subscribe to events via [`Self::on()`]
     /// to receive streaming responses and other session events.
     ///
     /// Returns the message ID of the response.
@@ -113,10 +120,10 @@ impl CopilotSession {
 
     /// Send a message and wait for the session to become idle.
     ///
-    /// This is a convenience method that combines [`send`] with waiting for
+    /// This is a convenience method that combines [`Self::send()`] with waiting for
     /// the `session.idle` event.
     ///
-    /// Events are still delivered to handlers registered via [`on`] while waiting.
+    /// Events are still delivered to handlers registered via [`Self::on()`] while waiting.
     ///
     /// Returns the final assistant message event, or None if none was received.
     pub async fn send_and_wait(
@@ -134,7 +141,7 @@ impl CopilotSession {
         let idle_tx_clone = idle_tx.clone();
         let error_tx_clone = error_tx.clone();
 
-        let unsubscribe = self.on(Arc::new(move |event: SessionEvent| {
+        let unsubscribe = self.on(Arc::new(move |event: Arc<SessionEvent>| {
             let last_msg = last_msg.clone();
             let idle_tx = idle_tx_clone.clone();
             let error_tx = error_tx_clone.clone();
@@ -143,7 +150,8 @@ impl CopilotSession {
                 match event.event_type {
                     SessionEventType::AssistantMessage => {
                         let mut last = last_msg.write().await;
-                        *last = Some(event);
+                        // Clone the inner SessionEvent from the Arc for storage
+                        *last = Some((*event).clone());
                     }
                     SessionEventType::SessionIdle => {
                         let _ = idle_tx.send(()).await;
@@ -193,34 +201,17 @@ impl CopilotSession {
     pub fn on(&self, handler: SessionEventHandler) -> impl FnOnce() + Send {
         let id = self.next_handler_id.fetch_add(1, Ordering::SeqCst);
 
-        // We need to handle this synchronously to return immediately
-        let handlers = self.handlers.clone();
-        let rt = tokio::runtime::Handle::current();
-        rt.block_on(async {
-            let mut h = handlers.write().await;
+        // Use synchronous mutex lock - no async runtime needed
+        {
+            let mut h = self.handlers.lock().unwrap();
             h.push(EventHandler { id, handler });
-        });
+        }
 
         // Return unsubscribe closure
         let handlers = self.handlers.clone();
         move || {
-            let rt = tokio::runtime::Handle::try_current();
-            match rt {
-                Ok(handle) => {
-                    handle.block_on(async {
-                        let mut h = handlers.write().await;
-                        h.retain(|h| h.id != id);
-                    });
-                }
-                Err(_) => {
-                    // We're not in a tokio context, spawn a new runtime
-                    let rt = tokio::runtime::Runtime::new().unwrap();
-                    rt.block_on(async {
-                        let mut h = handlers.write().await;
-                        h.retain(|h| h.id != id);
-                    });
-                }
-            }
+            let mut h = handlers.lock().unwrap();
+            h.retain(|h| h.id != id);
         }
     }
 
@@ -259,15 +250,18 @@ impl CopilotSession {
     ///
     /// After calling this method, the session can no longer be used.
     pub async fn destroy(&self) -> Result<()> {
+        // Mark as destroyed first to prevent any new events from being dispatched
+        self.destroyed.store(true, Ordering::SeqCst);
+
         let params = json!({
             "sessionId": self.session_id,
         });
 
         self.rpc_client.request("session.destroy", params).await?;
 
-        // Clear handlers
+        // Clear handlers (using sync mutex)
         {
-            let mut handlers = self.handlers.write().await;
+            let mut handlers = self.handlers.lock().unwrap();
             handlers.clear();
         }
 
@@ -307,15 +301,16 @@ impl CopilotSession {
 
         match handler {
             Some(handler) => {
-                // Execute the tool handler
-                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    let rt = tokio::runtime::Handle::current();
-                    rt.block_on(handler(invocation))
-                })) {
+                // Execute the tool handler with async catch_unwind
+                let tool_name_for_err = tool_name.to_string();
+                match std::panic::AssertUnwindSafe(handler(invocation))
+                    .catch_unwind()
+                    .await
+                {
                     Ok(result) => result,
                     Err(_) => Ok(ToolResult::failure(format!(
                         "tool panic: {}",
-                        tool_name
+                        tool_name_for_err
                     ))),
                 }
             }
@@ -325,14 +320,22 @@ impl CopilotSession {
 
     /// Dispatch an event to all registered handlers.
     pub(crate) async fn dispatch_event(&self, event: SessionEvent) {
+        // Don't dispatch events if the session has been destroyed
+        if self.destroyed.load(Ordering::SeqCst) {
+            return;
+        }
+
         let handlers: Vec<SessionEventHandler> = {
-            let h = self.handlers.read().await;
+            let h = self.handlers.lock().unwrap();
             h.iter().map(|h| h.handler.clone()).collect()
         };
 
+        // Wrap event in Arc once, then clone the Arc for each handler (cheap)
+        let event = Arc::new(event);
+
         for handler in handlers {
             // Don't let panics crash the dispatcher
-            let event_clone = event.clone();
+            let event_clone = Arc::clone(&event);
             let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 handler(event_clone);
             }));

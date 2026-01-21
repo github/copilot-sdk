@@ -22,16 +22,16 @@ tokio = { version = "1", features = ["full"] }
 ## Quick Start
 
 ```rust
-use copilot_sdk::{CopilotClient, ClientOptions, SessionConfig, MessageOptions, SessionEventType};
+use copilot_sdk::{CopilotClient, ClientOptions, SessionConfig, SessionEvent, MessageOptions, SessionEventType};
 use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create client
+    // Create client (returns Result)
     let client = CopilotClient::new(Some(ClientOptions {
         log_level: Some("error".to_string()),
         ..Default::default()
-    }));
+    }))?;
 
     // Start the client
     client.start().await?;
@@ -42,11 +42,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..Default::default()
     })).await?;
 
-    // Set up event handler
+    // Set up event handler (receives Arc<SessionEvent>)
     let (tx, mut rx) = tokio::sync::mpsc::channel(1);
     let tx_clone = tx.clone();
 
-    session.on(Arc::new(move |event| {
+    session.on(Arc::new(move |event: Arc<SessionEvent>| {
         if event.event_type == SessionEventType::AssistantMessage {
             if let Some(content) = &event.data.content {
                 println!("{}", content);
@@ -76,48 +76,144 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## API Reference
 
-### Client
+### CopilotClient
 
-- `CopilotClient::new(options: Option<ClientOptions>) -> Self` - Create a new client
-- `start() -> Result<()>` - Start the CLI server
-- `stop() -> Vec<CopilotError>` - Stop the CLI server (returns array of errors, empty if all succeeded)
-- `force_stop()` - Forcefully stop without graceful cleanup
-- `create_session(config: Option<SessionConfig>) -> Result<Arc<CopilotSession>>` - Create a new session
-- `resume_session(session_id: &str, config: Option<ResumeSessionConfig>) -> Result<Arc<CopilotSession>>` - Resume an existing session
-- `get_state() -> ConnectionState` - Get connection state
-- `ping(message: Option<&str>) -> Result<PingResponse>` - Ping the server
+The main client for interacting with the Copilot CLI server.
+
+#### Constructor
+
+```rust
+CopilotClient::new(options: Option<ClientOptions>) -> Result<Self, CopilotError>
+```
+
+Creates a new client. Returns `Result` to handle invalid configuration errors.
 
 **ClientOptions:**
 
-- `cli_path` (Option\<String\>): Path to CLI executable (default: "copilot" or `COPILOT_CLI_PATH` env var)
-- `cli_url` (Option\<String\>): URL of existing CLI server (e.g., `"localhost:8080"`, `"http://127.0.0.1:9000"`, or just `"8080"`). When provided, the client will not spawn a CLI process.
-- `cwd` (Option\<String\>): Working directory for CLI process
-- `port` (Option\<u16\>): Server port for TCP mode (default: 0 for random)
-- `use_stdio` (Option\<bool\>): Use stdio transport instead of TCP (default: true)
-- `log_level` (Option\<String\>): Log level (default: "info")
-- `auto_start` (Option\<bool\>): Auto-start server on first use (default: true)
-- `auto_restart` (Option\<bool\>): Auto-restart on crash (default: true)
-- `env` (Option\<Vec\<(String, String)\>\>): Environment variables for CLI process (default: inherits from current process)
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `cli_path` | `Option<String>` | `"copilot"` | Path to CLI executable (or `COPILOT_CLI_PATH` env var) |
+| `cli_url` | `Option<String>` | `None` | URL of existing CLI server (e.g., `"localhost:8080"`, `"http://127.0.0.1:9000"`, or `"8080"`). When provided, the client will not spawn a CLI process. |
+| `cwd` | `Option<String>` | `None` | Working directory for CLI process |
+| `port` | `Option<u16>` | `0` | Server port for TCP mode (0 = random) |
+| `use_stdio` | `Option<bool>` | `true` | Use stdio transport instead of TCP |
+| `log_level` | `Option<String>` | `"info"` | Log level for CLI server |
+| `auto_start` | `Option<bool>` | `true` | Auto-start server on first use |
+| `auto_restart` | `Option<bool>` | `true` | Auto-restart on crash |
+| `env` | `Option<HashMap<String, String>>` | `None` | Environment variables for CLI process |
 
-**ResumeSessionConfig:**
+#### Methods
 
-- `tools` (Vec\<Tool\>): Tools to expose when resuming
-- `provider` (Option\<ProviderConfig\>): Custom model provider configuration
+##### `start() -> Result<()>`
 
-### Session
+Start the CLI server and establish connection.
 
-- `send(options: MessageOptions) -> Result<String>` - Send a message
-- `send_and_wait(options: MessageOptions, timeout: Option<Duration>) -> Result<Option<SessionEvent>>` - Send and wait for idle
-- `on(handler: SessionEventHandler) -> impl FnOnce()` - Subscribe to events (returns unsubscribe function)
-- `abort() -> Result<()>` - Abort the currently processing message
-- `get_messages() -> Result<Vec<SessionEvent>>` - Get message history
-- `destroy() -> Result<()>` - Destroy the session
+##### `stop() -> Vec<CopilotError>`
 
-### Tools
+Stop the CLI server and close all sessions. Returns a list of any errors encountered during cleanup.
+
+##### `force_stop()`
+
+Forcefully stop without graceful cleanup. Use when `stop()` takes too long.
+
+##### `create_session(config: Option<SessionConfig>) -> Result<Arc<CopilotSession>>`
+
+Create a new conversation session.
+
+**SessionConfig:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `session_id` | `Option<String>` | Custom session ID |
+| `model` | `Option<String>` | Model to use (`"gpt-5"`, `"claude-sonnet-4.5"`, etc.) |
+| `tools` | `Vec<Tool>` | Custom tools exposed to the CLI |
+| `streaming` | `Option<bool>` | Enable streaming responses |
+| `system_message` | `Option<SystemMessageConfig>` | System message customization |
+| `provider` | `Option<ProviderConfig>` | Custom model provider |
+| `mcp_servers` | `Option<Vec<McpServerConfig>>` | MCP server configurations |
+| `available_tools` | `Option<Vec<String>>` | Allowlist of available tools |
+| `excluded_tools` | `Option<Vec<String>>` | Tools to exclude |
+
+##### `resume_session(session_id: &str, config: Option<ResumeSessionConfig>) -> Result<Arc<CopilotSession>>`
+
+Resume an existing session.
+
+##### `get_state() -> ConnectionState`
+
+Get current connection state (`Disconnected`, `Connecting`, `Connected`, `Error`).
+
+##### `ping(message: Option<&str>) -> Result<PingResponse>`
+
+Ping the server to verify connectivity.
+
+##### `list_sessions() -> Result<Vec<SessionMetadata>>`
+
+List all available sessions.
+
+##### `delete_session(session_id: &str) -> Result<()>`
+
+Delete a session and its data from disk.
+
+---
+
+### CopilotSession
+
+Represents a single conversation session.
+
+#### Methods
+
+##### `send(options: MessageOptions) -> Result<String>`
+
+Send a message to the session. Returns immediately after the message is queued; use event handlers or `send_and_wait()` to wait for completion.
+
+**MessageOptions:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `prompt` | `String` | The message/prompt to send |
+| `attachments` | `Option<Vec<Attachment>>` | File attachments |
+| `mode` | `Option<String>` | Delivery mode (`"enqueue"` or `"immediate"`) |
+
+Returns the message ID.
+
+##### `send_and_wait(options: MessageOptions, timeout: Option<Duration>) -> Result<Option<SessionEvent>>`
+
+Send a message and wait until the session becomes idle. Returns the final assistant message event, or `None` if none was received.
+
+##### `on(handler: SessionEventHandler) -> impl FnOnce()`
+
+Subscribe to session events. Returns an unsubscribe function.
+
+**Important:** The handler receives `Arc<SessionEvent>` (not `SessionEvent`) to avoid expensive clones when dispatching to multiple handlers.
+
+```rust
+let unsubscribe = session.on(Arc::new(|event: Arc<SessionEvent>| {
+    println!("Event: {:?}", event.event_type);
+}));
+
+// Later...
+unsubscribe();
+```
+
+##### `abort() -> Result<()>`
+
+Abort the currently processing message.
+
+##### `get_messages() -> Result<Vec<SessionEvent>>`
+
+Get all events/messages from this session's history.
+
+##### `destroy() -> Result<()>`
+
+Destroy the session and free resources.
+
+---
+
+## Tools
 
 Expose your own functionality to Copilot by attaching tools to a session.
 
-#### Using define_tool (Recommended)
+### Using `define_tool` (Recommended)
 
 Use `define_tool` for type-safe tools with automatic JSON schema generation:
 
@@ -148,9 +244,9 @@ let session = client.create_session(Some(SessionConfig {
 })).await?;
 ```
 
-#### Using Tool struct directly
+### Using `ToolBuilder`
 
-For more control over the JSON schema, use the `ToolBuilder`:
+For more control over the JSON schema:
 
 ```rust
 use copilot_sdk::{ToolBuilder, ToolResult};
@@ -183,19 +279,42 @@ let session = client.create_session(Some(SessionConfig {
 })).await?;
 ```
 
-When the model selects a tool, the SDK automatically runs your handler (in parallel with other calls) and responds to the CLI's `tool.call` with the handler's result.
+When the model selects a tool, the SDK automatically runs your handler and responds to the CLI's `tool.call` with the result.
+
+---
+
+## Event Types
+
+Sessions emit various events during processing:
+
+| Event Type | Description |
+|------------|-------------|
+| `UserMessage` | User message added |
+| `AssistantMessage` | Complete assistant response |
+| `AssistantMessageDelta` | Streaming response chunk |
+| `AssistantReasoning` | Complete reasoning content |
+| `AssistantReasoningDelta` | Streaming reasoning chunk |
+| `ToolExecutionStart` | Tool execution started |
+| `ToolExecutionComplete` | Tool execution completed |
+| `SessionIdle` | Session finished processing |
+| `SessionError` | Error occurred |
+| `SessionStart` | Session started |
+
+See [`SessionEventType`](src/generated/session_events.rs) for the full list.
+
+---
 
 ## Streaming
 
 Enable streaming to receive assistant response chunks as they're generated:
 
 ```rust
-use copilot_sdk::{CopilotClient, SessionConfig, MessageOptions, SessionEventType};
+use copilot_sdk::{CopilotClient, SessionConfig, SessionEvent, MessageOptions, SessionEventType};
 use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = CopilotClient::new(None);
+    let client = CopilotClient::new(None)?;
     client.start().await?;
 
     let session = client.create_session(Some(SessionConfig {
@@ -207,7 +326,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (tx, mut rx) = tokio::sync::mpsc::channel(1);
     let tx_clone = tx.clone();
 
-    session.on(Arc::new(move |event| {
+    session.on(Arc::new(move |event: Arc<SessionEvent>| {
         match event.event_type {
             SessionEventType::AssistantMessageDelta => {
                 // Streaming message chunk - print incrementally
@@ -258,12 +377,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 When `streaming: Some(true)`:
 
-- `AssistantMessageDelta` events are sent with `delta_content` containing incremental text
-- `AssistantReasoningDelta` events are sent with `delta_content` for reasoning/chain-of-thought (model-dependent)
-- Accumulate `delta_content` values to build the full response progressively
-- The final `AssistantMessage` and `AssistantReasoning` events contain the complete content
+- `AssistantMessageDelta` events contain `delta_content` with incremental text
+- `AssistantReasoningDelta` events contain reasoning chunks (model-dependent)
+- Accumulate `delta_content` values to build the response progressively
+- Final `AssistantMessage` and `AssistantReasoning` events contain complete content
 
-Note: `AssistantMessage` and `AssistantReasoning` (final events) are always sent regardless of streaming setting.
+Note: Final events are always sent regardless of streaming setting.
+
+---
 
 ## Transport Modes
 
@@ -272,7 +393,7 @@ Note: `AssistantMessage` and `AssistantReasoning` (final events) are always sent
 Communicates with CLI via stdin/stdout pipes. Recommended for most use cases.
 
 ```rust
-let client = CopilotClient::new(None); // Uses stdio by default
+let client = CopilotClient::new(None)?; // Uses stdio by default
 ```
 
 ### TCP
@@ -284,12 +405,69 @@ let client = CopilotClient::new(Some(ClientOptions {
     use_stdio: Some(false),
     port: Some(3000),
     ..Default::default()
-}));
+}))?;
 ```
+
+### External Server
+
+Connect to an already-running CLI server:
+
+```rust
+let client = CopilotClient::new(Some(ClientOptions {
+    cli_url: Some("localhost:8080".to_string()),
+    ..Default::default()
+}))?;
+```
+
+---
+
+## Error Handling
+
+The SDK uses `CopilotError` for all error types:
+
+```rust
+use copilot_sdk::{CopilotClient, CopilotError};
+
+match CopilotClient::new(None) {
+    Ok(client) => {
+        // Use client...
+    }
+    Err(CopilotError::InvalidConfig(msg)) => {
+        eprintln!("Configuration error: {}", msg);
+    }
+    Err(e) => {
+        eprintln!("Error: {}", e);
+    }
+}
+```
+
+Common error types:
+
+| Error | Description |
+|-------|-------------|
+| `InvalidConfig` | Invalid client configuration |
+| `NotConnected` | Client not connected |
+| `Connection` | Connection error |
+| `Process` | CLI process error |
+| `Timeout` | Operation timed out |
+| `JsonRpc` | JSON-RPC error from server |
+| `Session` | Session-related error |
+
+---
 
 ## Environment Variables
 
 - `COPILOT_CLI_PATH` - Path to the Copilot CLI executable
+
+---
+
+## Requirements
+
+- Rust 1.75+ (2021 edition)
+- Tokio async runtime
+- GitHub Copilot CLI installed and accessible
+
+---
 
 ## License
 

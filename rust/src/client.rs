@@ -9,6 +9,7 @@ use crate::types::{
     ClientOptions, ConnectionState, PingResponse, ProviderConfig,
     ResumeSessionConfig, SessionConfig, SessionMetadata, get_sdk_protocol_version,
 };
+use once_cell::sync::Lazy;
 use regex::Regex;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -18,7 +19,13 @@ use std::sync::Arc;
 use tokio::io::{BufReader, BufWriter};
 use tokio::net::TcpStream;
 use tokio::process::{Child, Command};
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, Semaphore};
+
+/// Maximum number of concurrent event dispatch tasks to prevent unbounded task spawning.
+const MAX_CONCURRENT_EVENT_TASKS: usize = 100;
+
+/// Semaphore to limit concurrent event dispatch tasks.
+static EVENT_SEMAPHORE: Lazy<Semaphore> = Lazy::new(|| Semaphore::new(MAX_CONCURRENT_EVENT_TASKS));
 
 /// Client for interacting with the Copilot CLI server.
 ///
@@ -32,13 +39,13 @@ use tokio::sync::RwLock;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-///     let client = CopilotClient::new(None);
+///     let client = CopilotClient::new(None)?;
 ///     client.start().await?;
 ///
 ///     let session = client.create_session(None).await?;
 ///     // Use the session...
 ///
-///     client.stop().await?;
+///     client.stop().await;
 ///     Ok(())
 /// }
 /// ```
@@ -52,6 +59,8 @@ pub struct CopilotClient {
     actual_host: RwLock<String>,
     is_external_server: bool,
     auto_start: bool,
+    /// TODO: Implement auto-restart functionality for reconnecting after connection loss.
+    #[allow(dead_code)]
     auto_restart: bool,
 }
 
@@ -59,7 +68,13 @@ impl CopilotClient {
     /// Create a new CopilotClient with the given options.
     ///
     /// If options is None, default options are used (spawns CLI server using stdio).
-    pub fn new(options: Option<ClientOptions>) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns `CopilotError::InvalidConfig` if the configuration is invalid:
+    /// - `cli_url` is provided along with `use_stdio` or `cli_path` (mutually exclusive)
+    /// - `cli_url` has an invalid format
+    pub fn new(options: Option<ClientOptions>) -> Result<Self> {
         let mut opts = ClientOptions {
             cli_path: Some("copilot".to_string()),
             use_stdio: Some(true),
@@ -78,12 +93,14 @@ impl CopilotClient {
             if user_opts.cli_url.is_some()
                 && (user_opts.use_stdio.unwrap_or(false) || user_opts.cli_path.is_some())
             {
-                panic!("cli_url is mutually exclusive with use_stdio and cli_path");
+                return Err(CopilotError::InvalidConfig(
+                    "cli_url is mutually exclusive with use_stdio and cli_path".to_string(),
+                ));
             }
 
             // Parse cli_url if provided
             if let Some(ref url) = user_opts.cli_url {
-                let (host, port) = parse_cli_url(url);
+                let (host, port) = parse_cli_url(url)?;
                 actual_host = host;
                 actual_port = port;
                 is_external_server = true;
@@ -120,7 +137,7 @@ impl CopilotClient {
             opts.cli_path = Some(cli_path);
         }
 
-        Self {
+        Ok(Self {
             options: opts,
             process: RwLock::new(None),
             rpc_client: RwLock::new(None),
@@ -131,7 +148,7 @@ impl CopilotClient {
             is_external_server,
             auto_start,
             auto_restart,
-        }
+        })
     }
 
     /// Start the CLI server and establish a connection.
@@ -730,7 +747,9 @@ impl CopilotClient {
                         {
                             let sessions = sessions.clone();
                             let session_id = session_id.to_string();
+                            // Use semaphore to limit concurrent event dispatch tasks
                             tokio::spawn(async move {
+                                let _permit = EVENT_SEMAPHORE.acquire().await.unwrap();
                                 let sessions = sessions.read().await;
                                 if let Some(session) = sessions.get(&session_id) {
                                     session.dispatch_event(event).await;
@@ -767,20 +786,17 @@ impl CopilotClient {
                     .to_string();
                 let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
 
-                if session_id.is_empty() || tool_call_id.is_empty() || tool_name.is_empty() {
-                    return Err(CopilotError::InvalidResponse(
-                        "invalid tool call payload".to_string(),
-                    ));
-                }
+                Box::pin(async move {
+                    if session_id.is_empty() || tool_call_id.is_empty() || tool_name.is_empty() {
+                        return Err(CopilotError::InvalidResponse(
+                            "invalid tool call payload".to_string(),
+                        ));
+                    }
 
-                // We need to handle this synchronously for the RPC response
-                // Use a blocking approach within the request handler
-                let rt = tokio::runtime::Handle::current();
-                let result = rt.block_on(async {
                     let sessions = sessions.read().await;
                     let session = sessions.get(&session_id);
 
-                    if let Some(session) = session {
+                    let result = if let Some(session) = session {
                         let inv = ToolInvocation {
                             session_id: session_id.clone(),
                             tool_call_id,
@@ -790,17 +806,13 @@ impl CopilotClient {
                         session.execute_tool(&tool_name, inv).await
                     } else {
                         Ok(ToolResult::unsupported(&tool_name))
-                    }
-                });
+                    };
 
-                match result {
-                    Ok(tool_result) => {
-                        Ok(json!({ "result": tool_result }))
+                    match result {
+                        Ok(tool_result) => Ok(json!({ "result": tool_result })),
+                        Err(e) => Ok(json!({ "result": ToolResult::failure(e.to_string()) })),
                     }
-                    Err(e) => {
-                        Ok(json!({ "result": ToolResult::failure(e.to_string()) }))
-                    }
-                }
+                })
             }),
         )
         .await;
@@ -826,7 +838,7 @@ impl CopilotClient {
 }
 
 /// Parse a CLI URL into host and port components.
-fn parse_cli_url(url: &str) -> (String, u16) {
+fn parse_cli_url(url: &str) -> Result<(String, u16)> {
     // Remove protocol if present
     let clean_url = Regex::new(r"^https?://")
         .unwrap()
@@ -835,17 +847,19 @@ fn parse_cli_url(url: &str) -> (String, u16) {
 
     // Check if it's just a port number
     if Regex::new(r"^\d+$").unwrap().is_match(&clean_url) {
-        let port: u16 = clean_url.parse().expect("Invalid port in cli_url");
-        return ("localhost".to_string(), port);
+        let port: u16 = clean_url.parse().map_err(|_| {
+            CopilotError::InvalidConfig(format!("Invalid port in cli_url: {}", url))
+        })?;
+        return Ok(("localhost".to_string(), port));
     }
 
     // Parse host:port format
     let parts: Vec<&str> = clean_url.splitn(2, ':').collect();
     if parts.len() != 2 {
-        panic!(
+        return Err(CopilotError::InvalidConfig(format!(
             "Invalid cli_url format: {}. Expected 'host:port', 'http://host:port', or 'port'",
             url
-        );
+        )));
     }
 
     let host = if parts[0].is_empty() {
@@ -854,11 +868,11 @@ fn parse_cli_url(url: &str) -> (String, u16) {
         parts[0].to_string()
     };
 
-    let port: u16 = parts[1]
-        .parse()
-        .unwrap_or_else(|_| panic!("Invalid port in cli_url: {}", url));
+    let port: u16 = parts[1].parse().map_err(|_| {
+        CopilotError::InvalidConfig(format!("Invalid port in cli_url: {}", url))
+    })?;
 
-    (host, port)
+    Ok((host, port))
 }
 
 /// Build provider params for JSON-RPC.

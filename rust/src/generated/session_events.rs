@@ -8,6 +8,52 @@
 // 2. Run: npm run generate:session-types
 
 //! Session event types for the Copilot SDK.
+//!
+//! This module contains types representing events emitted by Copilot sessions
+//! during conversation processing. Events cover the full lifecycle of a session,
+//! including message handling, tool execution, and session state changes.
+//!
+//! # Event Flow
+//!
+//! A typical session flow emits events in this order:
+//!
+//! 1. [`SessionEventType::SessionStart`] - Session created
+//! 2. [`SessionEventType::UserMessage`] - User message received
+//! 3. [`SessionEventType::AssistantTurnStart`] - Assistant begins processing
+//! 4. [`SessionEventType::AssistantMessageDelta`] - Streaming response chunks (if enabled)
+//! 5. [`SessionEventType::AssistantMessage`] - Complete assistant response
+//! 6. [`SessionEventType::AssistantTurnEnd`] - Assistant finished processing
+//! 7. [`SessionEventType::SessionIdle`] - Session ready for next message
+//!
+//! # Tool Execution
+//!
+//! When the assistant invokes tools:
+//!
+//! 1. [`SessionEventType::ToolExecutionStart`] - Tool execution begins
+//! 2. [`SessionEventType::ToolExecutionPartialResult`] - Intermediate results (optional)
+//! 3. [`SessionEventType::ToolExecutionComplete`] - Tool execution finished
+//!
+//! # Example
+//!
+//! ```ignore
+//! use copilot_sdk::{SessionEvent, SessionEventType};
+//!
+//! fn handle_event(event: &SessionEvent) {
+//!     match event.event_type {
+//!         SessionEventType::AssistantMessage => {
+//!             if let Some(content) = &event.data.content {
+//!                 println!("Assistant: {}", content);
+//!             }
+//!         }
+//!         SessionEventType::SessionError => {
+//!             if let Some(msg) = &event.data.message {
+//!                 eprintln!("Error: {}", msg);
+//!             }
+//!         }
+//!         _ => {}
+//!     }
+//! }
+//! ```
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -15,97 +61,222 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 /// Session event from the Copilot CLI.
+///
+/// This is the primary event structure emitted by sessions during processing.
+/// Each event has a type, timestamp, unique ID, and type-specific data.
+///
+/// # Fields
+///
+/// - `event_type` - The type of event (see [`SessionEventType`])
+/// - `id` - Unique identifier for this event
+/// - `timestamp` - When the event occurred
+/// - `data` - Event-specific data (see [`SessionEventData`])
+/// - `parent_id` - ID of parent event (for nested events)
+/// - `ephemeral` - Whether this event should be persisted
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionEvent {
-    /// Event data.
+    /// Event-specific data payload.
+    ///
+    /// This is a flat structure containing all possible fields for all event types.
+    /// Only fields relevant to the specific `event_type` will be populated.
     pub data: SessionEventData,
 
-    /// Whether the event is ephemeral (not persisted).
+    /// Whether the event is ephemeral (not persisted to session history).
+    ///
+    /// Ephemeral events are typically used for streaming deltas and
+    /// intermediate progress updates.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ephemeral: Option<bool>,
 
-    /// Unique event ID.
+    /// Unique identifier for this event.
+    ///
+    /// Can be used to track specific events or correlate related events.
     pub id: String,
 
-    /// Parent event ID (if this event is a child).
+    /// Parent event ID (if this event is a child of another event).
+    ///
+    /// Used to establish event hierarchies, such as tool execution events
+    /// being children of the message that triggered them.
     #[serde(rename = "parentId")]
     pub parent_id: Option<String>,
 
-    /// Event timestamp.
+    /// Timestamp when this event occurred.
     pub timestamp: DateTime<Utc>,
 
-    /// Event type.
+    /// The type of this event.
+    ///
+    /// Determines which fields in `data` are populated and how the event
+    /// should be interpreted.
     #[serde(rename = "type")]
     pub event_type: SessionEventType,
 }
 
 /// Session event types.
+///
+/// Each variant represents a different type of event that can occur during
+/// a Copilot session. The event type determines which fields in
+/// [`SessionEventData`] will be populated.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SessionEventType {
+    /// Message processing was aborted.
     #[serde(rename = "abort")]
     Abort,
+
+    /// Assistant expressed an intent or plan.
     #[serde(rename = "assistant.intent")]
     AssistantIntent,
+
+    /// Complete assistant message.
+    ///
+    /// Contains the full response content in `data.content`.
     #[serde(rename = "assistant.message")]
     AssistantMessage,
+
+    /// Streaming assistant message chunk.
+    ///
+    /// Contains incremental content in `data.delta_content`.
+    /// Only emitted when streaming is enabled.
     #[serde(rename = "assistant.message_delta")]
     AssistantMessageDelta,
+
+    /// Complete assistant reasoning (chain-of-thought).
+    ///
+    /// Contains the full reasoning content in `data.content`.
+    /// Only available for models that support reasoning.
     #[serde(rename = "assistant.reasoning")]
     AssistantReasoning,
+
+    /// Streaming assistant reasoning chunk.
+    ///
+    /// Contains incremental reasoning in `data.delta_content`.
+    /// Only emitted when streaming is enabled and model supports reasoning.
     #[serde(rename = "assistant.reasoning_delta")]
     AssistantReasoningDelta,
+
+    /// Assistant finished processing this turn.
     #[serde(rename = "assistant.turn_end")]
     AssistantTurnEnd,
+
+    /// Assistant started processing this turn.
     #[serde(rename = "assistant.turn_start")]
     AssistantTurnStart,
+
+    /// Token usage information for this turn.
+    ///
+    /// Contains `data.input_tokens`, `data.output_tokens`, etc.
     #[serde(rename = "assistant.usage")]
     AssistantUsage,
+
+    /// Hook execution completed.
     #[serde(rename = "hook.end")]
     HookEnd,
+
+    /// Hook execution started.
     #[serde(rename = "hook.start")]
     HookStart,
+
+    /// Pending messages queue was modified.
     #[serde(rename = "pending_messages.modified")]
     PendingMessagesModified,
+
+    /// Context compaction completed.
     #[serde(rename = "session.compaction_complete")]
     SessionCompactionComplete,
+
+    /// Context compaction started.
     #[serde(rename = "session.compaction_start")]
     SessionCompactionStart,
+
+    /// Session error occurred.
+    ///
+    /// Contains error details in `data.message`, `data.error_type`, `data.stack`.
     #[serde(rename = "session.error")]
     SessionError,
+
+    /// Session handed off to another destination.
     #[serde(rename = "session.handoff")]
     SessionHandoff,
+
+    /// Session is idle and ready for new messages.
+    ///
+    /// This event indicates the session has finished processing and is
+    /// waiting for the next user message.
     #[serde(rename = "session.idle")]
     SessionIdle,
+
+    /// Informational message about the session.
     #[serde(rename = "session.info")]
     SessionInfo,
+
+    /// Model was changed during the session.
+    ///
+    /// Contains `data.previous_model` and `data.new_model`.
     #[serde(rename = "session.model_change")]
     SessionModelChange,
+
+    /// Session was resumed from saved state.
     #[serde(rename = "session.resume")]
     SessionResume,
+
+    /// Session was started.
+    ///
+    /// This is typically the first event emitted after creating a session.
     #[serde(rename = "session.start")]
     SessionStart,
+
+    /// Context was truncated to fit within token limits.
     #[serde(rename = "session.truncation")]
     SessionTruncation,
+
+    /// Usage information for the session.
     #[serde(rename = "session.usage_info")]
     SessionUsageInfo,
+
+    /// Subagent completed execution.
     #[serde(rename = "subagent.completed")]
     SubagentCompleted,
+
+    /// Subagent execution failed.
     #[serde(rename = "subagent.failed")]
     SubagentFailed,
+
+    /// Subagent was selected for execution.
     #[serde(rename = "subagent.selected")]
     SubagentSelected,
+
+    /// Subagent started execution.
     #[serde(rename = "subagent.started")]
     SubagentStarted,
+
+    /// System message was added.
     #[serde(rename = "system.message")]
     SystemMessage,
+
+    /// Tool execution completed.
+    ///
+    /// Contains tool result in `data.result`, tool name in `data.tool_name`.
     #[serde(rename = "tool.execution_complete")]
     ToolExecutionComplete,
+
+    /// Partial tool execution result.
+    ///
+    /// Contains intermediate output in `data.partial_output`.
     #[serde(rename = "tool.execution_partial_result")]
     ToolExecutionPartialResult,
+
+    /// Tool execution started.
+    ///
+    /// Contains tool name in `data.tool_name`, arguments in `data.arguments`.
     #[serde(rename = "tool.execution_start")]
     ToolExecutionStart,
+
+    /// Tool was requested by user.
     #[serde(rename = "tool.user_requested")]
     ToolUserRequested,
+
+    /// User message was added to the session.
+    ///
+    /// Contains message content in `data.content`, attachments in `data.attachments`.
     #[serde(rename = "user.message")]
     UserMessage,
 }
@@ -151,57 +322,73 @@ impl std::fmt::Display for SessionEventType {
 }
 
 /// Session event data - a flat structure containing all possible fields.
+///
+/// This structure contains all possible fields for all event types.
+/// Only fields relevant to the specific [`SessionEventType`] will be populated;
+/// all others will be `None`.
+///
+/// # Common Fields by Event Type
+///
+/// | Event Type | Relevant Fields |
+/// |------------|-----------------|
+/// | `AssistantMessage` | `content`, `turn_id`, `message_id` |
+/// | `AssistantMessageDelta` | `delta_content`, `message_id` |
+/// | `UserMessage` | `content`, `attachments` |
+/// | `SessionError` | `message`, `error_type`, `stack`, `error` |
+/// | `ToolExecutionStart` | `tool_name`, `tool_call_id`, `arguments` |
+/// | `ToolExecutionComplete` | `tool_name`, `tool_call_id`, `result` |
+/// | `AssistantUsage` | `input_tokens`, `output_tokens`, `model`, `cost` |
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SessionEventData {
-    /// Context information.
+    /// Context information (working directory, git info, etc.).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<ContextUnion>,
 
-    /// Copilot version.
+    /// Copilot CLI version.
     #[serde(rename = "copilotVersion", skip_serializing_if = "Option::is_none")]
     pub copilot_version: Option<String>,
 
-    /// Event producer.
+    /// Event producer identifier.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub producer: Option<String>,
 
-    /// Selected model.
+    /// Currently selected model.
     #[serde(rename = "selectedModel", skip_serializing_if = "Option::is_none")]
     pub selected_model: Option<String>,
 
-    /// Session ID.
+    /// Session identifier.
     #[serde(rename = "sessionId", skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
 
-    /// Session start time.
+    /// Session start timestamp.
     #[serde(rename = "startTime", skip_serializing_if = "Option::is_none")]
     pub start_time: Option<DateTime<Utc>>,
 
-    /// Version number.
+    /// Protocol version number.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<f64>,
 
-    /// Event count.
+    /// Total event count in session.
     #[serde(rename = "eventCount", skip_serializing_if = "Option::is_none")]
     pub event_count: Option<f64>,
 
-    /// Resume time.
+    /// Session resume timestamp.
     #[serde(rename = "resumeTime", skip_serializing_if = "Option::is_none")]
     pub resume_time: Option<DateTime<Utc>>,
 
-    /// Error type.
+    /// Error type identifier.
     #[serde(rename = "errorType", skip_serializing_if = "Option::is_none")]
     pub error_type: Option<String>,
 
-    /// Message content.
+    /// Human-readable message content or error message.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
 
-    /// Stack trace.
+    /// Error stack trace.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stack: Option<String>,
 
-    /// Info type.
+    /// Info type for informational events.
     #[serde(rename = "infoType", skip_serializing_if = "Option::is_none")]
     pub info_type: Option<String>,
 
@@ -213,19 +400,19 @@ pub struct SessionEventData {
     #[serde(rename = "previousModel", skip_serializing_if = "Option::is_none")]
     pub previous_model: Option<String>,
 
-    /// Handoff time.
+    /// Handoff timestamp.
     #[serde(rename = "handoffTime", skip_serializing_if = "Option::is_none")]
     pub handoff_time: Option<DateTime<Utc>>,
 
-    /// Remote session ID.
+    /// Remote session ID (for handoffs).
     #[serde(rename = "remoteSessionId", skip_serializing_if = "Option::is_none")]
     pub remote_session_id: Option<String>,
 
-    /// Repository info.
+    /// Repository information.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repository: Option<Repository>,
 
-    /// Source type.
+    /// Source type (local or remote).
     #[serde(rename = "sourceType", skip_serializing_if = "Option::is_none")]
     pub source_type: Option<SourceType>,
 
@@ -233,7 +420,7 @@ pub struct SessionEventData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
 
-    /// Messages removed during truncation.
+    /// Number of messages removed during context truncation.
     #[serde(rename = "messagesRemovedDuringTruncation", skip_serializing_if = "Option::is_none")]
     pub messages_removed_during_truncation: Option<f64>,
 
@@ -241,23 +428,23 @@ pub struct SessionEventData {
     #[serde(rename = "performedBy", skip_serializing_if = "Option::is_none")]
     pub performed_by: Option<String>,
 
-    /// Post-truncation messages length.
+    /// Message count after truncation.
     #[serde(rename = "postTruncationMessagesLength", skip_serializing_if = "Option::is_none")]
     pub post_truncation_messages_length: Option<f64>,
 
-    /// Post-truncation tokens.
+    /// Token count after truncation.
     #[serde(rename = "postTruncationTokensInMessages", skip_serializing_if = "Option::is_none")]
     pub post_truncation_tokens_in_messages: Option<f64>,
 
-    /// Pre-truncation messages length.
+    /// Message count before truncation.
     #[serde(rename = "preTruncationMessagesLength", skip_serializing_if = "Option::is_none")]
     pub pre_truncation_messages_length: Option<f64>,
 
-    /// Pre-truncation tokens.
+    /// Token count before truncation.
     #[serde(rename = "preTruncationTokensInMessages", skip_serializing_if = "Option::is_none")]
     pub pre_truncation_tokens_in_messages: Option<f64>,
 
-    /// Token limit.
+    /// Maximum token limit.
     #[serde(rename = "tokenLimit", skip_serializing_if = "Option::is_none")]
     pub token_limit: Option<f64>,
 
@@ -269,87 +456,87 @@ pub struct SessionEventData {
     #[serde(rename = "currentTokens", skip_serializing_if = "Option::is_none")]
     pub current_tokens: Option<f64>,
 
-    /// Messages length.
+    /// Current message count.
     #[serde(rename = "messagesLength", skip_serializing_if = "Option::is_none")]
     pub messages_length: Option<f64>,
 
-    /// Compaction tokens used.
+    /// Token usage for compaction operation.
     #[serde(rename = "compactionTokensUsed", skip_serializing_if = "Option::is_none")]
     pub compaction_tokens_used: Option<CompactionTokensUsed>,
 
-    /// Error information.
+    /// Detailed error information.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<ErrorUnion>,
 
-    /// Messages removed.
+    /// Messages removed during compaction.
     #[serde(rename = "messagesRemoved", skip_serializing_if = "Option::is_none")]
     pub messages_removed: Option<f64>,
 
-    /// Post-compaction tokens.
+    /// Token count after compaction.
     #[serde(rename = "postCompactionTokens", skip_serializing_if = "Option::is_none")]
     pub post_compaction_tokens: Option<f64>,
 
-    /// Pre-compaction messages length.
+    /// Message count before compaction.
     #[serde(rename = "preCompactionMessagesLength", skip_serializing_if = "Option::is_none")]
     pub pre_compaction_messages_length: Option<f64>,
 
-    /// Pre-compaction tokens.
+    /// Token count before compaction.
     #[serde(rename = "preCompactionTokens", skip_serializing_if = "Option::is_none")]
     pub pre_compaction_tokens: Option<f64>,
 
-    /// Success flag.
+    /// Whether the operation succeeded.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub success: Option<bool>,
 
-    /// Summary content.
+    /// Summary content from compaction.
     #[serde(rename = "summaryContent", skip_serializing_if = "Option::is_none")]
     pub summary_content: Option<String>,
 
-    /// Tokens removed.
+    /// Tokens removed during operation.
     #[serde(rename = "tokensRemoved", skip_serializing_if = "Option::is_none")]
     pub tokens_removed: Option<f64>,
 
-    /// Message attachments.
+    /// Message attachments (files, directories).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attachments: Option<Vec<Attachment>>,
 
-    /// Content text.
+    /// Text content of message or response.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<String>,
 
-    /// Event source.
+    /// Event source identifier.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
 
-    /// Transformed content.
+    /// Transformed content (after processing).
     #[serde(rename = "transformedContent", skip_serializing_if = "Option::is_none")]
     pub transformed_content: Option<String>,
 
-    /// Turn ID.
+    /// Turn identifier within the session.
     #[serde(rename = "turnId", skip_serializing_if = "Option::is_none")]
     pub turn_id: Option<String>,
 
-    /// Intent.
+    /// Assistant's stated intent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub intent: Option<String>,
 
-    /// Reasoning ID.
+    /// Reasoning chain identifier.
     #[serde(rename = "reasoningId", skip_serializing_if = "Option::is_none")]
     pub reasoning_id: Option<String>,
 
-    /// Delta content (for streaming).
+    /// Incremental content for streaming events.
     #[serde(rename = "deltaContent", skip_serializing_if = "Option::is_none")]
     pub delta_content: Option<String>,
 
-    /// Message ID.
+    /// Message identifier.
     #[serde(rename = "messageId", skip_serializing_if = "Option::is_none")]
     pub message_id: Option<String>,
 
-    /// Parent tool call ID.
+    /// Parent tool call ID (for nested tool calls).
     #[serde(rename = "parentToolCallId", skip_serializing_if = "Option::is_none")]
     pub parent_tool_call_id: Option<String>,
 
-    /// Tool requests.
+    /// List of tool requests from the assistant.
     #[serde(rename = "toolRequests", skip_serializing_if = "Option::is_none")]
     pub tool_requests: Option<Vec<ToolRequest>>,
 
@@ -357,267 +544,335 @@ pub struct SessionEventData {
     #[serde(rename = "totalResponseSizeBytes", skip_serializing_if = "Option::is_none")]
     pub total_response_size_bytes: Option<f64>,
 
-    /// API call ID.
+    /// API call identifier for tracking.
     #[serde(rename = "apiCallId", skip_serializing_if = "Option::is_none")]
     pub api_call_id: Option<String>,
 
-    /// Cache read tokens.
+    /// Tokens read from cache.
     #[serde(rename = "cacheReadTokens", skip_serializing_if = "Option::is_none")]
     pub cache_read_tokens: Option<f64>,
 
-    /// Cache write tokens.
+    /// Tokens written to cache.
     #[serde(rename = "cacheWriteTokens", skip_serializing_if = "Option::is_none")]
     pub cache_write_tokens: Option<f64>,
 
-    /// Cost.
+    /// Cost of the operation (in USD).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cost: Option<f64>,
 
-    /// Duration.
+    /// Duration of operation in milliseconds.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<f64>,
 
-    /// Initiator.
+    /// Who initiated the operation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub initiator: Option<String>,
 
-    /// Input tokens.
+    /// Number of input tokens used.
     #[serde(rename = "inputTokens", skip_serializing_if = "Option::is_none")]
     pub input_tokens: Option<f64>,
 
-    /// Model name.
+    /// Model name used for the operation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
 
-    /// Output tokens.
+    /// Number of output tokens generated.
     #[serde(rename = "outputTokens", skip_serializing_if = "Option::is_none")]
     pub output_tokens: Option<f64>,
 
-    /// Provider call ID.
+    /// Provider-specific call identifier.
     #[serde(rename = "providerCallId", skip_serializing_if = "Option::is_none")]
     pub provider_call_id: Option<String>,
 
-    /// Quota snapshots.
+    /// Quota usage snapshots by model.
     #[serde(rename = "quotaSnapshots", skip_serializing_if = "Option::is_none")]
     pub quota_snapshots: Option<HashMap<String, QuotaSnapshot>>,
 
-    /// Reason.
+    /// Reason for the event or action.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
 
-    /// Tool call arguments.
+    /// Tool call arguments (JSON value).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub arguments: Option<Value>,
 
-    /// Tool call ID.
+    /// Tool call identifier.
     #[serde(rename = "toolCallId", skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
 
-    /// Tool name.
+    /// Name of the tool being executed.
     #[serde(rename = "toolName", skip_serializing_if = "Option::is_none")]
     pub tool_name: Option<String>,
 
-    /// Partial output.
+    /// Partial/intermediate tool output.
     #[serde(rename = "partialOutput", skip_serializing_if = "Option::is_none")]
     pub partial_output: Option<String>,
 
-    /// Whether user requested.
+    /// Whether the tool was requested by the user.
     #[serde(rename = "isUserRequested", skip_serializing_if = "Option::is_none")]
     pub is_user_requested: Option<bool>,
 
-    /// Tool result.
+    /// Tool execution result.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<ToolResultData>,
 
-    /// Tool telemetry.
+    /// Tool-specific telemetry data.
     #[serde(rename = "toolTelemetry", skip_serializing_if = "Option::is_none")]
     pub tool_telemetry: Option<HashMap<String, Value>>,
 
-    /// Agent description.
+    /// Subagent description.
     #[serde(rename = "agentDescription", skip_serializing_if = "Option::is_none")]
     pub agent_description: Option<String>,
 
-    /// Agent display name.
+    /// Subagent display name.
     #[serde(rename = "agentDisplayName", skip_serializing_if = "Option::is_none")]
     pub agent_display_name: Option<String>,
 
-    /// Agent name.
+    /// Subagent name identifier.
     #[serde(rename = "agentName", skip_serializing_if = "Option::is_none")]
     pub agent_name: Option<String>,
 
-    /// Tools list.
+    /// List of available tools.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<String>>,
 
-    /// Hook invocation ID.
+    /// Hook invocation identifier.
     #[serde(rename = "hookInvocationId", skip_serializing_if = "Option::is_none")]
     pub hook_invocation_id: Option<String>,
 
-    /// Hook type.
+    /// Type of hook being executed.
     #[serde(rename = "hookType", skip_serializing_if = "Option::is_none")]
     pub hook_type: Option<String>,
 
-    /// Input data.
+    /// Input data for the operation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input: Option<Value>,
 
-    /// Output data.
+    /// Output data from the operation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<Value>,
 
-    /// Metadata.
+    /// Additional metadata.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Metadata>,
 
-    /// Name.
+    /// Name identifier.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
 
-    /// Role.
+    /// Message role (system, developer, etc.).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub role: Option<Role>,
 }
 
-/// Attachment in session event data.
+/// File or directory attachment in a message.
+///
+/// Attachments allow users to include files or directories as context
+/// for their messages.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Attachment {
+    /// Display name shown to the user.
     #[serde(rename = "displayName")]
     pub display_name: String,
+
+    /// File system path to the attachment.
     pub path: String,
+
+    /// Type of attachment (file or directory).
     #[serde(rename = "type")]
     pub attachment_type: AttachmentType,
 }
 
-/// Attachment type.
+/// Type of attachment.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AttachmentType {
+    /// Directory attachment.
     Directory,
+    /// File attachment.
     File,
 }
 
-/// Compaction tokens used.
+/// Token usage information for compaction operations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompactionTokensUsed {
+    /// Tokens read from cache during compaction.
     #[serde(rename = "cachedInput")]
     pub cached_input: f64,
+
+    /// Input tokens used for compaction.
     pub input: f64,
+
+    /// Output tokens generated during compaction.
     pub output: f64,
 }
 
-/// Context information (can be string or object).
+/// Context information - can be a simple string or detailed object.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ContextUnion {
+    /// Simple string context.
     String(String),
+    /// Detailed context object with working directory and git info.
     Object(ContextClass),
 }
 
-/// Context object.
+/// Detailed context information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContextClass {
+    /// Current git branch (if in a git repository).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
+
+    /// Current working directory.
     pub cwd: String,
+
+    /// Git repository root directory.
     #[serde(rename = "gitRoot", skip_serializing_if = "Option::is_none")]
     pub git_root: Option<String>,
+
+    /// Repository identifier.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repository: Option<String>,
 }
 
-/// Error information (can be string or object).
+/// Error information - can be a simple message or detailed object.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ErrorUnion {
+    /// Simple error message string.
     String(String),
+    /// Detailed error object with code and stack trace.
     Object(ErrorClass),
 }
 
-/// Error object.
+/// Detailed error information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ErrorClass {
+    /// Error code identifier.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub code: Option<String>,
+
+    /// Human-readable error message.
     pub message: String,
+
+    /// Error stack trace (if available).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stack: Option<String>,
 }
 
-/// Metadata.
+/// Additional metadata for system messages.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Metadata {
+    /// Prompt version identifier.
     #[serde(rename = "promptVersion", skip_serializing_if = "Option::is_none")]
     pub prompt_version: Option<String>,
+
+    /// Template variables used in the prompt.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub variables: Option<HashMap<String, Value>>,
 }
 
-/// Quota snapshot.
+/// Quota usage snapshot for a model.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuotaSnapshot {
+    /// Number of entitlement requests.
     #[serde(rename = "entitlementRequests")]
     pub entitlement_requests: f64,
+
+    /// Whether user has unlimited entitlement.
     #[serde(rename = "isUnlimitedEntitlement")]
     pub is_unlimited_entitlement: bool,
+
+    /// Overage amount.
     pub overage: f64,
+
+    /// Whether overage is allowed when quota is exhausted.
     #[serde(rename = "overageAllowedWithExhaustedQuota")]
     pub overage_allowed_with_exhausted_quota: bool,
+
+    /// Percentage of quota remaining.
     #[serde(rename = "remainingPercentage")]
     pub remaining_percentage: f64,
+
+    /// When the quota resets.
     #[serde(rename = "resetDate", skip_serializing_if = "Option::is_none")]
     pub reset_date: Option<DateTime<Utc>>,
+
+    /// Whether usage is allowed when quota is exhausted.
     #[serde(rename = "usageAllowedWithExhaustedQuota")]
     pub usage_allowed_with_exhausted_quota: bool,
+
+    /// Number of requests used.
     #[serde(rename = "usedRequests")]
     pub used_requests: f64,
 }
 
-/// Repository information.
+/// Git repository information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Repository {
+    /// Current branch name.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
+
+    /// Repository name.
     pub name: String,
+
+    /// Repository owner.
     pub owner: String,
 }
 
-/// Tool result data.
+/// Tool execution result data.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolResultData {
+    /// Result content (usually displayed to the assistant).
     pub content: String,
 }
 
-/// Tool request.
+/// Tool request from the assistant.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolRequest {
+    /// Arguments to pass to the tool (as JSON).
     pub arguments: Value,
+
+    /// Tool name.
     pub name: String,
+
+    /// Unique identifier for this tool call.
     #[serde(rename = "toolCallId")]
     pub tool_call_id: String,
+
+    /// Type of tool request.
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub request_type: Option<ToolRequestType>,
 }
 
-/// Tool request type.
+/// Type of tool request.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ToolRequestType {
+    /// Custom tool type.
     Custom,
+    /// Standard function tool.
     Function,
 }
 
-/// Source type.
+/// Source type for session events.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum SourceType {
+    /// Event originated locally.
     Local,
+    /// Event originated from a remote source.
     Remote,
 }
 
-/// Role.
+/// Message role.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
+    /// Developer-provided message.
     Developer,
+    /// System-generated message.
     System,
 }

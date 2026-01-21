@@ -13,7 +13,7 @@
 //! ```
 
 use copilot_sdk::{
-    CopilotClient, MessageOptions, SessionConfig, SessionEventType,
+    CopilotClient, MessageOptions, SessionConfig, SessionEvent, SessionEventType,
 };
 use std::sync::Arc;
 
@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create a client with default options
     // This will spawn the CLI server automatically when needed
-    let client = CopilotClient::new(None);
+    let client = CopilotClient::new(None)?;
 
     // Start the client (connects to CLI server)
     println!("Connecting to Copilot CLI server...");
@@ -45,8 +45,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     println!("Session created: {}\n", session.session_id());
 
-    // Subscribe to events
-    let _unsubscribe = session.on(Arc::new(|event| {
+    // Subscribe to events (handler receives Arc<SessionEvent>)
+    let _unsubscribe = session.on(Arc::new(|event: Arc<SessionEvent>| {
         match event.event_type {
             SessionEventType::AssistantMessage => {
                 if let Some(content) = &event.data.content {

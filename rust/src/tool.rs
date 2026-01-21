@@ -177,7 +177,7 @@ where
                 ))?;
 
             let result = handler(params, inv).await?;
-            Ok(result.into_tool_result()?)
+            result.into_tool_result()
         })
     });
 
@@ -190,7 +190,46 @@ where
 }
 
 /// Trait for converting values into ToolResult.
+///
+/// This trait enables flexible return types from tool handlers. Instead of
+/// always returning `ToolResult`, handlers can return simpler types like
+/// `String`, `&str`, `()`, or `serde_json::Value`, and they will be
+/// automatically converted to successful `ToolResult` values.
+///
+/// # Built-in Implementations
+///
+/// | Type | Result |
+/// |------|--------|
+/// | `ToolResult` | Passed through unchanged |
+/// | `String` | Success with the string as content |
+/// | `&str` | Success with the string as content |
+/// | `()` | Success with empty content |
+/// | `serde_json::Value` | Success with JSON serialized as string |
+///
+/// # Example
+///
+/// ```ignore
+/// // These tool handlers are all valid:
+///
+/// // Return a String
+/// |params, _inv| async move { Ok("Done!".to_string()) }
+///
+/// // Return a ToolResult for more control
+/// |params, _inv| async move { Ok(ToolResult::success("Done!")) }
+///
+/// // Return nothing (empty success)
+/// |params, _inv| async move { Ok(()) }
+///
+/// // Return JSON
+/// |params, _inv| async move { Ok(serde_json::json!({"status": "ok"})) }
+/// ```
 pub trait IntoToolResult {
+    /// Convert this value into a [`ToolResult`].
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing the converted `ToolResult`, or an error if
+    /// conversion fails (e.g., JSON serialization error for `Value` types).
     fn into_tool_result(self) -> Result<ToolResult>;
 }
 
