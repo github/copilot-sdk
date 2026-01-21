@@ -329,6 +329,16 @@ public class SessionConfig
     /// Custom agent configurations for the session.
     /// </summary>
     public List<CustomAgentConfig>? CustomAgents { get; set; }
+
+    /// <summary>
+    /// Directories to load skills from.
+    /// </summary>
+    public List<string>? SkillDirectories { get; set; }
+
+    /// <summary>
+    /// List of skill names to disable.
+    /// </summary>
+    public List<string>? DisabledSkills { get; set; }
 }
 
 public class ResumeSessionConfig
@@ -359,6 +369,16 @@ public class ResumeSessionConfig
     /// Custom agent configurations for the session.
     /// </summary>
     public List<CustomAgentConfig>? CustomAgents { get; set; }
+
+    /// <summary>
+    /// Directories to load skills from.
+    /// </summary>
+    public List<string>? SkillDirectories { get; set; }
+
+    /// <summary>
+    /// List of skill names to disable.
+    /// </summary>
+    public List<string>? DisabledSkills { get; set; }
 }
 
 public class MessageOptions

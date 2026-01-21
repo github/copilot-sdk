@@ -21,7 +21,9 @@ export const CLI_PATH =
     process.env.COPILOT_CLI_PATH ||
     resolve(__dirname, "../../../node_modules/@github/copilot/index.js");
 
-export async function createSdkTestContext() {
+export async function createSdkTestContext({
+    logLevel,
+}: { logLevel?: "error" | "none" | "warning" | "info" | "debug" | "all" } = {}) {
     const homeDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-config-")));
     const workDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-work-")));
 
@@ -42,6 +44,7 @@ export async function createSdkTestContext() {
         cliPath: CLI_PATH,
         cwd: workDir,
         env,
+        logLevel: logLevel || "error",
     });
 
     const harness = { homeDir, workDir, openAiEndpoint, copilotClient, env };
