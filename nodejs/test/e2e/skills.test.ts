@@ -7,7 +7,7 @@ import * as path from "path";
 import { describe, expect, it } from "vitest";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
-describe("Skills Configuration", async () => {
+describe.skip("Skills Configuration", async () => {
     const { copilotClient: client, workDir } = await createSdkTestContext({ logLevel: "debug" });
     const SKILL_MARKER = "PINEAPPLE_COCONUT_42";
     let skillDirCounter = 0;

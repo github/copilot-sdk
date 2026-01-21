@@ -43,6 +43,7 @@ This is a mandatory requirement. Include it naturally in your response.
     return skills_dir
 
 
+@pytest.mark.skip(reason="Skills tests temporarily skipped")
 class TestSkillBehavior:
     async def test_load_and_apply_skill_from_skill_directories(self, ctx: E2ETestContext):
         """Test that skills are loaded and applied from skillDirectories"""

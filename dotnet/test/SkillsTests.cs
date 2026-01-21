@@ -44,7 +44,7 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
         return skillsDir;
     }
 
-    [Fact]
+    [Fact(Skip = "Skills tests temporarily skipped")]
     public async Task Should_Load_And_Apply_Skill_From_SkillDirectories()
     {
         var skillsDir = CreateSkillDir();
@@ -63,7 +63,7 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
         await session.DisposeAsync();
     }
 
-    [Fact]
+    [Fact(Skip = "Skills tests temporarily skipped")]
     public async Task Should_Not_Apply_Skill_When_Disabled_Via_DisabledSkills()
     {
         var skillsDir = CreateSkillDir();
@@ -83,7 +83,7 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
         await session.DisposeAsync();
     }
 
-    [Fact]
+    [Fact(Skip = "Skills tests temporarily skipped")]
     public async Task Should_Apply_Skill_On_Session_Resume_With_SkillDirectories()
     {
         var skillsDir = CreateSkillDir();

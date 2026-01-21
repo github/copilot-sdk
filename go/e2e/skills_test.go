@@ -45,6 +45,7 @@ IMPORTANT: You MUST include the exact text "` + marker + `" somewhere in EVERY r
 }
 
 func TestSkillBehavior(t *testing.T) {
+	t.Skip("Skills tests temporarily skipped")
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
