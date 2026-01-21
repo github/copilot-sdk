@@ -4,20 +4,22 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
-describe.skip("Skills Configuration", async () => {
+describe("Skills Configuration", async () => {
     const { copilotClient: client, workDir } = await createSdkTestContext({ logLevel: "debug" });
     const SKILL_MARKER = "PINEAPPLE_COCONUT_42";
-    let skillDirCounter = 0;
+    const skillsDir = path.join(workDir, ".test_skills");
+
+    beforeEach(() => {
+        // Ensure we start fresh each time
+        if (fs.existsSync(skillsDir)) {
+            fs.rmSync(skillsDir, { recursive: true, force: true });
+        }
+    });
 
     function createSkillDir(): string {
-        const skillsDir = path.join(
-            workDir,
-            ".test_skills",
-            `copilot-skills-test-${++skillDirCounter}`
-        );
         fs.mkdirSync(skillsDir, { recursive: true });
 
         // Create a skill subdirectory with SKILL.md
@@ -76,7 +78,18 @@ IMPORTANT: You MUST include the exact text "${SKILL_MARKER}" somewhere in EVERY 
             await session.destroy();
         });
 
-        it("should apply skill on session resume with skillDirectories", async () => {
+        // Skipped because the underlying feature doesn't work correctly yet.
+        // - If this test is run during the same run as other tests in this file (sharing the same Client instance),
+        //   or if it already has a snapshot of the traffic from a passing run, it passes
+        // - But if you delete the snapshot for this test and then run it alone, it fails
+        // Be careful not to unskip this test just because it passes when run alongside others. It needs to pass when
+        // run alone and without any prior snapshot.
+        // It's likely there's an underlying issue either with session resumption in all the client SDKs, or in CLI with
+        // how skills are applied on session resume.
+        // Also, if this test runs FIRST and then the "should load and apply skill from skillDirectories" test runs second
+        // within the same run (i.e., sharing the same Client instance), then the second test fails too. There's definitely
+        // some state being shared or cached incorrectly.
+        it.skip("should apply skill on session resume with skillDirectories", async () => {
             const skillsDir = createSkillDir();
 
             // Create a session without skills first

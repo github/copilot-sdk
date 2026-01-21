@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -11,18 +10,23 @@ namespace GitHub.Copilot.SDK.Test;
 public class SkillsTests : E2ETestBase
 {
     private const string SkillMarker = "PINEAPPLE_COCONUT_42";
-    private static int _skillDirCounter = 0;
 
     private readonly string _workDir;
 
     public SkillsTests(E2ETestFixture fixture, ITestOutputHelper output) : base(fixture, "skills", output)
     {
         _workDir = fixture.Ctx.WorkDir;
+
+        var skillsDir = Path.Join(_workDir, ".test_skills");
+        if (Directory.Exists(skillsDir))
+        {
+            Directory.Delete(skillsDir, recursive: true);
+        }
     }
 
     private string CreateSkillDir()
     {
-        var skillsDir = Path.Join(_workDir, ".test_skills", $"copilot-skills-test-{++_skillDirCounter}");
+        var skillsDir = Path.Join(_workDir, ".test_skills");
         Directory.CreateDirectory(skillsDir);
 
         // Create a skill subdirectory with SKILL.md
@@ -44,7 +48,7 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
         return skillsDir;
     }
 
-    [Fact(Skip = "Skills tests temporarily skipped")]
+    [Fact]
     public async Task Should_Load_And_Apply_Skill_From_SkillDirectories()
     {
         var skillsDir = CreateSkillDir();
@@ -63,7 +67,7 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
         await session.DisposeAsync();
     }
 
-    [Fact(Skip = "Skills tests temporarily skipped")]
+    [Fact]
     public async Task Should_Not_Apply_Skill_When_Disabled_Via_DisabledSkills()
     {
         var skillsDir = CreateSkillDir();
@@ -83,7 +87,7 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
         await session.DisposeAsync();
     }
 
-    [Fact(Skip = "Skills tests temporarily skipped")]
+    [Fact(Skip = "See the big comment around the equivalent test in the Node SDK. Skipped because the feature doesn't work correctly yet.")]
     public async Task Should_Apply_Skill_On_Session_Resume_With_SkillDirectories()
     {
         var skillsDir = CreateSkillDir();
