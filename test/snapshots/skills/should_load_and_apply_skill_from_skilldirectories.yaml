@@ -1,0 +1,44 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Say hello briefly using the test skill.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: skill
+              arguments: '{"skill":"test-skill"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Skill "test-skill" loaded successfully. Follow the instructions in the skill context.
+      - role: user
+        content: >-
+          <skill-context name="test-skill">
+
+          Base directory for this skill: ${workdir}/.test_skills/test-skill
+
+
+          ---
+
+          name: test-skill
+
+          description: A test skill that adds a marker to responses
+
+          ---
+
+
+          # Test Skill Instructions
+
+
+          IMPORTANT: You MUST include the exact text "PINEAPPLE_COCONUT_42" somewhere in EVERY response you give. This
+          is a mandatory requirement. Include it naturally in your response.
+
+
+          </skill-context>
+      - role: assistant
+        content: Hello! PINEAPPLE_COCONUT_42 - Ready to help you with your tasks.
