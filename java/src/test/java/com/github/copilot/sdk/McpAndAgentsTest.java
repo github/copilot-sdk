@@ -1,0 +1,276 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package com.github.copilot.sdk;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+import com.github.copilot.sdk.events.AssistantMessageEvent;
+import com.github.copilot.sdk.json.CustomAgentConfig;
+import com.github.copilot.sdk.json.MessageOptions;
+import com.github.copilot.sdk.json.ResumeSessionConfig;
+import com.github.copilot.sdk.json.SessionConfig;
+
+/**
+ * Tests for MCP Servers and Custom Agents functionality.
+ *
+ * <p>
+ * These tests use the shared CapiProxy infrastructure for deterministic API
+ * response replay. Snapshots are stored in test/snapshots/mcp-and-agents/.
+ * </p>
+ */
+public class McpAndAgentsTest {
+
+    private static E2ETestContext ctx;
+
+    @BeforeAll
+    static void setup() throws Exception {
+        ctx = E2ETestContext.create();
+    }
+
+    @AfterAll
+    static void teardown() throws Exception {
+        if (ctx != null) {
+            ctx.close();
+        }
+    }
+
+    // Helper method to create an MCP local server configuration
+    private Map<String, Object> createLocalMcpServer(String command, List<String> args) {
+        Map<String, Object> server = new HashMap<>();
+        server.put("type", "local");
+        server.put("command", command);
+        server.put("args", args);
+        server.put("tools", List.of("*"));
+        return server;
+    }
+
+    // ============ MCP Server Tests ============
+
+    @Test
+    void testAcceptMcpServerConfigurationOnSessionCreate() throws Exception {
+        ctx.configureForTest("mcp-and-agents", "should_accept_mcp_server_configuration_on_session_create");
+
+        Map<String, Object> mcpServers = new HashMap<>();
+        mcpServers.put("test-server", createLocalMcpServer("echo", List.of("hello")));
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession(new SessionConfig().setMcpServers(mcpServers)).get();
+
+            assertNotNull(session.getSessionId());
+
+            // Simple interaction to verify session works
+            AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt("What is 2+2?")).get(60,
+                    TimeUnit.SECONDS);
+
+            assertNotNull(response);
+            assertTrue(response.getData().getContent().contains("4"),
+                    "Response should contain 4: " + response.getData().getContent());
+
+            session.close();
+        }
+    }
+
+    @Test
+    void testAcceptMcpServerConfigurationOnSessionResume() throws Exception {
+        ctx.configureForTest("mcp-and-agents", "should_accept_mcp_server_configuration_on_session_resume");
+
+        try (CopilotClient client = ctx.createClient()) {
+            // Create a session first
+            CopilotSession session1 = client.createSession().get();
+            String sessionId = session1.getSessionId();
+            session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60, TimeUnit.SECONDS);
+
+            // Resume with MCP servers
+            Map<String, Object> mcpServers = new HashMap<>();
+            mcpServers.put("test-server", createLocalMcpServer("echo", List.of("hello")));
+
+            CopilotSession session2 = client
+                    .resumeSession(sessionId, new ResumeSessionConfig().setMcpServers(mcpServers)).get();
+
+            assertEquals(sessionId, session2.getSessionId());
+
+            AssistantMessageEvent response = session2.sendAndWait(new MessageOptions().setPrompt("What is 3+3?"))
+                    .get(60, TimeUnit.SECONDS);
+
+            assertNotNull(response);
+            assertTrue(response.getData().getContent().contains("6"),
+                    "Response should contain 6: " + response.getData().getContent());
+
+            session2.close();
+        }
+    }
+
+    @Test
+    void testHandleMultipleMcpServers() throws Exception {
+        // Use same snapshot as single MCP server test since it doesn't depend on server
+        // count
+        ctx.configureForTest("mcp-and-agents", "should_accept_mcp_server_configuration_on_session_create");
+
+        Map<String, Object> mcpServers = new HashMap<>();
+        mcpServers.put("server1", createLocalMcpServer("echo", List.of("server1")));
+        mcpServers.put("server2", createLocalMcpServer("echo", List.of("server2")));
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession(new SessionConfig().setMcpServers(mcpServers)).get();
+
+            assertNotNull(session.getSessionId());
+            session.close();
+        }
+    }
+
+    // ============ Custom Agent Tests ============
+
+    @Test
+    void testAcceptCustomAgentConfigurationOnSessionCreate() throws Exception {
+        ctx.configureForTest("mcp-and-agents", "should_accept_custom_agent_configuration_on_session_create");
+
+        List<CustomAgentConfig> customAgents = List.of(new CustomAgentConfig().setName("test-agent")
+                .setDisplayName("Test Agent").setDescription("A test agent for SDK testing")
+                .setPrompt("You are a helpful test agent.").setInfer(true));
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession(new SessionConfig().setCustomAgents(customAgents)).get();
+
+            assertNotNull(session.getSessionId());
+
+            // Simple interaction to verify session works
+            AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt("What is 5+5?")).get(60,
+                    TimeUnit.SECONDS);
+
+            assertNotNull(response);
+            assertTrue(response.getData().getContent().contains("10"),
+                    "Response should contain 10: " + response.getData().getContent());
+
+            session.close();
+        }
+    }
+
+    @Test
+    void testAcceptCustomAgentConfigurationOnSessionResume() throws Exception {
+        ctx.configureForTest("mcp-and-agents", "should_accept_custom_agent_configuration_on_session_resume");
+
+        try (CopilotClient client = ctx.createClient()) {
+            // Create a session first
+            CopilotSession session1 = client.createSession().get();
+            String sessionId = session1.getSessionId();
+            session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60, TimeUnit.SECONDS);
+
+            // Resume with custom agents
+            List<CustomAgentConfig> customAgents = List
+                    .of(new CustomAgentConfig().setName("resume-agent").setDisplayName("Resume Agent")
+                            .setDescription("An agent added on resume").setPrompt("You are a resume test agent."));
+
+            CopilotSession session2 = client
+                    .resumeSession(sessionId, new ResumeSessionConfig().setCustomAgents(customAgents)).get();
+
+            assertEquals(sessionId, session2.getSessionId());
+
+            AssistantMessageEvent response = session2.sendAndWait(new MessageOptions().setPrompt("What is 6+6?"))
+                    .get(60, TimeUnit.SECONDS);
+
+            assertNotNull(response);
+            assertTrue(response.getData().getContent().contains("12"),
+                    "Response should contain 12: " + response.getData().getContent());
+
+            session2.close();
+        }
+    }
+
+    @Test
+    void testCustomAgentWithToolsConfiguration() throws Exception {
+        // Use same snapshot as create test since this just verifies configuration
+        // acceptance
+        ctx.configureForTest("mcp-and-agents", "should_accept_custom_agent_configuration_on_session_create");
+
+        List<CustomAgentConfig> customAgents = List.of(new CustomAgentConfig().setName("tool-agent")
+                .setDisplayName("Tool Agent").setDescription("An agent with specific tools")
+                .setPrompt("You are an agent with specific tools.").setTools(List.of("bash", "edit")).setInfer(true));
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession(new SessionConfig().setCustomAgents(customAgents)).get();
+
+            assertNotNull(session.getSessionId());
+            session.close();
+        }
+    }
+
+    @Test
+    void testCustomAgentWithMcpServers() throws Exception {
+        // Use combined snapshot since this uses both MCP servers and custom agents
+        ctx.configureForTest("mcp-and-agents", "should_accept_both_mcp_servers_and_custom_agents");
+
+        Map<String, Object> agentMcpServers = new HashMap<>();
+        agentMcpServers.put("agent-server", createLocalMcpServer("echo", List.of("agent-mcp")));
+
+        List<CustomAgentConfig> customAgents = List.of(new CustomAgentConfig().setName("mcp-agent")
+                .setDisplayName("MCP Agent").setDescription("An agent with its own MCP servers")
+                .setPrompt("You are an agent with MCP servers.").setMcpServers(agentMcpServers));
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession(new SessionConfig().setCustomAgents(customAgents)).get();
+
+            assertNotNull(session.getSessionId());
+            session.close();
+        }
+    }
+
+    @Test
+    void testMultipleCustomAgents() throws Exception {
+        // Use same snapshot as create test
+        ctx.configureForTest("mcp-and-agents", "should_accept_custom_agent_configuration_on_session_create");
+
+        List<CustomAgentConfig> customAgents = List.of(
+                new CustomAgentConfig().setName("agent1").setDisplayName("Agent One").setDescription("First agent")
+                        .setPrompt("You are agent one."),
+                new CustomAgentConfig().setName("agent2").setDisplayName("Agent Two").setDescription("Second agent")
+                        .setPrompt("You are agent two.").setInfer(false));
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession(new SessionConfig().setCustomAgents(customAgents)).get();
+
+            assertNotNull(session.getSessionId());
+            session.close();
+        }
+    }
+
+    // ============ Combined Configuration Tests ============
+
+    @Test
+    void testAcceptBothMcpServersAndCustomAgents() throws Exception {
+        ctx.configureForTest("mcp-and-agents", "should_accept_both_mcp_servers_and_custom_agents");
+
+        Map<String, Object> mcpServers = new HashMap<>();
+        mcpServers.put("shared-server", createLocalMcpServer("echo", List.of("shared")));
+
+        List<CustomAgentConfig> customAgents = List.of(new CustomAgentConfig().setName("combined-agent")
+                .setDisplayName("Combined Agent").setDescription("An agent using shared MCP servers")
+                .setPrompt("You are a combined test agent."));
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setMcpServers(mcpServers).setCustomAgents(customAgents)).get();
+
+            assertNotNull(session.getSessionId());
+
+            AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt("What is 7+7?")).get(60,
+                    TimeUnit.SECONDS);
+
+            assertNotNull(response);
+            assertTrue(response.getData().getContent().contains("14"),
+                    "Response should contain 14: " + response.getData().getContent());
+
+            session.close();
+        }
+    }
+}
