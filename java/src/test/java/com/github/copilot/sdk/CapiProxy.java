@@ -297,9 +297,17 @@ public class CapiProxy implements AutoCloseable {
      * Finds the test/harness directory by walking up from the current directory.
      */
     private Path findHarnessDirectory() {
-        Path current = Paths.get(System.getProperty("user.dir"));
+        // First, check for copilot.sdk.dir system property (set by Maven during tests)
+        String sdkDir = System.getProperty("copilot.sdk.dir");
+        if (sdkDir != null && !sdkDir.isEmpty()) {
+            Path harnessDir = Paths.get(sdkDir).resolve("test").resolve("harness");
+            if (harnessDir.toFile().exists() && harnessDir.resolve("server.ts").toFile().exists()) {
+                return harnessDir;
+            }
+        }
 
-        // Walk up the directory tree looking for test/harness
+        // Fallback: walk up the directory tree looking for test/harness
+        Path current = Paths.get(System.getProperty("user.dir"));
         while (current != null) {
             Path harnessDir = current.resolve("test").resolve("harness");
             if (harnessDir.toFile().exists() && harnessDir.resolve("server.ts").toFile().exists()) {
