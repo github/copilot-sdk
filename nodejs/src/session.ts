@@ -161,10 +161,14 @@ export class CopilotSession {
                 );
             });
 
-            await Promise.race([idlePromise, timeoutPromise]);
+            try {
+                await Promise.race([idlePromise, timeoutPromise]);
+            } finally {
+                // Clear timeout immediately after race completes to prevent memory leaks
+                if (timeoutId) clearTimeout(timeoutId);
+            }
             return lastAssistantMessage;
         } finally {
-            if (timeoutId) clearTimeout(timeoutId);
             unsubscribe();
         }
     }
