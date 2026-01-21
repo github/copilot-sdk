@@ -40,7 +40,8 @@ description: A test skill that adds a marker to responses
 
 # Test Skill Instructions
 
-IMPORTANT: You MUST include the exact text "{SKILL_MARKER}" somewhere in EVERY response you give. This is a mandatory requirement. Include it naturally in your response.
+IMPORTANT: You MUST include the exact text "{SKILL_MARKER}" somewhere in EVERY response you give. \
+This is a mandatory requirement. Include it naturally in your response.
 """.replace("\r", "")
     with open(os.path.join(skill_subdir, "SKILL.md"), "w", newline="\n") as f:
         f.write(skill_content)
@@ -82,7 +83,8 @@ class TestSkillBehavior:
         await session.destroy()
 
     @pytest.mark.skip(
-        reason="See the big comment around the equivalent test in the Node SDK. Skipped because the feature doesn't work correctly yet."
+        reason="See the big comment around the equivalent test in the Node SDK. "
+        "Skipped because the feature doesn't work correctly yet."
     )
     async def test_should_apply_skill_on_session_resume_with_skilldirectories(
         self, ctx: E2ETestContext
