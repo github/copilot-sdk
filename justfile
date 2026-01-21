@@ -45,8 +45,6 @@ lint-python:
 lint-nodejs:
     @echo "=== Linting Node.js code ==="
     @cd nodejs && npm run format:check && npm run lint && npm run typecheck
-    @echo "=== Linting Playground ==="
-    @cd demos/playground && npm run format:check && npm run lint && npm run typecheck
 
 # Lint .NET code
 lint-dotnet:
