@@ -376,7 +376,8 @@ public class CopilotSessionTest {
 
             // Send a message that will trigger a long-running shell command
             session.send(new MessageOptions()
-                    .setPrompt("run the shell command 'sleep 100' (note this works on both bash and PowerShell)")).get();
+                    .setPrompt("run the shell command 'sleep 100' (note this works on both bash and PowerShell)"))
+                    .get();
 
             // Wait for the tool to start executing
             toolStartFuture.get(60, TimeUnit.SECONDS);
@@ -392,8 +393,7 @@ public class CopilotSessionTest {
             assertFalse(messages.isEmpty());
 
             // Verify an abort event exists in messages
-            assertTrue(messages.stream().anyMatch(m -> m instanceof AbortEvent),
-                    "Expected an abort event in messages");
+            assertTrue(messages.stream().anyMatch(m -> m instanceof AbortEvent), "Expected an abort event in messages");
 
             // We should be able to send another message
             AssistantMessageEvent answer = session.sendAndWait(new MessageOptions().setPrompt("What is 2+2?")).get(60,
