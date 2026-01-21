@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,11 +13,15 @@ import (
 
 const skillMarker = "PINEAPPLE_COCONUT_42"
 
-var skillDirCounter = 0
+func cleanSkillsDir(t *testing.T, workDir string) {
+	skillsDir := filepath.Join(workDir, ".test_skills")
+	if err := os.RemoveAll(skillsDir); err != nil {
+		t.Fatalf("Failed to clean skills directory: %v", err)
+	}
+}
 
 func createTestSkillDir(t *testing.T, workDir string, marker string) string {
-	skillDirCounter++
-	skillsDir := filepath.Join(workDir, ".test_skills", fmt.Sprintf("copilot-skills-test-%d", skillDirCounter))
+	skillsDir := filepath.Join(workDir, ".test_skills")
 	if err := os.MkdirAll(skillsDir, 0755); err != nil {
 		t.Fatalf("Failed to create skills directory: %v", err)
 	}
@@ -44,14 +47,14 @@ IMPORTANT: You MUST include the exact text "` + marker + `" somewhere in EVERY r
 	return skillsDir
 }
 
-func TestSkillBehavior(t *testing.T) {
-	t.Skip("Skills tests temporarily skipped")
+func TestSkills(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
 
-	t.Run("load and apply skill from skillDirectories", func(t *testing.T) {
+	t.Run("should load and apply skill from skillDirectories", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
+		cleanSkillsDir(t, ctx.WorkDir)
 		skillsDir := createTestSkillDir(t, ctx.WorkDir, skillMarker)
 
 		session, err := client.CreateSession(&copilot.SessionConfig{
@@ -76,8 +79,9 @@ func TestSkillBehavior(t *testing.T) {
 		session.Destroy()
 	})
 
-	t.Run("not apply skill when disabled via disabledSkills", func(t *testing.T) {
+	t.Run("should not apply skill when disabled via disabledSkills", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
+		cleanSkillsDir(t, ctx.WorkDir)
 		skillsDir := createTestSkillDir(t, ctx.WorkDir, skillMarker)
 
 		session, err := client.CreateSession(&copilot.SessionConfig{
@@ -103,8 +107,10 @@ func TestSkillBehavior(t *testing.T) {
 		session.Destroy()
 	})
 
-	t.Run("apply skill on session resume with skillDirectories", func(t *testing.T) {
+	t.Run("should apply skill on session resume with skillDirectories", func(t *testing.T) {
+		t.Skip("See the big comment around the equivalent test in the Node SDK. Skipped because the feature doesn't work correctly yet.")
 		ctx.ConfigureForTest(t)
+		cleanSkillsDir(t, ctx.WorkDir)
 		skillsDir := createTestSkillDir(t, ctx.WorkDir, skillMarker)
 
 		// Create a session without skills first
