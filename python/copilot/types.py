@@ -219,6 +219,10 @@ class SessionConfig(TypedDict, total=False):
     # Override the default configuration directory location.
     # When specified, the session will use this directory for storing config and state.
     config_dir: str
+    # Directories to load skills from
+    skill_directories: List[str]
+    # List of skill names to disable
+    disabled_skills: List[str]
 
 
 # Azure-specific provider options
@@ -256,6 +260,10 @@ class ResumeSessionConfig(TypedDict, total=False):
     mcp_servers: Dict[str, MCPServerConfig]
     # Custom agent configurations for the session
     custom_agents: List[CustomAgentConfig]
+    # Directories to load skills from
+    skill_directories: List[str]
+    # List of skill names to disable
+    disabled_skills: List[str]
 
 
 # Options for sending a message to a session

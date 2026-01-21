@@ -536,6 +536,14 @@ func (c *Client) CreateSession(config *SessionConfig) (*Session, error) {
 		if config.ConfigDir != "" {
 			params["configDir"] = config.ConfigDir
 		}
+		// Add skill directories configuration
+		if len(config.SkillDirectories) > 0 {
+			params["skillDirectories"] = config.SkillDirectories
+		}
+		// Add disabled skills configuration
+		if len(config.DisabledSkills) > 0 {
+			params["disabledSkills"] = config.DisabledSkills
+		}
 	}
 
 	result, err := c.client.Request("session.create", params)
@@ -663,6 +671,14 @@ func (c *Client) ResumeSessionWithOptions(sessionID string, config *ResumeSessio
 				customAgents = append(customAgents, agentMap)
 			}
 			params["customAgents"] = customAgents
+		}
+		// Add skill directories configuration
+		if len(config.SkillDirectories) > 0 {
+			params["skillDirectories"] = config.SkillDirectories
+		}
+		// Add disabled skills configuration
+		if len(config.DisabledSkills) > 0 {
+			params["disabledSkills"] = config.DisabledSkills
 		}
 	}
 

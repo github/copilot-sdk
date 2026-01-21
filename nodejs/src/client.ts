@@ -19,8 +19,8 @@ import {
     StreamMessageReader,
     StreamMessageWriter,
 } from "vscode-jsonrpc/node.js";
-import { CopilotSession } from "./session.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
+import { CopilotSession } from "./session.js";
 import type {
     ConnectionState,
     CopilotClientOptions,
@@ -146,7 +146,7 @@ export class CopilotClient {
             port: options.port || 0,
             useStdio: options.cliUrl ? false : (options.useStdio ?? true), // Default to stdio unless cliUrl is provided
             cliUrl: options.cliUrl,
-            logLevel: options.logLevel || "info",
+            logLevel: options.logLevel || "debug",
             autoStart: options.autoStart ?? true,
             autoRestart: options.autoRestart ?? true,
             env: options.env ?? process.env,
@@ -447,6 +447,8 @@ export class CopilotClient {
             mcpServers: config.mcpServers,
             customAgents: config.customAgents,
             configDir: config.configDir,
+            skillDirectories: config.skillDirectories,
+            disabledSkills: config.disabledSkills,
         });
 
         const sessionId = (response as { sessionId: string }).sessionId;
@@ -507,6 +509,8 @@ export class CopilotClient {
             streaming: config.streaming,
             mcpServers: config.mcpServers,
             customAgents: config.customAgents,
+            skillDirectories: config.skillDirectories,
+            disabledSkills: config.disabledSkills,
         });
 
         const resumedSessionId = (response as { sessionId: string }).sessionId;

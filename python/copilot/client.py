@@ -405,6 +405,16 @@ class CopilotClient:
         if config_dir:
             payload["configDir"] = config_dir
 
+        # Add skill directories configuration if provided
+        skill_directories = cfg.get("skill_directories")
+        if skill_directories:
+            payload["skillDirectories"] = skill_directories
+
+        # Add disabled skills configuration if provided
+        disabled_skills = cfg.get("disabled_skills")
+        if disabled_skills:
+            payload["disabledSkills"] = disabled_skills
+
         if not self._client:
             raise RuntimeError("Client not connected")
         response = await self._client.request("session.create", payload)
@@ -497,6 +507,16 @@ class CopilotClient:
             payload["customAgents"] = [
                 self._convert_custom_agent_to_wire_format(agent) for agent in custom_agents
             ]
+
+        # Add skill directories configuration if provided
+        skill_directories = cfg.get("skill_directories")
+        if skill_directories:
+            payload["skillDirectories"] = skill_directories
+
+        # Add disabled skills configuration if provided
+        disabled_skills = cfg.get("disabled_skills")
+        if disabled_skills:
+            payload["disabledSkills"] = disabled_skills
 
         if not self._client:
             raise RuntimeError("Client not connected")

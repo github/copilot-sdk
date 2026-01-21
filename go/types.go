@@ -163,6 +163,10 @@ type SessionConfig struct {
 	MCPServers map[string]MCPServerConfig
 	// CustomAgents configures custom agents for the session
 	CustomAgents []CustomAgentConfig
+	// SkillDirectories is a list of directories to load skills from
+	SkillDirectories []string
+	// DisabledSkills is a list of skill names to disable
+	DisabledSkills []string
 }
 
 // Tool describes a caller-implemented tool that can be invoked by Copilot
@@ -211,6 +215,10 @@ type ResumeSessionConfig struct {
 	MCPServers map[string]MCPServerConfig
 	// CustomAgents configures custom agents for the session
 	CustomAgents []CustomAgentConfig
+	// SkillDirectories is a list of directories to load skills from
+	SkillDirectories []string
+	// DisabledSkills is a list of skill names to disable
+	DisabledSkills []string
 }
 
 // ProviderConfig configures a custom model provider

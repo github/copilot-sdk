@@ -18,23 +18,6 @@ conversations:
             function:
               name: ${shell}
               arguments: '{"command":"echo hello","description":"Run echo hello"}'
-  - messages:
-      - role: system
-        content: ${system}
-      - role: user
-        content: Run 'echo hello' and tell me the output
-      - role: assistant
-        tool_calls:
-          - id: toolcall_0
-            type: function
-            function:
-              name: report_intent
-              arguments: '{"intent":"Running echo command"}'
-          - id: toolcall_1
-            type: function
-            function:
-              name: ${shell}
-              arguments: '{"command":"echo hello","description":"Run echo hello"}'
       - role: tool
         tool_call_id: toolcall_0
         content: Intent logged
