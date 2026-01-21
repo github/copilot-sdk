@@ -63,7 +63,9 @@ class TestSkillBehavior:
 
         await session.destroy()
 
-    async def test_should_not_apply_skill_when_disabled_via_disabledskills(self, ctx: E2ETestContext):
+    async def test_should_not_apply_skill_when_disabled_via_disabledskills(
+        self, ctx: E2ETestContext
+    ):
         """Test that disabledSkills prevents skill from being applied"""
         skills_dir = create_skill_dir(ctx.work_dir)
         session = await ctx.client.create_session(
@@ -82,7 +84,9 @@ class TestSkillBehavior:
     @pytest.mark.skip(
         reason="See the big comment around the equivalent test in the Node SDK. Skipped because the feature doesn't work correctly yet."
     )
-    async def test_should_apply_skill_on_session_resume_with_skilldirectories(self, ctx: E2ETestContext):
+    async def test_should_apply_skill_on_session_resume_with_skilldirectories(
+        self, ctx: E2ETestContext
+    ):
         """Test that skills are applied when added on session resume"""
         skills_dir = create_skill_dir(ctx.work_dir)
 
