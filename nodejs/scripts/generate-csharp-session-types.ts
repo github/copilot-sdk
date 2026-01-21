@@ -269,13 +269,15 @@ function generateDataClass(
             enumOutput
         );
 
+        const isNullableType = csharpType.endsWith("?");
         if (!isRequired) {
             lines.push(
                 `${indent}    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`
             );
         }
         lines.push(`${indent}    [JsonPropertyName("${propName}")]`);
-        const requiredModifier = isRequired ? "required " : "";
+
+        const requiredModifier = isRequired && !isNullableType ? "required " : "";
         lines.push(`${indent}    public ${requiredModifier}${csharpType} ${csharpName} { get; set; }`);
         lines.push("");
     }
@@ -330,7 +332,9 @@ function generateNestedClass(
                 );
             }
             lines.push(`${indent}    [JsonPropertyName("${propName}")]`);
-            const requiredModifier = isRequired ? "required " : "";
+
+            const isNullableType = csharpType.endsWith("?");
+            const requiredModifier = isRequired && !isNullableType ? "required " : "";
             lines.push(`${indent}    public ${requiredModifier}${csharpType} ${csharpName} { get; set; }`);
             lines.push("");
         }
@@ -361,24 +365,27 @@ function resolvePropertyType(
 ): string {
     // Handle anyOf - simplify to nullable of the non-null type or object
     if (propSchema.anyOf) {
+        const hasNull = propSchema.anyOf.some(
+            (s) => typeof s === "object" && (s as JSONSchema7).type === "null"
+        );
         const nonNullTypes = propSchema.anyOf.filter(
             (s) => typeof s === "object" && (s as JSONSchema7).type !== "null"
         );
         if (nonNullTypes.length === 1) {
-            // Simple nullable - recurse with the inner type
+            // Simple nullable - recurse with the inner type, marking as not required if null is an option
             return resolvePropertyType(
                 nonNullTypes[0] as JSONSchema7,
                 parentClassName,
                 propName,
-                false,
+                isRequired && !hasNull,
                 indent,
                 knownTypes,
                 nestedClasses,
                 enumOutput
             );
         }
-        // Complex union - use object
-        return "object";
+        // Complex union - use object, nullable if null is in the union or property is not required
+        return (hasNull || !isRequired) ? "object?" : "object";
     }
 
     // Handle enum types

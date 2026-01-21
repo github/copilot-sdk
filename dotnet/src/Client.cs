@@ -41,8 +41,8 @@ namespace GitHub.Copilot.SDK;
 /// // Handle events
 /// using var subscription = session.On(evt =>
 /// {
-///     if (evt is AssistantMessageEvent)
-///         Console.WriteLine(evt.Data?.Content);
+///     if (evt is AssistantMessageEvent assistantMessage)
+///         Console.WriteLine(assistantMessage.Data?.Content);
 /// });
 ///
 /// // Send a message
