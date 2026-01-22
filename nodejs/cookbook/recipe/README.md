@@ -35,7 +35,7 @@ npx tsx <filename>.ts
 | Multiple Sessions    | `npm run multiple-sessions`    | `npx tsx multiple-sessions.ts`    | Manages multiple independent conversations |
 | Managing Local Files | `npm run managing-local-files` | `npx tsx managing-local-files.ts` | Organizes files using AI grouping          |
 | PR Visualization     | `npm run pr-visualization`     | `npx tsx pr-visualization.ts`     | Generates PR age charts                    |
-
+| Persisting Sessions | `npm run persisting-sessions` | `npx tsx persisting-sessions.ts` | Save and resume sessions across restarts   |
 ### Examples with Arguments
 
 **PR Visualization with specific repo:**
