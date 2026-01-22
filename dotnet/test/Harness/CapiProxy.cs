@@ -6,12 +6,13 @@ using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
 namespace GitHub.Copilot.SDK.Test.Harness;
 
-public class CapiProxy : IAsyncDisposable
+public partial class CapiProxy : IAsyncDisposable
 {
     private Process? _process;
     private Task<string>? _startupTask;
@@ -113,16 +114,18 @@ public class CapiProxy : IAsyncDisposable
         var url = await (_startupTask ?? throw new InvalidOperationException("Proxy not started"));
 
         using var client = new HttpClient();
-        var response = await client.PostAsJsonAsync($"{url}/config", new { filePath, workDir });
+        var response = await client.PostAsJsonAsync($"{url}/config", new ConfigureRequest(filePath, workDir), CapiProxyJsonContext.Default.ConfigureRequest);
         response.EnsureSuccessStatusCode();
     }
+
+    private record ConfigureRequest(string FilePath, string WorkDir);
 
     public async Task<List<ParsedHttpExchange>> GetExchangesAsync()
     {
         var url = await (_startupTask ?? throw new InvalidOperationException("Proxy not started"));
 
         using var client = new HttpClient();
-        return await client.GetFromJsonAsync<List<ParsedHttpExchange>>($"{url}/exchanges")
+        return await client.GetFromJsonAsync($"{url}/exchanges", CapiProxyJsonContext.Default.ListParsedHttpExchange)
                ?? new List<ParsedHttpExchange>();
     }
 
@@ -139,6 +142,11 @@ public class CapiProxy : IAsyncDisposable
         }
         throw new InvalidOperationException("Could not find repository root");
     }
+
+    [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
+    [JsonSerializable(typeof(ConfigureRequest))]
+    [JsonSerializable(typeof(List<ParsedHttpExchange>))]
+    private partial class CapiProxyJsonContext : JsonSerializerContext;
 }
 
 public record ParsedHttpExchange(ChatCompletionRequest Request, ChatCompletionResponse? Response);
