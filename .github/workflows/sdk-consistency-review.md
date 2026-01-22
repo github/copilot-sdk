@@ -84,8 +84,9 @@ When a pull request modifies any SDK client code, review it to ensure:
 2. **Account for language idioms**: 
    - TypeScript uses camelCase (e.g., `createSession`)
    - Python uses snake_case (e.g., `create_session`)
-   - Go uses PascalCase for exported functions (e.g., `CreateSession`)
+   - Go uses PascalCase for exported/public functions (e.g., `CreateSession`) and camelCase for unexported/private functions
    - .NET uses PascalCase (e.g., `CreateSession`)
+   - Focus on public API methods when comparing across languages
 3. **Focus on API surface**: Prioritize public APIs over internal implementation details
 4. **Distinguish between bugs and features**:
    - Bug fixes in one SDK might reveal bugs in others
