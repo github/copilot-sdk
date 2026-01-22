@@ -156,6 +156,55 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
 });
 ```
 
+## Quick Start: Filesystem MCP Server
+
+Here's a complete working example using the official [`@modelcontextprotocol/server-filesystem`](https://www.npmjs.com/package/@modelcontextprotocol/server-filesystem) MCP server:
+
+```typescript
+import { CopilotClient } from "@github/copilot-sdk";
+
+async function main() {
+    const client = new CopilotClient();
+    await client.start();
+
+    // Create session with filesystem MCP server
+    const session = await client.createSession({
+        mcpServers: {
+            filesystem: {
+                type: "local",
+                command: "npx",
+                args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+                tools: ["*"],
+            },
+        },
+    });
+
+    console.log("Session created:", session.sessionId);
+
+    // The model can now use filesystem tools
+    const result = await session.sendAndWait({
+        prompt: "List the files in the allowed directory",
+    });
+
+    console.log("Response:", result?.data?.content);
+
+    await session.destroy();
+    await client.stop();
+}
+
+main();
+```
+
+**Output:**
+```
+Session created: 18b3482b-bcba-40ba-9f02-ad2ac949a59a
+Response: The allowed directory is `/tmp`, which contains various files
+and subdirectories including temporary system files, log files, and
+directories for different applications.
+```
+
+> **Tip:** You can use any MCP server from the [MCP Servers Directory](https://github.com/modelcontextprotocol/servers). Popular options include `@modelcontextprotocol/server-github`, `@modelcontextprotocol/server-sqlite`, and `@modelcontextprotocol/server-puppeteer`.
+
 ## Configuration Options
 
 ### Local/Stdio Server
