@@ -27,6 +27,7 @@ go run <filename>.go
 | Multiple Sessions    | `go run multiple-sessions.go`    | Manages multiple independent conversations |
 | Managing Local Files | `go run managing-local-files.go` | Organizes files using AI grouping          |
 | PR Visualization     | `go run pr-visualization.go`     | Generates PR age charts                    |
+| Persisting Sessions  | `go run persisting-sessions.go`  | Save and resume sessions across restarts   |
 
 ### Examples with Arguments
 
