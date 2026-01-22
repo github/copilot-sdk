@@ -5,12 +5,14 @@
 using GitHub.Copilot.SDK.Test.Harness;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace GitHub.Copilot.SDK.Test;
 
-public class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "tools", output)
+public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "tools", output)
 {
     [Fact]
     public async Task Invokes_Built_In_Tools()
@@ -102,7 +104,7 @@ public class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ET
         ToolInvocation? receivedInvocation = null;
         var session = await Client.CreateSessionAsync(new SessionConfig
         {
-            Tools = [AIFunctionFactory.Create(PerformDbQuery, "db_query")],
+            Tools = [AIFunctionFactory.Create(PerformDbQuery, "db_query", serializerOptions: ToolsTestsJsonContext.Default.Options)],
         });
 
         await session.SendAsync(new MessageOptions
@@ -136,6 +138,12 @@ public class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ET
 
     record DbQueryOptions(string Table, int[] Ids, bool SortAscending);
     record City(int CountryId, string CityName, int Population);
+
+    [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
+    [JsonSerializable(typeof(DbQueryOptions))]
+    [JsonSerializable(typeof(City[]))]
+    [JsonSerializable(typeof(JsonElement))]
+    private partial class ToolsTestsJsonContext : JsonSerializerContext;
 
     [Fact(Skip = "Behaves as if no content was in the result. Likely that binary results aren't fully implemented yet.")]
     public async Task Can_Return_Binary_Result()

@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -407,6 +408,11 @@ public class SessionMetadata
     public bool IsRemote { get; set; }
 }
 
+internal class PingRequest
+{
+    public string? Message { get; set; }
+}
+
 public class PingResponse
 {
     public string Message { get; set; } = string.Empty;
@@ -560,3 +566,37 @@ public class GetModelsResponse
     [JsonPropertyName("models")]
     public List<ModelInfo> Models { get; set; } = new();
 }
+
+[JsonSourceGenerationOptions(
+    JsonSerializerDefaults.Web,
+    AllowOutOfOrderMetadataProperties = true,
+    NumberHandling = JsonNumberHandling.AllowReadingFromString,
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+[JsonSerializable(typeof(AzureOptions))]
+[JsonSerializable(typeof(CustomAgentConfig))]
+[JsonSerializable(typeof(GetAuthStatusResponse))]
+[JsonSerializable(typeof(GetModelsResponse))]
+[JsonSerializable(typeof(GetStatusResponse))]
+[JsonSerializable(typeof(McpLocalServerConfig))]
+[JsonSerializable(typeof(McpRemoteServerConfig))]
+[JsonSerializable(typeof(MessageOptions))]
+[JsonSerializable(typeof(ModelBilling))]
+[JsonSerializable(typeof(ModelCapabilities))]
+[JsonSerializable(typeof(ModelInfo))]
+[JsonSerializable(typeof(ModelLimits))]
+[JsonSerializable(typeof(ModelPolicy))]
+[JsonSerializable(typeof(ModelSupports))]
+[JsonSerializable(typeof(ModelVisionLimits))]
+[JsonSerializable(typeof(PermissionRequest))]
+[JsonSerializable(typeof(PermissionRequestResult))]
+[JsonSerializable(typeof(PingRequest))]
+[JsonSerializable(typeof(PingResponse))]
+[JsonSerializable(typeof(ProviderConfig))]
+[JsonSerializable(typeof(SessionMetadata))]
+[JsonSerializable(typeof(SystemMessageConfig))]
+[JsonSerializable(typeof(ToolBinaryResult))]
+[JsonSerializable(typeof(ToolInvocation))]
+[JsonSerializable(typeof(ToolResultObject))]
+[JsonSerializable(typeof(JsonElement))]
+[JsonSerializable(typeof(JsonElement?))]
+internal partial class TypesJsonContext : JsonSerializerContext;

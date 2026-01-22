@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -14,6 +14,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryUrl>https://github.com/github/copilot-sdk</RepositoryUrl>
     <PackageTags>github;copilot;sdk;jsonrpc;agent</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,7 +24,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="10.1.1" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
-    <PackageReference Include="StreamJsonRpc" Version="2.22.23" PrivateAssets="compile" />
+    <PackageReference Include="StreamJsonRpc" Version="2.24.84" PrivateAssets="compile" />
     <PackageReference Include="System.Text.Json" Version="10.0.1" />
   </ItemGroup>
 
