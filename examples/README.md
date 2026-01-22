@@ -1,4 +1,4 @@
-# Demos & Examples
+# Examples
 
 ## Sample Projects
 

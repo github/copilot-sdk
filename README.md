@@ -43,9 +43,9 @@ Your Application
 
 The SDK manages the CLI process lifecycle automatically. You can also connect to an external CLI server—see individual SDK docs for details.
 
-## Demos
+## Examples
 
-Check out the [demos folder](./demos/README.md) for video walkthroughs and examples.
+Check out the [examples folder](./examples/README.md) for sample projects and videos.
 
 ## Contributing
 
