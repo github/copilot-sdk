@@ -864,6 +864,107 @@ const session = await client.createSession({
 
 ---
 
+## Connecting to an External CLI Server
+
+By default, the SDK automatically manages the Copilot CLI process lifecycle—starting and stopping the CLI as needed. However, you can also run the CLI in server mode separately and have the SDK connect to it. This can be useful for:
+
+- **Debugging**: Keep the CLI running between SDK restarts to inspect logs
+- **Resource sharing**: Multiple SDK clients can connect to the same CLI server
+- **Development**: Run the CLI with custom settings or in a different environment
+
+### Running the CLI in Server Mode
+
+Start the CLI in server mode using the `--server` flag and optionally specify a port:
+
+```bash
+copilot --server --port 4321
+```
+
+If you don't specify a port, the CLI will choose a random available port.
+
+### Connecting the SDK to the External Server
+
+Once the CLI is running in server mode, configure your SDK client to connect to it using the `cli_url` option:
+
+<details open>
+<summary><strong>Node.js / TypeScript</strong></summary>
+
+```typescript
+import { CopilotClient } from "@github/copilot-sdk";
+
+const client = new CopilotClient({
+    cliUrl: "localhost:4321"
+});
+
+// Use the client normally
+const session = await client.createSession({ model: "gpt-4.1" });
+// ...
+```
+
+</details>
+
+<details>
+<summary><strong>Python</strong></summary>
+
+```python
+from copilot import CopilotClient
+
+client = CopilotClient({
+    "cli_url": "localhost:4321"
+})
+await client.start()
+
+# Use the client normally
+session = await client.create_session({"model": "gpt-4.1"})
+# ...
+```
+
+</details>
+
+<details>
+<summary><strong>Go</strong></summary>
+
+```go
+import copilot "github.com/github/copilot-sdk/go"
+
+client := copilot.NewClient(&copilot.ClientOptions{
+    CLIUrl: "localhost:4321",
+})
+
+if err := client.Start(); err != nil {
+    log.Fatal(err)
+}
+defer client.Stop()
+
+// Use the client normally
+session, err := client.CreateSession(&copilot.SessionConfig{Model: "gpt-4.1"})
+// ...
+```
+
+</details>
+
+<details>
+<summary><strong>.NET</strong></summary>
+
+```csharp
+using GitHub.Copilot.SDK;
+
+var client = new CopilotClient(new CopilotClientOptions
+{
+    CliUrl = "localhost:4321"
+});
+
+// Use the client normally
+var session = await client.CreateSessionAsync(new SessionConfig { Model = "gpt-4.1" });
+// ...
+```
+
+</details>
+
+**Note:** When `cli_url` / `cliUrl` / `CLIUrl` is provided, the SDK will not spawn or manage a CLI process—it will only connect to the existing server at the specified URL.
+
+---
+
 ## Learn More
 
 - [Node.js SDK Reference](../nodejs/README.md)
