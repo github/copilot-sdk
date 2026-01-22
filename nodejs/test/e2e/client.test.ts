@@ -74,4 +74,63 @@ describe("Client", () => {
         await client.forceStop();
         expect(client.getState()).toBe("disconnected");
     });
+
+    it("should get status with version and protocol info", async () => {
+        const client = new CopilotClient({ cliPath: CLI_PATH, useStdio: true });
+        onTestFinishedForceStop(client);
+
+        await client.start();
+
+        const status = await client.getStatus();
+        expect(status.version).toBeDefined();
+        expect(typeof status.version).toBe("string");
+        expect(status.protocolVersion).toBeDefined();
+        expect(typeof status.protocolVersion).toBe("number");
+        expect(status.protocolVersion).toBeGreaterThanOrEqual(1);
+
+        await client.stop();
+    });
+
+    it("should get auth status", async () => {
+        const client = new CopilotClient({ cliPath: CLI_PATH, useStdio: true });
+        onTestFinishedForceStop(client);
+
+        await client.start();
+
+        const authStatus = await client.getAuthStatus();
+        expect(typeof authStatus.isAuthenticated).toBe("boolean");
+        if (authStatus.isAuthenticated) {
+            expect(authStatus.authType).toBeDefined();
+            expect(authStatus.statusMessage).toBeDefined();
+        }
+
+        await client.stop();
+    });
+
+    it("should list models when authenticated", async () => {
+        const client = new CopilotClient({ cliPath: CLI_PATH, useStdio: true });
+        onTestFinishedForceStop(client);
+
+        await client.start();
+
+        const authStatus = await client.getAuthStatus();
+        if (!authStatus.isAuthenticated) {
+            // Skip if not authenticated - models.list requires auth
+            await client.stop();
+            return;
+        }
+
+        const models = await client.listModels();
+        expect(Array.isArray(models)).toBe(true);
+        if (models.length > 0) {
+            const model = models[0];
+            expect(model.id).toBeDefined();
+            expect(model.name).toBeDefined();
+            expect(model.capabilities).toBeDefined();
+            expect(model.capabilities.supports).toBeDefined();
+            expect(model.capabilities.limits).toBeDefined();
+        }
+
+        await client.stop();
+    });
 });
