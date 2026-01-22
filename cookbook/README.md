@@ -9,24 +9,28 @@ This cookbook collects small, focused recipes showing how to accomplish common t
 - [Multiple Sessions](dotnet/cookbook/multiple-sessions.md): Manage multiple independent conversations simultaneously.
 - [Managing Local Files](dotnet/cookbook/managing-local-files.md): Organize files by metadata using AI-powered grouping strategies.
 - [PR Visualization](dotnet/cookbook/pr-visualization.md): Generate interactive PR age charts using GitHub MCP Server.
+- [Persisting Sessions](dotnet/cookbook/persisting-sessions.md): Save and resume sessions across restarts.
 
 ### Node.js / TypeScript
 - [Error Handling](nodejs/cookbook/error-handling.md): Handle errors gracefully including connection failures, timeouts, and cleanup.
 - [Multiple Sessions](nodejs/cookbook/multiple-sessions.md): Manage multiple independent conversations simultaneously.
 - [Managing Local Files](nodejs/cookbook/managing-local-files.md): Organize files by metadata using AI-powered grouping strategies.
 - [PR Visualization](nodejs/cookbook/pr-visialisation.md): Generate interactive PR age charts using GitHub MCP Server.
+- [Persisting Sessions](nodejs/cookbook/persisting-sessions.md): Save and resume sessions across restarts.
 
 ### Python
 - [Error Handling](python/cookbook/error-handling.md): Handle errors gracefully including connection failures, timeouts, and cleanup.
 - [Multiple Sessions](python/cookbook/multiple-sessions.md): Manage multiple independent conversations simultaneously.
 - [Managing Local Files](python/cookbook/managing-local-files.md): Organize files by metadata using AI-powered grouping strategies.
 - [PR Visualization](python/cookbook/pr-visualization.md): Generate interactive PR age charts using GitHub MCP Server.
+- [Persisting Sessions](python/cookbook/persisting-sessions.md): Save and resume sessions across restarts.
 
 ### Go
 - [Error Handling](go/cookbook/error-handling.md): Handle errors gracefully including connection failures, timeouts, and cleanup.
 - [Multiple Sessions](go/cookbook/multiple-sessions.md): Manage multiple independent conversations simultaneously.
 - [Managing Local Files](go/cookbook/managing-local-files.md): Organize files by metadata using AI-powered grouping strategies.
 - [PR Visualization](go/cookbook/pr-visualization.md): Generate interactive PR age charts using GitHub MCP Server.
+- [Persisting Sessions](go/cookbook/persisting-sessions.md): Save and resume sessions across restarts.
 
 ## How to Use
 
