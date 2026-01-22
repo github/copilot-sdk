@@ -1,0 +1,31 @@
+[package]
+name = "copilot-sdk"
+version = "0.1.0"
+edition = "2021"
+description = "A Rust SDK for programmatic access to the GitHub Copilot CLI"
+license = "MIT"
+repository = "https://github.com/github/copilot-sdk"
+keywords = ["copilot", "github", "ai", "llm", "sdk"]
+categories = ["api-bindings", "development-tools"]
+readme = "README.md"
+
+[dependencies]
+tokio = { version = "1", features = ["full", "process", "net", "sync", "time", "macros", "io-util"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+schemars = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4"] }
+thiserror = "1"
+async-trait = "0.1"
+regex-lite = "0.1"
+
+[dev-dependencies]
+tokio-test = "0.4"
+
+[[example]]
+name = "basic_example"
+path = "examples/basic_example.rs"
+
+[features]
+default = []
