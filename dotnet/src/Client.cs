@@ -1052,16 +1052,16 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
             public override void TraceEvent(TraceEventCache? eventCache, string source, TraceEventType eventType, int id, string? message) =>
                 logger.Log(MapLevel(eventType), "[{Source}] {Message}", source, message);
 
-            public override void TraceEvent(TraceEventCache? eventCache, string source, TraceEventType eventType, int id, string? format, params object?[]? args) => 
+            public override void TraceEvent(TraceEventCache? eventCache, string source, TraceEventType eventType, int id, string? format, params object?[]? args) =>
                 logger.Log(MapLevel(eventType), "[{Source}] {Message}", source, args is null || args.Length == 0 ? format : string.Format(format ?? "", args));
 
-            public override void TraceData(TraceEventCache? eventCache, string source, TraceEventType eventType, int id, object? data) => 
+            public override void TraceData(TraceEventCache? eventCache, string source, TraceEventType eventType, int id, object? data) =>
                 logger.Log(MapLevel(eventType), "[{Source}] {Data}", source, data);
 
-            public override void TraceData(TraceEventCache? eventCache, string source, TraceEventType eventType, int id, params object?[]? data) => 
+            public override void TraceData(TraceEventCache? eventCache, string source, TraceEventType eventType, int id, params object?[]? data) =>
                 logger.Log(MapLevel(eventType), "[{Source}] {Data}", source, data is null ? null : string.Join(", ", data));
 
-            public override void Write(string? message) => 
+            public override void Write(string? message) =>
                 logger.LogTrace("{Message}", message);
 
             public override void WriteLine(string? message) =>
