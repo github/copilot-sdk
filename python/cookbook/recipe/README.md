@@ -29,6 +29,7 @@ python <filename>.py
 | Multiple Sessions    | `python multiple_sessions.py`    | Manages multiple independent conversations |
 | Managing Local Files | `python managing_local_files.py` | Organizes files using AI grouping          |
 | PR Visualization     | `python pr_visualization.py`     | Generates PR age charts                    |
+| Persisting Sessions  | `python persisting_sessions.py`  | Save and resume sessions across restarts   |
 
 ### Examples with Arguments
 
