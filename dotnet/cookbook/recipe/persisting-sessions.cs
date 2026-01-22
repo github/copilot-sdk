@@ -1,3 +1,4 @@
+#:project ../../src/GitHub.Copilot.SDK.csproj
 #:property PublishAot=false
 
 using GitHub.Copilot.SDK;
@@ -16,7 +17,7 @@ await session.SendAsync(new MessageOptions { Prompt = "Let's discuss TypeScript 
 Console.WriteLine($"Session created: {session.SessionId}");
 
 // Destroy session but keep data on disk
-await session.DestroyAsync();
+await session.DisposeAsync();
 Console.WriteLine("Session destroyed (state persisted)");
 
 // Resume the previous session
@@ -33,5 +34,5 @@ Console.WriteLine("Sessions: " + string.Join(", ", sessions.Select(s => s.Sessio
 await client.DeleteSessionAsync("user-123-conversation");
 Console.WriteLine("Session deleted");
 
-await resumed.DestroyAsync();
+await resumed.DisposeAsync();
 await client.StopAsync();

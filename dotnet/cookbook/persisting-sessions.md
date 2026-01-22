@@ -7,6 +7,7 @@ Save and restore conversation sessions across application restarts.
 You want users to be able to continue a conversation even after closing and reopening your application.
 
 > **Runnable example:** [recipe/persisting-sessions.cs](recipe/persisting-sessions.cs)
+>
 > ```bash
 > cd recipe
 > dotnet run persisting-sessions.cs
@@ -33,7 +34,7 @@ await session.SendAsync(new MessageOptions { Prompt = "Let's discuss TypeScript 
 Console.WriteLine(session.SessionId); // "user-123-conversation"
 
 // Destroy session but keep data on disk
-await session.DestroyAsync();
+await session.DisposeAsync();
 await client.StopAsync();
 ```
 
@@ -48,9 +49,8 @@ var session = await client.ResumeSessionAsync("user-123-conversation");
 
 // Previous context is restored
 await session.SendAsync(new MessageOptions { Prompt = "What were we discussing?" });
-// AI remembers the TypeScript generics discussion
 
-await session.DestroyAsync();
+await session.DisposeAsync();
 await client.StopAsync();
 ```
 
