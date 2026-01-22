@@ -5,6 +5,7 @@
 using GitHub.Copilot.SDK.Test.Harness;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Xunit;
 using Xunit.Abstractions;
@@ -138,8 +139,10 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
     record DbQueryOptions(string Table, int[] Ids, bool SortAscending);
     record City(int CountryId, string CityName, int Population);
 
+    [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
     [JsonSerializable(typeof(DbQueryOptions))]
     [JsonSerializable(typeof(City[]))]
+    [JsonSerializable(typeof(JsonElement))]
     private partial class ToolsTestsJsonContext : JsonSerializerContext;
 
     [Fact(Skip = "Behaves as if no content was in the result. Likely that binary results aren't fully implemented yet.")]
