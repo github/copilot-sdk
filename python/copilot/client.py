@@ -28,6 +28,9 @@ from .session import CopilotSession
 from .types import (
     ConnectionState,
     CopilotClientOptions,
+    GetAuthStatusResponse,
+    GetStatusResponse,
+    ModelInfo,
     ResumeSessionConfig,
     SessionConfig,
     ToolHandler,
@@ -568,6 +571,67 @@ class CopilotClient:
             raise RuntimeError("Client not connected")
 
         return await self._client.request("ping", {"message": message})
+
+    async def get_status(self) -> "GetStatusResponse":
+        """
+        Get CLI status including version and protocol information.
+
+        Returns:
+            A GetStatusResponse containing version and protocolVersion.
+
+        Raises:
+            RuntimeError: If the client is not connected.
+
+        Example:
+            >>> status = await client.get_status()
+            >>> print(f"CLI version: {status['version']}")
+        """
+        if not self._client:
+            raise RuntimeError("Client not connected")
+
+        return await self._client.request("status.get", {})
+
+    async def get_auth_status(self) -> "GetAuthStatusResponse":
+        """
+        Get current authentication status.
+
+        Returns:
+            A GetAuthStatusResponse containing authentication state.
+
+        Raises:
+            RuntimeError: If the client is not connected.
+
+        Example:
+            >>> auth = await client.get_auth_status()
+            >>> if auth['isAuthenticated']:
+            ...     print(f"Logged in as {auth.get('login')}")
+        """
+        if not self._client:
+            raise RuntimeError("Client not connected")
+
+        return await self._client.request("auth.getStatus", {})
+
+    async def list_models(self) -> List["ModelInfo"]:
+        """
+        List available models with their metadata.
+
+        Returns:
+            A list of ModelInfo objects with model details.
+
+        Raises:
+            RuntimeError: If the client is not connected.
+            Exception: If not authenticated.
+
+        Example:
+            >>> models = await client.list_models()
+            >>> for model in models:
+            ...     print(f"{model['id']}: {model['name']}")
+        """
+        if not self._client:
+            raise RuntimeError("Client not connected")
+
+        response = await self._client.request("models.list", {})
+        return response.get("models", [])
 
     async def _verify_protocol_version(self) -> None:
         """Verify that the server's protocol version matches the SDK's expected version."""

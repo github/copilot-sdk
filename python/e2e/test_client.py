@@ -72,3 +72,66 @@ class TestClient:
         await client.create_session()
         await client.force_stop()
         assert client.get_state() == "disconnected"
+
+    @pytest.mark.asyncio
+    async def test_should_get_status_with_version_and_protocol_info(self):
+        client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": True})
+
+        try:
+            await client.start()
+
+            status = await client.get_status()
+            assert "version" in status
+            assert isinstance(status["version"], str)
+            assert "protocolVersion" in status
+            assert isinstance(status["protocolVersion"], int)
+            assert status["protocolVersion"] >= 1
+
+            await client.stop()
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_should_get_auth_status(self):
+        client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": True})
+
+        try:
+            await client.start()
+
+            auth_status = await client.get_auth_status()
+            assert "isAuthenticated" in auth_status
+            assert isinstance(auth_status["isAuthenticated"], bool)
+            if auth_status["isAuthenticated"]:
+                assert "authType" in auth_status
+                assert "statusMessage" in auth_status
+
+            await client.stop()
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_should_list_models_when_authenticated(self):
+        client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": True})
+
+        try:
+            await client.start()
+
+            auth_status = await client.get_auth_status()
+            if not auth_status["isAuthenticated"]:
+                # Skip if not authenticated - models.list requires auth
+                await client.stop()
+                return
+
+            models = await client.list_models()
+            assert isinstance(models, list)
+            if len(models) > 0:
+                model = models[0]
+                assert "id" in model
+                assert "name" in model
+                assert "capabilities" in model
+                assert "supports" in model["capabilities"]
+                assert "limits" in model["capabilities"]
+
+            await client.stop()
+        finally:
+            await client.force_stop()

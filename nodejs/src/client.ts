@@ -24,6 +24,9 @@ import { CopilotSession } from "./session.js";
 import type {
     ConnectionState,
     CopilotClientOptions,
+    GetAuthStatusResponse,
+    GetStatusResponse,
+    ModelInfo,
     ResumeSessionConfig,
     SessionConfig,
     SessionEvent,
@@ -566,6 +569,44 @@ export class CopilotClient {
             timestamp: number;
             protocolVersion?: number;
         };
+    }
+
+    /**
+     * Get CLI status including version and protocol information
+     */
+    async getStatus(): Promise<GetStatusResponse> {
+        if (!this.connection) {
+            throw new Error("Client not connected");
+        }
+
+        const result = await this.connection.sendRequest("status.get", {});
+        return result as GetStatusResponse;
+    }
+
+    /**
+     * Get current authentication status
+     */
+    async getAuthStatus(): Promise<GetAuthStatusResponse> {
+        if (!this.connection) {
+            throw new Error("Client not connected");
+        }
+
+        const result = await this.connection.sendRequest("auth.getStatus", {});
+        return result as GetAuthStatusResponse;
+    }
+
+    /**
+     * List available models with their metadata
+     * @throws Error if not authenticated
+     */
+    async listModels(): Promise<ModelInfo[]> {
+        if (!this.connection) {
+            throw new Error("Client not connected");
+        }
+
+        const result = await this.connection.sendRequest("models.list", {});
+        const response = result as { models: ModelInfo[] };
+        return response.models;
     }
 
     /**

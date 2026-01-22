@@ -211,6 +211,22 @@ async function generatePythonTypes(schemaPath: string) {
     // dataclass rules. We post-process to add "= None" to these unconstrained "Any" fields.
     generatedCode = generatedCode.replace(/: Any$/gm, ": Any = None");
 
+    // Add UNKNOWN enum value and _missing_ handler for forward compatibility
+    // This ensures that new event types from the server don't cause errors
+    generatedCode = generatedCode.replace(
+        /^(class SessionEventType\(Enum\):.*?)(^\s*\n@dataclass)/ms,
+        `$1    # UNKNOWN is used for forward compatibility - new event types from the server
+    # will map to this value instead of raising an error
+    UNKNOWN = "unknown"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "SessionEventType":
+        """Handle unknown event types gracefully for forward compatibility."""
+        return cls.UNKNOWN
+
+$2`
+    );
+
     const banner = `"""
 AUTO-GENERATED FILE - DO NOT EDIT
 

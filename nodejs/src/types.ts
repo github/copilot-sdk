@@ -499,3 +499,78 @@ export interface SessionMetadata {
     summary?: string;
     isRemote: boolean;
 }
+
+/**
+ * Response from status.get
+ */
+export interface GetStatusResponse {
+    /** Package version (e.g., "1.0.0") */
+    version: string;
+    /** Protocol version for SDK compatibility */
+    protocolVersion: number;
+}
+
+/**
+ * Response from auth.getStatus
+ */
+export interface GetAuthStatusResponse {
+    /** Whether the user is authenticated */
+    isAuthenticated: boolean;
+    /** Authentication type */
+    authType?: "user" | "env" | "gh-cli" | "hmac" | "api-key" | "token";
+    /** GitHub host URL */
+    host?: string;
+    /** User login name */
+    login?: string;
+    /** Human-readable status message */
+    statusMessage?: string;
+}
+
+/**
+ * Model capabilities and limits
+ */
+export interface ModelCapabilities {
+    supports: {
+        vision: boolean;
+    };
+    limits: {
+        max_prompt_tokens?: number;
+        max_context_window_tokens: number;
+        vision?: {
+            supported_media_types: string[];
+            max_prompt_images: number;
+            max_prompt_image_size: number;
+        };
+    };
+}
+
+/**
+ * Model policy state
+ */
+export interface ModelPolicy {
+    state: "enabled" | "disabled" | "unconfigured";
+    terms: string;
+}
+
+/**
+ * Model billing information
+ */
+export interface ModelBilling {
+    multiplier: number;
+}
+
+/**
+ * Information about an available model
+ */
+export interface ModelInfo {
+    /** Model identifier (e.g., "claude-sonnet-4.5") */
+    id: string;
+    /** Display name */
+    name: string;
+    /** Model capabilities and limits */
+    capabilities: ModelCapabilities;
+    /** Policy state */
+    policy?: ModelPolicy;
+    /** Billing information */
+    billing?: ModelBilling;
+}

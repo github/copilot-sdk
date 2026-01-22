@@ -279,3 +279,83 @@ class MessageOptions(TypedDict):
 
 # Event handler type
 SessionEventHandler = Callable[[SessionEvent], None]
+
+
+# Response from status.get
+class GetStatusResponse(TypedDict):
+    """Response from status.get"""
+
+    version: str  # Package version (e.g., "1.0.0")
+    protocolVersion: int  # Protocol version for SDK compatibility
+
+
+# Response from auth.getStatus
+class GetAuthStatusResponse(TypedDict):
+    """Response from auth.getStatus"""
+
+    isAuthenticated: bool  # Whether the user is authenticated
+    authType: NotRequired[
+        Literal["user", "env", "gh-cli", "hmac", "api-key", "token"]
+    ]  # Authentication type
+    host: NotRequired[str]  # GitHub host URL
+    login: NotRequired[str]  # User login name
+    statusMessage: NotRequired[str]  # Human-readable status message
+
+
+# Model capabilities
+class ModelVisionLimits(TypedDict, total=False):
+    """Vision-specific limits"""
+
+    supported_media_types: List[str]
+    max_prompt_images: int
+    max_prompt_image_size: int
+
+
+class ModelLimits(TypedDict, total=False):
+    """Model limits"""
+
+    max_prompt_tokens: int
+    max_context_window_tokens: int
+    vision: ModelVisionLimits
+
+
+class ModelSupports(TypedDict):
+    """Model support flags"""
+
+    vision: bool
+
+
+class ModelCapabilities(TypedDict):
+    """Model capabilities and limits"""
+
+    supports: ModelSupports
+    limits: ModelLimits
+
+
+class ModelPolicy(TypedDict):
+    """Model policy state"""
+
+    state: Literal["enabled", "disabled", "unconfigured"]
+    terms: str
+
+
+class ModelBilling(TypedDict):
+    """Model billing information"""
+
+    multiplier: float
+
+
+class ModelInfo(TypedDict):
+    """Information about an available model"""
+
+    id: str  # Model identifier (e.g., "claude-sonnet-4.5")
+    name: str  # Display name
+    capabilities: ModelCapabilities  # Model capabilities and limits
+    policy: NotRequired[ModelPolicy]  # Policy state
+    billing: NotRequired[ModelBilling]  # Billing information
+
+
+class GetModelsResponse(TypedDict):
+    """Response from models.list"""
+
+    models: List[ModelInfo]

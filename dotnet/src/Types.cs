@@ -413,3 +413,150 @@ public class PingResponse
     public long Timestamp { get; set; }
     public int? ProtocolVersion { get; set; }
 }
+
+/// <summary>
+/// Response from status.get
+/// </summary>
+public class GetStatusResponse
+{
+    /// <summary>Package version (e.g., "1.0.0")</summary>
+    [JsonPropertyName("version")]
+    public string Version { get; set; } = string.Empty;
+
+    /// <summary>Protocol version for SDK compatibility</summary>
+    [JsonPropertyName("protocolVersion")]
+    public int ProtocolVersion { get; set; }
+}
+
+/// <summary>
+/// Response from auth.getStatus
+/// </summary>
+public class GetAuthStatusResponse
+{
+    /// <summary>Whether the user is authenticated</summary>
+    [JsonPropertyName("isAuthenticated")]
+    public bool IsAuthenticated { get; set; }
+
+    /// <summary>Authentication type (user, env, gh-cli, hmac, api-key, token)</summary>
+    [JsonPropertyName("authType")]
+    public string? AuthType { get; set; }
+
+    /// <summary>GitHub host URL</summary>
+    [JsonPropertyName("host")]
+    public string? Host { get; set; }
+
+    /// <summary>User login name</summary>
+    [JsonPropertyName("login")]
+    public string? Login { get; set; }
+
+    /// <summary>Human-readable status message</summary>
+    [JsonPropertyName("statusMessage")]
+    public string? StatusMessage { get; set; }
+}
+
+/// <summary>
+/// Model vision-specific limits
+/// </summary>
+public class ModelVisionLimits
+{
+    [JsonPropertyName("supported_media_types")]
+    public List<string> SupportedMediaTypes { get; set; } = new();
+
+    [JsonPropertyName("max_prompt_images")]
+    public int MaxPromptImages { get; set; }
+
+    [JsonPropertyName("max_prompt_image_size")]
+    public int MaxPromptImageSize { get; set; }
+}
+
+/// <summary>
+/// Model limits
+/// </summary>
+public class ModelLimits
+{
+    [JsonPropertyName("max_prompt_tokens")]
+    public int? MaxPromptTokens { get; set; }
+
+    [JsonPropertyName("max_context_window_tokens")]
+    public int MaxContextWindowTokens { get; set; }
+
+    [JsonPropertyName("vision")]
+    public ModelVisionLimits? Vision { get; set; }
+}
+
+/// <summary>
+/// Model support flags
+/// </summary>
+public class ModelSupports
+{
+    [JsonPropertyName("vision")]
+    public bool Vision { get; set; }
+}
+
+/// <summary>
+/// Model capabilities and limits
+/// </summary>
+public class ModelCapabilities
+{
+    [JsonPropertyName("supports")]
+    public ModelSupports Supports { get; set; } = new();
+
+    [JsonPropertyName("limits")]
+    public ModelLimits Limits { get; set; } = new();
+}
+
+/// <summary>
+/// Model policy state
+/// </summary>
+public class ModelPolicy
+{
+    [JsonPropertyName("state")]
+    public string State { get; set; } = string.Empty;
+
+    [JsonPropertyName("terms")]
+    public string Terms { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Model billing information
+/// </summary>
+public class ModelBilling
+{
+    [JsonPropertyName("multiplier")]
+    public double Multiplier { get; set; }
+}
+
+/// <summary>
+/// Information about an available model
+/// </summary>
+public class ModelInfo
+{
+    /// <summary>Model identifier (e.g., "claude-sonnet-4.5")</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Display name</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Model capabilities and limits</summary>
+    [JsonPropertyName("capabilities")]
+    public ModelCapabilities Capabilities { get; set; } = new();
+
+    /// <summary>Policy state</summary>
+    [JsonPropertyName("policy")]
+    public ModelPolicy? Policy { get; set; }
+
+    /// <summary>Billing information</summary>
+    [JsonPropertyName("billing")]
+    public ModelBilling? Billing { get; set; }
+}
+
+/// <summary>
+/// Response from models.list
+/// </summary>
+public class GetModelsResponse
+{
+    [JsonPropertyName("models")]
+    public List<ModelInfo> Models { get; set; } = new();
+}

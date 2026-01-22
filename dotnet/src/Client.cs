@@ -465,6 +465,50 @@ public class CopilotClient : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
+    /// Gets CLI status including version and protocol information.
+    /// </summary>
+    /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
+    /// <returns>A task that resolves with the status response containing version and protocol version.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the client is not connected.</exception>
+    public async Task<GetStatusResponse> GetStatusAsync(CancellationToken cancellationToken = default)
+    {
+        var connection = await EnsureConnectedAsync(cancellationToken);
+
+        return await connection.Rpc.InvokeWithCancellationAsync<GetStatusResponse>(
+            "status.get", [], cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets current authentication status.
+    /// </summary>
+    /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
+    /// <returns>A task that resolves with the authentication status.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the client is not connected.</exception>
+    public async Task<GetAuthStatusResponse> GetAuthStatusAsync(CancellationToken cancellationToken = default)
+    {
+        var connection = await EnsureConnectedAsync(cancellationToken);
+
+        return await connection.Rpc.InvokeWithCancellationAsync<GetAuthStatusResponse>(
+            "auth.getStatus", [], cancellationToken);
+    }
+
+    /// <summary>
+    /// Lists available models with their metadata.
+    /// </summary>
+    /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
+    /// <returns>A task that resolves with a list of available models.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the client is not connected or not authenticated.</exception>
+    public async Task<List<ModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
+    {
+        var connection = await EnsureConnectedAsync(cancellationToken);
+
+        var response = await connection.Rpc.InvokeWithCancellationAsync<GetModelsResponse>(
+            "models.list", [], cancellationToken);
+
+        return response.Models;
+    }
+
+    /// <summary>
     /// Gets the ID of the most recently used session.
     /// </summary>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
