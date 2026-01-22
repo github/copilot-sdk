@@ -5,6 +5,7 @@ This cookbook collects small, focused recipes showing how to accomplish common t
 ## Recipes by Language
 
 ### .NET (C#)
+
 - [Error Handling](dotnet/cookbook/error-handling.md): Handle errors gracefully including connection failures, timeouts, and cleanup.
 - [Multiple Sessions](dotnet/cookbook/multiple-sessions.md): Manage multiple independent conversations simultaneously.
 - [Managing Local Files](dotnet/cookbook/managing-local-files.md): Organize files by metadata using AI-powered grouping strategies.
@@ -12,6 +13,7 @@ This cookbook collects small, focused recipes showing how to accomplish common t
 - [Persisting Sessions](dotnet/cookbook/persisting-sessions.md): Save and resume sessions across restarts.
 
 ### Node.js / TypeScript
+
 - [Error Handling](nodejs/cookbook/error-handling.md): Handle errors gracefully including connection failures, timeouts, and cleanup.
 - [Multiple Sessions](nodejs/cookbook/multiple-sessions.md): Manage multiple independent conversations simultaneously.
 - [Managing Local Files](nodejs/cookbook/managing-local-files.md): Organize files by metadata using AI-powered grouping strategies.
@@ -19,6 +21,7 @@ This cookbook collects small, focused recipes showing how to accomplish common t
 - [Persisting Sessions](nodejs/cookbook/persisting-sessions.md): Save and resume sessions across restarts.
 
 ### Python
+
 - [Error Handling](python/cookbook/error-handling.md): Handle errors gracefully including connection failures, timeouts, and cleanup.
 - [Multiple Sessions](python/cookbook/multiple-sessions.md): Manage multiple independent conversations simultaneously.
 - [Managing Local Files](python/cookbook/managing-local-files.md): Organize files by metadata using AI-powered grouping strategies.
@@ -26,6 +29,7 @@ This cookbook collects small, focused recipes showing how to accomplish common t
 - [Persisting Sessions](python/cookbook/persisting-sessions.md): Save and resume sessions across restarts.
 
 ### Go
+
 - [Error Handling](go/cookbook/error-handling.md): Handle errors gracefully including connection failures, timeouts, and cleanup.
 - [Multiple Sessions](go/cookbook/multiple-sessions.md): Manage multiple independent conversations simultaneously.
 - [Managing Local Files](go/cookbook/managing-local-files.md): Organize files by metadata using AI-powered grouping strategies.
@@ -43,12 +47,14 @@ This cookbook collects small, focused recipes showing how to accomplish common t
 ## Running Examples
 
 ### .NET
+
 ```bash
 cd dotnet/cookbook/recipe
 dotnet run <filename>.cs
 ```
 
 ### Node.js
+
 ```bash
 cd nodejs/cookbook/recipe
 npm install
@@ -56,6 +62,7 @@ npx tsx <filename>.ts
 ```
 
 ### Python
+
 ```bash
 cd python/cookbook/recipe
 pip install -r requirements.txt
@@ -63,6 +70,7 @@ python <filename>.py
 ```
 
 ### Go
+
 ```bash
 cd go/cookbook/recipe
 go run <filename>.go

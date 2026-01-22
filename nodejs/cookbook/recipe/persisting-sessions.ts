@@ -5,8 +5,8 @@ await client.start();
 
 // Create a session with a memorable ID
 const session = await client.createSession({
-  sessionId: "user-123-conversation",
-  model: "gpt-5",
+    sessionId: "user-123-conversation",
+    model: "gpt-5",
 });
 
 await session.sendAndWait({ prompt: "Let's discuss TypeScript generics" });
@@ -24,7 +24,10 @@ await resumed.sendAndWait({ prompt: "What were we discussing?" });
 
 // List sessions
 const sessions = await client.listSessions();
-console.log("Sessions:", sessions.map((s) => s.sessionId));
+console.log(
+    "Sessions:",
+    sessions.map((s) => s.sessionId)
+);
 
 // Delete session permanently
 await client.deleteSession("user-123-conversation");
