@@ -23,6 +23,7 @@ dotnet run <filename>.cs
 | Multiple Sessions    | `dotnet run multiple-sessions.cs`    | Manages multiple independent conversations |
 | Managing Local Files | `dotnet run managing-local-files.cs` | Organizes files using AI grouping          |
 | PR Visualization     | `dotnet run pr-visualization.cs`     | Generates PR age charts                    |
+| Persisting Sessions  | `dotnet run persisting-sessions.cs`  | Save and resume sessions across restarts   |
 
 ### Examples with Arguments
 
