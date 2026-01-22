@@ -44,7 +44,7 @@ This is a multi-language SDK repository. Install the tools for the SDK(s) you pl
 
 ### .NET SDK
 1. Install [.NET 8.0+](https://dotnet.microsoft.com/download)
-1. Install [Node.js](https://nodejs.org/) (v18+) and [TypeScript](https://www.typescriptlang.org/) (the .NET tests depend on a TypeScript-based test harness)
+1. Install [Node.js](https://nodejs.org/) (v18+) (the .NET tests depend on a TypeScript-based test harness)
 1. Install npm dependencies:
    ```bash
    cd nodejs && npm ci
