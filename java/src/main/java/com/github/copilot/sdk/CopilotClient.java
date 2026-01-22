@@ -33,8 +33,12 @@ import com.github.copilot.sdk.json.CopilotClientOptions;
 import com.github.copilot.sdk.json.CreateSessionRequest;
 import com.github.copilot.sdk.json.CreateSessionResponse;
 import com.github.copilot.sdk.json.DeleteSessionResponse;
+import com.github.copilot.sdk.json.GetAuthStatusResponse;
 import com.github.copilot.sdk.json.GetLastSessionIdResponse;
+import com.github.copilot.sdk.json.GetModelsResponse;
+import com.github.copilot.sdk.json.GetStatusResponse;
 import com.github.copilot.sdk.json.ListSessionsResponse;
+import com.github.copilot.sdk.json.ModelInfo;
 import com.github.copilot.sdk.json.PermissionRequestResult;
 import com.github.copilot.sdk.json.PingResponse;
 import com.github.copilot.sdk.json.ResumeSessionConfig;
@@ -535,6 +539,40 @@ public class CopilotClient implements AutoCloseable {
     public CompletableFuture<PingResponse> ping(String message) {
         return ensureConnected().thenCompose(connection -> connection.rpc.invoke("ping",
                 Map.of("message", message != null ? message : ""), PingResponse.class));
+    }
+
+    /**
+     * Gets CLI status including version and protocol information.
+     *
+     * @return a future that resolves with the status response containing version
+     *         and protocol version
+     * @see GetStatusResponse
+     */
+    public CompletableFuture<GetStatusResponse> getStatus() {
+        return ensureConnected()
+                .thenCompose(connection -> connection.rpc.invoke("status.get", Map.of(), GetStatusResponse.class));
+    }
+
+    /**
+     * Gets current authentication status.
+     *
+     * @return a future that resolves with the authentication status
+     * @see GetAuthStatusResponse
+     */
+    public CompletableFuture<GetAuthStatusResponse> getAuthStatus() {
+        return ensureConnected().thenCompose(
+                connection -> connection.rpc.invoke("auth.getStatus", Map.of(), GetAuthStatusResponse.class));
+    }
+
+    /**
+     * Lists available models with their metadata.
+     *
+     * @return a future that resolves with a list of available models
+     * @see ModelInfo
+     */
+    public CompletableFuture<List<ModelInfo>> listModels() {
+        return ensureConnected().thenCompose(connection -> connection.rpc
+                .invoke("models.list", Map.of(), GetModelsResponse.class).thenApply(GetModelsResponse::getModels));
     }
 
     /**

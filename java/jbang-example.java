@@ -13,7 +13,7 @@ class CopilotSDK {
 
             // Create a session
             var session = client.createSession(
-                    new SessionConfig().setModel(CopilotModel.CLAUDE_SONNET_4_5.toString())).get();
+                    new SessionConfig().setModel("claude-sonnet-4.5")).get();
 
             // Wait for response using session.idle event
             var done = new CompletableFuture<Void>();

@@ -57,7 +57,8 @@ public abstract sealed class AbstractSessionEvent permits
         AssistantTurnStartEvent, AssistantIntentEvent, AssistantReasoningEvent, AssistantReasoningDeltaEvent,
         AssistantMessageEvent, AssistantMessageDeltaEvent, AssistantTurnEndEvent, AssistantUsageEvent, AbortEvent,
         // Tool events
-        ToolUserRequestedEvent, ToolExecutionStartEvent, ToolExecutionPartialResultEvent, ToolExecutionCompleteEvent,
+        ToolUserRequestedEvent, ToolExecutionStartEvent, ToolExecutionPartialResultEvent, ToolExecutionProgressEvent,
+        ToolExecutionCompleteEvent,
         // User events
         UserMessageEvent, PendingMessagesModifiedEvent,
         // Other events

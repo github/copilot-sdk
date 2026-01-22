@@ -73,6 +73,7 @@ public class SessionEventParser {
         TYPE_MAP.put("tool.user_requested", ToolUserRequestedEvent.class);
         TYPE_MAP.put("tool.execution_start", ToolExecutionStartEvent.class);
         TYPE_MAP.put("tool.execution_partial_result", ToolExecutionPartialResultEvent.class);
+        TYPE_MAP.put("tool.execution_progress", ToolExecutionProgressEvent.class);
         TYPE_MAP.put("tool.execution_complete", ToolExecutionCompleteEvent.class);
         TYPE_MAP.put("subagent.started", SubagentStartedEvent.class);
         TYPE_MAP.put("subagent.completed", SubagentCompletedEvent.class);
