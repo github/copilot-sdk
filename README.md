@@ -10,16 +10,20 @@ The GitHub Copilot SDK exposes the same engine behind Copilot CLI: a production-
 
 ## Available SDKs
 
-| SDK                      | Location                          | Installation                              |
-| ------------------------ | --------------------------------- | ----------------------------------------- |
-| **Node.js / TypeScript** | [`./nodejs/`](./nodejs/README.md) | `npm install @github/copilot-sdk`         |
-| **Python**               | [`./python/`](./python/README.md) | `pip install github-copilot-sdk`          |
-| **Go**                   | [`./go/`](./go/README.md)         | `go get github.com/github/copilot-sdk/go` |
-| **.NET**                 | [`./dotnet/`](./dotnet/README.md) | `dotnet add package GitHub.Copilot.SDK`   |
+| SDK                      | Location                                    | Installation                              |
+| ------------------------ | ------------------------------------------- | ----------------------------------------- |
+| **Node.js / TypeScript** | [`cookbook/nodejs/`](./cookbook/nodejs/README.md) | `npm install @github/copilot-sdk`         |
+| **Python**               | [`cookbook/python/`](./cookbook/python/README.md) | `pip install github-copilot-sdk`          |
+| **Go**                   | [`cookbook/go/`](./cookbook/go/README.md)         | `go get github.com/github/copilot-sdk/go` |
+| **.NET**                 | [`cookbook/dotnet/`](./cookbook/dotnet/README.md) | `dotnet add package GitHub.Copilot.SDK`   |
 
 See the individual SDK READMEs for installation, usage examples, and API reference.
 
 ## Getting Started
+
+For a complete walkthrough, see the **[Getting Started Guide](./docs/getting-started.md)**.
+
+Quick steps:
 
 1. **Install the Copilot CLI:**
 
@@ -43,9 +47,11 @@ Your Application
 
 The SDK manages the CLI process lifecycle automatically. You can also connect to an external CLI server—see individual SDK docs for details.
 
-## Examples
+## Quick Links
 
-Check out the [examples folder](./examples/README.md) for sample projects and videos.
+- **[Getting Started](./docs/getting-started.md)** – Tutorial to get up and running
+- **[Cookbook](./cookbook/README.md)** – Practical recipes for common tasks across all languages
+- **[Samples](./samples/README.md)** – Video walkthroughs and sample projects
 
 ## Contributing
 
