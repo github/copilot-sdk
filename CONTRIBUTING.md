@@ -48,7 +48,7 @@ This is a multi-language SDK repository. Install the tools for the SDK(s) you pl
 1. Install npm dependencies:
    ```bash
    cd nodejs && npm ci
-   cd ../test/harness && npm ci
+   cd test/harness && npm ci
    ```
 1. Install .NET dependencies: `cd dotnet && dotnet restore`
 
