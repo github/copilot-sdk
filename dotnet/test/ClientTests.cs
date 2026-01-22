@@ -89,4 +89,87 @@ public class ClientTests : IAsyncLifetime
 
         Assert.Equal(ConnectionState.Disconnected, client.State);
     }
+
+    [Fact]
+    public async Task Should_Get_Status_With_Version_And_Protocol_Info()
+    {
+        using var client = new CopilotClient(new CopilotClientOptions { CliPath = _cliPath, UseStdio = true });
+
+        try
+        {
+            await client.StartAsync();
+
+            var status = await client.GetStatusAsync();
+            Assert.NotNull(status.Version);
+            Assert.NotEmpty(status.Version);
+            Assert.True(status.ProtocolVersion >= 1);
+
+            await client.StopAsync();
+        }
+        finally
+        {
+            await client.ForceStopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Should_Get_Auth_Status()
+    {
+        using var client = new CopilotClient(new CopilotClientOptions { CliPath = _cliPath, UseStdio = true });
+
+        try
+        {
+            await client.StartAsync();
+
+            var authStatus = await client.GetAuthStatusAsync();
+            // isAuthenticated is a bool, just verify we got a response
+            if (authStatus.IsAuthenticated)
+            {
+                Assert.NotNull(authStatus.AuthType);
+                Assert.NotNull(authStatus.StatusMessage);
+            }
+
+            await client.StopAsync();
+        }
+        finally
+        {
+            await client.ForceStopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Should_List_Models_When_Authenticated()
+    {
+        using var client = new CopilotClient(new CopilotClientOptions { CliPath = _cliPath, UseStdio = true });
+
+        try
+        {
+            await client.StartAsync();
+
+            var authStatus = await client.GetAuthStatusAsync();
+            if (!authStatus.IsAuthenticated)
+            {
+                // Skip if not authenticated - models.list requires auth
+                await client.StopAsync();
+                return;
+            }
+
+            var models = await client.ListModelsAsync();
+            Assert.NotNull(models);
+            if (models.Count > 0)
+            {
+                var model = models[0];
+                Assert.NotNull(model.Id);
+                Assert.NotEmpty(model.Id);
+                Assert.NotNull(model.Name);
+                Assert.NotNull(model.Capabilities);
+            }
+
+            await client.StopAsync();
+        }
+        finally
+        {
+            await client.ForceStopAsync();
+        }
+    }
 }

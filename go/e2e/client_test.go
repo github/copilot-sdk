@@ -130,4 +130,100 @@ func TestClient(t *testing.T) {
 			t.Errorf("Expected state to be 'disconnected', got %q", client.GetState())
 		}
 	})
+
+	t.Run("should get status with version and protocol info", func(t *testing.T) {
+		client := copilot.NewClient(&copilot.ClientOptions{
+			CLIPath:  cliPath,
+			UseStdio: true,
+		})
+		t.Cleanup(func() { client.ForceStop() })
+
+		if err := client.Start(); err != nil {
+			t.Fatalf("Failed to start client: %v", err)
+		}
+
+		status, err := client.GetStatus()
+		if err != nil {
+			t.Fatalf("Failed to get status: %v", err)
+		}
+
+		if status.Version == "" {
+			t.Error("Expected status.Version to be non-empty")
+		}
+
+		if status.ProtocolVersion < 1 {
+			t.Errorf("Expected status.ProtocolVersion >= 1, got %d", status.ProtocolVersion)
+		}
+
+		client.Stop()
+	})
+
+	t.Run("should get auth status", func(t *testing.T) {
+		client := copilot.NewClient(&copilot.ClientOptions{
+			CLIPath:  cliPath,
+			UseStdio: true,
+		})
+		t.Cleanup(func() { client.ForceStop() })
+
+		if err := client.Start(); err != nil {
+			t.Fatalf("Failed to start client: %v", err)
+		}
+
+		authStatus, err := client.GetAuthStatus()
+		if err != nil {
+			t.Fatalf("Failed to get auth status: %v", err)
+		}
+
+		// isAuthenticated is a bool, just verify we got a response
+		if authStatus.IsAuthenticated {
+			if authStatus.AuthType == nil {
+				t.Error("Expected authType to be set when authenticated")
+			}
+			if authStatus.StatusMessage == nil {
+				t.Error("Expected statusMessage to be set when authenticated")
+			}
+		}
+
+		client.Stop()
+	})
+
+	t.Run("should list models when authenticated", func(t *testing.T) {
+		client := copilot.NewClient(&copilot.ClientOptions{
+			CLIPath:  cliPath,
+			UseStdio: true,
+		})
+		t.Cleanup(func() { client.ForceStop() })
+
+		if err := client.Start(); err != nil {
+			t.Fatalf("Failed to start client: %v", err)
+		}
+
+		authStatus, err := client.GetAuthStatus()
+		if err != nil {
+			t.Fatalf("Failed to get auth status: %v", err)
+		}
+
+		if !authStatus.IsAuthenticated {
+			// Skip if not authenticated - models.list requires auth
+			client.Stop()
+			return
+		}
+
+		models, err := client.ListModels()
+		if err != nil {
+			t.Fatalf("Failed to list models: %v", err)
+		}
+
+		if len(models) > 0 {
+			model := models[0]
+			if model.ID == "" {
+				t.Error("Expected model.ID to be non-empty")
+			}
+			if model.Name == "" {
+				t.Error("Expected model.Name to be non-empty")
+			}
+		}
+
+		client.Stop()
+	})
 }
