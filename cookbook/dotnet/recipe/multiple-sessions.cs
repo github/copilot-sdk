@@ -1,5 +1,4 @@
 #:project ../../../dotnet/src/GitHub.Copilot.SDK.csproj
-#:property PublishAot=false
 
 using GitHub.Copilot.SDK;
 
