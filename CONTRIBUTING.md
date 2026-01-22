@@ -26,7 +26,7 @@ Currently **we are not looking to add SDKs for other languages**. If you want to
 This is a multi-language SDK repository. Install the tools for the SDK(s) you plan to work on:
 
 ### All SDKs
-1. Install [just](https://github.com/casey/just) command runner
+1. (Optional) Install [just](https://github.com/casey/just) command runner for convenience
 
 ### Node.js/TypeScript SDK
 1. Install [Node.js](https://nodejs.org/) (v18+)
@@ -44,7 +44,13 @@ This is a multi-language SDK repository. Install the tools for the SDK(s) you pl
 
 ### .NET SDK
 1. Install [.NET 8.0+](https://dotnet.microsoft.com/download)
-1. Install dependencies: `cd dotnet && dotnet restore`
+1. Install [Node.js](https://nodejs.org/) (v18+) (the .NET tests depend on a TypeScript-based test harness)
+1. Install npm dependencies (from the repository root):
+   ```bash
+   cd nodejs && npm ci
+   cd test/harness && npm ci
+   ```
+1. Install .NET dependencies: `cd dotnet && dotnet restore`
 
 ## Submitting a pull request
 
@@ -59,7 +65,7 @@ This is a multi-language SDK repository. Install the tools for the SDK(s) you pl
 
 ### Running tests and linters
 
-Use `just` to run tests and linters across all SDKs or for specific languages:
+If you installed `just`, you can use it to run tests and linters across all SDKs or for specific languages:
 
 ```bash
 # All SDKs
