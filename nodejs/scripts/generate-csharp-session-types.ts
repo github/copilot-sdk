@@ -169,15 +169,15 @@ function getOrCreateEnum(
 
     // Generate the enum code with JsonConverter and JsonStringEnumMemberName attributes
     const lines: string[] = [];
-    lines.push(`    [JsonConverter(typeof(JsonStringEnumConverter<${enumName}>))]`);
-    lines.push(`    public enum ${enumName}`);
-    lines.push(`    {`);
+    lines.push(`[JsonConverter(typeof(JsonStringEnumConverter<${enumName}>))]`);
+    lines.push(`public enum ${enumName}`);
+    lines.push(`{`);
     for (const value of values) {
         const memberName = toPascalCaseEnumMember(value);
-        lines.push(`        [JsonStringEnumMemberName("${value}")]`);
-        lines.push(`        ${memberName},`);
+        lines.push(`    [JsonStringEnumMemberName("${value}")]`);
+        lines.push(`    ${memberName},`);
     }
-    lines.push(`    }`);
+    lines.push(`}`);
     lines.push("");
 
     enumOutput.push(lines.join("\n"));
@@ -501,7 +501,7 @@ namespace GitHub.Copilot.SDK;
     );
     lines.push(`/// </summary>`);
     lines.push(`[JsonPolymorphic(`);
-    lines.push(`    TypeDiscriminatorPropertyName = "type", `);
+    lines.push(`    TypeDiscriminatorPropertyName = "type",`);
     lines.push(
         `    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]`
     );
