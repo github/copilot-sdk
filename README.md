@@ -1,8 +1,12 @@
-# Copilot CLI SDKs
+# GitHub Copilot CLI SDKs
 
-Language-specific SDKs for programmatic access to the GitHub Copilot CLI.
+![GitHub Copilot SDK](./assets/RepoHeader_01.png)
 
-All SDKs are in technical preview and may change in breaking ways as we move towards a stable release.
+Agents for every app.
+
+Embed Copilot's agentic workflows in your application—now available in Technical preview as a programmable SDK for Python, TypeScript, Go, and .NET.
+
+The GitHub Copilot SDK exposes the same engine behind Copilot CLI: a production-tested agent runtime you can invoke programmatically. No need to build your own orchestration—you define agent behavior, Copilot handles planning, tool invocation, file edits, and more.
 
 ## Available SDKs
 
@@ -38,6 +42,10 @@ Your Application
 ```
 
 The SDK manages the CLI process lifecycle automatically. You can also connect to an external CLI server—see individual SDK docs for details.
+
+## Examples
+
+Check out the [examples folder](./examples/README.md) for sample projects and videos.
 
 ## Contributing
 
