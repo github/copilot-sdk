@@ -32,7 +32,7 @@ import { CopilotClient } from "@github/copilot-sdk";
 
 const client = new CopilotClient();
 const session = await client.createSession({
-    model: "gpt-4.1",
+    model: "gpt-5",
     mcpServers: {
         // Local MCP server (stdio)
         "my-local-server": {
@@ -66,7 +66,7 @@ async def main():
     await client.start()
 
     session = await client.create_session({
-        "model": "gpt-4.1",
+        "model": "gpt-5",
         "mcp_servers": {
             # Local MCP server (stdio)
             "my-local-server": {
@@ -116,7 +116,7 @@ func main() {
     defer client.Stop()
 
     session, err := client.CreateSession(&copilot.SessionConfig{
-        Model: "gpt-4.1",
+        Model: "gpt-5",
         MCPServers: map[string]copilot.MCPServerConfig{
             "my-local-server": {
                 Type:    "local",
@@ -142,8 +142,8 @@ using GitHub.Copilot.SDK;
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
-    Model = "gpt-4.1",
-    McpServers = new Dictionary<string, McpServerConfig>
+    Model = "gpt-5",
+    McpServers = new Dictionary<string, object>
     {
         ["my-local-server"] = new McpLocalServerConfig
         {
