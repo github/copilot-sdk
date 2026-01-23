@@ -45,7 +45,7 @@ Your Application
   Copilot CLI (server mode)
 ```
 
-The SDK manages the CLI process lifecycle automatically. You can also connect to an external CLI server—see individual SDK docs for details.
+The SDK manages the CLI process lifecycle automatically. You can also connect to an external CLI server—see the [Getting Started Guide](./docs/getting-started.md#connecting-to-an-external-cli-server) for details on running the CLI in server mode.
 
 ## FAQ
 
