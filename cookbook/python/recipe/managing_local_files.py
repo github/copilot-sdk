@@ -11,7 +11,7 @@ async def main():
 
     try:
         # Create session
-        session = await client.create_session({"model": "gpt-4"})
+        session = await client.create_session({"model": "gpt-5"})
 
         # Event handler
         def handle_event(event):
