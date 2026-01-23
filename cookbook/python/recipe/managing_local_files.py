@@ -18,7 +18,7 @@ async def main():
             if event.type == "assistant.message":
                 print(f"\nCopilot: {event.data.content}")
             elif event.type == "tool.execution_start":
-                print(f"  → Running: {event.data.toolName}")
+                print(f"  → Running: {event.data.tool_name}")
             elif event.type == "tool.execution_complete":
                 # Check if tool_call_id exists in data
                 call_id = getattr(event.data, "tool_call_id", "unknown")

@@ -96,7 +96,7 @@ async def run_analysis():
         await client.start()
 
         session = await client.create_session({
-            "model": "gpt-4",
+            "model": "gpt-5",
             "system_message": {
                 "content": f"""
 <context>
@@ -119,7 +119,7 @@ The current working directory is: {os.getcwd()}
             if event.type == "assistant.message":
                 print(f"\n🤖 {event.data.content}\n")
             elif event.type == "tool.execution_start":
-                print(f"  ⚙️  {event.data.toolName}")
+                print(f"  ⚙️  {event.data.tool_name}")
 
         session.on(handle_event)
 
@@ -147,8 +147,7 @@ The current working directory is: {os.getcwd()}
         print()
 
         while True:
-            # Input is blocking, but in this simple script it's acceptable.
-            # ideally we'd use a non-blocking input method or run_in_executor
+            # Use run_in_executor so that the blocking input() call doesn't block the event loop.
             user_input = await asyncio.get_event_loop().run_in_executor(None, input, "You: ")
             user_input = user_input.strip()
 

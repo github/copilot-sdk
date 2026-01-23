@@ -9,12 +9,11 @@ async def main():
 
     try:
         # Create multiple independent sessions with config dicts
-        # Note: gpt-5 might not be available, using gpt-4 for safety if needed,
-        # but keeping user's intent where possible.
-        session1 = await client.create_session({"model": "gpt-4"})
-        session2 = await client.create_session({"model": "gpt-4"})
-        # claude-sonnet-4.5 might not be a valid model ID yet, putting a placeholder or keeping as is just in case
-        session3 = await client.create_session({"model": "claude-3-5-sonnet"})
+        # Use gpt-5 for the first two sessions, per the SDK's SessionConfig valid models.
+        session1 = await client.create_session({"model": "gpt-5"})
+        session2 = await client.create_session({"model": "gpt-5"})
+        # Use a valid Claude Sonnet model identifier as per SessionConfig type definition.
+        session3 = await client.create_session({"model": "claude-sonnet-4.5"})
 
         print("Created 3 independent sessions")
 

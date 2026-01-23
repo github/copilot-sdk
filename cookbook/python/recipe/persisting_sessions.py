@@ -13,7 +13,7 @@ async def main():
         # Looking at client.py, create_session takes config which can have session_id
         session = await client.create_session({
             "session_id": "user-123-conversation",
-            "model": "gpt-4",
+            "model": "gpt-5",
         })
 
         await session.send_and_wait({"prompt": "Let's discuss TypeScript generics"})
