@@ -5,9 +5,7 @@ import { createSdkTestContext } from "./harness/sdkTestContext.js";
 describe("Compaction", async () => {
     const { copilotClient: client } = await createSdkTestContext();
 
-    // Skip in CI - requires CLI with infinite sessions support (not yet released)
-    // Run locally with: COPILOT_CLI_PATH=/path/to/local/cli npm test -- test/e2e/compaction.test.ts
-    it.skipIf(process.env.CI === "true")(
+    it(
         "should trigger compaction with low threshold and emit events",
         async () => {
             // Create session with very low compaction thresholds to trigger compaction quickly
