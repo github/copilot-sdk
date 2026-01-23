@@ -866,7 +866,7 @@ const session = await client.createSession({
 
 ## Connecting to an External CLI Server
 
-By default, the SDK automatically manages the Copilot CLI process lifecycle—starting and stopping the CLI as needed. However, you can also run the CLI in server mode separately and have the SDK connect to it. This can be useful for:
+By default, the SDK automatically manages the Copilot CLI process lifecycle, starting and stopping the CLI as needed. However, you can also run the CLI in server mode separately and have the SDK connect to it. This can be useful for:
 
 - **Debugging**: Keep the CLI running between SDK restarts to inspect logs
 - **Resource sharing**: Multiple SDK clients can connect to the same CLI server
@@ -884,7 +884,7 @@ If you don't specify a port, the CLI will choose a random available port.
 
 ### Connecting the SDK to the External Server
 
-Once the CLI is running in server mode, configure your SDK client to connect to it using the `cli_url` option:
+Once the CLI is running in server mode, configure your SDK client to connect to it using the "cli url" option:
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -897,7 +897,7 @@ const client = new CopilotClient({
 });
 
 // Use the client normally
-const session = await client.createSession({ model: "gpt-4.1" });
+const session = await client.createSession();
 // ...
 ```
 
@@ -915,7 +915,7 @@ client = CopilotClient({
 await client.start()
 
 # Use the client normally
-session = await client.create_session({"model": "gpt-4.1"})
+session = await client.create_session()
 # ...
 ```
 
@@ -937,7 +937,7 @@ if err := client.Start(); err != nil {
 defer client.Stop()
 
 // Use the client normally
-session, err := client.CreateSession(&copilot.SessionConfig{Model: "gpt-4.1"})
+session, err := client.CreateSession()
 // ...
 ```
 
@@ -955,13 +955,13 @@ var client = new CopilotClient(new CopilotClientOptions
 });
 
 // Use the client normally
-var session = await client.CreateSessionAsync(new SessionConfig { Model = "gpt-4.1" });
+await using var session = await client.CreateSessionAsync();
 // ...
 ```
 
 </details>
 
-**Note:** When `cli_url` / `cliUrl` / `CLIUrl` is provided, the SDK will not spawn or manage a CLI process—it will only connect to the existing server at the specified URL.
+**Note:** When `cli_url` / `cliUrl` / `CLIUrl` is provided, the SDK will not spawn or manage a CLI process - it will only connect to the existing server at the specified URL.
 
 ---
 
