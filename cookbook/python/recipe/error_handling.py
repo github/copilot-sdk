@@ -2,6 +2,7 @@
 
 import asyncio
 from copilot import CopilotClient
+from copilot.generated.session_events import SessionEventType
 
 async def main():
     client = CopilotClient()
@@ -16,7 +17,7 @@ async def main():
         response_data = {"content": None}
 
         def handle_message(event):
-            if event.type == "assistant.message":
+            if event.type == SessionEventType.ASSISTANT_MESSAGE:
                 response_data["content"] = event.data.content
 
         session.on(handle_message)

@@ -3,6 +3,7 @@
 import asyncio
 import os
 from copilot import CopilotClient
+from copilot.generated.session_events import SessionEventType
 
 async def main():
     # Create and start client
@@ -15,11 +16,11 @@ async def main():
 
         # Event handler
         def handle_event(event):
-            if event.type == "assistant.message":
+            if event.type == SessionEventType.ASSISTANT_MESSAGE:
                 print(f"\nCopilot: {event.data.content}")
-            elif event.type == "tool.execution_start":
+            elif event.type == SessionEventType.TOOL_EXECUTION_START:
                 print(f"  → Running: {event.data.tool_name}")
-            elif event.type == "tool.execution_complete":
+            elif event.type == SessionEventType.TOOL_EXECUTION_COMPLETE:
                 # Check if tool_call_id exists in data
                 call_id = getattr(event.data, "tool_call_id", "unknown")
                 print(f"  ✓ Completed: {call_id}")
