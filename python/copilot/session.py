@@ -8,7 +8,7 @@ conversation sessions with the Copilot CLI.
 import asyncio
 import inspect
 import threading
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Optional
 
 from .generated.session_events import SessionEvent, SessionEventType, session_event_from_dict
 from .types import (
@@ -62,9 +62,9 @@ class CopilotSession:
         """
         self.session_id = session_id
         self._client = client
-        self._event_handlers: Set[Callable[[SessionEvent], None]] = set()
+        self._event_handlers: set[Callable[[SessionEvent], None]] = set()
         self._event_handlers_lock = threading.Lock()
-        self._tool_handlers: Dict[str, ToolHandler] = {}
+        self._tool_handlers: dict[str, ToolHandler] = {}
         self._tool_handlers_lock = threading.Lock()
         self._permission_handler: Optional[PermissionHandler] = None
         self._permission_handler_lock = threading.Lock()
@@ -220,7 +220,7 @@ class CopilotSession:
             except Exception as e:
                 print(f"Error in session event handler: {e}")
 
-    def _register_tools(self, tools: Optional[List[Tool]]) -> None:
+    def _register_tools(self, tools: Optional[list[Tool]]) -> None:
         """
         Register custom tool handlers for this session.
 
@@ -307,7 +307,7 @@ class CopilotSession:
             # Handler failed, deny permission
             return {"kind": "denied-no-approval-rule-and-could-not-request-from-user"}
 
-    async def get_messages(self) -> List[SessionEvent]:
+    async def get_messages(self) -> list[SessionEvent]:
         """
         Retrieve all events and messages from this session's history.
 

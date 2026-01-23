@@ -4,8 +4,9 @@ Type definitions for the Copilot SDK
 
 from __future__ import annotations
 
+from collections.abc import Awaitable
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Dict, List, Literal, TypedDict, Union
+from typing import Any, Callable, Literal, TypedDict, Union
 
 from typing_extensions import NotRequired
 
@@ -47,7 +48,7 @@ class CopilotClientOptions(TypedDict, total=False):
     auto_start: bool  # Auto-start the CLI server on first use (default: True)
     # Auto-restart the CLI server if it crashes (default: True)
     auto_restart: bool
-    env: Dict[str, str]  # Environment variables for the CLI process
+    env: dict[str, str]  # Environment variables for the CLI process
 
 
 ToolResultType = Literal["success", "failure", "rejected", "denied"]
@@ -64,11 +65,11 @@ class ToolResult(TypedDict, total=False):
     """Result of a tool invocation."""
 
     textResultForLlm: str
-    binaryResultsForLlm: List[ToolBinaryResult]
+    binaryResultsForLlm: list[ToolBinaryResult]
     resultType: ToolResultType
     error: str
     sessionLog: str
-    toolTelemetry: Dict[str, Any]
+    toolTelemetry: dict[str, Any]
 
 
 class ToolInvocation(TypedDict):
@@ -86,7 +87,7 @@ class Tool:
     name: str
     description: str
     handler: ToolHandler
-    parameters: Dict[str, Any] | None = None
+    parameters: dict[str, Any] | None = None
 
 
 # System message configuration (discriminated union)
@@ -134,11 +135,11 @@ class PermissionRequestResult(TypedDict, total=False):
         "denied-no-approval-rule-and-could-not-request-from-user",
         "denied-interactively-by-user",
     ]
-    rules: List[Any]
+    rules: list[Any]
 
 
 PermissionHandler = Callable[
-    [PermissionRequest, Dict[str, str]],
+    [PermissionRequest, dict[str, str]],
     Union[PermissionRequestResult, Awaitable[PermissionRequestResult]],
 ]
 
@@ -151,23 +152,23 @@ PermissionHandler = Callable[
 class MCPLocalServerConfig(TypedDict, total=False):
     """Configuration for a local/stdio MCP server."""
 
-    tools: List[str]  # List of tools to include. [] means none. "*" means all.
+    tools: list[str]  # List of tools to include. [] means none. "*" means all.
     type: NotRequired[Literal["local", "stdio"]]  # Server type
     timeout: NotRequired[int]  # Timeout in milliseconds
     command: str  # Command to run
-    args: List[str]  # Command arguments
-    env: NotRequired[Dict[str, str]]  # Environment variables
+    args: list[str]  # Command arguments
+    env: NotRequired[dict[str, str]]  # Environment variables
     cwd: NotRequired[str]  # Working directory
 
 
 class MCPRemoteServerConfig(TypedDict, total=False):
     """Configuration for a remote MCP server (HTTP or SSE)."""
 
-    tools: List[str]  # List of tools to include. [] means none. "*" means all.
+    tools: list[str]  # List of tools to include. [] means none. "*" means all.
     type: Literal["http", "sse"]  # Server type
     timeout: NotRequired[int]  # Timeout in milliseconds
     url: str  # URL of the remote server
-    headers: NotRequired[Dict[str, str]]  # HTTP headers
+    headers: NotRequired[dict[str, str]]  # HTTP headers
 
 
 MCPServerConfig = Union[MCPLocalServerConfig, MCPRemoteServerConfig]
@@ -185,10 +186,10 @@ class CustomAgentConfig(TypedDict, total=False):
     display_name: NotRequired[str]  # Display name for UI purposes
     description: NotRequired[str]  # Description of what the agent does
     # List of tool names the agent can use
-    tools: NotRequired[List[str] | None]
+    tools: NotRequired[list[str] | None]
     prompt: str  # The prompt content for the agent
     # MCP servers specific to agent
-    mcp_servers: NotRequired[Dict[str, MCPServerConfig]]
+    mcp_servers: NotRequired[dict[str, MCPServerConfig]]
     infer: NotRequired[bool]  # Whether agent is available for model inference
 
 
@@ -198,7 +199,7 @@ class SessionConfig(TypedDict, total=False):
 
     session_id: str  # Optional custom session ID
     model: Literal["gpt-5", "claude-sonnet-4", "claude-sonnet-4.5", "claude-haiku-4.5"]
-    tools: List[Tool]
+    tools: list[Tool]
     system_message: SystemMessageConfig  # System message configuration
     # List of tool names to allow (takes precedence over excluded_tools)
     available_tools: list[str]
@@ -213,16 +214,16 @@ class SessionConfig(TypedDict, total=False):
     # with delta_content are sent as the response is generated
     streaming: bool
     # MCP server configurations for the session
-    mcp_servers: Dict[str, MCPServerConfig]
+    mcp_servers: dict[str, MCPServerConfig]
     # Custom agent configurations for the session
-    custom_agents: List[CustomAgentConfig]
+    custom_agents: list[CustomAgentConfig]
     # Override the default configuration directory location.
     # When specified, the session will use this directory for storing config and state.
     config_dir: str
     # Directories to load skills from
-    skill_directories: List[str]
+    skill_directories: list[str]
     # List of skill names to disable
-    disabled_skills: List[str]
+    disabled_skills: list[str]
 
 
 # Azure-specific provider options
@@ -251,19 +252,19 @@ class ProviderConfig(TypedDict, total=False):
 class ResumeSessionConfig(TypedDict, total=False):
     """Configuration for resuming a session"""
 
-    tools: List[Tool]
+    tools: list[Tool]
     provider: ProviderConfig
     on_permission_request: PermissionHandler
     # Enable streaming of assistant message chunks
     streaming: bool
     # MCP server configurations for the session
-    mcp_servers: Dict[str, MCPServerConfig]
+    mcp_servers: dict[str, MCPServerConfig]
     # Custom agent configurations for the session
-    custom_agents: List[CustomAgentConfig]
+    custom_agents: list[CustomAgentConfig]
     # Directories to load skills from
-    skill_directories: List[str]
+    skill_directories: list[str]
     # List of skill names to disable
-    disabled_skills: List[str]
+    disabled_skills: list[str]
 
 
 # Options for sending a message to a session
@@ -272,7 +273,7 @@ class MessageOptions(TypedDict):
 
     prompt: str  # The prompt/message to send
     # Optional file/directory attachments
-    attachments: NotRequired[List[Attachment]]
+    attachments: NotRequired[list[Attachment]]
     # Message processing mode
     mode: NotRequired[Literal["enqueue", "immediate"]]
 
@@ -306,7 +307,7 @@ class GetAuthStatusResponse(TypedDict):
 class ModelVisionLimits(TypedDict, total=False):
     """Vision-specific limits"""
 
-    supported_media_types: List[str]
+    supported_media_types: list[str]
     max_prompt_images: int
     max_prompt_image_size: int
 
@@ -358,7 +359,7 @@ class ModelInfo(TypedDict):
 class GetModelsResponse(TypedDict):
     """Response from models.list"""
 
-    models: List[ModelInfo]
+    models: list[ModelInfo]
 
 
 class SessionMetadata(TypedDict):

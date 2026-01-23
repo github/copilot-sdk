@@ -9,7 +9,7 @@ import os
 import platform
 import re
 import subprocess
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import httpx
 
@@ -97,7 +97,7 @@ class CapiProxy:
             if resp.status_code != 200:
                 raise RuntimeError(f"Proxy config failed with status {resp.status_code}")
 
-    async def get_exchanges(self) -> List[Dict[str, Any]]:
+    async def get_exchanges(self) -> list[dict[str, Any]]:
         """Retrieve the captured HTTP exchanges from the proxy."""
         if not self._proxy_url:
             raise RuntimeError("Proxy not started")
