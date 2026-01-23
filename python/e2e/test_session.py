@@ -180,6 +180,53 @@ class TestSessions:
         with pytest.raises(Exception):
             await ctx.client.resume_session("non-existent-session-id")
 
+    async def test_should_list_sessions(self, ctx: E2ETestContext):
+        # Create a couple of sessions
+        session1 = await ctx.client.create_session()
+        session2 = await ctx.client.create_session()
+
+        # List sessions and verify they're included
+        sessions = await ctx.client.list_sessions()
+        assert isinstance(sessions, list)
+
+        session_ids = [s["sessionId"] for s in sessions]
+        assert session1.session_id in session_ids
+        assert session2.session_id in session_ids
+
+        # Verify session metadata structure
+        for session_data in sessions:
+            assert "sessionId" in session_data
+            assert "startTime" in session_data
+            assert "modifiedTime" in session_data
+            assert "isRemote" in session_data
+            # summary is optional
+            assert isinstance(session_data["sessionId"], str)
+            assert isinstance(session_data["startTime"], str)
+            assert isinstance(session_data["modifiedTime"], str)
+            assert isinstance(session_data["isRemote"], bool)
+
+    async def test_should_delete_session(self, ctx: E2ETestContext):
+        # Create a session
+        session = await ctx.client.create_session()
+        session_id = session.session_id
+
+        # Verify session exists in the list
+        sessions = await ctx.client.list_sessions()
+        session_ids = [s["sessionId"] for s in sessions]
+        assert session_id in session_ids
+
+        # Delete the session
+        await ctx.client.delete_session(session_id)
+
+        # Verify session no longer exists in the list
+        sessions_after = await ctx.client.list_sessions()
+        session_ids_after = [s["sessionId"] for s in sessions_after]
+        assert session_id not in session_ids_after
+
+        # Verify we cannot resume the deleted session
+        with pytest.raises(Exception):
+            await ctx.client.resume_session(session_id)
+
     async def test_should_create_session_with_custom_tool(self, ctx: E2ETestContext):
         # This test uses the low-level Tool() API to show that Pydantic is optional
         def get_secret_number_handler(invocation):
