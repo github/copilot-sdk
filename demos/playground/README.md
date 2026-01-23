@@ -2,6 +2,8 @@
 
 An interactive web-based playground for testing and exploring the GitHub Copilot SDK. Create sessions, send messages, and watch responses stream in real-time.
 
+> **Note:** This is a development playground for testing SDK features, not a template for building your own webapp. For production integrations, refer to the SDK documentation and samples.
+
 ## Quick Start
 
 **Prerequisites:** [Install the Copilot CLI](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli)
