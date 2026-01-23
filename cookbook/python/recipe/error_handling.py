@@ -1,28 +1,38 @@
 #!/usr/bin/env python3
 
+import asyncio
 from copilot import CopilotClient
 
-client = CopilotClient()
+async def main():
+    client = CopilotClient()
 
-try:
-    client.start()
-    session = client.create_session(model="gpt-5")
+    try:
+        await client.start()
+        # Ensure model is passed as part of a dict
+        session = await client.create_session({"model": "gpt-4"})
 
-    response = None
-    def handle_message(event):
-        nonlocal response
-        if event["type"] == "assistant.message":
-            response = event["data"]["content"]
+        # Using a list to allow modification inside inner function (closure workaround)
+        # or nonlocal would work if defined inside main
+        response_data = {"content": None}
 
-    session.on(handle_message)
-    session.send(prompt="Hello!")
-    session.wait_for_idle()
+        def handle_message(event):
+            if event.type == "assistant.message":
+                response_data["content"] = event.data.content
 
-    if response:
-        print(response)
+        session.on(handle_message)
 
-    session.destroy()
-except Exception as e:
-    print(f"Error: {e}")
-finally:
-    client.stop()
+        # Use send_and_wait with timeout
+        await session.send_and_wait({"prompt": "Hello!"}, timeout=30)
+
+        if response_data["content"]:
+            print(f"Copilot: {response_data['content']}")
+
+        await session.destroy()
+
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        await client.stop()
+
+if __name__ == "__main__":
+    asyncio.run(main())

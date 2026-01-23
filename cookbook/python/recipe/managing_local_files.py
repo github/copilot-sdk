@@ -1,42 +1,62 @@
 #!/usr/bin/env python3
 
-from copilot import CopilotClient
+import asyncio
 import os
+from copilot import CopilotClient
 
-# Create and start client
-client = CopilotClient()
-client.start()
+async def main():
+    # Create and start client
+    client = CopilotClient()
+    await client.start()
 
-# Create session
-session = client.create_session(model="gpt-5")
+    try:
+        # Create session
+        session = await client.create_session({"model": "gpt-4"})
 
-# Event handler
-def handle_event(event):
-    if event["type"] == "assistant.message":
-        print(f"\nCopilot: {event['data']['content']}")
-    elif event["type"] == "tool.execution_start":
-        print(f"  → Running: {event['data']['toolName']}")
-    elif event["type"] == "tool.execution_complete":
-        print(f"  ✓ Completed: {event['data']['toolCallId']}")
+        # Event handler
+        def handle_event(event):
+            if event.type == "assistant.message":
+                print(f"\nCopilot: {event.data.content}")
+            elif event.type == "tool.execution_start":
+                print(f"  → Running: {event.data.toolName}")
+            elif event.type == "tool.execution_complete":
+                # Check if toolCallId exists in data
+                call_id = getattr(event.data, "toolCallId", "unknown")
+                print(f"  ✓ Completed: {call_id}")
 
-session.on(handle_event)
+        session.on(handle_event)
 
-# Ask Copilot to organize files
-# Change this to your target folder
-target_folder = os.path.expanduser("~/Downloads")
+        # Ask Copilot to organize files
+        # Change this to your target folder
+        target_folder = os.path.expanduser("~/Downloads")
 
-session.send(prompt=f"""
-Analyze the files in "{target_folder}" and organize them into subfolders.
+        print(f"📂 Organizing files in: {target_folder}\n")
 
-1. First, list all files and their metadata
-2. Preview grouping by file extension
-3. Create appropriate subfolders (e.g., "images", "documents", "videos")
-4. Move each file to its appropriate subfolder
+        await session.send_and_wait({
+            "prompt": f"""
+            Analyze the files in "{target_folder}" and organize them into subfolders.
 
-Please confirm before moving any files.
-""")
+            1. First, list all files and their metadata
+            2. Preview grouping by file extension
+            3. Create appropriate subfolders (e.g., "images", "documents", "videos")
+            4. Move each file to its appropriate subfolder
 
-session.wait_for_idle()
+            Please confirm before moving any files.
+            """
+        }, timeout=300)
 
-session.destroy()
-client.stop()
+        # Allow user to respond if Copilot asks for confirmation
+        while True:
+            user_input = await asyncio.get_event_loop().run_in_executor(None, input, "\nYou: ")
+            if user_input.lower() in ["exit", "quit", "no", "n"]:
+                break
+
+            await session.send_and_wait({"prompt": user_input}, timeout=300)
+
+        await session.destroy()
+
+    finally:
+        await client.stop()
+
+if __name__ == "__main__":
+    asyncio.run(main())
