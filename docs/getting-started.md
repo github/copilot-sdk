@@ -2,7 +2,7 @@
 
 In this tutorial, you'll use the Copilot SDK to build a command-line assistant. You'll start with the basics, add streaming responses, then add custom tools - giving Copilot the ability to call your code.
 
-**What you'll build:**
+**What Jio you'll build:**
 
 ```
 You: What's the weather like in Seattle?
