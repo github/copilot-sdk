@@ -670,8 +670,7 @@ class CopilotClient:
             session_id: The ID of the session to delete.
 
         Raises:
-            RuntimeError: If the client is not connected.
-            Exception: If the session does not exist or deletion fails.
+            RuntimeError: If the client is not connected or deletion fails.
 
         Example:
             >>> await client.delete_session("session-123")
@@ -684,7 +683,7 @@ class CopilotClient:
         success = response.get("success", False)
         if not success:
             error = response.get("error", "Unknown error")
-            raise Exception(f"Failed to delete session {session_id}: {error}")
+            raise RuntimeError(f"Failed to delete session {session_id}: {error}")
 
         # Remove from local sessions map if present
         with self._sessions_lock:
