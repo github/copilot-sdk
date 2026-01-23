@@ -1,0 +1,42 @@
+{
+  "name": "copilot-sdk-playground",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Interactive playground for testing the Copilot SDK",
+  "type": "module",
+  "scripts": {
+    "start": "concurrently \"npm run server\" \"npm run dev\"",
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "server": "tsx server.ts",
+    "preview": "vite preview",
+    "lint": "eslint \"src/**/*.ts\" \"src/**/*.tsx\" \"server.ts\"",
+    "lint:fix": "eslint --fix \"src/**/*.ts\" \"src/**/*.tsx\" \"server.ts\"",
+    "format": "prettier --write \"src/**/*.ts\" \"src/**/*.tsx\" \"server.ts\" --ignore-path .prettierignore",
+    "format:check": "prettier --check \"src/**/*.ts\" \"src/**/*.tsx\" \"server.ts\" --ignore-path .prettierignore",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@github/copilot-sdk": "file:../../nodejs",
+    "express": "^5.0.1",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "@vitejs/plugin-react": "^5.1.2",
+    "concurrently": "^9.0.0",
+    "eslint": "^9.0.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "prettier": "^3.4.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0",
+    "vite": "^6.0.0"
+  }
+}

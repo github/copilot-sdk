@@ -1,0 +1,738 @@
+/*
+ * Copilot SDK Playground Styles
+ * 
+ * GitHub-inspired dark theme with CSS custom properties for easy customization.
+ */
+
+/* Reset and base styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --bg-primary: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-tertiary: #21262d;
+    --border-color: #30363d;
+    --text-primary: #e6edf3;
+    --text-secondary: #8b949e;
+    --accent-blue: #58a6ff;
+    --accent-green: #3fb950;
+    --accent-purple: #a371f7;
+    --accent-orange: #d29922;
+    --accent-red: #f85149;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    height: 100vh;
+}
+
+#root {
+    height: 100%;
+}
+
+.app {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+/* Header */
+.header {
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, #1a1f2e 100%);
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.header-text {
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Layout */
+.container {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* Sidebar */
+.sidebar {
+    width: 300px;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-section {
+    padding: 15px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-section h2 {
+    font-size: 12px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+/* Collapsible options */
+.advanced-options {
+    margin: 12px 0;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.advanced-options summary {
+    padding: 10px 12px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: var(--bg-tertiary);
+    user-select: none;
+    transition: background 0.2s;
+}
+
+.advanced-options summary:hover {
+    background: #2d333b;
+}
+
+.advanced-options[open] summary {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.advanced-options-content {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Sessions list */
+.sessions-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+}
+
+.session-item {
+    padding: 12px;
+    margin-bottom: 8px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.session-item:hover {
+    border-color: var(--border-color);
+    background: #282e38;
+}
+
+.session-item:hover .session-destroy-btn {
+    opacity: 1;
+}
+
+.session-item.active {
+    background: linear-gradient(135deg, #1f3a5f 0%, #2d1f5f 100%);
+    border-color: var(--accent-blue);
+}
+
+.session-item-info {
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+}
+
+.session-item-id {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--accent-blue);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.session-item-model {
+    font-size: 11px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.session-item-model::before {
+    content: "●";
+    color: var(--accent-green);
+    font-size: 8px;
+}
+
+.session-destroy-btn {
+    opacity: 0;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 14px;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.session-destroy-btn:hover {
+    background: rgba(248, 81, 73, 0.2);
+    color: var(--accent-red);
+}
+
+/* Main content area */
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.chat-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* Messages */
+.messages-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+.message {
+    margin-bottom: 16px;
+    padding: 14px;
+    border-radius: 8px;
+    border-left: 3px solid transparent;
+}
+
+.message.user {
+    background: linear-gradient(135deg, #1a3150 0%, #1a2840 100%);
+    border-left-color: var(--accent-blue);
+}
+
+.message.assistant {
+    background: var(--bg-tertiary);
+    border-left-color: var(--accent-purple);
+}
+
+.message.system {
+    background: var(--bg-secondary);
+    font-size: 12px;
+    color: var(--text-secondary);
+    border-left-color: var(--accent-orange);
+}
+
+.message.error {
+    background: linear-gradient(135deg, #3d1f1f 0%, #2d1a1a 100%);
+    border-left-color: var(--accent-red);
+}
+
+.message.error .message-header {
+    color: var(--accent-red);
+}
+
+.message-header {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.message.user .message-header {
+    color: var(--accent-blue);
+}
+
+.message.assistant .message-header {
+    color: var(--accent-purple);
+}
+
+.message-content {
+    font-size: 14px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* Tool messages */
+.message.tool {
+    background: var(--bg-secondary);
+    border-left-color: var(--accent-orange);
+    padding: 0;
+}
+
+.tool-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.2s;
+}
+
+.tool-header:hover {
+    background: var(--bg-tertiary);
+}
+
+.tool-icon {
+    font-size: 16px;
+}
+
+.tool-label {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-primary);
+}
+
+.tool-status {
+    margin-left: auto;
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.tool-status.success {
+    background: rgba(63, 185, 80, 0.2);
+    color: var(--accent-green);
+}
+
+.tool-status.failure {
+    background: rgba(248, 81, 73, 0.2);
+    color: var(--accent-red);
+}
+
+.tool-status.running {
+    background: rgba(88, 166, 255, 0.2);
+    color: var(--accent-blue);
+}
+
+.tool-toggle {
+    color: var(--text-secondary);
+    font-size: 10px;
+    margin-left: 8px;
+}
+
+.tool-details {
+    border-top: 1px solid var(--border-color);
+    max-height: 400px;
+    overflow: auto;
+}
+
+.tool-details.collapsed {
+    display: none;
+}
+
+.tool-section {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.tool-section:last-child {
+    border-bottom: none;
+}
+
+.tool-section-header {
+    padding: 8px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    background: var(--bg-tertiary);
+    letter-spacing: 0.5px;
+}
+
+.tool-section.error .tool-section-header {
+    color: var(--accent-red);
+}
+
+.tool-content {
+    margin: 0;
+    padding: 12px 14px;
+    font-family: "SF Mono", "Fira Code", "Courier New", monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: var(--text-secondary);
+    background: var(--bg-primary);
+}
+
+/* Input area */
+.input-area {
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    padding: 15px;
+}
+
+.input-group {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.input-group:last-child {
+    margin-bottom: 0;
+}
+
+/* Form elements */
+input,
+select,
+textarea {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+    transition: border-color 0.2s;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+}
+
+textarea {
+    width: 100%;
+    resize: vertical;
+    min-height: 60px;
+}
+
+/* Buttons */
+button {
+    background: linear-gradient(135deg, #238636 0%, #2ea043 100%);
+    color: #ffffff;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+button:hover {
+    background: linear-gradient(135deg, #2ea043 0%, #3fb950 100%);
+    transform: translateY(-1px);
+}
+
+button:active {
+    transform: translateY(0);
+}
+
+button:disabled {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-secondary {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+    background: #2d333b;
+    border-color: var(--text-secondary);
+    transform: translateY(-1px);
+}
+
+/* Status bar */
+.status-bar {
+    background: linear-gradient(90deg, var(--bg-secondary) 0%, #1a1f2e 100%);
+    color: var(--text-primary);
+    padding: 8px 15px;
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid var(--border-color);
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    box-shadow: 0 0 8px var(--accent-green);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}
+
+.status-dot.disconnected {
+    background: var(--accent-red);
+    box-shadow: 0 0 8px var(--accent-red);
+}
+
+/* Logs panel */
+.logs-container {
+    max-height: 200px;
+    overflow-y: auto;
+    background: var(--bg-primary);
+    padding: 12px;
+    font-family: "SF Mono", "Fira Code", "Courier New", monospace;
+    font-size: 11px;
+    border-top: 1px solid var(--border-color);
+}
+
+.log-entry {
+    padding: 3px 0;
+    border-left: 2px solid transparent;
+    padding-left: 8px;
+    margin-left: -8px;
+}
+
+.log-entry.error {
+    color: var(--accent-red);
+    border-left-color: var(--accent-red);
+}
+
+.log-entry.info {
+    color: var(--accent-green);
+    border-left-color: var(--accent-green);
+}
+
+.log-entry.debug {
+    color: var(--text-secondary);
+}
+
+/* Empty state */
+.empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-secondary);
+    font-size: 14px;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.empty-state-icon {
+    font-size: 32px;
+    opacity: 0.5;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+}
+
+/* Usage message styles */
+.message.usage {
+    background: linear-gradient(135deg, rgba(163, 113, 247, 0.1) 0%, rgba(88, 166, 255, 0.1) 100%);
+    border-left: 3px solid var(--accent-purple);
+}
+
+.usage-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.usage-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.usage-tokens,
+.usage-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.usage-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.usage-label {
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.usage-value {
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.usage-bar {
+    height: 6px;
+    background: var(--bg-tertiary);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 4px;
+}
+
+.usage-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-green) 0%, var(--accent-orange) 70%, var(--accent-red) 100%);
+    background-position: left;
+    border-radius: 3px;
+    transition: width 0.3s ease, background-size 0.3s ease;
+}
+
+/* Compaction message styles */
+.message.compaction {
+    background: linear-gradient(135deg, rgba(210, 153, 34, 0.1) 0%, rgba(246, 139, 67, 0.1) 100%);
+    border-left: 3px solid var(--accent-orange);
+}
+
+.message.compaction.started {
+    opacity: 0.8;
+}
+
+.message.compaction.success {
+    background: linear-gradient(135deg, rgba(63, 185, 80, 0.1) 0%, rgba(46, 160, 67, 0.1) 100%);
+    border-left-color: var(--accent-green);
+}
+
+.message.compaction.failed {
+    background: linear-gradient(135deg, rgba(248, 81, 73, 0.1) 0%, rgba(218, 54, 51, 0.1) 100%);
+    border-left-color: var(--accent-red);
+}
+
+.compaction-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.compaction-status {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.compaction-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.compaction-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.compaction-label {
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.compaction-value {
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.compaction-value.highlight {
+    color: var(--accent-green);
+}
+
+.compaction-error {
+    color: var(--accent-red);
+    font-size: 13px;
+}
+
+.compaction-summary {
+    margin-top: 8px;
+}
+
+.compaction-summary summary {
+    cursor: pointer;
+    color: var(--accent-blue);
+    font-size: 13px;
+}
+
+.compaction-summary summary:hover {
+    text-decoration: underline;
+}
+
+.compaction-summary-content {
+    margin-top: 8px;
+    padding: 12px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    max-height: 200px;
+    overflow-y: auto;
+}
