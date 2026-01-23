@@ -200,6 +200,31 @@ session.On(evt =>
 });
 ```
 
+## Image Support
+
+The SDK supports image attachments via the `Attachments` parameter. You can attach images by providing their file path:
+
+```csharp
+await session.SendAsync(new MessageOptions
+{
+    Prompt = "What's in this image?",
+    Attachments = new List<UserMessageDataAttachmentsItem>
+    {
+        new UserMessageDataAttachmentsItem
+        {
+            Type = UserMessageDataAttachmentsItemType.File,
+            Path = "/path/to/image.jpg"
+        }
+    }
+});
+```
+
+Supported image formats include JPG, PNG, GIF, and other common image types. The agent's `view` tool can also read images directly from the filesystem, so you can also ask questions like:
+
+```csharp
+await session.SendAsync(new MessageOptions { Prompt = "What does the most recent jpg in this directory portray?" });
+```
+
 ## Streaming
 
 Enable streaming to receive assistant response chunks as they're generated:
