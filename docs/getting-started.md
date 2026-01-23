@@ -37,7 +37,7 @@ First, create a new directory and initialize your project:
 
 ```bash
 mkdir copilot-demo && cd copilot-demo
-npm init -y
+npm init -y --init-type module
 ```
 
 Then install the SDK and TypeScript runner:
