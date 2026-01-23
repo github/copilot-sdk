@@ -7,7 +7,9 @@ Python SDK for programmatic control of GitHub Copilot CLI via JSON-RPC.
 ## Installation
 
 ```bash
-pip install -e .
+pip install -e ".[dev]"
+# or
+uv pip install -e ".[dev]"
 ```
 
 ## Quick Start
