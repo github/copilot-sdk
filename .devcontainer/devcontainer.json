@@ -10,7 +10,8 @@
     "ghcr.io/devcontainers/features/go:1": {},
     "ghcr.io/devcontainers/features/node:1": {},
     "ghcr.io/devcontainers-extra/features/uv:1": {},
-    "ghcr.io/schlich/devcontainer-features/just:0": {}
+    "ghcr.io/schlich/devcontainer-features/just:0": {},
+    "ghcr.io/devcontainers/features/dotnet:2": {}
   }
 
   // Features to add to the dev container. More info: https://containers.dev/features.
