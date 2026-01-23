@@ -163,10 +163,10 @@ The SDK supports image attachments via the `attachments` parameter. You can atta
 await session.send({
     "prompt": "What's in this image?",
     "attachments": [
-        Attachment(
-            type="file",
-            path="/path/to/image.jpg"
-        )
+        {
+            "type": "file",
+            "path": "/path/to/image.jpg",
+        }
     ]
 })
 ```
