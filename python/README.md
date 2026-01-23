@@ -217,5 +217,5 @@ Note: `assistant.message` and `assistant.reasoning` (final events) are always se
 
 ## Requirements
 
-- Python 3.8+
+- Python 3.9+
 - GitHub Copilot CLI installed and accessible
