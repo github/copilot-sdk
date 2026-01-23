@@ -63,7 +63,7 @@ Yes, the GitHub Copilot SDK supports BYOK. You can configure the SDK to use your
 
 ### Do I need to install the Copilot CLI separately?
 
-Yes, the Copilot CLI must be installed separately. The SDKs communicate with the Copilot CLI in server mode to provide agent capabilities.
+Yes. The GitHub Copilot SDK requires the GitHub Copilot CLI to be installed and running in server mode. OS-level Copilot features (such as Windows Copilot) and IDE Copilot extensions are not sufficient.
 
 ### What tools are enabled by default?
 
