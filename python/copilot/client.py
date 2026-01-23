@@ -28,9 +28,11 @@ from .session import CopilotSession
 from .types import (
     ConnectionState,
     CopilotClientOptions,
+    CustomAgentConfig,
     GetAuthStatusResponse,
     GetStatusResponse,
     ModelInfo,
+    ProviderConfig,
     ResumeSessionConfig,
     SessionConfig,
     SessionMetadata,
@@ -710,7 +712,9 @@ class CopilotClient:
                 f"Please update your SDK or server to ensure compatibility."
             )
 
-    def _convert_provider_to_wire_format(self, provider: dict[str, Any]) -> dict[str, Any]:
+    def _convert_provider_to_wire_format(
+        self, provider: ProviderConfig | dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Convert provider config from snake_case to camelCase wire format.
 
@@ -738,7 +742,9 @@ class CopilotClient:
                 wire_provider["azure"] = wire_azure
         return wire_provider
 
-    def _convert_custom_agent_to_wire_format(self, agent: dict[str, Any]) -> dict[str, Any]:
+    def _convert_custom_agent_to_wire_format(
+        self, agent: CustomAgentConfig | dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Convert custom agent config from snake_case to camelCase wire format.
 

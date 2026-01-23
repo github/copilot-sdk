@@ -5,7 +5,7 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: run the shell command 'sleep 100' (note this works on both bash and PowerShell)
+        content: run the shell command 'sleep 100' (works on bash and PowerShell)
       - role: assistant
         tool_calls:
           - id: toolcall_0
@@ -19,12 +19,12 @@ conversations:
             type: function
             function:
               name: ${shell}
-              arguments: '{"description":"Run sleep 100 command","command":"sleep 100","mode":"sync","initial_wait":30}'
+              arguments: '{"command":"sleep 100","description":"Run sleep 100 command","mode":"sync","initial_wait":30}'
   - messages:
       - role: system
         content: ${system}
       - role: user
-        content: run the shell command 'sleep 100' (note this works on both bash and PowerShell)
+        content: run the shell command 'sleep 100' (works on bash and PowerShell)
       - role: assistant
         tool_calls:
           - id: toolcall_0
@@ -36,7 +36,7 @@ conversations:
             type: function
             function:
               name: ${shell}
-              arguments: '{"description":"Run sleep 100 command","command":"sleep 100","mode":"sync","initial_wait":30}'
+              arguments: '{"command":"sleep 100","description":"Run sleep 100 command","mode":"sync","initial_wait":30}'
       - role: tool
         tool_call_id: toolcall_0
         content: Intent logged
@@ -46,4 +46,4 @@ conversations:
       - role: user
         content: What is 2+2?
       - role: assistant
-        content: 2+2 = 4
+        content: 2 + 2 = 4
