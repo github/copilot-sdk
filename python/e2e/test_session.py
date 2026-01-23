@@ -181,9 +181,16 @@ class TestSessions:
             await ctx.client.resume_session("non-existent-session-id")
 
     async def test_should_list_sessions(self, ctx: E2ETestContext):
-        # Create a couple of sessions
+        import asyncio
+
+        # Create a couple of sessions and send messages to persist them
         session1 = await ctx.client.create_session()
+        await session1.send_and_wait({"prompt": "Say hello"})
         session2 = await ctx.client.create_session()
+        await session2.send_and_wait({"prompt": "Say goodbye"})
+
+        # Small delay to ensure session files are written to disk
+        await asyncio.sleep(0.2)
 
         # List sessions and verify they're included
         sessions = await ctx.client.list_sessions()
@@ -206,9 +213,15 @@ class TestSessions:
             assert isinstance(session_data["isRemote"], bool)
 
     async def test_should_delete_session(self, ctx: E2ETestContext):
-        # Create a session
+        import asyncio
+
+        # Create a session and send a message to persist it
         session = await ctx.client.create_session()
+        await session.send_and_wait({"prompt": "Hello"})
         session_id = session.session_id
+
+        # Small delay to ensure session file is written to disk
+        await asyncio.sleep(0.2)
 
         # Verify session exists in the list
         sessions = await ctx.client.list_sessions()

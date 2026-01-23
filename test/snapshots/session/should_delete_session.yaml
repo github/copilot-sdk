@@ -1,0 +1,11 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Hello
+      - role: assistant
+        content: Hello! I'm GitHub Copilot CLI, your terminal assistant. I can help you with software engineering tasks like
+          exploring code, making changes, running tests, debugging, and more. What would you like to work on?

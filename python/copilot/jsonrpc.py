@@ -10,7 +10,8 @@ import inspect
 import json
 import threading
 import uuid
-from typing import Any, Awaitable, Callable, Dict, Optional, Union
+from collections.abc import Awaitable
+from typing import Any, Callable, Optional, Union
 
 
 class JsonRpcError(Exception):
@@ -41,9 +42,9 @@ class JsonRpcClient:
             process: subprocess.Popen with stdin=PIPE, stdout=PIPE
         """
         self.process = process
-        self.pending_requests: Dict[str, asyncio.Future] = {}
+        self.pending_requests: dict[str, asyncio.Future] = {}
         self.notification_handler: Optional[Callable[[str, dict], None]] = None
-        self.request_handlers: Dict[str, RequestHandler] = {}
+        self.request_handlers: dict[str, RequestHandler] = {}
         self._running = False
         self._read_thread: Optional[threading.Thread] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
