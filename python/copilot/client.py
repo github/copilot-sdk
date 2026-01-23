@@ -33,6 +33,7 @@ from .types import (
     ModelInfo,
     ResumeSessionConfig,
     SessionConfig,
+    SessionMetadata,
     ToolHandler,
     ToolInvocation,
     ToolResult,
@@ -633,7 +634,7 @@ class CopilotClient:
         response = await self._client.request("models.list", {})
         return response.get("models", [])
 
-    async def list_sessions(self) -> List[Dict[str, Any]]:
+    async def list_sessions(self) -> List["SessionMetadata"]:
         """
         List all available sessions known to the server.
 
