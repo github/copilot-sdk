@@ -949,7 +949,7 @@ session, err := client.CreateSession()
 ```csharp
 using GitHub.Copilot.SDK;
 
-var client = new CopilotClient(new CopilotClientOptions
+using var client = new CopilotClient(new CopilotClientOptions
 {
     CliUrl = "localhost:4321"
 });
