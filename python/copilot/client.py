@@ -633,6 +633,31 @@ class CopilotClient:
         response = await self._client.request("models.list", {})
         return response.get("models", [])
 
+    async def list_sessions(self) -> List[Dict[str, Any]]:
+        """
+        List all available sessions known to the server.
+
+        Returns metadata about each session including ID, timestamps, and summary.
+
+        Returns:
+            A list of session metadata dictionaries with keys: sessionId (str),
+            startTime (str), modifiedTime (str), summary (str, optional),
+            and isRemote (bool).
+
+        Raises:
+            RuntimeError: If the client is not connected.
+
+        Example:
+            >>> sessions = await client.list_sessions()
+            >>> for session in sessions:
+            ...     print(f"Session: {session['sessionId']}")
+        """
+        if not self._client:
+            raise RuntimeError("Client not connected")
+
+        response = await self._client.request("session.list", {})
+        return response.get("sessions", [])
+
     async def _verify_protocol_version(self) -> None:
         """Verify that the server's protocol version matches the SDK's expected version."""
         expected_version = get_sdk_protocol_version()

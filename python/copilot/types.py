@@ -359,3 +359,13 @@ class GetModelsResponse(TypedDict):
     """Response from models.list"""
 
     models: List[ModelInfo]
+
+
+class SessionMetadata(TypedDict):
+    """Metadata about a session"""
+
+    sessionId: str  # Session identifier
+    startTime: str  # ISO 8601 timestamp when session was created
+    modifiedTime: str  # ISO 8601 timestamp when session was last modified
+    summary: NotRequired[str]  # Optional summary of the session
+    isRemote: bool  # Whether the session is remote
