@@ -20,8 +20,8 @@ async def main():
             elif event.type == "tool.execution_start":
                 print(f"  → Running: {event.data.toolName}")
             elif event.type == "tool.execution_complete":
-                # Check if toolCallId exists in data
-                call_id = getattr(event.data, "toolCallId", "unknown")
+                # Check if tool_call_id exists in data
+                call_id = getattr(event.data, "tool_call_id", "unknown")
                 print(f"  ✓ Completed: {call_id}")
 
         session.on(handle_event)
