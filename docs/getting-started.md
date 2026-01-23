@@ -794,9 +794,8 @@ var getWeather = AIFunctionFactory.Create(
     ([Description("The city name")] string city) =>
     {
         var conditions = new[] { "sunny", "cloudy", "rainy", "partly cloudy" };
-        var random = new Random();
-        var temp = random.Next(50, 80);
-        var condition = conditions[random.Next(conditions.Length)];
+        var temp = Random.Shared.Next(50, 80);
+        var condition = conditions[Random.Shared.Next(conditions.Length)];
         return new { city, temperature = $"{temp}°F", condition };
     },
     "get_weather",
@@ -816,6 +815,10 @@ session.On(ev =>
     if (ev is AssistantMessageDeltaEvent deltaEvent)
     {
         Console.Write(deltaEvent.Data.DeltaContent);
+    }
+    if (ev is SessionIdleEvent)
+    {
+        Console.WriteLine();
     }
 });
 
