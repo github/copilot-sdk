@@ -1,0 +1,45 @@
+[package]
+name = "github-copilot-sdk"
+version = "0.1.0"
+edition = "2021"
+authors = ["GitHub <opensource+copilot-sdk@github.com>"]
+description = "GitHub Copilot SDK for Rust - Embed Copilot's agentic workflows in your application"
+license = "MIT"
+repository = "https://github.com/github/copilot-sdk"
+homepage = "https://github.com/github/copilot-sdk"
+documentation = "https://docs.rs/github-copilot-sdk"
+readme = "README.md"
+keywords = ["github", "copilot", "ai", "agent", "sdk"]
+categories = ["api-bindings", "development-tools"]
+
+[dependencies]
+tokio = { version = "1.41", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.11", features = ["v4", "serde"] }
+thiserror = "2.0"
+async-trait = "0.1"
+
+[dev-dependencies]
+tokio-test = "0.4"
+chrono = "0.4"
+
+[lib]
+name = "github_copilot_sdk"
+path = "src/lib.rs"
+
+[[example]]
+name = "hello"
+path = "examples/hello.rs"
+
+[[example]]
+name = "tools"
+path = "examples/tools.rs"
+
+[[example]]
+name = "permissions"
+path = "examples/permissions.rs"
+
+[[example]]
+name = "mcp"
+path = "examples/mcp.rs"

@@ -16,6 +16,7 @@ The GitHub Copilot SDK exposes the same engine behind Copilot CLI: a production-
 | **Python**               | [`cookbook/python/`](./cookbook/python/README.md) | `pip install github-copilot-sdk`          |
 | **Go**                   | [`cookbook/go/`](./cookbook/go/README.md)         | `go get github.com/github/copilot-sdk/go` |
 | **.NET**                 | [`cookbook/dotnet/`](./cookbook/dotnet/README.md) | `dotnet add package GitHub.Copilot.SDK`   |
+| **Rust**                 | [`rust/`](./rust/README.md)                       | `cargo add github-copilot-sdk`            |
 
 See the individual SDK READMEs for installation, usage examples, and API reference.
 
