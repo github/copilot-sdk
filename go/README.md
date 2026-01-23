@@ -112,6 +112,30 @@ func main() {
 
 - `Bool(v bool) *bool` - Helper to create bool pointers for `AutoStart`/`AutoRestart` options
 
+## Image Support
+
+The SDK supports image attachments via the `Attachments` field in `MessageOptions`. You can attach images by providing their file path:
+
+```go
+_, err = session.Send(copilot.MessageOptions{
+    Prompt: "What's in this image?",
+    Attachments: []copilot.Attachment{
+        {
+            Type: "file",
+            Path: "/path/to/image.jpg",
+        },
+    },
+})
+```
+
+Supported image formats include JPG, PNG, GIF, and other common image types. The agent's `view` tool can also read images directly from the filesystem, so you can also ask questions like:
+
+```go
+_, err = session.Send(copilot.MessageOptions{
+    Prompt: "What does the most recent jpg in this directory portray?",
+})
+```
+
 ### Tools
 
 Expose your own functionality to Copilot by attaching tools to a session.
