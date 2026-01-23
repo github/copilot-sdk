@@ -458,11 +458,16 @@ import sys
 from copilot import CopilotClient
 from copilot.tools import define_tool
 from copilot.generated.session_events import SessionEventType
+from pydantic import BaseModel, Field
+
+# Define the parameters for the tool using Pydantic
+class GetWeatherParams(BaseModel):
+    city: str = Field(description="The name of the city to get weather for")
 
 # Define a tool that Copilot can call
 @define_tool(description="Get the current weather for a city")
-async def get_weather(params: dict) -> dict:
-    city = params["city"]
+async def get_weather(params: GetWeatherParams) -> dict:
+    city = params.city
     # In a real app, you'd call a weather API here
     conditions = ["sunny", "cloudy", "rainy", "partly cloudy"]
     temp = random.randint(50, 80)
@@ -724,10 +729,14 @@ import sys
 from copilot import CopilotClient
 from copilot.tools import define_tool
 from copilot.generated.session_events import SessionEventType
+from pydantic import BaseModel, Field
+
+class GetWeatherParams(BaseModel):
+    city: str = Field(description="The name of the city to get weather for")
 
 @define_tool(description="Get the current weather for a city")
-async def get_weather(params: dict) -> dict:
-    city = params["city"]
+async def get_weather(params: GetWeatherParams) -> dict:
+    city = params.city
     conditions = ["sunny", "cloudy", "rainy", "partly cloudy"]
     temp = random.randint(50, 80)
     condition = random.choice(conditions)
