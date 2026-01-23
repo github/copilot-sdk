@@ -205,6 +205,28 @@ class TestSessions:
             assert isinstance(session_data["modifiedTime"], str)
             assert isinstance(session_data["isRemote"], bool)
 
+    async def test_should_delete_session(self, ctx: E2ETestContext):
+        # Create a session
+        session = await ctx.client.create_session()
+        session_id = session.session_id
+
+        # Verify session exists in the list
+        sessions = await ctx.client.list_sessions()
+        session_ids = [s["sessionId"] for s in sessions]
+        assert session_id in session_ids
+
+        # Delete the session
+        await ctx.client.delete_session(session_id)
+
+        # Verify session no longer exists in the list
+        sessions_after = await ctx.client.list_sessions()
+        session_ids_after = [s["sessionId"] for s in sessions_after]
+        assert session_id not in session_ids_after
+
+        # Verify we cannot resume the deleted session
+        with pytest.raises(Exception):
+            await ctx.client.resume_session(session_id)
+
     async def test_should_create_session_with_custom_tool(self, ctx: E2ETestContext):
         # This test uses the low-level Tool() API to show that Pydantic is optional
         def get_secret_number_handler(invocation):

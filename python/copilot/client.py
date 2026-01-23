@@ -659,6 +659,38 @@ class CopilotClient:
         response = await self._client.request("session.list", {})
         return response.get("sessions", [])
 
+    async def delete_session(self, session_id: str) -> None:
+        """
+        Delete a session permanently.
+
+        This permanently removes the session and all its conversation history.
+        The session cannot be resumed after deletion.
+
+        Args:
+            session_id: The ID of the session to delete.
+
+        Raises:
+            RuntimeError: If the client is not connected.
+            Exception: If the session does not exist or deletion fails.
+
+        Example:
+            >>> await client.delete_session("session-123")
+        """
+        if not self._client:
+            raise RuntimeError("Client not connected")
+
+        response = await self._client.request("session.delete", {"sessionId": session_id})
+
+        success = response.get("success", False)
+        if not success:
+            error = response.get("error", "Unknown error")
+            raise Exception(f"Failed to delete session {session_id}: {error}")
+
+        # Remove from local sessions map if present
+        with self._sessions_lock:
+            if session_id in self._sessions:
+                del self._sessions[session_id]
+
     async def _verify_protocol_version(self) -> None:
         """Verify that the server's protocol version matches the SDK's expected version."""
         expected_version = get_sdk_protocol_version()
