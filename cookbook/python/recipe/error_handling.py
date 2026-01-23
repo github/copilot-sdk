@@ -9,7 +9,7 @@ async def main():
     try:
         await client.start()
         # Ensure model is passed as part of a dict
-        session = await client.create_session({"model": "gpt-4"})
+        session = await client.create_session({"model": "gpt-5"})
 
         # Using a list to allow modification inside inner function (closure workaround)
         # or nonlocal would work if defined inside main
