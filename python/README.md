@@ -16,7 +16,7 @@ uv pip install -e ".[dev]"
 
 ```python
 import asyncio
-from copilot import CopilotClient
+from copilot import CopilotClient, SessionEvent
 
 async def main():
     # Create and start client
@@ -29,7 +29,7 @@ async def main():
     # Wait for response using session.idle event
     done = asyncio.Event()
 
-    def on_event(event):
+    def on_event(event: SessionEvent):
         if event.type.value == "assistant.message":
             print(event.data.content)
         elif event.type.value == "session.idle":
@@ -73,7 +73,7 @@ await client.start()
 
 session = await client.create_session({"model": "gpt-5"})
 
-def on_event(event):
+def on_event(event: SessionEvent):
     print(f"Event: {event['type']}")
 
 session.on(on_event)
@@ -185,7 +185,7 @@ Enable streaming to receive assistant response chunks as they're generated:
 
 ```python
 import asyncio
-from copilot import CopilotClient
+from copilot import CopilotClient, SessionEvent
 
 async def main():
     client = CopilotClient()
@@ -199,7 +199,7 @@ async def main():
     # Use asyncio.Event to wait for completion
     done = asyncio.Event()
 
-    def on_event(event):
+    def on_event(event: SessionEvent):
         if event.type.value == "assistant.message_delta":
             # Streaming message chunk - print incrementally
             delta = event.data.delta_content or ""
