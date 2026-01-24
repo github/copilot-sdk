@@ -325,6 +325,36 @@ When enabled, sessions emit compaction events:
 - `session.compaction_start` - Background compaction started
 - `session.compaction_complete` - Compaction finished (includes token counts)
 
+## MCP Servers
+
+Configure local and remote MCP server usage:
+
+```go
+mcpServers := map[string]copilot.MCPServerConfig{
+    "github": {
+        "type": "http",
+        "url": "https://api.githubcopilot.com/mcp/",
+        "tools": []string{"github-repos", "github-pull-requests"},
+        "headers": map[string]string{
+            "Authorization": "Bearer <token>",
+        },
+    },
+    "local-tools": {
+        "type": "local",
+        "command": "echo",
+        "args": []string{"hello"},
+        "tools": []string{"*"},
+        "env": map[string]string{"DEBUG": "1"},
+    },
+}
+
+session, err := client.CreateSession(&copilot.SessionConfig{
+    MCPServers: mcpServers,
+})
+```
+
+Futher MCP server usage details: [Using MCP servers with the Copilot SDK](../docs/mcp-usage.md)
+
 ## Transport Modes
 
 ### stdio (Default)

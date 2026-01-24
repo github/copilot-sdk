@@ -273,6 +273,31 @@ When enabled, sessions emit compaction events:
 - `session.compaction_start` - Background compaction started
 - `session.compaction_complete` - Compaction finished (includes token counts)
 
+## MCP Servers
+
+Configure local and remote MCP server usage:
+
+```python
+session = await client.create_session({
+    "mcp_servers": {
+        "github": {
+            "type": "http",
+            "url": "https://api.githubcopilot.com/mcp/",
+            "tools": ["github-repos", "github-pull-requests"],
+            "headers": {"Authorization": "Bearer <token>"},
+        },
+        "local-tools": {
+            "type": "local",
+            "command": "echo",
+            "args": ["hello"],
+            "tools": ["*"],
+            "env": {"DEBUG": "1"},
+        }
+    }
+})
+```
+Futher MCP server usage details: [Using MCP servers with the Copilot SDK](../docs/mcp-usage.md)
+
 ## Requirements
 
 - Python 3.9+

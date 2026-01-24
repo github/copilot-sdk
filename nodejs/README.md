@@ -263,6 +263,31 @@ When `streaming: true`:
 
 Note: `assistant.message` and `assistant.reasoning` (final events) are always sent regardless of streaming setting.
 
+## MCP Servers
+
+Configure local and remote MCP server usage:
+
+```ts
+const session = await client.createSession({
+  mcpServers: {
+    "github": {
+      type: "http",
+      url: "https://api.githubcopilot.com/mcp/",
+      tools: ["github-repos", "github-pull-requests"],
+      headers: { Authorization: "Bearer <token>" },
+    } as MCPRemoteServerConfig,
+    "local-tools": {
+      type: "local",
+      command: "node",
+      args: ["./local-mcp-server.js"],
+      tools: ["my-tool"],
+      env: { "DEBUG": "1" },
+    } as MCPLocalServerConfig,
+  },
+});
+```
+Futher MCP server usage details: [Using MCP servers with the Copilot SDK](../docs/mcp-usage.md)
+
 ## Advanced Usage
 
 ### Manual Server Control

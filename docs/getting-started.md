@@ -839,10 +839,13 @@ const session = await client.createSession({
         github: {
             type: "http",
             url: "https://api.githubcopilot.com/mcp/",
+            tools: ["*"]
         },
     },
 });
 ```
+Learn more about MCP server usage: [Using MCP servers with the Copilot SDK](./mcp-usage.md)
+
 
 ### Create Custom Agents
 

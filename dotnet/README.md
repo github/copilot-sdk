@@ -323,6 +323,41 @@ When enabled, sessions emit compaction events:
 - `SessionCompactionStartEvent` - Background compaction started
 - `SessionCompactionCompleteEvent` - Compaction finished (includes token counts)
 
+## MCP Servers
+
+Configure local and remote MCP server usage:
+
+```csharp
+var mcpServers = new Dictionary<string, object>
+{
+    ["github"] = new McpRemoteServerConfig
+    {
+        Type = "http",
+        Url = "https://api.githubcopilot.com/mcp/",
+        Tools = new[] { "github-repos", "github-pull-requests" },
+        Headers = new Dictionary<string, string>
+        {
+            ["Authorization"] = "Bearer <token>"
+        }
+    },
+    ["local-tools"] = new McpLocalServerConfig
+    {
+        Type = "local",
+        Command = "echo",
+        Args = new[] { "hello" },
+        Tools = new[] { "*" },
+        Env = new Dictionary<string, string> { ["DEBUG"] = "1" }
+    }
+};
+
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    McpServers = mcpServers
+});
+```
+
+Futher MCP server usage details: [Using MCP servers with the Copilot SDK](../docs/mcp-usage.md)
+
 ## Advanced Usage
 
 ### Manual Server Control
