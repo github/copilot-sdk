@@ -43,6 +43,12 @@ func Bool(v bool) *bool {
 	return &v
 }
 
+// Float64 returns a pointer to the given float64 value.
+// Use for setting thresholds: BackgroundCompactionThreshold: Float64(0.80)
+func Float64(v float64) *float64 {
+	return &v
+}
+
 // SystemMessageAppendConfig is append mode: use CLI foundation with optional appended content.
 type SystemMessageAppendConfig struct {
 	// Mode is optional, defaults to "append"
@@ -132,6 +138,20 @@ type CustomAgentConfig struct {
 	Infer *bool `json:"infer,omitempty"`
 }
 
+// InfiniteSessionConfig configures infinite sessions with automatic context compaction
+// and workspace persistence. When enabled, sessions automatically manage context window
+// limits through background compaction and persist state to a workspace directory.
+type InfiniteSessionConfig struct {
+	// Enabled controls whether infinite sessions are enabled (default: true)
+	Enabled *bool
+	// BackgroundCompactionThreshold is the context utilization (0.0-1.0) at which
+	// background compaction starts. Default: 0.80
+	BackgroundCompactionThreshold *float64
+	// BufferExhaustionThreshold is the context utilization (0.0-1.0) at which
+	// the session blocks until compaction completes. Default: 0.95
+	BufferExhaustionThreshold *float64
+}
+
 // SessionConfig configures a new session
 type SessionConfig struct {
 	// SessionID is an optional custom session ID
@@ -167,6 +187,9 @@ type SessionConfig struct {
 	SkillDirectories []string
 	// DisabledSkills is a list of skill names to disable
 	DisabledSkills []string
+	// InfiniteSessions configures infinite sessions for persistent workspaces and automatic compaction.
+	// When enabled (default), sessions automatically manage context limits and persist state.
+	InfiniteSessions *InfiniteSessionConfig
 }
 
 // Tool describes a caller-implemented tool that can be invoked by Copilot

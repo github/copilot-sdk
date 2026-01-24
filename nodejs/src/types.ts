@@ -312,6 +312,33 @@ export interface CustomAgentConfig {
     infer?: boolean;
 }
 
+/**
+ * Configuration for infinite sessions with automatic context compaction and workspace persistence.
+ * When enabled, sessions automatically manage context window limits through background compaction
+ * and persist state to a workspace directory.
+ */
+export interface InfiniteSessionConfig {
+    /**
+     * Whether infinite sessions are enabled.
+     * @default true
+     */
+    enabled?: boolean;
+
+    /**
+     * Context utilization threshold (0.0-1.0) at which background compaction starts.
+     * Compaction runs asynchronously, allowing the session to continue processing.
+     * @default 0.80
+     */
+    backgroundCompactionThreshold?: number;
+
+    /**
+     * Context utilization threshold (0.0-1.0) at which the session blocks until compaction completes.
+     * This prevents context overflow when compaction hasn't finished in time.
+     * @default 0.95
+     */
+    bufferExhaustionThreshold?: number;
+}
+
 export interface SessionConfig {
     /**
      * Optional custom session ID
@@ -394,6 +421,13 @@ export interface SessionConfig {
      * List of skill names to disable.
      */
     disabledSkills?: string[];
+
+    /**
+     * Infinite session configuration for persistent workspaces and automatic compaction.
+     * When enabled (default), sessions automatically manage context limits and persist state.
+     * Set to `{ enabled: false }` to disable.
+     */
+    infiniteSessions?: InfiniteSessionConfig;
 }
 
 /**

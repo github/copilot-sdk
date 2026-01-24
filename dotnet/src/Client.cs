@@ -344,12 +344,13 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
             config?.CustomAgents,
             config?.ConfigDir,
             config?.SkillDirectories,
-            config?.DisabledSkills);
+            config?.DisabledSkills,
+            config?.InfiniteSessions);
 
         var response = await connection.Rpc.InvokeWithCancellationAsync<CreateSessionResponse>(
             "session.create", [request], cancellationToken);
 
-        var session = new CopilotSession(response.SessionId, connection.Rpc);
+        var session = new CopilotSession(response.SessionId, connection.Rpc, response.WorkspacePath);
         session.RegisterTools(config?.Tools ?? []);
         if (config?.OnPermissionRequest != null)
         {
@@ -406,7 +407,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         var response = await connection.Rpc.InvokeWithCancellationAsync<ResumeSessionResponse>(
             "session.resume", [request], cancellationToken);
 
-        var session = new CopilotSession(response.SessionId, connection.Rpc);
+        var session = new CopilotSession(response.SessionId, connection.Rpc, response.WorkspacePath);
         session.RegisterTools(config?.Tools ?? []);
         if (config?.OnPermissionRequest != null)
         {
@@ -991,7 +992,8 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         List<CustomAgentConfig>? CustomAgents,
         string? ConfigDir,
         List<string>? SkillDirectories,
-        List<string>? DisabledSkills);
+        List<string>? DisabledSkills,
+        InfiniteSessionConfig? InfiniteSessions);
 
     internal record ToolDefinition(
         string Name,
@@ -1003,7 +1005,8 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     }
 
     internal record CreateSessionResponse(
-        string SessionId);
+        string SessionId,
+        string? WorkspacePath);
 
     internal record ResumeSessionRequest(
         string SessionId,
@@ -1017,7 +1020,8 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         List<string>? DisabledSkills);
 
     internal record ResumeSessionResponse(
-        string SessionId);
+        string SessionId,
+        string? WorkspacePath);
 
     internal record GetLastSessionIdResponse(
         string? SessionId);

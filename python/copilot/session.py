@@ -48,7 +48,7 @@ class CopilotSession:
         ...     unsubscribe()
     """
 
-    def __init__(self, session_id: str, client: Any):
+    def __init__(self, session_id: str, client: Any, workspace_path: Optional[str] = None):
         """
         Initialize a new CopilotSession.
 
@@ -59,15 +59,28 @@ class CopilotSession:
         Args:
             session_id: The unique identifier for this session.
             client: The internal client connection to the Copilot CLI.
+            workspace_path: Path to the session workspace directory
+                (when infinite sessions enabled).
         """
         self.session_id = session_id
         self._client = client
+        self._workspace_path = workspace_path
         self._event_handlers: set[Callable[[SessionEvent], None]] = set()
         self._event_handlers_lock = threading.Lock()
         self._tool_handlers: dict[str, ToolHandler] = {}
         self._tool_handlers_lock = threading.Lock()
         self._permission_handler: Optional[PermissionHandler] = None
         self._permission_handler_lock = threading.Lock()
+
+    @property
+    def workspace_path(self) -> Optional[str]:
+        """
+        Path to the session workspace directory when infinite sessions are enabled.
+
+        Contains checkpoints/, plan.md, and files/ subdirectories.
+        None if infinite sessions are disabled.
+        """
+        return self._workspace_path
 
     async def send(self, options: MessageOptions) -> str:
         """

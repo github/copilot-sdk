@@ -97,10 +97,11 @@ Create a new conversation session.
 - `ExcludedTools` - List of tool names to disable
 - `Provider` - Custom API provider configuration (BYOK)
 - `Streaming` - Enable streaming of response chunks (default: false)
+- `InfiniteSessions` - Configure automatic context compaction (see below)
 
 ##### `ResumeSessionAsync(string sessionId, ResumeSessionConfig? config = null): Task<CopilotSession>`
 
-Resume an existing session.
+Resume an existing session. Returns the session with `WorkspacePath` populated if infinite sessions were enabled.
 
 ##### `PingAsync(string? message = null): Task<PingResponse>`
 
@@ -127,6 +128,7 @@ Represents a single conversation session.
 #### Properties
 
 - `SessionId` - The unique identifier for this session
+- `WorkspacePath` - Path to the session workspace directory when infinite sessions are enabled. Contains `checkpoints/`, `plan.md`, and `files/` subdirectories. Null if infinite sessions are disabled.
 
 #### Methods
 
@@ -280,6 +282,46 @@ When `Streaming = true`:
 - The final `AssistantMessageEvent` and `AssistantReasoningEvent` events contain the complete content
 
 Note: `AssistantMessageEvent` and `AssistantReasoningEvent` (final events) are always sent regardless of streaming setting.
+
+## Infinite Sessions
+
+By default, sessions use **infinite sessions** which automatically manage context window limits through background compaction and persist state to a workspace directory.
+
+```csharp
+// Default: infinite sessions enabled with default thresholds
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    Model = "gpt-5"
+});
+
+// Access the workspace path for checkpoints and files
+Console.WriteLine(session.WorkspacePath);
+// => ~/.copilot/session-state/{sessionId}/
+
+// Custom thresholds
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    Model = "gpt-5",
+    InfiniteSessions = new InfiniteSessionConfig
+    {
+        Enabled = true,
+        BackgroundCompactionThreshold = 0.80, // Start compacting at 80% context usage
+        BufferExhaustionThreshold = 0.95      // Block at 95% until compaction completes
+    }
+});
+
+// Disable infinite sessions
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    Model = "gpt-5",
+    InfiniteSessions = new InfiniteSessionConfig { Enabled = false }
+});
+```
+
+When enabled, sessions emit compaction events:
+
+- `SessionCompactionStartEvent` - Background compaction started
+- `SessionCompactionCompleteEvent` - Compaction finished (includes token counts)
 
 ## Advanced Usage
 

@@ -239,6 +239,40 @@ When `streaming=True`:
 
 Note: `assistant.message` and `assistant.reasoning` (final events) are always sent regardless of streaming setting.
 
+## Infinite Sessions
+
+By default, sessions use **infinite sessions** which automatically manage context window limits through background compaction and persist state to a workspace directory.
+
+```python
+# Default: infinite sessions enabled with default thresholds
+session = await client.create_session({"model": "gpt-5"})
+
+# Access the workspace path for checkpoints and files
+print(session.workspace_path)
+# => ~/.copilot/session-state/{session_id}/
+
+# Custom thresholds
+session = await client.create_session({
+    "model": "gpt-5",
+    "infinite_sessions": {
+        "enabled": True,
+        "background_compaction_threshold": 0.80,  # Start compacting at 80% context usage
+        "buffer_exhaustion_threshold": 0.95,  # Block at 95% until compaction completes
+    },
+})
+
+# Disable infinite sessions
+session = await client.create_session({
+    "model": "gpt-5",
+    "infinite_sessions": {"enabled": False},
+})
+```
+
+When enabled, sessions emit compaction events:
+
+- `session.compaction_start` - Background compaction started
+- `session.compaction_complete` - Compaction finished (includes token counts)
+
 ## Requirements
 
 - Python 3.9+

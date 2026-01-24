@@ -298,6 +298,36 @@ public class CustomAgentConfig
     public bool? Infer { get; set; }
 }
 
+/// <summary>
+/// Configuration for infinite sessions with automatic context compaction and workspace persistence.
+/// When enabled, sessions automatically manage context window limits through background compaction
+/// and persist state to a workspace directory.
+/// </summary>
+public class InfiniteSessionConfig
+{
+    /// <summary>
+    /// Whether infinite sessions are enabled. Default: true
+    /// </summary>
+    [JsonPropertyName("enabled")]
+    public bool? Enabled { get; set; }
+
+    /// <summary>
+    /// Context utilization threshold (0.0-1.0) at which background compaction starts.
+    /// Compaction runs asynchronously, allowing the session to continue processing.
+    /// Default: 0.80
+    /// </summary>
+    [JsonPropertyName("backgroundCompactionThreshold")]
+    public double? BackgroundCompactionThreshold { get; set; }
+
+    /// <summary>
+    /// Context utilization threshold (0.0-1.0) at which the session blocks until compaction completes.
+    /// This prevents context overflow when compaction hasn't finished in time.
+    /// Default: 0.95
+    /// </summary>
+    [JsonPropertyName("bufferExhaustionThreshold")]
+    public double? BufferExhaustionThreshold { get; set; }
+}
+
 public class SessionConfig
 {
     public string? SessionId { get; set; }
@@ -348,6 +378,12 @@ public class SessionConfig
     /// List of skill names to disable.
     /// </summary>
     public List<string>? DisabledSkills { get; set; }
+
+    /// <summary>
+    /// Infinite session configuration for persistent workspaces and automatic compaction.
+    /// When enabled (default), sessions automatically manage context limits and persist state.
+    /// </summary>
+    public InfiniteSessionConfig? InfiniteSessions { get; set; }
 }
 
 public class ResumeSessionConfig

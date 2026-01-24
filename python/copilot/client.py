@@ -421,12 +421,29 @@ class CopilotClient:
         if disabled_skills:
             payload["disabledSkills"] = disabled_skills
 
+        # Add infinite sessions configuration if provided
+        infinite_sessions = cfg.get("infinite_sessions")
+        if infinite_sessions:
+            wire_config: dict[str, Any] = {}
+            if "enabled" in infinite_sessions:
+                wire_config["enabled"] = infinite_sessions["enabled"]
+            if "background_compaction_threshold" in infinite_sessions:
+                wire_config["backgroundCompactionThreshold"] = infinite_sessions[
+                    "background_compaction_threshold"
+                ]
+            if "buffer_exhaustion_threshold" in infinite_sessions:
+                wire_config["bufferExhaustionThreshold"] = infinite_sessions[
+                    "buffer_exhaustion_threshold"
+                ]
+            payload["infiniteSessions"] = wire_config
+
         if not self._client:
             raise RuntimeError("Client not connected")
         response = await self._client.request("session.create", payload)
 
         session_id = response["sessionId"]
-        session = CopilotSession(session_id, self._client)
+        workspace_path = response.get("workspacePath")
+        session = CopilotSession(session_id, self._client, workspace_path)
         session._register_tools(tools)
         if on_permission_request:
             session._register_permission_handler(on_permission_request)
@@ -529,7 +546,8 @@ class CopilotClient:
         response = await self._client.request("session.resume", payload)
 
         resumed_session_id = response["sessionId"]
-        session = CopilotSession(resumed_session_id, self._client)
+        workspace_path = response.get("workspacePath")
+        session = CopilotSession(resumed_session_id, self._client, workspace_path)
         session._register_tools(cfg.get("tools"))
         if on_permission_request:
             session._register_permission_handler(on_permission_request)

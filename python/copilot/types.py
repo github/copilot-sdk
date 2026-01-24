@@ -193,6 +193,27 @@ class CustomAgentConfig(TypedDict, total=False):
     infer: NotRequired[bool]  # Whether agent is available for model inference
 
 
+class InfiniteSessionConfig(TypedDict, total=False):
+    """
+    Configuration for infinite sessions with automatic context compaction
+    and workspace persistence.
+
+    When enabled, sessions automatically manage context window limits through
+    background compaction and persist state to a workspace directory.
+    """
+
+    # Whether infinite sessions are enabled (default: True)
+    enabled: bool
+    # Context utilization threshold (0.0-1.0) at which background compaction starts.
+    # Compaction runs asynchronously, allowing the session to continue processing.
+    # Default: 0.80
+    background_compaction_threshold: float
+    # Context utilization threshold (0.0-1.0) at which the session blocks until
+    # compaction completes. This prevents context overflow when compaction hasn't
+    # finished in time. Default: 0.95
+    buffer_exhaustion_threshold: float
+
+
 # Configuration for creating a session
 class SessionConfig(TypedDict, total=False):
     """Configuration for creating a session"""
@@ -224,6 +245,10 @@ class SessionConfig(TypedDict, total=False):
     skill_directories: list[str]
     # List of skill names to disable
     disabled_skills: list[str]
+    # Infinite session configuration for persistent workspaces and automatic compaction.
+    # When enabled (default), sessions automatically manage context limits and persist state.
+    # Set to {"enabled": False} to disable.
+    infinite_sessions: InfiniteSessionConfig
 
 
 # Azure-specific provider options

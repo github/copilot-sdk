@@ -89,10 +89,11 @@ Create a new conversation session.
 - `model?: string` - Model to use ("gpt-5", "claude-sonnet-4.5", etc.)
 - `tools?: Tool[]` - Custom tools exposed to the CLI
 - `systemMessage?: SystemMessageConfig` - System message customization (see below)
+- `infiniteSessions?: InfiniteSessionConfig` - Configure automatic context compaction (see below)
 
 ##### `resumeSession(sessionId: string, config?: ResumeSessionConfig): Promise<CopilotSession>`
 
-Resume an existing session.
+Resume an existing session. Returns the session with `workspacePath` populated if infinite sessions were enabled.
 
 ##### `ping(message?: string): Promise<{ message: string; timestamp: number }>`
 
@@ -115,6 +116,16 @@ Delete a session and its data from disk.
 ### CopilotSession
 
 Represents a single conversation session.
+
+#### Properties
+
+##### `sessionId: string`
+
+The unique identifier for this session.
+
+##### `workspacePath?: string`
+
+Path to the session workspace directory when infinite sessions are enabled. Contains `checkpoints/`, `plan.md`, and `files/` subdirectories. Undefined if infinite sessions are disabled.
 
 #### Methods
 
@@ -326,6 +337,40 @@ const session = await client.createSession({
     },
 });
 ```
+
+### Infinite Sessions
+
+By default, sessions use **infinite sessions** which automatically manage context window limits through background compaction and persist state to a workspace directory.
+
+```typescript
+// Default: infinite sessions enabled with default thresholds
+const session = await client.createSession({ model: "gpt-5" });
+
+// Access the workspace path for checkpoints and files
+console.log(session.workspacePath);
+// => ~/.copilot/session-state/{sessionId}/
+
+// Custom thresholds
+const session = await client.createSession({
+    model: "gpt-5",
+    infiniteSessions: {
+        enabled: true,
+        backgroundCompactionThreshold: 0.80, // Start compacting at 80% context usage
+        bufferExhaustionThreshold: 0.95, // Block at 95% until compaction completes
+    },
+});
+
+// Disable infinite sessions
+const session = await client.createSession({
+    model: "gpt-5",
+    infiniteSessions: { enabled: false },
+});
+```
+
+When enabled, sessions emit compaction events:
+
+- `session.compaction_start` - Background compaction started
+- `session.compaction_complete` - Compaction finished (includes token counts)
 
 ### Multiple Sessions
 

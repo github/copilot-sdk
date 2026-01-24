@@ -544,6 +544,20 @@ func (c *Client) CreateSession(config *SessionConfig) (*Session, error) {
 		if len(config.DisabledSkills) > 0 {
 			params["disabledSkills"] = config.DisabledSkills
 		}
+		// Add infinite sessions configuration
+		if config.InfiniteSessions != nil {
+			infiniteSessions := make(map[string]interface{})
+			if config.InfiniteSessions.Enabled != nil {
+				infiniteSessions["enabled"] = *config.InfiniteSessions.Enabled
+			}
+			if config.InfiniteSessions.BackgroundCompactionThreshold != nil {
+				infiniteSessions["backgroundCompactionThreshold"] = *config.InfiniteSessions.BackgroundCompactionThreshold
+			}
+			if config.InfiniteSessions.BufferExhaustionThreshold != nil {
+				infiniteSessions["bufferExhaustionThreshold"] = *config.InfiniteSessions.BufferExhaustionThreshold
+			}
+			params["infiniteSessions"] = infiniteSessions
+		}
 	}
 
 	result, err := c.client.Request("session.create", params)
@@ -556,7 +570,9 @@ func (c *Client) CreateSession(config *SessionConfig) (*Session, error) {
 		return nil, fmt.Errorf("invalid response: missing sessionId")
 	}
 
-	session := NewSession(sessionID, c.client)
+	workspacePath, _ := result["workspacePath"].(string)
+
+	session := NewSession(sessionID, c.client, workspacePath)
 
 	if config != nil {
 		session.registerTools(config.Tools)
@@ -692,7 +708,9 @@ func (c *Client) ResumeSessionWithOptions(sessionID string, config *ResumeSessio
 		return nil, fmt.Errorf("invalid response: missing sessionId")
 	}
 
-	session := NewSession(resumedSessionID, c.client)
+	workspacePath, _ := result["workspacePath"].(string)
+
+	session := NewSession(resumedSessionID, c.client, workspacePath)
 	if config != nil {
 		session.registerTools(config.Tools)
 		if config.OnPermissionRequest != nil {

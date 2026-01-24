@@ -452,10 +452,14 @@ export class CopilotClient {
             configDir: config.configDir,
             skillDirectories: config.skillDirectories,
             disabledSkills: config.disabledSkills,
+            infiniteSessions: config.infiniteSessions,
         });
 
-        const sessionId = (response as { sessionId: string }).sessionId;
-        const session = new CopilotSession(sessionId, this.connection!);
+        const { sessionId, workspacePath } = response as {
+            sessionId: string;
+            workspacePath?: string;
+        };
+        const session = new CopilotSession(sessionId, this.connection!, workspacePath);
         session.registerTools(config.tools);
         if (config.onPermissionRequest) {
             session.registerPermissionHandler(config.onPermissionRequest);
@@ -516,8 +520,11 @@ export class CopilotClient {
             disabledSkills: config.disabledSkills,
         });
 
-        const resumedSessionId = (response as { sessionId: string }).sessionId;
-        const session = new CopilotSession(resumedSessionId, this.connection!);
+        const { sessionId: resumedSessionId, workspacePath } = response as {
+            sessionId: string;
+            workspacePath?: string;
+        };
+        const session = new CopilotSession(resumedSessionId, this.connection!, workspacePath);
         session.registerTools(config.tools);
         if (config.onPermissionRequest) {
             session.registerPermissionHandler(config.onPermissionRequest);

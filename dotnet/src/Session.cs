@@ -56,17 +56,28 @@ public partial class CopilotSession : IAsyncDisposable
     public string SessionId { get; }
 
     /// <summary>
+    /// Gets the path to the session workspace directory when infinite sessions are enabled.
+    /// </summary>
+    /// <value>
+    /// The path to the workspace containing checkpoints/, plan.md, and files/ subdirectories,
+    /// or null if infinite sessions are disabled.
+    /// </value>
+    public string? WorkspacePath { get; }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="CopilotSession"/> class.
     /// </summary>
     /// <param name="sessionId">The unique identifier for this session.</param>
     /// <param name="rpc">The JSON-RPC connection to the Copilot CLI.</param>
+    /// <param name="workspacePath">The workspace path if infinite sessions are enabled.</param>
     /// <remarks>
     /// This constructor is internal. Use <see cref="CopilotClient.CreateSessionAsync"/> to create sessions.
     /// </remarks>
-    internal CopilotSession(string sessionId, JsonRpc rpc)
+    internal CopilotSession(string sessionId, JsonRpc rpc, string? workspacePath = null)
     {
         SessionId = sessionId;
         _rpc = rpc;
+        WorkspacePath = workspacePath;
     }
 
     /// <summary>

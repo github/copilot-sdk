@@ -287,6 +287,44 @@ When `Streaming: true`:
 
 Note: `assistant.message` and `assistant.reasoning` (final events) are always sent regardless of streaming setting.
 
+## Infinite Sessions
+
+By default, sessions use **infinite sessions** which automatically manage context window limits through background compaction and persist state to a workspace directory.
+
+```go
+// Default: infinite sessions enabled with default thresholds
+session, _ := client.CreateSession(&copilot.SessionConfig{
+    Model: "gpt-5",
+})
+
+// Access the workspace path for checkpoints and files
+fmt.Println(session.WorkspacePath())
+// => ~/.copilot/session-state/{sessionId}/
+
+// Custom thresholds
+session, _ := client.CreateSession(&copilot.SessionConfig{
+    Model: "gpt-5",
+    InfiniteSessions: &copilot.InfiniteSessionConfig{
+        Enabled:                       copilot.Bool(true),
+        BackgroundCompactionThreshold: copilot.Float64(0.80), // Start compacting at 80% context usage
+        BufferExhaustionThreshold:     copilot.Float64(0.95), // Block at 95% until compaction completes
+    },
+})
+
+// Disable infinite sessions
+session, _ := client.CreateSession(&copilot.SessionConfig{
+    Model: "gpt-5",
+    InfiniteSessions: &copilot.InfiniteSessionConfig{
+        Enabled: copilot.Bool(false),
+    },
+})
+```
+
+When enabled, sessions emit compaction events:
+
+- `session.compaction_start` - Background compaction started
+- `session.compaction_complete` - Compaction finished (includes token counts)
+
 ## Transport Modes
 
 ### stdio (Default)

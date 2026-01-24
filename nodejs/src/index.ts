@@ -17,6 +17,7 @@ export type {
     CustomAgentConfig,
     GetAuthStatusResponse,
     GetStatusResponse,
+    InfiniteSessionConfig,
     MCPLocalServerConfig,
     MCPRemoteServerConfig,
     MCPServerConfig,

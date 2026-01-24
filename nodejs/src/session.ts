@@ -57,12 +57,23 @@ export class CopilotSession {
      *
      * @param sessionId - The unique identifier for this session
      * @param connection - The JSON-RPC message connection to the Copilot CLI
+     * @param workspacePath - Path to the session workspace directory (when infinite sessions enabled)
      * @internal This constructor is internal. Use {@link CopilotClient.createSession} to create sessions.
      */
     constructor(
         public readonly sessionId: string,
-        private connection: MessageConnection
+        private connection: MessageConnection,
+        private readonly _workspacePath?: string
     ) {}
+
+    /**
+     * Path to the session workspace directory when infinite sessions are enabled.
+     * Contains checkpoints/, plan.md, and files/ subdirectories.
+     * Undefined if infinite sessions are disabled.
+     */
+    get workspacePath(): string | undefined {
+        return this._workspacePath;
+    }
 
     /**
      * Sends a message to this session and waits for the response.

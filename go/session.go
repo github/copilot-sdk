@@ -47,6 +47,7 @@ type sessionHandler struct {
 type Session struct {
 	// SessionID is the unique identifier for this session.
 	SessionID         string
+	workspacePath     string
 	client            *JSONRPCClient
 	handlers          []sessionHandler
 	nextHandlerID     uint64
@@ -57,16 +58,24 @@ type Session struct {
 	permissionMux     sync.RWMutex
 }
 
+// WorkspacePath returns the path to the session workspace directory when infinite
+// sessions are enabled. Contains checkpoints/, plan.md, and files/ subdirectories.
+// Returns empty string if infinite sessions are disabled.
+func (s *Session) WorkspacePath() string {
+	return s.workspacePath
+}
+
 // NewSession creates a new session wrapper with the given session ID and client.
 //
 // Note: This function is primarily for internal use. Use [Client.CreateSession]
 // to create sessions with proper initialization.
-func NewSession(sessionID string, client *JSONRPCClient) *Session {
+func NewSession(sessionID string, client *JSONRPCClient, workspacePath string) *Session {
 	return &Session{
-		SessionID:    sessionID,
-		client:       client,
-		handlers:     make([]sessionHandler, 0),
-		toolHandlers: make(map[string]ToolHandler),
+		SessionID:     sessionID,
+		workspacePath: workspacePath,
+		client:        client,
+		handlers:      make([]sessionHandler, 0),
+		toolHandlers:  make(map[string]ToolHandler),
 	}
 }
 
