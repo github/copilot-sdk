@@ -75,7 +75,7 @@ func TestCompaction(t *testing.T) {
 				t.Errorf("Expected compaction to succeed")
 			}
 			if lastComplete.Data.TokensRemoved != nil && *lastComplete.Data.TokensRemoved <= 0 {
-				t.Errorf("Expected tokensRemoved > 0, got %d", *lastComplete.Data.TokensRemoved)
+				t.Errorf("Expected tokensRemoved > 0, got %v", *lastComplete.Data.TokensRemoved)
 			}
 		}
 
