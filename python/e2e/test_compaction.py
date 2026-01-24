@@ -2,7 +2,7 @@
 
 import pytest
 
-from copilot.types import SessionEventType
+from copilot.generated.session_events import SessionEventType
 
 from .testharness import E2ETestContext
 
