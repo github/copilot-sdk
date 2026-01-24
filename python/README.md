@@ -288,8 +288,8 @@ session = await client.create_session({
         },
         "local-tools": {
             "type": "local",
-            "command": "echo",
-            "args": ["hello"],
+            "command": "python3",
+            "args": ["./mcp_server.py"],
             "tools": ["*"],
             "env": {"DEBUG": "1"},
         }

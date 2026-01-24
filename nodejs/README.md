@@ -279,8 +279,8 @@ const session = await client.createSession({
     "local-tools": {
       type: "local",
       command: "node",
-      args: ["./local-mcp-server.js"],
-      tools: ["my-tool"],
+      args: ["./mcp_server.js"],
+      tools: ["*"],
       env: { "DEBUG": "1" },
     } as MCPLocalServerConfig,
   },

@@ -334,7 +334,7 @@ var mcpServers = new Dictionary<string, object>
     {
         Type = "http",
         Url = "https://api.githubcopilot.com/mcp/",
-        Tools = new[] { "github-repos", "github-pull-requests" },
+        Tools = ["github-repos", "github-pull-requests"],
         Headers = new Dictionary<string, string>
         {
             ["Authorization"] = "Bearer <token>"
@@ -343,14 +343,14 @@ var mcpServers = new Dictionary<string, object>
     ["local-tools"] = new McpLocalServerConfig
     {
         Type = "local",
-        Command = "echo",
-        Args = new[] { "hello" },
-        Tools = new[] { "*" },
+        Command = "dotnet",
+        Args = ["./mcp_server.dll"],
+        Tools = ["*"],
         Env = new Dictionary<string, string> { ["DEBUG"] = "1" }
     }
 };
 
-var session = await client.CreateSessionAsync(new SessionConfig
+await using var session = await client.CreateSessionAsync(new SessionConfig
 {
     McpServers = mcpServers
 });

@@ -32,7 +32,6 @@ Below are examples for configuring both local and remote MCP servers:
 import { CopilotClient, type MCPLocalServerConfig, type MCPRemoteServerConfig } from "@github/copilot-sdk";
 
 const client = new CopilotClient();
-await client.start();
 
 const session = await client.createSession({
   mcpServers: {
@@ -45,30 +44,20 @@ const session = await client.createSession({
     "local-tools": {
       type: "local",
       command: "node",
-      args: ["./local-mcp-server.js"],
-      tools: ["my-tool"],
+      args: ["./mcp_server.js"],
+      tools: ["*"],
       env: { "DEBUG": "1" },
     } as MCPLocalServerConfig,
   },
 });
 
-// Wait for response using session.idle event
-const done = new Promise<void>((resolve) => {
-    session.on((event) => {
-        if (event.type === "assistant.message") {
-            console.log(event.data.content);
-        } else if (event.type === "session.idle") {
-            resolve();
-        }
-    });
-});
-
 // Send a message and wait for completion
-await session.send({ prompt: "Use the GitHub MCP Server tools to fetch PR data" });
-await done;
+const response = await session.sendAndWait({ prompt: "Use the local-tools MCP Server to echo 'Hello from Copilot SDK!'." });
 
-await session.destroy();
+console.log(response?.data.content);
+
 await client.stop();
+process.exit(0);
 ```
 
 </details>
@@ -94,18 +83,17 @@ async def main():
             },
             "local-tools": {
                 "type": "local",
-                "command": "echo",
-                "args": ["hello"],
+                "command": "python3",
+                "args": ["./mcp_server.py"],
                 "tools": ["*"],
                 "env": {"DEBUG": "1"},
             }
         }
     })
 
-    done = asyncio.Event()
+    response = await session.send_and_wait({"prompt": "Use the local-tools MCP Server to echo 'Hello from Copilot SDK!'."})
 
-    await session.send({"prompt": "Use the GitHub MCP Server tools to fetch PR data"})
-    await done.wait()
+    print(response.data.content)
 
     await session.destroy()
     await client.stop()
@@ -123,52 +111,54 @@ asyncio.run(main())
 package main
 
 import (
-    "fmt"
-    "log"
+	"fmt"
+	"log"
 
-    copilot "github.com/github/copilot-sdk/go"
+	copilot "github.com/github/copilot-sdk/go"
 )
 
 func main() {
-    client := copilot.NewClient(nil)
+	client := copilot.NewClient(nil)
 
-    if err := client.Start(); err != nil {
-        log.Fatal(err)
-    }
-    defer client.Stop()
+	if err := client.Start(); err != nil {
+		log.Fatal(err)
+	}
+	defer client.Stop()
 
-    mcpServers := map[string]copilot.MCPServerConfig{
-        "github": {
-            "type": "http",
-            "url": "https://api.githubcopilot.com/mcp/",
-            "tools": []string{"github-repos", "github-pull-requests"},
-            "headers": map[string]string{
-                "Authorization": "Bearer <token>",
-            },
-        },
-        "local-tools": {
-            "type": "local",
-            "command": "echo",
-            "args": []string{"hello"},
-            "tools": []string{"*"},
-            "env": map[string]string{"DEBUG": "1"},
-        },
-    }
+	mcpServers := map[string]copilot.MCPServerConfig{
+		"github": {
+			"type":  "http",
+			"url":   "https://api.githubcopilot.com/mcp/",
+			"tools": []string{"github-repos", "github-pull-requests"},
+			"headers": map[string]string{
+				"Authorization": "Bearer <token>",
+			},
+		},
+		"local-tools": {
+			"type":    "local",
+			"command": "go run",
+			"args":    []string{"./mcp_server.go"},
+			"tools":   []string{"*"},
+			"env":     map[string]string{"DEBUG": "1"},
+		},
+	}
 
-    session, err := client.CreateSession(&copilot.SessionConfig{
-        MCPServers: mcpServers,
-    })
-    if err != nil {
-        log.Fatalf("Failed to create session: %v", err)
-    }
-    defer session.Destroy()
+	session, err := client.CreateSession(&copilot.SessionConfig{
+		MCPServers: mcpServers,
+	})
+	if err != nil {
+		log.Fatalf("Failed to create session: %v", err)
+	}
+	defer session.Destroy()
 
-    _, err = session.Send(copilot.MessageOptions{
-        Prompt: "Use the GitHub MCP Server tools to fetch PR data",
-    })
-    if err != nil {
-        log.Fatal(err)
-    }
+	response, err := session.SendAndWait(copilot.MessageOptions{
+		Prompt: "Use the local-tools MCP Server to echo 'Hello from Copilot SDK!'.",
+	}, 0)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(*response.Data.Content)
 }
 ```
 
@@ -181,7 +171,6 @@ func main() {
 using GitHub.Copilot.SDK;
 
 await using var client = new CopilotClient();
-await client.StartAsync();
 
 var mcpServers = new Dictionary<string, object>
 {
@@ -189,7 +178,7 @@ var mcpServers = new Dictionary<string, object>
     {
         Type = "http",
         Url = "https://api.githubcopilot.com/mcp/",
-        Tools = new[] { "github-repos", "github-pull-requests" },
+        Tools = ["github-repos", "github-pull-requests"],
         Headers = new Dictionary<string, string>
         {
             ["Authorization"] = "Bearer <token>"
@@ -198,9 +187,9 @@ var mcpServers = new Dictionary<string, object>
     ["local-tools"] = new McpLocalServerConfig
     {
         Type = "local",
-        Command = "echo",
-        Args = new[] { "hello" },
-        Tools = new[] { "*" },
+        Command = "dotnet",
+        Args = ["./mcp_server.dll"],
+        Tools = ["*"],
         Env = new Dictionary<string, string> { ["DEBUG"] = "1" }
     }
 };
@@ -210,12 +199,8 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
     McpServers = mcpServers
 });
 
-var done = new TaskCompletionSource();
-
-await session.SendAsync(new MessageOptions { Prompt = "What is 2+2?" });
-await done.Task;
-
-await session.DisposeAsync();
+var response = await session.SendAndWaitAsync(new MessageOptions { Prompt = "Use the local-tools MCP Server to echo 'Hello from Copilot SDK!'." });
+Console.WriteLine(response?.Data.Content);
 ```
 
 </details>

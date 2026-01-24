@@ -332,19 +332,19 @@ Configure local and remote MCP server usage:
 ```go
 mcpServers := map[string]copilot.MCPServerConfig{
     "github": {
-        "type": "http",
-        "url": "https://api.githubcopilot.com/mcp/",
+        "type":  "http",
+        "url":   "https://api.githubcopilot.com/mcp/",
         "tools": []string{"github-repos", "github-pull-requests"},
         "headers": map[string]string{
             "Authorization": "Bearer <token>",
         },
     },
     "local-tools": {
-        "type": "local",
-        "command": "echo",
-        "args": []string{"hello"},
-        "tools": []string{"*"},
-        "env": map[string]string{"DEBUG": "1"},
+        "type":    "local",
+        "command": "go run",
+        "args":    []string{"./mcp_server.go"},
+        "tools":   []string{"*"},
+        "env":     map[string]string{"DEBUG": "1"},
     },
 }
 
