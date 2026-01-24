@@ -78,7 +78,7 @@ dependencies = [
     { name = "typing-extensions" },
 ]
 
-[package.optional-dependencies]
+[package.dev-dependencies]
 dev = [
     { name = "httpx" },
     { name = "pytest", version = "8.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
@@ -92,17 +92,20 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.24.0" },
     { name = "pydantic", specifier = ">=2.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
     { name = "python-dateutil", specifier = ">=2.9.0.post0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
-    { name = "ty", marker = "extra == 'dev'", specifier = ">=0.0.2" },
     { name = "typing-extensions", specifier = ">=4.0.0" },
-    { name = "typing-extensions", marker = "extra == 'dev'", specifier = ">=4.0.0" },
 ]
-provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "httpx", specifier = ">=0.24.0" },
+    { name = "pytest", specifier = ">=7.0.0" },
+    { name = "pytest-asyncio", specifier = ">=0.21.0" },
+    { name = "ruff", specifier = ">=0.1.0" },
+    { name = "ty", specifier = ">=0.0.2" },
+    { name = "typing-extensions", specifier = ">=4.0.0" },
+]
 
 [[package]]
 name = "h11"
