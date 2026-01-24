@@ -424,7 +424,7 @@ class CopilotClient:
         # Add infinite sessions configuration if provided
         infinite_sessions = cfg.get("infinite_sessions")
         if infinite_sessions:
-            wire_config: Dict[str, Any] = {}
+            wire_config: dict[str, Any] = {}
             if "enabled" in infinite_sessions:
                 wire_config["enabled"] = infinite_sessions["enabled"]
             if "background_compaction_threshold" in infinite_sessions:
