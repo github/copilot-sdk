@@ -216,3 +216,4 @@ if __name__ == "__main__":
 | Flexibility     | Fixed logic       | **AI decides best approach**      |
 | Chart types     | What you coded    | **Any type Copilot can generate** |
 | Data grouping   | Hardcoded buckets | **Intelligent grouping**          |
+
