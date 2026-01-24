@@ -19,7 +19,7 @@ import re
 import subprocess
 import threading
 from dataclasses import asdict, is_dataclass
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Optional, cast
 
 from .generated.session_events import session_event_from_dict
 from .jsonrpc import JsonRpcClient
@@ -28,11 +28,14 @@ from .session import CopilotSession
 from .types import (
     ConnectionState,
     CopilotClientOptions,
+    CustomAgentConfig,
     GetAuthStatusResponse,
     GetStatusResponse,
     ModelInfo,
+    ProviderConfig,
     ResumeSessionConfig,
     SessionConfig,
+    SessionMetadata,
     ToolHandler,
     ToolInvocation,
     ToolResult,
@@ -131,7 +134,7 @@ class CopilotClient:
         self._process: Optional[subprocess.Popen] = None
         self._client: Optional[JsonRpcClient] = None
         self._state: ConnectionState = "disconnected"
-        self._sessions: Dict[str, CopilotSession] = {}
+        self._sessions: dict[str, CopilotSession] = {}
         self._sessions_lock = threading.Lock()
 
     def _parse_cli_url(self, url: str) -> tuple[str, int]:
@@ -217,7 +220,7 @@ class CopilotClient:
             self._state = "error"
             raise
 
-    async def stop(self) -> List[Dict[str, str]]:
+    async def stop(self) -> list[dict[str, str]]:
         """
         Stop the CLI server and close all active sessions.
 
@@ -236,7 +239,7 @@ class CopilotClient:
             ...     for error in errors:
             ...         print(f"Cleanup error: {error['message']}")
         """
-        errors: List[Dict[str, str]] = []
+        errors: list[dict[str, str]] = []
 
         # Atomically take ownership of all sessions and clear the dict
         # so no other thread can access them
@@ -356,7 +359,7 @@ class CopilotClient:
                     definition["parameters"] = tool.parameters
                 tool_defs.append(definition)
 
-        payload: Dict[str, Any] = {}
+        payload: dict[str, Any] = {}
         if cfg.get("model"):
             payload["model"] = cfg["model"]
         if cfg.get("session_id"):
@@ -498,7 +501,7 @@ class CopilotClient:
                     definition["parameters"] = tool.parameters
                 tool_defs.append(definition)
 
-        payload: Dict[str, Any] = {"sessionId": session_id}
+        payload: dict[str, Any] = {"sessionId": session_id}
         if tool_defs:
             payload["tools"] = tool_defs
 
@@ -629,7 +632,7 @@ class CopilotClient:
 
         return await self._client.request("auth.getStatus", {})
 
-    async def list_models(self) -> List["ModelInfo"]:
+    async def list_models(self) -> list["ModelInfo"]:
         """
         List available models with their metadata.
 
@@ -651,6 +654,62 @@ class CopilotClient:
         response = await self._client.request("models.list", {})
         return response.get("models", [])
 
+    async def list_sessions(self) -> list["SessionMetadata"]:
+        """
+        List all available sessions known to the server.
+
+        Returns metadata about each session including ID, timestamps, and summary.
+
+        Returns:
+            A list of session metadata dictionaries with keys: sessionId (str),
+            startTime (str), modifiedTime (str), summary (str, optional),
+            and isRemote (bool).
+
+        Raises:
+            RuntimeError: If the client is not connected.
+
+        Example:
+            >>> sessions = await client.list_sessions()
+            >>> for session in sessions:
+            ...     print(f"Session: {session['sessionId']}")
+        """
+        if not self._client:
+            raise RuntimeError("Client not connected")
+
+        response = await self._client.request("session.list", {})
+        return response.get("sessions", [])
+
+    async def delete_session(self, session_id: str) -> None:
+        """
+        Delete a session permanently.
+
+        This permanently removes the session and all its conversation history.
+        The session cannot be resumed after deletion.
+
+        Args:
+            session_id: The ID of the session to delete.
+
+        Raises:
+            RuntimeError: If the client is not connected or deletion fails.
+
+        Example:
+            >>> await client.delete_session("session-123")
+        """
+        if not self._client:
+            raise RuntimeError("Client not connected")
+
+        response = await self._client.request("session.delete", {"sessionId": session_id})
+
+        success = response.get("success", False)
+        if not success:
+            error = response.get("error", "Unknown error")
+            raise RuntimeError(f"Failed to delete session {session_id}: {error}")
+
+        # Remove from local sessions map if present
+        with self._sessions_lock:
+            if session_id in self._sessions:
+                del self._sessions[session_id]
+
     async def _verify_protocol_version(self) -> None:
         """Verify that the server's protocol version matches the SDK's expected version."""
         expected_version = get_sdk_protocol_version()
@@ -671,7 +730,9 @@ class CopilotClient:
                 f"Please update your SDK or server to ensure compatibility."
             )
 
-    def _convert_provider_to_wire_format(self, provider: Dict[str, Any]) -> Dict[str, Any]:
+    def _convert_provider_to_wire_format(
+        self, provider: ProviderConfig | dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Convert provider config from snake_case to camelCase wire format.
 
@@ -681,7 +742,7 @@ class CopilotClient:
         Returns:
             The provider configuration in camelCase wire format.
         """
-        wire_provider: Dict[str, Any] = {"type": provider.get("type")}
+        wire_provider: dict[str, Any] = {"type": provider.get("type")}
         if "base_url" in provider:
             wire_provider["baseUrl"] = provider["base_url"]
         if "api_key" in provider:
@@ -692,14 +753,16 @@ class CopilotClient:
             wire_provider["bearerToken"] = provider["bearer_token"]
         if "azure" in provider:
             azure = provider["azure"]
-            wire_azure: Dict[str, Any] = {}
+            wire_azure: dict[str, Any] = {}
             if "api_version" in azure:
                 wire_azure["apiVersion"] = azure["api_version"]
             if wire_azure:
                 wire_provider["azure"] = wire_azure
         return wire_provider
 
-    def _convert_custom_agent_to_wire_format(self, agent: Dict[str, Any]) -> Dict[str, Any]:
+    def _convert_custom_agent_to_wire_format(
+        self, agent: CustomAgentConfig | dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Convert custom agent config from snake_case to camelCase wire format.
 
@@ -709,7 +772,7 @@ class CopilotClient:
         Returns:
             The custom agent configuration in camelCase wire format.
         """
-        wire_agent: Dict[str, Any] = {"name": agent.get("name"), "prompt": agent.get("prompt")}
+        wire_agent: dict[str, Any] = {"name": agent.get("name"), "prompt": agent.get("prompt")}
         if "display_name" in agent:
             wire_agent["displayName"] = agent["display_name"]
         if "description" in agent:

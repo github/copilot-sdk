@@ -19,29 +19,38 @@
 #   gh aw compile
 # For more information: https://github.com/githubnext/gh-aw/blob/main/.github/aw/github-agentic-workflows.md
 #
-# Triages newly opened issues by labeling, acknowledging, requesting clarification, and closing duplicates
+# Reviews PRs to ensure features are implemented consistently across all SDK language implementations
 
-name: "Issue Triage Agent"
+name: "SDK Consistency Review Agent"
 "on":
-  issues:
+  pull_request:
+    paths:
+    - nodejs/**
+    - python/**
+    - go/**
+    - dotnet/**
     types:
     - opened
+    - synchronize
+    - reopened
   workflow_dispatch:
     inputs:
-      issue_number:
-        description: Issue number to triage
+      pr_number:
+        description: PR number to review
         required: true
         type: string
 
 permissions: {}
 
 concurrency:
-  group: "gh-aw-${{ github.workflow }}-${{ github.event.issue.number }}"
+  group: "gh-aw-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}"
+  cancel-in-progress: true
 
-run-name: "Issue Triage Agent"
+run-name: "SDK Consistency Review Agent"
 
 jobs:
   activation:
+    if: (github.event_name != 'pull_request') || (github.event.pull_request.head.repo.id == github.repository_id)
     runs-on: ubuntu-slim
     permissions:
       contents: read
@@ -56,7 +65,7 @@ jobs:
       - name: Check workflow file timestamps
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
-          GH_AW_WORKFLOW_FILE: "issue-triage.lock.yml"
+          GH_AW_WORKFLOW_FILE: "sdk-consistency-review.lock.yml"
         with:
           script: |
             const { setupGlobals } = require('/opt/gh-aw/actions/setup_globals.cjs');
@@ -148,36 +157,12 @@ jobs:
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
           cat > /opt/gh-aw/safeoutputs/config.json << 'EOF'
-          {"add_comment":{"max":2},"add_labels":{"allowed":["bug","enhancement","question","documentation","sdk/dotnet","sdk/go","sdk/nodejs","sdk/python","priority/high","priority/low","testing","security","needs-info","duplicate"],"max":10},"close_issue":{"max":1},"missing_data":{},"missing_tool":{},"noop":{"max":1},"update_issue":{"max":1}}
+          {"add_comment":{"max":1},"create_pull_request_review_comment":{"max":10},"missing_data":{},"missing_tool":{},"noop":{"max":1}}
           EOF
           cat > /opt/gh-aw/safeoutputs/tools.json << 'EOF'
           [
             {
-              "description": "Close a GitHub issue with a closing comment. Use this when work is complete, the issue is no longer relevant, or it's a duplicate. The closing comment should explain the resolution or reason for closing. CONSTRAINTS: Maximum 1 issue(s) can be closed. Target: triggering.",
-              "inputSchema": {
-                "additionalProperties": false,
-                "properties": {
-                  "body": {
-                    "description": "Closing comment explaining why the issue is being closed and summarizing any resolution, workaround, or conclusion.",
-                    "type": "string"
-                  },
-                  "issue_number": {
-                    "description": "Issue number to close. This is the numeric ID from the GitHub URL (e.g., 901 in github.com/owner/repo/issues/901). If omitted, closes the issue that triggered this workflow (requires an issue event trigger).",
-                    "type": [
-                      "number",
-                      "string"
-                    ]
-                  }
-                },
-                "required": [
-                  "body"
-                ],
-                "type": "object"
-              },
-              "name": "close_issue"
-            },
-            {
-              "description": "Add a comment to an existing GitHub issue, pull request, or discussion. Use this to provide feedback, answer questions, or add information to an existing conversation. For creating new items, use create_issue, create_discussion, or create_pull_request instead. CONSTRAINTS: Maximum 2 comment(s) can be added.",
+              "description": "Add a comment to an existing GitHub issue, pull request, or discussion. Use this to provide feedback, answer questions, or add information to an existing conversation. For creating new items, use create_issue, create_discussion, or create_pull_request instead. CONSTRAINTS: Maximum 1 comment(s) can be added.",
               "inputSchema": {
                 "additionalProperties": false,
                 "properties": {
@@ -198,89 +183,49 @@ jobs:
               "name": "add_comment"
             },
             {
-              "description": "Add labels to an existing GitHub issue or pull request for categorization and filtering. Labels must already exist in the repository. For creating new issues with labels, use create_issue with the labels property instead. CONSTRAINTS: Maximum 10 label(s) can be added. Only these labels are allowed: [bug enhancement question documentation sdk/dotnet sdk/go sdk/nodejs sdk/python priority/high priority/low testing security needs-info duplicate]. Target: triggering.",
+              "description": "Create a review comment on a specific line of code in a pull request. Use this for inline code review feedback, suggestions, or questions about specific code changes. For general PR comments not tied to specific lines, use add_comment instead. CONSTRAINTS: Maximum 10 review comment(s) can be created. Comments will be on the RIGHT side of the diff.",
               "inputSchema": {
                 "additionalProperties": false,
                 "properties": {
-                  "item_number": {
-                    "description": "Issue or PR number to add labels to. This is the numeric ID from the GitHub URL (e.g., 456 in github.com/owner/repo/issues/456). If omitted, adds labels to the item that triggered this workflow.",
-                    "type": "number"
-                  },
-                  "labels": {
-                    "description": "Label names to add (e.g., ['bug', 'priority-high']). Labels must exist in the repository.",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  }
-                },
-                "type": "object"
-              },
-              "name": "add_labels"
-            },
-            {
-              "description": "Update an existing GitHub issue's status, title, labels, assignees, milestone, or body. Body updates support replacing, appending to, prepending content, or updating a per-run \"island\" section. CONSTRAINTS: Maximum 1 issue(s) can be updated. Target: triggering.",
-              "inputSchema": {
-                "additionalProperties": false,
-                "properties": {
-                  "assignees": {
-                    "description": "Replace the issue assignees with this list of GitHub usernames (e.g., ['octocat', 'mona']).",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
                   "body": {
-                    "description": "Issue body content in Markdown. For 'replace', this becomes the entire body. For 'append'/'prepend', this content is added with a separator and an attribution footer. For 'replace-island', only the run-specific section is updated.",
+                    "description": "Review comment content in Markdown. Provide specific, actionable feedback about the code at this location.",
                     "type": "string"
                   },
-                  "issue_number": {
-                    "description": "Issue number to update. This is the numeric ID from the GitHub URL (e.g., 789 in github.com/owner/repo/issues/789). Required when the workflow target is '*' (any issue).",
+                  "line": {
+                    "description": "Line number for the comment. For single-line comments, this is the target line. For multi-line comments, this is the ending line.",
                     "type": [
                       "number",
                       "string"
                     ]
                   },
-                  "labels": {
-                    "description": "Replace the issue labels with this list (e.g., ['bug', 'campaign:foo']). Labels must exist in the repository.",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
+                  "path": {
+                    "description": "File path relative to the repository root (e.g., 'src/auth/login.js'). Must be a file that was changed in the PR.",
+                    "type": "string"
                   },
-                  "milestone": {
-                    "description": "Milestone number to assign (e.g., 1). Use null to clear.",
+                  "side": {
+                    "description": "Side of the diff to comment on: RIGHT for the new version (additions), LEFT for the old version (deletions). Defaults to RIGHT.",
+                    "enum": [
+                      "LEFT",
+                      "RIGHT"
+                    ],
+                    "type": "string"
+                  },
+                  "start_line": {
+                    "description": "Starting line number for multi-line comments. When set, the comment spans from start_line to line. Omit for single-line comments.",
                     "type": [
                       "number",
                       "string"
                     ]
-                  },
-                  "operation": {
-                    "description": "How to update the issue body: 'append' (default - add to end with separator), 'prepend' (add to start with separator), 'replace' (overwrite entire body), or 'replace-island' (update a run-specific section).",
-                    "enum": [
-                      "replace",
-                      "append",
-                      "prepend",
-                      "replace-island"
-                    ],
-                    "type": "string"
-                  },
-                  "status": {
-                    "description": "New issue status: 'open' to reopen a closed issue, 'closed' to close an open issue.",
-                    "enum": [
-                      "open",
-                      "closed"
-                    ],
-                    "type": "string"
-                  },
-                  "title": {
-                    "description": "New issue title to replace the existing title.",
-                    "type": "string"
                   }
                 },
+                "required": [
+                  "path",
+                  "line",
+                  "body"
+                ],
                 "type": "object"
               },
-              "name": "update_issue"
+              "name": "create_pull_request_review_comment"
             },
             {
               "description": "Report that a tool or capability needed to complete the task is not available, or share any information you deem important about missing functionality or limitations. Use this when you cannot accomplish what was requested because the required functionality is missing or access is restricted.",
@@ -369,22 +314,7 @@ jobs:
                 }
               }
             },
-            "add_labels": {
-              "defaultMax": 5,
-              "fields": {
-                "item_number": {
-                  "issueOrPRNumber": true
-                },
-                "labels": {
-                  "required": true,
-                  "type": "array",
-                  "itemType": "string",
-                  "itemSanitize": true,
-                  "itemMaxLength": 128
-                }
-              }
-            },
-            "close_issue": {
+            "create_pull_request_review_comment": {
               "defaultMax": 1,
               "fields": {
                 "body": {
@@ -393,10 +323,26 @@ jobs:
                   "sanitize": true,
                   "maxLength": 65000
                 },
-                "issue_number": {
+                "line": {
+                  "required": true,
+                  "positiveInteger": true
+                },
+                "path": {
+                  "required": true,
+                  "type": "string"
+                },
+                "side": {
+                  "type": "string",
+                  "enum": [
+                    "LEFT",
+                    "RIGHT"
+                  ]
+                },
+                "start_line": {
                   "optionalPositiveInteger": true
                 }
-              }
+              },
+              "customValidation": "startLineLessOrEqualLine"
             },
             "missing_tool": {
               "defaultMax": 20,
@@ -430,32 +376,6 @@ jobs:
                   "maxLength": 65000
                 }
               }
-            },
-            "update_issue": {
-              "defaultMax": 1,
-              "fields": {
-                "body": {
-                  "type": "string",
-                  "sanitize": true,
-                  "maxLength": 65000
-                },
-                "issue_number": {
-                  "issueOrPRNumber": true
-                },
-                "status": {
-                  "type": "string",
-                  "enum": [
-                    "open",
-                    "closed"
-                  ]
-                },
-                "title": {
-                  "type": "string",
-                  "sanitize": true,
-                  "maxLength": 128
-                }
-              },
-              "customValidation": "requiresOneOf:status,title,body"
             }
           }
           EOF
@@ -563,7 +483,7 @@ jobs:
               version: "",
               agent_version: "0.0.389",
               cli_version: "v0.37.10",
-              workflow_name: "Issue Triage Agent",
+              workflow_name: "SDK Consistency Review Agent",
               experimental: false,
               supports_tools_allowlist: true,
               supports_http_transport: true,
@@ -605,12 +525,11 @@ jobs:
         env:
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
           GH_AW_SAFE_OUTPUTS: ${{ env.GH_AW_SAFE_OUTPUTS }}
-          GH_AW_EXPR_54492A5B: ${{ github.event.issue.number || inputs.issue_number }}
+          GH_AW_EXPR_A0E5D436: ${{ github.event.pull_request.number || inputs.pr_number }}
           GH_AW_GITHUB_ACTOR: ${{ github.actor }}
           GH_AW_GITHUB_EVENT_COMMENT_ID: ${{ github.event.comment.id }}
           GH_AW_GITHUB_EVENT_DISCUSSION_NUMBER: ${{ github.event.discussion.number }}
           GH_AW_GITHUB_EVENT_ISSUE_NUMBER: ${{ github.event.issue.number }}
-          GH_AW_GITHUB_EVENT_ISSUE_TITLE: ${{ github.event.issue.title }}
           GH_AW_GITHUB_EVENT_PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
           GH_AW_GITHUB_REPOSITORY: ${{ github.repository }}
           GH_AW_GITHUB_RUN_ID: ${{ github.run_id }}
@@ -631,7 +550,7 @@ jobs:
           <instructions>
           To create or modify GitHub resources (issues, discussions, pull requests, etc.), you MUST call the appropriate safe output tool. Simply writing content will NOT work - the workflow requires actual tool calls.
           
-          **Available tools**: add_comment, add_labels, close_issue, missing_tool, noop, update_issue
+          **Available tools**: add_comment, create_pull_request_review_comment, missing_tool, noop
           
           **Critical**: Tool calls write structured data that downstream jobs process. Without tool calls, follow-up actions will be skipped.
           </instructions>
@@ -669,85 +588,98 @@ jobs:
           </system>
           PROMPT_EOF
           cat << 'PROMPT_EOF' >> "$GH_AW_PROMPT"
-          # Issue Triage Agent
+          # SDK Consistency Review Agent
           
-          You are an AI agent that triages newly opened issues in the copilot-sdk repository — a multi-language SDK with implementations in .NET, Go, Node.js, and Python.
+          You are an AI code reviewer specialized in ensuring consistency across multi-language SDK implementations. This repository contains four SDK implementations (Node.js/TypeScript, Python, Go, and .NET) that should maintain feature parity and consistent API design.
           
           ## Your Task
           
-          When a new issue is opened, analyze it and perform the following actions:
+          When a pull request modifies any SDK client code, review it to ensure:
           
-          1. **Add appropriate labels** based on the issue content
-          2. **Post an acknowledgment comment** thanking the author
-          3. **Request clarification** if the issue lacks sufficient detail
-          4. **Close duplicates** if you find a matching existing issue
+          1. **Cross-language consistency**: If a feature is added/modified in one SDK, check whether:
+             - The same feature exists in other SDK implementations
+             - The feature is implemented consistently across all languages
+             - API naming and structure are parallel (accounting for language conventions)
           
-          ## Available Labels
+          2. **Feature parity**: Identify if this PR creates inconsistencies by:
+             - Adding a feature to only one language
+             - Changing behavior in one SDK that differs from others
+             - Introducing language-specific functionality that should be available everywhere
           
-          ### SDK/Language Labels (apply one or more if the issue relates to specific SDKs):
-          - `sdk/dotnet` — .NET SDK issues
-          - `sdk/go` — Go SDK issues  
-          - `sdk/nodejs` — Node.js SDK issues
-          - `sdk/python` — Python SDK issues
-          
-          ### Type Labels (apply exactly one):
-          - `bug` — Something isn't working correctly
-          - `enhancement` — New feature or improvement request
-          - `question` — General question about usage
-          - `documentation` — Documentation improvements needed
-          
-          ### Priority Labels (apply if clearly indicated):
-          - `priority/high` — Urgent or blocking issue
-          - `priority/low` — Nice-to-have or minor issue
-          
-          ### Area Labels (apply if relevant):
-          - `testing` — Related to tests or test infrastructure
-          - `security` — Security-related concerns
-          
-          ### Status Labels:
-          - `needs-info` — Issue requires more information from author
-          - `duplicate` — Issue duplicates an existing one
-          
-          ## Guidelines
-          
-          1. **Labeling**: Always apply at least one type label. Apply SDK labels when the issue clearly relates to specific language implementations. Use `needs-info` when the issue is unclear or missing reproduction steps.
-          
-          2. **Acknowledgment**: Post a friendly comment thanking the author for opening the issue. Mention which labels you applied and why.
-          
-          3. **Clarification**: If the issue lacks:
-             - Steps to reproduce (for bugs)
-             - Expected vs actual behavior
-             - SDK version or language being used
-             - Error messages or logs
-             
-             Then apply the `needs-info` label and ask specific clarifying questions.
-          
-          4. **Duplicate Detection**: Search existing open issues. If you find a likely duplicate:
-             - Apply the `duplicate` label
-             - Comment referencing the original issue
-             - Close the issue using `close-issue`
-          
-          5. **Be concise**: Keep comments brief and actionable. Don't over-explain.
+          3. **API design consistency**: Check that:
+             - Method/function names follow the same semantic pattern (e.g., `createSession` vs `create_session` vs `CreateSession`)
+             - Parameter names and types are equivalent
+             - Return types are analogous
+             - Error handling patterns are similar
           
           ## Context
           
           - Repository: __GH_AW_GITHUB_REPOSITORY__
-          - Issue number: __GH_AW_EXPR_54492A5B__
-          - Issue title: __GH_AW_GITHUB_EVENT_ISSUE_TITLE__
+          - PR number: __GH_AW_EXPR_A0E5D436__
+          - Modified files: Use GitHub tools to fetch the list of changed files
           
-          Use the GitHub tools to fetch the issue details (especially when triggered manually via workflow_dispatch).
+          ## SDK Locations
+          
+          - **Node.js/TypeScript**: `nodejs/src/`
+          - **Python**: `python/copilot/`
+          - **Go**: `go/`
+          - **.NET**: `dotnet/src/`
+          
+          ## Review Process
+          
+          1. **Identify the changed SDK(s)**: Determine which language implementation(s) are modified in this PR
+          2. **Analyze the changes**: Understand what feature/fix is being implemented
+          3. **Cross-reference other SDKs**: Check if the equivalent functionality exists in other language implementations:
+             - Read the corresponding files in other SDK directories
+             - Compare method signatures, behavior, and documentation
+          4. **Report findings**: If inconsistencies are found:
+             - Use `create-pull-request-review-comment` to add inline comments on specific lines where changes should be made
+             - Use `add-comment` to provide a summary of cross-SDK consistency findings
+             - Be specific about which SDKs need updates and what changes would bring them into alignment
+          
+          ## Guidelines
+          
+          1. **Be respectful**: This is a technical review focusing on consistency, not code quality judgments
+          2. **Account for language idioms**: 
+             - TypeScript uses camelCase (e.g., `createSession`)
+             - Python uses snake_case (e.g., `create_session`)
+             - Go uses PascalCase for exported/public functions (e.g., `CreateSession`) and camelCase for unexported/private functions
+             - .NET uses PascalCase (e.g., `CreateSession`)
+             - Focus on public API methods when comparing across languages
+          3. **Focus on API surface**: Prioritize public APIs over internal implementation details
+          4. **Distinguish between bugs and features**:
+             - Bug fixes in one SDK might reveal bugs in others
+             - New features should be considered for all SDKs
+          5. **Suggest, don't demand**: Frame feedback as suggestions for maintaining consistency
+          6. **Skip trivial changes**: Don't flag minor differences like comment styles or variable naming
+          7. **Only comment if there are actual consistency issues**: If the PR maintains consistency or only touches one SDK's internal implementation, acknowledge it positively in a summary comment
+          
+          ## Example Scenarios
+          
+          ### Good: Consistent feature addition
+          If a PR adds a new `setTimeout` option to the Node.js SDK and the equivalent feature already exists or is added to Python, Go, and .NET in the same PR.
+          
+          ### Bad: Inconsistent feature
+          If a PR adds a `withRetry` method to only the Python SDK, but this functionality doesn't exist in other SDKs and would be useful everywhere.
+          
+          ### Good: Language-specific optimization
+          If a PR optimizes JSON parsing in Go using native libraries specific to Go's ecosystem—this doesn't need to be mirrored exactly in other languages.
+          
+          ## Output Format
+          
+          - **If consistency issues found**: Add specific review comments pointing to the gaps and suggest which other SDKs need similar changes
+          - **If no issues found**: Add a brief summary comment confirming the changes maintain cross-SDK consistency
           
           PROMPT_EOF
       - name: Substitute placeholders
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
-          GH_AW_EXPR_54492A5B: ${{ github.event.issue.number || inputs.issue_number }}
+          GH_AW_EXPR_A0E5D436: ${{ github.event.pull_request.number || inputs.pr_number }}
           GH_AW_GITHUB_ACTOR: ${{ github.actor }}
           GH_AW_GITHUB_EVENT_COMMENT_ID: ${{ github.event.comment.id }}
           GH_AW_GITHUB_EVENT_DISCUSSION_NUMBER: ${{ github.event.discussion.number }}
           GH_AW_GITHUB_EVENT_ISSUE_NUMBER: ${{ github.event.issue.number }}
-          GH_AW_GITHUB_EVENT_ISSUE_TITLE: ${{ github.event.issue.title }}
           GH_AW_GITHUB_EVENT_PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
           GH_AW_GITHUB_REPOSITORY: ${{ github.repository }}
           GH_AW_GITHUB_RUN_ID: ${{ github.run_id }}
@@ -760,12 +692,11 @@ jobs:
             return await substitutePlaceholders({
               file: process.env.GH_AW_PROMPT,
               substitutions: {
-                GH_AW_EXPR_54492A5B: process.env.GH_AW_EXPR_54492A5B,
+                GH_AW_EXPR_A0E5D436: process.env.GH_AW_EXPR_A0E5D436,
                 GH_AW_GITHUB_ACTOR: process.env.GH_AW_GITHUB_ACTOR,
                 GH_AW_GITHUB_EVENT_COMMENT_ID: process.env.GH_AW_GITHUB_EVENT_COMMENT_ID,
                 GH_AW_GITHUB_EVENT_DISCUSSION_NUMBER: process.env.GH_AW_GITHUB_EVENT_DISCUSSION_NUMBER,
                 GH_AW_GITHUB_EVENT_ISSUE_NUMBER: process.env.GH_AW_GITHUB_EVENT_ISSUE_NUMBER,
-                GH_AW_GITHUB_EVENT_ISSUE_TITLE: process.env.GH_AW_GITHUB_EVENT_ISSUE_TITLE,
                 GH_AW_GITHUB_EVENT_PULL_REQUEST_NUMBER: process.env.GH_AW_GITHUB_EVENT_PULL_REQUEST_NUMBER,
                 GH_AW_GITHUB_REPOSITORY: process.env.GH_AW_GITHUB_REPOSITORY,
                 GH_AW_GITHUB_RUN_ID: process.env.GH_AW_GITHUB_RUN_ID,
@@ -776,8 +707,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
-          GH_AW_EXPR_54492A5B: ${{ github.event.issue.number || inputs.issue_number }}
-          GH_AW_GITHUB_EVENT_ISSUE_TITLE: ${{ github.event.issue.title }}
+          GH_AW_EXPR_A0E5D436: ${{ github.event.pull_request.number || inputs.pr_number }}
           GH_AW_GITHUB_REPOSITORY: ${{ github.repository }}
         with:
           script: |
@@ -796,7 +726,7 @@ jobs:
       - name: Execute GitHub Copilot CLI
         id: agentic_execution
         # Copilot CLI tool arguments (sorted):
-        timeout-minutes: 10
+        timeout-minutes: 15
         run: |
           set -o pipefail
           sudo -E awf --env-all --container-workdir "${GITHUB_WORKSPACE}" --mount /tmp:/tmp:rw --mount "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}:rw" --mount /usr/bin/date:/usr/bin/date:ro --mount /usr/bin/gh:/usr/bin/gh:ro --mount /usr/bin/yq:/usr/bin/yq:ro --mount /usr/local/bin/copilot:/usr/local/bin/copilot:ro --mount /home/runner/.copilot:/home/runner/.copilot:rw --mount /opt/gh-aw:/opt/gh-aw:ro --allow-domains api.business.githubcopilot.com,api.enterprise.githubcopilot.com,api.github.com,api.githubcopilot.com,api.individual.githubcopilot.com,github.com,host.docker.internal,raw.githubusercontent.com,registry.npmjs.org --log-level info --proxy-logs-dir /tmp/gh-aw/sandbox/firewall/logs --enable-host-access --image-tag 0.10.0 \
@@ -985,7 +915,7 @@ jobs:
         env:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
           GH_AW_NOOP_MAX: 1
-          GH_AW_WORKFLOW_NAME: "Issue Triage Agent"
+          GH_AW_WORKFLOW_NAME: "SDK Consistency Review Agent"
         with:
           github-token: ${{ secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           script: |
@@ -998,7 +928,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
-          GH_AW_WORKFLOW_NAME: "Issue Triage Agent"
+          GH_AW_WORKFLOW_NAME: "SDK Consistency Review Agent"
         with:
           github-token: ${{ secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           script: |
@@ -1011,7 +941,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
-          GH_AW_WORKFLOW_NAME: "Issue Triage Agent"
+          GH_AW_WORKFLOW_NAME: "SDK Consistency Review Agent"
           GH_AW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           GH_AW_AGENT_CONCLUSION: ${{ needs.agent.result }}
           GH_AW_SECRET_VERIFICATION_RESULT: ${{ needs.agent.outputs.secret_verification_result }}
@@ -1030,7 +960,7 @@ jobs:
           GH_AW_COMMENT_ID: ${{ needs.activation.outputs.comment_id }}
           GH_AW_COMMENT_REPO: ${{ needs.activation.outputs.comment_repo }}
           GH_AW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          GH_AW_WORKFLOW_NAME: "Issue Triage Agent"
+          GH_AW_WORKFLOW_NAME: "SDK Consistency Review Agent"
           GH_AW_AGENT_CONCLUSION: ${{ needs.agent.result }}
           GH_AW_DETECTION_CONCLUSION: ${{ needs.detection.result }}
         with:
@@ -1074,8 +1004,8 @@ jobs:
       - name: Setup threat detection
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
-          WORKFLOW_NAME: "Issue Triage Agent"
-          WORKFLOW_DESCRIPTION: "Triages newly opened issues by labeling, acknowledging, requesting clarification, and closing duplicates"
+          WORKFLOW_NAME: "SDK Consistency Review Agent"
+          WORKFLOW_DESCRIPTION: "Reviews PRs to ensure features are implemented consistently across all SDK language implementations"
           HAS_PATCH: ${{ needs.agent.outputs.has_patch }}
         with:
           script: |
@@ -1196,8 +1126,8 @@ jobs:
     timeout-minutes: 15
     env:
       GH_AW_ENGINE_ID: "copilot"
-      GH_AW_WORKFLOW_ID: "issue-triage"
-      GH_AW_WORKFLOW_NAME: "Issue Triage Agent"
+      GH_AW_WORKFLOW_ID: "sdk-consistency-review"
+      GH_AW_WORKFLOW_NAME: "SDK Consistency Review Agent"
     outputs:
       process_safe_outputs_processed_count: ${{ steps.process_safe_outputs.outputs.processed_count }}
       process_safe_outputs_temporary_id_map: ${{ steps.process_safe_outputs.outputs.temporary_id_map }}
@@ -1222,7 +1152,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
-          GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG: "{\"add_comment\":{\"max\":2},\"add_labels\":{\"allowed\":[\"bug\",\"enhancement\",\"question\",\"documentation\",\"sdk/dotnet\",\"sdk/go\",\"sdk/nodejs\",\"sdk/python\",\"priority/high\",\"priority/low\",\"testing\",\"security\",\"needs-info\",\"duplicate\"],\"max\":10,\"target\":\"triggering\"},\"close_issue\":{\"max\":1,\"target\":\"triggering\"},\"missing_data\":{},\"missing_tool\":{},\"update_issue\":{\"max\":1,\"target\":\"triggering\"}}"
+          GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG: "{\"add_comment\":{\"max\":1},\"create_pull_request_review_comment\":{\"max\":10,\"side\":\"RIGHT\"},\"missing_data\":{},\"missing_tool\":{}}"
         with:
           github-token: ${{ secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           script: |

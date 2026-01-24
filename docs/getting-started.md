@@ -37,7 +37,7 @@ First, create a new directory and initialize your project:
 
 ```bash
 mkdir copilot-demo && cd copilot-demo
-npm init -y
+npm init -y --init-type module
 ```
 
 Then install the SDK and TypeScript runner:
@@ -458,11 +458,16 @@ import sys
 from copilot import CopilotClient
 from copilot.tools import define_tool
 from copilot.generated.session_events import SessionEventType
+from pydantic import BaseModel, Field
+
+# Define the parameters for the tool using Pydantic
+class GetWeatherParams(BaseModel):
+    city: str = Field(description="The name of the city to get weather for")
 
 # Define a tool that Copilot can call
 @define_tool(description="Get the current weather for a city")
-async def get_weather(params: dict) -> dict:
-    city = params["city"]
+async def get_weather(params: GetWeatherParams) -> dict:
+    city = params.city
     # In a real app, you'd call a weather API here
     conditions = ["sunny", "cloudy", "rainy", "partly cloudy"]
     temp = random.randint(50, 80)
@@ -724,10 +729,14 @@ import sys
 from copilot import CopilotClient
 from copilot.tools import define_tool
 from copilot.generated.session_events import SessionEventType
+from pydantic import BaseModel, Field
+
+class GetWeatherParams(BaseModel):
+    city: str = Field(description="The name of the city to get weather for")
 
 @define_tool(description="Get the current weather for a city")
-async def get_weather(params: dict) -> dict:
-    city = params["city"]
+async def get_weather(params: GetWeatherParams) -> dict:
+    city = params.city
     conditions = ["sunny", "cloudy", "rainy", "partly cloudy"]
     temp = random.randint(50, 80)
     condition = random.choice(conditions)
@@ -861,6 +870,107 @@ const session = await client.createSession({
     },
 });
 ```
+
+---
+
+## Connecting to an External CLI Server
+
+By default, the SDK automatically manages the Copilot CLI process lifecycle, starting and stopping the CLI as needed. However, you can also run the CLI in server mode separately and have the SDK connect to it. This can be useful for:
+
+- **Debugging**: Keep the CLI running between SDK restarts to inspect logs
+- **Resource sharing**: Multiple SDK clients can connect to the same CLI server
+- **Development**: Run the CLI with custom settings or in a different environment
+
+### Running the CLI in Server Mode
+
+Start the CLI in server mode using the `--server` flag and optionally specify a port:
+
+```bash
+copilot --server --port 4321
+```
+
+If you don't specify a port, the CLI will choose a random available port.
+
+### Connecting the SDK to the External Server
+
+Once the CLI is running in server mode, configure your SDK client to connect to it using the "cli url" option:
+
+<details open>
+<summary><strong>Node.js / TypeScript</strong></summary>
+
+```typescript
+import { CopilotClient } from "@github/copilot-sdk";
+
+const client = new CopilotClient({
+    cliUrl: "localhost:4321"
+});
+
+// Use the client normally
+const session = await client.createSession();
+// ...
+```
+
+</details>
+
+<details>
+<summary><strong>Python</strong></summary>
+
+```python
+from copilot import CopilotClient
+
+client = CopilotClient({
+    "cli_url": "localhost:4321"
+})
+await client.start()
+
+# Use the client normally
+session = await client.create_session()
+# ...
+```
+
+</details>
+
+<details>
+<summary><strong>Go</strong></summary>
+
+```go
+import copilot "github.com/github/copilot-sdk/go"
+
+client := copilot.NewClient(&copilot.ClientOptions{
+    CLIUrl: "localhost:4321",
+})
+
+if err := client.Start(); err != nil {
+    log.Fatal(err)
+}
+defer client.Stop()
+
+// Use the client normally
+session, err := client.CreateSession()
+// ...
+```
+
+</details>
+
+<details>
+<summary><strong>.NET</strong></summary>
+
+```csharp
+using GitHub.Copilot.SDK;
+
+using var client = new CopilotClient(new CopilotClientOptions
+{
+    CliUrl = "localhost:4321"
+});
+
+// Use the client normally
+await using var session = await client.CreateSessionAsync();
+// ...
+```
+
+</details>
+
+**Note:** When `cli_url` / `cliUrl` / `CLIUrl` is provided, the SDK will not spawn or manage a CLI process - it will only connect to the existing server at the specified URL.
 
 ---
 

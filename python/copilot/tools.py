@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import inspect
 import json
-from typing import Any, Callable, Type, TypeVar, get_type_hints, overload
+from typing import Any, Callable, TypeVar, get_type_hints, overload
 
 from pydantic import BaseModel
 
@@ -33,7 +33,7 @@ def define_tool(
     *,
     description: str | None = None,
     handler: Callable[[T, ToolInvocation], R],
-    params_type: Type[T],
+    params_type: type[T],
 ) -> Tool: ...
 
 
@@ -42,7 +42,7 @@ def define_tool(
     *,
     description: str | None = None,
     handler: Callable[[Any, ToolInvocation], Any] | None = None,
-    params_type: Type[BaseModel] | None = None,
+    params_type: type[BaseModel] | None = None,
 ) -> Tool | Callable[[Callable[[Any, ToolInvocation], Any]], Tool]:
     """
     Define a tool with automatic JSON schema generation from Pydantic models.

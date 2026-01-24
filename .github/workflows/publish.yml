@@ -96,8 +96,6 @@ jobs:
         run: node scripts/set-version.js
         env:
           VERSION: ${{ needs.version.outputs.version }}
-      - name: Temporarily replace README.md
-        run: echo "Coming soon" > README.md
       - name: Build
         run: npm run build
       - name: Pack

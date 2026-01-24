@@ -7,7 +7,9 @@ Python SDK for programmatic control of GitHub Copilot CLI via JSON-RPC.
 ## Installation
 
 ```bash
-pip install -e .
+pip install -e ".[dev]"
+# or
+uv pip install -e ".[dev]"
 ```
 
 ## Quick Start
@@ -155,6 +157,28 @@ session = await client.create_session({
 
 The SDK automatically handles `tool.call`, executes your handler (sync or async), and responds with the final result when the tool completes.
 
+## Image Support
+
+The SDK supports image attachments via the `attachments` parameter. You can attach images by providing their file path:
+
+```python
+await session.send({
+    "prompt": "What's in this image?",
+    "attachments": [
+        {
+            "type": "file",
+            "path": "/path/to/image.jpg",
+        }
+    ]
+})
+```
+
+Supported image formats include JPG, PNG, GIF, and other common image types. The agent's `view` tool can also read images directly from the filesystem, so you can also ask questions like:
+
+```python
+await session.send({"prompt": "What does the most recent jpg in this directory portray?"})
+```
+
 ## Streaming
 
 Enable streaming to receive assistant response chunks as they're generated:
@@ -251,5 +275,5 @@ When enabled, sessions emit compaction events:
 
 ## Requirements
 
-- Python 3.8+
+- Python 3.9+
 - GitHub Copilot CLI installed and accessible
