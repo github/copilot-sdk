@@ -43,6 +43,12 @@ func Bool(v bool) *bool {
 	return &v
 }
 
+// Float64 returns a pointer to the given float64 value.
+// Use for setting thresholds: BackgroundCompactionThreshold: Float64(0.80)
+func Float64(v float64) *float64 {
+	return &v
+}
+
 // SystemMessageAppendConfig is append mode: use CLI foundation with optional appended content.
 type SystemMessageAppendConfig struct {
 	// Mode is optional, defaults to "append"
