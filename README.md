@@ -1,4 +1,5 @@
 # GitHub Copilot CLI SDKs
+Modification entrainement
 
 ![GitHub Copilot SDK](./assets/RepoHeader_01.png)
 
