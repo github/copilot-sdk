@@ -23,9 +23,9 @@ func TestCompaction(t *testing.T) {
 
 		session, err := client.CreateSession(&copilot.SessionConfig{
 			InfiniteSessions: &copilot.InfiniteSessionConfig{
-				Enabled:                        &enabled,
-				BackgroundCompactionThreshold:  &backgroundThreshold,
-				BufferExhaustionThreshold:      &bufferThreshold,
+				Enabled:                       &enabled,
+				BackgroundCompactionThreshold: &backgroundThreshold,
+				BufferExhaustionThreshold:     &bufferThreshold,
 			},
 		})
 		if err != nil {

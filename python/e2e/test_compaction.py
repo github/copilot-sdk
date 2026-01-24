@@ -71,9 +71,7 @@ class TestCompaction:
     async def test_should_not_emit_compaction_events_when_infinite_sessions_disabled(
         self, ctx: E2ETestContext
     ):
-        session = await ctx.client.create_session(
-            {"infinite_sessions": {"enabled": False}}
-        )
+        session = await ctx.client.create_session({"infinite_sessions": {"enabled": False}})
 
         compaction_events = []
 
