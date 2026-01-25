@@ -17,6 +17,7 @@ internal sealed class SessionTelemetryTracker : IDisposable
     private readonly ConcurrentDictionary<string, Activity> _toolActivities = new();
     private readonly ConcurrentDictionary<string, Activity> _subagentActivities = new();
     private readonly ConcurrentDictionary<string, Activity> _hookActivities = new();
+    private readonly object _disposeLock = new();
     private Activity? _sessionActivity;
     private string? _currentModel;
     private bool _disposed;
@@ -31,11 +32,24 @@ internal sealed class SessionTelemetryTracker : IDisposable
     /// </summary>
     public void ProcessEvent(SessionEvent sessionEvent)
     {
-        if (!CopilotTelemetry.IsEnabled || _disposed)
+        if (!CopilotTelemetry.IsEnabled)
         {
             return;
         }
 
+        lock (_disposeLock)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            ProcessEventCore(sessionEvent);
+        }
+    }
+
+    private void ProcessEventCore(SessionEvent sessionEvent)
+    {
         switch (sessionEvent)
         {
             // Session lifecycle
@@ -351,17 +365,29 @@ internal sealed class SessionTelemetryTracker : IDisposable
 
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
+        lock (_disposeLock)
+        {
+            if (_disposed) return;
+            _disposed = true;
 
-        // Clean up any remaining activities
-        _sessionActivity?.Dispose();
+            // Clean up session activity
+            _sessionActivity?.Dispose();
+            _sessionActivity = null;
 
-        // Clear dictionaries without disposing individual activities to avoid
-        // races with concurrent readers that may still be using them.
-        _turnActivities.Clear();
-        _toolActivities.Clear();
-        _subagentActivities.Clear();
-        _hookActivities.Clear();
+            // Dispose all orphaned activities in each dictionary
+            DisposeActivities(_turnActivities);
+            DisposeActivities(_toolActivities);
+            DisposeActivities(_subagentActivities);
+            DisposeActivities(_hookActivities);
+        }
+    }
+
+    private static void DisposeActivities(ConcurrentDictionary<string, Activity> activities)
+    {
+        foreach (var kvp in activities)
+        {
+            kvp.Value.Dispose();
+        }
+        activities.Clear();
     }
 }
