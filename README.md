@@ -106,7 +106,7 @@ Please use the [GitHub Issues](https://github.com/github/copilot-sdk/issues) pag
 | **C++**       | [0xeb/copilot-sdk-cpp][sdk-cpp]                    |
 | **Clojure**   | [krukow/copilot-sdk-clojure][sdk-clojure]          |
 
-[sdk-java]: https://www.github.com/copilot-community-sdk/copilot-sdk-java
+[sdk-java]: https://github.com/copilot-community-sdk/copilot-sdk-java
 [sdk-rust]: https://github.com/copilot-community-sdk/copilot-sdk-rust
 [sdk-cpp]: https://github.com/0xeb/copilot-sdk-cpp
 [sdk-clojure]: https://github.com/krukow/copilot-sdk-clojure
