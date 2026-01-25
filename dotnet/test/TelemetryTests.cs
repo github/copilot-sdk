@@ -13,11 +13,15 @@ public class TelemetryTests : IDisposable
     private readonly ActivityListener _listener;
     private readonly List<Activity> _recordedActivities = new();
 
+    // Static constructor ensures the AppContext switch is set before any code
+    // accesses CopilotTelemetry.IsEnabled (which uses lazy evaluation)
+    static TelemetryTests()
+    {
+        AppContext.SetSwitch("GitHub.Copilot.EnableOpenTelemetry", true);
+    }
+
     public TelemetryTests()
     {
-        // Enable telemetry for tests
-        AppContext.SetSwitch("GitHub.Copilot.EnableOpenTelemetry", true);
-
         // Set up an activity listener to capture spans
         _listener = new ActivityListener
         {
@@ -32,8 +36,6 @@ public class TelemetryTests : IDisposable
     public void Dispose()
     {
         _listener.Dispose();
-        // Note: We can't easily reset the AppContext switch, but it won't affect other tests
-        // since IsEnabled is lazily evaluated once
     }
 
     [Fact]
