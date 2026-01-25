@@ -193,6 +193,80 @@ public class TelemetryTests : IDisposable
     }
 
     [Fact]
+    public void SessionTelemetryTracker_ProcessesHookEvents()
+    {
+        // Arrange
+        _recordedActivities.Clear();
+        var tracker = new SessionTelemetryTracker("test-session-hook");
+
+        var hookStartEvent = CreateHookStartEvent("hook-inv-1", "pre-tool");
+        var hookEndEvent = CreateHookEndEvent("hook-inv-1", "pre-tool", success: true);
+
+        // Act
+        tracker.ProcessEvent(hookStartEvent);
+        tracker.ProcessEvent(hookEndEvent);
+
+        // Assert
+        var hookActivity = _recordedActivities.FirstOrDefault(a =>
+            a.OperationName == OpenTelemetryConstants.SpanNameHook);
+
+        Assert.NotNull(hookActivity);
+        Assert.Equal("pre-tool", hookActivity!.GetTagItem(OpenTelemetryConstants.CopilotHookType));
+        Assert.Equal("hook-inv-1", hookActivity.GetTagItem(OpenTelemetryConstants.CopilotHookInvocationId));
+        Assert.Equal(true, hookActivity.GetTagItem(OpenTelemetryConstants.CopilotSuccess));
+        Assert.Equal(ActivityStatusCode.Ok, hookActivity.Status);
+    }
+
+    [Fact]
+    public void SessionTelemetryTracker_ProcessesFailedHookExecution()
+    {
+        // Arrange
+        _recordedActivities.Clear();
+        var tracker = new SessionTelemetryTracker("test-session-hook-fail");
+
+        var hookStartEvent = CreateHookStartEvent("hook-inv-2", "post-tool");
+        var hookEndEvent = CreateHookEndEvent("hook-inv-2", "post-tool", success: false, errorMessage: "Hook script failed");
+
+        // Act
+        tracker.ProcessEvent(hookStartEvent);
+        tracker.ProcessEvent(hookEndEvent);
+
+        // Assert
+        var hookActivity = _recordedActivities.FirstOrDefault(a =>
+            a.OperationName == OpenTelemetryConstants.SpanNameHook);
+
+        Assert.NotNull(hookActivity);
+        Assert.Equal(false, hookActivity!.GetTagItem(OpenTelemetryConstants.CopilotSuccess));
+        Assert.Equal(ActivityStatusCode.Error, hookActivity.Status);
+        Assert.Equal("Hook script failed", hookActivity.GetTagItem(OpenTelemetryConstants.CopilotErrorMessage));
+    }
+
+    [Fact]
+    public void SessionTelemetryTracker_ProcessesSubagentFailedEvent()
+    {
+        // Arrange
+        _recordedActivities.Clear();
+        var tracker = new SessionTelemetryTracker("test-session-subagent-fail");
+
+        var subagentStartEvent = CreateSubagentStartedEvent("call-sub-fail", "code-reviewer", "Code Reviewer");
+        var subagentFailedEvent = CreateSubagentFailedEvent("call-sub-fail", "code-reviewer", "Agent crashed unexpectedly");
+
+        // Act
+        tracker.ProcessEvent(subagentStartEvent);
+        tracker.ProcessEvent(subagentFailedEvent);
+
+        // Assert
+        var subagentActivity = _recordedActivities.FirstOrDefault(a =>
+            a.OperationName == OpenTelemetryConstants.SpanNameSubagent);
+
+        Assert.NotNull(subagentActivity);
+        Assert.Equal("code-reviewer", subagentActivity!.GetTagItem(OpenTelemetryConstants.CopilotSubagentName));
+        Assert.Equal(false, subagentActivity.GetTagItem(OpenTelemetryConstants.CopilotSuccess));
+        Assert.Equal(ActivityStatusCode.Error, subagentActivity.Status);
+        Assert.Equal("Agent crashed unexpectedly", subagentActivity.GetTagItem(OpenTelemetryConstants.CopilotErrorMessage));
+    }
+
+    [Fact]
     public void SessionTelemetryTracker_DisposeCleansUpActivities()
     {
         // Arrange
@@ -328,6 +402,51 @@ public class TelemetryTests : IDisposable
             {
                 ToolCallId = toolCallId,
                 AgentName = agentName
+            }
+        };
+    }
+
+    private static SubagentFailedEvent CreateSubagentFailedEvent(string toolCallId, string agentName, string error)
+    {
+        return new SubagentFailedEvent
+        {
+            Id = Guid.NewGuid(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Data = new SubagentFailedData
+            {
+                ToolCallId = toolCallId,
+                AgentName = agentName,
+                Error = error
+            }
+        };
+    }
+
+    private static HookStartEvent CreateHookStartEvent(string hookInvocationId, string hookType)
+    {
+        return new HookStartEvent
+        {
+            Id = Guid.NewGuid(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Data = new HookStartData
+            {
+                HookInvocationId = hookInvocationId,
+                HookType = hookType
+            }
+        };
+    }
+
+    private static HookEndEvent CreateHookEndEvent(string hookInvocationId, string hookType, bool success, string? errorMessage = null)
+    {
+        return new HookEndEvent
+        {
+            Id = Guid.NewGuid(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Data = new HookEndData
+            {
+                HookInvocationId = hookInvocationId,
+                HookType = hookType,
+                Success = success,
+                Error = errorMessage != null ? new HookEndDataError { Message = errorMessage } : null
             }
         };
     }
