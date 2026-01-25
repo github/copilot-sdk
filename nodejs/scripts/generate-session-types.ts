@@ -35,8 +35,11 @@ const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+/**
+ * Locates the JSON schema file from the @github/copilot package.
+ * Throws an error with helpful instructions if the schema cannot be found.
+ */
 async function getSchemaPath(): Promise<string> {
-    // Read from the @github/copilot package
     const schemaPath = path.join(
         __dirname,
         "../node_modules/@github/copilot/schemas/session-events.schema.json"
@@ -44,24 +47,44 @@ async function getSchemaPath(): Promise<string> {
 
     try {
         await fs.access(schemaPath);
-        console.log(`✅ Found schema at: ${schemaPath}`);
+        console.log(`Found schema at: ${schemaPath}`);
         return schemaPath;
     } catch (_error) {
         throw new Error(
             `Schema file not found at ${schemaPath}. ` +
-                `Make sure @github/copilot package is installed or linked.`
+                `Ensure @github/copilot package is installed or linked. ` +
+                `Run 'npm install' or check the package installation.`
         );
     }
 }
 
 async function generateTypeScriptTypes(schemaPath: string) {
-    console.log("🔄 Generating TypeScript types from JSON Schema...");
+    console.log("Generating TypeScript types from JSON Schema...");
 
-    const schema = JSON.parse(await fs.readFile(schemaPath, "utf-8")) as JSONSchema7;
+    let schemaContent: string;
+    try {
+        schemaContent = await fs.readFile(schemaPath, "utf-8");
+    } catch (error) {
+        throw new Error(
+            `Failed to read schema file at ${schemaPath}: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
+
+    let schema: JSONSchema7;
+    try {
+        schema = JSON.parse(schemaContent) as JSONSchema7;
+    } catch (error) {
+        throw new Error(
+            `Failed to parse JSON schema from ${schemaPath}: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
+
     const processedSchema = postProcessSchema(schema);
 
-    const ts = await compile(processedSchema, "SessionEvent", {
-        bannerComment: `/**
+    let ts: string;
+    try {
+        ts = await compile(processedSchema, "SessionEvent", {
+            bannerComment: `/**
  * AUTO-GENERATED FILE - DO NOT EDIT
  *
  * Generated from: @github/copilot/session-events.schema.json
@@ -72,19 +95,30 @@ async function generateTypeScriptTypes(schemaPath: string) {
  * 1. Update the schema in copilot-agent-runtime
  * 2. Run: npm run generate:session-types
  */`,
-        style: {
-            semi: true,
-            singleQuote: false,
-            trailingComma: "all",
-        },
-        additionalProperties: false, // Stricter types
-    });
+            style: {
+                semi: true,
+                singleQuote: false,
+                trailingComma: "all",
+            },
+            additionalProperties: false, // Stricter types
+        });
+    } catch (error) {
+        throw new Error(
+            `Failed to compile TypeScript types from schema: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
 
     const outputPath = path.join(__dirname, "../src/generated/session-events.ts");
-    await fs.mkdir(path.dirname(outputPath), { recursive: true });
-    await fs.writeFile(outputPath, ts, "utf-8");
+    try {
+        await fs.mkdir(path.dirname(outputPath), { recursive: true });
+        await fs.writeFile(outputPath, ts, "utf-8");
+    } catch (error) {
+        throw new Error(
+            `Failed to write TypeScript types to ${outputPath}: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
 
-    console.log(`✅ Generated TypeScript types: ${outputPath}`);
+    console.log(`Generated TypeScript types: ${outputPath}`);
 }
 
 /**
@@ -175,10 +209,25 @@ function postProcessSchema(schema: JSONSchema7): JSONSchema7 {
 }
 
 async function generatePythonTypes(schemaPath: string) {
-    console.log("🔄 Generating Python types from JSON Schema...");
+    console.log("Generating Python types from JSON Schema...");
 
-    const schemaContent = await fs.readFile(schemaPath, "utf-8");
-    const schema = JSON.parse(schemaContent) as JSONSchema7;
+    let schemaContent: string;
+    try {
+        schemaContent = await fs.readFile(schemaPath, "utf-8");
+    } catch (error) {
+        throw new Error(
+            `Failed to read schema file at ${schemaPath}: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
+
+    let schema: JSONSchema7;
+    try {
+        schema = JSON.parse(schemaContent) as JSONSchema7;
+    } catch (error) {
+        throw new Error(
+            `Failed to parse JSON schema from ${schemaPath}: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
 
     // Resolve the $ref at the root level and get the actual schema
     const resolvedSchema = (schema.definitions?.SessionEvent as JSONSchema7) || schema;
@@ -195,13 +244,20 @@ async function generatePythonTypes(schemaPath: string) {
     const inputData = new InputData();
     inputData.addInput(schemaInput);
 
-    const result = await quicktype({
-        inputData,
-        lang: "python",
-        rendererOptions: {
-            "python-version": "3.7",
-        },
-    });
+    let result;
+    try {
+        result = await quicktype({
+            inputData,
+            lang: "python",
+            rendererOptions: {
+                "python-version": "3.7",
+            },
+        });
+    } catch (error) {
+        throw new Error(
+            `Failed to generate Python types using quicktype: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
 
     let generatedCode = result.lines.join("\n");
 
@@ -242,32 +298,67 @@ To update these types:
 `;
 
     const outputPath = path.join(__dirname, "../../python/copilot/generated/session_events.py");
-    await fs.mkdir(path.dirname(outputPath), { recursive: true });
-    await fs.writeFile(outputPath, banner + generatedCode, "utf-8");
+    try {
+        await fs.mkdir(path.dirname(outputPath), { recursive: true });
+        await fs.writeFile(outputPath, banner + generatedCode, "utf-8");
+    } catch (error) {
+        throw new Error(
+            `Failed to write Python types to ${outputPath}: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
 
-    console.log(`✅ Generated Python types: ${outputPath}`);
+    console.log(`Generated Python types: ${outputPath}`);
 }
 
+/**
+ * Formats a Go file using 'go fmt'.
+ * Non-critical operation: logs a warning if formatting fails but does not throw.
+ */
 async function formatGoFile(filePath: string): Promise<void> {
     try {
         await execFileAsync("go", ["fmt", filePath]);
-        console.log(`✅ Formatted Go file with go fmt: ${filePath}`);
+        console.log(`Formatted Go file with go fmt: ${filePath}`);
     } catch (error: unknown) {
+        // Formatting is optional and should not break the build
         if (error instanceof Error && "code" in error) {
-            if (error.code === "ENOENT") {
-                console.warn(`⚠️  go fmt not available - skipping formatting for ${filePath}`);
+            const nodeError = error as NodeJS.ErrnoException;
+            if (nodeError.code === "ENOENT") {
+                console.warn(
+                    `Warning: 'go' command not found. Skipping Go file formatting. Install Go toolchain if formatting is needed.`
+                );
             } else {
-                console.warn(`⚠️  go fmt failed for ${filePath}: ${error.message}`);
+                console.warn(
+                    `Warning: 'go fmt' failed for ${filePath}: ${error.message}. File generated but not formatted.`
+                );
             }
+        } else {
+            console.warn(
+                `Warning: Unexpected error during Go formatting: ${String(error)}. File generated but not formatted.`
+            );
         }
     }
 }
 
 async function generateGoTypes(schemaPath: string) {
-    console.log("🔄 Generating Go types from JSON Schema...");
+    console.log("Generating Go types from JSON Schema...");
 
-    const schemaContent = await fs.readFile(schemaPath, "utf-8");
-    const schema = JSON.parse(schemaContent) as JSONSchema7;
+    let schemaContent: string;
+    try {
+        schemaContent = await fs.readFile(schemaPath, "utf-8");
+    } catch (error) {
+        throw new Error(
+            `Failed to read schema file at ${schemaPath}: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
+
+    let schema: JSONSchema7;
+    try {
+        schema = JSON.parse(schemaContent) as JSONSchema7;
+    } catch (error) {
+        throw new Error(
+            `Failed to parse JSON schema from ${schemaPath}: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
 
     // Resolve the $ref at the root level and get the actual schema
     const resolvedSchema = (schema.definitions?.SessionEvent as JSONSchema7) || schema;
@@ -284,13 +375,20 @@ async function generateGoTypes(schemaPath: string) {
     const inputData = new InputData();
     inputData.addInput(schemaInput);
 
-    const result = await quicktype({
-        inputData,
-        lang: "go",
-        rendererOptions: {
-            package: "copilot",
-        },
-    });
+    let result;
+    try {
+        result = await quicktype({
+            inputData,
+            lang: "go",
+            rendererOptions: {
+                package: "copilot",
+            },
+        });
+    } catch (error) {
+        throw new Error(
+            `Failed to generate Go types using quicktype: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
 
     const generatedCode = result.lines.join("\n");
     const banner = `// AUTO-GENERATED FILE - DO NOT EDIT
@@ -306,14 +404,24 @@ async function generateGoTypes(schemaPath: string) {
 `;
 
     const outputPath = path.join(__dirname, "../../go/generated_session_events.go");
-    await fs.mkdir(path.dirname(outputPath), { recursive: true });
-    await fs.writeFile(outputPath, banner + generatedCode, "utf-8");
+    try {
+        await fs.mkdir(path.dirname(outputPath), { recursive: true });
+        await fs.writeFile(outputPath, banner + generatedCode, "utf-8");
+    } catch (error) {
+        throw new Error(
+            `Failed to write Go types to ${outputPath}: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
 
-    console.log(`✅ Generated Go types: ${outputPath}`);
+    console.log(`Generated Go types: ${outputPath}`);
 
     await formatGoFile(outputPath);
 }
 
+/**
+ * Formats a C# file using 'dotnet format'.
+ * Non-critical operation: logs a warning if formatting fails but does not throw.
+ */
 async function formatCSharpFile(filePath: string): Promise<void> {
     try {
         // Get the directory containing the .csproj file
@@ -322,50 +430,101 @@ async function formatCSharpFile(filePath: string): Promise<void> {
 
         // dotnet format needs to be run from the project directory or with --workspace
         await execFileAsync("dotnet", ["format", projectFile, "--include", filePath]);
-        console.log(`✅ Formatted C# file with dotnet format: ${filePath}`);
+        console.log(`Formatted C# file with dotnet format: ${filePath}`);
     } catch (error: unknown) {
+        // Formatting is optional and should not break the build
         if (error instanceof Error && "code" in error) {
-            if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+            const nodeError = error as NodeJS.ErrnoException;
+            if (nodeError.code === "ENOENT") {
                 console.warn(
-                    `⚠️  dotnet format not available - skipping formatting for ${filePath}`
+                    `Warning: 'dotnet' command not found. Skipping C# file formatting. Install .NET SDK if formatting is needed.`
                 );
             } else {
                 console.warn(
-                    `⚠️  dotnet format failed for ${filePath}: ${(error as Error).message}`
+                    `Warning: 'dotnet format' failed for ${filePath}: ${error.message}. File generated but not formatted.`
                 );
             }
+        } else {
+            console.warn(
+                `Warning: Unexpected error during C# formatting: ${String(error)}. File generated but not formatted.`
+            );
         }
     }
 }
 
 async function generateCSharpTypes(schemaPath: string) {
-    console.log("🔄 Generating C# types from JSON Schema...");
+    console.log("Generating C# types from JSON Schema...");
 
-    const schemaContent = await fs.readFile(schemaPath, "utf-8");
-    const schema = JSON.parse(schemaContent) as JSONSchema7;
+    let schemaContent: string;
+    try {
+        schemaContent = await fs.readFile(schemaPath, "utf-8");
+    } catch (error) {
+        throw new Error(
+            `Failed to read schema file at ${schemaPath}: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
+
+    let schema: JSONSchema7;
+    try {
+        schema = JSON.parse(schemaContent) as JSONSchema7;
+    } catch (error) {
+        throw new Error(
+            `Failed to parse JSON schema from ${schemaPath}: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
 
     const generatedAt = new Date().toISOString();
-    const generatedCode = generateCSharpSessionTypes(schema, generatedAt);
+    let generatedCode: string;
+    try {
+        generatedCode = generateCSharpSessionTypes(schema, generatedAt);
+    } catch (error) {
+        throw new Error(
+            `Failed to generate C# types from schema: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
 
     const outputPath = path.join(__dirname, "../../dotnet/src/Generated/SessionEvents.cs");
-    await fs.mkdir(path.dirname(outputPath), { recursive: true });
-    await fs.writeFile(outputPath, generatedCode, "utf-8");
+    try {
+        await fs.mkdir(path.dirname(outputPath), { recursive: true });
+        await fs.writeFile(outputPath, generatedCode, "utf-8");
+    } catch (error) {
+        throw new Error(
+            `Failed to write C# types to ${outputPath}: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
 
-    console.log(`✅ Generated C# types: ${outputPath}`);
+    console.log(`Generated C# types: ${outputPath}`);
 
     await formatCSharpFile(outputPath);
 }
 
 async function main() {
     try {
+        console.log("Starting type generation from JSON Schema...\n");
+
         const schemaPath = await getSchemaPath();
+
+        // Generate types for all SDKs sequentially to ensure clear error reporting
         await generateTypeScriptTypes(schemaPath);
         await generatePythonTypes(schemaPath);
         await generateGoTypes(schemaPath);
         await generateCSharpTypes(schemaPath);
-        console.log("✅ Type generation complete!");
+
+        console.log("\nType generation completed successfully.");
     } catch (error) {
-        console.error("❌ Type generation failed:", error);
+        // Log detailed error information for debugging
+        console.error("\nType generation failed:");
+        if (error instanceof Error) {
+            console.error(`Error: ${error.message}`);
+            if (error.stack) {
+                console.error("\nStack trace:");
+                console.error(error.stack);
+            }
+        } else {
+            console.error(String(error));
+        }
+
+        // Exit with non-zero code to indicate failure in CI/CD pipelines
         process.exit(1);
     }
 }
