@@ -59,7 +59,7 @@ Billing for the GitHub Copilot SDK is based on the same model as the Copilot CLI
 
 ### Does it support BYOK (Bring Your Own Key)?
 
-Yes, the GitHub Copilot SDK supports BYOK. You can configure the SDK to use your own encryption keys for data security. Refer to the individual SDK documentation for instructions on setting up BYOK.
+Yes, the GitHub Copilot SDK supports BYOK (Bring Your Own Key). You can configure the SDK to use your own API keys from supported LLM providers (e.g. OpenAI, Azure, Anthropic) to access models through those providers. Refer to the individual SDK documentation for instructions on setting up BYOK.
 
 ### Do I need to install the Copilot CLI separately?
 
