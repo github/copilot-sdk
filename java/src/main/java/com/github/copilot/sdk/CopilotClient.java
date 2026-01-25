@@ -425,10 +425,12 @@ public class CopilotClient implements AutoCloseable {
                 request.setStreaming(config.isStreaming() ? true : null);
                 request.setMcpServers(config.getMcpServers());
                 request.setCustomAgents(config.getCustomAgents());
+                request.setInfiniteSessions(config.getInfiniteSessions());
             }
 
             return connection.rpc.invoke("session.create", request, CreateSessionResponse.class).thenApply(response -> {
-                CopilotSession session = new CopilotSession(response.getSessionId(), connection.rpc);
+                CopilotSession session = new CopilotSession(response.getSessionId(), connection.rpc,
+                        response.getWorkspacePath());
                 if (config != null && config.getTools() != null) {
                     session.registerTools(config.getTools());
                 }
@@ -484,7 +486,8 @@ public class CopilotClient implements AutoCloseable {
             }
 
             return connection.rpc.invoke("session.resume", request, ResumeSessionResponse.class).thenApply(response -> {
-                CopilotSession session = new CopilotSession(response.getSessionId(), connection.rpc);
+                CopilotSession session = new CopilotSession(response.getSessionId(), connection.rpc,
+                        response.getWorkspacePath());
                 if (config != null && config.getTools() != null) {
                     session.registerTools(config.getTools());
                 }

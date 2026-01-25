@@ -77,6 +77,7 @@ public final class CopilotSession implements AutoCloseable {
     private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();
 
     private final String sessionId;
+    private final String workspacePath;
     private final JsonRpcClient rpc;
     private final Set<Consumer<AbstractSessionEvent>> eventHandlers = ConcurrentHashMap.newKeySet();
     private final Map<String, ToolDefinition> toolHandlers = new ConcurrentHashMap<>();
@@ -94,8 +95,26 @@ public final class CopilotSession implements AutoCloseable {
      *            the JSON-RPC client for communication
      */
     CopilotSession(String sessionId, JsonRpcClient rpc) {
+        this(sessionId, rpc, null);
+    }
+
+    /**
+     * Creates a new session with the given ID, RPC client, and workspace path.
+     * <p>
+     * This constructor is package-private. Sessions should be created via
+     * {@link CopilotClient#createSession} or {@link CopilotClient#resumeSession}.
+     *
+     * @param sessionId
+     *            the unique session identifier
+     * @param rpc
+     *            the JSON-RPC client for communication
+     * @param workspacePath
+     *            the workspace path if infinite sessions are enabled
+     */
+    CopilotSession(String sessionId, JsonRpcClient rpc, String workspacePath) {
         this.sessionId = sessionId;
         this.rpc = rpc;
+        this.workspacePath = workspacePath;
     }
 
     /**
@@ -105,6 +124,19 @@ public final class CopilotSession implements AutoCloseable {
      */
     public String getSessionId() {
         return sessionId;
+    }
+
+    /**
+     * Gets the path to the session workspace directory when infinite sessions are
+     * enabled.
+     * <p>
+     * The workspace directory contains checkpoints/, plan.md, and files/
+     * subdirectories.
+     *
+     * @return the workspace path, or {@code null} if infinite sessions are disabled
+     */
+    public String getWorkspacePath() {
+        return workspacePath;
     }
 
     /**

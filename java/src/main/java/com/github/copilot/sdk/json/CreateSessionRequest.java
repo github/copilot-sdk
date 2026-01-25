@@ -56,6 +56,9 @@ public final class CreateSessionRequest {
     @JsonProperty("customAgents")
     private List<CustomAgentConfig> customAgents;
 
+    @JsonProperty("infiniteSessions")
+    private InfiniteSessionConfig infiniteSessions;
+
     /** Gets the model name. @return the model */
     public String getModel() {
         return model;
@@ -164,5 +167,15 @@ public final class CreateSessionRequest {
     /** Sets custom agents. @param customAgents the agents */
     public void setCustomAgents(List<CustomAgentConfig> customAgents) {
         this.customAgents = customAgents;
+    }
+
+    /** Gets infinite sessions config. @return the config */
+    public InfiniteSessionConfig getInfiniteSessions() {
+        return infiniteSessions;
+    }
+
+    /** Sets infinite sessions config. @param infiniteSessions the config */
+    public void setInfiniteSessions(InfiniteSessionConfig infiniteSessions) {
+        this.infiniteSessions = infiniteSessions;
     }
 }

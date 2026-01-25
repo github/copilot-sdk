@@ -41,6 +41,7 @@ public class SessionConfig {
     private boolean streaming;
     private Map<String, Object> mcpServers;
     private List<CustomAgentConfig> customAgents;
+    private InfiniteSessionConfig infiniteSessions;
 
     /**
      * Gets the custom session ID.
@@ -307,6 +308,33 @@ public class SessionConfig {
      */
     public SessionConfig setCustomAgents(List<CustomAgentConfig> customAgents) {
         this.customAgents = customAgents;
+        return this;
+    }
+
+    /**
+     * Gets the infinite sessions configuration.
+     *
+     * @return the infinite sessions config
+     */
+    public InfiniteSessionConfig getInfiniteSessions() {
+        return infiniteSessions;
+    }
+
+    /**
+     * Sets the infinite session configuration for persistent workspaces and
+     * automatic compaction.
+     * <p>
+     * When enabled (default), sessions automatically manage context limits and
+     * persist state to a workspace directory. The workspace contains checkpoints/,
+     * plan.md, and files/ subdirectories.
+     *
+     * @param infiniteSessions
+     *            the infinite sessions configuration
+     * @return this config instance for method chaining
+     * @see InfiniteSessionConfig
+     */
+    public SessionConfig setInfiniteSessions(InfiniteSessionConfig infiniteSessions) {
+        this.infiniteSessions = infiniteSessions;
         return this;
     }
 }
