@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using GitHub.Copilot.SDK.Telemetry;
 using Microsoft.Extensions.AI;
 using StreamJsonRpc;
 using System.Text.Json;
@@ -48,6 +49,7 @@ public partial class CopilotSession : IAsyncDisposable
     private readonly JsonRpc _rpc;
     private PermissionHandler? _permissionHandler;
     private readonly SemaphoreSlim _permissionHandlerLock = new(1, 1);
+    private readonly SessionTelemetryTracker _telemetryTracker;
 
     /// <summary>
     /// Gets the unique identifier for this session.
@@ -78,6 +80,7 @@ public partial class CopilotSession : IAsyncDisposable
         SessionId = sessionId;
         _rpc = rpc;
         WorkspacePath = workspacePath;
+        _telemetryTracker = new SessionTelemetryTracker(sessionId);
     }
 
     /// <summary>
@@ -237,6 +240,9 @@ public partial class CopilotSession : IAsyncDisposable
     /// </remarks>
     internal void DispatchEvent(SessionEvent sessionEvent)
     {
+        // Record telemetry for the event
+        _telemetryTracker.ProcessEvent(sessionEvent);
+
         foreach (var handler in _eventHandlers.ToArray())
         {
             // We allow handler exceptions to propagate so they are not lost
@@ -421,6 +427,7 @@ public partial class CopilotSession : IAsyncDisposable
 
         _eventHandlers.Clear();
         _toolHandlers.Clear();
+        _telemetryTracker.Dispose();
 
         await _permissionHandlerLock.WaitAsync();
         try

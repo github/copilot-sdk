@@ -444,6 +444,94 @@ var session = await client.CreateSessionAsync(new SessionConfig
 });
 ```
 
+## Observability
+
+The SDK supports OpenTelemetry-based distributed tracing and metrics. Telemetry is disabled by default.
+
+### Enabling Telemetry
+
+Enable telemetry using one of these methods:
+
+**Option 1: AppContext switch (recommended)**
+```csharp
+AppContext.SetSwitch("GitHub.Copilot.EnableOpenTelemetry", true);
+```
+
+**Option 2: Environment variable**
+```bash
+export GITHUB_COPILOT_ENABLE_OPEN_TELEMETRY=true
+```
+
+### Configuring OpenTelemetry
+
+Configure your `TracerProvider` and `MeterProvider` to listen to the SDK:
+
+```csharp
+using OpenTelemetry;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Metrics;
+
+// Enable telemetry
+AppContext.SetSwitch("GitHub.Copilot.Experimental.EnableOpenTelemetry", true);
+
+// Configure OpenTelemetry
+services.AddOpenTelemetry()
+    .WithTracing(tracing => tracing
+        .AddSource("GitHub.Copilot.SDK")  // Traces
+        .AddConsoleExporter())            // Or your preferred exporter
+    .WithMetrics(metrics => metrics
+        .AddMeter("GitHub.Copilot.SDK")   // Metrics
+        .AddConsoleExporter());
+```
+
+### Spans
+
+The SDK emits the following spans following [GenAI Semantic Conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/):
+
+| Span Name | Description | Key Attributes |
+|-----------|-------------|----------------|
+| `copilot.session` | Root span for a session | `copilot.session.id`, `gen_ai.system`, `gen_ai.request.model` |
+| `copilot.turn` | Assistant turn lifecycle | `copilot.turn.id` |
+| `copilot.tool_execution` | Tool execution | `gen_ai.tool.name`, `gen_ai.tool.call_id`, `copilot.success` |
+| `copilot.subagent` | Subagent execution | `copilot.subagent.name` |
+| `copilot.hook` | Hook execution | `copilot.hook.type`, `copilot.hook.invocation_id` |
+| `copilot.inference` | LLM inference call | `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `copilot.cost` |
+
+### Metrics
+
+The SDK emits the following metrics:
+
+| Metric Name | Type | Description |
+|-------------|------|-------------|
+| `copilot.tokens.input` | Counter | Number of input tokens used |
+| `copilot.tokens.output` | Counter | Number of output tokens generated |
+| `copilot.cost.total` | Counter | Total cost of operations |
+| `copilot.tool_executions` | Counter | Number of tool executions |
+| `copilot.errors` | Counter | Number of errors |
+| `copilot.duration` | Histogram | Duration of operations in milliseconds |
+
+### Example Trace
+
+```
+copilot.session (root)
+├── gen_ai.system = "github-copilot"
+├── gen_ai.request.model = "gpt-4o"
+├── copilot.session.id = "abc123"
+│
+├── copilot.turn
+│   ├── copilot.turn.id = "turn-1"
+│   │
+│   ├── copilot.tool_execution
+│   │   ├── gen_ai.tool.name = "file_edit"
+│   │   ├── gen_ai.tool.call_id = "call-xyz"
+│   │   └── copilot.success = true
+│   │
+│   └── copilot.inference
+│       ├── gen_ai.usage.input_tokens = 500
+│       ├── gen_ai.usage.output_tokens = 200
+│       └── copilot.cost = 0.003
+```
+
 ## Error Handling
 
 ```csharp
