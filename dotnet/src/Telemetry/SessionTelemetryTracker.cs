@@ -216,11 +216,11 @@ internal sealed class SessionTelemetryTracker : IDisposable
                 }
             }
 
-            toolActivity.Dispose();
-
-            // Record metric - need to get tool name from activity tags
+            // Record metric - get tool name before disposing
             var toolName = toolActivity.GetTagItem(OpenTelemetryConstants.GenAiToolName)?.ToString() ?? "unknown";
             CopilotTelemetry.RecordToolExecution(toolName, toolCompleteEvent.Data.Success, _sessionId);
+
+            toolActivity.Dispose();
         }
     }
 
