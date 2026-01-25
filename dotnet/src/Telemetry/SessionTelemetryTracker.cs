@@ -357,28 +357,11 @@ internal sealed class SessionTelemetryTracker : IDisposable
         // Clean up any remaining activities
         _sessionActivity?.Dispose();
 
-        foreach (var activity in _turnActivities.Values)
-        {
-            activity.Dispose();
-        }
+        // Clear dictionaries without disposing individual activities to avoid
+        // races with concurrent readers that may still be using them.
         _turnActivities.Clear();
-
-        foreach (var activity in _toolActivities.Values)
-        {
-            activity.Dispose();
-        }
         _toolActivities.Clear();
-
-        foreach (var activity in _subagentActivities.Values)
-        {
-            activity.Dispose();
-        }
         _subagentActivities.Clear();
-
-        foreach (var activity in _hookActivities.Values)
-        {
-            activity.Dispose();
-        }
         _hookActivities.Clear();
     }
 }
