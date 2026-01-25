@@ -295,6 +295,7 @@ internal sealed class SessionTelemetryTracker : IDisposable
                 {
                     hookActivity.SetTag(OpenTelemetryConstants.CopilotErrorMessage, hookEndEvent.Data.Error.Message);
                 }
+                CopilotTelemetry.RecordError("hook_failed", _sessionId);
             }
 
             hookActivity.Dispose();
