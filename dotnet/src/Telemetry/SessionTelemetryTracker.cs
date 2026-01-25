@@ -43,7 +43,7 @@ internal sealed class SessionTelemetryTracker : IDisposable
                 OnSessionStart(startEvent);
                 break;
             case SessionIdleEvent:
-            case SessionErrorEvent errorEvent:
+            case SessionErrorEvent:
                 OnSessionEnd(sessionEvent as SessionErrorEvent);
                 break;
 
