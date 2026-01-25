@@ -97,7 +97,7 @@ Please use the [GitHub Issues](https://github.com/github/copilot-sdk/issues) pag
 
 ## Unofficial, Community-maintained SDKs
 
-⚠️ Disclaimer: These are unofficial, community-driven SDK and they are not supported by GitHub. Use at your own risk.
+⚠️ Disclaimer: These are unofficial, community-driven SDKs and they are not supported by GitHub. Use at your own risk.
 
 | SDK           | Location                                           |
 | --------------| -------------------------------------------------- |
