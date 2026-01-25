@@ -472,7 +472,7 @@ using OpenTelemetry.Trace;
 using OpenTelemetry.Metrics;
 
 // Enable telemetry
-AppContext.SetSwitch("GitHub.Copilot.Experimental.EnableOpenTelemetry", true);
+AppContext.SetSwitch("GitHub.Copilot.EnableOpenTelemetry", true);
 
 // Configure OpenTelemetry
 services.AddOpenTelemetry()
