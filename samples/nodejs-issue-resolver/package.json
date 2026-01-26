@@ -1,0 +1,20 @@
+{
+  "name": "nodejs-issue-resolver",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Professional Copilot Agent",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@github/copilot-sdk": "latest",
+    "dotenv": "^16.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "latest",
+    "typescript": "^5.0.0"
+  }
+}
