@@ -45,7 +45,7 @@ import sys
 
 from copilot import CopilotClient, SessionConfig
 from copilot.generated.session_events import SessionEvent, SessionEventType
-from copilot.types import CopilotClientOptions, MessageOptions, SystemMessageAppendConfig
+from copilot.types import CopilotClientOptions, MessageOptions
 
 # ============================================================================
 # Git & GitHub Detection
@@ -126,17 +126,17 @@ async def main():
 
     owner, repo_name = repo.split("/", 1)
 
-    options = CopilotClientOptions(
-        log_level="info",
-    )
+    options: CopilotClientOptions = {
+        "log_level": "info",
+    }
     # Create Copilot client - no custom tools needed!
     client = CopilotClient(options=options)
     await client.start()
 
-    session_config = SessionConfig(
-        model="gpt-5",
-        system_message=SystemMessageAppendConfig(
-            content=f"""
+    session_config: SessionConfig = {
+        "model": "gpt-5",
+        "system_message": {
+            "content": f"""
 <context>
 You are analyzing pull requests for the GitHub repository: {owner}/{repo_name}
 The current working directory is: {os.getcwd()}
@@ -149,8 +149,8 @@ The current working directory is: {os.getcwd()}
 - Be concise in your responses
 </instructions>
 """
-        ),
-    )
+        },
+    }
 
     session = await client.create_session(config=session_config)
 
@@ -166,16 +166,16 @@ The current working directory is: {os.getcwd()}
     # Initial prompt - let Copilot figure out the details
     print("\n📊 Starting analysis...\n")
 
-    message_options = MessageOptions(
-        prompt=f"""
+    message_options: MessageOptions = {
+        "prompt": f"""
       Fetch the open pull requests for {owner}/{repo_name} from the last week.
       Calculate the age of each PR in days.
       Then generate a bar chart image showing the distribution of PR ages
       (group them into sensible buckets like <1 day, 1-3 days, etc.).
       Save the chart as "pr-age-chart.png" in the current directory.
       Finally, summarize the PR health - average age, oldest PR, and how many might be considered stale.
-    """,
-    )
+    """
+    }
 
     await session.send_and_wait(options=message_options, timeout=300.0)
 
@@ -196,7 +196,7 @@ The current working directory is: {os.getcwd()}
             break
 
         if user_input:
-            message_options = MessageOptions(prompt=user_input)
+            message_options: MessageOptions = {"prompt": user_input}
             await session.send_and_wait(options=message_options, timeout=300.0)
 
     await session.destroy()
