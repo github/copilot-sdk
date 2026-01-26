@@ -698,9 +698,7 @@ class CopilotClient:
             >>> last_id = await client.get_last_session_id()
             >>> if last_id is not None:
             ...     # Resume the most recently updated session
-            ...     session = await client.resume_session(
-            ...         ResumeSessionConfig(session_id=last_id)
-            ...     )
+            ...     session = await client.resume_session(last_id)
             ...     await session.send({"prompt": "Continue where we left off."})
         """
         if not self._client:
