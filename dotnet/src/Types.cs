@@ -11,12 +11,8 @@ using Microsoft.Extensions.Logging;
 namespace GitHub.Copilot.SDK;
 
 /// <summary>
-/// Exception thrown when a JSON-RPC communication error occurs with the Copilot CLI.
+/// Exception thrown when a communication error occurs with the Copilot CLI.
 /// </summary>
-/// <remarks>
-/// This exception wraps underlying communication errors to provide a stable API surface
-/// that doesn't expose implementation details of the JSON-RPC protocol.
-/// </remarks>
 public class CopilotRpcException : IOException
 {
     /// <summary>
