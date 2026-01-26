@@ -60,6 +60,24 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     private readonly string? _optionsHost;
 
     /// <summary>
+    /// Occurs when a new session is created.
+    /// </summary>
+    /// <remarks>
+    /// Subscribe to this event to hook into session events globally.
+    /// The handler receives the newly created <see cref="CopilotSession"/> instance.
+    /// </remarks>
+    public event Action<CopilotSession>? SessionCreated;
+
+    /// <summary>
+    /// Occurs when a session is destroyed.
+    /// </summary>
+    /// <remarks>
+    /// Subscribe to this event to perform cleanup when sessions end.
+    /// The handler receives the session ID of the destroyed session.
+    /// </remarks>
+    public event Action<string>? SessionDestroyed;
+
+    /// <summary>
     /// Creates a new instance of <see cref="CopilotClient"/>.
     /// </summary>
     /// <param name="options">Options for creating the client. If null, default options are used.</param>
@@ -362,6 +380,13 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
             throw new InvalidOperationException($"Session {response.SessionId} already exists");
         }
 
+        session.OnDisposed = (id) =>
+        {
+            _sessions.TryRemove(id, out _);
+            SessionDestroyed?.Invoke(id);
+        };
+        SessionCreated?.Invoke(session);
+
         return session;
     }
 
@@ -416,6 +441,14 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
 
         // Replace any existing session entry to ensure new config (like permission handler) is used
         _sessions[response.SessionId] = session;
+
+        session.OnDisposed = (id) =>
+        {
+            _sessions.TryRemove(id, out _);
+            SessionDestroyed?.Invoke(id);
+        };
+        SessionCreated?.Invoke(session);
+
         return session;
     }
 

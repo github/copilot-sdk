@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Telemetry;
 using Microsoft.Extensions.AI;
 using StreamJsonRpc;
 using System.Text.Json;
@@ -49,7 +48,6 @@ public partial class CopilotSession : IAsyncDisposable
     private readonly JsonRpc _rpc;
     private PermissionHandler? _permissionHandler;
     private readonly SemaphoreSlim _permissionHandlerLock = new(1, 1);
-    private readonly SessionTelemetryTracker _telemetryTracker;
 
     /// <summary>
     /// Gets the unique identifier for this session.
@@ -67,6 +65,12 @@ public partial class CopilotSession : IAsyncDisposable
     public string? WorkspacePath { get; }
 
     /// <summary>
+    /// Internal callback invoked when the session is disposed.
+    /// Used by CopilotClient to fire the SessionDestroyed event.
+    /// </summary>
+    internal Action<string>? OnDisposed { get; set; }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="CopilotSession"/> class.
     /// </summary>
     /// <param name="sessionId">The unique identifier for this session.</param>
@@ -80,7 +84,6 @@ public partial class CopilotSession : IAsyncDisposable
         SessionId = sessionId;
         _rpc = rpc;
         WorkspacePath = workspacePath;
-        _telemetryTracker = new SessionTelemetryTracker(sessionId);
     }
 
     /// <summary>
@@ -240,9 +243,6 @@ public partial class CopilotSession : IAsyncDisposable
     /// </remarks>
     internal void DispatchEvent(SessionEvent sessionEvent)
     {
-        // Record telemetry for the event
-        _telemetryTracker.ProcessEvent(sessionEvent);
-
         foreach (var handler in _eventHandlers.ToArray())
         {
             // We allow handler exceptions to propagate so they are not lost
@@ -427,7 +427,6 @@ public partial class CopilotSession : IAsyncDisposable
 
         _eventHandlers.Clear();
         _toolHandlers.Clear();
-        _telemetryTracker.Dispose();
 
         await _permissionHandlerLock.WaitAsync();
         try
@@ -438,6 +437,8 @@ public partial class CopilotSession : IAsyncDisposable
         {
             _permissionHandlerLock.Release();
         }
+
+        OnDisposed?.Invoke(SessionId);
     }
 
     private class OnDisposeCall(Action callback) : IDisposable
