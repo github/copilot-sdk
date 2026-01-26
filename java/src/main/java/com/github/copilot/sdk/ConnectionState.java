@@ -11,6 +11,7 @@ package com.github.copilot.sdk;
  * to the Copilot CLI server.
  *
  * @see CopilotClient#getState()
+ * @since 1.0.0
  */
 public enum ConnectionState {
     /**

@@ -9,6 +9,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Event: tool.user_requested
+ *
+ * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class ToolUserRequestedEvent extends AbstractSessionEvent {

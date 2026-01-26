@@ -29,6 +29,7 @@ import java.util.concurrent.CompletableFuture;
  *
  * @see ToolDefinition
  * @see ToolInvocation
+ * @since 1.0.0
  */
 @FunctionalInterface
 public interface ToolHandler {

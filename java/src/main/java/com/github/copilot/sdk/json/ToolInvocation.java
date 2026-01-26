@@ -15,6 +15,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  *
  * @see ToolHandler
  * @see ToolDefinition
+ * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class ToolInvocation {

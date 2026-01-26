@@ -24,6 +24,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * </ul>
  *
  * @see PermissionHandler
+ * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class PermissionRequestResult {

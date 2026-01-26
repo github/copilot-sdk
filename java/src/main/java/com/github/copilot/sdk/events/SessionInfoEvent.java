@@ -9,6 +9,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Event: session.info
+ *
+ * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class SessionInfoEvent extends AbstractSessionEvent {

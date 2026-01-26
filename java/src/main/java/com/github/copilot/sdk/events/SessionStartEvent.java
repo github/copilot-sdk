@@ -11,6 +11,8 @@ import java.time.OffsetDateTime;
 
 /**
  * Event: session.start
+ *
+ * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class SessionStartEvent extends AbstractSessionEvent {

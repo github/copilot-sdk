@@ -17,6 +17,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * associated tool call.
  *
  * @see PermissionHandler
+ * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class PermissionRequest {

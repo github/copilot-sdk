@@ -9,6 +9,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Event: hook.start
+ *
+ * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class HookStartEvent extends AbstractSessionEvent {

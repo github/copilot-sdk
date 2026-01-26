@@ -9,6 +9,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Event: assistant.turn_start
+ *
+ * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class AssistantTurnStartEvent extends AbstractSessionEvent {

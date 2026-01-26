@@ -10,6 +10,8 @@ package com.github.copilot.sdk;
  * <p>
  * This exception wraps error responses from the JSON-RPC protocol, including
  * the error code and message returned by the server.
+ *
+ * @since 1.0.0
  */
 final class JsonRpcException extends RuntimeException {
 

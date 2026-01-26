@@ -9,6 +9,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Model policy state.
+ *
+ * @since 1.0.1
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ModelPolicy {

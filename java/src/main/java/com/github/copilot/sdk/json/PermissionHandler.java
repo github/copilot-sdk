@@ -31,6 +31,7 @@ import java.util.concurrent.CompletableFuture;
  * @see SessionConfig#setOnPermissionRequest(PermissionHandler)
  * @see PermissionRequest
  * @see PermissionRequestResult
+ * @since 1.0.0
  */
 @FunctionalInterface
 public interface PermissionHandler {

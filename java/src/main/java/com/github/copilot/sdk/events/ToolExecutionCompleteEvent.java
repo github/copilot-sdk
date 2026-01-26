@@ -11,6 +11,8 @@ import java.util.Map;
 
 /**
  * Event: tool.execution_complete
+ *
+ * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class ToolExecutionCompleteEvent extends AbstractSessionEvent {

@@ -14,6 +14,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
  * system message or replace it entirely.
  *
  * @see com.github.copilot.sdk.json.SystemMessageConfig
+ * @since 1.0.0
  */
 public enum SystemMessageMode {
     /**

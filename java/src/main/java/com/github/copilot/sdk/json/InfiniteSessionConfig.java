@@ -26,6 +26,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * }</pre>
  *
  * @see SessionConfig#setInfiniteSessions(InfiniteSessionConfig)
+ * @since 1.0.2
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class InfiniteSessionConfig {

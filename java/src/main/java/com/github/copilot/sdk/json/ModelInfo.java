@@ -9,6 +9,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Information about an available model.
+ *
+ * @since 1.0.1
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ModelInfo {

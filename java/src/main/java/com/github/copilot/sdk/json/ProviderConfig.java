@@ -28,6 +28,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * }</pre>
  *
  * @see SessionConfig#setProvider(ProviderConfig)
+ * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ProviderConfig {

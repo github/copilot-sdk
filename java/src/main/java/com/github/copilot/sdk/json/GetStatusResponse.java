@@ -11,6 +11,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * Response from the status.get RPC call.
  * <p>
  * Contains information about the CLI version and protocol version.
+ *
+ * @since 1.0.1
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class GetStatusResponse {

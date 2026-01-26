@@ -17,6 +17,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  *
  * @see com.github.copilot.sdk.CopilotClient#listSessions()
  * @see SessionMetadata
+ * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class ListSessionsResponse {

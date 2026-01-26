@@ -13,6 +13,8 @@ import java.util.List;
  * Response from the models.list RPC call.
  * <p>
  * Contains a list of available models with their metadata.
+ *
+ * @since 1.0.1
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class GetModelsResponse {

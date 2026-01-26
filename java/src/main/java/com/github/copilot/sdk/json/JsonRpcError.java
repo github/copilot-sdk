@@ -25,6 +25,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @see JsonRpcResponse
  * @see <a href="https://www.jsonrpc.org/specification#error_object">JSON-RPC
  *      Error Object</a>
+ * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class JsonRpcError {

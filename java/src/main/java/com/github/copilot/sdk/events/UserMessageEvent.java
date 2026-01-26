@@ -11,6 +11,8 @@ import java.util.List;
 
 /**
  * Event: user.message
+ *
+ * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class UserMessageEvent extends AbstractSessionEvent {

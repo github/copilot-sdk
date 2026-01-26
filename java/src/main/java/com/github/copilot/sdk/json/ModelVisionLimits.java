@@ -11,6 +11,8 @@ import java.util.List;
 
 /**
  * Model vision-specific limits.
+ *
+ * @since 1.0.1
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ModelVisionLimits {

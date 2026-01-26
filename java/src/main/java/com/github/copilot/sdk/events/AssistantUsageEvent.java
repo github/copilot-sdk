@@ -11,6 +11,8 @@ import java.util.Map;
 
 /**
  * Event: assistant.usage
+ *
+ * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class AssistantUsageEvent extends AbstractSessionEvent {

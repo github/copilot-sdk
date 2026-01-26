@@ -26,6 +26,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  *
  * @see com.github.copilot.sdk.CopilotClient#resumeSession(String,
  *      ResumeSessionConfig)
+ * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ResumeSessionConfig {

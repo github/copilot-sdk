@@ -35,6 +35,8 @@ import com.github.copilot.sdk.json.JsonRpcResponse;
 
 /**
  * JSON-RPC 2.0 client implementation for communicating with the Copilot CLI.
+ *
+ * @since 1.0.0
  */
 class JsonRpcClient implements AutoCloseable {
 

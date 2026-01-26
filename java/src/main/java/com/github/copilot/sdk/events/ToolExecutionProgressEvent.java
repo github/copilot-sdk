@@ -11,6 +11,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * Event fired when a tool execution reports progress.
  * <p>
  * This event provides progress updates during tool execution.
+ *
+ * @since 1.0.1
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class ToolExecutionProgressEvent extends AbstractSessionEvent {

@@ -14,6 +14,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * a session deletion operation.
  *
  * @see com.github.copilot.sdk.CopilotClient#deleteSession(String)
+ * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class DeleteSessionResponse {

@@ -46,6 +46,7 @@ import java.util.UUID;
  *
  * @see com.github.copilot.sdk.CopilotSession#on(java.util.function.Consumer)
  * @see SessionEventParser
+ * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public abstract sealed class AbstractSessionEvent permits

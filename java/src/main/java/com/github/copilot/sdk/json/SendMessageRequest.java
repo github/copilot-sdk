@@ -18,6 +18,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  *
  * @see com.github.copilot.sdk.CopilotSession
  * @see MessageOptions
+ * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class SendMessageRequest {

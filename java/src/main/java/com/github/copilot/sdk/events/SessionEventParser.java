@@ -36,6 +36,7 @@ import java.util.Map;
  * </ul>
  *
  * @see AbstractSessionEvent
+ * @since 1.0.0
  */
 public class SessionEventParser {
 

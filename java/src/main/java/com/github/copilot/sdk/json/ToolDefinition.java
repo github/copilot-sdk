@@ -32,6 +32,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  *
  * @see SessionConfig#setTools(java.util.List)
  * @see ToolHandler
+ * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ToolDefinition {

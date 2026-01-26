@@ -11,6 +11,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * Event: session.snapshot_rewind
  * <p>
  * Indicates that the session has been rewound to a previous snapshot.
+ *
+ * @since 1.0.4
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class SessionSnapshotRewindEvent extends AbstractSessionEvent {

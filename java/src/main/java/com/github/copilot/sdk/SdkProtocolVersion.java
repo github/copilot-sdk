@@ -9,6 +9,8 @@ package com.github.copilot.sdk;
 /**
  * Provides the SDK protocol version. This must match the version expected by
  * the copilot-agent-runtime server.
+ *
+ * @since 1.0.0
  */
 public enum SdkProtocolVersion {
 

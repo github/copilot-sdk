@@ -70,6 +70,7 @@ import com.github.copilot.sdk.json.ToolDefinition;
  * @see CopilotClient#resumeSession(String,
  *      com.github.copilot.sdk.json.ResumeSessionConfig)
  * @see AbstractSessionEvent
+ * @since 1.0.0
  */
 public final class CopilotSession implements AutoCloseable {
 

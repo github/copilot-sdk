@@ -28,6 +28,7 @@ import java.util.List;
  *
  * @see AssistantMessageDeltaEvent
  * @see AbstractSessionEvent
+ * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class AssistantMessageEvent extends AbstractSessionEvent {

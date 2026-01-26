@@ -11,6 +11,7 @@ package com.github.copilot.sdk.json;
  * originated.
  *
  * @see PermissionHandler
+ * @since 1.0.0
  */
 public final class PermissionInvocation {
 

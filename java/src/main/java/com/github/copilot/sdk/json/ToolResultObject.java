@@ -30,6 +30,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  *
  * @see ToolHandler
  * @see ToolBinaryResult
+ * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class ToolResultObject {

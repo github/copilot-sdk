@@ -18,6 +18,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @see JsonRpcError
  * @see <a href="https://www.jsonrpc.org/specification">JSON-RPC 2.0
  *      Specification</a>
+ * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class JsonRpcResponse {

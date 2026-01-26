@@ -75,6 +75,8 @@ import com.github.copilot.sdk.json.ToolResultObject;
  * 	session.send(new MessageOptions().setPrompt("Hello!")).get();
  * }
  * }</pre>
+ *
+ * @since 1.0.0
  */
 public class CopilotClient implements AutoCloseable {
 

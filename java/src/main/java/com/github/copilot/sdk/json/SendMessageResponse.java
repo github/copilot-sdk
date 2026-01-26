@@ -14,6 +14,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * ID assigned by the server.
  *
  * @see SendMessageRequest
+ * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class SendMessageResponse {

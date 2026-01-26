@@ -11,6 +11,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * Response from the auth.getStatus RPC call.
  * <p>
  * Contains information about the current authentication status.
+ *
+ * @since 1.0.1
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class GetAuthStatusResponse {
