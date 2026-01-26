@@ -411,7 +411,7 @@ function generatePolymorphicClasses(
     lines.push(`    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]`);
 
     // Add JsonDerivedType attributes for each variant
-    for (const [constValue, variant] of discriminatorInfo.mapping) {
+    for (const [constValue] of discriminatorInfo.mapping) {
         const derivedClassName = `${baseClassName}${toPascalCase(constValue)}`;
         lines.push(`[JsonDerivedType(typeof(${derivedClassName}), "${constValue}")]`);
     }
