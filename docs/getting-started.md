@@ -844,6 +844,8 @@ const session = await client.createSession({
 });
 ```
 
+📖 **[Full MCP documentation →](./mcp.md)** - Learn about local vs remote servers, all configuration options, and troubleshooting.
+
 ### Create Custom Agents
 
 Define specialized AI personas for specific tasks:
@@ -980,6 +982,7 @@ await using var session = await client.CreateSessionAsync();
 - [Python SDK Reference](../python/README.md)
 - [Go SDK Reference](../go/README.md)
 - [.NET SDK Reference](../dotnet/README.md)
+- [Using MCP Servers](./mcp.md) - Integrate external tools via Model Context Protocol
 - [GitHub MCP Server Documentation](https://github.com/github/github-mcp-server)
 - [MCP Servers Directory](https://github.com/modelcontextprotocol/servers) - Explore more MCP servers
 
