@@ -27,21 +27,25 @@ pip install copilot-sdk
 
 ```bash
 # Auto-detect from current git repo
-python pr_breakdown.py
+python pr_visualization.py
 
 # Specify a repo explicitly
-python pr_breakdown.py --repo github/copilot-sdk
+python pr_visualization.py --repo github/copilot-sdk
 ```
 
-## Full example: pr_breakdown.py
+## Full example: pr_visualization.py
 
 ```python
 #!/usr/bin/env python3
 
+import os
+import re
 import subprocess
 import sys
-import os
-from copilot import CopilotClient
+
+from copilot import CopilotClient, SessionConfig
+from copilot.generated.session_events import SessionEvent, SessionEventType
+from copilot.types import CopilotClientOptions, MessageOptions, SystemMessageAppendConfig
 
 # ============================================================================
 # Git & GitHub Detection
@@ -49,27 +53,20 @@ from copilot import CopilotClient
 
 def is_git_repo():
     try:
-        subprocess.run(
-            ["git", "rev-parse", "--git-dir"],
-            check=True,
-            capture_output=True
-        )
+        subprocess.run(["git", "rev-parse", "--git-dir"], check=True, capture_output=True)
         return True
     except (subprocess.CalledProcessError, FileNotFoundError):
         return False
 
+
 def get_github_remote():
     try:
         result = subprocess.run(
-            ["git", "remote", "get-url", "origin"],
-            check=True,
-            capture_output=True,
-            text=True
+            ["git", "remote", "get-url", "origin"], check=True, capture_output=True, text=True
         )
         remote_url = result.stdout.strip()
 
         # Handle SSH: git@github.com:owner/repo.git
-        import re
         ssh_match = re.search(r"git@github\.com:(.+/.+?)(?:\.git)?$", remote_url)
         if ssh_match:
             return ssh_match.group(1)
@@ -91,14 +88,17 @@ def parse_args():
             return {"repo": args[idx + 1]}
     return {}
 
+
 def prompt_for_repo():
     return input("Enter GitHub repo (owner/repo): ").strip()
+
 
 # ============================================================================
 # Main Application
 # ============================================================================
 
-def main():
+
+async def main():
     print("🔍 PR Age Chart Generator\n")
 
     # Determine the repository
@@ -126,14 +126,17 @@ def main():
 
     owner, repo_name = repo.split("/", 1)
 
+    options = CopilotClientOptions(
+        log_level="info",
+    )
     # Create Copilot client - no custom tools needed!
-    client = CopilotClient(log_level="error")
-    client.start()
+    client = CopilotClient(options=options)
+    await client.start()
 
-    session = client.create_session(
+    session_config = SessionConfig(
         model="gpt-5",
-        system_message={
-            "content": f"""
+        system_message=SystemMessageAppendConfig(
+            content=f"""
 <context>
 You are analyzing pull requests for the GitHub repository: {owner}/{repo_name}
 The current working directory is: {os.getcwd()}
@@ -146,39 +149,43 @@ The current working directory is: {os.getcwd()}
 - Be concise in your responses
 </instructions>
 """
-        }
+        ),
     )
 
+    session = await client.create_session(config=session_config)
+
     # Set up event handling
-    def handle_event(event):
-        if event["type"] == "assistant.message":
-            print(f"\n🤖 {event['data']['content']}\n")
-        elif event["type"] == "tool.execution_start":
-            print(f"  ⚙️  {event['data']['toolName']}")
+    def handle_event(event: SessionEvent):
+        if event.type == SessionEventType.ASSISTANT_MESSAGE:
+            print(f"\n🤖 {event.data.content}\n")
+        elif event.type == SessionEventType.TOOL_EXECUTION_START:
+            print(f"  ⚙️  {event.data.tool_name}")
 
     session.on(handle_event)
 
     # Initial prompt - let Copilot figure out the details
     print("\n📊 Starting analysis...\n")
 
-    session.send(prompt=f"""
+    message_options = MessageOptions(
+        prompt=f"""
       Fetch the open pull requests for {owner}/{repo_name} from the last week.
       Calculate the age of each PR in days.
       Then generate a bar chart image showing the distribution of PR ages
       (group them into sensible buckets like <1 day, 1-3 days, etc.).
       Save the chart as "pr-age-chart.png" in the current directory.
       Finally, summarize the PR health - average age, oldest PR, and how many might be considered stale.
-    """)
+    """,
+    )
 
-    session.wait_for_idle()
+    await session.send_and_wait(options=message_options, timeout=300.0)
 
     # Interactive loop
-    print("\n💡 Ask follow-up questions or type \"exit\" to quit.\n")
+    print('\n💡 Ask follow-up questions or type "exit" to quit.\n')
     print("Examples:")
-    print("  - \"Expand to the last month\"")
-    print("  - \"Show me the 5 oldest PRs\"")
-    print("  - \"Generate a pie chart instead\"")
-    print("  - \"Group by author instead of age\"")
+    print('  - "Expand to the last month"')
+    print('  - "Show me the 5 oldest PRs"')
+    print('  - "Generate a pie chart instead"')
+    print('  - "Group by author instead of age"')
     print()
 
     while True:
@@ -189,13 +196,17 @@ The current working directory is: {os.getcwd()}
             break
 
         if user_input:
-            session.send(prompt=user_input)
-            session.wait_for_idle()
+            message_options = MessageOptions(prompt=user_input)
+            await session.send_and_wait(options=message_options, timeout=300.0)
 
-    client.stop()
+    await session.destroy()
+    await client.stop()
+
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+
+    asyncio.run(main())
 ```
 
 ## How it works
