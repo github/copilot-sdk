@@ -684,6 +684,10 @@ class CopilotClient:
         Return the ID of the most recently updated session known by the CLI
         server, or ``None`` if no sessions exist.
 
+        Returns:
+            The session id string (str) of the most-recently-updated session as
+            reported by the server, or ``None`` if there are no sessions.
+
         The "last" session is determined by the session's ``modifiedTime``
         on the server, not by when this method is called locally.
 
