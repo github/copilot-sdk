@@ -91,7 +91,7 @@ async def main():
     owner, repo_name = repo.split("/", 1)
 
     options: CopilotClientOptions = {
-        "log_level": "info",
+        "log_level": "error",
     }
     # Create Copilot client - no custom tools needed!
     client = CopilotClient(options=options)
