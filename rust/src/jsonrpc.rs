@@ -1,5 +1,5 @@
 use anyhow::Result;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::mpsc;
 
@@ -28,7 +28,9 @@ impl JsonRpcTransport {
             let mut reader = BufReader::new(stdin).lines();
 
             while let Ok(Some(line)) = reader.next_line().await {
-                if line.trim().is_empty() { continue; }
+                if line.trim().is_empty() {
+                    continue;
+                }
 
                 match serde_json::from_str::<In>(&line) {
                     Ok(event) => {
@@ -48,6 +50,9 @@ impl JsonRpcTransport {
 
     pub async fn send<T: Serialize>(&self, message: &T) -> Result<()> {
         let json = serde_json::to_string(message)?;
-        self.write_tx.send(json).await.map_err(|e| anyhow::anyhow!("Channel closed: {}", e))
+        self.write_tx
+            .send(json)
+            .await
+            .map_err(|e| anyhow::anyhow!("Channel closed: {}", e))
     }
 }
