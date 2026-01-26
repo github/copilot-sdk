@@ -439,6 +439,13 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
             session.RegisterPermissionHandler(config.OnPermissionRequest);
         }
 
+        // Clear OnDisposed on the old session to prevent it from firing SessionDestroyed
+        // if it gets disposed after being replaced
+        if (_sessions.TryGetValue(response.SessionId, out var oldSession))
+        {
+            oldSession.OnDisposed = null;
+        }
+
         // Replace any existing session entry to ensure new config (like permission handler) is used
         _sessions[response.SessionId] = session;
 
