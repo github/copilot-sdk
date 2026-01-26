@@ -172,4 +172,90 @@ public class ClientTests : IAsyncLifetime
             await client.ForceStopAsync();
         }
     }
+
+    [Fact]
+    public async Task Should_Fire_SessionCreated_When_Session_Is_Created()
+    {
+        using var client = new CopilotClient(new CopilotClientOptions { CliPath = _cliPath, UseStdio = true });
+
+        try
+        {
+            await client.StartAsync();
+
+            CopilotSession? createdSession = null;
+            client.SessionCreated += session => createdSession = session;
+
+            var session = await client.CreateSessionAsync();
+
+            Assert.NotNull(createdSession);
+            Assert.Equal(session.SessionId, createdSession!.SessionId);
+        }
+        finally
+        {
+            await client.ForceStopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Should_Fire_SessionDestroyed_When_Session_Is_Disposed()
+    {
+        using var client = new CopilotClient(new CopilotClientOptions { CliPath = _cliPath, UseStdio = true });
+
+        try
+        {
+            await client.StartAsync();
+
+            string? destroyedSessionId = null;
+            client.SessionDestroyed += id => destroyedSessionId = id;
+
+            var session = await client.CreateSessionAsync();
+            var sessionId = session.SessionId;
+
+            Assert.Null(destroyedSessionId);
+
+            await session.DisposeAsync();
+
+            Assert.NotNull(destroyedSessionId);
+            Assert.Equal(sessionId, destroyedSessionId);
+        }
+        finally
+        {
+            await client.ForceStopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Should_Fire_Events_For_Multiple_Sessions()
+    {
+        using var client = new CopilotClient(new CopilotClientOptions { CliPath = _cliPath, UseStdio = true });
+
+        try
+        {
+            await client.StartAsync();
+
+            var createdIds = new List<string>();
+            var destroyedIds = new List<string>();
+            client.SessionCreated += session => createdIds.Add(session.SessionId);
+            client.SessionDestroyed += id => destroyedIds.Add(id);
+
+            var session1 = await client.CreateSessionAsync();
+            var session2 = await client.CreateSessionAsync();
+
+            Assert.Equal(2, createdIds.Count);
+            Assert.Contains(session1.SessionId, createdIds);
+            Assert.Contains(session2.SessionId, createdIds);
+
+            await session1.DisposeAsync();
+            Assert.Single(destroyedIds);
+            Assert.Equal(session1.SessionId, destroyedIds[0]);
+
+            await session2.DisposeAsync();
+            Assert.Equal(2, destroyedIds.Count);
+            Assert.Equal(session2.SessionId, destroyedIds[1]);
+        }
+        finally
+        {
+            await client.ForceStopAsync();
+        }
+    }
 }

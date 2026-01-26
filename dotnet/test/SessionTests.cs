@@ -197,6 +197,22 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     }
 
     [Fact]
+    public async Task Should_Fire_SessionCreated_When_Session_Is_Resumed()
+    {
+        var session1 = await Client.CreateSessionAsync();
+        var sessionId = session1.SessionId;
+
+        CopilotSession? resumedSession = null;
+        Client.SessionCreated += s => resumedSession = s;
+
+        var session2 = await Client.ResumeSessionAsync(sessionId);
+
+        Assert.NotNull(resumedSession);
+        Assert.Equal(sessionId, resumedSession!.SessionId);
+        Assert.Same(session2, resumedSession);
+    }
+
+    [Fact]
     public async Task Should_Abort_A_Session()
     {
         var session = await Client.CreateSessionAsync();
