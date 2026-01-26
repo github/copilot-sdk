@@ -1,136 +1,328 @@
-use crate::jsonrpc::JsonRpcTransport;
-use crate::types::{AgentConfig, ProtocolEvent};
-use anyhow::{Context, Result};
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use serde_json::Value;
+use crate::jsonrpc::JsonRpcClient;
+use crate::session::Session;
+use crate::types::*;
+use anyhow::{Context, Result, anyhow};
+use serde_json::json;
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
-use tokio::sync::{Mutex, mpsc, oneshot};
+use std::io::{BufRead, BufReader, Write};
+use std::process::{Child, Command, Stdio};
+use std::sync::{Arc, Mutex as StdMutex};
 
-#[derive(Debug, Deserialize)]
-struct JsonRpcResponse {
-    id: Option<u64>,
-    result: Option<Value>,
-    error: Option<Value>,
-    method: Option<String>,
-    params: Option<Value>,
-}
+// Type alias for the boxed RPC client type to reduce complexity
+type BoxedRpcClient = Arc<JsonRpcClient<Box<dyn Write + Send>, Box<dyn BufRead + Send>>>;
 
+/// Main client for interacting with the Copilot CLI
 pub struct Client {
-    transport: JsonRpcTransport,
-    next_id: AtomicU64,
-    pending_requests: Arc<Mutex<HashMap<u64, oneshot::Sender<Result<Value>>>>>,
-    events_tx: mpsc::Sender<ProtocolEvent>,
-    events_rx: Option<mpsc::Receiver<ProtocolEvent>>,
+    options: ClientOptions,
+    rpc_client: Option<BoxedRpcClient>,
+    cli_process: Option<Child>,
+    state: Arc<StdMutex<ConnectionState>>,
+    sessions: Arc<StdMutex<HashMap<String, Arc<Session>>>>,
 }
 
 impl Client {
-    pub fn new() -> Self {
-        let (events_tx, events_rx) = mpsc::channel(100);
-        let pending_requests: Arc<Mutex<HashMap<u64, oneshot::Sender<Result<Value>>>>> =
-            Arc::new(Mutex::new(HashMap::new()));
-        let (transport_in_tx, mut transport_in_rx) = mpsc::channel::<String>(100);
-
-        let transport = JsonRpcTransport::new(transport_in_tx);
-        let pending_requests_clone = pending_requests.clone();
-        let events_tx_clone = events_tx.clone();
-
-        tokio::spawn(async move {
-            while let Some(raw_msg) = transport_in_rx.recv().await {
-                if let Ok(msg) = serde_json::from_str::<JsonRpcResponse>(&raw_msg) {
-                    if let Some(id) = msg.id {
-                        let mut map = pending_requests_clone.lock().await;
-                        if let Some(tx) = map.remove(&id) {
-                            let result = if let Some(err) = msg.error {
-                                Err(anyhow::anyhow!("RPC Error: {:?}", err))
-                            } else {
-                                Ok(msg.result.unwrap_or(Value::Null))
-                            };
-                            let _ = tx.send(result);
-                            continue;
-                        }
-                    }
-
-                    if let Some(method) = msg.method {
-                        let event = ProtocolEvent {
-                            event: method,
-                            payload: msg.params.unwrap_or(Value::Null),
-                        };
-                        let _ = events_tx_clone.send(event).await;
-                    }
-                }
-            }
-        });
+    /// Create a new client with the given options
+    pub fn new(options: Option<ClientOptions>) -> Self {
+        let options = options.unwrap_or_default();
 
         Self {
-            transport,
-            next_id: AtomicU64::new(1),
-            pending_requests,
-            events_tx,
-            events_rx: Some(events_rx),
+            options,
+            rpc_client: None,
+            cli_process: None,
+            state: Arc::new(StdMutex::new(ConnectionState::Disconnected)),
+            sessions: Arc::new(StdMutex::new(HashMap::new())),
         }
     }
 
-    pub async fn send_request<P: Serialize, R: DeserializeOwned>(
-        &self,
-        method: &str,
-        params: P,
-    ) -> Result<R> {
-        let id = self.next_id.fetch_add(1, Ordering::SeqCst);
-        let (tx, rx) = oneshot::channel();
-
+    /// Start the client and connect to the CLI server
+    pub fn start(&mut self) -> Result<()> {
         {
-            let mut map = self.pending_requests.lock().await;
-            map.insert(id, tx);
+            let mut state = self.state.lock().unwrap();
+            if *state != ConnectionState::Disconnected {
+                return Err(anyhow!("Client is already started or connecting"));
+            }
+            *state = ConnectionState::Connecting;
         }
 
-        let req = serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "method": method,
-            "params": params
-        });
-
-        if let Err(e) = self.transport.send(&req).await {
-            let mut map = self.pending_requests.lock().await;
-            map.remove(&id);
-            return Err(e.into());
+        // Start CLI server if needed
+        if let Some(cli_url) = self.options.cli_url.clone() {
+            // Connect to external server
+            self.connect_to_external_server(&cli_url)?;
+        } else if self.options.use_stdio {
+            // Start CLI server with stdio
+            self.start_cli_server()?;
+        } else {
+            // Start CLI server with TCP (not yet implemented)
+            return Err(anyhow!("TCP transport not yet implemented"));
         }
 
-        let response_value = rx.await.context("Client dropped or connection closed")??;
-        serde_json::from_value(response_value).map_err(Into::into)
-    }
-
-    pub async fn initialize(&self, config: AgentConfig) -> Result<()> {
-        let _resp: Value = self
-            .send_request(
-                "initialize",
-                serde_json::json!({
-                    "agentInfo": {
-                        "id": config.agent_id,
-                        "name": config.agent_name,
-                        "version": config.version,
-                        "capabilities": config.capabilities
-                    },
-                    "sdkVersion": env!("CARGO_PKG_VERSION"),
-                    "protocolVersion": "1.0.0"
-                }),
-            )
-            .await?;
-
-        self.transport
-            .send(&serde_json::json!({
-                "jsonrpc": "2.0",
-                "method": "initialized",
-                "params": {}
-            }))
-            .await?;
+        // Set state to connected
+        {
+            let mut state = self.state.lock().unwrap();
+            *state = ConnectionState::Connected;
+        }
 
         Ok(())
     }
 
-    pub fn take_event_receiver(&mut self) -> Option<mpsc::Receiver<ProtocolEvent>> {
-        self.events_rx.take()
+    /// Stop the client and cleanup
+    pub fn stop(&mut self) -> Vec<anyhow::Error> {
+        let mut errors = Vec::new();
+
+        // Stop RPC client
+        if let Some(ref rpc_client) = self.rpc_client {
+            rpc_client.stop();
+        }
+
+        // Stop CLI process
+        if let Some(ref mut process) = self.cli_process {
+            if let Err(e) = process.kill() {
+                errors.push(anyhow!("Failed to kill CLI process: {}", e));
+            }
+            if let Err(e) = process.wait() {
+                errors.push(anyhow!("Failed to wait for CLI process: {}", e));
+            }
+        }
+
+        self.rpc_client = None;
+        self.cli_process = None;
+
+        let mut state = self.state.lock().unwrap();
+        *state = ConnectionState::Disconnected;
+
+        errors
+    }
+
+    /// Forcefully stop the client
+    pub fn force_stop(&mut self) {
+        let _ = self.stop();
+    }
+
+    /// Get the current connection state
+    pub fn get_state(&self) -> ConnectionState {
+        *self.state.lock().unwrap()
+    }
+
+    /// Send a ping request
+    pub async fn ping(&self, message: &str) -> Result<PingResponse> {
+        let rpc_client = self
+            .rpc_client
+            .as_ref()
+            .ok_or_else(|| anyhow!("Client not started"))?;
+
+        let result = rpc_client
+            .request("ping", json!({ "message": message }))
+            .await
+            .map_err(|e| anyhow!("Ping failed: {}", e))?;
+
+        serde_json::from_value(result).context("Failed to parse ping response")
+    }
+
+    /// Get server status
+    pub async fn get_status(&self) -> Result<GetStatusResponse> {
+        let rpc_client = self
+            .rpc_client
+            .as_ref()
+            .ok_or_else(|| anyhow!("Client not started"))?;
+
+        let result = rpc_client
+            .request("status.get", json!({}))
+            .await
+            .map_err(|e| anyhow!("Get status failed: {}", e))?;
+
+        serde_json::from_value(result).context("Failed to parse status response")
+    }
+
+    /// Get authentication status
+    pub async fn get_auth_status(&self) -> Result<GetAuthStatusResponse> {
+        let rpc_client = self
+            .rpc_client
+            .as_ref()
+            .ok_or_else(|| anyhow!("Client not started"))?;
+
+        let result = rpc_client
+            .request("auth.getStatus", json!({}))
+            .await
+            .map_err(|e| anyhow!("Get auth status failed: {}", e))?;
+
+        serde_json::from_value(result).context("Failed to parse auth status response")
+    }
+
+    /// List available models
+    pub async fn list_models(&self) -> Result<Vec<ModelInfo>> {
+        let rpc_client = self
+            .rpc_client
+            .as_ref()
+            .ok_or_else(|| anyhow!("Client not started"))?;
+
+        let result = rpc_client
+            .request("models.list", json!({}))
+            .await
+            .map_err(|e| anyhow!("List models failed: {}", e))?;
+
+        let response: GetModelsResponse =
+            serde_json::from_value(result).context("Failed to parse models response")?;
+
+        Ok(response.models)
+    }
+
+    /// Create a new session
+    pub async fn create_session(&self, config: Option<SessionConfig>) -> Result<Arc<Session>> {
+        let rpc_client = self
+            .rpc_client
+            .as_ref()
+            .ok_or_else(|| anyhow!("Client not started"))?;
+
+        let config = config.unwrap_or_default();
+
+        // Build session create params
+        let mut params = json!({});
+        if let Some(ref session_id) = config.session_id {
+            params["sessionId"] = json!(session_id);
+        }
+        if let Some(ref model) = config.model {
+            params["model"] = json!(model);
+        }
+        if let Some(ref system_message) = config.system_message {
+            params["systemMessage"] = serde_json::to_value(system_message)?;
+        }
+        if config.streaming {
+            params["streaming"] = json!(true);
+        }
+
+        let result = rpc_client
+            .request("session.create", params)
+            .await
+            .map_err(|e| anyhow!("Create session failed: {}", e))?;
+
+        let response: SessionCreateResponse =
+            serde_json::from_value(result).context("Failed to parse session create response")?;
+
+        let session = Arc::new(Session::new(
+            response.session_id.clone(),
+            Arc::clone(rpc_client),
+            response.workspace_path,
+        ));
+
+        // Store session
+        let mut sessions = self.sessions.lock().unwrap();
+        sessions.insert(response.session_id.clone(), Arc::clone(&session));
+
+        Ok(session)
+    }
+
+    /// Resume an existing session
+    pub async fn resume_session(&self, session_id: &str) -> Result<Arc<Session>> {
+        self.resume_session_with_options(session_id, None).await
+    }
+
+    /// Resume a session with configuration options
+    pub async fn resume_session_with_options(
+        &self,
+        session_id: &str,
+        config: Option<ResumeSessionConfig>,
+    ) -> Result<Arc<Session>> {
+        let rpc_client = self
+            .rpc_client
+            .as_ref()
+            .ok_or_else(|| anyhow!("Client not started"))?;
+
+        let mut params = json!({
+            "sessionId": session_id
+        });
+
+        if let Some(config) = config
+            && config.streaming
+        {
+            params["streaming"] = json!(true);
+        }
+
+        let result = rpc_client
+            .request("session.resume", params)
+            .await
+            .map_err(|e| anyhow!("Resume session failed: {}", e))?;
+
+        let response: SessionCreateResponse =
+            serde_json::from_value(result).context("Failed to parse session resume response")?;
+
+        let session = Arc::new(Session::new(
+            response.session_id.clone(),
+            Arc::clone(rpc_client),
+            response.workspace_path,
+        ));
+
+        // Store session
+        let mut sessions = self.sessions.lock().unwrap();
+        sessions.insert(response.session_id.clone(), Arc::clone(&session));
+
+        Ok(session)
+    }
+
+    // ========================================================================
+    // Private helper methods
+    // ========================================================================
+
+    fn start_cli_server(&mut self) -> Result<()> {
+        let cli_path = self.options.cli_path.as_deref().unwrap_or("copilot");
+
+        let mut cmd = Command::new(cli_path);
+        cmd.arg("agent")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit());
+
+        // Set working directory
+        if let Some(ref cwd) = self.options.cwd {
+            cmd.current_dir(cwd);
+        }
+
+        // Set log level
+        if let Some(ref log_level) = self.options.log_level {
+            cmd.arg("--log-level").arg(log_level);
+        }
+
+        // Set environment variables
+        if let Some(ref env_vars) = self.options.env {
+            for (key, value) in env_vars {
+                cmd.env(key, value);
+            }
+        }
+
+        // Spawn the process
+        let mut child = cmd.spawn().context("Failed to spawn CLI process")?;
+
+        // Get stdin and stdout handles
+        let stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| anyhow!("Failed to get stdin"))?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| anyhow!("Failed to get stdout"))?;
+
+        // Create RPC client with boxed writers/readers
+        let boxed_writer: Box<dyn Write + Send> = Box::new(stdin);
+        let boxed_reader: Box<dyn BufRead + Send> = Box::new(BufReader::new(stdout));
+        let rpc_client = JsonRpcClient::new(boxed_writer, boxed_reader);
+
+        // Start the RPC client
+        rpc_client.start();
+
+        self.rpc_client = Some(Arc::new(rpc_client));
+        self.cli_process = Some(child);
+
+        Ok(())
+    }
+
+    fn connect_to_external_server(&mut self, _url: &str) -> Result<()> {
+        // TODO: Implement TCP connection to external server
+        Err(anyhow!("External server connection not yet implemented"))
+    }
+}
+
+impl Drop for Client {
+    fn drop(&mut self) {
+        let _ = self.stop();
     }
 }
