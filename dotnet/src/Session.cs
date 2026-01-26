@@ -80,6 +80,18 @@ public partial class CopilotSession : IAsyncDisposable
         WorkspacePath = workspacePath;
     }
 
+    private async Task<T> InvokeRpcAsync<T>(string method, object?[]? args, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _rpc.InvokeWithCancellationAsync<T>(method, args, cancellationToken);
+        }
+        catch (StreamJsonRpc.RemoteInvocationException ex)
+        {
+            throw new IOException($"Communication error with Copilot CLI: {ex.Message}", ex);
+        }
+    }
+
     /// <summary>
     /// Sends a message to the Copilot session and waits for the response.
     /// </summary>
@@ -118,16 +130,8 @@ public partial class CopilotSession : IAsyncDisposable
             Mode = options.Mode
         };
 
-        SendMessageResponse response;
-        try
-        {
-            response = await _rpc.InvokeWithCancellationAsync<SendMessageResponse>(
-                "session.send", [request], cancellationToken);
-        }
-        catch (StreamJsonRpc.RemoteInvocationException ex)
-        {
-            throw new CopilotRpcException($"Failed to send message: {ex.Message}", ex);
-        }
+        var response = await InvokeRpcAsync<SendMessageResponse>(
+            "session.send", [request], cancellationToken);
 
         return response.MessageId;
     }
@@ -359,16 +363,8 @@ public partial class CopilotSession : IAsyncDisposable
     /// </example>
     public async Task<IReadOnlyList<SessionEvent>> GetMessagesAsync(CancellationToken cancellationToken = default)
     {
-        GetMessagesResponse response;
-        try
-        {
-            response = await _rpc.InvokeWithCancellationAsync<GetMessagesResponse>(
-                "session.getMessages", [new GetMessagesRequest { SessionId = SessionId }], cancellationToken);
-        }
-        catch (StreamJsonRpc.RemoteInvocationException ex)
-        {
-            throw new CopilotRpcException($"Failed to get messages: {ex.Message}", ex);
-        }
+        var response = await InvokeRpcAsync<GetMessagesResponse>(
+            "session.getMessages", [new GetMessagesRequest { SessionId = SessionId }], cancellationToken);
 
         return response.Events
             .Select(e => SessionEvent.FromJson(e.ToJsonString()))
@@ -401,15 +397,8 @@ public partial class CopilotSession : IAsyncDisposable
     /// </example>
     public async Task AbortAsync(CancellationToken cancellationToken = default)
     {
-        try
-        {
-            await _rpc.InvokeWithCancellationAsync<object>(
-                "session.abort", [new SessionAbortRequest { SessionId = SessionId }], cancellationToken);
-        }
-        catch (StreamJsonRpc.RemoteInvocationException ex)
-        {
-            throw new CopilotRpcException($"Failed to abort session: {ex.Message}", ex);
-        }
+        await InvokeRpcAsync<object>(
+            "session.abort", [new SessionAbortRequest { SessionId = SessionId }], cancellationToken);
     }
 
     /// <summary>
@@ -439,15 +428,8 @@ public partial class CopilotSession : IAsyncDisposable
     /// </example>
     public async ValueTask DisposeAsync()
     {
-        try
-        {
-            await _rpc.InvokeWithCancellationAsync<object>(
-                "session.destroy", [new SessionDestroyRequest() { SessionId = SessionId }]);
-        }
-        catch (StreamJsonRpc.RemoteInvocationException ex)
-        {
-            throw new CopilotRpcException($"Failed to destroy session: {ex.Message}", ex);
-        }
+        await InvokeRpcAsync<object>(
+            "session.destroy", [new SessionDestroyRequest() { SessionId = SessionId }], CancellationToken.None);
 
         _eventHandlers.Clear();
         _toolHandlers.Clear();

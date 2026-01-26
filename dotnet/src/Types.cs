@@ -10,29 +10,6 @@ using Microsoft.Extensions.Logging;
 
 namespace GitHub.Copilot.SDK;
 
-/// <summary>
-/// Exception thrown when a communication error occurs with the Copilot CLI.
-/// </summary>
-public class CopilotRpcException : IOException
-{
-    /// <summary>
-    /// Initializes a new instance of the <see cref="CopilotRpcException"/> class.
-    /// </summary>
-    /// <param name="message">The error message that explains the reason for the exception.</param>
-    public CopilotRpcException(string message) : base(message)
-    {
-    }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="CopilotRpcException"/> class.
-    /// </summary>
-    /// <param name="message">The error message that explains the reason for the exception.</param>
-    /// <param name="innerException">The exception that is the cause of the current exception.</param>
-    public CopilotRpcException(string message, Exception innerException) : base(message, innerException)
-    {
-    }
-}
-
 [JsonConverter(typeof(JsonStringEnumConverter<SystemMessageMode>))]
 public enum ConnectionState
 {
