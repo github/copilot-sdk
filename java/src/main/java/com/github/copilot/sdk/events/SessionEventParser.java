@@ -56,6 +56,7 @@ public class SessionEventParser {
         TYPE_MAP.put("session.model_change", SessionModelChangeEvent.class);
         TYPE_MAP.put("session.handoff", SessionHandoffEvent.class);
         TYPE_MAP.put("session.truncation", SessionTruncationEvent.class);
+        TYPE_MAP.put("session.snapshot_rewind", SessionSnapshotRewindEvent.class);
         TYPE_MAP.put("session.usage_info", SessionUsageInfoEvent.class);
         TYPE_MAP.put("session.compaction_start", SessionCompactionStartEvent.class);
         TYPE_MAP.put("session.compaction_complete", SessionCompactionCompleteEvent.class);

@@ -41,6 +41,12 @@ public final class ToolExecutionStartEvent extends AbstractSessionEvent {
         @JsonProperty("arguments")
         private Object arguments;
 
+        @JsonProperty("mcpServerName")
+        private String mcpServerName;
+
+        @JsonProperty("mcpToolName")
+        private String mcpToolName;
+
         @JsonProperty("parentToolCallId")
         private String parentToolCallId;
 
@@ -66,6 +72,22 @@ public final class ToolExecutionStartEvent extends AbstractSessionEvent {
 
         public void setArguments(Object arguments) {
             this.arguments = arguments;
+        }
+
+        public String getMcpServerName() {
+            return mcpServerName;
+        }
+
+        public void setMcpServerName(String mcpServerName) {
+            this.mcpServerName = mcpServerName;
+        }
+
+        public String getMcpToolName() {
+            return mcpToolName;
+        }
+
+        public void setMcpToolName(String mcpToolName) {
+            this.mcpToolName = mcpToolName;
         }
 
         public String getParentToolCallId() {

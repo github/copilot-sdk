@@ -117,12 +117,23 @@ public final class ToolExecutionCompleteEvent extends AbstractSessionEvent {
             @JsonProperty("content")
             private String content;
 
+            @JsonProperty("detailedContent")
+            private String detailedContent;
+
             public String getContent() {
                 return content;
             }
 
             public void setContent(String content) {
                 this.content = content;
+            }
+
+            public String getDetailedContent() {
+                return detailedContent;
+            }
+
+            public void setDetailedContent(String detailedContent) {
+                this.detailedContent = detailedContent;
             }
         }
 

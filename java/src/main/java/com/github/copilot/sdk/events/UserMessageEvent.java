@@ -87,8 +87,17 @@ public final class UserMessageEvent extends AbstractSessionEvent {
             @JsonProperty("path")
             private String path;
 
+            @JsonProperty("filePath")
+            private String filePath;
+
             @JsonProperty("displayName")
             private String displayName;
+
+            @JsonProperty("text")
+            private String text;
+
+            @JsonProperty("selection")
+            private Selection selection;
 
             public String getType() {
                 return type;
@@ -106,12 +115,121 @@ public final class UserMessageEvent extends AbstractSessionEvent {
                 this.path = path;
             }
 
+            /**
+             * Gets the file path (used for selection attachments).
+             *
+             * @return the file path
+             */
+            public String getFilePath() {
+                return filePath;
+            }
+
+            /**
+             * Sets the file path (used for selection attachments).
+             *
+             * @param filePath
+             *            the file path
+             */
+            public void setFilePath(String filePath) {
+                this.filePath = filePath;
+            }
+
             public String getDisplayName() {
                 return displayName;
             }
 
             public void setDisplayName(String displayName) {
                 this.displayName = displayName;
+            }
+
+            /**
+             * Gets the text content (used for selection attachments).
+             *
+             * @return the selected text
+             */
+            public String getText() {
+                return text;
+            }
+
+            /**
+             * Sets the text content (used for selection attachments).
+             *
+             * @param text
+             *            the selected text
+             */
+            public void setText(String text) {
+                this.text = text;
+            }
+
+            /**
+             * Gets the selection range (used for selection attachments).
+             *
+             * @return the selection range
+             */
+            public Selection getSelection() {
+                return selection;
+            }
+
+            /**
+             * Sets the selection range (used for selection attachments).
+             *
+             * @param selection
+             *            the selection range
+             */
+            public void setSelection(Selection selection) {
+                this.selection = selection;
+            }
+
+            @JsonIgnoreProperties(ignoreUnknown = true)
+            public static class Selection {
+
+                @JsonProperty("start")
+                private Position start;
+
+                @JsonProperty("end")
+                private Position end;
+
+                public Position getStart() {
+                    return start;
+                }
+
+                public void setStart(Position start) {
+                    this.start = start;
+                }
+
+                public Position getEnd() {
+                    return end;
+                }
+
+                public void setEnd(Position end) {
+                    this.end = end;
+                }
+
+                @JsonIgnoreProperties(ignoreUnknown = true)
+                public static class Position {
+
+                    @JsonProperty("line")
+                    private int line;
+
+                    @JsonProperty("character")
+                    private int character;
+
+                    public int getLine() {
+                        return line;
+                    }
+
+                    public void setLine(int line) {
+                        this.line = line;
+                    }
+
+                    public int getCharacter() {
+                        return character;
+                    }
+
+                    public void setCharacter(int character) {
+                        this.character = character;
+                    }
+                }
             }
         }
     }
