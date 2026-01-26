@@ -118,17 +118,18 @@ public partial class CopilotSession : IAsyncDisposable
             Mode = options.Mode
         };
 
+        SendMessageResponse response;
         try
         {
-            var response = await _rpc.InvokeWithCancellationAsync<SendMessageResponse>(
+            response = await _rpc.InvokeWithCancellationAsync<SendMessageResponse>(
                 "session.send", [request], cancellationToken);
-
-            return response.MessageId;
         }
         catch (StreamJsonRpc.RemoteInvocationException ex)
         {
             throw new CopilotRpcException($"Failed to send message: {ex.Message}", ex);
         }
+
+        return response.MessageId;
     }
 
     /// <summary>
@@ -358,20 +359,21 @@ public partial class CopilotSession : IAsyncDisposable
     /// </example>
     public async Task<IReadOnlyList<SessionEvent>> GetMessagesAsync(CancellationToken cancellationToken = default)
     {
+        GetMessagesResponse response;
         try
         {
-            var response = await _rpc.InvokeWithCancellationAsync<GetMessagesResponse>(
+            response = await _rpc.InvokeWithCancellationAsync<GetMessagesResponse>(
                 "session.getMessages", [new GetMessagesRequest { SessionId = SessionId }], cancellationToken);
-
-            return response.Events
-                .Select(e => SessionEvent.FromJson(e.ToJsonString()))
-                .OfType<SessionEvent>()
-                .ToList();
         }
         catch (StreamJsonRpc.RemoteInvocationException ex)
         {
             throw new CopilotRpcException($"Failed to get messages: {ex.Message}", ex);
         }
+
+        return response.Events
+            .Select(e => SessionEvent.FromJson(e.ToJsonString()))
+            .OfType<SessionEvent>()
+            .ToList();
     }
 
     /// <summary>

@@ -477,15 +477,18 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
 
+        PingResponse response;
         try
         {
-            return await connection.Rpc.InvokeWithCancellationAsync<PingResponse>(
+            response = await connection.Rpc.InvokeWithCancellationAsync<PingResponse>(
                 "ping", [new PingRequest { Message = message }], cancellationToken);
         }
         catch (StreamJsonRpc.RemoteInvocationException ex)
         {
             throw new CopilotRpcException($"Failed to ping server: {ex.Message}", ex);
         }
+
+        return response;
     }
 
     /// <summary>
@@ -498,15 +501,18 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
 
+        GetStatusResponse response;
         try
         {
-            return await connection.Rpc.InvokeWithCancellationAsync<GetStatusResponse>(
+            response = await connection.Rpc.InvokeWithCancellationAsync<GetStatusResponse>(
                 "status.get", [], cancellationToken);
         }
         catch (StreamJsonRpc.RemoteInvocationException ex)
         {
             throw new CopilotRpcException($"Failed to get status: {ex.Message}", ex);
         }
+
+        return response;
     }
 
     /// <summary>
@@ -519,15 +525,18 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
 
+        GetAuthStatusResponse response;
         try
         {
-            return await connection.Rpc.InvokeWithCancellationAsync<GetAuthStatusResponse>(
+            response = await connection.Rpc.InvokeWithCancellationAsync<GetAuthStatusResponse>(
                 "auth.getStatus", [], cancellationToken);
         }
         catch (StreamJsonRpc.RemoteInvocationException ex)
         {
             throw new CopilotRpcException($"Failed to get auth status: {ex.Message}", ex);
         }
+
+        return response;
     }
 
     /// <summary>
