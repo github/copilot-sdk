@@ -307,6 +307,22 @@ class MessageOptions(TypedDict):
 SessionEventHandler = Callable[[SessionEvent], None]
 
 
+# Response from ping
+class PingResponse(TypedDict):
+    """Response from ping"""
+
+    message: str  # Echo message with "pong: " prefix
+    timestamp: int  # Server timestamp in milliseconds
+    protocolVersion: int  # Protocol version for SDK compatibility
+
+
+# Error information from client stop
+class StopError(TypedDict):
+    """Error information from client stop"""
+
+    message: str  # Error message describing what failed during cleanup
+
+
 # Response from status.get
 class GetStatusResponse(TypedDict):
     """Response from status.get"""

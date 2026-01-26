@@ -32,10 +32,12 @@ from .types import (
     GetAuthStatusResponse,
     GetStatusResponse,
     ModelInfo,
+    PingResponse,
     ProviderConfig,
     ResumeSessionConfig,
     SessionConfig,
     SessionMetadata,
+    StopError,
     ToolHandler,
     ToolInvocation,
     ToolResult,
@@ -220,7 +222,7 @@ class CopilotClient:
             self._state = "error"
             raise
 
-    async def stop(self) -> list[dict[str, str]]:
+    async def stop(self) -> list["StopError"]:
         """
         Stop the CLI server and close all active sessions.
 
@@ -230,8 +232,8 @@ class CopilotClient:
         3. Terminates the CLI server process (if spawned by this client)
 
         Returns:
-            A list of errors that occurred during cleanup, each as a dict with
-            a 'message' key. An empty list indicates all cleanup succeeded.
+            A list of StopError objects containing error messages that occurred
+            during cleanup. An empty list indicates all cleanup succeeded.
 
         Example:
             >>> errors = await client.stop()
@@ -239,7 +241,7 @@ class CopilotClient:
             ...     for error in errors:
             ...         print(f"Cleanup error: {error['message']}")
         """
-        errors: list[dict[str, str]] = []
+        errors: list[StopError] = []
 
         # Atomically take ownership of all sessions and clear the dict
         # so no other thread can access them
@@ -570,7 +572,7 @@ class CopilotClient:
         """
         return self._state
 
-    async def ping(self, message: Optional[str] = None) -> dict:
+    async def ping(self, message: Optional[str] = None) -> "PingResponse":
         """
         Send a ping request to the server to verify connectivity.
 
@@ -578,8 +580,8 @@ class CopilotClient:
             message: Optional message to include in the ping.
 
         Returns:
-            A dict containing the ping response with 'message', 'timestamp',
-            and 'protocolVersion' keys.
+            A PingResponse containing the ping response with 'message',
+            'timestamp', and 'protocolVersion' keys.
 
         Raises:
             RuntimeError: If the client is not connected.
