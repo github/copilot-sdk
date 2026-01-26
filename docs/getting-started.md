@@ -868,11 +868,11 @@ const session = await client.createSession({
 
 ## Learn More
 
-- [Using MCP Servers](./mcp.md) - Integrate external tools via Model Context Protocol
 - [Node.js SDK Reference](../nodejs/README.md)
 - [Python SDK Reference](../python/README.md)
 - [Go SDK Reference](../go/README.md)
 - [.NET SDK Reference](../dotnet/README.md)
+- [Using MCP Servers](./mcp.md) - Integrate external tools via Model Context Protocol
 - [GitHub MCP Server Documentation](https://github.com/github/github-mcp-server)
 - [MCP Servers Directory](https://github.com/modelcontextprotocol/servers) - Explore more MCP servers
 
