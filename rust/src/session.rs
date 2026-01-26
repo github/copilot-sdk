@@ -125,4 +125,18 @@ impl Session {
 
         Ok(())
     }
+
+    /// Dispatch an event to all registered handlers
+    pub fn dispatch_event(&self, event: SessionEvent) {
+        let handlers = self.event_handlers.lock().unwrap();
+        for handler in handlers.iter() {
+            // Call handler - catch panics to prevent crashing the dispatcher
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                handler(event.clone());
+            }));
+            if let Err(e) = result {
+                eprintln!("Error in session event handler: {:?}", e);
+            }
+        }
+    }
 }

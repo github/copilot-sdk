@@ -306,6 +306,24 @@ impl Client {
         let boxed_reader: Box<dyn BufRead + Send> = Box::new(BufReader::new(stdout));
         let rpc_client = JsonRpcClient::new(boxed_writer, boxed_reader);
 
+        // Set up notification handler for session events
+        let sessions_for_handler = Arc::clone(&self.sessions);
+        rpc_client.set_notification_handler(Arc::new(move |method, params| {
+            if method == "session.event" {
+                // Extract sessionId and event from params
+                if let Some(session_id) = params.get("sessionId").and_then(|v| v.as_str())
+                    && let Some(event_value) = params.get("event")
+                    && let Ok(event) = serde_json::from_value::<SessionEvent>(event_value.clone())
+                {
+                    // Dispatch to the session
+                    let sessions = sessions_for_handler.lock().unwrap();
+                    if let Some(session) = sessions.get(session_id) {
+                        session.dispatch_event(event);
+                    }
+                }
+            }
+        }));
+
         // Start the RPC client
         rpc_client.start();
 
