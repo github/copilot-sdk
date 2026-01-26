@@ -347,8 +347,16 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
             config?.DisabledSkills,
             config?.InfiniteSessions);
 
-        var response = await connection.Rpc.InvokeWithCancellationAsync<CreateSessionResponse>(
-            "session.create", [request], cancellationToken);
+        CreateSessionResponse response;
+        try
+        {
+            response = await connection.Rpc.InvokeWithCancellationAsync<CreateSessionResponse>(
+                "session.create", [request], cancellationToken);
+        }
+        catch (StreamJsonRpc.RemoteInvocationException ex)
+        {
+            throw new CopilotRpcException($"Failed to create session: {ex.Message}", ex);
+        }
 
         var session = new CopilotSession(response.SessionId, connection.Rpc, response.WorkspacePath);
         session.RegisterTools(config?.Tools ?? []);
@@ -404,8 +412,16 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
             config?.SkillDirectories,
             config?.DisabledSkills);
 
-        var response = await connection.Rpc.InvokeWithCancellationAsync<ResumeSessionResponse>(
-            "session.resume", [request], cancellationToken);
+        ResumeSessionResponse response;
+        try
+        {
+            response = await connection.Rpc.InvokeWithCancellationAsync<ResumeSessionResponse>(
+                "session.resume", [request], cancellationToken);
+        }
+        catch (StreamJsonRpc.RemoteInvocationException ex)
+        {
+            throw new CopilotRpcException($"Failed to resume session: {ex.Message}", ex);
+        }
 
         var session = new CopilotSession(response.SessionId, connection.Rpc, response.WorkspacePath);
         session.RegisterTools(config?.Tools ?? []);
@@ -461,8 +477,15 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
 
-        return await connection.Rpc.InvokeWithCancellationAsync<PingResponse>(
-            "ping", [new PingRequest { Message = message }], cancellationToken);
+        try
+        {
+            return await connection.Rpc.InvokeWithCancellationAsync<PingResponse>(
+                "ping", [new PingRequest { Message = message }], cancellationToken);
+        }
+        catch (StreamJsonRpc.RemoteInvocationException ex)
+        {
+            throw new CopilotRpcException($"Failed to ping server: {ex.Message}", ex);
+        }
     }
 
     /// <summary>
@@ -475,8 +498,15 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
 
-        return await connection.Rpc.InvokeWithCancellationAsync<GetStatusResponse>(
-            "status.get", [], cancellationToken);
+        try
+        {
+            return await connection.Rpc.InvokeWithCancellationAsync<GetStatusResponse>(
+                "status.get", [], cancellationToken);
+        }
+        catch (StreamJsonRpc.RemoteInvocationException ex)
+        {
+            throw new CopilotRpcException($"Failed to get status: {ex.Message}", ex);
+        }
     }
 
     /// <summary>
@@ -489,8 +519,15 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
 
-        return await connection.Rpc.InvokeWithCancellationAsync<GetAuthStatusResponse>(
-            "auth.getStatus", [], cancellationToken);
+        try
+        {
+            return await connection.Rpc.InvokeWithCancellationAsync<GetAuthStatusResponse>(
+                "auth.getStatus", [], cancellationToken);
+        }
+        catch (StreamJsonRpc.RemoteInvocationException ex)
+        {
+            throw new CopilotRpcException($"Failed to get auth status: {ex.Message}", ex);
+        }
     }
 
     /// <summary>
@@ -503,8 +540,16 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
 
-        var response = await connection.Rpc.InvokeWithCancellationAsync<GetModelsResponse>(
-            "models.list", [], cancellationToken);
+        GetModelsResponse response;
+        try
+        {
+            response = await connection.Rpc.InvokeWithCancellationAsync<GetModelsResponse>(
+                "models.list", [], cancellationToken);
+        }
+        catch (StreamJsonRpc.RemoteInvocationException ex)
+        {
+            throw new CopilotRpcException($"Failed to list models: {ex.Message}", ex);
+        }
 
         return response.Models;
     }
@@ -528,8 +573,16 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
 
-        var response = await connection.Rpc.InvokeWithCancellationAsync<GetLastSessionIdResponse>(
-            "session.getLastId", [], cancellationToken);
+        GetLastSessionIdResponse response;
+        try
+        {
+            response = await connection.Rpc.InvokeWithCancellationAsync<GetLastSessionIdResponse>(
+                "session.getLastId", [], cancellationToken);
+        }
+        catch (StreamJsonRpc.RemoteInvocationException ex)
+        {
+            throw new CopilotRpcException($"Failed to get last session ID: {ex.Message}", ex);
+        }
 
         return response.SessionId;
     }
@@ -554,8 +607,16 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
 
-        var response = await connection.Rpc.InvokeWithCancellationAsync<DeleteSessionResponse>(
-            "session.delete", [new DeleteSessionRequest(sessionId)], cancellationToken);
+        DeleteSessionResponse response;
+        try
+        {
+            response = await connection.Rpc.InvokeWithCancellationAsync<DeleteSessionResponse>(
+                "session.delete", [new DeleteSessionRequest(sessionId)], cancellationToken);
+        }
+        catch (StreamJsonRpc.RemoteInvocationException ex)
+        {
+            throw new CopilotRpcException($"Failed to delete session: {ex.Message}", ex);
+        }
 
         if (!response.Success)
         {
@@ -584,8 +645,16 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
 
-        var response = await connection.Rpc.InvokeWithCancellationAsync<ListSessionsResponse>(
-            "session.list", [], cancellationToken);
+        ListSessionsResponse response;
+        try
+        {
+            response = await connection.Rpc.InvokeWithCancellationAsync<ListSessionsResponse>(
+                "session.list", [], cancellationToken);
+        }
+        catch (StreamJsonRpc.RemoteInvocationException ex)
+        {
+            throw new CopilotRpcException($"Failed to list sessions: {ex.Message}", ex);
+        }
 
         return response.Sessions;
     }
@@ -604,8 +673,16 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     private async Task VerifyProtocolVersionAsync(Connection connection, CancellationToken cancellationToken)
     {
         var expectedVersion = SdkProtocolVersion.GetVersion();
-        var pingResponse = await connection.Rpc.InvokeWithCancellationAsync<PingResponse>(
-            "ping", [new PingRequest()], cancellationToken);
+        PingResponse pingResponse;
+        try
+        {
+            pingResponse = await connection.Rpc.InvokeWithCancellationAsync<PingResponse>(
+                "ping", [new PingRequest()], cancellationToken);
+        }
+        catch (StreamJsonRpc.RemoteInvocationException ex)
+        {
+            throw new CopilotRpcException($"Failed to verify protocol version: {ex.Message}", ex);
+        }
 
         if (!pingResponse.ProtocolVersion.HasValue)
         {

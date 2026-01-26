@@ -452,9 +452,9 @@ try
     var session = await client.CreateSessionAsync();
     await session.SendAsync(new MessageOptions { Prompt = "Hello" });
 }
-catch (StreamJsonRpc.RemoteInvocationException ex)
+catch (CopilotRpcException ex)
 {
-    Console.Error.WriteLine($"JSON-RPC Error: {ex.Message}");
+    Console.Error.WriteLine($"RPC Error: {ex.Message}");
 }
 catch (Exception ex)
 {
