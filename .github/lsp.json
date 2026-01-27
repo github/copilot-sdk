@@ -6,7 +6,8 @@
       "fileExtensions": {
         ".cs": "csharp"
       },
-      "projectRootFiles": ["GitHub.Copilot.SDK.sln"]
+      "projectRootFiles": ["GitHub.Copilot.SDK.sln"],
+      "rootPath": "dotnet"
     }
   }
 }
