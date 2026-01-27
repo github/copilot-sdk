@@ -60,7 +60,7 @@ jobs:
 
       # Install just command runner
       - name: Install just
-        uses: extractions/setup-just@v4
+        uses: extractions/setup-just@v3
 
       # Install gh-aw extension for advanced GitHub CLI features
       - name: Install gh-aw extension
