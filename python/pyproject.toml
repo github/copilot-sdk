@@ -7,7 +7,7 @@ name = "github-copilot-sdk"
 version = "0.1.0"
 description = "Python SDK for GitHub Copilot CLI"
 readme = "README.md"
-requires-python = ">=3.9,<3.15"
+requires-python = ">=3.9"
 license = {text = "MIT"}
 authors = [
     {name = "GitHub", email = "opensource@github.com"}
