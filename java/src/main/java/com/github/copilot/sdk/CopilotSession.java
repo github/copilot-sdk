@@ -239,8 +239,12 @@ public final class CopilotSession implements AutoCloseable {
             return null;
         });
 
-        // Set up timeout
-        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        // Set up timeout with daemon thread so it doesn't prevent JVM exit
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "sendAndWait-timeout");
+            t.setDaemon(true);
+            return t;
+        });
         scheduler.schedule(() -> {
             if (!future.isDone()) {
                 future.completeExceptionally(new TimeoutException("sendAndWait timed out after " + timeoutMs + "ms"));
