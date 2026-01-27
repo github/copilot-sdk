@@ -4,10 +4,9 @@
 
 package com.github.copilot.sdk;
 
-import java.io.BufferedReader;
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -185,23 +184,42 @@ class JsonRpcClient implements AutoCloseable {
     private void startReader() {
         readerExecutor.submit(() -> {
             try {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
+                // We need to read bytes because Content-Length specifies bytes, not characters.
+                // Using BufferedReader would cause issues with multi-byte UTF-8 characters.
+                BufferedInputStream bis = new BufferedInputStream(inputStream);
 
                 while (running) {
-                    String line = reader.readLine();
-                    if (line == null) {
-                        break;
-                    }
-
-                    // Parse headers
+                    // Read headers line by line
                     int contentLength = -1;
-                    while (!line.isEmpty()) {
-                        if (line.toLowerCase().startsWith("content-length:")) {
-                            contentLength = Integer.parseInt(line.substring(15).trim());
-                        }
-                        line = reader.readLine();
-                        if (line == null) {
+                    StringBuilder headerLine = new StringBuilder();
+                    boolean lastWasCR = false;
+                    boolean inHeaders = true;
+
+                    while (inHeaders) {
+                        int b = bis.read();
+                        if (b == -1) {
                             return;
+                        }
+
+                        if (b == '\r') {
+                            lastWasCR = true;
+                        } else if (b == '\n') {
+                            String line = headerLine.toString();
+                            headerLine.setLength(0);
+                            lastWasCR = false;
+
+                            if (line.isEmpty()) {
+                                // End of headers (blank line)
+                                inHeaders = false;
+                            } else if (line.toLowerCase().startsWith("content-length:")) {
+                                contentLength = Integer.parseInt(line.substring(15).trim());
+                            }
+                        } else {
+                            if (lastWasCR) {
+                                headerLine.append('\r');
+                                lastWasCR = false;
+                            }
+                            headerLine.append((char) b);
                         }
                     }
 
@@ -209,18 +227,18 @@ class JsonRpcClient implements AutoCloseable {
                         continue;
                     }
 
-                    // Read content
-                    char[] buffer = new char[contentLength];
+                    // Read content as bytes (Content-Length specifies bytes, not characters)
+                    byte[] buffer = new byte[contentLength];
                     int read = 0;
                     while (read < contentLength) {
-                        int result = reader.read(buffer, read, contentLength - read);
+                        int result = bis.read(buffer, read, contentLength - read);
                         if (result == -1) {
                             return;
                         }
                         read += result;
                     }
 
-                    String content = new String(buffer);
+                    String content = new String(buffer, StandardCharsets.UTF_8);
                     LOG.fine("Received: " + content);
 
                     handleMessage(content);
