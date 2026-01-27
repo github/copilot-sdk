@@ -670,7 +670,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         }
 
         // Default UseLoggedInUser to false when GithubToken is provided
-        var useLoggedInUser = options.UseLoggedInUser ?? (string.IsNullOrEmpty(options.GithubToken) ? true : false);
+        var useLoggedInUser = options.UseLoggedInUser ?? string.IsNullOrEmpty(options.GithubToken);
         if (!useLoggedInUser)
         {
             args.Add("--no-auto-login");
