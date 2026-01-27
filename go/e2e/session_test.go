@@ -750,6 +750,135 @@ func TestSession(t *testing.T) {
 			t.Errorf("Expected assistant message to contain '2', got %v", assistantMessage.Data.Content)
 		}
 	})
+
+	t.Run("should list sessions", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		// Create a couple of sessions and send messages to persist them
+		session1, err := client.CreateSession(nil)
+		if err != nil {
+			t.Fatalf("Failed to create session1: %v", err)
+		}
+
+		_, err = session1.SendAndWait(copilot.MessageOptions{Prompt: "Say hello"}, 60*time.Second)
+		if err != nil {
+			t.Fatalf("Failed to send message to session1: %v", err)
+		}
+
+		session2, err := client.CreateSession(nil)
+		if err != nil {
+			t.Fatalf("Failed to create session2: %v", err)
+		}
+
+		_, err = session2.SendAndWait(copilot.MessageOptions{Prompt: "Say goodbye"}, 60*time.Second)
+		if err != nil {
+			t.Fatalf("Failed to send message to session2: %v", err)
+		}
+
+		// Small delay to ensure session files are written to disk
+		time.Sleep(200 * time.Millisecond)
+
+		// List sessions and verify they're included
+		sessions, err := client.ListSessions()
+		if err != nil {
+			t.Fatalf("Failed to list sessions: %v", err)
+		}
+
+		// Verify it's a list
+		if sessions == nil {
+			t.Fatal("Expected sessions to be non-nil")
+		}
+
+		// Extract session IDs
+		sessionIDs := make([]string, len(sessions))
+		for i, s := range sessions {
+			sessionIDs[i] = s.SessionID
+		}
+
+		// Verify both sessions are in the list
+		if !contains(sessionIDs, session1.SessionID) {
+			t.Errorf("Expected session1 ID %s to be in sessions list", session1.SessionID)
+		}
+		if !contains(sessionIDs, session2.SessionID) {
+			t.Errorf("Expected session2 ID %s to be in sessions list", session2.SessionID)
+		}
+
+		// Verify session metadata structure
+		for _, sessionData := range sessions {
+			if sessionData.SessionID == "" {
+				t.Error("Expected sessionId to be non-empty")
+			}
+			if sessionData.StartTime == "" {
+				t.Error("Expected startTime to be non-empty")
+			}
+			if sessionData.ModifiedTime == "" {
+				t.Error("Expected modifiedTime to be non-empty")
+			}
+			// isRemote is a boolean, so it's always set
+		}
+	})
+
+	t.Run("should delete session", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		// Create a session and send a message to persist it
+		session, err := client.CreateSession(nil)
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		_, err = session.SendAndWait(copilot.MessageOptions{Prompt: "Hello"}, 60*time.Second)
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		sessionID := session.SessionID
+
+		// Small delay to ensure session file is written to disk
+		time.Sleep(200 * time.Millisecond)
+
+		// Verify session exists in the list
+		sessions, err := client.ListSessions()
+		if err != nil {
+			t.Fatalf("Failed to list sessions: %v", err)
+		}
+
+		sessionIDs := make([]string, len(sessions))
+		for i, s := range sessions {
+			sessionIDs[i] = s.SessionID
+		}
+
+		if !contains(sessionIDs, sessionID) {
+			t.Errorf("Expected session ID %s to be in sessions list before delete", sessionID)
+		}
+
+		// Delete the session
+		err = client.DeleteSession(sessionID)
+		if err != nil {
+			t.Fatalf("Failed to delete session: %v", err)
+		}
+
+		// Verify session no longer exists in the list
+		sessionsAfter, err := client.ListSessions()
+		if err != nil {
+			t.Fatalf("Failed to list sessions after delete: %v", err)
+		}
+
+		sessionIDsAfter := make([]string, len(sessionsAfter))
+		for i, s := range sessionsAfter {
+			sessionIDsAfter[i] = s.SessionID
+		}
+
+		if contains(sessionIDsAfter, sessionID) {
+			t.Errorf("Expected session ID %s to NOT be in sessions list after delete", sessionID)
+		}
+
+		// Verify we cannot resume the deleted session
+		_, err = client.ResumeSession(sessionID)
+		if err == nil {
+			t.Error("Expected error when resuming deleted session")
+		}
+	})
 }
 
 func getSystemMessage(exchange testharness.ParsedHttpExchange) string {

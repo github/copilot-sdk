@@ -331,8 +331,10 @@ class TestSessions:
         # Send a message that will trigger a long-running shell command
         await session.send(
             {
-                "prompt": "run the shell command 'sleep 100' "
-                + "(note this works on both bash and PowerShell)"
+                "prompt": (
+                    "run the shell command 'sleep 100' "
+                    "(note this works on both bash and PowerShell)"
+                )
             }
         )
 
