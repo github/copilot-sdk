@@ -32,7 +32,9 @@ jobs:
         with:
           node-version: "22"
           cache: "npm"
-          cache-dependency-path: "./nodejs/package-lock.json"
+          cache-dependency-path: |
+            ./nodejs/package-lock.json
+            ./test/harness/package-lock.json
 
       # Setup Python (for Python SDK)
       - name: Set up Python
