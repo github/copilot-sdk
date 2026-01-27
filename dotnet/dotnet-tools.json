@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "isRoot": true,
+  "tools": {
+    "csharp-ls": {
+      "version": "0.21.0",
+      "commands": [
+        "csharp-ls"
+      ],
+      "rollForward": false
+    }
+  }
+}

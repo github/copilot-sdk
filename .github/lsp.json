@@ -1,0 +1,12 @@
+{
+  "lspServers": {
+    "csharp": {
+      "command": "dotnet",
+      "args": ["tool", "run", "csharp-ls", "--solution", "GitHub.Copilot.SDK.sln"],
+      "fileExtensions": {
+        ".cs": "csharp"
+      },
+      "projectRootFiles": ["GitHub.Copilot.SDK.sln"]
+    }
+  }
+}
