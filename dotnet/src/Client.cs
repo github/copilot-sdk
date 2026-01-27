@@ -347,8 +347,8 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
             config?.DisabledSkills,
             config?.InfiniteSessions);
 
-        var response = await connection.Rpc.InvokeWithCancellationAsync<CreateSessionResponse>(
-            "session.create", [request], cancellationToken);
+        var response = await InvokeRpcAsync<CreateSessionResponse>(
+            connection.Rpc, "session.create", [request], cancellationToken);
 
         var session = new CopilotSession(response.SessionId, connection.Rpc, response.WorkspacePath);
         session.RegisterTools(config?.Tools ?? []);
@@ -404,8 +404,8 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
             config?.SkillDirectories,
             config?.DisabledSkills);
 
-        var response = await connection.Rpc.InvokeWithCancellationAsync<ResumeSessionResponse>(
-            "session.resume", [request], cancellationToken);
+        var response = await InvokeRpcAsync<ResumeSessionResponse>(
+            connection.Rpc, "session.resume", [request], cancellationToken);
 
         var session = new CopilotSession(response.SessionId, connection.Rpc, response.WorkspacePath);
         session.RegisterTools(config?.Tools ?? []);
@@ -461,8 +461,8 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
 
-        return await connection.Rpc.InvokeWithCancellationAsync<PingResponse>(
-            "ping", [new PingRequest { Message = message }], cancellationToken);
+        return await InvokeRpcAsync<PingResponse>(
+            connection.Rpc, "ping", [new PingRequest { Message = message }], cancellationToken);
     }
 
     /// <summary>
@@ -475,8 +475,8 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
 
-        return await connection.Rpc.InvokeWithCancellationAsync<GetStatusResponse>(
-            "status.get", [], cancellationToken);
+        return await InvokeRpcAsync<GetStatusResponse>(
+            connection.Rpc, "status.get", [], cancellationToken);
     }
 
     /// <summary>
@@ -489,8 +489,8 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
 
-        return await connection.Rpc.InvokeWithCancellationAsync<GetAuthStatusResponse>(
-            "auth.getStatus", [], cancellationToken);
+        return await InvokeRpcAsync<GetAuthStatusResponse>(
+            connection.Rpc, "auth.getStatus", [], cancellationToken);
     }
 
     /// <summary>
@@ -503,8 +503,8 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
 
-        var response = await connection.Rpc.InvokeWithCancellationAsync<GetModelsResponse>(
-            "models.list", [], cancellationToken);
+        var response = await InvokeRpcAsync<GetModelsResponse>(
+            connection.Rpc, "models.list", [], cancellationToken);
 
         return response.Models;
     }
@@ -528,8 +528,8 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
 
-        var response = await connection.Rpc.InvokeWithCancellationAsync<GetLastSessionIdResponse>(
-            "session.getLastId", [], cancellationToken);
+        var response = await InvokeRpcAsync<GetLastSessionIdResponse>(
+            connection.Rpc, "session.getLastId", [], cancellationToken);
 
         return response.SessionId;
     }
@@ -554,8 +554,8 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
 
-        var response = await connection.Rpc.InvokeWithCancellationAsync<DeleteSessionResponse>(
-            "session.delete", [new DeleteSessionRequest(sessionId)], cancellationToken);
+        var response = await InvokeRpcAsync<DeleteSessionResponse>(
+            connection.Rpc, "session.delete", [new DeleteSessionRequest(sessionId)], cancellationToken);
 
         if (!response.Success)
         {
@@ -584,10 +584,22 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
 
-        var response = await connection.Rpc.InvokeWithCancellationAsync<ListSessionsResponse>(
-            "session.list", [], cancellationToken);
+        var response = await InvokeRpcAsync<ListSessionsResponse>(
+            connection.Rpc, "session.list", [], cancellationToken);
 
         return response.Sessions;
+    }
+
+    internal static async Task<T> InvokeRpcAsync<T>(JsonRpc rpc, string method, object?[]? args, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await rpc.InvokeWithCancellationAsync<T>(method, args, cancellationToken);
+        }
+        catch (StreamJsonRpc.RemoteRpcException ex)
+        {
+            throw new IOException($"Communication error with Copilot CLI: {ex.Message}", ex);
+        }
     }
 
     private Task<Connection> EnsureConnectedAsync(CancellationToken cancellationToken)
@@ -604,8 +616,8 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     private async Task VerifyProtocolVersionAsync(Connection connection, CancellationToken cancellationToken)
     {
         var expectedVersion = SdkProtocolVersion.GetVersion();
-        var pingResponse = await connection.Rpc.InvokeWithCancellationAsync<PingResponse>(
-            "ping", [new PingRequest()], cancellationToken);
+        var pingResponse = await InvokeRpcAsync<PingResponse>(
+            connection.Rpc, "ping", [new PingRequest()], cancellationToken);
 
         if (!pingResponse.ProtocolVersion.HasValue)
         {

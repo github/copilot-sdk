@@ -80,6 +80,9 @@ public partial class CopilotSession : IAsyncDisposable
         WorkspacePath = workspacePath;
     }
 
+    private Task<T> InvokeRpcAsync<T>(string method, object?[]? args, CancellationToken cancellationToken) =>
+        CopilotClient.InvokeRpcAsync<T>(_rpc, method, args, cancellationToken);
+
     /// <summary>
     /// Sends a message to the Copilot session and waits for the response.
     /// </summary>
@@ -118,7 +121,7 @@ public partial class CopilotSession : IAsyncDisposable
             Mode = options.Mode
         };
 
-        var response = await _rpc.InvokeWithCancellationAsync<SendMessageResponse>(
+        var response = await InvokeRpcAsync<SendMessageResponse>(
             "session.send", [request], cancellationToken);
 
         return response.MessageId;
@@ -351,7 +354,7 @@ public partial class CopilotSession : IAsyncDisposable
     /// </example>
     public async Task<IReadOnlyList<SessionEvent>> GetMessagesAsync(CancellationToken cancellationToken = default)
     {
-        var response = await _rpc.InvokeWithCancellationAsync<GetMessagesResponse>(
+        var response = await InvokeRpcAsync<GetMessagesResponse>(
             "session.getMessages", [new GetMessagesRequest { SessionId = SessionId }], cancellationToken);
 
         return response.Events
@@ -385,7 +388,7 @@ public partial class CopilotSession : IAsyncDisposable
     /// </example>
     public async Task AbortAsync(CancellationToken cancellationToken = default)
     {
-        await _rpc.InvokeWithCancellationAsync<object>(
+        await InvokeRpcAsync<object>(
             "session.abort", [new SessionAbortRequest { SessionId = SessionId }], cancellationToken);
     }
 
@@ -416,8 +419,8 @@ public partial class CopilotSession : IAsyncDisposable
     /// </example>
     public async ValueTask DisposeAsync()
     {
-        await _rpc.InvokeWithCancellationAsync<object>(
-            "session.destroy", [new SessionDestroyRequest() { SessionId = SessionId }]);
+        await InvokeRpcAsync<object>(
+            "session.destroy", [new SessionDestroyRequest() { SessionId = SessionId }], CancellationToken.None);
 
         _eventHandlers.Clear();
         _toolHandlers.Clear();
