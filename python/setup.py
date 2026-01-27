@@ -7,5 +7,5 @@ setup(
     install_requires=[
         "typing-extensions>=4.0.0",
     ],
-    python_requires=">=3.8",
+    python_requires=">=3.9",
 )

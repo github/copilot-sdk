@@ -44,6 +44,10 @@ This cookbook collects small, focused recipes showing how to accomplish common t
   - Node.js examples: `nodejs/examples/basic-example.ts`
   - E2E tests: `go/e2e`, `python/e2e`, `nodejs/test/e2e`, `dotnet/test/Harness`
 
+## Installation **Copilot CLI:**
+
+Refer to 
+
 ## Running Examples
 
 ### .NET

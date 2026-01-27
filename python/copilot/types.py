@@ -219,7 +219,9 @@ class SessionConfig(TypedDict, total=False):
     """Configuration for creating a session"""
 
     session_id: str  # Optional custom session ID
-    model: Literal["gpt-5", "claude-sonnet-4", "claude-sonnet-4.5", "claude-haiku-4.5"]
+    model: Literal["claude-sonnet-4.5", "claude-haiku-4.5", "claude-opus-4.5", "claude-sonnet-4",
+                   "gpt-5.2-codex", "gpt-5.1-codex-max", "gpt-5.1-codex", "gpt-5.2", "gpt-5.1",
+                   "gpt-5", "gpt-5.1-codex-mini", "gpt-5-mini", "gpt-4.1", "gemini-3-pro-preview"]
     tools: list[Tool]
     system_message: SystemMessageConfig  # System message configuration
     # List of tool names to allow (takes precedence over excluded_tools)

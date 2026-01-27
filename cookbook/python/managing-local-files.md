@@ -1,119 +1,272 @@
-# Grouping Files by Metadata
+# Managing Local Files
 
-Use Copilot to intelligently organize files in a folder based on their metadata.
+Use Copilot to intelligently organize files based on metadata and content.
 
-> **Runnable example:** [recipe/managing_local_files.py](recipe/managing_local_files.py)
+> **Skill Level:** Beginner to Advanced
+>
+> **Runnable Example:** [recipe/managing_local_files.py](recipe/managing_local_files.py)
 >
 > ```bash
 > cd recipe && pip install -r requirements.txt
 > python managing_local_files.py
 > ```
 
-## Example scenario
+## Overview
 
-You have a folder with many files and want to organize them into subfolders based on metadata like file type, creation date, size, or other attributes. Copilot can analyze the files and suggest or execute a grouping strategy.
+This recipe demonstrates AI-powered file organization:
 
-## Example code
+- Multiple organization strategies (extension, date, size, smart)
+- Permission handling for file operations
+- Interactive mode for user confirmation
+- Dry-run mode for preview without changes
+
+## Quick Start
 
 ```python
-from copilot import CopilotClient
+import asyncio
 import os
+from copilot import CopilotClient
 
-# Create and start client
-client = CopilotClient()
-client.start()
+async def main():
+    client = CopilotClient()
+    await client.start()
 
-# Create session
-session = client.create_session(model="gpt-5")
+    session = await client.create_session()
 
-# Event handler
-def handle_event(event):
-    if event["type"] == "assistant.message":
-        print(f"\nCopilot: {event['data']['content']}")
-    elif event["type"] == "tool.execution_start":
-        print(f"  → Running: {event['data']['toolName']}")
-    elif event["type"] == "tool.execution_complete":
-        print(f"  ✓ Completed: {event['data']['toolCallId']}")
+    # Event handler for visibility
+    def handle_event(event):
+        if event.type == "assistant.message":
+            print(f"\nCopilot: {event.data.content}")
+        elif event.type == "tool.execution_start":
+            print(f"  → Running: {event.data.tool_name}")
+        elif event.type == "tool.execution_complete":
+            print(f"  ✓ Completed: {event.data.tool_call_id}")
 
-session.on(handle_event)
+    session.on(handle_event)
 
-# Ask Copilot to organize files
-target_folder = os.path.expanduser("~/Downloads")
+    # Organize files
+    target = os.path.expanduser("~/Downloads")
 
-session.send(prompt=f"""
-Analyze the files in "{target_folder}" and organize them into subfolders.
+    await session.send_and_wait({
+        "prompt": f"""
+Analyze the files in "{target}" and organize them into subfolders by type:
 
-1. First, list all files and their metadata
-2. Preview grouping by file extension
-3. Create appropriate subfolders (e.g., "images", "documents", "videos")
-4. Move each file to its appropriate subfolder
+1. List all files and their metadata
+2. Group by extension (images, documents, videos, etc.)
+3. Create appropriate subfolders
+4. Move files to their categories
 
 Please confirm before moving any files.
-""")
+"""
+    })
 
-session.wait_for_idle()
+    await session.destroy()
+    await client.stop()
 
-client.stop()
+asyncio.run(main())
 ```
 
-## Grouping strategies
+## Organization Strategies
 
-### By file extension
+### By File Extension
 
 ```python
-# Groups files like:
-# images/   -> .jpg, .png, .gif
-# documents/ -> .pdf, .docx, .txt
-# videos/   -> .mp4, .avi, .mov
+await session.send_and_wait({
+    "prompt": f"Organize files in '{folder}' by extension into categories like images, documents, videos"
+})
+
+# Result:
+# images/   -> .jpg, .png, .gif, .webp
+# documents/ -> .pdf, .docx, .txt, .xlsx
+# videos/   -> .mp4, .avi, .mov, .mkv
+# audio/    -> .mp3, .wav, .flac
+# code/     -> .py, .js, .ts, .cpp
 ```
 
-### By creation date
+### By Date
 
 ```python
-# Groups files like:
-# 2024-01/ -> files created in January 2024
-# 2024-02/ -> files created in February 2024
+await session.send_and_wait({
+    "prompt": f"Organize files in '{folder}' by creation date into monthly folders"
+})
+
+# Result:
+# 2024-01/  -> files from January 2024
+# 2024-02/  -> files from February 2024
 ```
 
-### By file size
+### By Size
 
 ```python
-# Groups files like:
+await session.send_and_wait({
+    "prompt": f"Organize files in '{folder}' by size: tiny (<1KB), small (<1MB), medium (<100MB), large (>100MB)"
+})
+
+# Result:
 # tiny-under-1kb/
 # small-under-1mb/
 # medium-under-100mb/
 # large-over-100mb/
 ```
 
-## Dry-run mode
+### Smart Organization
 
-For safety, you can ask Copilot to only preview changes:
-
-```python
-session.send(prompt=f"""
-Analyze files in "{target_folder}" and show me how you would organize them
-by file type. DO NOT move any files - just show me the plan.
-""")
-```
-
-## Custom grouping with AI analysis
-
-Let Copilot determine the best grouping based on file content:
+Let AI determine the best organization:
 
 ```python
-session.send(prompt=f"""
-Look at the files in "{target_folder}" and suggest a logical organization.
-Consider:
-- File names and what they might contain
-- File types and their typical uses
-- Date patterns that might indicate projects or events
+await session.send_and_wait({
+    "prompt": f"""
+Analyze files in '{folder}' and suggest a logical organization based on:
+- File names and content hints
+- File types and typical uses
+- Date patterns suggesting projects or events
 
-Propose folder names that are descriptive and useful.
-""")
+Propose descriptive folder names.
+"""
+})
 ```
 
-## Safety considerations
+## Permission Handling
 
-1. **Confirm before moving**: Ask Copilot to confirm before executing moves
-2. **Handle duplicates**: Consider what happens if a file with the same name exists
-3. **Preserve originals**: Consider copying instead of moving for important files
+Control what file operations are allowed:
+
+```python
+def create_permission_handler(mode="confirm"):
+    """Create permission handler for file operations."""
+    def handler(event):
+        if event.type != "permission.requested":
+            return None
+
+        permission = event.data.permission_type
+        resource = event.data.resource
+
+        if mode == "allow-all":
+            return True
+        elif mode == "deny-writes":
+            if permission in ["write", "delete", "move"]:
+                print(f"Denied: {permission} on {resource}")
+                return False
+            return True
+        elif mode == "confirm":
+            print(f"\nPermission requested: {permission}")
+            print(f"  Resource: {resource}")
+            response = input("  Allow? (y/n): ").lower()
+            return response == 'y'
+
+        return False
+
+    return handler
+
+# Usage
+session.on(create_permission_handler(mode="confirm"))
+```
+
+## Dry-Run Mode
+
+Preview changes without executing:
+
+```python
+await session.send_and_wait({
+    "prompt": f"""
+Analyze files in '{folder}' and show me how you would organize them.
+DO NOT move any files - just show me the plan in a table format:
+
+| Current Path | Proposed Folder | Reason |
+"""
+})
+```
+
+## Interactive Mode
+
+Get user confirmation for each action:
+
+```python
+async def interactive_organize(session, folder, strategy="extension"):
+    """Interactive file organization with confirmations."""
+
+    # Step 1: Analyze
+    await session.send_and_wait({
+        "prompt": f"List all files in '{folder}' with their metadata (size, date, type)"
+    })
+
+    # Step 2: Propose
+    await session.send_and_wait({
+        "prompt": f"Propose an organization by {strategy}. Show in a table."
+    })
+
+    # Step 3: Confirm
+    confirm = input("\nProceed with organization? (y/n): ")
+    if confirm.lower() != 'y':
+        print("Cancelled.")
+        return
+
+    # Step 4: Execute
+    await session.send_and_wait({
+        "prompt": "Execute the proposed organization. Report progress."
+    })
+```
+
+## File Filtering
+
+Organize specific file types only:
+
+```python
+await session.send_and_wait({
+    "prompt": f"""
+In '{folder}', organize ONLY image files (.jpg, .png, .gif):
+- By resolution: small (<500px), medium (<2000px), large (>2000px)
+- Skip non-image files
+"""
+})
+```
+
+## Duplicate Handling
+
+Handle files with the same name:
+
+```python
+await session.send_and_wait({
+    "prompt": f"""
+Organize files in '{folder}' by type. When duplicates exist:
+- Add a numeric suffix (file_1.txt, file_2.txt)
+- Keep the newest version in the main folder
+- Report all duplicates found
+"""
+})
+```
+
+## Safety Considerations
+
+| Concern | Solution |
+|---------|----------|
+| Accidental deletion | Use dry-run first |
+| Permission errors | Set up permission handler |
+| Duplicate names | Add suffix or skip |
+| Important files | Copy instead of move |
+| Undo capability | Log all operations |
+
+## Best Practices
+
+1. **Always dry-run first**: Preview changes before executing
+2. **Use permission handlers**: Control what operations are allowed
+3. **Back up important files**: Copy instead of move for critical data
+4. **Log operations**: Keep a record of what was moved where
+5. **Confirm before bulk operations**: Especially for delete operations
+
+## Complete Example
+
+```bash
+python recipe/managing_local_files.py
+```
+
+Demonstrates:
+- All organization strategies
+- Permission handling
+- Interactive mode
+- Dry-run preview
+
+## Next Steps
+
+- [Error Handling](error-handling.md): Handle file operation errors
+- [Custom Tools](custom-tools.md): Create specialized file tools
+- [Multiple Sessions](multiple-sessions.md): Parallel file processing
