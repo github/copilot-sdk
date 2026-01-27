@@ -16,13 +16,21 @@ import java.util.concurrent.CompletableFuture;
  * <h2>Example Implementation</h2>
  *
  * <pre>{@code
+ * // Option 1: Type-safe access with records (recommended)
+ * record SearchArgs(String query) {
+ * }
+ *
  * ToolHandler handler = invocation -> {
- * 	Map<String, Object> args = (Map<String, Object>) invocation.getArguments();
- * 	String query = args.get("query").toString();
+ * 	SearchArgs args = invocation.getArgumentsAs(SearchArgs.class);
+ * 	String result = performSearch(args.query());
+ * 	return CompletableFuture.completedFuture(result);
+ * };
  *
- * 	// Perform the tool's action
+ * // Option 2: Map-based access
+ * ToolHandler handler = invocation -> {
+ * 	Map<String, Object> args = invocation.getArguments();
+ * 	String query = (String) args.get("query");
  * 	String result = performSearch(query);
- *
  * 	return CompletableFuture.completedFuture(result);
  * };
  * }</pre>

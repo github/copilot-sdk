@@ -20,13 +20,22 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * <h2>Example Usage</h2>
  *
  * <pre>{@code
+ * // Define a record for your tool's arguments
+ * record WeatherArgs(String location) {
+ * }
+ *
  * var tool = ToolDefinition.create("get_weather", "Get the current weather for a location",
  * 		Map.of("type", "object", "properties",
  * 				Map.of("location", Map.of("type", "string", "description", "City name")), "required",
  * 				List.of("location")),
  * 		invocation -> {
- * 			String location = ((Map<String, Object>) invocation.getArguments()).get("location").toString();
- * 			return CompletableFuture.completedFuture(getWeatherData(location));
+ * 			// Type-safe access with records (recommended)
+ * 			WeatherArgs args = invocation.getArgumentsAs(WeatherArgs.class);
+ * 			return CompletableFuture.completedFuture(getWeatherData(args.location()));
+ *
+ * 			// Or use Map-based access
+ * 			// Map<String, Object> args = invocation.getArguments();
+ * 			// String location = (String) args.get("location");
  * 		});
  * }</pre>
  *

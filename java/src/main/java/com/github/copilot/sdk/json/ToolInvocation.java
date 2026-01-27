@@ -4,7 +4,13 @@
 
 package com.github.copilot.sdk.json;
 
+import java.util.Map;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Represents a tool invocation request from the AI assistant.
@@ -20,10 +26,14 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class ToolInvocation {
 
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
+    };
+
     private String sessionId;
     private String toolCallId;
     private String toolName;
-    private Object arguments;
+    private JsonNode argumentsNode;
 
     /**
      * Gets the session ID where the tool was invoked.
@@ -91,26 +101,71 @@ public final class ToolInvocation {
     }
 
     /**
-     * Gets the arguments passed to the tool.
+     * Gets the arguments passed to the tool as a Map.
      * <p>
-     * This is typically a {@code Map<String, Object>} matching the parameter schema
-     * defined in the tool's {@link ToolDefinition}.
+     * The arguments are provided as a {@code Map<String, Object>} matching the
+     * parameter schema defined in the tool's {@link ToolDefinition}. Values can be
+     * accessed using standard Map operations.
+     * <p>
+     * For type-safe access, use {@link #getArgumentsAs(Class)} to deserialize
+     * arguments into a record or POJO.
      *
-     * @return the arguments object
+     * @return the arguments as a Map, or null if no arguments
+     * @see #getArgumentsAs(Class)
      */
-    public Object getArguments() {
-        return arguments;
+    public Map<String, Object> getArguments() {
+        if (argumentsNode == null) {
+            return null;
+        }
+        return MAPPER.convertValue(argumentsNode, MAP_TYPE);
+    }
+
+    /**
+     * Deserializes the tool arguments into the specified type.
+     * <p>
+     * This method provides type-safe access to tool arguments by converting the
+     * JSON arguments into a record, POJO, or other compatible type.
+     *
+     * <pre>{@code
+     * // Define a record for your tool's arguments
+     * record WeatherArgs(String city) {
+     * }
+     *
+     * // In your tool handler
+     * WeatherArgs args = invocation.getArgumentsAs(WeatherArgs.class);
+     * String city = args.city();
+     * }</pre>
+     *
+     * @param <T>
+     *            the type to deserialize to
+     * @param type
+     *            the class of the target type
+     * @return the arguments deserialized as the specified type
+     * @throws IllegalArgumentException
+     *             if deserialization fails
+     * @since 1.0.0
+     */
+    public <T> T getArgumentsAs(Class<T> type) {
+        try {
+            return MAPPER.treeToValue(argumentsNode, type);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Failed to deserialize arguments to " + type.getName(), e);
+        }
     }
 
     /**
      * Sets the tool arguments.
+     * <p>
+     * <strong>Note:</strong> This method is intended for internal SDK use and JSON
+     * deserialization. Users typically do not need to call this method directly.
      *
      * @param arguments
-     *            the arguments object
+     *            the arguments as a JsonNode
      * @return this invocation for method chaining
      */
-    public ToolInvocation setArguments(Object arguments) {
-        this.arguments = arguments;
+    @JsonSetter("arguments")
+    public ToolInvocation setArguments(JsonNode arguments) {
+        this.argumentsNode = arguments;
         return this;
     }
 }

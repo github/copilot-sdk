@@ -19,7 +19,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.github.copilot.sdk.events.AssistantMessageEvent;
 import com.github.copilot.sdk.json.MessageOptions;
 import com.github.copilot.sdk.json.SessionConfig;
@@ -90,8 +89,8 @@ public class ToolsTest {
 
         ToolDefinition encryptTool = ToolDefinition.create("encrypt_string", "Encrypts a string", parameters,
                 (invocation) -> {
-                    JsonNode argsNode = (JsonNode) invocation.getArguments();
-                    String input = argsNode.get("input").asText();
+                    Map<String, Object> args = invocation.getArguments();
+                    String input = (String) args.get("input");
                     return CompletableFuture.completedFuture(input.toUpperCase());
                 });
 
@@ -168,10 +167,11 @@ public class ToolsTest {
 
         ToolDefinition dbQueryTool = ToolDefinition.create("db_query", "Performs a database query", parameters,
                 (invocation) -> {
-                    JsonNode argsNode = (JsonNode) invocation.getArguments();
-                    JsonNode queryNode = argsNode.get("query");
+                    Map<String, Object> args = invocation.getArguments();
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> query = (Map<String, Object>) args.get("query");
 
-                    assertEquals("cities", queryNode.get("table").asText());
+                    assertEquals("cities", query.get("table"));
 
                     // Return complex data structure
                     List<Map<String, Object>> results = List.of(
