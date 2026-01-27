@@ -32,11 +32,13 @@ session.on((event) => {
 
 // Send a simple message
 console.log("💬 Sending message...");
-await session.sendAndWait({ prompt: "Tell me 2+2" });
+const result1 = await session.sendAndWait({ prompt: "Tell me 2+2" });
+console.log("📝 Response:", result1?.data.content);
 
 // Send another message that uses the tool
 console.log("💬 Sending follow-up message...");
-await session.sendAndWait({ prompt: "Now use lookup_fact to tell me something about Node.js." });
+const result2 = await session.sendAndWait({ prompt: "Use lookup_fact to tell me about 'node'" });
+console.log("📝 Response:", result2?.data.content);
 
 // Clean up
 await session.destroy();
