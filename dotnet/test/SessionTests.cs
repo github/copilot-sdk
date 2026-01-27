@@ -26,7 +26,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
 
         await session.DisposeAsync();
 
-        var ex = await Assert.ThrowsAsync<StreamJsonRpc.RemoteInvocationException>(() => session.GetMessagesAsync());
+        var ex = await Assert.ThrowsAsync<IOException>(() => session.GetMessagesAsync());
         Assert.Contains("not found", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -192,7 +192,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     [Fact]
     public async Task Should_Throw_Error_When_Resuming_Non_Existent_Session()
     {
-        await Assert.ThrowsAsync<StreamJsonRpc.RemoteInvocationException>(() =>
+        await Assert.ThrowsAsync<IOException>(() =>
             Client.ResumeSessionAsync("non-existent-session-id"));
     }
 
