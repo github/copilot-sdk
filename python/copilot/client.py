@@ -855,7 +855,7 @@ class CopilotClient:
                 if not line:
                     raise RuntimeError("CLI process exited before announcing port")
 
-                line_str = line.decode()
+                line_str = line.decode() if isinstance(line, bytes) else line
                 match = re.search(r"listening on port (\d+)", line_str, re.IGNORECASE)
                 if match:
                     self._actual_port = int(match.group(1))
