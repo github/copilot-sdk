@@ -4,7 +4,7 @@ This folder contains standalone, executable C# examples for each cookbook recipe
 
 ## Prerequisites
 
-- .NET 9.0 or later
+- .NET 10.0 or later
 - GitHub Copilot SDK package (referenced automatically)
 
 ## Running Examples
@@ -47,8 +47,6 @@ These examples use .NET's file-based app feature, which allows single-file C# pr
 - Run without a project file
 - Automatically reference common packages
 - Support top-level statements
-
-Each file includes `#:property PublishAot=false` to disable AOT compilation, ensuring compatibility with the Copilot SDK.
 
 ## Learning Resources
 
