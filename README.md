@@ -97,7 +97,7 @@ Please use the [GitHub Issues](https://github.com/github/copilot-sdk/issues) pag
 
 - **[Getting Started](./docs/getting-started.md)** – Tutorial to get up and running
 - **[Cookbook](./cookbook/README.md)** – Practical recipes for common tasks across all languages
-- **[Samples](./samples/README.md)** – Video walkthroughs and sample projects
+- **[More Resources](https://github.com/github/awesome-copilot/blob/main/collections/copilot-sdk.md)** – Additional examples, tutorials, and community resources
 
 ## Unofficial, Community-maintained SDKs
 
