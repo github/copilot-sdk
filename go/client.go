@@ -727,6 +727,107 @@ func (c *Client) ResumeSessionWithOptions(sessionID string, config *ResumeSessio
 	return session, nil
 }
 
+// ListSessions returns metadata about all sessions known to the server.
+//
+// Returns a list of SessionMetadata for all available sessions, including their IDs,
+// timestamps, and optional summaries.
+//
+// Example:
+//
+//	sessions, err := client.ListSessions()
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	for _, session := range sessions {
+//	    fmt.Printf("Session: %s\n", session.SessionID)
+//	}
+func (c *Client) ListSessions() ([]SessionMetadata, error) {
+	if c.client == nil {
+		if c.autoStart {
+			if err := c.Start(); err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, fmt.Errorf("client not connected. Call Start() first")
+		}
+	}
+
+	result, err := c.client.Request("session.list", map[string]interface{}{})
+	if err != nil {
+		return nil, err
+	}
+
+	// Marshal and unmarshal to convert map to struct
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal sessions response: %w", err)
+	}
+
+	var response ListSessionsResponse
+	if err := json.Unmarshal(jsonBytes, &response); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal sessions response: %w", err)
+	}
+
+	return response.Sessions, nil
+}
+
+// DeleteSession permanently deletes a session and all its conversation history.
+//
+// The session cannot be resumed after deletion. If the session is in the local
+// sessions map, it will be removed.
+//
+// Example:
+//
+//	if err := client.DeleteSession("session-123"); err != nil {
+//	    log.Fatal(err)
+//	}
+func (c *Client) DeleteSession(sessionID string) error {
+	if c.client == nil {
+		if c.autoStart {
+			if err := c.Start(); err != nil {
+				return err
+			}
+		} else {
+			return fmt.Errorf("client not connected. Call Start() first")
+		}
+	}
+
+	params := map[string]interface{}{
+		"sessionId": sessionID,
+	}
+
+	result, err := c.client.Request("session.delete", params)
+	if err != nil {
+		return err
+	}
+
+	// Marshal and unmarshal to convert map to struct
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Errorf("failed to marshal delete response: %w", err)
+	}
+
+	var response DeleteSessionResponse
+	if err := json.Unmarshal(jsonBytes, &response); err != nil {
+		return fmt.Errorf("failed to unmarshal delete response: %w", err)
+	}
+
+	if !response.Success {
+		errorMsg := "unknown error"
+		if response.Error != nil {
+			errorMsg = *response.Error
+		}
+		return fmt.Errorf("failed to delete session %s: %s", sessionID, errorMsg)
+	}
+
+	// Remove from local sessions map if present
+	c.sessionsMux.Lock()
+	delete(c.sessions, sessionID)
+	c.sessionsMux.Unlock()
+
+	return nil
+}
+
 // GetState returns the current connection state of the client.
 //
 // Possible states: StateDisconnected, StateConnecting, StateConnected, StateError.

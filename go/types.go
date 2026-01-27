@@ -375,3 +375,28 @@ type ModelInfo struct {
 type GetModelsResponse struct {
 	Models []ModelInfo `json:"models"`
 }
+
+// SessionMetadata contains metadata about a session
+type SessionMetadata struct {
+	SessionID    string  `json:"sessionId"`
+	StartTime    string  `json:"startTime"`
+	ModifiedTime string  `json:"modifiedTime"`
+	Summary      *string `json:"summary,omitempty"`
+	IsRemote     bool    `json:"isRemote"`
+}
+
+// ListSessionsResponse is the response from session.list
+type ListSessionsResponse struct {
+	Sessions []SessionMetadata `json:"sessions"`
+}
+
+// DeleteSessionRequest is the request for session.delete
+type DeleteSessionRequest struct {
+	SessionID string `json:"sessionId"`
+}
+
+// DeleteSessionResponse is the response from session.delete
+type DeleteSessionResponse struct {
+	Success bool    `json:"success"`
+	Error   *string `json:"error,omitempty"`
+}
