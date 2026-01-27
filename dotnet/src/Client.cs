@@ -590,13 +590,13 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         return response.Sessions;
     }
 
-    private static async Task<T> InvokeRpcAsync<T>(JsonRpc rpc, string method, object?[]? args, CancellationToken cancellationToken)
+    internal static async Task<T> InvokeRpcAsync<T>(JsonRpc rpc, string method, object?[]? args, CancellationToken cancellationToken)
     {
         try
         {
             return await rpc.InvokeWithCancellationAsync<T>(method, args, cancellationToken);
         }
-        catch (StreamJsonRpc.RemoteInvocationException ex)
+        catch (StreamJsonRpc.RemoteRpcException ex)
         {
             throw new IOException($"Communication error with Copilot CLI: {ex.Message}", ex);
         }

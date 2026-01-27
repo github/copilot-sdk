@@ -80,17 +80,8 @@ public partial class CopilotSession : IAsyncDisposable
         WorkspacePath = workspacePath;
     }
 
-    private async Task<T> InvokeRpcAsync<T>(string method, object?[]? args, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await _rpc.InvokeWithCancellationAsync<T>(method, args, cancellationToken);
-        }
-        catch (StreamJsonRpc.RemoteInvocationException ex)
-        {
-            throw new IOException($"Communication error with Copilot CLI: {ex.Message}", ex);
-        }
-    }
+    private Task<T> InvokeRpcAsync<T>(string method, object?[]? args, CancellationToken cancellationToken) =>
+        CopilotClient.InvokeRpcAsync<T>(_rpc, method, args, cancellationToken);
 
     /// <summary>
     /// Sends a message to the Copilot session and waits for the response.
