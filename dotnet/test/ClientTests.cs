@@ -172,4 +172,75 @@ public class ClientTests : IAsyncLifetime
             await client.ForceStopAsync();
         }
     }
+
+    [Fact]
+    public void Should_Accept_GithubToken_Option()
+    {
+        var options = new CopilotClientOptions
+        {
+            CliPath = _cliPath,
+            GithubToken = "gho_test_token"
+        };
+
+        Assert.Equal("gho_test_token", options.GithubToken);
+    }
+
+    [Fact]
+    public void Should_Default_UseLoggedInUser_To_Null()
+    {
+        var options = new CopilotClientOptions { CliPath = _cliPath };
+
+        Assert.Null(options.UseLoggedInUser);
+    }
+
+    [Fact]
+    public void Should_Allow_Explicit_UseLoggedInUser_False()
+    {
+        var options = new CopilotClientOptions
+        {
+            CliPath = _cliPath,
+            UseLoggedInUser = false
+        };
+
+        Assert.False(options.UseLoggedInUser);
+    }
+
+    [Fact]
+    public void Should_Allow_Explicit_UseLoggedInUser_True_With_GithubToken()
+    {
+        var options = new CopilotClientOptions
+        {
+            CliPath = _cliPath,
+            GithubToken = "gho_test_token",
+            UseLoggedInUser = true
+        };
+
+        Assert.True(options.UseLoggedInUser);
+    }
+
+    [Fact]
+    public void Should_Throw_When_GithubToken_Used_With_CliUrl()
+    {
+        Assert.Throws<ArgumentException>(() =>
+        {
+            _ = new CopilotClient(new CopilotClientOptions
+            {
+                CliUrl = "localhost:8080",
+                GithubToken = "gho_test_token"
+            });
+        });
+    }
+
+    [Fact]
+    public void Should_Throw_When_UseLoggedInUser_Used_With_CliUrl()
+    {
+        Assert.Throws<ArgumentException>(() =>
+        {
+            _ = new CopilotClient(new CopilotClientOptions
+            {
+                CliUrl = "localhost:8080",
+                UseLoggedInUser = false
+            });
+        });
+    }
 }

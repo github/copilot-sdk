@@ -115,6 +115,11 @@ func NewClient(options *ClientOptions) *Client {
 			panic("CLIUrl is mutually exclusive with UseStdio and CLIPath")
 		}
 
+		// Validate auth options with external server
+		if options.CLIUrl != "" && (options.GithubToken != "" || options.UseLoggedInUser != nil) {
+			panic("GithubToken and UseLoggedInUser cannot be used with CLIUrl (external server manages its own auth)")
+		}
+
 		// Parse CLIUrl if provided
 		if options.CLIUrl != "" {
 			host, port := parseCliUrl(options.CLIUrl)
@@ -147,6 +152,12 @@ func NewClient(options *ClientOptions) *Client {
 		}
 		if options.AutoRestart != nil {
 			client.autoRestart = *options.AutoRestart
+		}
+		if options.GithubToken != "" {
+			opts.GithubToken = options.GithubToken
+		}
+		if options.UseLoggedInUser != nil {
+			opts.UseLoggedInUser = options.UseLoggedInUser
 		}
 	}
 
@@ -995,6 +1006,21 @@ func (c *Client) startCLIServer() error {
 		args = append(args, "--port", strconv.Itoa(c.options.Port))
 	}
 
+	// Add auth-related flags
+	if c.options.GithubToken != "" {
+		args = append(args, "--auth-token-env", "COPILOT_SDK_AUTH_TOKEN")
+	}
+	// Default useLoggedInUser to false when GithubToken is provided
+	useLoggedInUser := true
+	if c.options.UseLoggedInUser != nil {
+		useLoggedInUser = *c.options.UseLoggedInUser
+	} else if c.options.GithubToken != "" {
+		useLoggedInUser = false
+	}
+	if !useLoggedInUser {
+		args = append(args, "--no-auto-login")
+	}
+
 	// If CLIPath is a .js file, run it with node
 	// Note we can't rely on the shebang as Windows doesn't support it
 	command := c.options.CLIPath
@@ -1010,9 +1036,14 @@ func (c *Client) startCLIServer() error {
 		c.process.Dir = c.options.Cwd
 	}
 
-	// Set environment if specified
+	// Set environment if specified, adding auth token if needed
 	if len(c.options.Env) > 0 {
 		c.process.Env = c.options.Env
+	} else {
+		c.process.Env = os.Environ()
+	}
+	if c.options.GithubToken != "" {
+		c.process.Env = append(c.process.Env, "COPILOT_SDK_AUTH_TOKEN="+c.options.GithubToken)
 	}
 
 	if c.options.UseStdio {

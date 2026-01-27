@@ -35,6 +35,21 @@ public class CopilotClientOptions
     public bool AutoRestart { get; set; } = true;
     public IReadOnlyDictionary<string, string>? Environment { get; set; }
     public ILogger? Logger { get; set; }
+
+    /// <summary>
+    /// GitHub token to use for authentication.
+    /// When provided, the token is passed to the CLI server via environment variable.
+    /// This takes priority over other authentication methods.
+    /// </summary>
+    public string? GithubToken { get; set; }
+
+    /// <summary>
+    /// Whether to use the logged-in user for authentication.
+    /// When true, the CLI server will attempt to use stored OAuth tokens or gh CLI auth.
+    /// When false, only explicit tokens (GithubToken or environment variables) are used.
+    /// Default: true (but defaults to false when GithubToken is provided).
+    /// </summary>
+    public bool? UseLoggedInUser { get; set; }
 }
 
 public class ToolBinaryResult

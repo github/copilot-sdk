@@ -237,6 +237,83 @@ func TestClient_URLParsing(t *testing.T) {
 	})
 }
 
+func TestClient_AuthOptions(t *testing.T) {
+	t.Run("should accept GithubToken option", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			GithubToken: "gho_test_token",
+		})
+
+		if client.options.GithubToken != "gho_test_token" {
+			t.Errorf("Expected GithubToken to be 'gho_test_token', got %q", client.options.GithubToken)
+		}
+	})
+
+	t.Run("should default UseLoggedInUser to nil when no GithubToken", func(t *testing.T) {
+		client := NewClient(&ClientOptions{})
+
+		if client.options.UseLoggedInUser != nil {
+			t.Errorf("Expected UseLoggedInUser to be nil, got %v", client.options.UseLoggedInUser)
+		}
+	})
+
+	t.Run("should allow explicit UseLoggedInUser false", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			UseLoggedInUser: Bool(false),
+		})
+
+		if client.options.UseLoggedInUser == nil || *client.options.UseLoggedInUser != false {
+			t.Error("Expected UseLoggedInUser to be false")
+		}
+	})
+
+	t.Run("should allow explicit UseLoggedInUser true with GithubToken", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			GithubToken:     "gho_test_token",
+			UseLoggedInUser: Bool(true),
+		})
+
+		if client.options.UseLoggedInUser == nil || *client.options.UseLoggedInUser != true {
+			t.Error("Expected UseLoggedInUser to be true")
+		}
+	})
+
+	t.Run("should throw error when GithubToken is used with CLIUrl", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic for auth options with CLIUrl")
+			} else {
+				matched, _ := regexp.MatchString("GithubToken and UseLoggedInUser cannot be used with CLIUrl", r.(string))
+				if !matched {
+					t.Errorf("Expected panic message about auth options, got: %v", r)
+				}
+			}
+		}()
+
+		NewClient(&ClientOptions{
+			CLIUrl:      "localhost:8080",
+			GithubToken: "gho_test_token",
+		})
+	})
+
+	t.Run("should throw error when UseLoggedInUser is used with CLIUrl", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic for auth options with CLIUrl")
+			} else {
+				matched, _ := regexp.MatchString("GithubToken and UseLoggedInUser cannot be used with CLIUrl", r.(string))
+				if !matched {
+					t.Errorf("Expected panic message about auth options, got: %v", r)
+				}
+			}
+		}()
+
+		NewClient(&ClientOptions{
+			CLIUrl:          "localhost:8080",
+			UseLoggedInUser: Bool(false),
+		})
+	})
+}
+
 func findCLIPathForTest() string {
 	abs, _ := filepath.Abs("../nodejs/node_modules/@github/copilot/index.js")
 	if fileExistsForTest(abs) {

@@ -35,6 +35,16 @@ type ClientOptions struct {
 	AutoRestart *bool
 	// Env is the environment variables for the CLI process (default: inherits from current process)
 	Env []string
+	// GithubToken is the GitHub token to use for authentication.
+	// When provided, the token is passed to the CLI server via environment variable.
+	// This takes priority over other authentication methods.
+	GithubToken string
+	// UseLoggedInUser controls whether to use the logged-in user for authentication.
+	// When true, the CLI server will attempt to use stored OAuth tokens or gh CLI auth.
+	// When false, only explicit tokens (GithubToken or environment variables) are used.
+	// Default: true (but defaults to false when GithubToken is provided).
+	// Use Bool(false) to explicitly disable.
+	UseLoggedInUser *bool
 }
 
 // Bool returns a pointer to the given bool value.
