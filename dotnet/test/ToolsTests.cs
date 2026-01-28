@@ -143,14 +143,15 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
     [JsonSerializable(typeof(DbQueryOptions))]
     [JsonSerializable(typeof(City[]))]
     [JsonSerializable(typeof(JsonElement))]
+    [JsonSerializable(typeof(GitHub.Copilot.SDK.ToolResultAIContent))]
     private partial class ToolsTestsJsonContext : JsonSerializerContext;
 
-    [Fact(Skip = "Behaves as if no content was in the result. Likely that binary results aren't fully implemented yet.")]
+    [Fact]
     public async Task Can_Return_Binary_Result()
     {
         var session = await Client.CreateSessionAsync(new SessionConfig
         {
-            Tools = [AIFunctionFactory.Create(GetImage, "get_image")],
+            Tools = [AIFunctionFactory.Create(GetImage, "get_image", serializerOptions: ToolsTestsJsonContext.Default.Options)],
         });
 
         await session.SendAsync(new MessageOptions
@@ -161,7 +162,7 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
         var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
         Assert.NotNull(assistantMessage);
 
-        Assert.Contains("yellow", assistantMessage!.Data.Content?.ToLowerInvariant() ?? string.Empty);
+        Assert.Matches("yellow", assistantMessage!.Data.Content?.ToLowerInvariant() ?? string.Empty);
 
         static ToolResultAIContent GetImage() => new ToolResultAIContent(new()
         {

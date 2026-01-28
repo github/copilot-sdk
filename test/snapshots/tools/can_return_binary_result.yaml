@@ -1,0 +1,46 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use get_image. What color is the square in the image?
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Retrieving and analyzing image"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: get_image
+              arguments: "{}"
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use get_image. What color is the square in the image?
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Retrieving and analyzing image"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: get_image
+              arguments: "{}"
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+      - role: assistant
+        content: The square in the image is **yellow**.
