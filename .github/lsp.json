@@ -6,8 +6,7 @@
       "fileExtensions": {
         ".cs": "csharp"
       },
-      "projectRootFiles": ["GitHub.Copilot.SDK.sln"],
-      "rootPath": "dotnet"
+      "rootUri": "dotnet"
     },
     "go": {
       "command": "${HOME}/go/bin/gopls",
@@ -15,8 +14,7 @@
       "fileExtensions": {
         ".go": "go"
       },
-      "projectRootFiles": ["go.mod", "go.sum"],
-      "rootPath": "go"
+      "rootUri": "go"
     }
   }
 }
