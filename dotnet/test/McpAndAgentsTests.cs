@@ -199,7 +199,7 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task Should_Custom_Agent_Availability()
+    public async Task Should_List_Custom_Agent_In_Session_Response()
     {
         var customAgents = new List<CustomAgentConfig>
         {
