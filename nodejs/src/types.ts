@@ -74,6 +74,21 @@ export interface CopilotClientOptions {
      * Environment variables to pass to the CLI process. If not set, inherits process.env.
      */
     env?: Record<string, string | undefined>;
+
+    /**
+     * GitHub token to use for authentication.
+     * When provided, the token is passed to the CLI server via environment variable.
+     * This takes priority over other authentication methods.
+     */
+    githubToken?: string;
+
+    /**
+     * Whether to use the logged-in user for authentication.
+     * When true, the CLI server will attempt to use stored OAuth tokens or gh CLI auth.
+     * When false, only explicit tokens (githubToken or environment variables) are used.
+     * @default true (but defaults to false when githubToken is provided)
+     */
+    useLoggedInUser?: boolean;
 }
 
 /**

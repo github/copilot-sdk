@@ -90,6 +90,12 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
             throw new ArgumentException("CliUrl is mutually exclusive with UseStdio and CliPath");
         }
 
+        // Validate auth options with external server
+        if (!string.IsNullOrEmpty(_options.CliUrl) && (!string.IsNullOrEmpty(_options.GithubToken) || _options.UseLoggedInUser != null))
+        {
+            throw new ArgumentException("GithubToken and UseLoggedInUser cannot be used with CliUrl (external server manages its own auth)");
+        }
+
         _logger = _options.Logger ?? NullLogger.Instance;
 
         // Parse CliUrl if provided
@@ -657,6 +663,19 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
             args.AddRange(["--port", options.Port.ToString()]);
         }
 
+        // Add auth-related flags
+        if (!string.IsNullOrEmpty(options.GithubToken))
+        {
+            args.AddRange(["--auth-token-env", "COPILOT_SDK_AUTH_TOKEN"]);
+        }
+
+        // Default UseLoggedInUser to false when GithubToken is provided
+        var useLoggedInUser = options.UseLoggedInUser ?? string.IsNullOrEmpty(options.GithubToken);
+        if (!useLoggedInUser)
+        {
+            args.Add("--no-auto-login");
+        }
+
         var (fileName, processArgs) = ResolveCliCommand(cliPath, args);
 
         var startInfo = new ProcessStartInfo
@@ -681,6 +700,12 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         }
 
         startInfo.Environment.Remove("NODE_DEBUG");
+
+        // Set auth token in environment if provided
+        if (!string.IsNullOrEmpty(options.GithubToken))
+        {
+            startInfo.Environment["COPILOT_SDK_AUTH_TOKEN"] = options.GithubToken;
+        }
 
         var cliProcess = new Process { StartInfo = startInfo };
         cliProcess.Start();

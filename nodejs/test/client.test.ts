@@ -148,4 +148,71 @@ describe("CopilotClient", () => {
             expect((client as any).isExternalServer).toBe(true);
         });
     });
+
+    describe("Auth options", () => {
+        it("should accept githubToken option", () => {
+            const client = new CopilotClient({
+                githubToken: "gho_test_token",
+                logLevel: "error",
+            });
+
+            expect((client as any).options.githubToken).toBe("gho_test_token");
+        });
+
+        it("should default useLoggedInUser to true when no githubToken", () => {
+            const client = new CopilotClient({
+                logLevel: "error",
+            });
+
+            expect((client as any).options.useLoggedInUser).toBe(true);
+        });
+
+        it("should default useLoggedInUser to false when githubToken is provided", () => {
+            const client = new CopilotClient({
+                githubToken: "gho_test_token",
+                logLevel: "error",
+            });
+
+            expect((client as any).options.useLoggedInUser).toBe(false);
+        });
+
+        it("should allow explicit useLoggedInUser: true with githubToken", () => {
+            const client = new CopilotClient({
+                githubToken: "gho_test_token",
+                useLoggedInUser: true,
+                logLevel: "error",
+            });
+
+            expect((client as any).options.useLoggedInUser).toBe(true);
+        });
+
+        it("should allow explicit useLoggedInUser: false without githubToken", () => {
+            const client = new CopilotClient({
+                useLoggedInUser: false,
+                logLevel: "error",
+            });
+
+            expect((client as any).options.useLoggedInUser).toBe(false);
+        });
+
+        it("should throw error when githubToken is used with cliUrl", () => {
+            expect(() => {
+                new CopilotClient({
+                    cliUrl: "localhost:8080",
+                    githubToken: "gho_test_token",
+                    logLevel: "error",
+                });
+            }).toThrow(/githubToken and useLoggedInUser cannot be used with cliUrl/);
+        });
+
+        it("should throw error when useLoggedInUser is used with cliUrl", () => {
+            expect(() => {
+                new CopilotClient({
+                    cliUrl: "localhost:8080",
+                    useLoggedInUser: false,
+                    logLevel: "error",
+                });
+            }).toThrow(/githubToken and useLoggedInUser cannot be used with cliUrl/);
+        });
+    });
 });
