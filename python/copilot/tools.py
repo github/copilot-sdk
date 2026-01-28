@@ -186,7 +186,7 @@ def _normalize_result(result: Any) -> ToolResult:
 
     # ToolResult passes through directly
     if isinstance(result, dict) and "resultType" in result and "textResultForLlm" in result:
-        return result  # type: ignore
+        return result
 
     # Strings pass through directly
     if isinstance(result, str):
