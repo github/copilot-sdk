@@ -8,6 +8,15 @@
       },
       "projectRootFiles": ["GitHub.Copilot.SDK.sln"],
       "rootPath": "dotnet"
+    },
+    "go": {
+      "command": "${HOME}/go/bin/gopls",
+      "args": ["serve"],
+      "fileExtensions": {
+        ".go": "go"
+      },
+      "projectRootFiles": ["go.mod", "go.sum"],
+      "rootPath": "go"
     }
   }
 }
