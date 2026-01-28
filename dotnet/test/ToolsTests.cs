@@ -162,7 +162,7 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
         var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
         Assert.NotNull(assistantMessage);
 
-        Assert.Matches("yellow", assistantMessage!.Data.Content?.ToLowerInvariant() ?? string.Empty);
+        Assert.Contains("yellow", assistantMessage!.Data.Content?.ToLowerInvariant() ?? string.Empty);
 
         static ToolResultAIContent GetImage() => new ToolResultAIContent(new()
         {
