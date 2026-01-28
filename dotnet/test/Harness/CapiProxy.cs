@@ -123,7 +123,6 @@ public partial class CapiProxy : IAsyncDisposable
     private record ConfigureRequest(string FilePath, string WorkDir, Dictionary<string, ToolBinaryOverride>? ToolBinaryOverrides);
 
 
-
     public async Task<List<ParsedHttpExchange>> GetExchangesAsync()
     {
         var url = await (_startupTask ?? throw new InvalidOperationException("Proxy not started"));
