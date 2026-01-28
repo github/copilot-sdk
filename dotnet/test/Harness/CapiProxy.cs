@@ -149,6 +149,7 @@ public partial class CapiProxy : IAsyncDisposable
 
     [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
     [JsonSerializable(typeof(ConfigureRequest))]
+    [JsonSerializable(typeof(ToolBinaryOverride))]
     [JsonSerializable(typeof(List<ParsedHttpExchange>))]
     private partial class CapiProxyJsonContext : JsonSerializerContext;
 }

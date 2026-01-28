@@ -169,10 +169,10 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
                 // make the textual reference available for the LLM (helpful for E2E assertion)
                 TextResultForLlm = textPayload,
                 BinaryResultsForLlm = [new() {
-                Data = binary.data,
-                Type = binary.type,
-                MimeType = binary.mimeType,
-            }],
+                    Data = binary.data,
+                    Type = binary.type,
+                    MimeType = binary.mimeType,
+                }],
                 SessionLog = "Returned an image",
             });
         }

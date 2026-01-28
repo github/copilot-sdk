@@ -74,7 +74,8 @@ public class E2ETestContext : IAsyncDisposable
         // to avoid case collisions on case-insensitive filesystems (macOS/Windows)
         var sanitizedName = Regex.Replace(testName!, @"[^a-zA-Z0-9]", "_").ToLowerInvariant();
         var snapshotPath = Path.Combine(_repoRoot, "test", "snapshots", testFile, $"{sanitizedName}.yaml");
-        await _proxy.ConfigureAsync(snapshotPath, WorkDir, toolBinaryOverrides?.ToDictionary(kv => kv.Key, kv => new ToolBinaryOverride(kv.Value.Data, kv.Value.Type, kv.Value.MimeType)));
+        // Pass through the dictionary directly to avoid unnecessary allocations
+        await _proxy.ConfigureAsync(snapshotPath, WorkDir, toolBinaryOverrides);
     }
 
     public Task<List<ParsedHttpExchange>> GetExchangesAsync() => _proxy.GetExchangesAsync();
