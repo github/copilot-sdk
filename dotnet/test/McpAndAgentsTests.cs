@@ -2,7 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using System.ComponentModel;
 using GitHub.Copilot.SDK.Test.Harness;
+using Microsoft.Extensions.AI;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -194,6 +196,73 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
         await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Should_Custom_Agent_Availability()
+    {
+        var customAgents = new List<CustomAgentConfig>
+        {
+            new CustomAgentConfig
+            {
+                Name = "dd-agent",
+                DisplayName = "dd Agent",
+                Description = "An dd agent",
+                Prompt = "You are an dd agent",
+                Infer = true
+            }
+        };
+
+        var session = await Client.CreateSessionAsync(new SessionConfig
+        {
+            CustomAgents = customAgents
+        });
+
+        Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
+
+        await session.SendAsync(new MessageOptions { Prompt = "List All Custom Agents" });
+
+        var message = await TestHelper.GetFinalAssistantMessageAsync(session);
+        Assert.NotNull(message);
+        Assert.Contains("dd-agent", message!.Data.Content);
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Should_Custom_Agent_Availability_With_AI_Tools()
+    {
+        var customAgents = new List<CustomAgentConfig>
+        {
+            new CustomAgentConfig
+            {
+                Name = "dd-agent",
+                DisplayName = "dd Agent",
+                Description = "An dd agent",
+                Prompt = "You are an dd agent",
+                Infer = true
+            }
+        };
+
+        var session = await Client.CreateSessionAsync(new SessionConfig
+        {
+            CustomAgents = customAgents,
+            Tools = [AIFunctionFactory.Create(EncryptString, "encrypt_string")],
+        });
+
+        Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
+
+        await session.SendAsync(new MessageOptions { Prompt = "List All Custom Agents" });
+
+        var message = await TestHelper.GetFinalAssistantMessageAsync(session);
+        Assert.NotNull(message);
+        Assert.Contains("dd-agent", message!.Data.Content);
+
+        await session.DisposeAsync();
+
+        [Description("Encrypts a string")]
+        static string EncryptString([Description("String to encrypt")] string input)
+           => input.ToUpperInvariant();
     }
 
     [Fact]
