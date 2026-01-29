@@ -70,7 +70,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     /// var client = new CopilotClient();
     ///
     /// // Connect to an existing server
-    /// var client = new CopilotClient(new CopilotClientOptions { CliUrl = "localhost:3000" });
+    /// var client = new CopilotClient(new CopilotClientOptions { CliUrl = "localhost:3000", UseStdio = false });
     ///
     /// // Custom CLI path with specific log level
     /// var client = new CopilotClient(new CopilotClientOptions
@@ -709,7 +709,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         }
 
         // Default UseLoggedInUser to false when GithubToken is provided
-        var useLoggedInUser = options.UseLoggedInUser ?? (string.IsNullOrEmpty(options.GithubToken) ? true : false);
+        var useLoggedInUser = options.UseLoggedInUser ?? string.IsNullOrEmpty(options.GithubToken);
         if (!useLoggedInUser)
         {
             args.Add("--no-auto-login");

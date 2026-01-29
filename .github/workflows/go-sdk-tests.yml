@@ -1,0 +1,69 @@
+name: "Go SDK Tests"
+
+on:
+  pull_request:
+    paths:
+      - 'go/**'
+      - 'test/**'
+      - 'nodejs/package.json'
+      - '.github/workflows/go-sdk-tests.yml'
+      - '.github/actions/setup-copilot/**'
+  workflow_dispatch:
+  merge_group:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: "Go SDK Tests"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./go
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: ./.github/actions/setup-copilot
+        id: setup-copilot
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.23"
+
+      - name: Run go fmt
+        if: runner.os == 'Linux'
+        working-directory: ./go
+        run: |
+          go fmt ./...
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "❌ go fmt produced changes. Please run 'go fmt ./...' in go"
+            git --no-pager diff
+            exit 1
+          fi
+          echo "✅ go fmt produced no changes"
+
+      - name: Install golangci-lint
+        if: runner.os == 'Linux'
+        uses: golangci/golangci-lint-action@v9
+        with:
+          working-directory: ./go
+          version: latest
+          args: --timeout=5m
+
+      - name: Install test harness dependencies
+        working-directory: ./test/harness
+        run: npm ci --ignore-scripts
+
+      - name: Warm up PowerShell
+        if: runner.os == 'Windows'
+        run: pwsh.exe -Command "Write-Host 'PowerShell ready'"
+
+      - name: Run Go SDK tests
+        env:
+          COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
+          COPILOT_CLI_PATH: ${{ steps.setup-copilot.outputs.cli-path }}
+        run: /bin/bash test.sh
