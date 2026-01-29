@@ -244,34 +244,34 @@ public class CopilotSessionTest {
     void testResumeSessionWithNewClient() throws Exception {
         ctx.configureForTest("session", "should_resume_a_session_using_a_new_client");
 
-        String sessionId;
-
-        // First client - create session
+        // Use a single try-with-resources for the first client to keep it alive
+        // throughout the test, matching the behavior of other SDK implementations
         try (CopilotClient client1 = ctx.createClient()) {
+            // Create initial session
             CopilotSession session1 = client1.createSession().get();
-            sessionId = session1.getSessionId();
+            String sessionId = session1.getSessionId();
 
             AssistantMessageEvent answer = session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60,
                     TimeUnit.SECONDS);
             assertNotNull(answer);
             assertTrue(answer.getData().getContent().contains("2"),
                     "Response should contain 2: " + answer.getData().getContent());
-        }
 
-        // Second client - resume session
-        try (CopilotClient client2 = ctx.createClient()) {
-            CopilotSession session2 = client2.resumeSession(sessionId).get();
+            // Resume using a new client (keeping client1 alive)
+            try (CopilotClient client2 = ctx.createClient()) {
+                CopilotSession session2 = client2.resumeSession(sessionId).get();
 
-            assertEquals(sessionId, session2.getSessionId());
+                assertEquals(sessionId, session2.getSessionId());
 
-            // When resuming with a new client, validate messages contain expected types
-            List<AbstractSessionEvent> messages = session2.getMessages().get(60, TimeUnit.SECONDS);
-            assertTrue(messages.stream().anyMatch(m -> m instanceof UserMessageEvent),
-                    "Should contain user.message event");
-            assertTrue(messages.stream().anyMatch(m -> "session.resume".equals(m.getType())),
-                    "Should contain session.resume event");
+                // When resuming with a new client, validate messages contain expected types
+                List<AbstractSessionEvent> messages = session2.getMessages().get(60, TimeUnit.SECONDS);
+                assertTrue(messages.stream().anyMatch(m -> m instanceof UserMessageEvent),
+                        "Should contain user.message event");
+                assertTrue(messages.stream().anyMatch(m -> "session.resume".equals(m.getType())),
+                        "Should contain session.resume event");
 
-            session2.close();
+                session2.close();
+            }
         }
     }
 
