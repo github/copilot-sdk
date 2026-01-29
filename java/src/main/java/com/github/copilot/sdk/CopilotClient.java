@@ -488,6 +488,8 @@ public class CopilotClient implements AutoCloseable {
                 request.setStreaming(config.isStreaming() ? true : null);
                 request.setMcpServers(config.getMcpServers());
                 request.setCustomAgents(config.getCustomAgents());
+                request.setSkillDirectories(config.getSkillDirectories());
+                request.setDisabledSkills(config.getDisabledSkills());
             }
 
             return connection.rpc.invoke("session.resume", request, ResumeSessionResponse.class).thenApply(response -> {

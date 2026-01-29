@@ -37,6 +37,8 @@ public class ResumeSessionConfig {
     private boolean streaming;
     private Map<String, Object> mcpServers;
     private List<CustomAgentConfig> customAgents;
+    private List<String> skillDirectories;
+    private List<String> disabledSkills;
 
     /**
      * Gets the custom tools for this session.
@@ -165,6 +167,48 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setCustomAgents(List<CustomAgentConfig> customAgents) {
         this.customAgents = customAgents;
+        return this;
+    }
+
+    /**
+     * Gets the skill directories.
+     *
+     * @return the list of skill directory paths
+     */
+    public List<String> getSkillDirectories() {
+        return skillDirectories;
+    }
+
+    /**
+     * Sets directories containing skill definitions.
+     *
+     * @param skillDirectories
+     *            the list of skill directory paths
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setSkillDirectories(List<String> skillDirectories) {
+        this.skillDirectories = skillDirectories;
+        return this;
+    }
+
+    /**
+     * Gets the disabled skills.
+     *
+     * @return the list of disabled skill names
+     */
+    public List<String> getDisabledSkills() {
+        return disabledSkills;
+    }
+
+    /**
+     * Sets skills that should be disabled for this session.
+     *
+     * @param disabledSkills
+     *            the list of skill names to disable
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setDisabledSkills(List<String> disabledSkills) {
+        this.disabledSkills = disabledSkills;
         return this;
     }
 }

@@ -46,6 +46,12 @@ public final class ResumeSessionRequest {
     @JsonProperty("customAgents")
     private List<CustomAgentConfig> customAgents;
 
+    @JsonProperty("skillDirectories")
+    private List<String> skillDirectories;
+
+    @JsonProperty("disabledSkills")
+    private List<String> disabledSkills;
+
     /** Gets the session ID. @return the session ID */
     public String getSessionId() {
         return sessionId;
@@ -114,5 +120,25 @@ public final class ResumeSessionRequest {
     /** Sets custom agents. @param customAgents the agents */
     public void setCustomAgents(List<CustomAgentConfig> customAgents) {
         this.customAgents = customAgents;
+    }
+
+    /** Gets skill directories. @return the directories */
+    public List<String> getSkillDirectories() {
+        return skillDirectories;
+    }
+
+    /** Sets skill directories. @param skillDirectories the directories */
+    public void setSkillDirectories(List<String> skillDirectories) {
+        this.skillDirectories = skillDirectories;
+    }
+
+    /** Gets disabled skills. @return the disabled skill names */
+    public List<String> getDisabledSkills() {
+        return disabledSkills;
+    }
+
+    /** Sets disabled skills. @param disabledSkills the skill names to disable */
+    public void setDisabledSkills(List<String> disabledSkills) {
+        this.disabledSkills = disabledSkills;
     }
 }
