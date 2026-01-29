@@ -15,8 +15,12 @@ import type {
     PermissionRequestResult,
     SessionEvent,
     SessionEventHandler,
+    SessionHooks,
     Tool,
     ToolHandler,
+    UserInputHandler,
+    UserInputRequest,
+    UserInputResponse,
 } from "./types.js";
 
 /** Assistant message event - the final response from the assistant. */
@@ -51,6 +55,8 @@ export class CopilotSession {
     private eventHandlers: Set<SessionEventHandler> = new Set();
     private toolHandlers: Map<string, ToolHandler> = new Map();
     private permissionHandler?: PermissionHandler;
+    private userInputHandler?: UserInputHandler;
+    private hooks?: SessionHooks;
 
     /**
      * Creates a new CopilotSession instance.
@@ -272,6 +278,32 @@ export class CopilotSession {
     }
 
     /**
+     * Registers a user input handler for ask_user requests.
+     *
+     * When the agent needs input from the user (via ask_user tool),
+     * this handler is called to provide the response.
+     *
+     * @param handler - The user input handler function, or undefined to remove the handler
+     * @internal This method is typically called internally when creating a session.
+     */
+    registerUserInputHandler(handler?: UserInputHandler): void {
+        this.userInputHandler = handler;
+    }
+
+    /**
+     * Registers hook handlers for session lifecycle events.
+     *
+     * Hooks allow custom logic to be executed at various points during
+     * the session lifecycle (before/after tool use, session start/end, etc.).
+     *
+     * @param hooks - The hook handlers object, or undefined to remove all hooks
+     * @internal This method is typically called internally when creating a session.
+     */
+    registerHooks(hooks?: SessionHooks): void {
+        this.hooks = hooks;
+    }
+
+    /**
      * Handles a permission request from the Copilot CLI.
      *
      * @param request - The permission request data from the CLI
@@ -292,6 +324,72 @@ export class CopilotSession {
         } catch (_error) {
             // Handler failed, deny permission
             return { kind: "denied-no-approval-rule-and-could-not-request-from-user" };
+        }
+    }
+
+    /**
+     * Handles a user input request from the Copilot CLI.
+     *
+     * @param request - The user input request data from the CLI
+     * @returns A promise that resolves with the user's response
+     * @internal This method is for internal use by the SDK.
+     */
+    async _handleUserInputRequest(request: unknown): Promise<UserInputResponse> {
+        if (!this.userInputHandler) {
+            // No handler registered, throw error
+            throw new Error("User input requested but no handler registered");
+        }
+
+        try {
+            const result = await this.userInputHandler(request as UserInputRequest, {
+                sessionId: this.sessionId,
+            });
+            return result;
+        } catch (error) {
+            // Handler failed, rethrow
+            throw error;
+        }
+    }
+
+    /**
+     * Handles a hooks invocation from the Copilot CLI.
+     *
+     * @param hookType - The type of hook being invoked
+     * @param input - The input data for the hook
+     * @returns A promise that resolves with the hook output, or undefined
+     * @internal This method is for internal use by the SDK.
+     */
+    async _handleHooksInvoke(hookType: string, input: unknown): Promise<unknown> {
+        if (!this.hooks) {
+            return undefined;
+        }
+
+        // Type-safe handler lookup with explicit casting
+        type GenericHandler = (
+            input: unknown,
+            invocation: { sessionId: string }
+        ) => Promise<unknown> | unknown;
+
+        const handlerMap: Record<string, GenericHandler | undefined> = {
+            preToolUse: this.hooks.onPreToolUse as GenericHandler | undefined,
+            postToolUse: this.hooks.onPostToolUse as GenericHandler | undefined,
+            userPromptSubmitted: this.hooks.onUserPromptSubmitted as GenericHandler | undefined,
+            sessionStart: this.hooks.onSessionStart as GenericHandler | undefined,
+            sessionEnd: this.hooks.onSessionEnd as GenericHandler | undefined,
+            errorOccurred: this.hooks.onErrorOccurred as GenericHandler | undefined,
+        };
+
+        const handler = handlerMap[hookType];
+        if (!handler) {
+            return undefined;
+        }
+
+        try {
+            const result = await handler(input, { sessionId: this.sessionId });
+            return result;
+        } catch (_error) {
+            // Hook failed, return undefined
+            return undefined;
         }
     }
 

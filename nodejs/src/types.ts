@@ -231,6 +231,255 @@ export type PermissionHandler = (
 ) => Promise<PermissionRequestResult> | PermissionRequestResult;
 
 // ============================================================================
+// User Input Request Types
+// ============================================================================
+
+/**
+ * Request for user input from the agent (enables ask_user tool)
+ */
+export interface UserInputRequest {
+    /**
+     * The question to ask the user
+     */
+    question: string;
+
+    /**
+     * Optional choices for multiple choice questions
+     */
+    choices?: string[];
+
+    /**
+     * Whether to allow freeform text input in addition to choices
+     * @default true
+     */
+    allowFreeform?: boolean;
+}
+
+/**
+ * Response to a user input request
+ */
+export interface UserInputResponse {
+    /**
+     * The user's answer
+     */
+    answer: string;
+
+    /**
+     * Whether the answer was freeform (not from choices)
+     */
+    wasFreeform: boolean;
+}
+
+/**
+ * Handler for user input requests from the agent
+ */
+export type UserInputHandler = (
+    request: UserInputRequest,
+    invocation: { sessionId: string }
+) => Promise<UserInputResponse> | UserInputResponse;
+
+// ============================================================================
+// Hook Types
+// ============================================================================
+
+/**
+ * Base interface for all hook inputs
+ */
+export interface BaseHookInput {
+    timestamp: number;
+    cwd: string;
+}
+
+/**
+ * Input for pre-tool-use hook
+ */
+export interface PreToolUseHookInput extends BaseHookInput {
+    toolName: string;
+    toolArgs: unknown;
+}
+
+/**
+ * Output for pre-tool-use hook
+ */
+export interface PreToolUseHookOutput {
+    permissionDecision?: "allow" | "deny" | "ask";
+    permissionDecisionReason?: string;
+    modifiedArgs?: unknown;
+    additionalContext?: string;
+    suppressOutput?: boolean;
+}
+
+/**
+ * Handler for pre-tool-use hook
+ */
+export type PreToolUseHandler = (
+    input: PreToolUseHookInput,
+    invocation: { sessionId: string }
+) => Promise<PreToolUseHookOutput | void> | PreToolUseHookOutput | void;
+
+/**
+ * Input for post-tool-use hook
+ */
+export interface PostToolUseHookInput extends BaseHookInput {
+    toolName: string;
+    toolArgs: unknown;
+    toolResult: ToolResultObject;
+}
+
+/**
+ * Output for post-tool-use hook
+ */
+export interface PostToolUseHookOutput {
+    modifiedResult?: ToolResultObject;
+    additionalContext?: string;
+    suppressOutput?: boolean;
+}
+
+/**
+ * Handler for post-tool-use hook
+ */
+export type PostToolUseHandler = (
+    input: PostToolUseHookInput,
+    invocation: { sessionId: string }
+) => Promise<PostToolUseHookOutput | void> | PostToolUseHookOutput | void;
+
+/**
+ * Input for user-prompt-submitted hook
+ */
+export interface UserPromptSubmittedHookInput extends BaseHookInput {
+    prompt: string;
+}
+
+/**
+ * Output for user-prompt-submitted hook
+ */
+export interface UserPromptSubmittedHookOutput {
+    modifiedPrompt?: string;
+    additionalContext?: string;
+    suppressOutput?: boolean;
+}
+
+/**
+ * Handler for user-prompt-submitted hook
+ */
+export type UserPromptSubmittedHandler = (
+    input: UserPromptSubmittedHookInput,
+    invocation: { sessionId: string }
+) => Promise<UserPromptSubmittedHookOutput | void> | UserPromptSubmittedHookOutput | void;
+
+/**
+ * Input for session-start hook
+ */
+export interface SessionStartHookInput extends BaseHookInput {
+    source: "startup" | "resume" | "new";
+    initialPrompt?: string;
+}
+
+/**
+ * Output for session-start hook
+ */
+export interface SessionStartHookOutput {
+    additionalContext?: string;
+    modifiedConfig?: Record<string, unknown>;
+}
+
+/**
+ * Handler for session-start hook
+ */
+export type SessionStartHandler = (
+    input: SessionStartHookInput,
+    invocation: { sessionId: string }
+) => Promise<SessionStartHookOutput | void> | SessionStartHookOutput | void;
+
+/**
+ * Input for session-end hook
+ */
+export interface SessionEndHookInput extends BaseHookInput {
+    reason: "complete" | "error" | "abort" | "timeout" | "user_exit";
+    finalMessage?: string;
+    error?: string;
+}
+
+/**
+ * Output for session-end hook
+ */
+export interface SessionEndHookOutput {
+    suppressOutput?: boolean;
+    cleanupActions?: string[];
+    sessionSummary?: string;
+}
+
+/**
+ * Handler for session-end hook
+ */
+export type SessionEndHandler = (
+    input: SessionEndHookInput,
+    invocation: { sessionId: string }
+) => Promise<SessionEndHookOutput | void> | SessionEndHookOutput | void;
+
+/**
+ * Input for error-occurred hook
+ */
+export interface ErrorOccurredHookInput extends BaseHookInput {
+    error: string;
+    errorContext: "model_call" | "tool_execution" | "system" | "user_input";
+    recoverable: boolean;
+}
+
+/**
+ * Output for error-occurred hook
+ */
+export interface ErrorOccurredHookOutput {
+    suppressOutput?: boolean;
+    errorHandling?: "retry" | "skip" | "abort";
+    retryCount?: number;
+    userNotification?: string;
+}
+
+/**
+ * Handler for error-occurred hook
+ */
+export type ErrorOccurredHandler = (
+    input: ErrorOccurredHookInput,
+    invocation: { sessionId: string }
+) => Promise<ErrorOccurredHookOutput | void> | ErrorOccurredHookOutput | void;
+
+/**
+ * Configuration for session hooks
+ */
+export interface SessionHooks {
+    /**
+     * Called before a tool is executed
+     */
+    onPreToolUse?: PreToolUseHandler;
+
+    /**
+     * Called after a tool is executed
+     */
+    onPostToolUse?: PostToolUseHandler;
+
+    /**
+     * Called when the user submits a prompt
+     */
+    onUserPromptSubmitted?: UserPromptSubmittedHandler;
+
+    /**
+     * Called when a session starts
+     */
+    onSessionStart?: SessionStartHandler;
+
+    /**
+     * Called when a session ends
+     */
+    onSessionEnd?: SessionEndHandler;
+
+    /**
+     * Called when an error occurs
+     */
+    onErrorOccurred?: ErrorOccurredHandler;
+}
+
+// ============================================================================
 // MCP Server Configuration Types
 // ============================================================================
 
@@ -407,6 +656,25 @@ export interface SessionConfig {
      * When provided, the server will call this handler to request permission for operations.
      */
     onPermissionRequest?: PermissionHandler;
+
+    /**
+     * Handler for user input requests from the agent.
+     * When provided, enables the ask_user tool allowing the agent to ask questions.
+     */
+    onUserInputRequest?: UserInputHandler;
+
+    /**
+     * Hook handlers for intercepting session lifecycle events.
+     * When provided, enables hooks callback allowing custom logic at various points.
+     */
+    hooks?: SessionHooks;
+
+    /**
+     * Working directory for the session.
+     * Tool operations will be relative to this directory.
+     */
+    workingDirectory?: string;
+
     /*
      * Enable streaming of assistant message and reasoning chunks.
      * When true, ephemeral assistant.message_delta and assistant.reasoning_delta
@@ -454,11 +722,21 @@ export type ResumeSessionConfig = Pick<
     | "provider"
     | "streaming"
     | "onPermissionRequest"
+    | "onUserInputRequest"
+    | "hooks"
+    | "workingDirectory"
     | "mcpServers"
     | "customAgents"
     | "skillDirectories"
     | "disabledSkills"
->;
+> & {
+    /**
+     * When true, skips emitting the session.resume event.
+     * Useful for reconnecting to a session without triggering resume-related side effects.
+     * @default false
+     */
+    disableResume?: boolean;
+};
 
 /**
  * Configuration for a custom API provider.

@@ -512,6 +512,23 @@ func (c *Client) CreateSession(config *SessionConfig) (*Session, error) {
 		if config.OnPermissionRequest != nil {
 			params["requestPermission"] = true
 		}
+		// Add user input request flag
+		if config.OnUserInputRequest != nil {
+			params["requestUserInput"] = true
+		}
+		// Add hooks flag
+		if config.Hooks != nil && (config.Hooks.OnPreToolUse != nil ||
+			config.Hooks.OnPostToolUse != nil ||
+			config.Hooks.OnUserPromptSubmitted != nil ||
+			config.Hooks.OnSessionStart != nil ||
+			config.Hooks.OnSessionEnd != nil ||
+			config.Hooks.OnErrorOccurred != nil) {
+			params["hooks"] = true
+		}
+		// Add working directory
+		if config.WorkingDirectory != "" {
+			params["workingDirectory"] = config.WorkingDirectory
+		}
 		// Add MCP servers configuration
 		if len(config.MCPServers) > 0 {
 			params["mcpServers"] = config.MCPServers
@@ -589,6 +606,12 @@ func (c *Client) CreateSession(config *SessionConfig) (*Session, error) {
 		session.registerTools(config.Tools)
 		if config.OnPermissionRequest != nil {
 			session.registerPermissionHandler(config.OnPermissionRequest)
+		}
+		if config.OnUserInputRequest != nil {
+			session.registerUserInputHandler(config.OnUserInputRequest)
+		}
+		if config.Hooks != nil {
+			session.registerHooks(config.Hooks)
 		}
 	} else {
 		session.registerTools(nil)
@@ -668,6 +691,27 @@ func (c *Client) ResumeSessionWithOptions(sessionID string, config *ResumeSessio
 		if config.OnPermissionRequest != nil {
 			params["requestPermission"] = true
 		}
+		// Add user input request flag
+		if config.OnUserInputRequest != nil {
+			params["requestUserInput"] = true
+		}
+		// Add hooks flag
+		if config.Hooks != nil && (config.Hooks.OnPreToolUse != nil ||
+			config.Hooks.OnPostToolUse != nil ||
+			config.Hooks.OnUserPromptSubmitted != nil ||
+			config.Hooks.OnSessionStart != nil ||
+			config.Hooks.OnSessionEnd != nil ||
+			config.Hooks.OnErrorOccurred != nil) {
+			params["hooks"] = true
+		}
+		// Add working directory
+		if config.WorkingDirectory != "" {
+			params["workingDirectory"] = config.WorkingDirectory
+		}
+		// Add disable resume flag
+		if config.DisableResume {
+			params["disableResume"] = true
+		}
 		// Add MCP servers configuration
 		if len(config.MCPServers) > 0 {
 			params["mcpServers"] = config.MCPServers
@@ -726,6 +770,12 @@ func (c *Client) ResumeSessionWithOptions(sessionID string, config *ResumeSessio
 		session.registerTools(config.Tools)
 		if config.OnPermissionRequest != nil {
 			session.registerPermissionHandler(config.OnPermissionRequest)
+		}
+		if config.OnUserInputRequest != nil {
+			session.registerUserInputHandler(config.OnUserInputRequest)
+		}
+		if config.Hooks != nil {
+			session.registerHooks(config.Hooks)
 		}
 	} else {
 		session.registerTools(nil)
@@ -1187,6 +1237,8 @@ func (c *Client) setupNotificationHandler() {
 
 	c.client.SetRequestHandler("tool.call", c.handleToolCallRequest)
 	c.client.SetRequestHandler("permission.request", c.handlePermissionRequest)
+	c.client.SetRequestHandler("userInput.request", c.handleUserInputRequest)
+	c.client.SetRequestHandler("hooks.invoke", c.handleHooksInvoke)
 }
 
 // handleToolCallRequest handles a tool call request from the CLI server.
@@ -1278,7 +1330,83 @@ func (c *Client) handlePermissionRequest(params map[string]interface{}) (map[str
 	return map[string]interface{}{"result": result}, nil
 }
 
-// buildFailedToolResult creates a failure ToolResult with an internal error message.
+// handleUserInputRequest handles a user input request from the CLI server.
+func (c *Client) handleUserInputRequest(params map[string]interface{}) (map[string]interface{}, *JSONRPCError) {
+	sessionID, _ := params["sessionId"].(string)
+	question, _ := params["question"].(string)
+
+	if sessionID == "" || question == "" {
+		return nil, &JSONRPCError{Code: -32602, Message: "invalid user input request payload"}
+	}
+
+	c.sessionsMux.Lock()
+	session, ok := c.sessions[sessionID]
+	c.sessionsMux.Unlock()
+	if !ok {
+		return nil, &JSONRPCError{Code: -32602, Message: fmt.Sprintf("unknown session %s", sessionID)}
+	}
+
+	// Parse choices
+	var choices []string
+	if choicesRaw, ok := params["choices"].([]interface{}); ok {
+		for _, choice := range choicesRaw {
+			if s, ok := choice.(string); ok {
+				choices = append(choices, s)
+			}
+		}
+	}
+
+	var allowFreeform *bool
+	if af, ok := params["allowFreeform"].(bool); ok {
+		allowFreeform = &af
+	}
+
+	request := UserInputRequest{
+		Question:      question,
+		Choices:       choices,
+		AllowFreeform: allowFreeform,
+	}
+
+	response, err := session.handleUserInputRequest(request)
+	if err != nil {
+		return nil, &JSONRPCError{Code: -32603, Message: err.Error()}
+	}
+
+	return map[string]interface{}{
+		"answer":      response.Answer,
+		"wasFreeform": response.WasFreeform,
+	}, nil
+}
+
+// handleHooksInvoke handles a hooks invocation from the CLI server.
+func (c *Client) handleHooksInvoke(params map[string]interface{}) (map[string]interface{}, *JSONRPCError) {
+	sessionID, _ := params["sessionId"].(string)
+	hookType, _ := params["hookType"].(string)
+	input, _ := params["input"].(map[string]interface{})
+
+	if sessionID == "" || hookType == "" {
+		return nil, &JSONRPCError{Code: -32602, Message: "invalid hooks invoke payload"}
+	}
+
+	c.sessionsMux.Lock()
+	session, ok := c.sessions[sessionID]
+	c.sessionsMux.Unlock()
+	if !ok {
+		return nil, &JSONRPCError{Code: -32602, Message: fmt.Sprintf("unknown session %s", sessionID)}
+	}
+
+	output, err := session.handleHooksInvoke(hookType, input)
+	if err != nil {
+		return nil, &JSONRPCError{Code: -32603, Message: err.Error()}
+	}
+
+	result := make(map[string]interface{})
+	if output != nil {
+		result["output"] = output
+	}
+	return result, nil
+}
+
 // The detailed error is stored in the Error field but not exposed to the LLM for security.
 func buildFailedToolResult(internalError string) ToolResult {
 	return ToolResult{

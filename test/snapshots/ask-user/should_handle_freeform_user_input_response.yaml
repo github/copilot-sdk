@@ -1,0 +1,21 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Ask me a question using ask_user and then include my answer in your response. The question should be 'What is
+          your favorite color?'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: ask_user
+              arguments: '{"question":"What is your favorite color?","allow_freeform":true}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: "User response (freeform): This is my custom freeform answer that was not in the choices"
+      - role: assistant
+        content: 'Your answer was: "This is my custom freeform answer that was not in the choices"'
