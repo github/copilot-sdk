@@ -49,14 +49,14 @@ This cookbook collects small, focused recipes showing how to accomplish common t
 ### .NET
 
 ```bash
-cd dotnet/cookbook/recipe
+cd cookbook/dotnet/recipe
 dotnet run <filename>.cs
 ```
 
 ### Node.js
 
 ```bash
-cd nodejs/cookbook/recipe
+cd cookbook/nodejs/recipe
 npm install
 npx tsx <filename>.ts
 ```
@@ -64,7 +64,7 @@ npx tsx <filename>.ts
 ### Python
 
 ```bash
-cd python/cookbook/recipe
+cd cookbook/python/recipe
 pip install -r requirements.txt
 python <filename>.py
 ```
@@ -72,7 +72,7 @@ python <filename>.py
 ### Go
 
 ```bash
-cd go/cookbook/recipe
+cd cookbook/go/recipe
 go run <filename>.go
 ```
 
@@ -83,4 +83,5 @@ go run <filename>.go
 
 ## Status
 
-Cookbook structure is complete with 4 recipes across all 4 supported languages. Each recipe includes both markdown documentation and runnable examples.
+Cookbook structure is complete with 5 recipes across all 4 supported languages. Each recipe includes both markdown documentation and runnable examples.
+
