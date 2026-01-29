@@ -95,6 +95,8 @@ await client.stop()
 - `log_level` (str): Log level (default: "info")
 - `auto_start` (bool): Auto-start server on first use (default: True)
 - `auto_restart` (bool): Auto-restart on crash (default: True)
+- `github_token` (str): GitHub token for authentication. When provided, takes priority over other auth methods.
+- `use_logged_in_user` (bool): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided). Cannot be used with `cli_url`.
 
 **SessionConfig Options (for `create_session`):**
 
@@ -105,6 +107,8 @@ await client.stop()
 - `streaming` (bool): Enable streaming delta events
 - `provider` (dict): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
 - `infinite_sessions` (dict): Automatic context compaction configuration
+- `on_user_input_request` (callable): Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
+- `hooks` (dict): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
 ### Tools
 
@@ -348,6 +352,95 @@ session = await client.create_session({
 > - When using a custom provider, the `model` parameter is **required**. The SDK will throw an error if no model is specified.
 > - For Azure OpenAI endpoints (`*.openai.azure.com`), you **must** use `type: "azure"`, not `type: "openai"`.
 > - The `base_url` should be just the host (e.g., `https://my-resource.openai.azure.com`). Do **not** include `/openai/v1` in the URL - the SDK handles path construction automatically.
+
+## User Input Requests
+
+Enable the agent to ask questions to the user using the `ask_user` tool by providing an `on_user_input_request` handler:
+
+```python
+async def handle_user_input(request, invocation):
+    # request["question"] - The question to ask
+    # request.get("choices") - Optional list of choices for multiple choice
+    # request.get("allowFreeform", True) - Whether freeform input is allowed
+    
+    print(f"Agent asks: {request['question']}")
+    if request.get("choices"):
+        print(f"Choices: {', '.join(request['choices'])}")
+    
+    # Return the user's response
+    return {
+        "answer": "User's answer here",
+        "wasFreeform": True,  # Whether the answer was freeform (not from choices)
+    }
+
+session = await client.create_session({
+    "model": "gpt-5",
+    "on_user_input_request": handle_user_input,
+})
+```
+
+## Session Hooks
+
+Hook into session lifecycle events by providing handlers in the `hooks` configuration:
+
+```python
+async def on_pre_tool_use(input, invocation):
+    print(f"About to run tool: {input['toolName']}")
+    # Return permission decision and optionally modify args
+    return {
+        "permissionDecision": "allow",  # "allow", "deny", or "ask"
+        "modifiedArgs": input.get("toolArgs"),  # Optionally modify tool arguments
+        "additionalContext": "Extra context for the model",
+    }
+
+async def on_post_tool_use(input, invocation):
+    print(f"Tool {input['toolName']} completed")
+    return {
+        "additionalContext": "Post-execution notes",
+    }
+
+async def on_user_prompt_submitted(input, invocation):
+    print(f"User prompt: {input['prompt']}")
+    return {
+        "modifiedPrompt": input["prompt"],  # Optionally modify the prompt
+    }
+
+async def on_session_start(input, invocation):
+    print(f"Session started from: {input['source']}")  # "startup", "resume", "new"
+    return {
+        "additionalContext": "Session initialization context",
+    }
+
+async def on_session_end(input, invocation):
+    print(f"Session ended: {input['reason']}")
+
+async def on_error_occurred(input, invocation):
+    print(f"Error in {input['errorContext']}: {input['error']}")
+    return {
+        "errorHandling": "retry",  # "retry", "skip", or "abort"
+    }
+
+session = await client.create_session({
+    "model": "gpt-5",
+    "hooks": {
+        "on_pre_tool_use": on_pre_tool_use,
+        "on_post_tool_use": on_post_tool_use,
+        "on_user_prompt_submitted": on_user_prompt_submitted,
+        "on_session_start": on_session_start,
+        "on_session_end": on_session_end,
+        "on_error_occurred": on_error_occurred,
+    },
+})
+```
+
+**Available hooks:**
+
+- `on_pre_tool_use` - Intercept tool calls before execution. Can allow/deny or modify arguments.
+- `on_post_tool_use` - Process tool results after execution. Can modify results or add context.
+- `on_user_prompt_submitted` - Intercept user prompts. Can modify the prompt before processing.
+- `on_session_start` - Run logic when a session starts or resumes.
+- `on_session_end` - Cleanup or logging when session ends.
+- `on_error_occurred` - Handle errors with retry/skip/abort strategies.
 
 ## Requirements
 

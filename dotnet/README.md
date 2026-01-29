@@ -68,6 +68,8 @@ new CopilotClient(CopilotClientOptions? options = null)
 - `Cwd` - Working directory for the CLI process
 - `Environment` - Environment variables to pass to the CLI process
 - `Logger` - `ILogger` instance for SDK logging
+- `GithubToken` - GitHub token for authentication. When provided, takes priority over other auth methods.
+- `UseLoggedInUser` - Whether to use logged-in user for authentication (default: true, but false when `GithubToken` is provided). Cannot be used with `CliUrl`.
 
 #### Methods
 
@@ -98,6 +100,8 @@ Create a new conversation session.
 - `Provider` - Custom API provider configuration (BYOK)
 - `Streaming` - Enable streaming of response chunks (default: false)
 - `InfiniteSessions` - Configure automatic context compaction (see below)
+- `OnUserInputRequest` - Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
+- `Hooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
 ##### `ResumeSessionAsync(string sessionId, ResumeSessionConfig? config = null): Task<CopilotSession>`
 
@@ -443,6 +447,118 @@ var session = await client.CreateSessionAsync(new SessionConfig
     }
 });
 ```
+
+## User Input Requests
+
+Enable the agent to ask questions to the user using the `ask_user` tool by providing an `OnUserInputRequest` handler:
+
+```csharp
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    Model = "gpt-5",
+    OnUserInputRequest = async (request, invocation) =>
+    {
+        // request.Question - The question to ask
+        // request.Choices - Optional list of choices for multiple choice
+        // request.AllowFreeform - Whether freeform input is allowed (default: true)
+        
+        Console.WriteLine($"Agent asks: {request.Question}");
+        if (request.Choices?.Count > 0)
+        {
+            Console.WriteLine($"Choices: {string.Join(", ", request.Choices)}");
+        }
+        
+        // Return the user's response
+        return new UserInputResponse
+        {
+            Answer = "User's answer here",
+            WasFreeform = true // Whether the answer was freeform (not from choices)
+        };
+    }
+});
+```
+
+## Session Hooks
+
+Hook into session lifecycle events by providing handlers in the `Hooks` configuration:
+
+```csharp
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    Model = "gpt-5",
+    Hooks = new SessionHooks
+    {
+        // Called before each tool execution
+        OnPreToolUse = async (input, invocation) =>
+        {
+            Console.WriteLine($"About to run tool: {input.ToolName}");
+            // Return permission decision and optionally modify args
+            return new PreToolUseHookOutput
+            {
+                PermissionDecision = "allow", // "allow", "deny", or "ask"
+                ModifiedArgs = input.ToolArgs, // Optionally modify tool arguments
+                AdditionalContext = "Extra context for the model"
+            };
+        },
+        
+        // Called after each tool execution
+        OnPostToolUse = async (input, invocation) =>
+        {
+            Console.WriteLine($"Tool {input.ToolName} completed");
+            return new PostToolUseHookOutput
+            {
+                AdditionalContext = "Post-execution notes"
+            };
+        },
+        
+        // Called when user submits a prompt
+        OnUserPromptSubmitted = async (input, invocation) =>
+        {
+            Console.WriteLine($"User prompt: {input.Prompt}");
+            return new UserPromptSubmittedHookOutput
+            {
+                ModifiedPrompt = input.Prompt // Optionally modify the prompt
+            };
+        },
+        
+        // Called when session starts
+        OnSessionStart = async (input, invocation) =>
+        {
+            Console.WriteLine($"Session started from: {input.Source}"); // "startup", "resume", "new"
+            return new SessionStartHookOutput
+            {
+                AdditionalContext = "Session initialization context"
+            };
+        },
+        
+        // Called when session ends
+        OnSessionEnd = async (input, invocation) =>
+        {
+            Console.WriteLine($"Session ended: {input.Reason}");
+            return null;
+        },
+        
+        // Called when an error occurs
+        OnErrorOccurred = async (input, invocation) =>
+        {
+            Console.WriteLine($"Error in {input.ErrorContext}: {input.Error}");
+            return new ErrorOccurredHookOutput
+            {
+                ErrorHandling = "retry" // "retry", "skip", or "abort"
+            };
+        }
+    }
+});
+```
+
+**Available hooks:**
+
+- `OnPreToolUse` - Intercept tool calls before execution. Can allow/deny or modify arguments.
+- `OnPostToolUse` - Process tool results after execution. Can modify results or add context.
+- `OnUserPromptSubmitted` - Intercept user prompts. Can modify the prompt before processing.
+- `OnSessionStart` - Run logic when a session starts or resumes.
+- `OnSessionEnd` - Cleanup or logging when session ends.
+- `OnErrorOccurred` - Handle errors with retry/skip/abort strategies.
 
 ## Error Handling
 

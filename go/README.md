@@ -96,6 +96,8 @@ func main() {
 - `AutoStart` (\*bool): Auto-start server on first use (default: true). Use `Bool(false)` to disable.
 - `AutoRestart` (\*bool): Auto-restart on crash (default: true). Use `Bool(false)` to disable.
 - `Env` ([]string): Environment variables for CLI process (default: inherits from current process)
+- `GithubToken` (string): GitHub token for authentication. When provided, takes priority over other auth methods.
+- `UseLoggedInUser` (\*bool): Whether to use logged-in user for authentication (default: true, but false when `GithubToken` is provided). Cannot be used with `CLIUrl`.
 
 **SessionConfig:**
 
@@ -106,6 +108,8 @@ func main() {
 - `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
 - `Streaming` (bool): Enable streaming delta events
 - `InfiniteSessions` (\*InfiniteSessionConfig): Automatic context compaction configuration
+- `OnUserInputRequest` (UserInputHandler): Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
+- `Hooks` (\*SessionHooks): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
 **ResumeSessionConfig:**
 
@@ -396,6 +400,101 @@ session, err := client.CreateSession(&copilot.SessionConfig{
 > - When using a custom provider, the `Model` parameter is **required**. The SDK will return an error if no model is specified.
 > - For Azure OpenAI endpoints (`*.openai.azure.com`), you **must** use `Type: "azure"`, not `Type: "openai"`.
 > - The `BaseURL` should be just the host (e.g., `https://my-resource.openai.azure.com`). Do **not** include `/openai/v1` in the URL - the SDK handles path construction automatically.
+
+## User Input Requests
+
+Enable the agent to ask questions to the user using the `ask_user` tool by providing an `OnUserInputRequest` handler:
+
+```go
+session, err := client.CreateSession(&copilot.SessionConfig{
+    Model: "gpt-5",
+    OnUserInputRequest: func(request copilot.UserInputRequest, invocation copilot.UserInputInvocation) (copilot.UserInputResponse, error) {
+        // request.Question - The question to ask
+        // request.Choices - Optional slice of choices for multiple choice
+        // request.AllowFreeform - Whether freeform input is allowed (default: true)
+        
+        fmt.Printf("Agent asks: %s\n", request.Question)
+        if len(request.Choices) > 0 {
+            fmt.Printf("Choices: %v\n", request.Choices)
+        }
+        
+        // Return the user's response
+        return copilot.UserInputResponse{
+            Answer:      "User's answer here",
+            WasFreeform: true, // Whether the answer was freeform (not from choices)
+        }, nil
+    },
+})
+```
+
+## Session Hooks
+
+Hook into session lifecycle events by providing handlers in the `Hooks` configuration:
+
+```go
+session, err := client.CreateSession(&copilot.SessionConfig{
+    Model: "gpt-5",
+    Hooks: &copilot.SessionHooks{
+        // Called before each tool execution
+        OnPreToolUse: func(input copilot.PreToolUseHookInput, invocation copilot.HookInvocation) (*copilot.PreToolUseHookOutput, error) {
+            fmt.Printf("About to run tool: %s\n", input.ToolName)
+            // Return permission decision and optionally modify args
+            return &copilot.PreToolUseHookOutput{
+                PermissionDecision: "allow", // "allow", "deny", or "ask"
+                ModifiedArgs:       input.ToolArgs, // Optionally modify tool arguments
+                AdditionalContext:  "Extra context for the model",
+            }, nil
+        },
+        
+        // Called after each tool execution
+        OnPostToolUse: func(input copilot.PostToolUseHookInput, invocation copilot.HookInvocation) (*copilot.PostToolUseHookOutput, error) {
+            fmt.Printf("Tool %s completed\n", input.ToolName)
+            return &copilot.PostToolUseHookOutput{
+                AdditionalContext: "Post-execution notes",
+            }, nil
+        },
+        
+        // Called when user submits a prompt
+        OnUserPromptSubmitted: func(input copilot.UserPromptSubmittedHookInput, invocation copilot.HookInvocation) (*copilot.UserPromptSubmittedHookOutput, error) {
+            fmt.Printf("User prompt: %s\n", input.Prompt)
+            return &copilot.UserPromptSubmittedHookOutput{
+                ModifiedPrompt: input.Prompt, // Optionally modify the prompt
+            }, nil
+        },
+        
+        // Called when session starts
+        OnSessionStart: func(input copilot.SessionStartHookInput, invocation copilot.HookInvocation) (*copilot.SessionStartHookOutput, error) {
+            fmt.Printf("Session started from: %s\n", input.Source) // "startup", "resume", "new"
+            return &copilot.SessionStartHookOutput{
+                AdditionalContext: "Session initialization context",
+            }, nil
+        },
+        
+        // Called when session ends
+        OnSessionEnd: func(input copilot.SessionEndHookInput, invocation copilot.HookInvocation) (*copilot.SessionEndHookOutput, error) {
+            fmt.Printf("Session ended: %s\n", input.Reason)
+            return nil, nil
+        },
+        
+        // Called when an error occurs
+        OnErrorOccurred: func(input copilot.ErrorOccurredHookInput, invocation copilot.HookInvocation) (*copilot.ErrorOccurredHookOutput, error) {
+            fmt.Printf("Error in %s: %s\n", input.ErrorContext, input.Error)
+            return &copilot.ErrorOccurredHookOutput{
+                ErrorHandling: "retry", // "retry", "skip", or "abort"
+            }, nil
+        },
+    },
+})
+```
+
+**Available hooks:**
+
+- `OnPreToolUse` - Intercept tool calls before execution. Can allow/deny or modify arguments.
+- `OnPostToolUse` - Process tool results after execution. Can modify results or add context.
+- `OnUserPromptSubmitted` - Intercept user prompts. Can modify the prompt before processing.
+- `OnSessionStart` - Run logic when a session starts or resumes.
+- `OnSessionEnd` - Cleanup or logging when session ends.
+- `OnErrorOccurred` - Handle errors with retry/skip/abort strategies.
 
 ## Transport Modes
 

@@ -64,6 +64,8 @@ new CopilotClient(options?: CopilotClientOptions)
 - `logLevel?: string` - Log level (default: "info")
 - `autoStart?: boolean` - Auto-start server (default: true)
 - `autoRestart?: boolean` - Auto-restart on crash (default: true)
+- `githubToken?: string` - GitHub token for authentication. When provided, takes priority over other auth methods.
+- `useLoggedInUser?: boolean` - Whether to use logged-in user for authentication (default: true, but false when `githubToken` is provided). Cannot be used with `cliUrl`.
 
 #### Methods
 
@@ -91,6 +93,8 @@ Create a new conversation session.
 - `systemMessage?: SystemMessageConfig` - System message customization (see below)
 - `infiniteSessions?: InfiniteSessionConfig` - Configure automatic context compaction (see below)
 - `provider?: ProviderConfig` - Custom API provider configuration (BYOK - Bring Your Own Key). See [Custom Providers](#custom-providers) section.
+- `onUserInputRequest?: UserInputHandler` - Handler for user input requests from the agent. Enables the `ask_user` tool. See [User Input Requests](#user-input-requests) section.
+- `hooks?: SessionHooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
 ##### `resumeSession(sessionId: string, config?: ResumeSessionConfig): Promise<CopilotSession>`
 
@@ -469,6 +473,101 @@ const session = await client.createSession({
 > - When using a custom provider, the `model` parameter is **required**. The SDK will throw an error if no model is specified.
 > - For Azure OpenAI endpoints (`*.openai.azure.com`), you **must** use `type: "azure"`, not `type: "openai"`.
 > - The `baseUrl` should be just the host (e.g., `https://my-resource.openai.azure.com`). Do **not** include `/openai/v1` in the URL - the SDK handles path construction automatically.
+
+## User Input Requests
+
+Enable the agent to ask questions to the user using the `ask_user` tool by providing an `onUserInputRequest` handler:
+
+```typescript
+const session = await client.createSession({
+    model: "gpt-5",
+    onUserInputRequest: async (request, invocation) => {
+        // request.question - The question to ask
+        // request.choices - Optional array of choices for multiple choice
+        // request.allowFreeform - Whether freeform input is allowed (default: true)
+        
+        console.log(`Agent asks: ${request.question}`);
+        if (request.choices) {
+            console.log(`Choices: ${request.choices.join(", ")}`);
+        }
+        
+        // Return the user's response
+        return {
+            answer: "User's answer here",
+            wasFreeform: true, // Whether the answer was freeform (not from choices)
+        };
+    },
+});
+```
+
+## Session Hooks
+
+Hook into session lifecycle events by providing handlers in the `hooks` configuration:
+
+```typescript
+const session = await client.createSession({
+    model: "gpt-5",
+    hooks: {
+        // Called before each tool execution
+        onPreToolUse: async (input, invocation) => {
+            console.log(`About to run tool: ${input.toolName}`);
+            // Return permission decision and optionally modify args
+            return {
+                permissionDecision: "allow", // "allow", "deny", or "ask"
+                modifiedArgs: input.toolArgs, // Optionally modify tool arguments
+                additionalContext: "Extra context for the model",
+            };
+        },
+        
+        // Called after each tool execution
+        onPostToolUse: async (input, invocation) => {
+            console.log(`Tool ${input.toolName} completed`);
+            // Optionally modify the result or add context
+            return {
+                additionalContext: "Post-execution notes",
+            };
+        },
+        
+        // Called when user submits a prompt
+        onUserPromptSubmitted: async (input, invocation) => {
+            console.log(`User prompt: ${input.prompt}`);
+            return {
+                modifiedPrompt: input.prompt, // Optionally modify the prompt
+            };
+        },
+        
+        // Called when session starts
+        onSessionStart: async (input, invocation) => {
+            console.log(`Session started from: ${input.source}`); // "startup", "resume", "new"
+            return {
+                additionalContext: "Session initialization context",
+            };
+        },
+        
+        // Called when session ends
+        onSessionEnd: async (input, invocation) => {
+            console.log(`Session ended: ${input.reason}`);
+        },
+        
+        // Called when an error occurs
+        onErrorOccurred: async (input, invocation) => {
+            console.error(`Error in ${input.errorContext}: ${input.error}`);
+            return {
+                errorHandling: "retry", // "retry", "skip", or "abort"
+            };
+        },
+    },
+});
+```
+
+**Available hooks:**
+
+- `onPreToolUse` - Intercept tool calls before execution. Can allow/deny or modify arguments.
+- `onPostToolUse` - Process tool results after execution. Can modify results or add context.
+- `onUserPromptSubmitted` - Intercept user prompts. Can modify the prompt before processing.
+- `onSessionStart` - Run logic when a session starts or resumes.
+- `onSessionEnd` - Cleanup or logging when session ends.
+- `onErrorOccurred` - Handle errors with retry/skip/abort strategies.
 
 ## Error Handling
 
