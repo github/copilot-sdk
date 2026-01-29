@@ -96,6 +96,16 @@ await client.stop()
 - `auto_start` (bool): Auto-start server on first use (default: True)
 - `auto_restart` (bool): Auto-restart on crash (default: True)
 
+**SessionConfig Options (for `create_session`):**
+
+- `model` (str): Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
+- `session_id` (str): Custom session ID
+- `tools` (list): Custom tools exposed to the CLI
+- `system_message` (dict): System message configuration
+- `streaming` (bool): Enable streaming delta events
+- `provider` (dict): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
+- `infinite_sessions` (dict): Automatic context compaction configuration
+
 ### Tools
 
 Define tools with automatic JSON schema generation using the `@define_tool` decorator and Pydantic models:
@@ -272,6 +282,72 @@ When enabled, sessions emit compaction events:
 
 - `session.compaction_start` - Background compaction started
 - `session.compaction_complete` - Compaction finished (includes token counts)
+
+## Custom Providers
+
+The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own Key), including local providers like Ollama. When using a custom provider, you must specify the `model` explicitly.
+
+**ProviderConfig fields:**
+
+- `type` (str): Provider type - `"openai"`, `"azure"`, or `"anthropic"` (default: `"openai"`)
+- `base_url` (str): API endpoint URL (required)
+- `api_key` (str): API key (optional for local providers like Ollama)
+- `bearer_token` (str): Bearer token for authentication (takes precedence over `api_key`)
+- `wire_api` (str): API format for OpenAI/Azure - `"completions"` or `"responses"` (default: `"completions"`)
+- `azure` (dict): Azure-specific options with `api_version` (default: `"2024-10-21"`)
+
+**Example with Ollama:**
+
+```python
+session = await client.create_session({
+    "model": "deepseek-coder-v2:16b",  # Required when using custom provider
+    "provider": {
+        "type": "openai",
+        "base_url": "http://localhost:11434/v1",  # Ollama endpoint
+        # api_key not required for Ollama
+    },
+})
+
+await session.send({"prompt": "Hello!"})
+```
+
+**Example with custom OpenAI-compatible API:**
+
+```python
+import os
+
+session = await client.create_session({
+    "model": "gpt-4",
+    "provider": {
+        "type": "openai",
+        "base_url": "https://my-api.example.com/v1",
+        "api_key": os.environ["MY_API_KEY"],
+    },
+})
+```
+
+**Example with Azure OpenAI:**
+
+```python
+import os
+
+session = await client.create_session({
+    "model": "gpt-4",
+    "provider": {
+        "type": "azure",  # Must be "azure" for Azure endpoints, NOT "openai"
+        "base_url": "https://my-resource.openai.azure.com",  # Just the host, no path
+        "api_key": os.environ["AZURE_OPENAI_KEY"],
+        "azure": {
+            "api_version": "2024-10-21",
+        },
+    },
+})
+```
+
+> **Important notes:**
+> - When using a custom provider, the `model` parameter is **required**. The SDK will throw an error if no model is specified.
+> - For Azure OpenAI endpoints (`*.openai.azure.com`), you **must** use `type: "azure"`, not `type: "openai"`.
+> - The `base_url` should be just the host (e.g., `https://my-resource.openai.azure.com`). Do **not** include `/openai/v1` in the URL - the SDK handles path construction automatically.
 
 ## Requirements
 

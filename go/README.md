@@ -383,8 +383,8 @@ session, err := client.CreateSession(&copilot.SessionConfig{
 session, err := client.CreateSession(&copilot.SessionConfig{
     Model: "gpt-4",
     Provider: &copilot.ProviderConfig{
-        Type:    "azure",
-        BaseURL: "https://my-resource.openai.azure.com",
+        Type:    "azure",  // Must be "azure" for Azure endpoints, NOT "openai"
+        BaseURL: "https://my-resource.openai.azure.com",  // Just the host, no path
         APIKey:  os.Getenv("AZURE_OPENAI_KEY"),
         Azure: &copilot.AzureProviderOptions{
             APIVersion: "2024-10-21",
@@ -392,8 +392,10 @@ session, err := client.CreateSession(&copilot.SessionConfig{
     },
 })
 ```
-
-> **Note:** When using a custom provider, the `Model` parameter is **required**. The SDK will return an error if no model is specified.
+> **Important notes:**
+> - When using a custom provider, the `Model` parameter is **required**. The SDK will return an error if no model is specified.
+> - For Azure OpenAI endpoints (`*.openai.azure.com`), you **must** use `Type: "azure"`, not `Type: "openai"`.
+> - The `BaseURL` should be just the host (e.g., `https://my-resource.openai.azure.com`). Do **not** include `/openai/v1` in the URL - the SDK handles path construction automatically.
 
 ## Transport Modes
 
