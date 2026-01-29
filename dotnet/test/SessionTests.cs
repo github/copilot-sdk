@@ -197,6 +197,47 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     }
 
     [Fact]
+    public async Task Should_Fire_SessionCreated_When_Session_Is_Resumed()
+    {
+        var session1 = await Client.CreateSessionAsync();
+        var sessionId = session1.SessionId;
+
+        CopilotSession? resumedSession = null;
+        Client.SessionCreated += s => resumedSession = s;
+
+        var session2 = await Client.ResumeSessionAsync(sessionId);
+
+        Assert.NotNull(resumedSession);
+        Assert.Equal(sessionId, resumedSession!.SessionId);
+        Assert.Same(session2, resumedSession);
+    }
+
+    [Fact]
+    public async Task Should_Not_Fire_SessionDestroyed_When_Old_Session_Is_Disposed_After_Resume()
+    {
+        var session1 = await Client.CreateSessionAsync();
+        var sessionId = session1.SessionId;
+
+        var destroyedIds = new List<string>();
+        Client.SessionDestroyed += id => destroyedIds.Add(id);
+
+        // Resume creates a new session object for the same session ID
+        var session2 = await Client.ResumeSessionAsync(sessionId);
+
+        // Disposing the old session object should NOT fire SessionDestroyed
+        // because session2 is now the active session for this ID
+        await session1.DisposeAsync();
+
+        Assert.Empty(destroyedIds);
+
+        // Disposing the new session should fire SessionDestroyed
+        await session2.DisposeAsync();
+
+        Assert.Single(destroyedIds);
+        Assert.Equal(sessionId, destroyedIds[0]);
+    }
+
+    [Fact]
     public async Task Should_Abort_A_Session()
     {
         var session = await Client.CreateSessionAsync();

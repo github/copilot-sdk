@@ -65,6 +65,12 @@ public partial class CopilotSession : IAsyncDisposable
     public string? WorkspacePath { get; }
 
     /// <summary>
+    /// Internal callback invoked when the session is disposed.
+    /// Used by CopilotClient to fire the SessionDestroyed event.
+    /// </summary>
+    internal Action<string>? OnDisposed { get; set; }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="CopilotSession"/> class.
     /// </summary>
     /// <param name="sessionId">The unique identifier for this session.</param>
@@ -434,6 +440,8 @@ public partial class CopilotSession : IAsyncDisposable
         {
             _permissionHandlerLock.Release();
         }
+
+        OnDisposed?.Invoke(SessionId);
     }
 
     private class OnDisposeCall(Action callback) : IDisposable
