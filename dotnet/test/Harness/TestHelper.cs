@@ -6,11 +6,11 @@ namespace GitHub.Copilot.SDK.Test.Harness;
 
 public static class TestHelper
 {
-    public static async Task<AssistantMessageEvent?> GetFinalAssistantMessageAsync(
+    public static async Task<SessionOutcome> GetFinalSessionOutcomeAsync(
         CopilotSession session,
         TimeSpan? timeout = null)
     {
-        var tcs = new TaskCompletionSource<AssistantMessageEvent>();
+        var tcs = new TaskCompletionSource<SessionOutcome>();
         using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(60));
 
         AssistantMessageEvent? finalAssistantMessage = null;
@@ -22,8 +22,10 @@ public static class TestHelper
                 case AssistantMessageEvent msg:
                     finalAssistantMessage = msg;
                     break;
-                case SessionIdleEvent when finalAssistantMessage != null:
-                    tcs.TrySetResult(finalAssistantMessage);
+                case SessionIdleEvent:
+                    tcs.TrySetResult(finalAssistantMessage != null
+                        ? SessionOutcome.Message(finalAssistantMessage)
+                        : SessionOutcome.Abstention());
                     break;
                 case SessionErrorEvent error:
                     tcs.TrySetException(new Exception(error.Data.Message ?? "session error"));
@@ -34,7 +36,7 @@ public static class TestHelper
         // Check existing messages
         CheckExistingMessages();
 
-        cts.Token.Register(() => tcs.TrySetException(new TimeoutException("Timeout waiting for assistant message")));
+        cts.Token.Register(() => tcs.TrySetException(new TimeoutException("Timeout waiting for session outcome")));
 
         return await tcs.Task;
 
@@ -42,7 +44,7 @@ public static class TestHelper
         {
             try
             {
-                var existing = await GetExistingFinalResponseAsync(session);
+                var existing = await GetExistingFinalOutcomeAsync(session);
                 if (existing != null) tcs.TrySetResult(existing);
             }
             catch (Exception ex)
@@ -52,7 +54,15 @@ public static class TestHelper
         }
     }
 
-    private static async Task<AssistantMessageEvent?> GetExistingFinalResponseAsync(CopilotSession session)
+    public static async Task<AssistantMessageEvent?> GetFinalAssistantMessageAsync(
+        CopilotSession session,
+        TimeSpan? timeout = null)
+    {
+        var outcome = await GetFinalSessionOutcomeAsync(session, timeout);
+        return outcome.AssistantMessage;
+    }
+
+    private static async Task<SessionOutcome?> GetExistingFinalOutcomeAsync(CopilotSession session)
     {
         var messages = (await session.GetMessagesAsync()).ToList();
 
@@ -68,10 +78,10 @@ public static class TestHelper
         for (var i = idleIdx - 1; i >= 0; i--)
         {
             if (currentTurn[i] is AssistantMessageEvent msg)
-                return msg;
+                return SessionOutcome.Message(msg);
         }
 
-        return null;
+        return SessionOutcome.Abstention();
     }
 
     public static async Task<T> GetNextEventOfTypeAsync<T>(
