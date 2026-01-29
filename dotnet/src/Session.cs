@@ -48,6 +48,10 @@ public partial class CopilotSession : IAsyncDisposable
     private readonly JsonRpc _rpc;
     private PermissionHandler? _permissionHandler;
     private readonly SemaphoreSlim _permissionHandlerLock = new(1, 1);
+    private UserInputHandler? _userInputHandler;
+    private readonly SemaphoreSlim _userInputHandlerLock = new(1, 1);
+    private SessionHooks? _hooks;
+    private readonly SemaphoreSlim _hooksLock = new(1, 1);
 
     /// <summary>
     /// Gets the unique identifier for this session.
@@ -331,6 +335,136 @@ public partial class CopilotSession : IAsyncDisposable
     }
 
     /// <summary>
+    /// Registers a handler for user input requests from the agent.
+    /// </summary>
+    /// <param name="handler">The handler to invoke when user input is requested.</param>
+    internal void RegisterUserInputHandler(UserInputHandler handler)
+    {
+        _userInputHandlerLock.Wait();
+        try
+        {
+            _userInputHandler = handler;
+        }
+        finally
+        {
+            _userInputHandlerLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Handles a user input request from the Copilot CLI.
+    /// </summary>
+    /// <param name="request">The user input request from the CLI.</param>
+    /// <returns>A task that resolves with the user's response.</returns>
+    internal async Task<UserInputResponse> HandleUserInputRequestAsync(UserInputRequest request)
+    {
+        await _userInputHandlerLock.WaitAsync();
+        UserInputHandler? handler;
+        try
+        {
+            handler = _userInputHandler;
+        }
+        finally
+        {
+            _userInputHandlerLock.Release();
+        }
+
+        if (handler == null)
+        {
+            throw new InvalidOperationException("No user input handler registered");
+        }
+
+        var invocation = new UserInputInvocation
+        {
+            SessionId = SessionId
+        };
+
+        return await handler(request, invocation);
+    }
+
+    /// <summary>
+    /// Registers hook handlers for this session.
+    /// </summary>
+    /// <param name="hooks">The hooks configuration.</param>
+    internal void RegisterHooks(SessionHooks hooks)
+    {
+        _hooksLock.Wait();
+        try
+        {
+            _hooks = hooks;
+        }
+        finally
+        {
+            _hooksLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Handles a hook invocation from the Copilot CLI.
+    /// </summary>
+    /// <param name="hookType">The type of hook to invoke.</param>
+    /// <param name="input">The hook input data.</param>
+    /// <returns>A task that resolves with the hook output.</returns>
+    internal async Task<object?> HandleHooksInvokeAsync(string hookType, JsonElement input)
+    {
+        await _hooksLock.WaitAsync();
+        SessionHooks? hooks;
+        try
+        {
+            hooks = _hooks;
+        }
+        finally
+        {
+            _hooksLock.Release();
+        }
+
+        if (hooks == null)
+        {
+            return null;
+        }
+
+        var invocation = new HookInvocation
+        {
+            SessionId = SessionId
+        };
+
+        return hookType switch
+        {
+            "preToolUse" => hooks.OnPreToolUse != null
+                ? await hooks.OnPreToolUse(
+                    JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.PreToolUseHookInput)!,
+                    invocation)
+                : null,
+            "postToolUse" => hooks.OnPostToolUse != null
+                ? await hooks.OnPostToolUse(
+                    JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.PostToolUseHookInput)!,
+                    invocation)
+                : null,
+            "userPromptSubmitted" => hooks.OnUserPromptSubmitted != null
+                ? await hooks.OnUserPromptSubmitted(
+                    JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.UserPromptSubmittedHookInput)!,
+                    invocation)
+                : null,
+            "sessionStart" => hooks.OnSessionStart != null
+                ? await hooks.OnSessionStart(
+                    JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.SessionStartHookInput)!,
+                    invocation)
+                : null,
+            "sessionEnd" => hooks.OnSessionEnd != null
+                ? await hooks.OnSessionEnd(
+                    JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.SessionEndHookInput)!,
+                    invocation)
+                : null,
+            "errorOccurred" => hooks.OnErrorOccurred != null
+                ? await hooks.OnErrorOccurred(
+                    JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.ErrorOccurredHookInput)!,
+                    invocation)
+                : null,
+            _ => throw new ArgumentException($"Unknown hook type: {hookType}")
+        };
+    }
+
+    /// <summary>
     /// Gets the complete list of messages and events in the session.
     /// </summary>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
@@ -487,5 +621,17 @@ public partial class CopilotSession : IAsyncDisposable
     [JsonSerializable(typeof(SessionAbortRequest))]
     [JsonSerializable(typeof(SessionDestroyRequest))]
     [JsonSerializable(typeof(UserMessageDataAttachmentsItem))]
+    [JsonSerializable(typeof(PreToolUseHookInput))]
+    [JsonSerializable(typeof(PreToolUseHookOutput))]
+    [JsonSerializable(typeof(PostToolUseHookInput))]
+    [JsonSerializable(typeof(PostToolUseHookOutput))]
+    [JsonSerializable(typeof(UserPromptSubmittedHookInput))]
+    [JsonSerializable(typeof(UserPromptSubmittedHookOutput))]
+    [JsonSerializable(typeof(SessionStartHookInput))]
+    [JsonSerializable(typeof(SessionStartHookOutput))]
+    [JsonSerializable(typeof(SessionEndHookInput))]
+    [JsonSerializable(typeof(SessionEndHookOutput))]
+    [JsonSerializable(typeof(ErrorOccurredHookInput))]
+    [JsonSerializable(typeof(ErrorOccurredHookOutput))]
     internal partial class SessionJsonContext : JsonSerializerContext;
 }

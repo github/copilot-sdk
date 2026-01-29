@@ -336,6 +336,14 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
 
+        var hasHooks = config?.Hooks != null && (
+            config.Hooks.OnPreToolUse != null ||
+            config.Hooks.OnPostToolUse != null ||
+            config.Hooks.OnUserPromptSubmitted != null ||
+            config.Hooks.OnSessionStart != null ||
+            config.Hooks.OnSessionEnd != null ||
+            config.Hooks.OnErrorOccurred != null);
+
         var request = new CreateSessionRequest(
             config?.Model,
             config?.SessionId,
@@ -345,6 +353,9 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
             config?.ExcludedTools,
             config?.Provider,
             config?.OnPermissionRequest != null ? true : null,
+            config?.OnUserInputRequest != null ? true : null,
+            hasHooks ? true : null,
+            config?.WorkingDirectory,
             config?.Streaming == true ? true : null,
             config?.McpServers,
             config?.CustomAgents,
@@ -361,6 +372,14 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         if (config?.OnPermissionRequest != null)
         {
             session.RegisterPermissionHandler(config.OnPermissionRequest);
+        }
+        if (config?.OnUserInputRequest != null)
+        {
+            session.RegisterUserInputHandler(config.OnUserInputRequest);
+        }
+        if (config?.Hooks != null)
+        {
+            session.RegisterHooks(config.Hooks);
         }
 
         if (!_sessions.TryAdd(response.SessionId, session))
@@ -399,11 +418,23 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
 
+        var hasHooks = config?.Hooks != null && (
+            config.Hooks.OnPreToolUse != null ||
+            config.Hooks.OnPostToolUse != null ||
+            config.Hooks.OnUserPromptSubmitted != null ||
+            config.Hooks.OnSessionStart != null ||
+            config.Hooks.OnSessionEnd != null ||
+            config.Hooks.OnErrorOccurred != null);
+
         var request = new ResumeSessionRequest(
             sessionId,
             config?.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
             config?.Provider,
             config?.OnPermissionRequest != null ? true : null,
+            config?.OnUserInputRequest != null ? true : null,
+            hasHooks ? true : null,
+            config?.WorkingDirectory,
+            config?.DisableResume == true ? true : null,
             config?.Streaming == true ? true : null,
             config?.McpServers,
             config?.CustomAgents,
@@ -418,6 +449,14 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         if (config?.OnPermissionRequest != null)
         {
             session.RegisterPermissionHandler(config.OnPermissionRequest);
+        }
+        if (config?.OnUserInputRequest != null)
+        {
+            session.RegisterUserInputHandler(config.OnUserInputRequest);
+        }
+        if (config?.Hooks != null)
+        {
+            session.RegisterHooks(config.Hooks);
         }
 
         // Replace any existing session entry to ensure new config (like permission handler) is used
@@ -804,6 +843,8 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         rpc.AddLocalRpcMethod("session.event", handler.OnSessionEvent);
         rpc.AddLocalRpcMethod("tool.call", handler.OnToolCall);
         rpc.AddLocalRpcMethod("permission.request", handler.OnPermissionRequest);
+        rpc.AddLocalRpcMethod("userInput.request", handler.OnUserInputRequest);
+        rpc.AddLocalRpcMethod("hooks.invoke", handler.OnHooksInvoke);
         rpc.StartListening();
         return new Connection(rpc, cliProcess, tcpClient, networkStream);
     }
@@ -990,6 +1031,37 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
                 });
             }
         }
+
+        public async Task<UserInputRequestResponse> OnUserInputRequest(string sessionId, string question, List<string>? choices = null, bool? allowFreeform = null)
+        {
+            var session = client.GetSession(sessionId);
+            if (session == null)
+            {
+                throw new ArgumentException($"Unknown session {sessionId}");
+            }
+
+            var request = new UserInputRequest
+            {
+                Question = question,
+                Choices = choices,
+                AllowFreeform = allowFreeform
+            };
+
+            var result = await session.HandleUserInputRequestAsync(request);
+            return new UserInputRequestResponse(result.Answer, result.WasFreeform);
+        }
+
+        public async Task<HooksInvokeResponse> OnHooksInvoke(string sessionId, string hookType, JsonElement input)
+        {
+            var session = client.GetSession(sessionId);
+            if (session == null)
+            {
+                throw new ArgumentException($"Unknown session {sessionId}");
+            }
+
+            var output = await session.HandleHooksInvokeAsync(hookType, input);
+            return new HooksInvokeResponse(output);
+        }
     }
 
     private class Connection(
@@ -1024,6 +1096,9 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         List<string>? ExcludedTools,
         ProviderConfig? Provider,
         bool? RequestPermission,
+        bool? RequestUserInput,
+        bool? Hooks,
+        string? WorkingDirectory,
         bool? Streaming,
         Dictionary<string, object>? McpServers,
         List<CustomAgentConfig>? CustomAgents,
@@ -1050,6 +1125,10 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         List<ToolDefinition>? Tools,
         ProviderConfig? Provider,
         bool? RequestPermission,
+        bool? RequestUserInput,
+        bool? Hooks,
+        string? WorkingDirectory,
+        bool? DisableResume,
         bool? Streaming,
         Dictionary<string, object>? McpServers,
         List<CustomAgentConfig>? CustomAgents,
@@ -1078,6 +1157,13 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
 
     internal record PermissionRequestResponse(
         PermissionRequestResult Result);
+
+    internal record UserInputRequestResponse(
+        string Answer,
+        bool WasFreeform);
+
+    internal record HooksInvokeResponse(
+        object? Output);
 
     /// <summary>Trace source that forwards all logs to the ILogger.</summary>
     internal sealed class LoggerTraceSource : TraceSource
@@ -1131,6 +1217,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(DeleteSessionRequest))]
     [JsonSerializable(typeof(DeleteSessionResponse))]
     [JsonSerializable(typeof(GetLastSessionIdResponse))]
+    [JsonSerializable(typeof(HooksInvokeResponse))]
     [JsonSerializable(typeof(ListSessionsResponse))]
     [JsonSerializable(typeof(PermissionRequestResponse))]
     [JsonSerializable(typeof(PermissionRequestResult))]
@@ -1143,6 +1230,9 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(ToolDefinition))]
     [JsonSerializable(typeof(ToolResultAIContent))]
     [JsonSerializable(typeof(ToolResultObject))]
+    [JsonSerializable(typeof(UserInputRequestResponse))]
+    [JsonSerializable(typeof(UserInputRequest))]
+    [JsonSerializable(typeof(UserInputResponse))]
     internal partial class ClientJsonContext : JsonSerializerContext;
 }
 

@@ -1,0 +1,51 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Edit protected.txt and replace 'Original' with 'Modified'
+      - role: assistant
+        content: I'll view the file first and then make the edit.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Editing protected.txt file"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/protected.txt"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Edit protected.txt and replace 'Original' with 'Modified'
+      - role: assistant
+        content: I'll view the file first and then make the edit.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Editing protected.txt file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/protected.txt"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: "Denied by preToolUse hook: No reason provided"
+      - role: tool
+        tool_call_id: toolcall_1
+        content: "Denied by preToolUse hook: No reason provided"
+      - role: assistant
+        content: It appears that access to protected.txt is being denied by a security hook. This file seems to be protected
+          from viewing and editing operations.

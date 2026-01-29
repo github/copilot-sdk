@@ -106,6 +106,155 @@ type PermissionInvocation struct {
 	SessionID string
 }
 
+// UserInputRequest represents a request for user input from the agent
+type UserInputRequest struct {
+	Question      string   `json:"question"`
+	Choices       []string `json:"choices,omitempty"`
+	AllowFreeform *bool    `json:"allowFreeform,omitempty"`
+}
+
+// UserInputResponse represents the user's response to an input request
+type UserInputResponse struct {
+	Answer      string `json:"answer"`
+	WasFreeform bool   `json:"wasFreeform"`
+}
+
+// UserInputHandler handles user input requests from the agent
+// The handler should return a UserInputResponse. Returning an error fails the request.
+type UserInputHandler func(request UserInputRequest, invocation UserInputInvocation) (UserInputResponse, error)
+
+// UserInputInvocation provides context about a user input request
+type UserInputInvocation struct {
+	SessionID string
+}
+
+// PreToolUseHookInput is the input for a pre-tool-use hook
+type PreToolUseHookInput struct {
+	Timestamp int64       `json:"timestamp"`
+	Cwd       string      `json:"cwd"`
+	ToolName  string      `json:"toolName"`
+	ToolArgs  interface{} `json:"toolArgs"`
+}
+
+// PreToolUseHookOutput is the output for a pre-tool-use hook
+type PreToolUseHookOutput struct {
+	PermissionDecision       string      `json:"permissionDecision,omitempty"` // "allow", "deny", "ask"
+	PermissionDecisionReason string      `json:"permissionDecisionReason,omitempty"`
+	ModifiedArgs             interface{} `json:"modifiedArgs,omitempty"`
+	AdditionalContext        string      `json:"additionalContext,omitempty"`
+	SuppressOutput           bool        `json:"suppressOutput,omitempty"`
+}
+
+// PreToolUseHandler handles pre-tool-use hook invocations
+type PreToolUseHandler func(input PreToolUseHookInput, invocation HookInvocation) (*PreToolUseHookOutput, error)
+
+// PostToolUseHookInput is the input for a post-tool-use hook
+type PostToolUseHookInput struct {
+	Timestamp  int64       `json:"timestamp"`
+	Cwd        string      `json:"cwd"`
+	ToolName   string      `json:"toolName"`
+	ToolArgs   interface{} `json:"toolArgs"`
+	ToolResult interface{} `json:"toolResult"`
+}
+
+// PostToolUseHookOutput is the output for a post-tool-use hook
+type PostToolUseHookOutput struct {
+	ModifiedResult    interface{} `json:"modifiedResult,omitempty"`
+	AdditionalContext string      `json:"additionalContext,omitempty"`
+	SuppressOutput    bool        `json:"suppressOutput,omitempty"`
+}
+
+// PostToolUseHandler handles post-tool-use hook invocations
+type PostToolUseHandler func(input PostToolUseHookInput, invocation HookInvocation) (*PostToolUseHookOutput, error)
+
+// UserPromptSubmittedHookInput is the input for a user-prompt-submitted hook
+type UserPromptSubmittedHookInput struct {
+	Timestamp int64  `json:"timestamp"`
+	Cwd       string `json:"cwd"`
+	Prompt    string `json:"prompt"`
+}
+
+// UserPromptSubmittedHookOutput is the output for a user-prompt-submitted hook
+type UserPromptSubmittedHookOutput struct {
+	ModifiedPrompt    string `json:"modifiedPrompt,omitempty"`
+	AdditionalContext string `json:"additionalContext,omitempty"`
+	SuppressOutput    bool   `json:"suppressOutput,omitempty"`
+}
+
+// UserPromptSubmittedHandler handles user-prompt-submitted hook invocations
+type UserPromptSubmittedHandler func(input UserPromptSubmittedHookInput, invocation HookInvocation) (*UserPromptSubmittedHookOutput, error)
+
+// SessionStartHookInput is the input for a session-start hook
+type SessionStartHookInput struct {
+	Timestamp     int64  `json:"timestamp"`
+	Cwd           string `json:"cwd"`
+	Source        string `json:"source"` // "startup", "resume", "new"
+	InitialPrompt string `json:"initialPrompt,omitempty"`
+}
+
+// SessionStartHookOutput is the output for a session-start hook
+type SessionStartHookOutput struct {
+	AdditionalContext string                 `json:"additionalContext,omitempty"`
+	ModifiedConfig    map[string]interface{} `json:"modifiedConfig,omitempty"`
+}
+
+// SessionStartHandler handles session-start hook invocations
+type SessionStartHandler func(input SessionStartHookInput, invocation HookInvocation) (*SessionStartHookOutput, error)
+
+// SessionEndHookInput is the input for a session-end hook
+type SessionEndHookInput struct {
+	Timestamp    int64  `json:"timestamp"`
+	Cwd          string `json:"cwd"`
+	Reason       string `json:"reason"` // "complete", "error", "abort", "timeout", "user_exit"
+	FinalMessage string `json:"finalMessage,omitempty"`
+	Error        string `json:"error,omitempty"`
+}
+
+// SessionEndHookOutput is the output for a session-end hook
+type SessionEndHookOutput struct {
+	SuppressOutput bool     `json:"suppressOutput,omitempty"`
+	CleanupActions []string `json:"cleanupActions,omitempty"`
+	SessionSummary string   `json:"sessionSummary,omitempty"`
+}
+
+// SessionEndHandler handles session-end hook invocations
+type SessionEndHandler func(input SessionEndHookInput, invocation HookInvocation) (*SessionEndHookOutput, error)
+
+// ErrorOccurredHookInput is the input for an error-occurred hook
+type ErrorOccurredHookInput struct {
+	Timestamp    int64  `json:"timestamp"`
+	Cwd          string `json:"cwd"`
+	Error        string `json:"error"`
+	ErrorContext string `json:"errorContext"` // "model_call", "tool_execution", "system", "user_input"
+	Recoverable  bool   `json:"recoverable"`
+}
+
+// ErrorOccurredHookOutput is the output for an error-occurred hook
+type ErrorOccurredHookOutput struct {
+	SuppressOutput   bool   `json:"suppressOutput,omitempty"`
+	ErrorHandling    string `json:"errorHandling,omitempty"` // "retry", "skip", "abort"
+	RetryCount       int    `json:"retryCount,omitempty"`
+	UserNotification string `json:"userNotification,omitempty"`
+}
+
+// ErrorOccurredHandler handles error-occurred hook invocations
+type ErrorOccurredHandler func(input ErrorOccurredHookInput, invocation HookInvocation) (*ErrorOccurredHookOutput, error)
+
+// HookInvocation provides context about a hook invocation
+type HookInvocation struct {
+	SessionID string
+}
+
+// SessionHooks configures hook handlers for a session
+type SessionHooks struct {
+	OnPreToolUse          PreToolUseHandler
+	OnPostToolUse         PostToolUseHandler
+	OnUserPromptSubmitted UserPromptSubmittedHandler
+	OnSessionStart        SessionStartHandler
+	OnSessionEnd          SessionEndHandler
+	OnErrorOccurred       ErrorOccurredHandler
+}
+
 // MCPLocalServerConfig configures a local/stdio MCP server
 type MCPLocalServerConfig struct {
 	Tools   []string          `json:"tools"`
@@ -183,6 +332,13 @@ type SessionConfig struct {
 	ExcludedTools []string
 	// OnPermissionRequest is a handler for permission requests from the server
 	OnPermissionRequest PermissionHandler
+	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
+	OnUserInputRequest UserInputHandler
+	// Hooks configures hook handlers for session lifecycle events
+	Hooks *SessionHooks
+	// WorkingDirectory is the working directory for the session.
+	// Tool operations will be relative to this directory.
+	WorkingDirectory string
 	// Streaming enables streaming of assistant message and reasoning chunks.
 	// When true, assistant.message_delta and assistant.reasoning_delta events
 	// with deltaContent are sent as the response is generated.
@@ -240,6 +396,13 @@ type ResumeSessionConfig struct {
 	Provider *ProviderConfig
 	// OnPermissionRequest is a handler for permission requests from the server
 	OnPermissionRequest PermissionHandler
+	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
+	OnUserInputRequest UserInputHandler
+	// Hooks configures hook handlers for session lifecycle events
+	Hooks *SessionHooks
+	// WorkingDirectory is the working directory for the session.
+	// Tool operations will be relative to this directory.
+	WorkingDirectory string
 	// Streaming enables streaming of assistant message and reasoning chunks.
 	// When true, assistant.message_delta and assistant.reasoning_delta events
 	// with deltaContent are sent as the response is generated.
@@ -252,6 +415,9 @@ type ResumeSessionConfig struct {
 	SkillDirectories []string
 	// DisabledSkills is a list of skill names to disable
 	DisabledSkills []string
+	// DisableResume, when true, skips emitting the session.resume event.
+	// Useful for reconnecting to a session without triggering resume-related side effects.
+	DisableResume bool
 }
 
 // ProviderConfig configures a custom model provider

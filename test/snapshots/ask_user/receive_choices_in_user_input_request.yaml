@@ -1,0 +1,21 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: "Use the ask_user tool to ask me to pick between exactly two options: 'Red' and 'Blue'. These should be
+          provided as choices. Wait for my answer."
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: ask_user
+              arguments: '{"question":"Please pick one of the following options:","choices":["Red","Blue"],"allow_freeform":false}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: "User selected: Red"
+      - role: assistant
+        content: You selected **Red**.

@@ -14,8 +14,12 @@ from .generated.session_events import SessionEvent, SessionEventType, session_ev
 from .types import (
     MessageOptions,
     PermissionHandler,
+    SessionHooks,
     Tool,
     ToolHandler,
+    UserInputHandler,
+    UserInputRequest,
+    UserInputResponse,
 )
 from .types import (
     SessionEvent as SessionEventTypeAlias,
@@ -71,6 +75,10 @@ class CopilotSession:
         self._tool_handlers_lock = threading.Lock()
         self._permission_handler: Optional[PermissionHandler] = None
         self._permission_handler_lock = threading.Lock()
+        self._user_input_handler: Optional[UserInputHandler] = None
+        self._user_input_handler_lock = threading.Lock()
+        self._hooks: Optional[SessionHooks] = None
+        self._hooks_lock = threading.Lock()
 
     @property
     def workspace_path(self) -> Optional[str]:
@@ -319,6 +327,116 @@ class CopilotSession:
         except Exception:  # pylint: disable=broad-except
             # Handler failed, deny permission
             return {"kind": "denied-no-approval-rule-and-could-not-request-from-user"}
+
+    def _register_user_input_handler(self, handler: Optional[UserInputHandler]) -> None:
+        """
+        Register a handler for user input requests.
+
+        When the agent needs input from the user (via ask_user tool),
+        this handler is called to provide the response.
+
+        Note:
+            This method is internal. User input handlers are typically registered
+            when creating a session via :meth:`CopilotClient.create_session`.
+
+        Args:
+            handler: The user input handler function, or None to remove the handler.
+        """
+        with self._user_input_handler_lock:
+            self._user_input_handler = handler
+
+    async def _handle_user_input_request(self, request: dict) -> UserInputResponse:
+        """
+        Handle a user input request from the Copilot CLI.
+
+        Note:
+            This method is internal and should not be called directly.
+
+        Args:
+            request: The user input request data from the CLI.
+
+        Returns:
+            A dictionary containing the user's response.
+        """
+        with self._user_input_handler_lock:
+            handler = self._user_input_handler
+
+        if not handler:
+            raise RuntimeError("User input requested but no handler registered")
+
+        try:
+            result = handler(
+                UserInputRequest(
+                    question=request.get("question", ""),
+                    choices=request.get("choices"),
+                    allowFreeform=request.get("allowFreeform", True),
+                ),
+                {"session_id": self.session_id},
+            )
+            if inspect.isawaitable(result):
+                result = await result
+            return result
+        except Exception:
+            raise
+
+    def _register_hooks(self, hooks: Optional[SessionHooks]) -> None:
+        """
+        Register hook handlers for session lifecycle events.
+
+        Hooks allow custom logic to be executed at various points during
+        the session lifecycle (before/after tool use, session start/end, etc.).
+
+        Note:
+            This method is internal. Hooks are typically registered
+            when creating a session via :meth:`CopilotClient.create_session`.
+
+        Args:
+            hooks: The hooks configuration object, or None to remove all hooks.
+        """
+        with self._hooks_lock:
+            self._hooks = hooks
+
+    async def _handle_hooks_invoke(self, hook_type: str, input_data: Any) -> Any:
+        """
+        Handle a hooks invocation from the Copilot CLI.
+
+        Note:
+            This method is internal and should not be called directly.
+
+        Args:
+            hook_type: The type of hook being invoked.
+            input_data: The input data for the hook.
+
+        Returns:
+            The hook output, or None if no handler is registered.
+        """
+        with self._hooks_lock:
+            hooks = self._hooks
+
+        if not hooks:
+            return None
+
+        handler_map = {
+            "preToolUse": hooks.get("on_pre_tool_use"),
+            "postToolUse": hooks.get("on_post_tool_use"),
+            "userPromptSubmitted": hooks.get("on_user_prompt_submitted"),
+            "sessionStart": hooks.get("on_session_start"),
+            "sessionEnd": hooks.get("on_session_end"),
+            "errorOccurred": hooks.get("on_error_occurred"),
+        }
+
+        handler = handler_map.get(hook_type)
+        if not handler:
+            return None
+
+        try:
+            result = handler(input_data, {"session_id": self.session_id})
+            if inspect.isawaitable(result):
+                result = await result
+            return result
+        except Exception:  # pylint: disable=broad-except
+            # Hook failed, return None
+            return None
 
     async def get_messages(self) -> list[SessionEvent]:
         """

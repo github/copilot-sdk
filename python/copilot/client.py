@@ -407,6 +407,22 @@ class CopilotClient:
         on_permission_request = cfg.get("on_permission_request")
         if on_permission_request:
             payload["requestPermission"] = True
+
+        # Enable user input request callback if handler provided
+        on_user_input_request = cfg.get("on_user_input_request")
+        if on_user_input_request:
+            payload["requestUserInput"] = True
+
+        # Enable hooks callback if any hook handler provided
+        hooks = cfg.get("hooks")
+        if hooks and any(hooks.values()):
+            payload["hooks"] = True
+
+        # Add working directory if provided
+        working_directory = cfg.get("working_directory")
+        if working_directory:
+            payload["workingDirectory"] = working_directory
+
         # Add streaming option if provided
         streaming = cfg.get("streaming")
         if streaming is not None:
@@ -470,6 +486,10 @@ class CopilotClient:
         session._register_tools(tools)
         if on_permission_request:
             session._register_permission_handler(on_permission_request)
+        if on_user_input_request:
+            session._register_user_input_handler(on_user_input_request)
+        if hooks:
+            session._register_hooks(hooks)
         with self._sessions_lock:
             self._sessions[session_id] = session
 
@@ -542,6 +562,26 @@ class CopilotClient:
         if on_permission_request:
             payload["requestPermission"] = True
 
+        # Enable user input request callback if handler provided
+        on_user_input_request = cfg.get("on_user_input_request")
+        if on_user_input_request:
+            payload["requestUserInput"] = True
+
+        # Enable hooks callback if any hook handler provided
+        hooks = cfg.get("hooks")
+        if hooks and any(hooks.values()):
+            payload["hooks"] = True
+
+        # Add working directory if provided
+        working_directory = cfg.get("working_directory")
+        if working_directory:
+            payload["workingDirectory"] = working_directory
+
+        # Add disable resume flag if provided
+        disable_resume = cfg.get("disable_resume")
+        if disable_resume:
+            payload["disableResume"] = True
+
         # Add MCP servers configuration if provided
         mcp_servers = cfg.get("mcp_servers")
         if mcp_servers:
@@ -574,6 +614,10 @@ class CopilotClient:
         session._register_tools(cfg.get("tools"))
         if on_permission_request:
             session._register_permission_handler(on_permission_request)
+        if on_user_input_request:
+            session._register_user_input_handler(on_user_input_request)
+        if hooks:
+            session._register_hooks(hooks)
         with self._sessions_lock:
             self._sessions[resumed_session_id] = session
 
@@ -944,6 +988,8 @@ class CopilotClient:
         self._client.set_notification_handler(handle_notification)
         self._client.set_request_handler("tool.call", self._handle_tool_call_request)
         self._client.set_request_handler("permission.request", self._handle_permission_request)
+        self._client.set_request_handler("userInput.request", self._handle_user_input_request)
+        self._client.set_request_handler("hooks.invoke", self._handle_hooks_invoke)
 
         # Start listening for messages
         loop = asyncio.get_running_loop()
@@ -1018,6 +1064,8 @@ class CopilotClient:
         self._client.set_notification_handler(handle_notification)
         self._client.set_request_handler("tool.call", self._handle_tool_call_request)
         self._client.set_request_handler("permission.request", self._handle_permission_request)
+        self._client.set_request_handler("userInput.request", self._handle_user_input_request)
+        self._client.set_request_handler("hooks.invoke", self._handle_hooks_invoke)
 
         # Start listening for messages
         loop = asyncio.get_running_loop()
@@ -1057,6 +1105,61 @@ class CopilotClient:
                     "kind": "denied-no-approval-rule-and-could-not-request-from-user",
                 }
             }
+
+    async def _handle_user_input_request(self, params: dict) -> dict:
+        """
+        Handle a user input request from the CLI server.
+
+        Args:
+            params: The user input request parameters from the server.
+
+        Returns:
+            A dict containing the user's response.
+
+        Raises:
+            ValueError: If the request payload is invalid.
+        """
+        session_id = params.get("sessionId")
+        question = params.get("question")
+
+        if not session_id or not question:
+            raise ValueError("invalid user input request payload")
+
+        with self._sessions_lock:
+            session = self._sessions.get(session_id)
+        if not session:
+            raise ValueError(f"unknown session {session_id}")
+
+        result = await session._handle_user_input_request(params)
+        return {"answer": result["answer"], "wasFreeform": result["wasFreeform"]}
+
+    async def _handle_hooks_invoke(self, params: dict) -> dict:
+        """
+        Handle a hooks invocation from the CLI server.
+
+        Args:
+            params: The hooks invocation parameters from the server.
+
+        Returns:
+            A dict containing the hook output.
+
+        Raises:
+            ValueError: If the request payload is invalid.
+        """
+        session_id = params.get("sessionId")
+        hook_type = params.get("hookType")
+        input_data = params.get("input")
+
+        if not session_id or not hook_type:
+            raise ValueError("invalid hooks invoke payload")
+
+        with self._sessions_lock:
+            session = self._sessions.get(session_id)
+        if not session:
+            raise ValueError(f"unknown session {session_id}")
+
+        output = await session._handle_hooks_invoke(hook_type, input_data)
+        return {"output": output}
 
     async def _handle_tool_call_request(self, params: dict) -> dict:
         """

@@ -462,6 +462,9 @@ export class CopilotClient {
             excludedTools: config.excludedTools,
             provider: config.provider,
             requestPermission: !!config.onPermissionRequest,
+            requestUserInput: !!config.onUserInputRequest,
+            hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
+            workingDirectory: config.workingDirectory,
             streaming: config.streaming,
             mcpServers: config.mcpServers,
             customAgents: config.customAgents,
@@ -479,6 +482,12 @@ export class CopilotClient {
         session.registerTools(config.tools);
         if (config.onPermissionRequest) {
             session.registerPermissionHandler(config.onPermissionRequest);
+        }
+        if (config.onUserInputRequest) {
+            session.registerUserInputHandler(config.onUserInputRequest);
+        }
+        if (config.hooks) {
+            session.registerHooks(config.hooks);
         }
         this.sessions.set(sessionId, session);
 
@@ -529,11 +538,15 @@ export class CopilotClient {
             })),
             provider: config.provider,
             requestPermission: !!config.onPermissionRequest,
+            requestUserInput: !!config.onUserInputRequest,
+            hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
+            workingDirectory: config.workingDirectory,
             streaming: config.streaming,
             mcpServers: config.mcpServers,
             customAgents: config.customAgents,
             skillDirectories: config.skillDirectories,
             disabledSkills: config.disabledSkills,
+            disableResume: config.disableResume,
         });
 
         const { sessionId: resumedSessionId, workspacePath } = response as {
@@ -544,6 +557,12 @@ export class CopilotClient {
         session.registerTools(config.tools);
         if (config.onPermissionRequest) {
             session.registerPermissionHandler(config.onPermissionRequest);
+        }
+        if (config.onUserInputRequest) {
+            session.registerUserInputHandler(config.onUserInputRequest);
+        }
+        if (config.hooks) {
+            session.registerHooks(config.hooks);
         }
         this.sessions.set(resumedSessionId, session);
 
@@ -964,6 +983,26 @@ export class CopilotClient {
             }): Promise<{ result: unknown }> => await this.handlePermissionRequest(params)
         );
 
+        this.connection.onRequest(
+            "userInput.request",
+            async (params: {
+                sessionId: string;
+                question: string;
+                choices?: string[];
+                allowFreeform?: boolean;
+            }): Promise<{ answer: string; wasFreeform: boolean }> =>
+                await this.handleUserInputRequest(params)
+        );
+
+        this.connection.onRequest(
+            "hooks.invoke",
+            async (params: {
+                sessionId: string;
+                hookType: string;
+                input: unknown;
+            }): Promise<{ output?: unknown }> => await this.handleHooksInvoke(params)
+        );
+
         this.connection.onClose(() => {
             if (this.state === "connected" && this.options.autoRestart) {
                 void this.reconnect();
@@ -1070,6 +1109,55 @@ export class CopilotClient {
                 },
             };
         }
+    }
+
+    private async handleUserInputRequest(params: {
+        sessionId: string;
+        question: string;
+        choices?: string[];
+        allowFreeform?: boolean;
+    }): Promise<{ answer: string; wasFreeform: boolean }> {
+        if (
+            !params ||
+            typeof params.sessionId !== "string" ||
+            typeof params.question !== "string"
+        ) {
+            throw new Error("Invalid user input request payload");
+        }
+
+        const session = this.sessions.get(params.sessionId);
+        if (!session) {
+            throw new Error(`Session not found: ${params.sessionId}`);
+        }
+
+        const result = await session._handleUserInputRequest({
+            question: params.question,
+            choices: params.choices,
+            allowFreeform: params.allowFreeform,
+        });
+        return result;
+    }
+
+    private async handleHooksInvoke(params: {
+        sessionId: string;
+        hookType: string;
+        input: unknown;
+    }): Promise<{ output?: unknown }> {
+        if (
+            !params ||
+            typeof params.sessionId !== "string" ||
+            typeof params.hookType !== "string"
+        ) {
+            throw new Error("Invalid hooks invoke payload");
+        }
+
+        const session = this.sessions.get(params.sessionId);
+        if (!session) {
+            throw new Error(`Session not found: ${params.sessionId}`);
+        }
+
+        const output = await session._handleHooksInvoke(params.hookType, params.input);
+        return { output };
     }
 
     private normalizeToolResult(result: unknown): ToolResultObject {

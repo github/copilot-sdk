@@ -56,6 +56,10 @@ type Session struct {
 	toolHandlersM     sync.RWMutex
 	permissionHandler PermissionHandler
 	permissionMux     sync.RWMutex
+	userInputHandler  UserInputHandler
+	userInputMux      sync.RWMutex
+	hooks             *SessionHooks
+	hooksMux          sync.RWMutex
 }
 
 // WorkspacePath returns the path to the session workspace directory when infinite
@@ -324,6 +328,225 @@ func (s *Session) handlePermissionRequest(requestData map[string]interface{}) (P
 	}
 
 	return handler(request, invocation)
+}
+
+// registerUserInputHandler registers a user input handler for this session.
+//
+// When the assistant needs to ask the user a question (e.g., via ask_user tool),
+// this handler is called to get the user's response.
+//
+// This method is internal and typically called when creating a session.
+func (s *Session) registerUserInputHandler(handler UserInputHandler) {
+	s.userInputMux.Lock()
+	defer s.userInputMux.Unlock()
+	s.userInputHandler = handler
+}
+
+// getUserInputHandler returns the currently registered user input handler, or nil.
+func (s *Session) getUserInputHandler() UserInputHandler {
+	s.userInputMux.RLock()
+	defer s.userInputMux.RUnlock()
+	return s.userInputHandler
+}
+
+// handleUserInputRequest handles a user input request from the Copilot CLI.
+// This is an internal method called by the SDK when the CLI requests user input.
+func (s *Session) handleUserInputRequest(request UserInputRequest) (UserInputResponse, error) {
+	handler := s.getUserInputHandler()
+
+	if handler == nil {
+		return UserInputResponse{}, fmt.Errorf("no user input handler registered")
+	}
+
+	invocation := UserInputInvocation{
+		SessionID: s.SessionID,
+	}
+
+	return handler(request, invocation)
+}
+
+// registerHooks registers hook handlers for this session.
+//
+// Hooks are called at various points during session execution to allow
+// customization and observation of the session lifecycle.
+//
+// This method is internal and typically called when creating a session.
+func (s *Session) registerHooks(hooks *SessionHooks) {
+	s.hooksMux.Lock()
+	defer s.hooksMux.Unlock()
+	s.hooks = hooks
+}
+
+// getHooks returns the currently registered hooks, or nil.
+func (s *Session) getHooks() *SessionHooks {
+	s.hooksMux.RLock()
+	defer s.hooksMux.RUnlock()
+	return s.hooks
+}
+
+// handleHooksInvoke handles a hook invocation from the Copilot CLI.
+// This is an internal method called by the SDK when the CLI invokes a hook.
+func (s *Session) handleHooksInvoke(hookType string, input map[string]interface{}) (interface{}, error) {
+	hooks := s.getHooks()
+
+	if hooks == nil {
+		return nil, nil
+	}
+
+	invocation := HookInvocation{
+		SessionID: s.SessionID,
+	}
+
+	switch hookType {
+	case "preToolUse":
+		if hooks.OnPreToolUse == nil {
+			return nil, nil
+		}
+		hookInput := parsePreToolUseInput(input)
+		return hooks.OnPreToolUse(hookInput, invocation)
+
+	case "postToolUse":
+		if hooks.OnPostToolUse == nil {
+			return nil, nil
+		}
+		hookInput := parsePostToolUseInput(input)
+		return hooks.OnPostToolUse(hookInput, invocation)
+
+	case "userPromptSubmitted":
+		if hooks.OnUserPromptSubmitted == nil {
+			return nil, nil
+		}
+		hookInput := parseUserPromptSubmittedInput(input)
+		return hooks.OnUserPromptSubmitted(hookInput, invocation)
+
+	case "sessionStart":
+		if hooks.OnSessionStart == nil {
+			return nil, nil
+		}
+		hookInput := parseSessionStartInput(input)
+		return hooks.OnSessionStart(hookInput, invocation)
+
+	case "sessionEnd":
+		if hooks.OnSessionEnd == nil {
+			return nil, nil
+		}
+		hookInput := parseSessionEndInput(input)
+		return hooks.OnSessionEnd(hookInput, invocation)
+
+	case "errorOccurred":
+		if hooks.OnErrorOccurred == nil {
+			return nil, nil
+		}
+		hookInput := parseErrorOccurredInput(input)
+		return hooks.OnErrorOccurred(hookInput, invocation)
+
+	default:
+		return nil, fmt.Errorf("unknown hook type: %s", hookType)
+	}
+}
+
+// Helper functions to parse hook inputs
+
+func parsePreToolUseInput(input map[string]interface{}) PreToolUseHookInput {
+	result := PreToolUseHookInput{}
+	if ts, ok := input["timestamp"].(float64); ok {
+		result.Timestamp = int64(ts)
+	}
+	if cwd, ok := input["cwd"].(string); ok {
+		result.Cwd = cwd
+	}
+	if name, ok := input["toolName"].(string); ok {
+		result.ToolName = name
+	}
+	result.ToolArgs = input["toolArgs"]
+	return result
+}
+
+func parsePostToolUseInput(input map[string]interface{}) PostToolUseHookInput {
+	result := PostToolUseHookInput{}
+	if ts, ok := input["timestamp"].(float64); ok {
+		result.Timestamp = int64(ts)
+	}
+	if cwd, ok := input["cwd"].(string); ok {
+		result.Cwd = cwd
+	}
+	if name, ok := input["toolName"].(string); ok {
+		result.ToolName = name
+	}
+	result.ToolArgs = input["toolArgs"]
+	result.ToolResult = input["toolResult"]
+	return result
+}
+
+func parseUserPromptSubmittedInput(input map[string]interface{}) UserPromptSubmittedHookInput {
+	result := UserPromptSubmittedHookInput{}
+	if ts, ok := input["timestamp"].(float64); ok {
+		result.Timestamp = int64(ts)
+	}
+	if cwd, ok := input["cwd"].(string); ok {
+		result.Cwd = cwd
+	}
+	if prompt, ok := input["prompt"].(string); ok {
+		result.Prompt = prompt
+	}
+	return result
+}
+
+func parseSessionStartInput(input map[string]interface{}) SessionStartHookInput {
+	result := SessionStartHookInput{}
+	if ts, ok := input["timestamp"].(float64); ok {
+		result.Timestamp = int64(ts)
+	}
+	if cwd, ok := input["cwd"].(string); ok {
+		result.Cwd = cwd
+	}
+	if source, ok := input["source"].(string); ok {
+		result.Source = source
+	}
+	if prompt, ok := input["initialPrompt"].(string); ok {
+		result.InitialPrompt = prompt
+	}
+	return result
+}
+
+func parseSessionEndInput(input map[string]interface{}) SessionEndHookInput {
+	result := SessionEndHookInput{}
+	if ts, ok := input["timestamp"].(float64); ok {
+		result.Timestamp = int64(ts)
+	}
+	if cwd, ok := input["cwd"].(string); ok {
+		result.Cwd = cwd
+	}
+	if reason, ok := input["reason"].(string); ok {
+		result.Reason = reason
+	}
+	if msg, ok := input["finalMessage"].(string); ok {
+		result.FinalMessage = msg
+	}
+	if errStr, ok := input["error"].(string); ok {
+		result.Error = errStr
+	}
+	return result
+}
+
+func parseErrorOccurredInput(input map[string]interface{}) ErrorOccurredHookInput {
+	result := ErrorOccurredHookInput{}
+	if ts, ok := input["timestamp"].(float64); ok {
+		result.Timestamp = int64(ts)
+	}
+	if cwd, ok := input["cwd"].(string); ok {
+		result.Cwd = cwd
+	}
+	if errMsg, ok := input["error"].(string); ok {
+		result.Error = errMsg
+	}
+	if ctx, ok := input["errorContext"].(string); ok {
+		result.ErrorContext = ctx
+	}
+	if rec, ok := input["recoverable"].(bool); ok {
+		result.Recoverable = rec
+	}
+	return result
 }
 
 // dispatchEvent dispatches an event to all registered handlers.

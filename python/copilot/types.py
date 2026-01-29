@@ -154,6 +154,201 @@ PermissionHandler = Callable[
 
 
 # ============================================================================
+# User Input Request Types
+# ============================================================================
+
+
+class UserInputRequest(TypedDict, total=False):
+    """Request for user input from the agent (enables ask_user tool)"""
+
+    question: str
+    choices: list[str]
+    allowFreeform: bool
+
+
+class UserInputResponse(TypedDict):
+    """Response to a user input request"""
+
+    answer: str
+    wasFreeform: bool
+
+
+UserInputHandler = Callable[
+    [UserInputRequest, dict[str, str]],
+    Union[UserInputResponse, Awaitable[UserInputResponse]],
+]
+
+
+# ============================================================================
+# Hook Types
+# ============================================================================
+
+
+class BaseHookInput(TypedDict):
+    """Base interface for all hook inputs"""
+
+    timestamp: int
+    cwd: str
+
+
+class PreToolUseHookInput(TypedDict):
+    """Input for pre-tool-use hook"""
+
+    timestamp: int
+    cwd: str
+    toolName: str
+    toolArgs: Any
+
+
+class PreToolUseHookOutput(TypedDict, total=False):
+    """Output for pre-tool-use hook"""
+
+    permissionDecision: Literal["allow", "deny", "ask"]
+    permissionDecisionReason: str
+    modifiedArgs: Any
+    additionalContext: str
+    suppressOutput: bool
+
+
+PreToolUseHandler = Callable[
+    [PreToolUseHookInput, dict[str, str]],
+    Union[PreToolUseHookOutput, None, Awaitable[Union[PreToolUseHookOutput, None]]],
+]
+
+
+class PostToolUseHookInput(TypedDict):
+    """Input for post-tool-use hook"""
+
+    timestamp: int
+    cwd: str
+    toolName: str
+    toolArgs: Any
+    toolResult: Any
+
+
+class PostToolUseHookOutput(TypedDict, total=False):
+    """Output for post-tool-use hook"""
+
+    modifiedResult: Any
+    additionalContext: str
+    suppressOutput: bool
+
+
+PostToolUseHandler = Callable[
+    [PostToolUseHookInput, dict[str, str]],
+    Union[PostToolUseHookOutput, None, Awaitable[Union[PostToolUseHookOutput, None]]],
+]
+
+
+class UserPromptSubmittedHookInput(TypedDict):
+    """Input for user-prompt-submitted hook"""
+
+    timestamp: int
+    cwd: str
+    prompt: str
+
+
+class UserPromptSubmittedHookOutput(TypedDict, total=False):
+    """Output for user-prompt-submitted hook"""
+
+    modifiedPrompt: str
+    additionalContext: str
+    suppressOutput: bool
+
+
+UserPromptSubmittedHandler = Callable[
+    [UserPromptSubmittedHookInput, dict[str, str]],
+    Union[
+        UserPromptSubmittedHookOutput,
+        None,
+        Awaitable[Union[UserPromptSubmittedHookOutput, None]],
+    ],
+]
+
+
+class SessionStartHookInput(TypedDict):
+    """Input for session-start hook"""
+
+    timestamp: int
+    cwd: str
+    source: Literal["startup", "resume", "new"]
+    initialPrompt: NotRequired[str]
+
+
+class SessionStartHookOutput(TypedDict, total=False):
+    """Output for session-start hook"""
+
+    additionalContext: str
+    modifiedConfig: dict[str, Any]
+
+
+SessionStartHandler = Callable[
+    [SessionStartHookInput, dict[str, str]],
+    Union[SessionStartHookOutput, None, Awaitable[Union[SessionStartHookOutput, None]]],
+]
+
+
+class SessionEndHookInput(TypedDict):
+    """Input for session-end hook"""
+
+    timestamp: int
+    cwd: str
+    reason: Literal["complete", "error", "abort", "timeout", "user_exit"]
+    finalMessage: NotRequired[str]
+    error: NotRequired[str]
+
+
+class SessionEndHookOutput(TypedDict, total=False):
+    """Output for session-end hook"""
+
+    suppressOutput: bool
+    cleanupActions: list[str]
+    sessionSummary: str
+
+
+SessionEndHandler = Callable[
+    [SessionEndHookInput, dict[str, str]],
+    Union[SessionEndHookOutput, None, Awaitable[Union[SessionEndHookOutput, None]]],
+]
+
+
+class ErrorOccurredHookInput(TypedDict):
+    """Input for error-occurred hook"""
+
+    timestamp: int
+    cwd: str
+    error: str
+    errorContext: Literal["model_call", "tool_execution", "system", "user_input"]
+    recoverable: bool
+
+
+class ErrorOccurredHookOutput(TypedDict, total=False):
+    """Output for error-occurred hook"""
+
+    suppressOutput: bool
+    errorHandling: Literal["retry", "skip", "abort"]
+    retryCount: int
+    userNotification: str
+
+
+ErrorOccurredHandler = Callable[
+    [ErrorOccurredHookInput, dict[str, str]],
+    Union[ErrorOccurredHookOutput, None, Awaitable[Union[ErrorOccurredHookOutput, None]]],
+]
+
+
+class SessionHooks(TypedDict, total=False):
+    """Configuration for session hooks"""
+
+    on_pre_tool_use: PreToolUseHandler
+    on_post_tool_use: PostToolUseHandler
+    on_user_prompt_submitted: UserPromptSubmittedHandler
+    on_session_start: SessionStartHandler
+    on_session_end: SessionEndHandler
+    on_error_occurred: ErrorOccurredHandler
+
+
+# ============================================================================
 # MCP Server Configuration Types
 # ============================================================================
 
@@ -237,6 +432,12 @@ class SessionConfig(TypedDict, total=False):
     excluded_tools: list[str]
     # Handler for permission requests from the server
     on_permission_request: PermissionHandler
+    # Handler for user input requests from the agent (enables ask_user tool)
+    on_user_input_request: UserInputHandler
+    # Hook handlers for intercepting session lifecycle events
+    hooks: SessionHooks
+    # Working directory for the session. Tool operations will be relative to this directory.
+    working_directory: str
     # Custom provider configuration (BYOK - Bring Your Own Key)
     provider: ProviderConfig
     # Enable streaming of assistant message and reasoning chunks
@@ -289,6 +490,12 @@ class ResumeSessionConfig(TypedDict, total=False):
     tools: list[Tool]
     provider: ProviderConfig
     on_permission_request: PermissionHandler
+    # Handler for user input requests from the agent (enables ask_user tool)
+    on_user_input_request: UserInputHandler
+    # Hook handlers for intercepting session lifecycle events
+    hooks: SessionHooks
+    # Working directory for the session. Tool operations will be relative to this directory.
+    working_directory: str
     # Enable streaming of assistant message chunks
     streaming: bool
     # MCP server configurations for the session
@@ -299,6 +506,9 @@ class ResumeSessionConfig(TypedDict, total=False):
     skill_directories: list[str]
     # List of skill names to disable
     disabled_skills: list[str]
+    # When True, skips emitting the session.resume event.
+    # Useful for reconnecting to a session without triggering resume-related side effects.
+    disable_resume: bool
 
 
 # Options for sending a message to a session

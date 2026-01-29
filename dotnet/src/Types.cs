@@ -126,6 +126,350 @@ public class PermissionInvocation
 
 public delegate Task<PermissionRequestResult> PermissionHandler(PermissionRequest request, PermissionInvocation invocation);
 
+// ============================================================================
+// User Input Handler Types
+// ============================================================================
+
+/// <summary>
+/// Request for user input from the agent.
+/// </summary>
+public class UserInputRequest
+{
+    /// <summary>
+    /// The question to ask the user.
+    /// </summary>
+    [JsonPropertyName("question")]
+    public string Question { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Optional choices for multiple choice questions.
+    /// </summary>
+    [JsonPropertyName("choices")]
+    public List<string>? Choices { get; set; }
+
+    /// <summary>
+    /// Whether freeform text input is allowed.
+    /// </summary>
+    [JsonPropertyName("allowFreeform")]
+    public bool? AllowFreeform { get; set; }
+}
+
+/// <summary>
+/// Response to a user input request.
+/// </summary>
+public class UserInputResponse
+{
+    /// <summary>
+    /// The user's answer.
+    /// </summary>
+    [JsonPropertyName("answer")]
+    public string Answer { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Whether the answer was freeform (not from the provided choices).
+    /// </summary>
+    [JsonPropertyName("wasFreeform")]
+    public bool WasFreeform { get; set; }
+}
+
+/// <summary>
+/// Context for a user input request invocation.
+/// </summary>
+public class UserInputInvocation
+{
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Handler for user input requests from the agent.
+/// </summary>
+public delegate Task<UserInputResponse> UserInputHandler(UserInputRequest request, UserInputInvocation invocation);
+
+// ============================================================================
+// Hook Handler Types
+// ============================================================================
+
+/// <summary>
+/// Context for a hook invocation.
+/// </summary>
+public class HookInvocation
+{
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Input for a pre-tool-use hook.
+/// </summary>
+public class PreToolUseHookInput
+{
+    [JsonPropertyName("timestamp")]
+    public long Timestamp { get; set; }
+
+    [JsonPropertyName("cwd")]
+    public string Cwd { get; set; } = string.Empty;
+
+    [JsonPropertyName("toolName")]
+    public string ToolName { get; set; } = string.Empty;
+
+    [JsonPropertyName("toolArgs")]
+    public object? ToolArgs { get; set; }
+}
+
+/// <summary>
+/// Output for a pre-tool-use hook.
+/// </summary>
+public class PreToolUseHookOutput
+{
+    /// <summary>
+    /// Permission decision: "allow", "deny", or "ask".
+    /// </summary>
+    [JsonPropertyName("permissionDecision")]
+    public string? PermissionDecision { get; set; }
+
+    [JsonPropertyName("permissionDecisionReason")]
+    public string? PermissionDecisionReason { get; set; }
+
+    [JsonPropertyName("modifiedArgs")]
+    public object? ModifiedArgs { get; set; }
+
+    [JsonPropertyName("additionalContext")]
+    public string? AdditionalContext { get; set; }
+
+    [JsonPropertyName("suppressOutput")]
+    public bool? SuppressOutput { get; set; }
+}
+
+public delegate Task<PreToolUseHookOutput?> PreToolUseHandler(PreToolUseHookInput input, HookInvocation invocation);
+
+/// <summary>
+/// Input for a post-tool-use hook.
+/// </summary>
+public class PostToolUseHookInput
+{
+    [JsonPropertyName("timestamp")]
+    public long Timestamp { get; set; }
+
+    [JsonPropertyName("cwd")]
+    public string Cwd { get; set; } = string.Empty;
+
+    [JsonPropertyName("toolName")]
+    public string ToolName { get; set; } = string.Empty;
+
+    [JsonPropertyName("toolArgs")]
+    public object? ToolArgs { get; set; }
+
+    [JsonPropertyName("toolResult")]
+    public object? ToolResult { get; set; }
+}
+
+/// <summary>
+/// Output for a post-tool-use hook.
+/// </summary>
+public class PostToolUseHookOutput
+{
+    [JsonPropertyName("modifiedResult")]
+    public object? ModifiedResult { get; set; }
+
+    [JsonPropertyName("additionalContext")]
+    public string? AdditionalContext { get; set; }
+
+    [JsonPropertyName("suppressOutput")]
+    public bool? SuppressOutput { get; set; }
+}
+
+public delegate Task<PostToolUseHookOutput?> PostToolUseHandler(PostToolUseHookInput input, HookInvocation invocation);
+
+/// <summary>
+/// Input for a user-prompt-submitted hook.
+/// </summary>
+public class UserPromptSubmittedHookInput
+{
+    [JsonPropertyName("timestamp")]
+    public long Timestamp { get; set; }
+
+    [JsonPropertyName("cwd")]
+    public string Cwd { get; set; } = string.Empty;
+
+    [JsonPropertyName("prompt")]
+    public string Prompt { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Output for a user-prompt-submitted hook.
+/// </summary>
+public class UserPromptSubmittedHookOutput
+{
+    [JsonPropertyName("modifiedPrompt")]
+    public string? ModifiedPrompt { get; set; }
+
+    [JsonPropertyName("additionalContext")]
+    public string? AdditionalContext { get; set; }
+
+    [JsonPropertyName("suppressOutput")]
+    public bool? SuppressOutput { get; set; }
+}
+
+public delegate Task<UserPromptSubmittedHookOutput?> UserPromptSubmittedHandler(UserPromptSubmittedHookInput input, HookInvocation invocation);
+
+/// <summary>
+/// Input for a session-start hook.
+/// </summary>
+public class SessionStartHookInput
+{
+    [JsonPropertyName("timestamp")]
+    public long Timestamp { get; set; }
+
+    [JsonPropertyName("cwd")]
+    public string Cwd { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Source of the session start: "startup", "resume", or "new".
+    /// </summary>
+    [JsonPropertyName("source")]
+    public string Source { get; set; } = string.Empty;
+
+    [JsonPropertyName("initialPrompt")]
+    public string? InitialPrompt { get; set; }
+}
+
+/// <summary>
+/// Output for a session-start hook.
+/// </summary>
+public class SessionStartHookOutput
+{
+    [JsonPropertyName("additionalContext")]
+    public string? AdditionalContext { get; set; }
+
+    [JsonPropertyName("modifiedConfig")]
+    public Dictionary<string, object>? ModifiedConfig { get; set; }
+}
+
+public delegate Task<SessionStartHookOutput?> SessionStartHandler(SessionStartHookInput input, HookInvocation invocation);
+
+/// <summary>
+/// Input for a session-end hook.
+/// </summary>
+public class SessionEndHookInput
+{
+    [JsonPropertyName("timestamp")]
+    public long Timestamp { get; set; }
+
+    [JsonPropertyName("cwd")]
+    public string Cwd { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Reason for session end: "complete", "error", "abort", "timeout", or "user_exit".
+    /// </summary>
+    [JsonPropertyName("reason")]
+    public string Reason { get; set; } = string.Empty;
+
+    [JsonPropertyName("finalMessage")]
+    public string? FinalMessage { get; set; }
+
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+}
+
+/// <summary>
+/// Output for a session-end hook.
+/// </summary>
+public class SessionEndHookOutput
+{
+    [JsonPropertyName("suppressOutput")]
+    public bool? SuppressOutput { get; set; }
+
+    [JsonPropertyName("cleanupActions")]
+    public List<string>? CleanupActions { get; set; }
+
+    [JsonPropertyName("sessionSummary")]
+    public string? SessionSummary { get; set; }
+}
+
+public delegate Task<SessionEndHookOutput?> SessionEndHandler(SessionEndHookInput input, HookInvocation invocation);
+
+/// <summary>
+/// Input for an error-occurred hook.
+/// </summary>
+public class ErrorOccurredHookInput
+{
+    [JsonPropertyName("timestamp")]
+    public long Timestamp { get; set; }
+
+    [JsonPropertyName("cwd")]
+    public string Cwd { get; set; } = string.Empty;
+
+    [JsonPropertyName("error")]
+    public string Error { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Context of the error: "model_call", "tool_execution", "system", or "user_input".
+    /// </summary>
+    [JsonPropertyName("errorContext")]
+    public string ErrorContext { get; set; } = string.Empty;
+
+    [JsonPropertyName("recoverable")]
+    public bool Recoverable { get; set; }
+}
+
+/// <summary>
+/// Output for an error-occurred hook.
+/// </summary>
+public class ErrorOccurredHookOutput
+{
+    [JsonPropertyName("suppressOutput")]
+    public bool? SuppressOutput { get; set; }
+
+    /// <summary>
+    /// Error handling strategy: "retry", "skip", or "abort".
+    /// </summary>
+    [JsonPropertyName("errorHandling")]
+    public string? ErrorHandling { get; set; }
+
+    [JsonPropertyName("retryCount")]
+    public int? RetryCount { get; set; }
+
+    [JsonPropertyName("userNotification")]
+    public string? UserNotification { get; set; }
+}
+
+public delegate Task<ErrorOccurredHookOutput?> ErrorOccurredHandler(ErrorOccurredHookInput input, HookInvocation invocation);
+
+/// <summary>
+/// Hook handlers configuration for a session.
+/// </summary>
+public class SessionHooks
+{
+    /// <summary>
+    /// Handler called before a tool is executed.
+    /// </summary>
+    public PreToolUseHandler? OnPreToolUse { get; set; }
+
+    /// <summary>
+    /// Handler called after a tool has been executed.
+    /// </summary>
+    public PostToolUseHandler? OnPostToolUse { get; set; }
+
+    /// <summary>
+    /// Handler called when the user submits a prompt.
+    /// </summary>
+    public UserPromptSubmittedHandler? OnUserPromptSubmitted { get; set; }
+
+    /// <summary>
+    /// Handler called when a session starts.
+    /// </summary>
+    public SessionStartHandler? OnSessionStart { get; set; }
+
+    /// <summary>
+    /// Handler called when a session ends.
+    /// </summary>
+    public SessionEndHandler? OnSessionEnd { get; set; }
+
+    /// <summary>
+    /// Handler called when an error occurs.
+    /// </summary>
+    public ErrorOccurredHandler? OnErrorOccurred { get; set; }
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<SystemMessageMode>))]
 public enum SystemMessageMode
 {
@@ -367,6 +711,22 @@ public class SessionConfig
     public PermissionHandler? OnPermissionRequest { get; set; }
 
     /// <summary>
+    /// Handler for user input requests from the agent.
+    /// When provided, enables the ask_user tool for the agent to request user input.
+    /// </summary>
+    public UserInputHandler? OnUserInputRequest { get; set; }
+
+    /// <summary>
+    /// Hook handlers for session lifecycle events.
+    /// </summary>
+    public SessionHooks? Hooks { get; set; }
+
+    /// <summary>
+    /// Working directory for the session.
+    /// </summary>
+    public string? WorkingDirectory { get; set; }
+
+    /// <summary>
     /// Enable streaming of assistant message and reasoning chunks.
     /// When true, assistant.message_delta and assistant.reasoning_delta events
     /// with deltaContent are sent as the response is generated.
@@ -411,6 +771,28 @@ public class ResumeSessionConfig
     /// When provided, the server will call this handler to request permission for operations.
     /// </summary>
     public PermissionHandler? OnPermissionRequest { get; set; }
+
+    /// <summary>
+    /// Handler for user input requests from the agent.
+    /// When provided, enables the ask_user tool for the agent to request user input.
+    /// </summary>
+    public UserInputHandler? OnUserInputRequest { get; set; }
+
+    /// <summary>
+    /// Hook handlers for session lifecycle events.
+    /// </summary>
+    public SessionHooks? Hooks { get; set; }
+
+    /// <summary>
+    /// Working directory for the session.
+    /// </summary>
+    public string? WorkingDirectory { get; set; }
+
+    /// <summary>
+    /// When true, the session.resume event is not emitted.
+    /// Default: false (resume event is emitted).
+    /// </summary>
+    public bool DisableResume { get; set; }
 
     /// <summary>
     /// Enable streaming of assistant message and reasoning chunks.
