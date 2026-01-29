@@ -17,8 +17,8 @@ class TestClient:
             assert client.get_state() == "connected"
 
             pong = await client.ping("test message")
-            assert pong["message"] == "pong: test message"
-            assert pong["timestamp"] >= 0
+            assert pong.message == "pong: test message"
+            assert pong.timestamp >= 0
 
             errors = await client.stop()
             assert len(errors) == 0
@@ -35,8 +35,8 @@ class TestClient:
             assert client.get_state() == "connected"
 
             pong = await client.ping("test message")
-            assert pong["message"] == "pong: test message"
-            assert pong["timestamp"] >= 0
+            assert pong.message == "pong: test message"
+            assert pong.timestamp >= 0
 
             errors = await client.stop()
             assert len(errors) == 0
@@ -61,7 +61,7 @@ class TestClient:
 
             errors = await client.stop()
             assert len(errors) > 0
-            assert "Failed to destroy session" in errors[0]["message"]
+            assert "Failed to destroy session" in errors[0].message
         finally:
             await client.force_stop()
 
@@ -81,11 +81,11 @@ class TestClient:
             await client.start()
 
             status = await client.get_status()
-            assert "version" in status
-            assert isinstance(status["version"], str)
-            assert "protocolVersion" in status
-            assert isinstance(status["protocolVersion"], int)
-            assert status["protocolVersion"] >= 1
+            assert hasattr(status, "version")
+            assert isinstance(status.version, str)
+            assert hasattr(status, "protocolVersion")
+            assert isinstance(status.protocolVersion, int)
+            assert status.protocolVersion >= 1
 
             await client.stop()
         finally:
@@ -99,11 +99,11 @@ class TestClient:
             await client.start()
 
             auth_status = await client.get_auth_status()
-            assert "isAuthenticated" in auth_status
-            assert isinstance(auth_status["isAuthenticated"], bool)
-            if auth_status["isAuthenticated"]:
-                assert "authType" in auth_status
-                assert "statusMessage" in auth_status
+            assert hasattr(auth_status, "isAuthenticated")
+            assert isinstance(auth_status.isAuthenticated, bool)
+            if auth_status.isAuthenticated:
+                assert hasattr(auth_status, "authType")
+                assert hasattr(auth_status, "statusMessage")
 
             await client.stop()
         finally:
@@ -117,7 +117,7 @@ class TestClient:
             await client.start()
 
             auth_status = await client.get_auth_status()
-            if not auth_status["isAuthenticated"]:
+            if not auth_status.isAuthenticated:
                 # Skip if not authenticated - models.list requires auth
                 await client.stop()
                 return
@@ -126,11 +126,11 @@ class TestClient:
             assert isinstance(models, list)
             if len(models) > 0:
                 model = models[0]
-                assert "id" in model
-                assert "name" in model
-                assert "capabilities" in model
-                assert "supports" in model["capabilities"]
-                assert "limits" in model["capabilities"]
+                assert hasattr(model, "id")
+                assert hasattr(model, "name")
+                assert hasattr(model, "capabilities")
+                assert hasattr(model.capabilities, "supports")
+                assert hasattr(model.capabilities, "limits")
 
             await client.stop()
         finally:

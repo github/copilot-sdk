@@ -392,7 +392,6 @@ session, err := client.CreateSession(&copilot.SessionConfig{
     },
 })
 ```
-
 > **Important notes:**
 > - When using a custom provider, the `Model` parameter is **required**. The SDK will return an error if no model is specified.
 > - For Azure OpenAI endpoints (`*.openai.azure.com`), you **must** use `Type: "azure"`, not `Type: "openai"`.

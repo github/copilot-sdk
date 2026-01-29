@@ -1,9 +1,13 @@
 name: "Copilot Setup Steps"
 
-# This workflow configures the environment for GitHub Copilot Agent with gh-aw MCP server
+# This workflow configures the environment for GitHub Copilot Agent
+# Automatically run the setup steps when they are changed to allow for easy validation
 on:
   workflow_dispatch:
   push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
     paths:
       - .github/workflows/copilot-setup-steps.yml
 
@@ -18,8 +22,89 @@ jobs:
       contents: read
 
     steps:
+      # Checkout the repository to install dependencies
+      - name: Checkout code
+        uses: actions/checkout@v6.0.2
+
+      # Setup Node.js (for TypeScript/JavaScript SDK and tooling)
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: |
+            ./nodejs/package-lock.json
+            ./test/harness/package-lock.json
+
+      # Setup Python (for Python SDK)
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # Setup uv (Python package manager used in this repo)
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      # Setup Go (for Go SDK)
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.23"
+
+      # Setup .NET (for .NET SDK)
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "8.0.x"
+
+      # Install just command runner
+      - name: Install just
+        uses: extractions/setup-just@v3
+
+      # Install gh-aw extension for advanced GitHub CLI features
       - name: Install gh-aw extension
         run: |
           curl -fsSL https://raw.githubusercontent.com/githubnext/gh-aw/refs/heads/main/install-gh-aw.sh | bash
-      - name: Verify gh-aw installation
-        run: gh aw version
+
+      # Install JavaScript dependencies
+      - name: Install Node.js dependencies
+        working-directory: ./nodejs
+        run: npm ci --ignore-scripts
+
+      # Install Python dependencies
+      - name: Install Python dependencies
+        working-directory: ./python
+        run: uv sync --locked --all-extras --dev
+
+      # Install Go dependencies
+      - name: Install Go dependencies
+        working-directory: ./go
+        run: go mod download
+
+      # Restore .NET dependencies
+      - name: Restore .NET dependencies
+        working-directory: ./dotnet
+        run: dotnet restore
+
+      # Install test harness dependencies
+      - name: Install test harness dependencies
+        working-directory: ./test/harness
+        run: npm ci --ignore-scripts
+
+      # Verify installations
+      - name: Verify tool installations
+        run: |
+          echo "=== Verifying installations ==="
+          node --version
+          npm --version
+          python --version
+          uv --version
+          go version
+          dotnet --version
+          just --version
+          gh --version
+          gh aw version
+          echo "✅ All tools installed successfully"
