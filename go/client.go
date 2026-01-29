@@ -1180,6 +1180,35 @@ func (c *Client) handleToolCallRequest(params map[string]interface{}) (map[strin
 		return map[string]interface{}{"result": buildUnsupportedToolResult(toolName)}, nil
 	}
 
+	// Check if tool requires approval
+	if session.toolRequiresApprovalCheck(toolName) {
+		permissionRequest := map[string]interface{}{
+			"kind":       "tool",
+			"toolCallId": toolCallID,
+			"toolName":   toolName,
+		}
+
+		permissionResult, err := session.handlePermissionRequest(permissionRequest)
+		if err != nil || permissionResult.Kind != "approved" {
+			deniedReason := "denied"
+			if err == nil {
+				deniedReason = permissionResult.Kind
+			}
+			return map[string]interface{}{
+				"result": ToolResult{
+					TextResultForLLM: func() string {
+						if deniedReason == "denied-interactively-by-user" {
+							return "Tool execution was denied by user."
+						}
+						return "Tool execution was denied."
+					}(),
+					ResultType:    "denied",
+					ToolTelemetry: map[string]interface{}{},
+				},
+			}, nil
+		}
+	}
+
 	arguments := params["arguments"]
 	result := c.executeToolCall(sessionID, toolCallID, toolName, arguments, handler)
 

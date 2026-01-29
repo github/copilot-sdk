@@ -83,6 +83,33 @@ public class ToolInvocation
 
 public delegate Task<object?> ToolHandler(ToolInvocation invocation);
 
+/// <summary>
+/// Wraps an AIFunction with additional metadata for the Copilot SDK.
+/// </summary>
+public class CopilotTool
+{
+    /// <summary>
+    /// The underlying AIFunction that handles tool execution.
+    /// </summary>
+    public AIFunction Function { get; set; } = null!;
+
+    /// <summary>
+    /// Controls whether the tool requires user approval before execution.
+    /// When true, the OnPermissionRequest handler will be called before invoking the tool.
+    /// When false or not specified, the tool executes without requesting permission.
+    /// </summary>
+    public bool RequiresApproval { get; set; }
+
+    /// <summary>
+    /// Creates a CopilotTool from an AIFunction with optional requiresApproval flag.
+    /// </summary>
+    /// <param name="function">The AIFunction to wrap.</param>
+    /// <param name="requiresApproval">Whether the tool requires approval before execution.</param>
+    /// <returns>A CopilotTool wrapping the provided function.</returns>
+    public static implicit operator CopilotTool(AIFunction function) =>
+        new() { Function = function, RequiresApproval = false };
+}
+
 public class PermissionRequest
 {
     [JsonPropertyName("kind")]
@@ -339,7 +366,12 @@ public class SessionConfig
     /// </summary>
     public string? ConfigDir { get; set; }
 
-    public ICollection<AIFunction>? Tools { get; set; }
+    /// <summary>
+    /// Tools that can be invoked by the assistant.
+    /// Can be either AIFunction instances or CopilotTool instances.
+    /// Use CopilotTool to specify RequiresApproval for permission handling.
+    /// </summary>
+    public ICollection<object>? Tools { get; set; }
     public SystemMessageConfig? SystemMessage { get; set; }
     public List<string>? AvailableTools { get; set; }
     public List<string>? ExcludedTools { get; set; }
@@ -388,7 +420,12 @@ public class SessionConfig
 
 public class ResumeSessionConfig
 {
-    public ICollection<AIFunction>? Tools { get; set; }
+    /// <summary>
+    /// Tools that can be invoked by the assistant.
+    /// Can be either AIFunction instances or CopilotTool instances.
+    /// Use CopilotTool to specify RequiresApproval for permission handling.
+    /// </summary>
+    public ICollection<object>? Tools { get; set; }
     public ProviderConfig? Provider { get; set; }
 
     /// <summary>

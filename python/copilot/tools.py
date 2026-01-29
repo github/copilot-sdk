@@ -43,6 +43,7 @@ def define_tool(
     description: str | None = None,
     handler: Callable[[Any, ToolInvocation], Any] | None = None,
     params_type: type[BaseModel] | None = None,
+    requires_approval: bool = False,
 ) -> Tool | Callable[[Callable[[Any, ToolInvocation], Any]], Tool]:
     """
     Define a tool with automatic JSON schema generation from Pydantic models.
@@ -56,7 +57,7 @@ def define_tool(
         class LookupIssueParams(BaseModel):
             id: str = Field(description="Issue identifier")
 
-        @define_tool(description="Fetch issue details")
+        @define_tool(description="Fetch issue details", requires_approval=True)
         def lookup_issue(params: LookupIssueParams) -> str:
             return fetch_issue(params.id).summary
 
@@ -66,7 +67,8 @@ def define_tool(
             "lookup_issue",
             description="Fetch issue details",
             handler=lambda params, inv: fetch_issue(params.id).summary,
-            params_type=LookupIssueParams
+            params_type=LookupIssueParams,
+            requires_approval=True
         )
 
     Args:
@@ -75,6 +77,9 @@ def define_tool(
         handler: Optional handler function (if not using as decorator)
         params_type: Optional Pydantic model type for parameters (inferred from
                     type hints when using as decorator)
+        requires_approval: Whether the tool requires user approval before execution.
+                          When True, the on_permission_request handler will be called
+                          before invoking the tool. Defaults to False.
 
     Returns:
         A Tool instance
@@ -149,6 +154,7 @@ def define_tool(
             description=description or "",
             parameters=schema,
             handler=wrapped_handler,
+            requires_approval=requires_approval,
         )
 
     # If handler is provided, call decorator immediately

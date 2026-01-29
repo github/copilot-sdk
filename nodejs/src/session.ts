@@ -50,6 +50,7 @@ export type AssistantMessageEvent = Extract<SessionEvent, { type: "assistant.mes
 export class CopilotSession {
     private eventHandlers: Set<SessionEventHandler> = new Set();
     private toolHandlers: Map<string, ToolHandler> = new Map();
+    private toolRequiresApproval: Map<string, boolean> = new Map();
     private permissionHandler?: PermissionHandler;
 
     /**
@@ -238,12 +239,14 @@ export class CopilotSession {
      */
     registerTools(tools?: Tool[]): void {
         this.toolHandlers.clear();
+        this.toolRequiresApproval.clear();
         if (!tools) {
             return;
         }
 
         for (const tool of tools) {
             this.toolHandlers.set(tool.name, tool.handler);
+            this.toolRequiresApproval.set(tool.name, tool.requiresApproval ?? false);
         }
     }
 
@@ -256,6 +259,17 @@ export class CopilotSession {
      */
     getToolHandler(name: string): ToolHandler | undefined {
         return this.toolHandlers.get(name);
+    }
+
+    /**
+     * Checks if a tool requires approval before execution.
+     *
+     * @param name - The name of the tool to check
+     * @returns True if the tool requires approval, false otherwise
+     * @internal This method is for internal use by the SDK.
+     */
+    toolRequiresApprovalCheck(name: string): boolean {
+        return this.toolRequiresApproval.get(name) ?? false;
     }
 
     /**

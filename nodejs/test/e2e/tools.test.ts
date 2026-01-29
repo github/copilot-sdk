@@ -122,4 +122,100 @@ describe("Custom tools", async () => {
         expect(responseContent.replace(/,/g, "")).toContain("135460");
         expect(responseContent.replace(/,/g, "")).toContain("204356");
     });
+
+    it("requests permission for tools with requiresApproval=true", async () => {
+        let permissionRequested = false;
+        let permissionToolName: string | undefined;
+
+        const session = await client.createSession({
+            tools: [
+                defineTool("get_weather", {
+                    description: "Get the current weather for a city",
+                    parameters: z.object({
+                        city: z.string().describe("The city name"),
+                    }),
+                    handler: ({ city }) => ({
+                        city,
+                        temperature: "72°F",
+                        condition: "sunny",
+                    }),
+                    requiresApproval: true,
+                }),
+            ],
+            onPermissionRequest: (request) => {
+                if (request.kind === "tool") {
+                    permissionRequested = true;
+                    permissionToolName = request.toolName;
+                }
+                return { kind: "approved" };
+            },
+        });
+
+        const assistantMessage = await session.sendAndWait({
+            prompt: "What's the weather in Seattle?",
+        });
+
+        expect(permissionRequested).toBe(true);
+        expect(permissionToolName).toBe("get_weather");
+        expect(assistantMessage?.data.content).toContain("72");
+    });
+
+    it("denies tool execution when permission is denied", async () => {
+        const session = await client.createSession({
+            tools: [
+                defineTool("delete_file", {
+                    description: "Deletes a file",
+                    parameters: z.object({
+                        path: z.string().describe("File path"),
+                    }),
+                    handler: ({ path }) => `Deleted ${path}`,
+                    requiresApproval: true,
+                }),
+            ],
+            onPermissionRequest: (request) => {
+                if (request.kind === "tool") {
+                    return { kind: "denied-interactively-by-user" };
+                }
+                return { kind: "approved" };
+            },
+        });
+
+        const assistantMessage = await session.sendAndWait({
+            prompt: "Delete the file test.txt",
+        });
+
+        // The assistant should receive a denial and inform the user
+        expect(assistantMessage?.data.content?.toLowerCase()).toMatch(/denied|cannot|unable/);
+    });
+
+    it("executes tools without permission when requiresApproval=false", async () => {
+        let permissionRequested = false;
+
+        const session = await client.createSession({
+            tools: [
+                defineTool("add_numbers", {
+                    description: "Adds two numbers",
+                    parameters: z.object({
+                        a: z.number(),
+                        b: z.number(),
+                    }),
+                    handler: ({ a, b }) => a + b,
+                    requiresApproval: false, // Explicitly set to false
+                }),
+            ],
+            onPermissionRequest: (request) => {
+                if (request.kind === "tool") {
+                    permissionRequested = true;
+                }
+                return { kind: "approved" };
+            },
+        });
+
+        const assistantMessage = await session.sendAndWait({
+            prompt: "What is 5 + 3?",
+        });
+
+        expect(permissionRequested).toBe(false);
+        expect(assistantMessage?.data.content).toContain("8");
+    });
 });

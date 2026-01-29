@@ -78,6 +78,7 @@ type SystemMessageConfig struct {
 type PermissionRequest struct {
 	Kind       string                 `json:"kind"`
 	ToolCallID string                 `json:"toolCallId,omitempty"`
+	ToolName   string                 `json:"toolName,omitempty"`
 	Extra      map[string]interface{} `json:"-"` // Additional fields vary by kind
 }
 
@@ -198,6 +199,10 @@ type Tool struct {
 	Description string // optional
 	Parameters  map[string]interface{}
 	Handler     ToolHandler
+	// RequiresApproval controls whether the tool requires user approval before execution.
+	// When true, the OnPermissionRequest handler will be called before invoking the tool.
+	// When false (default), the tool executes without requesting permission.
+	RequiresApproval bool
 }
 
 // ToolInvocation describes a tool call initiated by Copilot

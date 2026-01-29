@@ -124,3 +124,92 @@ class TestTools:
         assert "San Lorenzo" in response_content
         assert "135460" in response_content.replace(",", "")
         assert "204356" in response_content.replace(",", "")
+
+    async def test_requests_permission_for_tools_with_requires_approval(self, ctx: E2ETestContext):
+        permission_requested = False
+        permission_tool_name = None
+
+        def on_permission_request(
+            request: dict, invocation: dict
+        ) -> dict:
+            nonlocal permission_requested, permission_tool_name
+            if request.get("kind") == "tool":
+                permission_requested = True
+                permission_tool_name = request.get("toolName")
+            return {"kind": "approved"}
+
+        class WeatherParams(BaseModel):
+            city: str = Field(description="The city name")
+
+        @define_tool("get_weather", description="Get the current weather for a city", requires_approval=True)
+        def get_weather(params: WeatherParams, invocation: ToolInvocation) -> dict:
+            return {
+                "city": params.city,
+                "temperature": "72°F",
+                "condition": "sunny"
+            }
+
+        session = await ctx.client.create_session({
+            "tools": [get_weather],
+            "on_permission_request": on_permission_request
+        })
+
+        await session.send({"prompt": "What's the weather in Seattle?"})
+        assistant_message = await get_final_assistant_message(session)
+
+        assert permission_requested
+        assert permission_tool_name == "get_weather"
+        assert "72" in (assistant_message.data.content or "")
+
+    async def test_denies_tool_execution_when_permission_denied(self, ctx: E2ETestContext):
+        def on_permission_request(request: dict, invocation: dict) -> dict:
+            if request.get("kind") == "tool":
+                return {"kind": "denied-interactively-by-user"}
+            return {"kind": "approved"}
+
+        class DeleteParams(BaseModel):
+            path: str = Field(description="File path")
+
+        @define_tool("delete_file", description="Deletes a file", requires_approval=True)
+        def delete_file(params: DeleteParams, invocation: ToolInvocation) -> str:
+            return f"Deleted {params.path}"
+
+        session = await ctx.client.create_session({
+            "tools": [delete_file],
+            "on_permission_request": on_permission_request
+        })
+
+        await session.send({"prompt": "Delete the file test.txt"})
+        assistant_message = await get_final_assistant_message(session)
+
+        # The assistant should receive a denial and inform the user
+        content_lower = (assistant_message.data.content or "").lower()
+        assert any(word in content_lower for word in ["denied", "cannot", "unable"])
+
+    async def test_executes_tools_without_permission_when_requires_approval_false(self, ctx: E2ETestContext):
+        permission_requested = False
+
+        def on_permission_request(request: dict, invocation: dict) -> dict:
+            nonlocal permission_requested
+            if request.get("kind") == "tool":
+                permission_requested = True
+            return {"kind": "approved"}
+
+        class AddParams(BaseModel):
+            a: int
+            b: int
+
+        @define_tool("add_numbers", description="Adds two numbers", requires_approval=False)
+        def add_numbers(params: AddParams, invocation: ToolInvocation) -> int:
+            return params.a + params.b
+
+        session = await ctx.client.create_session({
+            "tools": [add_numbers],
+            "on_permission_request": on_permission_request
+        })
+
+        await session.send({"prompt": "What is 5 + 3?"})
+        assistant_message = await get_final_assistant_message(session)
+
+        assert not permission_requested
+        assert "8" in (assistant_message.data.content or "")

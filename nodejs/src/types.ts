@@ -131,6 +131,13 @@ export interface Tool<TArgs = unknown> {
     description?: string;
     parameters?: ZodSchema<TArgs> | Record<string, unknown>;
     handler: ToolHandler<TArgs>;
+    /**
+     * Controls whether the tool requires user approval before execution.
+     * When true, the onPermissionRequest handler will be called before invoking the tool.
+     * When false or undefined, the tool executes without requesting permission.
+     * @default false
+     */
+    requiresApproval?: boolean;
 }
 
 /**
@@ -143,6 +150,13 @@ export function defineTool<T = unknown>(
         description?: string;
         parameters?: ZodSchema<T> | Record<string, unknown>;
         handler: ToolHandler<T>;
+        /**
+         * Controls whether the tool requires user approval before execution.
+         * When true, the onPermissionRequest handler will be called before invoking the tool.
+         * When false or undefined, the tool executes without requesting permission.
+         * @default false
+         */
+        requiresApproval?: boolean;
     }
 ): Tool<T> {
     return { name, ...config };
@@ -196,8 +210,9 @@ export type SystemMessageConfig = SystemMessageAppendConfig | SystemMessageRepla
  * Permission request types from the server
  */
 export interface PermissionRequest {
-    kind: "shell" | "write" | "mcp" | "read" | "url";
+    kind: "shell" | "write" | "mcp" | "read" | "url" | "tool";
     toolCallId?: string;
+    toolName?: string;
     [key: string]: unknown;
 }
 

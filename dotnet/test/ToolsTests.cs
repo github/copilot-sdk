@@ -174,4 +174,127 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
             SessionLog = "Returned an image",
         });
     }
+
+    [Fact]
+    public async Task Requests_Permission_For_Tools_With_RequiresApproval()
+    {
+        var permissionRequested = false;
+        string? permissionToolName = null;
+
+        var getWeather = new CopilotTool
+        {
+            Function = AIFunctionFactory.Create(
+                ([Description("The city name")] string city) =>
+                {
+                    return new { city, temperature = "72°F", condition = "sunny" };
+                },
+                "get_weather",
+                "Get the current weather for a city"),
+            RequiresApproval = true
+        };
+
+        var session = await Client.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [getWeather],
+            OnPermissionRequest = (request, invocation) =>
+            {
+                if (request.Kind == "tool")
+                {
+                    permissionRequested = true;
+                    permissionToolName = request.ExtensionData?.GetValueOrDefault("toolName")?.ToString();
+                }
+                return Task.FromResult(new PermissionRequestResult { Kind = "approved" });
+            }
+        });
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "What's the weather in Seattle?"
+        });
+
+        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+
+        Assert.True(permissionRequested, "Permission should have been requested");
+        Assert.Equal("get_weather", permissionToolName);
+        Assert.Contains("72", assistantMessage?.Data.Content ?? string.Empty);
+    }
+
+    [Fact]
+    public async Task Denies_Tool_Execution_When_Permission_Denied()
+    {
+        var deleteFile = new CopilotTool
+        {
+            Function = AIFunctionFactory.Create(
+                ([Description("File path")] string path) => $"Deleted {path}",
+                "delete_file",
+                "Deletes a file"),
+            RequiresApproval = true
+        };
+
+        var session = await Client.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [deleteFile],
+            OnPermissionRequest = (request, invocation) =>
+            {
+                if (request.Kind == "tool")
+                {
+                    return Task.FromResult(new PermissionRequestResult
+                    {
+                        Kind = "denied-interactively-by-user"
+                    });
+                }
+                return Task.FromResult(new PermissionRequestResult { Kind = "approved" });
+            }
+        });
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Delete the file test.txt"
+        });
+
+        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        var content = assistantMessage?.Data.Content?.ToLowerInvariant() ?? string.Empty;
+
+        Assert.True(
+            content.Contains("denied") || content.Contains("cannot") || content.Contains("unable"),
+            "Assistant should indicate the tool was denied");
+    }
+
+    [Fact]
+    public async Task Executes_Tools_Without_Permission_When_RequiresApproval_False()
+    {
+        var permissionRequested = false;
+
+        var addNumbers = new CopilotTool
+        {
+            Function = AIFunctionFactory.Create(
+                (int a, int b) => a + b,
+                "add_numbers",
+                "Adds two numbers"),
+            RequiresApproval = false
+        };
+
+        var session = await Client.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [addNumbers],
+            OnPermissionRequest = (request, invocation) =>
+            {
+                if (request.Kind == "tool")
+                {
+                    permissionRequested = true;
+                }
+                return Task.FromResult(new PermissionRequestResult { Kind = "approved" });
+            }
+        });
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "What is 5 + 3?"
+        });
+
+        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+
+        Assert.False(permissionRequested, "Permission should not have been requested");
+        Assert.Contains("8", assistantMessage?.Data.Content ?? string.Empty);
+    }
 }

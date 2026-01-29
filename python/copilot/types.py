@@ -88,6 +88,12 @@ class Tool:
     description: str
     handler: ToolHandler
     parameters: dict[str, Any] | None = None
+    requires_approval: bool = False
+    """
+    Controls whether the tool requires user approval before execution.
+    When True, the on_permission_request handler will be called before invoking the tool.
+    When False (default), the tool executes without requesting permission.
+    """
 
 
 # System message configuration (discriminated union)
@@ -121,8 +127,9 @@ SystemMessageConfig = Union[SystemMessageAppendConfig, SystemMessageReplaceConfi
 class PermissionRequest(TypedDict, total=False):
     """Permission request from the server"""
 
-    kind: Literal["shell", "write", "mcp", "read", "url"]
+    kind: Literal["shell", "write", "mcp", "read", "url", "tool"]
     toolCallId: str
+    toolName: str
     # Additional fields vary by kind
 
 

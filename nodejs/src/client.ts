@@ -985,6 +985,36 @@ export class CopilotClient {
             return { result: this.buildUnsupportedToolResult(params.toolName) };
         }
 
+        // Check if tool requires approval
+        if (session.toolRequiresApprovalCheck(params.toolName)) {
+            try {
+                const permissionResult = await session._handlePermissionRequest({
+                    kind: "tool",
+                    toolCallId: params.toolCallId,
+                    toolName: params.toolName,
+                });
+
+                if (permissionResult.kind !== "approved") {
+                    return {
+                        result: {
+                            textResultForLlm: `Tool execution was ${permissionResult.kind === "denied-interactively-by-user" ? "denied by user" : "denied"}.`,
+                            resultType: "denied",
+                            toolTelemetry: {},
+                        },
+                    };
+                }
+            } catch (error) {
+                // If permission handler fails or is not configured, deny the tool execution
+                return {
+                    result: {
+                        textResultForLlm: "Tool execution requires permission but no permission handler is configured.",
+                        resultType: "denied",
+                        toolTelemetry: {},
+                    },
+                };
+            }
+        }
+
         return await this.executeToolCall(handler, params);
     }
 

@@ -46,16 +46,17 @@ type sessionHandler struct {
 //	})
 type Session struct {
 	// SessionID is the unique identifier for this session.
-	SessionID         string
-	workspacePath     string
-	client            *JSONRPCClient
-	handlers          []sessionHandler
-	nextHandlerID     uint64
-	handlerMutex      sync.RWMutex
-	toolHandlers      map[string]ToolHandler
-	toolHandlersM     sync.RWMutex
-	permissionHandler PermissionHandler
-	permissionMux     sync.RWMutex
+	SessionID           string
+	workspacePath       string
+	client              *JSONRPCClient
+	handlers            []sessionHandler
+	nextHandlerID       uint64
+	handlerMutex        sync.RWMutex
+	toolHandlers        map[string]ToolHandler
+	toolRequiresApproval map[string]bool
+	toolHandlersM       sync.RWMutex
+	permissionHandler   PermissionHandler
+	permissionMux       sync.RWMutex
 }
 
 // WorkspacePath returns the path to the session workspace directory when infinite
@@ -71,11 +72,12 @@ func (s *Session) WorkspacePath() string {
 // to create sessions with proper initialization.
 func NewSession(sessionID string, client *JSONRPCClient, workspacePath string) *Session {
 	return &Session{
-		SessionID:     sessionID,
-		workspacePath: workspacePath,
-		client:        client,
-		handlers:      make([]sessionHandler, 0),
-		toolHandlers:  make(map[string]ToolHandler),
+		SessionID:            sessionID,
+		workspacePath:        workspacePath,
+		client:               client,
+		handlers:             make([]sessionHandler, 0),
+		toolHandlers:         make(map[string]ToolHandler),
+		toolRequiresApproval: make(map[string]bool),
 	}
 }
 
@@ -262,11 +264,13 @@ func (s *Session) registerTools(tools []Tool) {
 	defer s.toolHandlersM.Unlock()
 
 	s.toolHandlers = make(map[string]ToolHandler)
+	s.toolRequiresApproval = make(map[string]bool)
 	for _, tool := range tools {
 		if tool.Name == "" || tool.Handler == nil {
 			continue
 		}
 		s.toolHandlers[tool.Name] = tool.Handler
+		s.toolRequiresApproval[tool.Name] = tool.RequiresApproval
 	}
 }
 
@@ -277,6 +281,15 @@ func (s *Session) getToolHandler(name string) (ToolHandler, bool) {
 	handler, ok := s.toolHandlers[name]
 	s.toolHandlersM.RUnlock()
 	return handler, ok
+}
+
+// toolRequiresApprovalCheck checks if a tool requires approval before execution.
+// Returns true if the tool requires approval, false otherwise.
+func (s *Session) toolRequiresApprovalCheck(name string) bool {
+	s.toolHandlersM.RLock()
+	defer s.toolHandlersM.RUnlock()
+	requiresApproval, ok := s.toolRequiresApproval[name]
+	return ok && requiresApproval
 }
 
 // registerPermissionHandler registers a permission handler for this session.

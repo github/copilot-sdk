@@ -1054,6 +1054,38 @@ class CopilotClient:
         if not handler:
             return {"result": self._build_unsupported_tool_result(tool_name)}
 
+        # Check if tool requires approval
+        if session._check_tool_requires_approval(tool_name):
+            try:
+                permission_result = await session._handle_permission_request(
+                    {
+                        "kind": "tool",
+                        "toolCallId": tool_call_id,
+                        "toolName": tool_name,
+                    }
+                )
+
+                if permission_result.get("kind") != "approved":
+                    denied_reason = permission_result.get("kind", "denied")
+                    return {
+                        "result": {
+                            "textResultForLlm": "Tool execution was denied by user."
+                            if denied_reason == "denied-interactively-by-user"
+                            else "Tool execution was denied.",
+                            "resultType": "denied",
+                            "toolTelemetry": {},
+                        }
+                    }
+            except Exception:  # pylint: disable=broad-except
+                # If permission handler fails or is not configured, deny the tool execution
+                return {
+                    "result": {
+                        "textResultForLlm": "Tool execution requires permission but no permission handler is configured.",
+                        "resultType": "denied",
+                        "toolTelemetry": {},
+                    }
+                }
+
         arguments = params.get("arguments")
         result = await self._execute_tool_call(
             session_id,

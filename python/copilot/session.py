@@ -68,6 +68,7 @@ class CopilotSession:
         self._event_handlers: set[Callable[[SessionEvent], None]] = set()
         self._event_handlers_lock = threading.Lock()
         self._tool_handlers: dict[str, ToolHandler] = {}
+        self._tool_requires_approval: dict[str, bool] = {}
         self._tool_handlers_lock = threading.Lock()
         self._permission_handler: Optional[PermissionHandler] = None
         self._permission_handler_lock = threading.Lock()
@@ -250,12 +251,14 @@ class CopilotSession:
         """
         with self._tool_handlers_lock:
             self._tool_handlers.clear()
+            self._tool_requires_approval.clear()
             if not tools:
                 return
             for tool in tools:
                 if not tool.name or not tool.handler:
                     continue
                 self._tool_handlers[tool.name] = tool.handler
+                self._tool_requires_approval[tool.name] = tool.requires_approval
 
     def _get_tool_handler(self, name: str) -> Optional[ToolHandler]:
         """
@@ -273,6 +276,22 @@ class CopilotSession:
         """
         with self._tool_handlers_lock:
             return self._tool_handlers.get(name)
+
+    def _check_tool_requires_approval(self, name: str) -> bool:
+        """
+        Check if a tool requires approval before execution.
+
+        Note:
+            This method is internal and should not be called directly.
+
+        Args:
+            name: The name of the tool to check.
+
+        Returns:
+            True if the tool requires approval, False otherwise.
+        """
+        with self._tool_handlers_lock:
+            return self._tool_requires_approval.get(name, False)
 
     def _register_permission_handler(self, handler: Optional[PermissionHandler]) -> None:
         """

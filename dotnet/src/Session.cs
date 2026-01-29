@@ -45,6 +45,7 @@ public partial class CopilotSession : IAsyncDisposable
 {
     private readonly HashSet<SessionEventHandler> _eventHandlers = new();
     private readonly Dictionary<string, AIFunction> _toolHandlers = new();
+    private readonly Dictionary<string, bool> _toolRequiresApproval = new();
     private readonly JsonRpc _rpc;
     private PermissionHandler? _permissionHandler;
     private readonly SemaphoreSlim _permissionHandlerLock = new(1, 1);
@@ -255,12 +256,36 @@ public partial class CopilotSession : IAsyncDisposable
     /// Tools allow the assistant to execute custom functions. When the assistant invokes a tool,
     /// the corresponding handler is called with the tool arguments.
     /// </remarks>
-    internal void RegisterTools(ICollection<AIFunction> tools)
+    internal void RegisterTools(ICollection<AIFunction>? tools)
     {
         _toolHandlers.Clear();
+        _toolRequiresApproval.Clear();
+        if (tools == null) return;
+        
         foreach (var tool in tools)
         {
             _toolHandlers.Add(tool.Name, tool);
+            _toolRequiresApproval[tool.Name] = false;
+        }
+    }
+
+    /// <summary>
+    /// Registers custom tool handlers for this session with requiresApproval support.
+    /// </summary>
+    /// <param name="tools">A collection of CopilotTools that can be invoked by the assistant.</param>
+    /// <remarks>
+    /// Tools allow the assistant to execute custom functions. When the assistant invokes a tool,
+    /// the corresponding handler is called with the tool arguments.
+    /// CopilotTools support the RequiresApproval flag for permission handling.
+    /// </remarks>
+    internal void RegisterTools(ICollection<CopilotTool> tools)
+    {
+        _toolHandlers.Clear();
+        _toolRequiresApproval.Clear();
+        foreach (var tool in tools)
+        {
+            _toolHandlers.Add(tool.Function.Name, tool.Function);
+            _toolRequiresApproval[tool.Function.Name] = tool.RequiresApproval;
         }
     }
 
@@ -271,6 +296,14 @@ public partial class CopilotSession : IAsyncDisposable
     /// <returns>The tool if found; otherwise, <c>null</c>.</returns>
     internal AIFunction? GetTool(string name) =>
         _toolHandlers.TryGetValue(name, out var tool) ? tool : null;
+
+    /// <summary>
+    /// Checks if a tool requires approval before execution.
+    /// </summary>
+    /// <param name="name">The name of the tool to check.</param>
+    /// <returns>True if the tool requires approval, false otherwise.</returns>
+    internal bool ToolRequiresApproval(string name) =>
+        _toolRequiresApproval.TryGetValue(name, out var requiresApproval) && requiresApproval;
 
     /// <summary>
     /// Registers a handler for permission requests.
