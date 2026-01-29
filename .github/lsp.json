@@ -2,7 +2,13 @@
   "lspServers": {
     "csharp": {
       "command": "dotnet",
-      "args": ["tool", "run", "csharp-ls", "--solution", "GitHub.Copilot.SDK.sln"],
+      "args": [
+        "tool",
+        "run",
+        "roslyn-language-server",
+        "--stdio",
+        "--autoLoadProjects"
+      ],
       "fileExtensions": {
         ".cs": "csharp"
       },
