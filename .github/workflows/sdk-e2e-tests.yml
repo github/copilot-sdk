@@ -16,8 +16,6 @@ jobs:
   changes:
     name: "Detect Changes"
     runs-on: ubuntu-latest
-    # Always run on workflow_dispatch and merge_group
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group' || github.event_name == 'pull_request'
     outputs:
       nodejs: ${{ steps.filter.outputs.nodejs }}
       go: ${{ steps.filter.outputs.go }}
@@ -32,18 +30,26 @@ jobs:
             nodejs:
               - 'nodejs/**'
               - 'test/**'
+              - '.github/workflows/sdk-e2e-tests.yml'
+              - '.github/actions/setup-copilot/**'
             go:
               - 'go/**'
               - 'test/**'
               - 'nodejs/package.json'
+              - '.github/workflows/sdk-e2e-tests.yml'
+              - '.github/actions/setup-copilot/**'
             python:
               - 'python/**'
               - 'test/**'
               - 'nodejs/package.json'
+              - '.github/workflows/sdk-e2e-tests.yml'
+              - '.github/actions/setup-copilot/**'
             dotnet:
               - 'dotnet/**'
               - 'test/**'
               - 'nodejs/package.json'
+              - '.github/workflows/sdk-e2e-tests.yml'
+              - '.github/actions/setup-copilot/**'
   nodejs-sdk:
     name: "Node.js SDK Tests"
     needs: changes
