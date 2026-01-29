@@ -275,7 +275,7 @@ Update `main.py`:
 import asyncio
 import sys
 from copilot import CopilotClient
-from copilot.generated.session_events import SessionEventType
+from copilot.types import SessionEventType
 
 async def main():
     client = CopilotClient()
@@ -457,7 +457,7 @@ import random
 import sys
 from copilot import CopilotClient
 from copilot.tools import define_tool
-from copilot.generated.session_events import SessionEventType
+from copilot.types import SessionEventType
 from pydantic import BaseModel, Field
 
 # Define the parameters for the tool using Pydantic
@@ -728,7 +728,7 @@ import random
 import sys
 from copilot import CopilotClient
 from copilot.tools import define_tool
-from copilot.generated.session_events import SessionEventType
+from copilot.types import SessionEventType
 from pydantic import BaseModel, Field
 
 class GetWeatherParams(BaseModel):
