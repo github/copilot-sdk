@@ -455,8 +455,8 @@ const session = await client.createSession({
 const session = await client.createSession({
     model: "gpt-4",
     provider: {
-        type: "azure",
-        baseUrl: "https://my-resource.openai.azure.com",
+        type: "azure",  // Must be "azure" for Azure endpoints, NOT "openai"
+        baseUrl: "https://my-resource.openai.azure.com",  // Just the host, no path
         apiKey: process.env.AZURE_OPENAI_KEY,
         azure: {
             apiVersion: "2024-10-21",
@@ -465,7 +465,10 @@ const session = await client.createSession({
 });
 ```
 
-> **Note:** When using a custom provider, the `model` parameter is **required**. The SDK will throw an error if no model is specified.
+> **Important notes:**
+> - When using a custom provider, the `model` parameter is **required**. The SDK will throw an error if no model is specified.
+> - For Azure OpenAI endpoints (`*.openai.azure.com`), you **must** use `type: "azure"`, not `type: "openai"`.
+> - The `baseUrl` should be just the host (e.g., `https://my-resource.openai.azure.com`). Do **not** include `/openai/v1` in the URL - the SDK handles path construction automatically.
 
 ## Error Handling
 
