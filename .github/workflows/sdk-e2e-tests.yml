@@ -53,7 +53,7 @@ jobs:
   nodejs-sdk:
     name: "Node.js SDK Tests"
     needs: changes
-    # Run if nodejs files changed, or on workflow_dispatch/merge_group
+    # Run if Node.js files changed, or on workflow_dispatch/merge_group
     if: needs.changes.outputs.nodejs == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group'
     strategy:
       fail-fast: false
@@ -103,7 +103,7 @@ jobs:
   go-sdk:
     name: "Go SDK Tests"
     needs: changes
-    # Run if go files changed, or on workflow_dispatch/merge_group
+    # Run if Go files changed, or on workflow_dispatch/merge_group
     if: needs.changes.outputs.go == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group'
     strategy:
       fail-fast: false
@@ -159,7 +159,7 @@ jobs:
   python-sdk:
     name: "Python SDK Tests"
     needs: changes
-    # Run if python files changed, or on workflow_dispatch/merge_group
+    # Run if Python files changed, or on workflow_dispatch/merge_group
     if: needs.changes.outputs.python == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group'
     strategy:
       fail-fast: false
@@ -212,7 +212,7 @@ jobs:
   dotnet-sdk:
     name: ".NET SDK Tests"
     needs: changes
-    # Run if dotnet files changed, or on workflow_dispatch/merge_group
+    # Run if .NET files changed, or on workflow_dispatch/merge_group
     if: needs.changes.outputs.dotnet == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group'
     strategy:
       fail-fast: false
