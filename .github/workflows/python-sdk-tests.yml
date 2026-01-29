@@ -11,6 +11,16 @@ on:
       - 'nodejs/package.json'
       - '.github/workflows/python-sdk-tests.yml'
       - '.github/actions/setup-copilot/**'
+    paths-ignore:
+      - '**/*.md'
+      - '**/LICENSE*'
+      - '**/.gitignore'
+      - '**/.editorconfig'
+      - '**/*.png'
+      - '**/*.jpg'
+      - '**/*.jpeg'
+      - '**/*.gif'
+      - '**/*.svg'
   workflow_dispatch:
   merge_group:
 
