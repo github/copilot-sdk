@@ -37,7 +37,9 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
 
     public async Task InitializeAsync()
     {
-        await Ctx.ConfigureForTestAsync(_snapshotCategory, _testName);
+        // New ConfigureForTestAsync signature accepts an optional toolBinaryOverrides map.
+        // Default to null for existing usages and pass the test name explicitly.
+        await Ctx.ConfigureForTestAsync(_snapshotCategory, null, _testName);
     }
 
     public Task DisposeAsync() => Task.CompletedTask;

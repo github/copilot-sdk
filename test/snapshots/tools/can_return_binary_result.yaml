@@ -1,0 +1,20 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use get_image. What color is the square in the image?
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: get_image
+              arguments: "{}"
+      - role: tool
+        tool_call_id: toolcall_0
+        content: '{"image":{"encoding":"base64","mimeType":"image/png","source":"binaryResultsForLlm[0]"},"binaryResultsForLlm":[{"data":"iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAADklEQVR4nGP4/5/h/38GABkAA/0k+7UAAAAASUVORK5CYII=","type":"base64","mimeType":"image/png"}]}'
+      - role: assistant
+        content: The square in the image is **yellow**.

@@ -68,13 +68,14 @@ public class E2ETestContext : IAsyncDisposable
         return path;
     }
 
-    public async Task ConfigureForTestAsync(string testFile, [CallerMemberName] string? testName = null)
+    public async Task ConfigureForTestAsync(string testFile, Dictionary<string, ToolBinaryOverride>? toolBinaryOverrides = null, [CallerMemberName] string? testName = null)
     {
         // Convert test method names to lowercase snake_case for snapshot filenames
         // to avoid case collisions on case-insensitive filesystems (macOS/Windows)
         var sanitizedName = Regex.Replace(testName!, @"[^a-zA-Z0-9]", "_").ToLowerInvariant();
         var snapshotPath = Path.Combine(_repoRoot, "test", "snapshots", testFile, $"{sanitizedName}.yaml");
-        await _proxy.ConfigureAsync(snapshotPath, WorkDir);
+        // Pass through the dictionary directly to avoid unnecessary allocations
+        await _proxy.ConfigureAsync(snapshotPath, WorkDir, toolBinaryOverrides);
     }
 
     public Task<List<ParsedHttpExchange>> GetExchangesAsync() => _proxy.GetExchangesAsync();

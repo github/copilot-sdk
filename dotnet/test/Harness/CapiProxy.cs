@@ -111,16 +111,17 @@ public partial class CapiProxy : IAsyncDisposable
         _startupTask = null;
     }
 
-    public async Task ConfigureAsync(string filePath, string workDir)
+    public async Task ConfigureAsync(string filePath, string workDir, Dictionary<string, ToolBinaryOverride>? toolBinaryOverrides = null)
     {
         var url = await (_startupTask ?? throw new InvalidOperationException("Proxy not started"));
 
         using var client = new HttpClient();
-        var response = await client.PostAsJsonAsync($"{url}/config", new ConfigureRequest(filePath, workDir), CapiProxyJsonContext.Default.ConfigureRequest);
+        var response = await client.PostAsJsonAsync($"{url}/config", new ConfigureRequest(filePath, workDir, toolBinaryOverrides), CapiProxyJsonContext.Default.ConfigureRequest);
         response.EnsureSuccessStatusCode();
     }
 
-    private record ConfigureRequest(string FilePath, string WorkDir);
+    private record ConfigureRequest(string FilePath, string WorkDir, Dictionary<string, ToolBinaryOverride>? ToolBinaryOverrides);
+
 
     public async Task<List<ParsedHttpExchange>> GetExchangesAsync()
     {
@@ -147,9 +148,13 @@ public partial class CapiProxy : IAsyncDisposable
 
     [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
     [JsonSerializable(typeof(ConfigureRequest))]
+    [JsonSerializable(typeof(ToolBinaryOverride))]
     [JsonSerializable(typeof(List<ParsedHttpExchange>))]
     private partial class CapiProxyJsonContext : JsonSerializerContext;
 }
+
+// Tool binary override payload passed to the proxy via /config
+public record ToolBinaryOverride(string Data, string? Type, string? MimeType);
 
 public record ParsedHttpExchange(ChatCompletionRequest Request, ChatCompletionResponse? Response);
 
