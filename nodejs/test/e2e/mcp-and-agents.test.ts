@@ -217,6 +217,45 @@ describe("MCP Servers and Custom Agents", async () => {
             expect(session.sessionId).toBeDefined();
             await session.destroy();
         });
+
+        it("should surface custom agents to the assistant for listing", async () => {
+            const customAgents: CustomAgentConfig[] = [
+                {
+                    name: "test-agent",
+                    displayName: "Test Agent",
+                    description: "A test agent for SDK testing",
+                    prompt: "You are a helpful test agent.",
+                    infer: true,
+                },
+            ];
+
+            const session = await client.createSession({
+                customAgents,
+            });
+
+            expect(session.sessionId).toBeDefined();
+
+            // Ask the assistant to list custom agents
+            // The assistant should be able to see and mention the custom agent
+            const message = await session.sendAndWait({
+                prompt: "List all custom agents available. Be specific about user-defined custom agents.",
+            });
+
+            // The response should mention the custom agent we defined
+            expect(message?.data.content).toBeDefined();
+            const content = message!.data.content || "";
+            
+            // Check that the custom agent is mentioned (either by name or in the list)
+            // The CLI should include custom agents in the task tool description
+            expect(
+                content.toLowerCase().includes("test-agent") ||
+                content.toLowerCase().includes("test agent") ||
+                content.toLowerCase().includes("user-defined") ||
+                content.toLowerCase().includes("user-provided")
+            ).toBe(true);
+
+            await session.destroy();
+        });
     });
 
     describe("Combined Configuration", () => {
