@@ -12,8 +12,8 @@ class CopilotSDK {
             client.start().get();
 
             // Create a session
-            var session = client.createSession(
-                    new SessionConfig().setModel("claude-sonnet-4.5")).get();
+            var sessionConfig = new SessionConfig().setModel("claude-sonnet-4.5");
+            var session = client.createSession(sessionConfig).get();
 
             // Wait for response using session.idle event
             var done = new CompletableFuture<Void>();
@@ -21,6 +21,12 @@ class CopilotSDK {
             session.on(evt -> {
                 if (evt instanceof AssistantMessageEvent msg) {
                     System.out.println(msg.getData().getContent());
+                } else if (evt instanceof SessionUsageInfoEvent usage) {
+                    var data = usage.getData();
+                    System.out.println("\n--- Usage Metrics ---");
+                    System.out.println("Current tokens: " + (int) data.getCurrentTokens());
+                    System.out.println("Token limit: " + (int) data.getTokenLimit());
+                    System.out.println("Messages count: " + (int) data.getMessagesLength());
                 } else if (evt instanceof SessionIdleEvent) {
                     done.complete(null);
                 }

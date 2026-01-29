@@ -21,7 +21,6 @@ import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.sdk.events.AbstractSessionEvent;
@@ -386,9 +385,14 @@ public final class CopilotSession implements AutoCloseable {
             PermissionRequest request = MAPPER.treeToValue(permissionRequestData, PermissionRequest.class);
             PermissionInvocation invocation = new PermissionInvocation();
             invocation.setSessionId(sessionId);
-            return handler.handle(request, invocation);
-        } catch (JsonProcessingException e) {
-            LOG.log(Level.SEVERE, "Failed to parse permission request", e);
+            return handler.handle(request, invocation).exceptionally(ex -> {
+                LOG.log(Level.SEVERE, "Permission handler threw an exception", ex);
+                PermissionRequestResult result = new PermissionRequestResult();
+                result.setKind("denied-no-approval-rule-and-could-not-request-from-user");
+                return result;
+            });
+        } catch (Exception e) {
+            LOG.log(Level.SEVERE, "Failed to process permission request", e);
             PermissionRequestResult result = new PermissionRequestResult();
             result.setKind("denied-no-approval-rule-and-could-not-request-from-user");
             return CompletableFuture.completedFuture(result);
