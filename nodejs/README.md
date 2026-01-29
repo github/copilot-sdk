@@ -86,10 +86,11 @@ Create a new conversation session.
 **Config:**
 
 - `sessionId?: string` - Custom session ID
-- `model?: string` - Model to use ("gpt-5", "claude-sonnet-4.5", etc.)
+- `model?: string` - Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
 - `tools?: Tool[]` - Custom tools exposed to the CLI
 - `systemMessage?: SystemMessageConfig` - System message customization (see below)
 - `infiniteSessions?: InfiniteSessionConfig` - Configure automatic context compaction (see below)
+- `provider?: ProviderConfig` - Custom API provider configuration (BYOK - Bring Your Own Key). See [Custom Providers](#custom-providers) section.
 
 ##### `resumeSession(sessionId: string, config?: ResumeSessionConfig): Promise<CopilotSession>`
 
@@ -406,6 +407,65 @@ await session.send({
     ],
 });
 ```
+
+### Custom Providers
+
+The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own Key), including local providers like Ollama. When using a custom provider, you must specify the `model` explicitly.
+
+**ProviderConfig:**
+
+- `type?: "openai" | "azure" | "anthropic"` - Provider type (default: "openai")
+- `baseUrl: string` - API endpoint URL (required)
+- `apiKey?: string` - API key (optional for local providers like Ollama)
+- `bearerToken?: string` - Bearer token for authentication (takes precedence over apiKey)
+- `wireApi?: "completions" | "responses"` - API format for OpenAI/Azure (default: "completions")
+- `azure?.apiVersion?: string` - Azure API version (default: "2024-10-21")
+
+**Example with Ollama:**
+
+```typescript
+const session = await client.createSession({
+    model: "deepseek-coder-v2:16b", // Required when using custom provider
+    provider: {
+        type: "openai",
+        baseUrl: "http://localhost:11434/v1", // Ollama endpoint
+        // apiKey not required for Ollama
+    },
+});
+
+await session.sendAndWait({ prompt: "Hello!" });
+```
+
+**Example with custom OpenAI-compatible API:**
+
+```typescript
+const session = await client.createSession({
+    model: "gpt-4",
+    provider: {
+        type: "openai",
+        baseUrl: "https://my-api.example.com/v1",
+        apiKey: process.env.MY_API_KEY,
+    },
+});
+```
+
+**Example with Azure OpenAI:**
+
+```typescript
+const session = await client.createSession({
+    model: "gpt-4",
+    provider: {
+        type: "azure",
+        baseUrl: "https://my-resource.openai.azure.com",
+        apiKey: process.env.AZURE_OPENAI_KEY,
+        azure: {
+            apiVersion: "2024-10-21",
+        },
+    },
+});
+```
+
+> **Note:** When using a custom provider, the `model` parameter is **required**. The SDK will throw an error if no model is specified.
 
 ## Error Handling
 
