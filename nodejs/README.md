@@ -24,14 +24,13 @@ const session = await client.createSession({
     model: "gpt-5",
 });
 
-// Wait for response using session.idle event
+// Wait for response using typed event handlers
 const done = new Promise<void>((resolve) => {
-    session.on((event) => {
-        if (event.type === "assistant.message") {
-            console.log(event.data.content);
-        } else if (event.type === "session.idle") {
-            resolve();
-        }
+    session.on("assistant.message", (event) => {
+        console.log(event.data.content);
+    });
+    session.on("session.idle", () => {
+        resolve();
     });
 });
 
@@ -159,13 +158,34 @@ Send a message and wait until the session becomes idle.
 
 Returns the final assistant message event, or undefined if none was received.
 
+##### `on(eventType: string, handler: TypedSessionEventHandler): () => void`
+
+Subscribe to a specific event type. The handler receives properly typed events.
+
+```typescript
+// Listen for specific event types with full type inference
+session.on("assistant.message", (event) => {
+    console.log(event.data.content); // TypeScript knows about event.data.content
+});
+
+session.on("session.idle", () => {
+    console.log("Session is idle");
+});
+
+// Listen to streaming events
+session.on("assistant.message_delta", (event) => {
+    process.stdout.write(event.data.deltaContent);
+});
+```
+
 ##### `on(handler: SessionEventHandler): () => void`
 
-Subscribe to session events. Returns an unsubscribe function.
+Subscribe to all session events. Returns an unsubscribe function.
 
 ```typescript
 const unsubscribe = session.on((event) => {
-    console.log(event);
+    // Handle any event type
+    console.log(event.type, event);
 });
 
 // Later...
@@ -231,27 +251,33 @@ const session = await client.createSession({
     streaming: true,
 });
 
-// Wait for completion using session.idle event
+// Wait for completion using typed event handlers
 const done = new Promise<void>((resolve) => {
-    session.on((event) => {
-        if (event.type === "assistant.message_delta") {
-            // Streaming message chunk - print incrementally
-            process.stdout.write(event.data.deltaContent);
-        } else if (event.type === "assistant.reasoning_delta") {
-            // Streaming reasoning chunk (if model supports reasoning)
-            process.stdout.write(event.data.deltaContent);
-        } else if (event.type === "assistant.message") {
-            // Final message - complete content
-            console.log("\n--- Final message ---");
-            console.log(event.data.content);
-        } else if (event.type === "assistant.reasoning") {
-            // Final reasoning content (if model supports reasoning)
-            console.log("--- Reasoning ---");
-            console.log(event.data.content);
-        } else if (event.type === "session.idle") {
-            // Session finished processing
-            resolve();
-        }
+    session.on("assistant.message_delta", (event) => {
+        // Streaming message chunk - print incrementally
+        process.stdout.write(event.data.deltaContent);
+    });
+
+    session.on("assistant.reasoning_delta", (event) => {
+        // Streaming reasoning chunk (if model supports reasoning)
+        process.stdout.write(event.data.deltaContent);
+    });
+
+    session.on("assistant.message", (event) => {
+        // Final message - complete content
+        console.log("\n--- Final message ---");
+        console.log(event.data.content);
+    });
+
+    session.on("assistant.reasoning", (event) => {
+        // Final reasoning content (if model supports reasoning)
+        console.log("--- Reasoning ---");
+        console.log(event.data.content);
+    });
+
+    session.on("session.idle", () => {
+        // Session finished processing
+        resolve();
     });
 });
 

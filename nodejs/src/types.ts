@@ -807,7 +807,24 @@ export interface MessageOptions {
 }
 
 /**
- * Event handler callback type
+ * All possible event type strings from SessionEvent
+ */
+export type SessionEventType = SessionEvent["type"];
+
+/**
+ * Extract the specific event payload for a given event type
+ */
+export type SessionEventPayload<T extends SessionEventType> = Extract<SessionEvent, { type: T }>;
+
+/**
+ * Event handler for a specific event type
+ */
+export type TypedSessionEventHandler<T extends SessionEventType> = (
+    event: SessionEventPayload<T>
+) => void;
+
+/**
+ * Event handler callback type (for all events)
  */
 export type SessionEventHandler = (event: SessionEvent) => void;
 

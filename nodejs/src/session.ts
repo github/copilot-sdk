@@ -15,9 +15,12 @@ import type {
     PermissionRequestResult,
     SessionEvent,
     SessionEventHandler,
+    SessionEventPayload,
+    SessionEventType,
     SessionHooks,
     Tool,
     ToolHandler,
+    TypedSessionEventHandler,
     UserInputHandler,
     UserInputRequest,
     UserInputResponse,
@@ -53,6 +56,8 @@ export type AssistantMessageEvent = Extract<SessionEvent, { type: "assistant.mes
  */
 export class CopilotSession {
     private eventHandlers: Set<SessionEventHandler> = new Set();
+    private typedEventHandlers: Map<SessionEventType, Set<(event: SessionEvent) => void>> =
+        new Map();
     private toolHandlers: Map<string, ToolHandler> = new Map();
     private permissionHandler?: PermissionHandler;
     private userInputHandler?: UserInputHandler;
@@ -190,7 +195,27 @@ export class CopilotSession {
      * Events include assistant messages, tool executions, errors, and session state changes.
      * Multiple handlers can be registered and will all receive events.
      *
-     * @param handler - A callback function that receives session events
+     * @param eventType - The specific event type to listen for (e.g., "assistant.message", "session.idle")
+     * @param handler - A callback function that receives events of the specified type
+     * @returns A function that, when called, unsubscribes the handler
+     *
+     * @example
+     * ```typescript
+     * // Listen for a specific event type
+     * const unsubscribe = session.on("assistant.message", (event) => {
+     *   console.log("Assistant:", event.data.content);
+     * });
+     *
+     * // Later, to stop receiving events:
+     * unsubscribe();
+     * ```
+     */
+    on<K extends SessionEventType>(eventType: K, handler: TypedSessionEventHandler<K>): () => void;
+
+    /**
+     * Subscribes to all events from this session.
+     *
+     * @param handler - A callback function that receives all session events
      * @returns A function that, when called, unsubscribes the handler
      *
      * @example
@@ -210,10 +235,34 @@ export class CopilotSession {
      * unsubscribe();
      * ```
      */
-    on(handler: SessionEventHandler): () => void {
-        this.eventHandlers.add(handler);
+    on(handler: SessionEventHandler): () => void;
+
+    on<K extends SessionEventType>(
+        eventTypeOrHandler: K | SessionEventHandler,
+        handler?: TypedSessionEventHandler<K>
+    ): () => void {
+        // Overload 1: on(eventType, handler) - typed event subscription
+        if (typeof eventTypeOrHandler === "string" && handler) {
+            const eventType = eventTypeOrHandler;
+            if (!this.typedEventHandlers.has(eventType)) {
+                this.typedEventHandlers.set(eventType, new Set());
+            }
+            // Cast is safe: handler receives the correctly typed event at dispatch time
+            const storedHandler = handler as (event: SessionEvent) => void;
+            this.typedEventHandlers.get(eventType)!.add(storedHandler);
+            return () => {
+                const handlers = this.typedEventHandlers.get(eventType);
+                if (handlers) {
+                    handlers.delete(storedHandler);
+                }
+            };
+        }
+
+        // Overload 2: on(handler) - wildcard subscription
+        const wildcardHandler = eventTypeOrHandler as SessionEventHandler;
+        this.eventHandlers.add(wildcardHandler);
         return () => {
-            this.eventHandlers.delete(handler);
+            this.eventHandlers.delete(wildcardHandler);
         };
     }
 
@@ -224,6 +273,19 @@ export class CopilotSession {
      * @internal This method is for internal use by the SDK.
      */
     _dispatchEvent(event: SessionEvent): void {
+        // Dispatch to typed handlers for this specific event type
+        const typedHandlers = this.typedEventHandlers.get(event.type);
+        if (typedHandlers) {
+            for (const handler of typedHandlers) {
+                try {
+                    handler(event as SessionEventPayload<typeof event.type>);
+                } catch (_error) {
+                    // Handler error
+                }
+            }
+        }
+
+        // Dispatch to wildcard handlers
         for (const handler of this.eventHandlers) {
             try {
                 handler(event);
@@ -441,6 +503,7 @@ export class CopilotSession {
             sessionId: this.sessionId,
         });
         this.eventHandlers.clear();
+        this.typedEventHandlers.clear();
         this.toolHandlers.clear();
         this.permissionHandler = undefined;
     }
