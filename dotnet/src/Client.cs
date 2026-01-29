@@ -373,6 +373,10 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
                 {
                     copilotTools.Add(new CopilotTool { Function = af, RequiresApproval = false });
                 }
+                else if (tool != null)
+                {
+                    throw new ArgumentException($"Tool must be either AIFunction or CopilotTool, but was {tool.GetType().Name}");
+                }
             }
             session.RegisterTools(copilotTools);
         }
@@ -454,6 +458,10 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
                 else if (tool is AIFunction af)
                 {
                     copilotTools.Add(new CopilotTool { Function = af, RequiresApproval = false });
+                }
+                else if (tool != null)
+                {
+                    throw new ArgumentException($"Tool must be either AIFunction or CopilotTool, but was {tool.GetType().Name}");
                 }
             }
             session.RegisterTools(copilotTools);

@@ -277,7 +277,7 @@ class CopilotSession:
         with self._tool_handlers_lock:
             return self._tool_handlers.get(name)
 
-    def _tool_requires_approval(self, name: str) -> bool:
+    def _check_tool_requires_approval(self, name: str) -> bool:
         """
         Check if a tool requires approval before execution.
 

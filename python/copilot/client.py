@@ -1055,7 +1055,7 @@ class CopilotClient:
             return {"result": self._build_unsupported_tool_result(tool_name)}
 
         # Check if tool requires approval
-        if session._tool_requires_approval(tool_name):
+        if session._check_tool_requires_approval(tool_name):
             try:
                 permission_result = await session._handle_permission_request(
                     {

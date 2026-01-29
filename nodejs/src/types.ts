@@ -133,7 +133,7 @@ export interface Tool<TArgs = unknown> {
     handler: ToolHandler<TArgs>;
     /**
      * Controls whether the tool requires user approval before execution.
-     * When true, the OnPermissionRequest handler will be called before invoking the tool.
+     * When true, the onPermissionRequest handler will be called before invoking the tool.
      * When false or undefined, the tool executes without requesting permission.
      * @default false
      */
@@ -152,7 +152,7 @@ export function defineTool<T = unknown>(
         handler: ToolHandler<T>;
         /**
          * Controls whether the tool requires user approval before execution.
-         * When true, the OnPermissionRequest handler will be called before invoking the tool.
+         * When true, the onPermissionRequest handler will be called before invoking the tool.
          * When false or undefined, the tool executes without requesting permission.
          * @default false
          */
