@@ -240,7 +240,7 @@ Right now, you wait for the complete response before seeing anything. Let's make
 Update `index.ts`:
 
 ```typescript
-import { CopilotClient, SessionEvent } from "@github/copilot-sdk";
+import { CopilotClient } from "@github/copilot-sdk";
 
 const client = new CopilotClient();
 const session = await client.createSession({
@@ -249,13 +249,11 @@ const session = await client.createSession({
 });
 
 // Listen for response chunks
-session.on((event: SessionEvent) => {
-    if (event.type === "assistant.message_delta") {
-        process.stdout.write(event.data.deltaContent);
-    }
-    if (event.type === "session.idle") {
-        console.log(); // New line when done
-    }
+session.on("assistant.message_delta", (event) => {
+    process.stdout.write(event.data.deltaContent);
+});
+session.on("session.idle", () => {
+    console.log(); // New line when done
 });
 
 await session.sendAndWait({ prompt: "Tell me a short joke" });
@@ -401,7 +399,7 @@ Now for the powerful part. Let's give Copilot the ability to call your code by d
 Update `index.ts`:
 
 ```typescript
-import { CopilotClient, defineTool, SessionEvent } from "@github/copilot-sdk";
+import { CopilotClient, defineTool } from "@github/copilot-sdk";
 
 // Define a tool that Copilot can call
 const getWeather = defineTool("get_weather", {
@@ -430,10 +428,8 @@ const session = await client.createSession({
     tools: [getWeather],
 });
 
-session.on((event: SessionEvent) => {
-    if (event.type === "assistant.message_delta") {
-        process.stdout.write(event.data.deltaContent);
-    }
+session.on("assistant.message_delta", (event) => {
+    process.stdout.write(event.data.deltaContent);
 });
 
 await session.sendAndWait({
@@ -650,7 +646,7 @@ Let's put it all together into a useful interactive assistant:
 <summary><strong>Node.js / TypeScript</strong></summary>
 
 ```typescript
-import { CopilotClient, defineTool, SessionEvent } from "@github/copilot-sdk";
+import { CopilotClient, defineTool } from "@github/copilot-sdk";
 import * as readline from "readline";
 
 const getWeather = defineTool("get_weather", {
@@ -677,10 +673,8 @@ const session = await client.createSession({
     tools: [getWeather],
 });
 
-session.on((event: SessionEvent) => {
-    if (event.type === "assistant.message_delta") {
-        process.stdout.write(event.data.deltaContent);
-    }
+session.on("assistant.message_delta", (event) => {
+    process.stdout.write(event.data.deltaContent);
 });
 
 const rl = readline.createInterface({

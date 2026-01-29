@@ -33,6 +33,8 @@ export type {
     SessionConfig,
     SessionEvent,
     SessionEventHandler,
+    SessionEventPayload,
+    SessionEventType,
     SessionMetadata,
     SystemMessageAppendConfig,
     SystemMessageConfig,
@@ -41,5 +43,6 @@ export type {
     ToolHandler,
     ToolInvocation,
     ToolResultObject,
+    TypedSessionEventHandler,
     ZodSchema,
 } from "./types.js";
