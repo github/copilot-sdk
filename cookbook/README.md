@@ -83,5 +83,5 @@ go run <filename>.go
 
 ## Status
 
-Cookbook structure is complete with 4 recipes across all 4 supported languages. Each recipe includes both markdown documentation and runnable examples.
+Cookbook structure is complete with 5 recipes across all 4 supported languages. Each recipe includes both markdown documentation and runnable examples.
 
