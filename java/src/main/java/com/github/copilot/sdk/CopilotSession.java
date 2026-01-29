@@ -312,7 +312,9 @@ public final class CopilotSession implements AutoCloseable {
      * {@code instanceof} checks. The handler will only be called for events
      * matching the specified type.
      *
-     * <h2>Example Usage</h2>
+     * <p>
+     * <b>Example Usage</b>
+     * </p>
      *
      * <pre>{@code
      * // Handle assistant messages
