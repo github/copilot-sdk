@@ -1,0 +1,284 @@
+.\" generated with Ronn/v0.7.3
+.\" http://github.com/rtomayko/ronn/tree/0.7.3
+.
+.TH "ACTIONLINT" "1" "November 2024" "" ""
+.
+.SH "NAME"
+\fBactionlint\fR \- static checker for GitHub Actions workflow files
+.
+.SH "SYNOPSIS"
+\fBactionlint\fR [\fIflags\fR]
+.
+.br
+\fBactionlint\fR [\fIflags\fR] \fIfile\fR\.\.\.
+.
+.br
+\fBactionlint\fR [\fIflags\fR] \-
+.
+.br
+.
+.SH "DESCRIPTION"
+\fBactionlint\fR is a linter for GitHub Actions workflow files\.
+.
+.P
+Features:
+.
+.IP "\(bu" 4
+\fBSyntax check for workflow files\fR to check unexpected or missing keys following workflow syntax
+.
+.IP "\(bu" 4
+\fBStrong type check for \fB${{ }}\fR expressions\fR to catch several semantic errors like access to not existing property, type mismatches, \.\.\.
+.
+.IP "\(bu" 4
+\fBActions usage check\fR to check that inputs at \fBwith:\fR and outputs in \fBsteps\.{id}\.outputs\fR are correct
+.
+.IP "\(bu" 4
+\fBshellcheck and pyflakes integrations\fR for scripts at \fBrun:\fR
+.
+.IP "\(bu" 4
+\fBSecurity checks\fR; script injection by untrusted inputs, hard\-coded credentials
+.
+.IP "\(bu" 4
+\fBOther several useful checks\fR; glob syntax validation, dependencies check for \fBneeds:\fR, runner label validation, cron syntax validation, \.\.\.
+.
+.IP "" 0
+.
+.SH "USAGE"
+To check all workflow files in the current repository, just run \fBactionlint\fR without arguments\. It automatically finds the nearest \fB\.github/workflows\fR directory:
+.
+.IP "" 4
+.
+.nf
+
+$ actionlint
+.
+.fi
+.
+.IP "" 0
+.
+.P
+To check specific workflow files, pass the file paths as arguments:
+.
+.IP "" 4
+.
+.nf
+
+$ actionlint file1\.yaml file2\.yaml
+.
+.fi
+.
+.IP "" 0
+.
+.P
+To check a content which is not saved in file yet (e\.g\. output from some command), pass \fB\-\fR argument\. It reads stdin and checks it as workflow file:
+.
+.IP "" 4
+.
+.nf
+
+$ actionlint \-
+.
+.fi
+.
+.IP "" 0
+.
+.P
+To serialize errors into JSON, use \fB\-format\fR option\. It allows to format error messages flexibly with Go template syntax\.
+.
+.IP "" 4
+.
+.nf
+
+$ actionlint \-format \'{{json \.}}\'
+.
+.fi
+.
+.IP "" 0
+.
+.SH "FLAGS"
+.
+.TP
+\fB\-color\fR
+Always enable colorful output\. This is useful to force colorful outputs
+.
+.TP
+\fB\-config\-file\fR \fIPATH\fR
+File path to config file
+.
+.TP
+\fB\-debug\fR
+Enable debug output (for development)
+.
+.TP
+\fB\-format\fR \fIFORMAT\fR
+Custom template to format error messages in Go template syntax\. See https://github\.com/rhysd/actionlint/tree/main/docs/usage\.md#format
+.
+.TP
+\fB\-ignore\fR \fIPATTERN\fR
+Regular expression matching to error messages you want to ignore\. This flag is repeatable\. For example, \fB\-ignore A \-ignore B\fR ignores errors whose message includes "A" OR "B"\.
+.
+.TP
+\fB\-init\-config\fR
+Generate default config file at \fB\.github/actionlint\.yaml\fR in current project
+.
+.TP
+\fB\-no\-color\fR
+Disable colorful output
+.
+.TP
+\fB\-oneline\fR
+Use one line per one error\. Useful for reading error messages from programs
+.
+.TP
+\fB\-pyflakes\fR \fIEXECUTABLE\fR
+Command name or file path of "pyflakes" external command\. If empty, pyflakes integration will be disabled (default "pyflakes")
+.
+.TP
+\fB\-shellcheck\fR \fIEXECUTABLE\fR
+Command name or file path of "shellcheck" external command\. If empty, shellcheck integration will be disabled (default "shellcheck")
+.
+.TP
+\fB\-verbose\fR
+Enable verbose output
+.
+.TP
+\fB\-stdin\-filename\fR \fINAME\fR
+File name when reading input from stdin (default "<stdin>")
+.
+.TP
+\fB\-version\fR
+Show version and how this binary was installed
+.
+.TP
+\fB\-help\fR, \fB\-h\fR
+Show help
+.
+.SH "DOCUMENTS"
+Documents for more details are available online\.
+.
+.SS "Checks"
+https://github\.com/rhysd/actionlint/tree/main/docs/checks\.md
+.
+.P
+Full list of all checks done by actionlint with example inputs, outputs, and playground links\.
+.
+.SS "Installation"
+https://github\.com/rhysd/actionlint/tree/main/docs/install\.md
+.
+.P
+Installation instructions\. Prebuilt binaries, Homebrew package, building from source, a Docker image, a download script (for CI) are available\.
+.
+.SS "Usage"
+https://github\.com/rhysd/actionlint/tree/main/docs/usage\.md
+.
+.P
+How to use \fBactionlint\fR command locally or on GitHub Actions, the online playground, an official Docker image, and integrations with reviewdog, Problem Matchers, super\-linter, pre\-commit\.
+.
+.SS "Configuration"
+https://github\.com/rhysd/actionlint/tree/main/docs/config\.md
+.
+.P
+How to configure actionlint behavior\. Currently only labels of self\-hosted runners can be configured\.
+.
+.SS "Go API"
+https://github\.com/rhysd/actionlint/tree/main/docs/api\.md
+.
+.P
+How to use actionlint as Go library\.
+.
+.SS "References"
+https://github\.com/rhysd/actionlint/tree/main/docs/reference\.md
+.
+.P
+Links to resources\.
+.
+.SH "USAGE ON GITHUB ACTIONS"
+Please try the download script\.
+.
+.P
+https://github\.com/rhysd/actionlint/blob/main/scripts/download\-actionlint\.bash
+.
+.P
+It downloads the latest version of actionlint executable to the current directory automatically\. On GitHub Actions environment, it sets a file path to executable to\fBexecutable\fR output for using the executable in the following steps easily\.
+.
+.P
+Here is an example of simple workflow to run actionlint on GitHub Actions\. Please ensure \fBshell: bash\fR since the default shell for Windows runners is \fBpwsh\fR\.
+.
+.IP "" 4
+.
+.nf
+
+name: Lint GitHub Actions workflows
+on: [push, pull_request]
+
+jobs:
+  actionlint:
+    runs\-on: ubuntu\-latest
+    steps:
+      \- uses: actions/checkout@v4
+      \- name: Download actionlint
+        id: get_actionlint
+        run: bash <(curl https://raw\.githubusercontent\.com/rhysd/actionlint/main/scripts/download\-actionlint\.bash)
+        shell: bash
+      \- name: Check workflow files
+        run: ${{ steps\.get_actionlint\.outputs\.executable }} \-color
+        shell: bash
+.
+.fi
+.
+.IP "" 0
+.
+.P
+or simply run
+.
+.IP "" 4
+.
+.nf
+
+\- name: Check workflow files
+  run: |
+    bash <(curl https://raw\.githubusercontent\.com/rhysd/actionlint/main/scripts/download\-actionlint\.bash)
+    \./actionlint \-color
+  shell: bash
+.
+.fi
+.
+.IP "" 0
+.
+.SH "EXIT STATUS"
+\fBactionlint\fR command exits with one of the following exit statuses\.
+.
+.IP "\(bu" 4
+\fB0\fR: It ran successfully and no problem was found\.
+.
+.IP "\(bu" 4
+\fB1\fR: It ran successfully and some problem was found\.
+.
+.IP "\(bu" 4
+\fB2\fR: It failed due to invalid command line option\.
+.
+.IP "\(bu" 4
+\fB3\fR: It failed due to some fatal error\.
+.
+.IP "" 0
+.
+.SH "PLAYGROUND"
+Thanks to WebAssembly, actionlint playground is available on your browser\. It never sends any data to outside of the browser\.
+.
+.P
+https://rhysd\.github\.io/actionlint/
+.
+.P
+Paste your workflow content to the code editor at left pane\. It automatically shows the results at right pane\. When editing the workflow content at the left pane, the results will be updated on the fly in the right pane\. Clicking an error message in the results table moves a cursor to the position of the error in the code editor\.
+.
+.SH "BUGS"
+Please visit issues page to see known bugs\. If you found a new bug or have some feature request, please report by making a new issue\.
+.
+.P
+https://github\.com/rhysd/actionlint/issues
+.
+.SH "COPYRIGHT"
+\fBactionlint\fR is licensed under the MIT License: \fBCopyright (c) 2021 rhysd\fR
+.
+.P
+https://github\.com/rhysd/actionlint/blob/main/LICENSE\.txt
