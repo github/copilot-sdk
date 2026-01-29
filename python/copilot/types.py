@@ -49,6 +49,15 @@ class CopilotClientOptions(TypedDict, total=False):
     # Auto-restart the CLI server if it crashes (default: True)
     auto_restart: bool
     env: dict[str, str]  # Environment variables for the CLI process
+    # GitHub token to use for authentication.
+    # When provided, the token is passed to the CLI server via environment variable.
+    # This takes priority over other authentication methods.
+    github_token: str
+    # Whether to use the logged-in user for authentication.
+    # When True, the CLI server will attempt to use stored OAuth tokens or gh CLI auth.
+    # When False, only explicit tokens (github_token or environment variables) are used.
+    # Default: True (but defaults to False when github_token is provided)
+    use_logged_in_user: bool
 
 
 ToolResultType = Literal["success", "failure", "rejected", "denied"]

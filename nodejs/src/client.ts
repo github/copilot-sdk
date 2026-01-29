@@ -103,7 +103,13 @@ export class CopilotClient {
     private actualHost: string = "localhost";
     private state: ConnectionState = "disconnected";
     private sessions: Map<string, CopilotSession> = new Map();
-    private options: Required<Omit<CopilotClientOptions, "cliUrl">> & { cliUrl?: string };
+    private options: Required<
+        Omit<CopilotClientOptions, "cliUrl" | "githubToken" | "useLoggedInUser">
+    > & {
+        cliUrl?: string;
+        githubToken?: string;
+        useLoggedInUser?: boolean;
+    };
     private isExternalServer: boolean = false;
     private forceStopping: boolean = false;
 
@@ -134,6 +140,13 @@ export class CopilotClient {
             throw new Error("cliUrl is mutually exclusive with useStdio and cliPath");
         }
 
+        // Validate auth options with external server
+        if (options.cliUrl && (options.githubToken || options.useLoggedInUser !== undefined)) {
+            throw new Error(
+                "githubToken and useLoggedInUser cannot be used with cliUrl (external server manages its own auth)"
+            );
+        }
+
         // Parse cliUrl if provided
         if (options.cliUrl) {
             const { host, port } = this.parseCliUrl(options.cliUrl);
@@ -153,6 +166,9 @@ export class CopilotClient {
             autoStart: options.autoStart ?? true,
             autoRestart: options.autoRestart ?? true,
             env: options.env ?? process.env,
+            githubToken: options.githubToken,
+            // Default useLoggedInUser to false when githubToken is provided, otherwise true
+            useLoggedInUser: options.useLoggedInUser ?? (options.githubToken ? false : true),
         };
     }
 
@@ -758,9 +774,22 @@ export class CopilotClient {
                 args.push("--port", this.options.port.toString());
             }
 
+            // Add auth-related flags
+            if (this.options.githubToken) {
+                args.push("--auth-token-env", "COPILOT_SDK_AUTH_TOKEN");
+            }
+            if (!this.options.useLoggedInUser) {
+                args.push("--no-auto-login");
+            }
+
             // Suppress debug/trace output that might pollute stdout
             const envWithoutNodeDebug = { ...this.options.env };
             delete envWithoutNodeDebug.NODE_DEBUG;
+
+            // Set auth token in environment if provided
+            if (this.options.githubToken) {
+                envWithoutNodeDebug.COPILOT_SDK_AUTH_TOKEN = this.options.githubToken;
+            }
 
             // If cliPath is a .js file, spawn it with node
             // Note that we can't rely on the shebang as Windows doesn't support it

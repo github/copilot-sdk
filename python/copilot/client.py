@@ -107,6 +107,15 @@ class CopilotClient:
         if opts.get("cli_url") and (opts.get("use_stdio") or opts.get("cli_path")):
             raise ValueError("cli_url is mutually exclusive with use_stdio and cli_path")
 
+        # Validate auth options with external server
+        if opts.get("cli_url") and (
+            opts.get("github_token") or opts.get("use_logged_in_user") is not None
+        ):
+            raise ValueError(
+                "github_token and use_logged_in_user cannot be used with cli_url "
+                "(external server manages its own auth)"
+            )
+
         # Parse cli_url if provided
         self._actual_host: str = "localhost"
         self._is_external_server: bool = False
@@ -119,6 +128,13 @@ class CopilotClient:
 
         # Check environment variable for CLI path
         default_cli_path = os.environ.get("COPILOT_CLI_PATH", "copilot")
+
+        # Default use_logged_in_user to False when github_token is provided
+        github_token = opts.get("github_token")
+        use_logged_in_user = opts.get("use_logged_in_user")
+        if use_logged_in_user is None:
+            use_logged_in_user = False if github_token else True
+
         self.options: CopilotClientOptions = {
             "cli_path": opts.get("cli_path", default_cli_path),
             "cwd": opts.get("cwd", os.getcwd()),
@@ -127,11 +143,14 @@ class CopilotClient:
             "log_level": opts.get("log_level", "info"),
             "auto_start": opts.get("auto_start", True),
             "auto_restart": opts.get("auto_restart", True),
+            "use_logged_in_user": use_logged_in_user,
         }
         if opts.get("cli_url"):
             self.options["cli_url"] = opts["cli_url"]
         if opts.get("env"):
             self.options["env"] = opts["env"]
+        if github_token:
+            self.options["github_token"] = github_token
 
         self._process: Optional[subprocess.Popen] = None
         self._client: Optional[JsonRpcClient] = None
@@ -804,6 +823,12 @@ class CopilotClient:
         cli_path = self.options["cli_path"]
         args = ["--server", "--log-level", self.options["log_level"]]
 
+        # Add auth-related flags
+        if self.options.get("github_token"):
+            args.extend(["--auth-token-env", "COPILOT_SDK_AUTH_TOKEN"])
+        if not self.options.get("use_logged_in_user", True):
+            args.append("--no-auto-login")
+
         # If cli_path is a .js file, run it with node
         # Note that we can't rely on the shebang as Windows doesn't support it
         if cli_path.endswith(".js"):
@@ -813,6 +838,14 @@ class CopilotClient:
 
         # Get environment variables
         env = self.options.get("env")
+        if env is None:
+            env = dict(os.environ)
+        else:
+            env = dict(env)
+
+        # Set auth token in environment if provided
+        if self.options.get("github_token"):
+            env["COPILOT_SDK_AUTH_TOKEN"] = self.options["github_token"]
 
         # Choose transport mode
         if self.options["use_stdio"]:
