@@ -70,7 +70,7 @@ client = CopilotClient({
 **Symptom**: Error mentioning "protocol version mismatch"
 
 **Solution**: Update either the SDK or CLI to compatible versions
-- SDK version 0.1.x requires CLI version X.Y.Z or newer
+- Check the [release notes](https://github.com/github/copilot-sdk/releases) for compatibility information
 - Update CLI: Follow the installation guide to get the latest version
 - Update SDK: Install the latest SDK package
 
@@ -179,7 +179,7 @@ copilot --server --port 4321
 
 ### Examine Error Output
 
-Recent SDK versions (0.1.20+) include stderr output from the CLI in error messages. Look for:
+The latest versions of the SDK include stderr output from the CLI in error messages when processes fail. Look for:
 - Authentication errors
 - Missing file or permission errors
 - Node.js errors (if CLI is JS-based)
