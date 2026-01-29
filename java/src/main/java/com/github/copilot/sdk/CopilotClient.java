@@ -428,6 +428,9 @@ public class CopilotClient implements AutoCloseable {
                 request.setMcpServers(config.getMcpServers());
                 request.setCustomAgents(config.getCustomAgents());
                 request.setInfiniteSessions(config.getInfiniteSessions());
+                request.setSkillDirectories(config.getSkillDirectories());
+                request.setDisabledSkills(config.getDisabledSkills());
+                request.setConfigDir(config.getConfigDir());
             }
 
             return connection.rpc.invoke("session.create", request, CreateSessionResponse.class).thenApply(response -> {

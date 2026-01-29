@@ -15,7 +15,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 
@@ -229,15 +228,10 @@ public class PermissionsTest {
      * Note: This test verifies error handling in permission handlers. When the
      * handler throws an exception, the SDK should deny the permission and the
      * assistant should indicate it couldn't complete the task.
-     *
-     * Currently disabled because the test is flaky and requires proper error
-     * handling infrastructure that returns a response promptly when permission is
-     * denied due to errors.
      */
-    @Disabled("Requires improved error handling for permission handler exceptions")
     @Test
-    void testPermissionHandlerErrorsGracefully(TestInfo testInfo) throws Exception {
-        ctx.configureForTest("permissions", "permission_handler_errors_gracefully");
+    void testShouldHandlePermissionHandlerErrorsGracefully(TestInfo testInfo) throws Exception {
+        ctx.configureForTest("permissions", "should_handle_permission_handler_errors_gracefully");
 
         SessionConfig config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
             // Throw an error in the handler

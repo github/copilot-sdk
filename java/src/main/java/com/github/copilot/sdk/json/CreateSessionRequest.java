@@ -60,6 +60,15 @@ public final class CreateSessionRequest {
     @JsonProperty("infiniteSessions")
     private InfiniteSessionConfig infiniteSessions;
 
+    @JsonProperty("skillDirectories")
+    private List<String> skillDirectories;
+
+    @JsonProperty("disabledSkills")
+    private List<String> disabledSkills;
+
+    @JsonProperty("configDir")
+    private String configDir;
+
     /** Gets the model name. @return the model */
     public String getModel() {
         return model;
@@ -178,5 +187,35 @@ public final class CreateSessionRequest {
     /** Sets infinite sessions config. @param infiniteSessions the config */
     public void setInfiniteSessions(InfiniteSessionConfig infiniteSessions) {
         this.infiniteSessions = infiniteSessions;
+    }
+
+    /** Gets skill directories. @return the skill directories */
+    public List<String> getSkillDirectories() {
+        return skillDirectories;
+    }
+
+    /** Sets skill directories. @param skillDirectories the directories */
+    public void setSkillDirectories(List<String> skillDirectories) {
+        this.skillDirectories = skillDirectories;
+    }
+
+    /** Gets disabled skills. @return the disabled skill names */
+    public List<String> getDisabledSkills() {
+        return disabledSkills;
+    }
+
+    /** Sets disabled skills. @param disabledSkills the skill names to disable */
+    public void setDisabledSkills(List<String> disabledSkills) {
+        this.disabledSkills = disabledSkills;
+    }
+
+    /** Gets config directory. @return the config directory path */
+    public String getConfigDir() {
+        return configDir;
+    }
+
+    /** Sets config directory. @param configDir the config directory path */
+    public void setConfigDir(String configDir) {
+        this.configDir = configDir;
     }
 }

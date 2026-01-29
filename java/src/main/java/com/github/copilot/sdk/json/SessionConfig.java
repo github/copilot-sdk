@@ -43,6 +43,9 @@ public class SessionConfig {
     private Map<String, Object> mcpServers;
     private List<CustomAgentConfig> customAgents;
     private InfiniteSessionConfig infiniteSessions;
+    private List<String> skillDirectories;
+    private List<String> disabledSkills;
+    private String configDir;
 
     /**
      * Gets the custom session ID.
@@ -336,6 +339,79 @@ public class SessionConfig {
      */
     public SessionConfig setInfiniteSessions(InfiniteSessionConfig infiniteSessions) {
         this.infiniteSessions = infiniteSessions;
+        return this;
+    }
+
+    /**
+     * Gets the skill directories.
+     *
+     * @return the list of skill directory paths
+     */
+    public List<String> getSkillDirectories() {
+        return skillDirectories;
+    }
+
+    /**
+     * Sets the skill directories for loading custom skills.
+     * <p>
+     * Skills are loaded from SKILL.md files in subdirectories of the specified
+     * directories. Each skill subdirectory should contain a SKILL.md file with YAML
+     * frontmatter defining the skill metadata.
+     *
+     * @param skillDirectories
+     *            the list of skill directory paths
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setSkillDirectories(List<String> skillDirectories) {
+        this.skillDirectories = skillDirectories;
+        return this;
+    }
+
+    /**
+     * Gets the disabled skill names.
+     *
+     * @return the list of disabled skill names
+     */
+    public List<String> getDisabledSkills() {
+        return disabledSkills;
+    }
+
+    /**
+     * Sets the list of skill names to disable.
+     * <p>
+     * Skills in this list will not be applied to the session, even if they are
+     * found in the skill directories.
+     *
+     * @param disabledSkills
+     *            the list of skill names to disable
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setDisabledSkills(List<String> disabledSkills) {
+        this.disabledSkills = disabledSkills;
+        return this;
+    }
+
+    /**
+     * Gets the custom configuration directory.
+     *
+     * @return the config directory path
+     */
+    public String getConfigDir() {
+        return configDir;
+    }
+
+    /**
+     * Sets a custom configuration directory for the session.
+     * <p>
+     * This allows using a specific directory for session configuration instead of
+     * the default location.
+     *
+     * @param configDir
+     *            the configuration directory path
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setConfigDir(String configDir) {
+        this.configDir = configDir;
         return this;
     }
 }

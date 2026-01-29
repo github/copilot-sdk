@@ -306,6 +306,52 @@ public final class CopilotSession implements AutoCloseable {
     }
 
     /**
+     * Registers an event handler for a specific event type.
+     * <p>
+     * This provides a type-safe way to handle specific events without needing
+     * {@code instanceof} checks. The handler will only be called for events
+     * matching the specified type.
+     *
+     * <h2>Example Usage</h2>
+     *
+     * <pre>{@code
+     * // Handle assistant messages
+     * session.on(AssistantMessageEvent.class, msg -> {
+     * 	System.out.println(msg.getData().getContent());
+     * });
+     *
+     * // Handle session idle
+     * session.on(SessionIdleEvent.class, idle -> {
+     * 	done.complete(null);
+     * });
+     *
+     * // Handle streaming deltas
+     * session.on(AssistantMessageDeltaEvent.class, delta -> {
+     * 	System.out.print(delta.getData().getDeltaContent());
+     * });
+     * }</pre>
+     *
+     * @param <T>
+     *            the event type
+     * @param eventType
+     *            the class of the event to listen for
+     * @param handler
+     *            a callback invoked when events of this type occur
+     * @return a Closeable that unsubscribes the handler when closed
+     * @see #on(Consumer)
+     * @see AbstractSessionEvent
+     */
+    public <T extends AbstractSessionEvent> Closeable on(Class<T> eventType, Consumer<T> handler) {
+        Consumer<AbstractSessionEvent> wrapper = event -> {
+            if (eventType.isInstance(event)) {
+                handler.accept(eventType.cast(event));
+            }
+        };
+        eventHandlers.add(wrapper);
+        return () -> eventHandlers.remove(wrapper);
+    }
+
+    /**
      * Dispatches an event to all registered handlers.
      * <p>
      * This is called internally when events are received from the server.

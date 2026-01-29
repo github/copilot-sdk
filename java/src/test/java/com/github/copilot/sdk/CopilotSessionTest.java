@@ -445,4 +445,68 @@ public class CopilotSessionTest {
             session.close();
         }
     }
+
+    @Test
+    void testThrowErrorWhenResumingNonExistentSession() throws Exception {
+        ctx.configureForTest("session", "should_receive_session_events");
+
+        try (CopilotClient client = ctx.createClient()) {
+            try {
+                client.resumeSession("non-existent-session-id").get(30, TimeUnit.SECONDS);
+                fail("Expected exception when resuming non-existent session");
+            } catch (Exception e) {
+                // Should throw an error
+                assertTrue(e.getMessage() != null || e.getCause() != null, "Exception should have a message or cause");
+            }
+        }
+    }
+
+    @Test
+    void testCreateSessionWithCustomConfigDir() throws Exception {
+        ctx.configureForTest("session", "should_create_session_with_custom_config_dir");
+
+        try (CopilotClient client = ctx.createClient()) {
+            String customConfigDir = ctx.getWorkDir().resolve("custom-config").toString();
+
+            SessionConfig config = new SessionConfig().setConfigDir(customConfigDir);
+            CopilotSession session = client.createSession(config).get();
+
+            assertNotNull(session.getSessionId());
+            assertTrue(session.getSessionId().matches("^[a-f0-9-]+$"));
+
+            // Session should work normally with custom config dir
+            AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60,
+                    TimeUnit.SECONDS);
+
+            assertNotNull(response);
+            assertTrue(response.getData().getContent().contains("2"),
+                    "Response should contain 2: " + response.getData().getContent());
+
+            session.close();
+        }
+    }
+
+    @Test
+    void testSendAndWaitThrowsOnTimeout() throws Exception {
+        ctx.configureForTest("session", "should_receive_session_events");
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession().get();
+
+            // Use a very short timeout that will definitely expire
+            try {
+                // Note: We use a command that takes time so timeout triggers before completion
+                session.sendAndWait(new MessageOptions().setPrompt("Run 'sleep 10 && echo done'"), 100).get(5,
+                        TimeUnit.SECONDS);
+                fail("Expected timeout exception");
+            } catch (Exception e) {
+                // Should throw a timeout-related error
+                assertTrue(e.getMessage().toLowerCase().contains("timeout")
+                        || (e.getCause() != null && e.getCause().getMessage().toLowerCase().contains("timeout")),
+                        "Should throw timeout exception: " + e.getMessage());
+            }
+
+            session.close();
+        }
+    }
 }
