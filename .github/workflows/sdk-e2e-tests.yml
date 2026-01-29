@@ -5,8 +5,6 @@ env:
   PYTHONUTF8: 1
 
 on:
-  push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
   merge_group:
@@ -15,8 +13,42 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: "Detect Changes"
+    runs-on: ubuntu-latest
+    # Always run on workflow_dispatch and merge_group
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group' || github.event_name == 'pull_request'
+    outputs:
+      nodejs: ${{ steps.filter.outputs.nodejs }}
+      go: ${{ steps.filter.outputs.go }}
+      python: ${{ steps.filter.outputs.python }}
+      dotnet: ${{ steps.filter.outputs.dotnet }}
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            nodejs:
+              - 'nodejs/**'
+              - 'test/**'
+            go:
+              - 'go/**'
+              - 'test/**'
+              - 'nodejs/package.json'
+            python:
+              - 'python/**'
+              - 'test/**'
+              - 'nodejs/package.json'
+            dotnet:
+              - 'dotnet/**'
+              - 'test/**'
+              - 'nodejs/package.json'
   nodejs-sdk:
     name: "Node.js SDK Tests"
+    needs: changes
+    # Run if nodejs files changed, or on workflow_dispatch/merge_group
+    if: needs.changes.outputs.nodejs == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group'
     strategy:
       fail-fast: false
       matrix:
@@ -63,6 +95,9 @@ jobs:
 
   go-sdk:
     name: "Go SDK Tests"
+    needs: changes
+    # Run if go files changed, or on workflow_dispatch/merge_group
+    if: needs.changes.outputs.go == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group'
     strategy:
       fail-fast: false
       matrix:
@@ -115,6 +150,9 @@ jobs:
 
   python-sdk:
     name: "Python SDK Tests"
+    needs: changes
+    # Run if python files changed, or on workflow_dispatch/merge_group
+    if: needs.changes.outputs.python == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group'
     strategy:
       fail-fast: false
       matrix:
@@ -164,6 +202,9 @@ jobs:
 
   dotnet-sdk:
     name: ".NET SDK Tests"
+    needs: changes
+    # Run if dotnet files changed, or on workflow_dispatch/merge_group
+    if: needs.changes.outputs.dotnet == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group'
     strategy:
       fail-fast: false
       matrix:
