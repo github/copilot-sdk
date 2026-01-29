@@ -97,10 +97,21 @@ func main() {
 - `AutoRestart` (\*bool): Auto-restart on crash (default: true). Use `Bool(false)` to disable.
 - `Env` ([]string): Environment variables for CLI process (default: inherits from current process)
 
+**SessionConfig:**
+
+- `Model` (string): Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
+- `SessionID` (string): Custom session ID
+- `Tools` ([]Tool): Custom tools exposed to the CLI
+- `SystemMessage` (\*SystemMessageConfig): System message configuration
+- `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
+- `Streaming` (bool): Enable streaming delta events
+- `InfiniteSessions` (\*InfiniteSessionConfig): Automatic context compaction configuration
+
 **ResumeSessionConfig:**
 
 - `Tools` ([]Tool): Tools to expose when resuming
-- `Provider` (\*ProviderConfig): Custom model provider configuration
+- `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
+- `Streaming` (bool): Enable streaming delta events
 
 ### Session
 
@@ -326,6 +337,63 @@ When enabled, sessions emit compaction events:
 
 - `session.compaction_start` - Background compaction started
 - `session.compaction_complete` - Compaction finished (includes token counts)
+
+## Custom Providers
+
+The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own Key), including local providers like Ollama. When using a custom provider, you must specify the `Model` explicitly.
+
+**ProviderConfig:**
+
+- `Type` (string): Provider type - "openai", "azure", or "anthropic" (default: "openai")
+- `BaseURL` (string): API endpoint URL (required)
+- `APIKey` (string): API key (optional for local providers like Ollama)
+- `BearerToken` (string): Bearer token for authentication (takes precedence over APIKey)
+- `WireApi` (string): API format for OpenAI/Azure - "completions" or "responses" (default: "completions")
+- `Azure.APIVersion` (string): Azure API version (default: "2024-10-21")
+
+**Example with Ollama:**
+
+```go
+session, err := client.CreateSession(&copilot.SessionConfig{
+    Model: "deepseek-coder-v2:16b", // Required when using custom provider
+    Provider: &copilot.ProviderConfig{
+        Type:    "openai",
+        BaseURL: "http://localhost:11434/v1", // Ollama endpoint
+        // APIKey not required for Ollama
+    },
+})
+```
+
+**Example with custom OpenAI-compatible API:**
+
+```go
+session, err := client.CreateSession(&copilot.SessionConfig{
+    Model: "gpt-4",
+    Provider: &copilot.ProviderConfig{
+        Type:    "openai",
+        BaseURL: "https://my-api.example.com/v1",
+        APIKey:  os.Getenv("MY_API_KEY"),
+    },
+})
+```
+
+**Example with Azure OpenAI:**
+
+```go
+session, err := client.CreateSession(&copilot.SessionConfig{
+    Model: "gpt-4",
+    Provider: &copilot.ProviderConfig{
+        Type:    "azure",
+        BaseURL: "https://my-resource.openai.azure.com",
+        APIKey:  os.Getenv("AZURE_OPENAI_KEY"),
+        Azure: &copilot.AzureProviderOptions{
+            APIVersion: "2024-10-21",
+        },
+    },
+})
+```
+
+> **Note:** When using a custom provider, the `Model` parameter is **required**. The SDK will return an error if no model is specified.
 
 ## Transport Modes
 
