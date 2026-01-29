@@ -8,3 +8,31 @@ updates:
     directory: '/'
     schedule:
       interval: 'weekly'
+  # Node.js dependencies
+  - package-ecosystem: 'npm'
+    directory: '/nodejs'
+    schedule:
+      interval: 'weekly'
+  - package-ecosystem: 'npm'
+    directory: '/test/harness'
+    schedule:
+      interval: 'weekly'
+  - package-ecosystem: 'npm'
+    directory: '/cookbook/nodejs/recipe'
+    schedule:
+      interval: 'weekly'
+  # Python dependencies
+  - package-ecosystem: 'pip'
+    directory: '/python'
+    schedule:
+      interval: 'weekly'
+  # Go dependencies
+  - package-ecosystem: 'gomod'
+    directory: '/go'
+    schedule:
+      interval: 'weekly'
+  # .NET dependencies
+  - package-ecosystem: 'nuget'
+    directory: '/dotnet'
+    schedule:
+      interval: 'weekly'
