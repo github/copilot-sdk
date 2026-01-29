@@ -160,6 +160,9 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
 
 Here's a complete working example using the official [`@modelcontextprotocol/server-filesystem`](https://www.npmjs.com/package/@modelcontextprotocol/server-filesystem) MCP server:
 
+<details open>
+<summary><strong>Node.js / TypeScript</strong></summary>
+
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
@@ -194,6 +197,135 @@ async function main() {
 
 main();
 ```
+
+</details>
+
+<details>
+<summary><strong>Python</strong></summary>
+
+```python
+import asyncio
+from copilot import CopilotClient
+
+async def main():
+    client = CopilotClient()
+    await client.start()
+
+    # Create session with filesystem MCP server
+    session = await client.create_session({
+        "mcp_servers": {
+            "filesystem": {
+                "type": "local",
+                "command": "npx",
+                "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+                "tools": ["*"],
+            },
+        },
+    })
+
+    print(f"Session created: {session.session_id}")
+
+    # The model can now use filesystem tools
+    result = await session.send_and_wait({
+        "prompt": "List the files in the allowed directory"
+    })
+
+    print(f"Response: {result.data.content}")
+
+    await session.destroy()
+    await client.stop()
+
+asyncio.run(main())
+```
+
+</details>
+
+<details>
+<summary><strong>Go</strong></summary>
+
+```go
+package main
+
+import (
+    "fmt"
+    "log"
+
+    copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+    client := copilot.NewClient(nil)
+    if err := client.Start(); err != nil {
+        log.Fatal(err)
+    }
+    defer client.Stop()
+
+    // Create session with filesystem MCP server
+    session, err := client.CreateSession(&copilot.SessionConfig{
+        MCPServers: map[string]copilot.MCPServerConfig{
+            "filesystem": {
+                Type:    "local",
+                Command: "npx",
+                Args:    []string{"-y", "@modelcontextprotocol/server-filesystem", "/tmp"},
+                Tools:   []string{"*"},
+            },
+        },
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Println("Session created:", session.SessionID)
+
+    // The model can now use filesystem tools
+    result, err := session.SendAndWait(copilot.MessageOptions{
+        Prompt: "List the files in the allowed directory",
+    }, 0)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Println("Response:", *result.Data.Content)
+}
+```
+
+</details>
+
+<details>
+<summary><strong>.NET</strong></summary>
+
+```csharp
+using GitHub.Copilot.SDK;
+
+await using var client = new CopilotClient();
+
+// Create session with filesystem MCP server
+await using var session = await client.CreateSessionAsync(new SessionConfig
+{
+    McpServers = new Dictionary<string, object>
+    {
+        ["filesystem"] = new McpLocalServerConfig
+        {
+            Type = "local",
+            Command = "npx",
+            Args = new[] { "-y", "@modelcontextprotocol/server-filesystem", "/tmp" },
+            Tools = new[] { "*" },
+        },
+    },
+});
+
+Console.WriteLine($"Session created: {session.SessionId}");
+
+// The model can now use filesystem tools
+var result = await session.SendAndWaitAsync(new MessageOptions
+{
+    Prompt = "List the files in the allowed directory"
+});
+
+Console.WriteLine($"Response: {result?.Data?.Content}");
+```
+
+</details>
 
 **Output:**
 ```
