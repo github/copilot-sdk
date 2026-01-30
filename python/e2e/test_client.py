@@ -154,15 +154,25 @@ class TestClient:
             models1 = await client.list_models()
             assert isinstance(models1, list)
 
-            # Second call should return cached results (same object reference)
+            # Second call should return from cache (different list object but same content)
             models2 = await client.list_models()
-            assert models2 is models1, "Second call should return cached results"
+            assert models2 is not models1, "Should return a copy, not the same object"
+            assert len(models2) == len(models1), "Cached results should have same content"
+            if len(models1) > 0:
+                assert models1[0].id == models2[0].id, "Cached models should match"
 
             # After stopping, cache should be cleared
             await client.stop()
 
             # Restart and verify cache is empty
             await client.start()
+
+            # Check authentication again after restart
+            auth_status = await client.get_auth_status()
+            if not auth_status.isAuthenticated:
+                await client.stop()
+                return
+
             models3 = await client.list_models()
             assert models3 is not models1, "Cache should be cleared after disconnect"
 

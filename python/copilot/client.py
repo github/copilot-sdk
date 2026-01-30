@@ -737,7 +737,7 @@ class CopilotClient:
         async with self._models_cache_lock:
             # Check cache (already inside lock)
             if self._models_cache is not None:
-                return self._models_cache
+                return list(self._models_cache)  # Return a copy to prevent cache mutation
 
             # Cache miss - fetch from backend while holding lock
             response = await self._client.request("models.list", {})
@@ -747,7 +747,7 @@ class CopilotClient:
             # Update cache before releasing lock
             self._models_cache = models
 
-            return models
+            return list(models)  # Return a copy to prevent cache mutation
 
     async def list_sessions(self) -> list["SessionMetadata"]:
         """
