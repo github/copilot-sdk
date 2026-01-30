@@ -693,6 +693,13 @@ public class SessionConfig
     public string? Model { get; set; }
 
     /// <summary>
+    /// Reasoning effort level for models that support it.
+    /// Valid values: "low", "medium", "high", "xhigh".
+    /// Only applies to models where capabilities.supports.reasoningEffort is true.
+    /// </summary>
+    public string? ReasoningEffort { get; set; }
+
+    /// <summary>
     /// Override the default configuration directory location.
     /// When specified, the session will use this directory for storing config and state.
     /// </summary>
@@ -765,6 +772,12 @@ public class ResumeSessionConfig
 {
     public ICollection<AIFunction>? Tools { get; set; }
     public ProviderConfig? Provider { get; set; }
+
+    /// <summary>
+    /// Reasoning effort level for models that support it.
+    /// Valid values: "low", "medium", "high", "xhigh".
+    /// </summary>
+    public string? ReasoningEffort { get; set; }
 
     /// <summary>
     /// Handler for permission requests from the server.
@@ -930,6 +943,12 @@ public class ModelSupports
 {
     [JsonPropertyName("vision")]
     public bool Vision { get; set; }
+
+    /// <summary>
+    /// Whether this model supports reasoning effort configuration.
+    /// </summary>
+    [JsonPropertyName("reasoningEffort")]
+    public bool ReasoningEffort { get; set; }
 }
 
 /// <summary>
@@ -989,6 +1008,14 @@ public class ModelInfo
     /// <summary>Billing information</summary>
     [JsonPropertyName("billing")]
     public ModelBilling? Billing { get; set; }
+
+    /// <summary>Supported reasoning effort levels (only present if model supports reasoning effort)</summary>
+    [JsonPropertyName("supportedReasoningEfforts")]
+    public List<string>? SupportedReasoningEfforts { get; set; }
+
+    /// <summary>Default reasoning effort level (only present if model supports reasoning effort)</summary>
+    [JsonPropertyName("defaultReasoningEffort")]
+    public string? DefaultReasoningEffort { get; set; }
 }
 
 /// <summary>

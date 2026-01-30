@@ -452,6 +452,7 @@ export class CopilotClient {
         const response = await this.connection!.sendRequest("session.create", {
             model: config.model,
             sessionId: config.sessionId,
+            reasoningEffort: config.reasoningEffort,
             tools: config.tools?.map((tool) => ({
                 name: tool.name,
                 description: tool.description,
@@ -531,6 +532,7 @@ export class CopilotClient {
 
         const response = await this.connection!.sendRequest("session.resume", {
             sessionId,
+            reasoningEffort: config.reasoningEffort,
             tools: config.tools?.map((tool) => ({
                 name: tool.name,
                 description: tool.description,

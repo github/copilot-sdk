@@ -101,6 +101,7 @@ await client.stop()
 **SessionConfig Options (for `create_session`):**
 
 - `model` (str): Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
+- `reasoning_effort` (str): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh"). Use `list_models()` to check which models support this option.
 - `session_id` (str): Custom session ID
 - `tools` (list): Custom tools exposed to the CLI
 - `system_message` (dict): System message configuration

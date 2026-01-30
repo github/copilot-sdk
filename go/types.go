@@ -322,6 +322,10 @@ type SessionConfig struct {
 	SessionID string
 	// Model to use for this session
 	Model string
+	// ReasoningEffort level for models that support it.
+	// Valid values: "low", "medium", "high", "xhigh"
+	// Only applies to models where capabilities.supports.reasoningEffort is true.
+	ReasoningEffort string
 	// ConfigDir overrides the default configuration directory location.
 	// When specified, the session will use this directory for storing config and state.
 	ConfigDir string
@@ -399,6 +403,9 @@ type ResumeSessionConfig struct {
 	Tools []Tool
 	// Provider configures a custom model provider
 	Provider *ProviderConfig
+	// ReasoningEffort level for models that support it.
+	// Valid values: "low", "medium", "high", "xhigh"
+	ReasoningEffort string
 	// OnPermissionRequest is a handler for permission requests from the server
 	OnPermissionRequest PermissionHandler
 	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
@@ -523,7 +530,8 @@ type ModelLimits struct {
 
 // ModelSupports contains model support flags
 type ModelSupports struct {
-	Vision bool `json:"vision"`
+	Vision          bool `json:"vision"`
+	ReasoningEffort bool `json:"reasoningEffort"`
 }
 
 // ModelCapabilities contains model capabilities and limits
@@ -545,11 +553,13 @@ type ModelBilling struct {
 
 // ModelInfo contains information about an available model
 type ModelInfo struct {
-	ID           string            `json:"id"`
-	Name         string            `json:"name"`
-	Capabilities ModelCapabilities `json:"capabilities"`
-	Policy       *ModelPolicy      `json:"policy,omitempty"`
-	Billing      *ModelBilling     `json:"billing,omitempty"`
+	ID                        string            `json:"id"`
+	Name                      string            `json:"name"`
+	Capabilities              ModelCapabilities `json:"capabilities"`
+	Policy                    *ModelPolicy      `json:"policy,omitempty"`
+	Billing                   *ModelBilling     `json:"billing,omitempty"`
+	SupportedReasoningEfforts []string          `json:"supportedReasoningEfforts,omitempty"`
+	DefaultReasoningEffort    string            `json:"defaultReasoningEffort,omitempty"`
 }
 
 // GetModelsResponse is the response from models.list

@@ -387,6 +387,8 @@ class CopilotClient:
             payload["model"] = cfg["model"]
         if cfg.get("session_id"):
             payload["sessionId"] = cfg["session_id"]
+        if cfg.get("reasoning_effort"):
+            payload["reasoningEffort"] = cfg["reasoning_effort"]
         if tool_defs:
             payload["tools"] = tool_defs
 
@@ -545,6 +547,8 @@ class CopilotClient:
                 tool_defs.append(definition)
 
         payload: dict[str, Any] = {"sessionId": session_id}
+        if cfg.get("reasoning_effort"):
+            payload["reasoningEffort"] = cfg["reasoning_effort"]
         if tool_defs:
             payload["tools"] = tool_defs
 
