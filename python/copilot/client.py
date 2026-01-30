@@ -157,7 +157,7 @@ class CopilotClient:
         self._state: ConnectionState = "disconnected"
         self._sessions: dict[str, CopilotSession] = {}
         self._sessions_lock = threading.Lock()
-        self._models_cache: Optional[list["ModelInfo"]] = None
+        self._models_cache: Optional[list[ModelInfo]] = None
         self._models_cache_lock = threading.Lock()
 
     def _parse_cli_url(self, url: str) -> tuple[str, int]:
