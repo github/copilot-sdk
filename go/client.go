@@ -144,9 +144,7 @@ func NewClient(options *ClientOptions) *Client {
 		if options.LogLevel != "" {
 			opts.LogLevel = options.LogLevel
 		}
-		if options.Env == nil {
-			opts.Env = os.Environ()
-		} else {
+		if options.Env != nil {
 			opts.Env = options.Env
 		}
 		if options.AutoStart != nil {
@@ -161,6 +159,11 @@ func NewClient(options *ClientOptions) *Client {
 		if options.UseLoggedInUser != nil {
 			opts.UseLoggedInUser = options.UseLoggedInUser
 		}
+	}
+
+	// Default Env to current environment if not set
+	if opts.Env == nil {
+		opts.Env = os.Environ()
 	}
 
 	// Check environment variable for CLI path

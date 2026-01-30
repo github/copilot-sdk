@@ -340,6 +340,14 @@ func TestClient_EnvOptions(t *testing.T) {
 		}
 	})
 
+	t.Run("should default to inherit from current process with nil options", func(t *testing.T) {
+		client := NewClient(nil)
+
+		if want := os.Environ(); !reflect.DeepEqual(client.options.Env, want) {
+			t.Errorf("Expected Env to be %v, got %v", want, client.options.Env)
+		}
+	})
+
 	t.Run("should allow empty environment", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
 			Env: []string{},
