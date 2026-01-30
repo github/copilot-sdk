@@ -112,7 +112,7 @@ func NewClient(options *ClientOptions) *Client {
 
 	if options != nil {
 		// Validate mutually exclusive options
-		if options.CLIUrl != "" && ((options.UseStdio != nil && *options.UseStdio) || options.CLIPath != "") {
+		if options.CLIUrl != "" && ((options.UseStdio != nil) || options.CLIPath != "") {
 			panic("CLIUrl is mutually exclusive with UseStdio and CLIPath")
 		}
 

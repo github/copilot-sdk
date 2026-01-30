@@ -18,7 +18,8 @@ type ClientOptions struct {
 	Cwd string
 	// Port for TCP transport (default: 0 = random port)
 	Port int
-	// UseStdio enables stdio transport instead of TCP (default: true)
+	// UseStdio controls whether to use stdio transport instead of TCP.
+	// Default: nil (use default = true, i.e. stdio). Use Bool(false) to explicitly select TCP.
 	UseStdio *bool
 	// CLIUrl is the URL of an existing Copilot CLI server to connect to over TCP
 	// Format: "host:port", "http://host:port", or just "port" (defaults to localhost)

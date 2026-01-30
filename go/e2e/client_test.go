@@ -54,7 +54,7 @@ func TestClient(t *testing.T) {
 	t.Run("should start and connect to server using tcp", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
 			CLIPath:  cliPath,
-			UseStdio: copilot.Bool(true),
+			UseStdio: copilot.Bool(false),
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
