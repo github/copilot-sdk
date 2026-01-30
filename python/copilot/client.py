@@ -157,6 +157,8 @@ class CopilotClient:
         self._state: ConnectionState = "disconnected"
         self._sessions: dict[str, CopilotSession] = {}
         self._sessions_lock = threading.Lock()
+        self._models_cache: Optional[list["ModelInfo"]] = None
+        self._models_cache_lock = threading.Lock()
 
     def _parse_cli_url(self, url: str) -> tuple[str, int]:
         """
@@ -281,6 +283,10 @@ class CopilotClient:
             await self._client.stop()
             self._client = None
 
+        # Clear models cache
+        with self._models_cache_lock:
+            self._models_cache = None
+
         # Kill CLI process
         # Kill CLI process (only if we spawned it)
         if self._process and not self._is_external_server:
@@ -324,6 +330,10 @@ class CopilotClient:
             except Exception:
                 pass  # Ignore errors during force stop
             self._client = None
+
+        # Clear models cache
+        with self._models_cache_lock:
+            self._models_cache = None
 
         # Kill CLI process immediately
         if self._process and not self._is_external_server:
@@ -705,6 +715,9 @@ class CopilotClient:
         """
         List available models with their metadata.
 
+        Results are cached after the first successful call to avoid rate limiting.
+        The cache is cleared when the client disconnects.
+
         Returns:
             A list of ModelInfo objects with model details.
 
@@ -720,9 +733,21 @@ class CopilotClient:
         if not self._client:
             raise RuntimeError("Client not connected")
 
+        # Check cache first (thread-safe)
+        with self._models_cache_lock:
+            if self._models_cache is not None:
+                return self._models_cache
+
+        # Cache miss - fetch from backend
         response = await self._client.request("models.list", {})
         models_data = response.get("models", [])
-        return [ModelInfo.from_dict(model) for model in models_data]
+        models = [ModelInfo.from_dict(model) for model in models_data]
+
+        # Update cache (thread-safe)
+        with self._models_cache_lock:
+            self._models_cache = models
+
+        return models
 
     async def list_sessions(self) -> list["SessionMetadata"]:
         """

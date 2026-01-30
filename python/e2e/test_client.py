@@ -135,3 +135,36 @@ class TestClient:
             await client.stop()
         finally:
             await client.force_stop()
+
+    async def test_should_cache_models_list(self):
+        """Test that list_models caches results to avoid rate limiting"""
+        client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": True})
+
+        try:
+            await client.start()
+
+            auth_status = await client.get_auth_status()
+            if not auth_status.isAuthenticated:
+                # Skip if not authenticated - models.list requires auth
+                await client.stop()
+                return
+
+            # First call should fetch from backend
+            models1 = await client.list_models()
+            assert isinstance(models1, list)
+
+            # Second call should return cached results (same object reference)
+            models2 = await client.list_models()
+            assert models2 is models1, "Second call should return cached results"
+
+            # After stopping, cache should be cleared
+            await client.stop()
+
+            # Restart and verify cache is empty
+            await client.start()
+            models3 = await client.list_models()
+            assert models3 is not models1, "Cache should be cleared after disconnect"
+
+            await client.stop()
+        finally:
+            await client.force_stop()
