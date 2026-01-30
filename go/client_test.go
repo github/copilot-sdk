@@ -226,7 +226,7 @@ func TestClient_URLParsing(t *testing.T) {
 		}
 	})
 
-	t.Run("should set UseStdio to false when UseStdio is set to true", func(t *testing.T) {
+	t.Run("should set UseStdio to true when UseStdio is set to true", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
 			UseStdio: Bool(true),
 		})
