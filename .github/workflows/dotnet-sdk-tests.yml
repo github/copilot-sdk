@@ -8,16 +8,15 @@ on:
       - 'nodejs/package.json'
       - '.github/workflows/dotnet-sdk-tests.yml'
       - '.github/actions/setup-copilot/**'
-    paths-ignore:
-      - '**/*.md'
-      - '**/LICENSE*'
-      - '**/.gitignore'
-      - '**/.editorconfig'
-      - '**/*.png'
-      - '**/*.jpg'
-      - '**/*.jpeg'
-      - '**/*.gif'
-      - '**/*.svg'
+      - '!**/*.md'
+      - '!**/LICENSE*'
+      - '!**/.gitignore'
+      - '!**/.editorconfig'
+      - '!**/*.png'
+      - '!**/*.jpg'
+      - '!**/*.jpeg'
+      - '!**/*.gif'
+      - '!**/*.svg'
   workflow_dispatch:
   merge_group:
 
