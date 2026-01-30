@@ -347,6 +347,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         var request = new CreateSessionRequest(
             config?.Model,
             config?.SessionId,
+            config?.ReasoningEffort,
             config?.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
             config?.SystemMessage,
             config?.AvailableTools,
@@ -428,6 +429,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
 
         var request = new ResumeSessionRequest(
             sessionId,
+            config?.ReasoningEffort,
             config?.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
             config?.Provider,
             config?.OnPermissionRequest != null ? true : null,
@@ -1090,6 +1092,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     internal record CreateSessionRequest(
         string? Model,
         string? SessionId,
+        string? ReasoningEffort,
         List<ToolDefinition>? Tools,
         SystemMessageConfig? SystemMessage,
         List<string>? AvailableTools,
@@ -1122,6 +1125,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
 
     internal record ResumeSessionRequest(
         string SessionId,
+        string? ReasoningEffort,
         List<ToolDefinition>? Tools,
         ProviderConfig? Provider,
         bool? RequestPermission,
