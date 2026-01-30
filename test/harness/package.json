@@ -13,7 +13,7 @@
   "devDependencies": {
     "@github/copilot": "^0.0.399",
     "@types/node": "^25.1.0",
-    "openai": "^6.15.0",
+    "openai": "^6.17.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.16",
