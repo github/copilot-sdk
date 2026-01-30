@@ -461,6 +461,9 @@ func (c *Client) CreateSession(config *SessionConfig) (*Session, error) {
 		if config.SessionID != "" {
 			params["sessionId"] = config.SessionID
 		}
+		if config.ReasoningEffort != "" {
+			params["reasoningEffort"] = config.ReasoningEffort
+		}
 		if len(config.Tools) > 0 {
 			toolDefs := make([]map[string]interface{}, 0, len(config.Tools))
 			for _, tool := range config.Tools {
@@ -670,6 +673,9 @@ func (c *Client) ResumeSessionWithOptions(sessionID string, config *ResumeSessio
 	}
 
 	if config != nil {
+		if config.ReasoningEffort != "" {
+			params["reasoningEffort"] = config.ReasoningEffort
+		}
 		if len(config.Tools) > 0 {
 			toolDefs := make([]map[string]interface{}, 0, len(config.Tools))
 			for _, tool := range config.Tools {

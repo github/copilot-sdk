@@ -102,6 +102,7 @@ func main() {
 **SessionConfig:**
 
 - `Model` (string): Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
+- `ReasoningEffort` (string): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh"). Use `ListModels()` to check which models support this option.
 - `SessionID` (string): Custom session ID
 - `Tools` ([]Tool): Custom tools exposed to the CLI
 - `SystemMessage` (\*SystemMessageConfig): System message configuration
@@ -114,6 +115,7 @@ func main() {
 **ResumeSessionConfig:**
 
 - `Tools` ([]Tool): Tools to expose when resuming
+- `ReasoningEffort` (string): Reasoning effort level for models that support it
 - `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
 - `Streaming` (bool): Enable streaming delta events
 

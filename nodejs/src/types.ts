@@ -603,6 +603,11 @@ export interface InfiniteSessionConfig {
     bufferExhaustionThreshold?: number;
 }
 
+/**
+ * Valid reasoning effort levels for models that support it.
+ */
+export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
+
 export interface SessionConfig {
     /**
      * Optional custom session ID
@@ -614,6 +619,13 @@ export interface SessionConfig {
      * Model to use for this session
      */
     model?: string;
+
+    /**
+     * Reasoning effort level for models that support it.
+     * Only valid for models where capabilities.supports.reasoningEffort is true.
+     * Use client.listModels() to check supported values for each model.
+     */
+    reasoningEffort?: ReasoningEffort;
 
     /**
      * Override the default configuration directory location.
@@ -721,6 +733,7 @@ export type ResumeSessionConfig = Pick<
     | "tools"
     | "provider"
     | "streaming"
+    | "reasoningEffort"
     | "onPermissionRequest"
     | "onUserInputRequest"
     | "hooks"
@@ -876,6 +889,8 @@ export interface GetAuthStatusResponse {
 export interface ModelCapabilities {
     supports: {
         vision: boolean;
+        /** Whether this model supports reasoning effort configuration */
+        reasoningEffort: boolean;
     };
     limits: {
         max_prompt_tokens?: number;
@@ -917,4 +932,8 @@ export interface ModelInfo {
     policy?: ModelPolicy;
     /** Billing information */
     billing?: ModelBilling;
+    /** Supported reasoning effort levels (only present if model supports reasoning effort) */
+    supportedReasoningEfforts?: ReasoningEffort[];
+    /** Default reasoning effort level (only present if model supports reasoning effort) */
+    defaultReasoningEffort?: ReasoningEffort;
 }

@@ -16,6 +16,8 @@ from .generated.session_events import SessionEvent
 # SessionEvent is now imported from generated types
 # It provides proper type discrimination for all event types
 
+# Valid reasoning effort levels for models that support it
+ReasoningEffort = Literal["low", "medium", "high", "xhigh"]
 
 # Connection state
 ConnectionState = Literal["disconnected", "connecting", "connected", "error"]
@@ -424,6 +426,9 @@ class SessionConfig(TypedDict, total=False):
 
     session_id: str  # Optional custom session ID
     model: Literal["gpt-5", "claude-sonnet-4", "claude-sonnet-4.5", "claude-haiku-4.5"]
+    # Reasoning effort level for models that support it.
+    # Only valid for models where capabilities.supports.reasoning_effort is True.
+    reasoning_effort: ReasoningEffort
     tools: list[Tool]
     system_message: SystemMessageConfig  # System message configuration
     # List of tool names to allow (takes precedence over excluded_tools)
@@ -489,6 +494,8 @@ class ResumeSessionConfig(TypedDict, total=False):
 
     tools: list[Tool]
     provider: ProviderConfig
+    # Reasoning effort level for models that support it.
+    reasoning_effort: ReasoningEffort
     on_permission_request: PermissionHandler
     # Handler for user input requests from the agent (enables ask_user tool)
     on_user_input_request: UserInputHandler
@@ -716,6 +723,7 @@ class ModelSupports:
     """Model support flags"""
 
     vision: bool
+    reasoning_effort: bool = False  # Whether this model supports reasoning effort
 
     @staticmethod
     def from_dict(obj: Any) -> ModelSupports:
@@ -723,11 +731,13 @@ class ModelSupports:
         vision = obj.get("vision")
         if vision is None:
             raise ValueError("Missing required field 'vision' in ModelSupports")
-        return ModelSupports(vision=bool(vision))
+        reasoning_effort = obj.get("reasoningEffort", False)
+        return ModelSupports(vision=bool(vision), reasoning_effort=bool(reasoning_effort))
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["vision"] = self.vision
+        result["reasoningEffort"] = self.reasoning_effort
         return result
 
 
@@ -813,6 +823,10 @@ class ModelInfo:
     capabilities: ModelCapabilities  # Model capabilities and limits
     policy: ModelPolicy | None = None  # Policy state
     billing: ModelBilling | None = None  # Billing information
+    # Supported reasoning effort levels (only present if model supports reasoning effort)
+    supported_reasoning_efforts: list[str] | None = None
+    # Default reasoning effort level (only present if model supports reasoning effort)
+    default_reasoning_effort: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> ModelInfo:
@@ -830,8 +844,16 @@ class ModelInfo:
         policy = ModelPolicy.from_dict(policy_dict) if policy_dict else None
         billing_dict = obj.get("billing")
         billing = ModelBilling.from_dict(billing_dict) if billing_dict else None
+        supported_reasoning_efforts = obj.get("supportedReasoningEfforts")
+        default_reasoning_effort = obj.get("defaultReasoningEffort")
         return ModelInfo(
-            id=str(id), name=str(name), capabilities=capabilities, policy=policy, billing=billing
+            id=str(id),
+            name=str(name),
+            capabilities=capabilities,
+            policy=policy,
+            billing=billing,
+            supported_reasoning_efforts=supported_reasoning_efforts,
+            default_reasoning_effort=default_reasoning_effort,
         )
 
     def to_dict(self) -> dict:
@@ -843,6 +865,10 @@ class ModelInfo:
             result["policy"] = self.policy.to_dict()
         if self.billing is not None:
             result["billing"] = self.billing.to_dict()
+        if self.supported_reasoning_efforts is not None:
+            result["supportedReasoningEfforts"] = self.supported_reasoning_efforts
+        if self.default_reasoning_effort is not None:
+            result["defaultReasoningEffort"] = self.default_reasoning_effort
         return result
 
 
