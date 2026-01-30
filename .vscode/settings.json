@@ -16,5 +16,8 @@
   "python.testing.pytestArgs": ["python"],
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff"
+  },
+  "[go]": {
+    "editor.defaultFormatter": "golang.go"
   }
 }
