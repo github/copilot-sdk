@@ -144,7 +144,9 @@ func NewClient(options *ClientOptions) *Client {
 		if options.LogLevel != "" {
 			opts.LogLevel = options.LogLevel
 		}
-		if len(options.Env) > 0 {
+		if options.Env == nil {
+			opts.Env = os.Environ()
+		} else {
 			opts.Env = options.Env
 		}
 		if options.AutoStart != nil {
@@ -1086,12 +1088,8 @@ func (c *Client) startCLIServer() error {
 		c.process.Dir = c.options.Cwd
 	}
 
-	// Set environment if specified, adding auth token if needed
-	if len(c.options.Env) > 0 {
-		c.process.Env = c.options.Env
-	} else {
-		c.process.Env = os.Environ()
-	}
+	// Add auth token if needed.
+	c.process.Env = c.options.Env
 	if c.options.GithubToken != "" {
 		c.process.Env = append(c.process.Env, "COPILOT_SDK_AUTH_TOKEN="+c.options.GithubToken)
 	}
