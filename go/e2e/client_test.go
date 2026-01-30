@@ -17,7 +17,7 @@ func TestClient(t *testing.T) {
 	t.Run("should start and connect to server using stdio", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
 			CLIPath:  cliPath,
-			UseStdio: true,
+			UseStdio: copilot.Bool(true),
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -54,7 +54,7 @@ func TestClient(t *testing.T) {
 	t.Run("should start and connect to server using tcp", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
 			CLIPath:  cliPath,
-			UseStdio: false,
+			UseStdio: copilot.Bool(true),
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -134,7 +134,7 @@ func TestClient(t *testing.T) {
 	t.Run("should get status with version and protocol info", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
 			CLIPath:  cliPath,
-			UseStdio: true,
+			UseStdio: copilot.Bool(true),
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -161,7 +161,7 @@ func TestClient(t *testing.T) {
 	t.Run("should get auth status", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
 			CLIPath:  cliPath,
-			UseStdio: true,
+			UseStdio: copilot.Bool(true),
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -190,7 +190,7 @@ func TestClient(t *testing.T) {
 	t.Run("should list models when authenticated", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
 			CLIPath:  cliPath,
-			UseStdio: true,
+			UseStdio: copilot.Bool(true),
 		})
 		t.Cleanup(func() { client.ForceStop() })
 

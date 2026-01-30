@@ -71,6 +71,7 @@ type Client struct {
 	sessionsMux      sync.Mutex
 	isExternalServer bool
 	conn             interface{} // stores net.Conn for external TCP connections
+	useStdio         bool        // resolved value from options
 	autoStart        bool        // resolved value from options
 	autoRestart      bool        // resolved value from options
 }
@@ -95,7 +96,6 @@ func NewClient(options *ClientOptions) *Client {
 		CLIPath:  "copilot",
 		Cwd:      "",
 		Port:     0,
-		UseStdio: true,
 		LogLevel: "info",
 	}
 
@@ -105,13 +105,14 @@ func NewClient(options *ClientOptions) *Client {
 		sessions:         make(map[string]*Session),
 		actualHost:       "localhost",
 		isExternalServer: false,
+		useStdio:         true,
 		autoStart:        true, // default
 		autoRestart:      true, // default
 	}
 
 	if options != nil {
 		// Validate mutually exclusive options
-		if options.CLIUrl != "" && (options.UseStdio || options.CLIPath != "") {
+		if options.CLIUrl != "" && ((options.UseStdio != nil && *options.UseStdio) || options.CLIPath != "") {
 			panic("CLIUrl is mutually exclusive with UseStdio and CLIPath")
 		}
 
@@ -126,7 +127,7 @@ func NewClient(options *ClientOptions) *Client {
 			client.actualHost = host
 			client.actualPort = port
 			client.isExternalServer = true
-			opts.UseStdio = false
+			client.useStdio = false
 			opts.CLIUrl = options.CLIUrl
 		}
 
@@ -139,13 +140,16 @@ func NewClient(options *ClientOptions) *Client {
 		if options.Port > 0 {
 			opts.Port = options.Port
 			// If port is specified, switch to TCP mode
-			opts.UseStdio = false
+			client.useStdio = false
 		}
 		if options.LogLevel != "" {
 			opts.LogLevel = options.LogLevel
 		}
 		if len(options.Env) > 0 {
 			opts.Env = options.Env
+		}
+		if options.UseStdio != nil {
+			client.useStdio = *options.UseStdio
 		}
 		if options.AutoStart != nil {
 			client.autoStart = *options.AutoStart
@@ -1050,7 +1054,7 @@ func (c *Client) startCLIServer() error {
 	args := []string{"--server", "--log-level", c.options.LogLevel}
 
 	// Choose transport mode
-	if c.options.UseStdio {
+	if c.useStdio {
 		args = append(args, "--stdio")
 	} else if c.options.Port > 0 {
 		args = append(args, "--port", strconv.Itoa(c.options.Port))
@@ -1096,7 +1100,7 @@ func (c *Client) startCLIServer() error {
 		c.process.Env = append(c.process.Env, "COPILOT_SDK_AUTH_TOKEN="+c.options.GithubToken)
 	}
 
-	if c.options.UseStdio {
+	if c.useStdio {
 		// For stdio mode, we need stdin/stdout pipes
 		stdin, err := c.process.StdinPipe()
 		if err != nil {
@@ -1171,7 +1175,7 @@ func (c *Client) startCLIServer() error {
 
 // connectToServer establishes a connection to the server.
 func (c *Client) connectToServer() error {
-	if c.options.UseStdio {
+	if c.useStdio {
 		// Already connected via stdio in startCLIServer
 		return nil
 	}

@@ -194,7 +194,7 @@ func TestClient_URLParsing(t *testing.T) {
 
 		NewClient(&ClientOptions{
 			CLIUrl:   "localhost:8080",
-			UseStdio: true,
+			UseStdio: Bool(true),
 		})
 	})
 
@@ -221,8 +221,28 @@ func TestClient_URLParsing(t *testing.T) {
 			CLIUrl: "8080",
 		})
 
-		if client.options.UseStdio {
+		if client.useStdio {
 			t.Error("Expected UseStdio to be false when CLIUrl is provided")
+		}
+	})
+
+	t.Run("should set UseStdio to false when UseStdio is set to true", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			UseStdio: Bool(true),
+		})
+
+		if !client.useStdio {
+			t.Error("Expected UseStdio to be true when UseStdio is set to true")
+		}
+	})
+
+	t.Run("should set UseStdio to false when UseStdio is set to false", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			UseStdio: Bool(false),
+		})
+
+		if client.useStdio {
+			t.Error("Expected UseStdio to be false when UseStdio is set to false")
 		}
 	})
 
