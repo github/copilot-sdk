@@ -158,7 +158,7 @@ class CopilotClient:
         self._sessions: dict[str, CopilotSession] = {}
         self._sessions_lock = threading.Lock()
         self._models_cache: Optional[list[ModelInfo]] = None
-        self._models_cache_lock = threading.Lock()
+        self._models_cache_lock = asyncio.Lock()
 
     def _parse_cli_url(self, url: str) -> tuple[str, int]:
         """
@@ -284,7 +284,7 @@ class CopilotClient:
             self._client = None
 
         # Clear models cache
-        with self._models_cache_lock:
+        async with self._models_cache_lock:
             self._models_cache = None
 
         # Kill CLI process
@@ -332,7 +332,7 @@ class CopilotClient:
             self._client = None
 
         # Clear models cache
-        with self._models_cache_lock:
+        async with self._models_cache_lock:
             self._models_cache = None
 
         # Kill CLI process immediately
@@ -733,21 +733,21 @@ class CopilotClient:
         if not self._client:
             raise RuntimeError("Client not connected")
 
-        # Check cache first (thread-safe)
-        with self._models_cache_lock:
+        # Use asyncio lock to prevent race condition with concurrent calls
+        async with self._models_cache_lock:
+            # Check cache (already inside lock)
             if self._models_cache is not None:
                 return self._models_cache
 
-        # Cache miss - fetch from backend
-        response = await self._client.request("models.list", {})
-        models_data = response.get("models", [])
-        models = [ModelInfo.from_dict(model) for model in models_data]
+            # Cache miss - fetch from backend while holding lock
+            response = await self._client.request("models.list", {})
+            models_data = response.get("models", [])
+            models = [ModelInfo.from_dict(model) for model in models_data]
 
-        # Update cache (thread-safe)
-        with self._models_cache_lock:
+            # Update cache before releasing lock
             self._models_cache = models
 
-        return models
+            return models
 
     async def list_sessions(self) -> list["SessionMetadata"]:
         """

@@ -136,6 +136,7 @@ class TestClient:
         finally:
             await client.force_stop()
 
+    @pytest.mark.asyncio
     async def test_should_cache_models_list(self):
         """Test that list_models caches results to avoid rate limiting"""
         client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": True})
