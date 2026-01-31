@@ -36,7 +36,7 @@ Repository = "https://github.com/github/copilot-sdk"
 where = ["."]
 include = ["copilot*"]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "ruff>=0.1.0",
     "ty>=0.0.2",
