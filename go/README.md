@@ -192,10 +192,10 @@ For more control over the JSON schema, use the `Tool` struct directly:
 lookupIssue := copilot.Tool{
     Name:        "lookup_issue",
     Description: "Fetch issue details from our tracker",
-    Parameters: map[string]interface{}{
+    Parameters: map[string]any{
         "type": "object",
-        "properties": map[string]interface{}{
-            "id": map[string]interface{}{
+        "properties": map[string]any{
+            "id": map[string]any{
                 "type":        "string",
                 "description": "Issue identifier",
             },
@@ -203,7 +203,7 @@ lookupIssue := copilot.Tool{
         "required": []string{"id"},
     },
     Handler: func(invocation copilot.ToolInvocation) (copilot.ToolResult, error) {
-        args := invocation.Arguments.(map[string]interface{})
+        args := invocation.Arguments.(map[string]any)
         issue, err := fetchIssue(args["id"].(string))
         if err != nil {
             return copilot.ToolResult{}, err
@@ -414,12 +414,12 @@ session, err := client.CreateSession(&copilot.SessionConfig{
         // request.Question - The question to ask
         // request.Choices - Optional slice of choices for multiple choice
         // request.AllowFreeform - Whether freeform input is allowed (default: true)
-        
+
         fmt.Printf("Agent asks: %s\n", request.Question)
         if len(request.Choices) > 0 {
             fmt.Printf("Choices: %v\n", request.Choices)
         }
-        
+
         // Return the user's response
         return copilot.UserInputResponse{
             Answer:      "User's answer here",
@@ -447,7 +447,7 @@ session, err := client.CreateSession(&copilot.SessionConfig{
                 AdditionalContext:  "Extra context for the model",
             }, nil
         },
-        
+
         // Called after each tool execution
         OnPostToolUse: func(input copilot.PostToolUseHookInput, invocation copilot.HookInvocation) (*copilot.PostToolUseHookOutput, error) {
             fmt.Printf("Tool %s completed\n", input.ToolName)
@@ -455,7 +455,7 @@ session, err := client.CreateSession(&copilot.SessionConfig{
                 AdditionalContext: "Post-execution notes",
             }, nil
         },
-        
+
         // Called when user submits a prompt
         OnUserPromptSubmitted: func(input copilot.UserPromptSubmittedHookInput, invocation copilot.HookInvocation) (*copilot.UserPromptSubmittedHookOutput, error) {
             fmt.Printf("User prompt: %s\n", input.Prompt)
@@ -463,7 +463,7 @@ session, err := client.CreateSession(&copilot.SessionConfig{
                 ModifiedPrompt: input.Prompt, // Optionally modify the prompt
             }, nil
         },
-        
+
         // Called when session starts
         OnSessionStart: func(input copilot.SessionStartHookInput, invocation copilot.HookInvocation) (*copilot.SessionStartHookOutput, error) {
             fmt.Printf("Session started from: %s\n", input.Source) // "startup", "resume", "new"
@@ -471,13 +471,13 @@ session, err := client.CreateSession(&copilot.SessionConfig{
                 AdditionalContext: "Session initialization context",
             }, nil
         },
-        
+
         // Called when session ends
         OnSessionEnd: func(input copilot.SessionEndHookInput, invocation copilot.HookInvocation) (*copilot.SessionEndHookOutput, error) {
             fmt.Printf("Session ended: %s\n", input.Reason)
             return nil, nil
         },
-        
+
         // Called when an error occurs
         OnErrorOccurred: func(input copilot.ErrorOccurredHookInput, invocation copilot.HookInvocation) (*copilot.ErrorOccurredHookOutput, error) {
             fmt.Printf("Error in %s: %s\n", input.ErrorContext, input.Error)
