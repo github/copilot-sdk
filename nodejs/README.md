@@ -86,8 +86,9 @@ Create a new conversation session.
 
 **Config:**
 
-- `sessionId?: string` - Custom session ID
+- `sessionId?: string` - Custom session ID.
 - `model?: string` - Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
+- `reasoningEffort?: "low" | "medium" | "high" | "xhigh"` - Reasoning effort level for models that support it. Use `listModels()` to check which models support this option.
 - `tools?: Tool[]` - Custom tools exposed to the CLI
 - `systemMessage?: SystemMessageConfig` - System message customization (see below)
 - `infiniteSessions?: InfiniteSessionConfig` - Configure automatic context compaction (see below)
@@ -511,12 +512,12 @@ const session = await client.createSession({
         // request.question - The question to ask
         // request.choices - Optional array of choices for multiple choice
         // request.allowFreeform - Whether freeform input is allowed (default: true)
-        
+
         console.log(`Agent asks: ${request.question}`);
         if (request.choices) {
             console.log(`Choices: ${request.choices.join(", ")}`);
         }
-        
+
         // Return the user's response
         return {
             answer: "User's answer here",
@@ -544,7 +545,7 @@ const session = await client.createSession({
                 additionalContext: "Extra context for the model",
             };
         },
-        
+
         // Called after each tool execution
         onPostToolUse: async (input, invocation) => {
             console.log(`Tool ${input.toolName} completed`);
@@ -553,7 +554,7 @@ const session = await client.createSession({
                 additionalContext: "Post-execution notes",
             };
         },
-        
+
         // Called when user submits a prompt
         onUserPromptSubmitted: async (input, invocation) => {
             console.log(`User prompt: ${input.prompt}`);
@@ -561,7 +562,7 @@ const session = await client.createSession({
                 modifiedPrompt: input.prompt, // Optionally modify the prompt
             };
         },
-        
+
         // Called when session starts
         onSessionStart: async (input, invocation) => {
             console.log(`Session started from: ${input.source}`); // "startup", "resume", "new"
@@ -569,12 +570,12 @@ const session = await client.createSession({
                 additionalContext: "Session initialization context",
             };
         },
-        
+
         // Called when session ends
         onSessionEnd: async (input, invocation) => {
             console.log(`Session ended: ${input.reason}`);
         },
-        
+
         // Called when an error occurs
         onErrorOccurred: async (input, invocation) => {
             console.error(`Error in ${input.errorContext}: ${input.error}`);

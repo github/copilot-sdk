@@ -71,8 +71,11 @@ type Client struct {
 	sessionsMux      sync.Mutex
 	isExternalServer bool
 	conn             any  // stores net.Conn for external TCP connections
+	useStdio         bool // resolved value from options
 	autoStart        bool // resolved value from options
 	autoRestart      bool // resolved value from options
+	modelsCache      []ModelInfo
+	modelsCacheMux   sync.Mutex
 }
 
 // NewClient creates a new Copilot CLI client with the given options.
@@ -95,7 +98,6 @@ func NewClient(options *ClientOptions) *Client {
 		CLIPath:  "copilot",
 		Cwd:      "",
 		Port:     0,
-		UseStdio: true,
 		LogLevel: "info",
 	}
 
@@ -105,13 +107,14 @@ func NewClient(options *ClientOptions) *Client {
 		sessions:         make(map[string]*Session),
 		actualHost:       "localhost",
 		isExternalServer: false,
+		useStdio:         true,
 		autoStart:        true, // default
 		autoRestart:      true, // default
 	}
 
 	if options != nil {
 		// Validate mutually exclusive options
-		if options.CLIUrl != "" && (options.UseStdio || options.CLIPath != "") {
+		if options.CLIUrl != "" && ((options.UseStdio != nil) || options.CLIPath != "") {
 			panic("CLIUrl is mutually exclusive with UseStdio and CLIPath")
 		}
 
@@ -126,7 +129,7 @@ func NewClient(options *ClientOptions) *Client {
 			client.actualHost = host
 			client.actualPort = port
 			client.isExternalServer = true
-			opts.UseStdio = false
+			client.useStdio = false
 			opts.CLIUrl = options.CLIUrl
 		}
 
@@ -139,13 +142,16 @@ func NewClient(options *ClientOptions) *Client {
 		if options.Port > 0 {
 			opts.Port = options.Port
 			// If port is specified, switch to TCP mode
-			opts.UseStdio = false
+			client.useStdio = false
 		}
 		if options.LogLevel != "" {
 			opts.LogLevel = options.LogLevel
 		}
-		if len(options.Env) > 0 {
+		if options.Env != nil {
 			opts.Env = options.Env
+		}
+		if options.UseStdio != nil {
+			client.useStdio = *options.UseStdio
 		}
 		if options.AutoStart != nil {
 			client.autoStart = *options.AutoStart
@@ -159,6 +165,11 @@ func NewClient(options *ClientOptions) *Client {
 		if options.UseLoggedInUser != nil {
 			opts.UseLoggedInUser = options.UseLoggedInUser
 		}
+	}
+
+	// Default Env to current environment if not set
+	if opts.Env == nil {
+		opts.Env = os.Environ()
 	}
 
 	// Check environment variable for CLI path
@@ -315,6 +326,11 @@ func (c *Client) Stop() []error {
 		c.client = nil
 	}
 
+	// Clear models cache
+	c.modelsCacheMux.Lock()
+	c.modelsCache = nil
+	c.modelsCacheMux.Unlock()
+
 	c.state = StateDisconnected
 	if !c.isExternalServer {
 		c.actualPort = 0
@@ -370,6 +386,11 @@ func (c *Client) ForceStop() {
 		c.client.Stop()
 		c.client = nil
 	}
+
+	// Clear models cache
+	c.modelsCacheMux.Lock()
+	c.modelsCache = nil
+	c.modelsCacheMux.Unlock()
 
 	c.state = StateDisconnected
 	if !c.isExternalServer {
@@ -451,6 +472,9 @@ func (c *Client) CreateSession(config *SessionConfig) (*Session, error) {
 		}
 		if config.SessionID != "" {
 			params["sessionId"] = config.SessionID
+		}
+		if config.ReasoningEffort != "" {
+			params["reasoningEffort"] = config.ReasoningEffort
 		}
 		if len(config.Tools) > 0 {
 			toolDefs := make([]map[string]any, 0, len(config.Tools))
@@ -661,6 +685,9 @@ func (c *Client) ResumeSessionWithOptions(sessionID string, config *ResumeSessio
 	}
 
 	if config != nil {
+		if config.ReasoningEffort != "" {
+			params["reasoningEffort"] = config.ReasoningEffort
+		}
 		if len(config.Tools) > 0 {
 			toolDefs := make([]map[string]any, 0, len(config.Tools))
 			for _, tool := range config.Tools {
@@ -998,12 +1025,28 @@ func (c *Client) GetAuthStatus() (*GetAuthStatusResponse, error) {
 	return response, nil
 }
 
-// ListModels returns available models with their metadata
+// ListModels returns available models with their metadata.
+//
+// Results are cached after the first successful call to avoid rate limiting.
+// The cache is cleared when the client disconnects.
 func (c *Client) ListModels() ([]ModelInfo, error) {
 	if c.client == nil {
 		return nil, fmt.Errorf("client not connected")
 	}
 
+	// Use mutex for locking to prevent race condition with concurrent calls
+	c.modelsCacheMux.Lock()
+	defer c.modelsCacheMux.Unlock()
+
+	// Check cache (already inside lock)
+	if c.modelsCache != nil {
+		// Return a copy to prevent cache mutation
+		result := make([]ModelInfo, len(c.modelsCache))
+		copy(result, c.modelsCache)
+		return result, nil
+	}
+
+	// Cache miss - fetch from backend while holding lock
 	result, err := c.client.Request("models.list", map[string]any{})
 	if err != nil {
 		return nil, err
@@ -1020,7 +1063,13 @@ func (c *Client) ListModels() ([]ModelInfo, error) {
 		return nil, fmt.Errorf("failed to unmarshal models response: %w", err)
 	}
 
-	return response.Models, nil
+	// Update cache before releasing lock
+	c.modelsCache = response.Models
+
+	// Return a copy to prevent cache mutation
+	models := make([]ModelInfo, len(response.Models))
+	copy(models, response.Models)
+	return models, nil
 }
 
 // verifyProtocolVersion verifies that the server's protocol version matches the SDK's expected version
@@ -1050,7 +1099,7 @@ func (c *Client) startCLIServer() error {
 	args := []string{"--server", "--log-level", c.options.LogLevel}
 
 	// Choose transport mode
-	if c.options.UseStdio {
+	if c.useStdio {
 		args = append(args, "--stdio")
 	} else if c.options.Port > 0 {
 		args = append(args, "--port", strconv.Itoa(c.options.Port))
@@ -1086,17 +1135,13 @@ func (c *Client) startCLIServer() error {
 		c.process.Dir = c.options.Cwd
 	}
 
-	// Set environment if specified, adding auth token if needed
-	if len(c.options.Env) > 0 {
-		c.process.Env = c.options.Env
-	} else {
-		c.process.Env = os.Environ()
-	}
+	// Add auth token if needed.
+	c.process.Env = c.options.Env
 	if c.options.GithubToken != "" {
 		c.process.Env = append(c.process.Env, "COPILOT_SDK_AUTH_TOKEN="+c.options.GithubToken)
 	}
 
-	if c.options.UseStdio {
+	if c.useStdio {
 		// For stdio mode, we need stdin/stdout pipes
 		stdin, err := c.process.StdinPipe()
 		if err != nil {
@@ -1171,7 +1216,7 @@ func (c *Client) startCLIServer() error {
 
 // connectToServer establishes a connection to the server.
 func (c *Client) connectToServer() error {
-	if c.options.UseStdio {
+	if c.useStdio {
 		// Already connected via stdio in startCLIServer
 		return nil
 	}

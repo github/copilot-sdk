@@ -93,6 +93,7 @@ Create a new conversation session.
 
 - `SessionId` - Custom session ID
 - `Model` - Model to use ("gpt-5", "claude-sonnet-4.5", etc.)
+- `ReasoningEffort` - Reasoning effort level for models that support it ("low", "medium", "high", "xhigh"). Use `ListModelsAsync()` to check which models support this option.
 - `Tools` - Custom tools exposed to the CLI
 - `SystemMessage` - System message customization
 - `AvailableTools` - List of tool names to allow

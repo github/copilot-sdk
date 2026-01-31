@@ -3,6 +3,7 @@ package copilot
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"testing"
 )
@@ -194,7 +195,7 @@ func TestClient_URLParsing(t *testing.T) {
 
 		NewClient(&ClientOptions{
 			CLIUrl:   "localhost:8080",
-			UseStdio: true,
+			UseStdio: Bool(true),
 		})
 	})
 
@@ -221,8 +222,28 @@ func TestClient_URLParsing(t *testing.T) {
 			CLIUrl: "8080",
 		})
 
-		if client.options.UseStdio {
+		if client.useStdio {
 			t.Error("Expected UseStdio to be false when CLIUrl is provided")
+		}
+	})
+
+	t.Run("should set UseStdio to true when UseStdio is set to true", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			UseStdio: Bool(true),
+		})
+
+		if !client.useStdio {
+			t.Error("Expected UseStdio to be true when UseStdio is set to true")
+		}
+	})
+
+	t.Run("should set UseStdio to false when UseStdio is set to false", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			UseStdio: Bool(false),
+		})
+
+		if client.useStdio {
+			t.Error("Expected UseStdio to be false when UseStdio is set to false")
 		}
 	})
 
@@ -311,6 +332,53 @@ func TestClient_AuthOptions(t *testing.T) {
 			CLIUrl:          "localhost:8080",
 			UseLoggedInUser: Bool(false),
 		})
+	})
+}
+
+func TestClient_EnvOptions(t *testing.T) {
+	t.Run("should store custom environment variables", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Env: []string{"FOO=bar", "BAZ=qux"},
+		})
+
+		if len(client.options.Env) != 2 {
+			t.Errorf("Expected 2 environment variables, got %d", len(client.options.Env))
+		}
+		if client.options.Env[0] != "FOO=bar" {
+			t.Errorf("Expected first env var to be 'FOO=bar', got %q", client.options.Env[0])
+		}
+		if client.options.Env[1] != "BAZ=qux" {
+			t.Errorf("Expected second env var to be 'BAZ=qux', got %q", client.options.Env[1])
+		}
+	})
+
+	t.Run("should default to inherit from current process", func(t *testing.T) {
+		client := NewClient(&ClientOptions{})
+
+		if want := os.Environ(); !reflect.DeepEqual(client.options.Env, want) {
+			t.Errorf("Expected Env to be %v, got %v", want, client.options.Env)
+		}
+	})
+
+	t.Run("should default to inherit from current process with nil options", func(t *testing.T) {
+		client := NewClient(nil)
+
+		if want := os.Environ(); !reflect.DeepEqual(client.options.Env, want) {
+			t.Errorf("Expected Env to be %v, got %v", want, client.options.Env)
+		}
+	})
+
+	t.Run("should allow empty environment", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Env: []string{},
+		})
+
+		if client.options.Env == nil {
+			t.Error("Expected Env to be non-nil empty slice")
+		}
+		if len(client.options.Env) != 0 {
+			t.Errorf("Expected 0 environment variables, got %d", len(client.options.Env))
+		}
 	})
 }
 
