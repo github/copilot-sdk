@@ -74,6 +74,8 @@ type Client struct {
 	useStdio         bool        // resolved value from options
 	autoStart        bool        // resolved value from options
 	autoRestart      bool        // resolved value from options
+	modelsCache      []ModelInfo
+	modelsCacheMux   sync.Mutex
 }
 
 // NewClient creates a new Copilot CLI client with the given options.
@@ -324,6 +326,11 @@ func (c *Client) Stop() []error {
 		c.client = nil
 	}
 
+	// Clear models cache
+	c.modelsCacheMux.Lock()
+	c.modelsCache = nil
+	c.modelsCacheMux.Unlock()
+
 	c.state = StateDisconnected
 	if !c.isExternalServer {
 		c.actualPort = 0
@@ -379,6 +386,11 @@ func (c *Client) ForceStop() {
 		c.client.Stop()
 		c.client = nil
 	}
+
+	// Clear models cache
+	c.modelsCacheMux.Lock()
+	c.modelsCache = nil
+	c.modelsCacheMux.Unlock()
 
 	c.state = StateDisconnected
 	if !c.isExternalServer {
@@ -1013,12 +1025,28 @@ func (c *Client) GetAuthStatus() (*GetAuthStatusResponse, error) {
 	return response, nil
 }
 
-// ListModels returns available models with their metadata
+// ListModels returns available models with their metadata.
+//
+// Results are cached after the first successful call to avoid rate limiting.
+// The cache is cleared when the client disconnects.
 func (c *Client) ListModels() ([]ModelInfo, error) {
 	if c.client == nil {
 		return nil, fmt.Errorf("client not connected")
 	}
 
+	// Use mutex for locking to prevent race condition with concurrent calls
+	c.modelsCacheMux.Lock()
+	defer c.modelsCacheMux.Unlock()
+
+	// Check cache (already inside lock)
+	if c.modelsCache != nil {
+		// Return a copy to prevent cache mutation
+		result := make([]ModelInfo, len(c.modelsCache))
+		copy(result, c.modelsCache)
+		return result, nil
+	}
+
+	// Cache miss - fetch from backend while holding lock
 	result, err := c.client.Request("models.list", map[string]interface{}{})
 	if err != nil {
 		return nil, err
@@ -1035,7 +1063,13 @@ func (c *Client) ListModels() ([]ModelInfo, error) {
 		return nil, fmt.Errorf("failed to unmarshal models response: %w", err)
 	}
 
-	return response.Models, nil
+	// Update cache before releasing lock
+	c.modelsCache = response.Models
+
+	// Return a copy to prevent cache mutation
+	models := make([]ModelInfo, len(response.Models))
+	copy(models, response.Models)
+	return models, nil
 }
 
 // verifyProtocolVersion verifies that the server's protocol version matches the SDK's expected version
