@@ -33,6 +33,12 @@ const normalizedToolNames = {
 };
 
 /**
+ * Default model to use when no stored data is available for a given test.
+ * This enables responding to /models without needing to have a capture file.
+ */
+const defaultModel = "claude-sonnet-4.5";
+
+/**
  * An HTTP proxy that not only captures HTTP exchanges, but also stores them in a file on disk and
  * replays the stored responses on subsequent runs.
  *
@@ -149,7 +155,9 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           options.requestOptions.path?.startsWith("/stop") &&
           options.requestOptions.method === "POST"
         ) {
-          const skipWritingCache = options.requestOptions.path.includes("skipWritingCache=true");
+          const skipWritingCache = options.requestOptions.path.includes(
+            "skipWritingCache=true",
+          );
           options.onResponseStart(200, {});
           options.onResponseEnd();
           await this.stop(skipWritingCache);
@@ -184,14 +192,35 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
         }
 
         // Handle /models endpoint
-        if (
-          options.requestOptions.path === "/models" &&
-          state.storedData?.models.length
-        ) {
-          const modelsResponse = createGetModelsResponse(
-            state.storedData.models,
-          );
+        // Use stored models if available, otherwise use default model
+        if (options.requestOptions.path === "/models") {
+          const models =
+            state.storedData?.models && state.storedData.models.length > 0
+              ? state.storedData.models
+              : [defaultModel];
+          const modelsResponse = createGetModelsResponse(models);
           const body = JSON.stringify(modelsResponse);
+          const headers = {
+            "content-type": "application/json",
+            ...commonResponseHeaders,
+          };
+          options.onResponseStart(200, headers);
+          options.onData(Buffer.from(body));
+          options.onResponseEnd();
+          return;
+        }
+
+        // Handle memory endpoints - return stub responses in tests
+        // Matches: /agents/*/memory/*/enabled, /agents/*/memory/*/recent, etc.
+        if (options.requestOptions.path?.match(/\/agents\/.*\/memory\//)) {
+          let body: string;
+          if (options.requestOptions.path.includes("/enabled")) {
+            body = JSON.stringify({ enabled: false });
+          } else if (options.requestOptions.path.includes("/recent")) {
+            body = JSON.stringify({ memories: [] });
+          } else {
+            body = JSON.stringify({});
+          }
           const headers = {
             "content-type": "application/json",
             ...commonResponseHeaders,
@@ -257,7 +286,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
         // Fallback to normal proxying if no cached response found
         // This implicitly captures the new exchange too
         if (process.env.CI === "true") {
-          await emitNoMatchingRequestWarning(
+          await exitWithNoMatchingRequestError(
             options,
             state.testInfo,
             state.workDir,
@@ -295,7 +324,7 @@ async function writeCapturesToDisk(
   }
 }
 
-async function emitNoMatchingRequestWarning(
+async function exitWithNoMatchingRequestError(
   options: PerformRequestOptions,
   testInfo: { file: string; line?: number } | undefined,
   workDir: string,
@@ -305,18 +334,27 @@ async function emitNoMatchingRequestWarning(
   if (testInfo?.file) parts.push(`file=${testInfo.file}`);
   if (typeof testInfo?.line === "number") parts.push(`line=${testInfo.line}`);
   const header = parts.length ? ` ${parts.join(",")}` : "";
-  const normalized = await parseAndNormalizeRequest(
-    options.body,
-    workDir,
-    toolResultNormalizers,
-  );
-  const normalizedMessages = normalized.conversations[0]?.messages ?? [];
-  const warningMessage =
-    `No cached response found for ${options.requestOptions.method} ${options.requestOptions.path}. ` +
-    `Final message: ${JSON.stringify(
+
+  let finalMessageInfo: string;
+  try {
+    const normalized = await parseAndNormalizeRequest(
+      options.body,
+      workDir,
+      toolResultNormalizers,
+    );
+    const normalizedMessages = normalized.conversations[0]?.messages ?? [];
+    finalMessageInfo = JSON.stringify(
       normalizedMessages[normalizedMessages.length - 1],
-    )}`;
-  process.stderr.write(`::warning${header}::${warningMessage}\n`);
+    );
+  } catch {
+    finalMessageInfo = `(unable to parse request body: ${options.body?.slice(0, 200) ?? "empty"})`;
+  }
+
+  const errorMessage =
+    `No cached response found for ${options.requestOptions.method} ${options.requestOptions.path}. ` +
+    `Final message: ${finalMessageInfo}`;
+  process.stderr.write(`::error${header}::${errorMessage}\n`);
+  options.onError(new Error(errorMessage));
 }
 
 async function findSavedChatCompletionResponse(
