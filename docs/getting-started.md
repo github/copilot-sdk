@@ -432,6 +432,10 @@ session.on("assistant.message_delta", (event) => {
     process.stdout.write(event.data.deltaContent);
 });
 
+session.on("session.idle", () => {
+    console.log(); // New line when done
+});
+
 await session.sendAndWait({
     prompt: "What's the weather like in Seattle and Tokyo?",
 });
