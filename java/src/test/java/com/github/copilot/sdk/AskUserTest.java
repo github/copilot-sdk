@@ -13,13 +13,14 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.json.MessageOptions;
 import com.github.copilot.sdk.json.SessionConfig;
 import com.github.copilot.sdk.json.UserInputRequest;
 import com.github.copilot.sdk.json.UserInputResponse;
+
+import org.junit.jupiter.api.Disabled;
 
 /**
  * Tests for user input handler (ask_user) functionality.
@@ -28,13 +29,14 @@ import com.github.copilot.sdk.json.UserInputResponse;
  * These tests use the shared CapiProxy infrastructure for deterministic API
  * response replay. Snapshots are stored in test/snapshots/ask-user/.
  * </p>
- *
  * <p>
- * <b>Note:</b> These tests require the latest test harness with ask_user
- * support.
+ * <b>Note:</b> These tests are currently disabled because they require CLI
+ * version 0.0.400+ which supports the ask_user tool. The test harness uses a
+ * separate XDG_CONFIG_HOME which causes the CLI to download an older runtime
+ * version (0.0.394) that doesn't support ask_user.
  * </p>
  */
-@Disabled("Requires test harness update with ask_user support - see upstream PR #269")
+@Disabled("Requires CLI version 0.0.400+ with ask_user tool support. See class javadoc for details.")
 public class AskUserTest {
 
     private static E2ETestContext ctx;
