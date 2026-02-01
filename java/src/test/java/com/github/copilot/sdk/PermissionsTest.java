@@ -233,8 +233,6 @@ public class PermissionsTest {
     void testShouldHandlePermissionHandlerErrorsGracefully(TestInfo testInfo) throws Exception {
         ctx.configureForTest("permissions", "should_handle_permission_handler_errors_gracefully");
 
-        // TODO: this test throws this exception and the stacktrace is being logged. We
-        // need to prevent that.
         SessionConfig config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
             // Throw an error in the handler
             throw new RuntimeException("Handler error");
