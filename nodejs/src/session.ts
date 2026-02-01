@@ -167,11 +167,12 @@ export class CopilotSession {
             }
         });
 
+        let timeoutId: NodeJS.Timeout | undefined;
         try {
             await this.send(options);
 
             const timeoutPromise = new Promise<never>((_, reject) => {
-                setTimeout(
+                timeoutId = setTimeout(
                     () =>
                         reject(
                             new Error(
@@ -181,8 +182,13 @@ export class CopilotSession {
                     effectiveTimeout
                 );
             });
-            await Promise.race([idlePromise, timeoutPromise]);
 
+            try {
+                await Promise.race([idlePromise, timeoutPromise]);
+            } finally {
+                // Clear timeout immediately after race completes to prevent memory leaks
+                if (timeoutId) clearTimeout(timeoutId);
+            }
             return lastAssistantMessage;
         } finally {
             unsubscribe();
