@@ -26,8 +26,6 @@ import com.github.copilot.sdk.json.PreToolUseHookOutput;
 import com.github.copilot.sdk.json.SessionConfig;
 import com.github.copilot.sdk.json.SessionHooks;
 
-import org.junit.jupiter.api.Disabled;
-
 /**
  * Tests for hooks functionality (pre-tool-use and post-tool-use hooks).
  *
