@@ -221,6 +221,27 @@ public class E2ETestContext implements AutoCloseable {
             return envPath;
         }
 
+        // Try test harness platform-specific binary (preferred as it works directly)
+        String os = System.getProperty("os.name").toLowerCase();
+        String arch = System.getProperty("os.arch").toLowerCase();
+        String platform = os.contains("mac") ? "darwin" : os.contains("win") ? "win32" : "linux";
+        String cpuArch = arch.contains("aarch64") || arch.contains("arm64") ? "arm64" : "x64";
+        Path platformBinary = repoRoot
+                .resolve("test/harness/node_modules/@github/copilot-" + platform + "-" + cpuArch + "/copilot");
+        if (os.contains("win")) {
+            platformBinary = repoRoot
+                    .resolve("test/harness/node_modules/@github/copilot-" + platform + "-" + cpuArch + "/copilot.exe");
+        }
+        if (Files.exists(platformBinary)) {
+            return platformBinary.toString();
+        }
+
+        // Try test harness npm-loader.js
+        Path harnessCliPath = repoRoot.resolve("test/harness/node_modules/@github/copilot/npm-loader.js");
+        if (Files.exists(harnessCliPath)) {
+            return harnessCliPath.toString();
+        }
+
         // Try nodejs installation
         Path cliPath = repoRoot.resolve("nodejs/node_modules/@github/copilot/index.js");
         if (Files.exists(cliPath)) {
@@ -228,7 +249,7 @@ public class E2ETestContext implements AutoCloseable {
         }
 
         throw new IOException("CLI not found. Either install 'copilot' globally, set COPILOT_CLI_PATH, "
-                + "or run 'npm install' in the nodejs directory.");
+                + "or run 'npm install' in the nodejs directory or test/harness directory.");
     }
 
     private static String findCopilotInPath() {
