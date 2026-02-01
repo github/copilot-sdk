@@ -365,8 +365,10 @@ public class CopilotClient implements AutoCloseable {
 
                 session.handleUserInputRequest(request).thenAccept(response -> {
                     try {
+                        // Ensure answer is never null - CLI requires a non-null string
+                        String answer = response.getAnswer() != null ? response.getAnswer() : "";
                         rpc.sendResponse(Long.parseLong(requestId),
-                                Map.of("answer", response.getAnswer(), "wasFreeform", response.isWasFreeform()));
+                                Map.of("answer", answer, "wasFreeform", response.isWasFreeform()));
                     } catch (IOException e) {
                         LOG.log(Level.SEVERE, "Error sending user input response", e);
                     }
