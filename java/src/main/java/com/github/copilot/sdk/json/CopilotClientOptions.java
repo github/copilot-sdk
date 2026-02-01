@@ -43,6 +43,8 @@ public class CopilotClientOptions {
     private boolean autoRestart = true;
     private Map<String, String> environment;
     private Logger logger;
+    private String githubToken;
+    private Boolean useLoggedInUser;
 
     /**
      * Gets the path to the Copilot CLI executable.
@@ -292,6 +294,56 @@ public class CopilotClientOptions {
      */
     public CopilotClientOptions setLogger(Logger logger) {
         this.logger = logger;
+        return this;
+    }
+
+    /**
+     * Gets the GitHub token for authentication.
+     *
+     * @return the GitHub token, or {@code null} to use other authentication methods
+     */
+    public String getGithubToken() {
+        return githubToken;
+    }
+
+    /**
+     * Sets the GitHub token to use for authentication.
+     * <p>
+     * When provided, the token is passed to the CLI server via environment
+     * variable. This takes priority over other authentication methods.
+     *
+     * @param githubToken
+     *            the GitHub token
+     * @return this options instance for method chaining
+     */
+    public CopilotClientOptions setGithubToken(String githubToken) {
+        this.githubToken = githubToken;
+        return this;
+    }
+
+    /**
+     * Returns whether to use the logged-in user for authentication.
+     *
+     * @return {@code true} to use logged-in user auth, {@code false} to use only
+     *         explicit tokens, or {@code null} to use default behavior
+     */
+    public Boolean getUseLoggedInUser() {
+        return useLoggedInUser;
+    }
+
+    /**
+     * Sets whether to use the logged-in user for authentication.
+     * <p>
+     * When true, the CLI server will attempt to use stored OAuth tokens or gh CLI
+     * auth. When false, only explicit tokens (githubToken or environment variables)
+     * are used. Default: true (but defaults to false when githubToken is provided).
+     *
+     * @param useLoggedInUser
+     *            {@code true} to use logged-in user auth, {@code false} otherwise
+     * @return this options instance for method chaining
+     */
+    public CopilotClientOptions setUseLoggedInUser(Boolean useLoggedInUser) {
+        this.useLoggedInUser = useLoggedInUser;
         return this;
     }
 }

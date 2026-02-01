@@ -33,12 +33,16 @@ public class SessionConfig {
 
     private String sessionId;
     private String model;
+    private String reasoningEffort;
     private List<ToolDefinition> tools;
     private SystemMessageConfig systemMessage;
     private List<String> availableTools;
     private List<String> excludedTools;
     private ProviderConfig provider;
     private PermissionHandler onPermissionRequest;
+    private UserInputHandler onUserInputRequest;
+    private SessionHooks hooks;
+    private String workingDirectory;
     private boolean streaming;
     private Map<String, Object> mcpServers;
     private List<CustomAgentConfig> customAgents;
@@ -90,6 +94,30 @@ public class SessionConfig {
      */
     public SessionConfig setModel(String model) {
         this.model = model;
+        return this;
+    }
+
+    /**
+     * Gets the reasoning effort level.
+     *
+     * @return the reasoning effort level ("low", "medium", "high", or "xhigh")
+     */
+    public String getReasoningEffort() {
+        return reasoningEffort;
+    }
+
+    /**
+     * Sets the reasoning effort level for models that support it.
+     * <p>
+     * Valid values: "low", "medium", "high", "xhigh". Only applies to models where
+     * {@code capabilities.supports.reasoningEffort} is true.
+     *
+     * @param reasoningEffort
+     *            the reasoning effort level
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setReasoningEffort(String reasoningEffort) {
+        this.reasoningEffort = reasoningEffort;
         return this;
     }
 
@@ -238,6 +266,75 @@ public class SessionConfig {
      */
     public SessionConfig setOnPermissionRequest(PermissionHandler onPermissionRequest) {
         this.onPermissionRequest = onPermissionRequest;
+        return this;
+    }
+
+    /**
+     * Gets the user input request handler.
+     *
+     * @return the user input handler
+     */
+    public UserInputHandler getOnUserInputRequest() {
+        return onUserInputRequest;
+    }
+
+    /**
+     * Sets a handler for user input requests from the agent.
+     * <p>
+     * When provided, enables the ask_user tool for the agent to request user input.
+     *
+     * @param onUserInputRequest
+     *            the user input handler
+     * @return this config instance for method chaining
+     * @see UserInputHandler
+     */
+    public SessionConfig setOnUserInputRequest(UserInputHandler onUserInputRequest) {
+        this.onUserInputRequest = onUserInputRequest;
+        return this;
+    }
+
+    /**
+     * Gets the hook handlers configuration.
+     *
+     * @return the session hooks
+     */
+    public SessionHooks getHooks() {
+        return hooks;
+    }
+
+    /**
+     * Sets hook handlers for session lifecycle events.
+     * <p>
+     * Hooks allow you to intercept and modify tool execution behavior.
+     *
+     * @param hooks
+     *            the hooks configuration
+     * @return this config instance for method chaining
+     * @see SessionHooks
+     */
+    public SessionConfig setHooks(SessionHooks hooks) {
+        this.hooks = hooks;
+        return this;
+    }
+
+    /**
+     * Gets the working directory for the session.
+     *
+     * @return the working directory path
+     */
+    public String getWorkingDirectory() {
+        return workingDirectory;
+    }
+
+    /**
+     * Sets the working directory for the session.
+     *
+     * @param workingDirectory
+     *            the working directory path
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setWorkingDirectory(String workingDirectory) {
+        this.workingDirectory = workingDirectory;
         return this;
     }
 

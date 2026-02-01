@@ -89,6 +89,8 @@ public class CopilotClient implements AutoCloseable {
     private volatile boolean disposed = false;
     private final String optionsHost;
     private final Integer optionsPort;
+    private volatile List<ModelInfo> modelsCache;
+    private final Object modelsCacheLock = new Object();
 
     /**
      * Creates a new CopilotClient with default options.
@@ -112,6 +114,13 @@ public class CopilotClient implements AutoCloseable {
         if (this.options.getCliUrl() != null && !this.options.getCliUrl().isEmpty()
                 && (this.options.isUseStdio() || this.options.getCliPath() != null)) {
             throw new IllegalArgumentException("CliUrl is mutually exclusive with UseStdio and CliPath");
+        }
+
+        // Validate auth options with external server
+        if (this.options.getCliUrl() != null && !this.options.getCliUrl().isEmpty()
+                && (this.options.getGithubToken() != null || this.options.getUseLoggedInUser() != null)) {
+            throw new IllegalArgumentException(
+                    "GithubToken and UseLoggedInUser cannot be used with CliUrl (external server manages its own auth)");
         }
 
         // Parse CliUrl if provided
@@ -217,6 +226,16 @@ public class CopilotClient implements AutoCloseable {
         rpc.registerMethodHandler("permission.request", (requestId, params) -> {
             handlePermissionRequest(rpc, requestId, params);
         });
+
+        // Handle user input requests
+        rpc.registerMethodHandler("userInput.request", (requestId, params) -> {
+            handleUserInputRequest(rpc, requestId, params);
+        });
+
+        // Handle hooks invocations
+        rpc.registerMethodHandler("hooks.invoke", (requestId, params) -> {
+            handleHooksInvoke(rpc, requestId, params);
+        });
     }
 
     private void handleToolCall(JsonRpcClient rpc, String requestId, JsonNode params) {
@@ -317,6 +336,93 @@ public class CopilotClient implements AutoCloseable {
         });
     }
 
+    private void handleUserInputRequest(JsonRpcClient rpc, String requestId, JsonNode params) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                String sessionId = params.get("sessionId").asText();
+                String question = params.get("question").asText();
+                JsonNode choicesNode = params.get("choices");
+                JsonNode allowFreeformNode = params.get("allowFreeform");
+
+                CopilotSession session = sessions.get(sessionId);
+                if (session == null) {
+                    rpc.sendErrorResponse(Long.parseLong(requestId), -32602, "Unknown session " + sessionId);
+                    return;
+                }
+
+                com.github.copilot.sdk.json.UserInputRequest request = new com.github.copilot.sdk.json.UserInputRequest()
+                        .setQuestion(question);
+                if (choicesNode != null && choicesNode.isArray()) {
+                    List<String> choices = new ArrayList<>();
+                    for (JsonNode choice : choicesNode) {
+                        choices.add(choice.asText());
+                    }
+                    request.setChoices(choices);
+                }
+                if (allowFreeformNode != null) {
+                    request.setAllowFreeform(allowFreeformNode.asBoolean());
+                }
+
+                session.handleUserInputRequest(request).thenAccept(response -> {
+                    try {
+                        rpc.sendResponse(Long.parseLong(requestId),
+                                Map.of("answer", response.getAnswer(), "wasFreeform", response.isWasFreeform()));
+                    } catch (IOException e) {
+                        LOG.log(Level.SEVERE, "Error sending user input response", e);
+                    }
+                }).exceptionally(ex -> {
+                    try {
+                        rpc.sendErrorResponse(Long.parseLong(requestId), -32603,
+                                "User input handler error: " + ex.getMessage());
+                    } catch (IOException e) {
+                        LOG.log(Level.SEVERE, "Error sending user input error", e);
+                    }
+                    return null;
+                });
+            } catch (Exception e) {
+                LOG.log(Level.SEVERE, "Error handling user input request", e);
+            }
+        });
+    }
+
+    private void handleHooksInvoke(JsonRpcClient rpc, String requestId, JsonNode params) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                String sessionId = params.get("sessionId").asText();
+                String hookType = params.get("hookType").asText();
+                JsonNode input = params.get("input");
+
+                CopilotSession session = sessions.get(sessionId);
+                if (session == null) {
+                    rpc.sendErrorResponse(Long.parseLong(requestId), -32602, "Unknown session " + sessionId);
+                    return;
+                }
+
+                session.handleHooksInvoke(hookType, input).thenAccept(output -> {
+                    try {
+                        if (output != null) {
+                            rpc.sendResponse(Long.parseLong(requestId), Map.of("output", output));
+                        } else {
+                            rpc.sendResponse(Long.parseLong(requestId), Map.of("output", (Object) null));
+                        }
+                    } catch (IOException e) {
+                        LOG.log(Level.SEVERE, "Error sending hooks response", e);
+                    }
+                }).exceptionally(ex -> {
+                    try {
+                        rpc.sendErrorResponse(Long.parseLong(requestId), -32603,
+                                "Hooks handler error: " + ex.getMessage());
+                    } catch (IOException e) {
+                        LOG.log(Level.SEVERE, "Error sending hooks error", e);
+                    }
+                    return null;
+                });
+            } catch (Exception e) {
+                LOG.log(Level.SEVERE, "Error handling hooks invoke", e);
+            }
+        });
+    }
+
     private void verifyProtocolVersion(Connection connection) throws Exception {
         int expectedVersion = SdkProtocolVersion.get();
         Map<String, Object> params = new HashMap<>();
@@ -373,6 +479,9 @@ public class CopilotClient implements AutoCloseable {
         CompletableFuture<Connection> future = connectionFuture;
         connectionFuture = null;
 
+        // Clear models cache
+        modelsCache = null;
+
         if (future == null) {
             return CompletableFuture.completedFuture(null);
         }
@@ -414,6 +523,7 @@ public class CopilotClient implements AutoCloseable {
             if (config != null) {
                 request.setModel(config.getModel());
                 request.setSessionId(config.getSessionId());
+                request.setReasoningEffort(config.getReasoningEffort());
                 request.setTools(config.getTools() != null
                         ? config.getTools().stream()
                                 .map(t -> new ToolDef(t.getName(), t.getDescription(), t.getParameters()))
@@ -424,6 +534,9 @@ public class CopilotClient implements AutoCloseable {
                 request.setExcludedTools(config.getExcludedTools());
                 request.setProvider(config.getProvider());
                 request.setRequestPermission(config.getOnPermissionRequest() != null ? true : null);
+                request.setRequestUserInput(config.getOnUserInputRequest() != null ? true : null);
+                request.setHooks(config.getHooks() != null && config.getHooks().hasHooks() ? true : null);
+                request.setWorkingDirectory(config.getWorkingDirectory());
                 request.setStreaming(config.isStreaming() ? true : null);
                 request.setMcpServers(config.getMcpServers());
                 request.setCustomAgents(config.getCustomAgents());
@@ -441,6 +554,12 @@ public class CopilotClient implements AutoCloseable {
                 }
                 if (config != null && config.getOnPermissionRequest() != null) {
                     session.registerPermissionHandler(config.getOnPermissionRequest());
+                }
+                if (config != null && config.getOnUserInputRequest() != null) {
+                    session.registerUserInputHandler(config.getOnUserInputRequest());
+                }
+                if (config != null && config.getHooks() != null) {
+                    session.registerHooks(config.getHooks());
                 }
                 sessions.put(response.getSessionId(), session);
                 return session;
@@ -478,6 +597,7 @@ public class CopilotClient implements AutoCloseable {
             ResumeSessionRequest request = new ResumeSessionRequest();
             request.setSessionId(sessionId);
             if (config != null) {
+                request.setReasoningEffort(config.getReasoningEffort());
                 request.setTools(config.getTools() != null
                         ? config.getTools().stream()
                                 .map(t -> new ToolDef(t.getName(), t.getDescription(), t.getParameters()))
@@ -485,6 +605,10 @@ public class CopilotClient implements AutoCloseable {
                         : null);
                 request.setProvider(config.getProvider());
                 request.setRequestPermission(config.getOnPermissionRequest() != null ? true : null);
+                request.setRequestUserInput(config.getOnUserInputRequest() != null ? true : null);
+                request.setHooks(config.getHooks() != null && config.getHooks().hasHooks() ? true : null);
+                request.setWorkingDirectory(config.getWorkingDirectory());
+                request.setDisableResume(config.isDisableResume() ? true : null);
                 request.setStreaming(config.isStreaming() ? true : null);
                 request.setMcpServers(config.getMcpServers());
                 request.setCustomAgents(config.getCustomAgents());
@@ -500,6 +624,12 @@ public class CopilotClient implements AutoCloseable {
                 }
                 if (config != null && config.getOnPermissionRequest() != null) {
                     session.registerPermissionHandler(config.getOnPermissionRequest());
+                }
+                if (config != null && config.getOnUserInputRequest() != null) {
+                    session.registerUserInputHandler(config.getOnUserInputRequest());
+                }
+                if (config != null && config.getHooks() != null) {
+                    session.registerHooks(config.getHooks());
                 }
                 sessions.put(response.getSessionId(), session);
                 return session;
@@ -576,13 +706,36 @@ public class CopilotClient implements AutoCloseable {
 
     /**
      * Lists available models with their metadata.
+     * <p>
+     * Results are cached after the first successful call to avoid rate limiting.
+     * The cache is cleared when the client disconnects.
      *
      * @return a future that resolves with a list of available models
      * @see ModelInfo
      */
     public CompletableFuture<List<ModelInfo>> listModels() {
-        return ensureConnected().thenCompose(connection -> connection.rpc
-                .invoke("models.list", Map.of(), GetModelsResponse.class).thenApply(GetModelsResponse::getModels));
+        // Check cache first
+        List<ModelInfo> cached = modelsCache;
+        if (cached != null) {
+            return CompletableFuture.completedFuture(new ArrayList<>(cached));
+        }
+
+        return ensureConnected().thenCompose(connection -> {
+            // Double-check cache inside lock
+            synchronized (modelsCacheLock) {
+                if (modelsCache != null) {
+                    return CompletableFuture.completedFuture(new ArrayList<>(modelsCache));
+                }
+            }
+
+            return connection.rpc.invoke("models.list", Map.of(), GetModelsResponse.class).thenApply(response -> {
+                List<ModelInfo> models = response.getModels();
+                synchronized (modelsCacheLock) {
+                    modelsCache = models;
+                }
+                return new ArrayList<>(models); // Return a copy to prevent cache mutation
+            });
+        });
     }
 
     /**
@@ -668,6 +821,20 @@ public class CopilotClient implements AutoCloseable {
             args.add(String.valueOf(options.getPort()));
         }
 
+        // Add auth-related flags
+        if (options.getGithubToken() != null && !options.getGithubToken().isEmpty()) {
+            args.add("--auth-token-env");
+            args.add("COPILOT_SDK_AUTH_TOKEN");
+        }
+
+        // Default UseLoggedInUser to false when GithubToken is provided
+        boolean useLoggedInUser = options.getUseLoggedInUser() != null
+                ? options.getUseLoggedInUser()
+                : (options.getGithubToken() == null || options.getGithubToken().isEmpty());
+        if (!useLoggedInUser) {
+            args.add("--no-auto-login");
+        }
+
         List<String> command = resolveCliCommand(cliPath, args);
 
         ProcessBuilder pb = new ProcessBuilder(command);
@@ -682,6 +849,11 @@ public class CopilotClient implements AutoCloseable {
             pb.environment().putAll(options.getEnvironment());
         }
         pb.environment().remove("NODE_DEBUG");
+
+        // Set auth token in environment if provided
+        if (options.getGithubToken() != null && !options.getGithubToken().isEmpty()) {
+            pb.environment().put("COPILOT_SDK_AUTH_TOKEN", options.getGithubToken());
+        }
 
         Process process = pb.start();
 

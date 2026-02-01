@@ -29,14 +29,22 @@ import com.github.copilot.sdk.events.SessionErrorEvent;
 import com.github.copilot.sdk.events.SessionEventParser;
 import com.github.copilot.sdk.events.SessionIdleEvent;
 import com.github.copilot.sdk.json.GetMessagesResponse;
+import com.github.copilot.sdk.json.HookInvocation;
 import com.github.copilot.sdk.json.MessageOptions;
 import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.PermissionInvocation;
 import com.github.copilot.sdk.json.PermissionRequest;
 import com.github.copilot.sdk.json.PermissionRequestResult;
+import com.github.copilot.sdk.json.PostToolUseHookInput;
+import com.github.copilot.sdk.json.PreToolUseHookInput;
 import com.github.copilot.sdk.json.SendMessageRequest;
 import com.github.copilot.sdk.json.SendMessageResponse;
+import com.github.copilot.sdk.json.SessionHooks;
 import com.github.copilot.sdk.json.ToolDefinition;
+import com.github.copilot.sdk.json.UserInputHandler;
+import com.github.copilot.sdk.json.UserInputInvocation;
+import com.github.copilot.sdk.json.UserInputRequest;
+import com.github.copilot.sdk.json.UserInputResponse;
 
 /**
  * Represents a single conversation session with the Copilot CLI.
@@ -82,6 +90,8 @@ public final class CopilotSession implements AutoCloseable {
     private final Set<Consumer<AbstractSessionEvent>> eventHandlers = ConcurrentHashMap.newKeySet();
     private final Map<String, ToolDefinition> toolHandlers = new ConcurrentHashMap<>();
     private final AtomicReference<PermissionHandler> permissionHandler = new AtomicReference<>();
+    private final AtomicReference<UserInputHandler> userInputHandler = new AtomicReference<>();
+    private final AtomicReference<SessionHooks> hooksHandler = new AtomicReference<>();
 
     /**
      * Creates a new session with the given ID and RPC client.
@@ -448,6 +458,104 @@ public final class CopilotSession implements AutoCloseable {
     }
 
     /**
+     * Registers a handler for user input requests.
+     * <p>
+     * Called internally when creating or resuming a session with user input
+     * handling.
+     *
+     * @param handler
+     *            the user input handler
+     */
+    void registerUserInputHandler(UserInputHandler handler) {
+        userInputHandler.set(handler);
+    }
+
+    /**
+     * Handles a user input request from the Copilot CLI.
+     * <p>
+     * Called internally when the server requests user input.
+     *
+     * @param request
+     *            the user input request
+     * @return a future that resolves with the user input response
+     */
+    CompletableFuture<UserInputResponse> handleUserInputRequest(UserInputRequest request) {
+        UserInputHandler handler = userInputHandler.get();
+        if (handler == null) {
+            return CompletableFuture.failedFuture(new IllegalStateException("No user input handler registered"));
+        }
+
+        try {
+            UserInputInvocation invocation = new UserInputInvocation().setSessionId(sessionId);
+            return handler.handle(request, invocation).exceptionally(ex -> {
+                LOG.log(Level.SEVERE, "User input handler threw an exception", ex);
+                throw new RuntimeException("User input handler error", ex);
+            });
+        } catch (Exception e) {
+            LOG.log(Level.SEVERE, "Failed to process user input request", e);
+            return CompletableFuture.failedFuture(e);
+        }
+    }
+
+    /**
+     * Registers hook handlers for this session.
+     * <p>
+     * Called internally when creating or resuming a session with hooks.
+     *
+     * @param hooks
+     *            the hooks configuration
+     */
+    void registerHooks(SessionHooks hooks) {
+        hooksHandler.set(hooks);
+    }
+
+    /**
+     * Handles a hook invocation from the Copilot CLI.
+     * <p>
+     * Called internally when the server invokes a hook.
+     *
+     * @param hookType
+     *            the type of hook to invoke
+     * @param input
+     *            the hook input data
+     * @return a future that resolves with the hook output
+     */
+    CompletableFuture<Object> handleHooksInvoke(String hookType, JsonNode input) {
+        SessionHooks hooks = hooksHandler.get();
+        if (hooks == null) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        HookInvocation invocation = new HookInvocation().setSessionId(sessionId);
+
+        try {
+            switch (hookType) {
+                case "preToolUse" :
+                    if (hooks.getOnPreToolUse() != null) {
+                        PreToolUseHookInput preInput = MAPPER.treeToValue(input, PreToolUseHookInput.class);
+                        return hooks.getOnPreToolUse().handle(preInput, invocation)
+                                .thenApply(output -> (Object) output);
+                    }
+                    break;
+                case "postToolUse" :
+                    if (hooks.getOnPostToolUse() != null) {
+                        PostToolUseHookInput postInput = MAPPER.treeToValue(input, PostToolUseHookInput.class);
+                        return hooks.getOnPostToolUse().handle(postInput, invocation)
+                                .thenApply(output -> (Object) output);
+                    }
+                    break;
+                default :
+                    LOG.warning("Unknown hook type: " + hookType);
+            }
+        } catch (Exception e) {
+            LOG.log(Level.SEVERE, "Failed to process hook invocation", e);
+            return CompletableFuture.failedFuture(e);
+        }
+
+        return CompletableFuture.completedFuture(null);
+    }
+
+    /**
      * Gets the complete list of messages and events in the session.
      * <p>
      * This retrieves the full conversation history, including all user messages,
@@ -506,6 +614,8 @@ public final class CopilotSession implements AutoCloseable {
         eventHandlers.clear();
         toolHandlers.clear();
         permissionHandler.set(null);
+        userInputHandler.set(null);
+        hooksHandler.set(null);
     }
 
 }

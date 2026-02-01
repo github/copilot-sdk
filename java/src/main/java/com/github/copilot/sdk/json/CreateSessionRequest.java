@@ -30,6 +30,9 @@ public final class CreateSessionRequest {
     @JsonProperty("sessionId")
     private String sessionId;
 
+    @JsonProperty("reasoningEffort")
+    private String reasoningEffort;
+
     @JsonProperty("tools")
     private List<ToolDef> tools;
 
@@ -47,6 +50,15 @@ public final class CreateSessionRequest {
 
     @JsonProperty("requestPermission")
     private Boolean requestPermission;
+
+    @JsonProperty("requestUserInput")
+    private Boolean requestUserInput;
+
+    @JsonProperty("hooks")
+    private Boolean hooks;
+
+    @JsonProperty("workingDirectory")
+    private String workingDirectory;
 
     @JsonProperty("streaming")
     private Boolean streaming;
@@ -87,6 +99,18 @@ public final class CreateSessionRequest {
     /** Sets the session ID. @param sessionId the session ID */
     public void setSessionId(String sessionId) {
         this.sessionId = sessionId;
+    }
+
+    /** Gets the reasoning effort. @return the reasoning effort level */
+    public String getReasoningEffort() {
+        return reasoningEffort;
+    }
+
+    /**
+     * Sets the reasoning effort. @param reasoningEffort the reasoning effort level
+     */
+    public void setReasoningEffort(String reasoningEffort) {
+        this.reasoningEffort = reasoningEffort;
     }
 
     /** Gets the tools. @return the tool definitions */
@@ -147,6 +171,36 @@ public final class CreateSessionRequest {
     /** Sets request permission flag. @param requestPermission the flag */
     public void setRequestPermission(Boolean requestPermission) {
         this.requestPermission = requestPermission;
+    }
+
+    /** Gets request user input flag. @return the flag */
+    public Boolean getRequestUserInput() {
+        return requestUserInput;
+    }
+
+    /** Sets request user input flag. @param requestUserInput the flag */
+    public void setRequestUserInput(Boolean requestUserInput) {
+        this.requestUserInput = requestUserInput;
+    }
+
+    /** Gets hooks flag. @return the flag */
+    public Boolean getHooks() {
+        return hooks;
+    }
+
+    /** Sets hooks flag. @param hooks the flag */
+    public void setHooks(Boolean hooks) {
+        this.hooks = hooks;
+    }
+
+    /** Gets working directory. @return the working directory */
+    public String getWorkingDirectory() {
+        return workingDirectory;
+    }
+
+    /** Sets working directory. @param workingDirectory the working directory */
+    public void setWorkingDirectory(String workingDirectory) {
+        this.workingDirectory = workingDirectory;
     }
 
     /** Gets streaming flag. @return the flag */
