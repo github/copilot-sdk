@@ -35,14 +35,7 @@ import org.junit.jupiter.api.Disabled;
  * These tests use the shared CapiProxy infrastructure for deterministic API
  * response replay. Snapshots are stored in test/snapshots/hooks/.
  * </p>
- * <p>
- * <b>Note:</b> These tests are currently disabled because they require CLI
- * version 0.0.400+ which supports the hooks system. The test harness uses a
- * separate XDG_CONFIG_HOME which causes the CLI to download an older runtime
- * version (0.0.394) that doesn't fully support hooks.
- * </p>
  */
-@Disabled("Requires CLI version 0.0.400+ with hooks support. See class javadoc for details.")
 public class HooksTest {
 
     private static E2ETestContext ctx;
