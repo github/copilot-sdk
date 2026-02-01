@@ -94,6 +94,32 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
       toolResultNormalizers: [],
     };
 
+    // If test requested tool binary overrides, add normalizers for each
+    if ((config as any).toolBinaryOverrides) {
+      const overrides = (config as any).toolBinaryOverrides as Record<
+        string,
+        { data: string; type?: string; mimeType?: string }
+      >;
+      for (const [toolName, override] of Object.entries(overrides)) {
+        const data = override.data;
+        const type = override.type ?? "base64";
+        const mimeType = override.mimeType ?? "image/png";
+
+        this.addToolResultNormalizer(toolName, (content) => {
+          try {
+            const obj = JSON.parse(content);
+            if (!obj.binaryResultsForLlm) {
+              obj.binaryResultsForLlm = [{ data, type, mimeType }];
+            }
+            return JSON.stringify(obj);
+          } catch {
+            // If content isn't JSON, leave it unchanged
+            return content;
+          }
+        });
+      }
+    }
+
     this.clearExchanges();
     await this.loadStoredData();
   }
@@ -149,7 +175,9 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           options.requestOptions.path?.startsWith("/stop") &&
           options.requestOptions.method === "POST"
         ) {
-          const skipWritingCache = options.requestOptions.path.includes("skipWritingCache=true");
+          const skipWritingCache = options.requestOptions.path.includes(
+            "skipWritingCache=true",
+          );
           options.onResponseStart(200, {});
           options.onResponseEnd();
           await this.stop(skipWritingCache);
