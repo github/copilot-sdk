@@ -425,7 +425,36 @@ class SessionConfig(TypedDict, total=False):
     """Configuration for creating a session"""
 
     session_id: str  # Optional custom session ID
-    model: Literal["gpt-5", "claude-sonnet-4", "claude-sonnet-4.5", "claude-haiku-4.5"]
+    model: (
+        Literal[
+            # OpenAI GPT
+            "gpt-5",
+            "gpt-5-mini",
+            "gpt-5-codex",
+            "gpt-5.1",
+            "gpt-5.1-codex",
+            "gpt-5.1-codex-mini",
+            "gpt-5.1-codex-max",
+            "gpt-5.2",
+            "gpt-5.2-codex",
+            "gpt-4.1",
+            "gpt-4o",
+            # Anthropic Claude
+            "claude-opus-4.1",
+            "claude-opus-4.5",
+            "claude-sonnet-4",
+            "claude-sonnet-4.5",
+            "claude-haiku-4.5",
+            # Google Gemini
+            "gemini-3-pro",
+            "gemini-3-flash",
+            "gemini-2.5-pro",
+            # Others
+            "grok-code-fast-1",
+            "raptor-mini",
+        ]
+        | str
+    )
     # Reasoning effort level for models that support it.
     # Only valid for models where capabilities.supports.reasoning_effort is True.
     reasoning_effort: ReasoningEffort
