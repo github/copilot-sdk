@@ -844,7 +844,9 @@ func main() {
 
 	session.On(func(event copilot.SessionEvent) {
 		if event.Type == "assistant.message_delta" {
-			fmt.Print(*event.Data.DeltaContent)
+			if event.Data != nil && event.Data.DeltaContent != nil {
+				fmt.Print(*event.Data.DeltaContent)
+			}
 		}
 		if event.Type == "session.idle" {
 			fmt.Println()
@@ -868,9 +870,13 @@ func main() {
 		fmt.Print("Assistant: ")
 		_, err = session.SendAndWait(copilot.MessageOptions{Prompt: input}, 0)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			break
 		}
 		fmt.Println()
+	}
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "Input error: %v\n", err)
 	}
 }
 ```
