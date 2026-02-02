@@ -97,6 +97,7 @@ await client.stop()
 - `auto_restart` (bool): Auto-restart on crash (default: True)
 - `github_token` (str): GitHub token for authentication. When provided, takes priority over other auth methods.
 - `use_logged_in_user` (bool): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided). Cannot be used with `cli_url`.
+- `hide_cli_window` (bool): Hide console window when spawning CLI process on Windows (default: False). Useful for GUI applications to prevent terminal windows from appearing.
 
 **SessionConfig Options (for `create_session`):**
 
