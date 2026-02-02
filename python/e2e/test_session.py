@@ -315,6 +315,33 @@ class TestSessions:
 
         assert session2.session_id == session_id
 
+    async def test_should_resume_session_with_system_message(self, ctx: E2ETestContext):
+        # Create initial session with a system message
+        system_message_suffix = "End each response with 'Greetings from the resumed session!'"
+        session = await ctx.client.create_session(
+            {"system_message": {"mode": "append", "content": "Initial system message."}}
+        )
+        session_id = session.session_id
+        await session.send_and_wait({"prompt": "What is 1+1?"})
+
+        # Resume the session with a different system message
+        session2 = await ctx.client.resume_session(
+            session_id,
+            {"system_message": {"mode": "append", "content": system_message_suffix}},
+        )
+
+        assert session2.session_id == session_id
+
+        # Send a message and verify the resumed system message is being used
+        await session2.send({"prompt": "What is your purpose?"})
+        assistant_message = await get_final_assistant_message(session2)
+        assert "Greetings from the resumed session!" in assistant_message.data.content
+
+        # Also validate the underlying traffic
+        traffic = await ctx.get_exchanges()
+        system_message = _get_system_message(traffic[-1])
+        assert system_message_suffix in system_message
+
     async def test_should_abort_a_session(self, ctx: E2ETestContext):
         import asyncio
 
