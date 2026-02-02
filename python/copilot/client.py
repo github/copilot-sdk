@@ -562,6 +562,11 @@ class CopilotClient:
         if tool_defs:
             payload["tools"] = tool_defs
 
+        # Add system message configuration if provided
+        system_message = cfg.get("system_message")
+        if system_message:
+            payload["systemMessage"] = system_message
+
         provider = cfg.get("provider")
         if provider:
             payload["provider"] = self._convert_provider_to_wire_format(provider)

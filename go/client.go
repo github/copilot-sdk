@@ -703,6 +703,10 @@ func (c *Client) ResumeSessionWithOptions(sessionID string, config *ResumeSessio
 		if config.Provider != nil {
 			params["provider"] = buildProviderParams(config.Provider)
 		}
+		// Add system message configuration
+		if config.SystemMessage != nil {
+			params["systemMessage"] = config.SystemMessage
+		}
 		// Add streaming option
 		if config.Streaming {
 			params["streaming"] = config.Streaming

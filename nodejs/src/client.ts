@@ -546,6 +546,7 @@ export class CopilotClient {
                 description: tool.description,
                 parameters: toJsonSchema(tool.parameters),
             })),
+            systemMessage: config.systemMessage,
             provider: config.provider,
             requestPermission: !!config.onPermissionRequest,
             requestUserInput: !!config.onUserInputRequest,
