@@ -278,6 +278,8 @@ class JsonRpcClient implements AutoCloseable {
                 JsonNode params = node.get("params");
                 Object id = node.has("id") && !node.get("id").isNull() ? node.get("id") : null;
 
+                LOG.fine("Received method: " + method);
+
                 BiConsumer<String, JsonNode> handler = notificationHandlers.get(method);
                 if (handler != null) {
                     try {

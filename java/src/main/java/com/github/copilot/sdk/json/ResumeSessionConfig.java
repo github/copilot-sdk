@@ -33,7 +33,12 @@ public class ResumeSessionConfig {
 
     private List<ToolDefinition> tools;
     private ProviderConfig provider;
+    private String reasoningEffort;
     private PermissionHandler onPermissionRequest;
+    private UserInputHandler onUserInputRequest;
+    private SessionHooks hooks;
+    private String workingDirectory;
+    private boolean disableResume;
     private boolean streaming;
     private Map<String, Object> mcpServers;
     private List<CustomAgentConfig> customAgents;
@@ -85,6 +90,29 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the reasoning effort level.
+     *
+     * @return the reasoning effort level ("low", "medium", "high", or "xhigh")
+     */
+    public String getReasoningEffort() {
+        return reasoningEffort;
+    }
+
+    /**
+     * Sets the reasoning effort level for models that support it.
+     * <p>
+     * Valid values: "low", "medium", "high", "xhigh".
+     *
+     * @param reasoningEffort
+     *            the reasoning effort level
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setReasoningEffort(String reasoningEffort) {
+        this.reasoningEffort = reasoningEffort;
+        return this;
+    }
+
+    /**
      * Gets the permission request handler.
      *
      * @return the permission handler
@@ -103,6 +131,94 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setOnPermissionRequest(PermissionHandler onPermissionRequest) {
         this.onPermissionRequest = onPermissionRequest;
+        return this;
+    }
+
+    /**
+     * Gets the user input request handler.
+     *
+     * @return the user input handler
+     */
+    public UserInputHandler getOnUserInputRequest() {
+        return onUserInputRequest;
+    }
+
+    /**
+     * Sets a handler for user input requests from the agent.
+     *
+     * @param onUserInputRequest
+     *            the user input handler
+     * @return this config for method chaining
+     * @see UserInputHandler
+     */
+    public ResumeSessionConfig setOnUserInputRequest(UserInputHandler onUserInputRequest) {
+        this.onUserInputRequest = onUserInputRequest;
+        return this;
+    }
+
+    /**
+     * Gets the hook handlers configuration.
+     *
+     * @return the session hooks
+     */
+    public SessionHooks getHooks() {
+        return hooks;
+    }
+
+    /**
+     * Sets hook handlers for session lifecycle events.
+     *
+     * @param hooks
+     *            the hooks configuration
+     * @return this config for method chaining
+     * @see SessionHooks
+     */
+    public ResumeSessionConfig setHooks(SessionHooks hooks) {
+        this.hooks = hooks;
+        return this;
+    }
+
+    /**
+     * Gets the working directory for the session.
+     *
+     * @return the working directory path
+     */
+    public String getWorkingDirectory() {
+        return workingDirectory;
+    }
+
+    /**
+     * Sets the working directory for the session.
+     *
+     * @param workingDirectory
+     *            the working directory path
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setWorkingDirectory(String workingDirectory) {
+        this.workingDirectory = workingDirectory;
+        return this;
+    }
+
+    /**
+     * Returns whether the resume event is disabled.
+     *
+     * @return {@code true} if the session.resume event is suppressed
+     */
+    public boolean isDisableResume() {
+        return disableResume;
+    }
+
+    /**
+     * Sets whether to disable the session.resume event.
+     * <p>
+     * When true, the session.resume event is not emitted.
+     *
+     * @param disableResume
+     *            {@code true} to suppress the resume event
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setDisableResume(boolean disableResume) {
+        this.disableResume = disableResume;
         return this;
     }
 

@@ -163,4 +163,50 @@ public class CopilotClientTest {
             assertEquals(ConnectionState.DISCONNECTED, client.getState());
         }
     }
+
+    @Test
+    void testGithubTokenOptionAccepted() {
+        CopilotClientOptions options = new CopilotClientOptions().setCliPath("/path/to/cli")
+                .setGithubToken("gho_test_token");
+
+        assertEquals("gho_test_token", options.getGithubToken());
+    }
+
+    @Test
+    void testUseLoggedInUserDefaultsToNull() {
+        CopilotClientOptions options = new CopilotClientOptions().setCliPath("/path/to/cli");
+
+        assertNull(options.getUseLoggedInUser());
+    }
+
+    @Test
+    void testExplicitUseLoggedInUserFalse() {
+        CopilotClientOptions options = new CopilotClientOptions().setCliPath("/path/to/cli").setUseLoggedInUser(false);
+
+        assertEquals(false, options.getUseLoggedInUser());
+    }
+
+    @Test
+    void testExplicitUseLoggedInUserTrueWithGithubToken() {
+        CopilotClientOptions options = new CopilotClientOptions().setCliPath("/path/to/cli")
+                .setGithubToken("gho_test_token").setUseLoggedInUser(true);
+
+        assertEquals(true, options.getUseLoggedInUser());
+    }
+
+    @Test
+    void testGithubTokenWithCliUrlThrows() {
+        CopilotClientOptions options = new CopilotClientOptions().setCliUrl("localhost:8080")
+                .setGithubToken("gho_test_token").setUseStdio(false);
+
+        assertThrows(IllegalArgumentException.class, () -> new CopilotClient(options));
+    }
+
+    @Test
+    void testUseLoggedInUserWithCliUrlThrows() {
+        CopilotClientOptions options = new CopilotClientOptions().setCliUrl("localhost:8080").setUseLoggedInUser(false)
+                .setUseStdio(false);
+
+        assertThrows(IllegalArgumentException.class, () -> new CopilotClient(options));
+    }
 }
