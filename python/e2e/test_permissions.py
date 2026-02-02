@@ -68,7 +68,9 @@ class TestPermissions:
 
         await session.destroy()
 
-    async def test_should_work_without_permission_handler__default_behavior_(self, ctx: E2ETestContext):
+    async def test_should_work_without_permission_handler__default_behavior_(
+        self, ctx: E2ETestContext
+    ):
         """Test that sessions work without permission handler (default behavior)"""
         # Create session without on_permission_request handler
         session = await ctx.client.create_session()

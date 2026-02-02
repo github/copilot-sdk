@@ -12,7 +12,9 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
 class TestMCPServers:
-    async def test_should_accept_mcp_server_configuration_on_session_create(self, ctx: E2ETestContext):
+    async def test_should_accept_mcp_server_configuration_on_session_create(
+        self, ctx: E2ETestContext
+    ):
         """Test that MCP server configuration is accepted on session create"""
         mcp_servers: dict[str, MCPServerConfig] = {
             "test-server": {
@@ -34,7 +36,9 @@ class TestMCPServers:
 
         await session.destroy()
 
-    async def test_should_accept_mcp_server_configuration_on_session_resume(self, ctx: E2ETestContext):
+    async def test_should_accept_mcp_server_configuration_on_session_resume(
+        self, ctx: E2ETestContext
+    ):
         """Test that MCP server configuration is accepted on session resume"""
         # Create a session first
         session1 = await ctx.client.create_session()
@@ -63,7 +67,9 @@ class TestMCPServers:
 
 
 class TestCustomAgents:
-    async def test_should_accept_custom_agent_configuration_on_session_create(self, ctx: E2ETestContext):
+    async def test_should_accept_custom_agent_configuration_on_session_create(
+        self, ctx: E2ETestContext
+    ):
         """Test that custom agent configuration is accepted on session create"""
         custom_agents: list[CustomAgentConfig] = [
             {
@@ -86,7 +92,9 @@ class TestCustomAgents:
 
         await session.destroy()
 
-    async def test_should_accept_custom_agent_configuration_on_session_resume(self, ctx: E2ETestContext):
+    async def test_should_accept_custom_agent_configuration_on_session_resume(
+        self, ctx: E2ETestContext
+    ):
         """Test that custom agent configuration is accepted on session resume"""
         # Create a session first
         session1 = await ctx.client.create_session()

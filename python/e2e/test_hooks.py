@@ -38,7 +38,9 @@ class TestHooks:
 
         await session.destroy()
 
-    async def test_should_invoke_posttooluse_hook_after_model_runs_a_tool(self, ctx: E2ETestContext):
+    async def test_should_invoke_posttooluse_hook_after_model_runs_a_tool(
+        self, ctx: E2ETestContext
+    ):
         """Test that postToolUse hook is invoked after model runs a tool"""
         post_tool_use_inputs = []
 
@@ -65,7 +67,9 @@ class TestHooks:
 
         await session.destroy()
 
-    async def test_should_invoke_both_pretooluse_and_posttooluse_hooks_for_a_single_tool_call(self, ctx: E2ETestContext):
+    async def test_should_invoke_both_pretooluse_and_posttooluse_hooks_for_a_single_tool_call(
+        self, ctx: E2ETestContext
+    ):
         """Test that both preToolUse and postToolUse hooks fire for the same tool call"""
         pre_tool_use_inputs = []
         post_tool_use_inputs = []
@@ -103,7 +107,9 @@ class TestHooks:
 
         await session.destroy()
 
-    async def test_should_deny_tool_execution_when_pretooluse_returns_deny(self, ctx: E2ETestContext):
+    async def test_should_deny_tool_execution_when_pretooluse_returns_deny(
+        self, ctx: E2ETestContext
+    ):
         """Test that returning deny in preToolUse prevents tool execution"""
         pre_tool_use_inputs = []
 
