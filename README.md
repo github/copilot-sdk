@@ -16,10 +16,10 @@ The GitHub Copilot SDK exposes the same engine behind Copilot CLI: a production-
 
 | SDK                      | Location                                          | Installation                              |
 | ------------------------ | ------------------------------------------------- | ----------------------------------------- |
-| **Node.js / TypeScript** | [`cookbook/nodejs/`](./cookbook/nodejs/README.md) | `npm install @github/copilot-sdk`         |
-| **Python**               | [`cookbook/python/`](./cookbook/python/README.md) | `pip install github-copilot-sdk`          |
-| **Go**                   | [`cookbook/go/`](./cookbook/go/README.md)         | `go get github.com/github/copilot-sdk/go` |
-| **.NET**                 | [`cookbook/dotnet/`](./cookbook/dotnet/README.md) | `dotnet add package GitHub.Copilot.SDK`   |
+| **Node.js / TypeScript** | [`cookbook/nodejs/`](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/nodejs/README.md) | `npm install @github/copilot-sdk`         |
+| **Python**               | [`cookbook/python/`](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/python/README.md) | `pip install github-copilot-sdk`          |
+| **Go**                   | [`cookbook/go/`](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/go/README.md)         | `go get github.com/github/copilot-sdk/go` |
+| **.NET**                 | [`cookbook/dotnet/`](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/dotnet/README.md) | `dotnet add package GitHub.Copilot.SDK`   |
 
 See the individual SDK READMEs for installation, usage examples, and API reference.
 
@@ -96,7 +96,7 @@ Please use the [GitHub Issues](https://github.com/github/copilot-sdk/issues) pag
 ## Quick Links
 
 - **[Getting Started](./docs/getting-started.md)** – Tutorial to get up and running
-- **[Cookbook](./cookbook/README.md)** – Practical recipes for common tasks across all languages
+- **[Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk)** – Practical recipes for common tasks across all languages
 - **[More Resources](https://github.com/github/awesome-copilot/blob/main/collections/copilot-sdk.md)** – Additional examples, tutorials, and community resources
 
 ## Unofficial, Community-maintained SDKs
