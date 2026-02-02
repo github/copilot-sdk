@@ -5,7 +5,7 @@ import { CLI_PATH, createSdkTestContext } from "./harness/sdkTestContext.js";
 import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
 
 describe("Sessions", async () => {
-    const { copilotClient: client, openAiEndpoint, homeDir } = await createSdkTestContext();
+    const { copilotClient: client, openAiEndpoint, homeDir, env } = await createSdkTestContext();
 
     it("should create and destroy sessions", async () => {
         const session = await client.createSession({ model: "fake-test-model" });
@@ -158,11 +158,8 @@ describe("Sessions", async () => {
         // Resume using a new client
         const newClient = new CopilotClient({
             cliPath: CLI_PATH,
-            env: {
-                ...process.env,
-                XDG_CONFIG_HOME: homeDir,
-                XDG_STATE_HOME: homeDir,
-            },
+            env,
+            githubToken: process.env.CI === "true" ? "fake-token-for-e2e-tests" : undefined,
         });
 
         onTestFinished(() => newClient.forceStop());
