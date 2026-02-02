@@ -70,10 +70,12 @@ type Client struct {
 	sessions         map[string]*Session
 	sessionsMux      sync.Mutex
 	isExternalServer bool
-	conn             interface{} // stores net.Conn for external TCP connections
-	useStdio         bool        // resolved value from options
-	autoStart        bool        // resolved value from options
-	autoRestart      bool        // resolved value from options
+	conn             net.Conn // stores net.Conn for external TCP connections
+	useStdio         bool     // resolved value from options
+	autoStart        bool     // resolved value from options
+	autoRestart      bool     // resolved value from options
+	modelsCache      []ModelInfo
+	modelsCacheMux   sync.Mutex
 }
 
 // NewClient creates a new Copilot CLI client with the given options.
@@ -185,29 +187,26 @@ func NewClient(options *ClientOptions) *Client {
 // Panics if the URL format is invalid or the port is out of range.
 func parseCliUrl(url string) (string, int) {
 	// Remove protocol if present
-	cleanUrl := regexp.MustCompile(`^https?://`).ReplaceAllString(url, "")
+	cleanUrl, _ := strings.CutPrefix(url, "https://")
+	cleanUrl, _ = strings.CutPrefix(cleanUrl, "http://")
 
-	// Check if it's just a port number
-	if matched, _ := regexp.MatchString(`^\d+$`, cleanUrl); matched {
-		port, err := strconv.Atoi(cleanUrl)
-		if err != nil || port <= 0 || port > 65535 {
-			panic(fmt.Sprintf("Invalid port in CLIUrl: %s", url))
-		}
-		return "localhost", port
+	// Parse host:port or port format
+	var host string
+	var portStr string
+	if before, after, found := strings.Cut(cleanUrl, ":"); found {
+		host = before
+		portStr = after
+	} else {
+		// Only port provided
+		portStr = before
 	}
 
-	// Parse host:port format
-	parts := regexp.MustCompile(`:`).Split(cleanUrl, 2)
-	if len(parts) != 2 {
-		panic(fmt.Sprintf("Invalid CLIUrl format: %s. Expected 'host:port', 'http://host:port', or 'port'", url))
-	}
-
-	host := parts[0]
 	if host == "" {
 		host = "localhost"
 	}
 
-	port, err := strconv.Atoi(parts[1])
+	// Validate port
+	port, err := strconv.Atoi(portStr)
 	if err != nil || port <= 0 || port > 65535 {
 		panic(fmt.Sprintf("Invalid port in CLIUrl: %s", url))
 	}
@@ -310,10 +309,8 @@ func (c *Client) Stop() []error {
 
 	// Close external TCP connection if exists
 	if c.isExternalServer && c.conn != nil {
-		if closer, ok := c.conn.(interface{ Close() error }); ok {
-			if err := closer.Close(); err != nil {
-				errors = append(errors, fmt.Errorf("failed to close socket: %w", err))
-			}
+		if err := c.conn.Close(); err != nil {
+			errors = append(errors, fmt.Errorf("failed to close socket: %w", err))
 		}
 		c.conn = nil
 	}
@@ -323,6 +320,11 @@ func (c *Client) Stop() []error {
 		c.client.Stop()
 		c.client = nil
 	}
+
+	// Clear models cache
+	c.modelsCacheMux.Lock()
+	c.modelsCache = nil
+	c.modelsCacheMux.Unlock()
 
 	c.state = StateDisconnected
 	if !c.isExternalServer {
@@ -368,9 +370,7 @@ func (c *Client) ForceStop() {
 
 	// Close external TCP connection if exists
 	if c.isExternalServer && c.conn != nil {
-		if closer, ok := c.conn.(interface{ Close() error }); ok {
-			closer.Close() // Ignore errors
-		}
+		_ = c.conn.Close() // Ignore errors
 		c.conn = nil
 	}
 
@@ -380,6 +380,11 @@ func (c *Client) ForceStop() {
 		c.client = nil
 	}
 
+	// Clear models cache
+	c.modelsCacheMux.Lock()
+	c.modelsCache = nil
+	c.modelsCacheMux.Unlock()
+
 	c.state = StateDisconnected
 	if !c.isExternalServer {
 		c.actualPort = 0
@@ -387,8 +392,8 @@ func (c *Client) ForceStop() {
 }
 
 // buildProviderParams converts a ProviderConfig to a map for JSON-RPC params.
-func buildProviderParams(p *ProviderConfig) map[string]interface{} {
-	params := make(map[string]interface{})
+func buildProviderParams(p *ProviderConfig) map[string]any {
+	params := make(map[string]any)
 	if p.Type != "" {
 		params["type"] = p.Type
 	}
@@ -405,7 +410,7 @@ func buildProviderParams(p *ProviderConfig) map[string]interface{} {
 		params["bearerToken"] = p.BearerToken
 	}
 	if p.Azure != nil {
-		azure := make(map[string]interface{})
+		azure := make(map[string]any)
 		if p.Azure.APIVersion != "" {
 			azure["apiVersion"] = p.Azure.APIVersion
 		}
@@ -453,7 +458,7 @@ func (c *Client) CreateSession(config *SessionConfig) (*Session, error) {
 		}
 	}
 
-	params := make(map[string]interface{})
+	params := make(map[string]any)
 	if config != nil {
 		if config.Model != "" {
 			params["model"] = config.Model
@@ -465,12 +470,12 @@ func (c *Client) CreateSession(config *SessionConfig) (*Session, error) {
 			params["reasoningEffort"] = config.ReasoningEffort
 		}
 		if len(config.Tools) > 0 {
-			toolDefs := make([]map[string]interface{}, 0, len(config.Tools))
+			toolDefs := make([]map[string]any, 0, len(config.Tools))
 			for _, tool := range config.Tools {
 				if tool.Name == "" {
 					continue
 				}
-				definition := map[string]interface{}{
+				definition := map[string]any{
 					"name":        tool.Name,
 					"description": tool.Description,
 				}
@@ -485,7 +490,7 @@ func (c *Client) CreateSession(config *SessionConfig) (*Session, error) {
 		}
 		// Add system message configuration if provided
 		if config.SystemMessage != nil {
-			systemMessage := make(map[string]interface{})
+			systemMessage := make(map[string]any)
 
 			if config.SystemMessage.Mode != "" {
 				systemMessage["mode"] = config.SystemMessage.Mode
@@ -547,9 +552,9 @@ func (c *Client) CreateSession(config *SessionConfig) (*Session, error) {
 		}
 		// Add custom agents configuration
 		if len(config.CustomAgents) > 0 {
-			customAgents := make([]map[string]interface{}, 0, len(config.CustomAgents))
+			customAgents := make([]map[string]any, 0, len(config.CustomAgents))
 			for _, agent := range config.CustomAgents {
-				agentMap := map[string]interface{}{
+				agentMap := map[string]any{
 					"name":   agent.Name,
 					"prompt": agent.Prompt,
 				}
@@ -586,7 +591,7 @@ func (c *Client) CreateSession(config *SessionConfig) (*Session, error) {
 		}
 		// Add infinite sessions configuration
 		if config.InfiniteSessions != nil {
-			infiniteSessions := make(map[string]interface{})
+			infiniteSessions := make(map[string]any)
 			if config.InfiniteSessions.Enabled != nil {
 				infiniteSessions["enabled"] = *config.InfiniteSessions.Enabled
 			}
@@ -668,7 +673,7 @@ func (c *Client) ResumeSessionWithOptions(sessionID string, config *ResumeSessio
 		}
 	}
 
-	params := map[string]interface{}{
+	params := map[string]any{
 		"sessionId": sessionID,
 	}
 
@@ -677,12 +682,12 @@ func (c *Client) ResumeSessionWithOptions(sessionID string, config *ResumeSessio
 			params["reasoningEffort"] = config.ReasoningEffort
 		}
 		if len(config.Tools) > 0 {
-			toolDefs := make([]map[string]interface{}, 0, len(config.Tools))
+			toolDefs := make([]map[string]any, 0, len(config.Tools))
 			for _, tool := range config.Tools {
 				if tool.Name == "" {
 					continue
 				}
-				definition := map[string]interface{}{
+				definition := map[string]any{
 					"name":        tool.Name,
 					"description": tool.Description,
 				}
@@ -733,9 +738,9 @@ func (c *Client) ResumeSessionWithOptions(sessionID string, config *ResumeSessio
 		}
 		// Add custom agents configuration
 		if len(config.CustomAgents) > 0 {
-			customAgents := make([]map[string]interface{}, 0, len(config.CustomAgents))
+			customAgents := make([]map[string]any, 0, len(config.CustomAgents))
 			for _, agent := range config.CustomAgents {
-				agentMap := map[string]interface{}{
+				agentMap := map[string]any{
 					"name":   agent.Name,
 					"prompt": agent.Prompt,
 				}
@@ -828,7 +833,7 @@ func (c *Client) ListSessions() ([]SessionMetadata, error) {
 		}
 	}
 
-	result, err := c.client.Request("session.list", map[string]interface{}{})
+	result, err := c.client.Request("session.list", map[string]any{})
 	if err != nil {
 		return nil, err
 	}
@@ -868,7 +873,7 @@ func (c *Client) DeleteSession(sessionID string) error {
 		}
 	}
 
-	params := map[string]interface{}{
+	params := map[string]any{
 		"sessionId": sessionID,
 	}
 
@@ -935,7 +940,7 @@ func (c *Client) Ping(message string) (*PingResponse, error) {
 		return nil, fmt.Errorf("client not connected")
 	}
 
-	params := map[string]interface{}{}
+	params := map[string]any{}
 	if message != "" {
 		params["message"] = message
 	}
@@ -966,7 +971,7 @@ func (c *Client) GetStatus() (*GetStatusResponse, error) {
 		return nil, fmt.Errorf("client not connected")
 	}
 
-	result, err := c.client.Request("status.get", map[string]interface{}{})
+	result, err := c.client.Request("status.get", map[string]any{})
 	if err != nil {
 		return nil, err
 	}
@@ -988,7 +993,7 @@ func (c *Client) GetAuthStatus() (*GetAuthStatusResponse, error) {
 		return nil, fmt.Errorf("client not connected")
 	}
 
-	result, err := c.client.Request("auth.getStatus", map[string]interface{}{})
+	result, err := c.client.Request("auth.getStatus", map[string]any{})
 	if err != nil {
 		return nil, err
 	}
@@ -1013,13 +1018,29 @@ func (c *Client) GetAuthStatus() (*GetAuthStatusResponse, error) {
 	return response, nil
 }
 
-// ListModels returns available models with their metadata
+// ListModels returns available models with their metadata.
+//
+// Results are cached after the first successful call to avoid rate limiting.
+// The cache is cleared when the client disconnects.
 func (c *Client) ListModels() ([]ModelInfo, error) {
 	if c.client == nil {
 		return nil, fmt.Errorf("client not connected")
 	}
 
-	result, err := c.client.Request("models.list", map[string]interface{}{})
+	// Use mutex for locking to prevent race condition with concurrent calls
+	c.modelsCacheMux.Lock()
+	defer c.modelsCacheMux.Unlock()
+
+	// Check cache (already inside lock)
+	if c.modelsCache != nil {
+		// Return a copy to prevent cache mutation
+		result := make([]ModelInfo, len(c.modelsCache))
+		copy(result, c.modelsCache)
+		return result, nil
+	}
+
+	// Cache miss - fetch from backend while holding lock
+	result, err := c.client.Request("models.list", map[string]any{})
 	if err != nil {
 		return nil, err
 	}
@@ -1035,7 +1056,13 @@ func (c *Client) ListModels() ([]ModelInfo, error) {
 		return nil, fmt.Errorf("failed to unmarshal models response: %w", err)
 	}
 
-	return response.Models, nil
+	// Update cache before releasing lock
+	c.modelsCache = response.Models
+
+	// Return a copy to prevent cache mutation
+	models := make([]ModelInfo, len(response.Models))
+	copy(models, response.Models)
+	return models, nil
 }
 
 // verifyProtocolVersion verifies that the server's protocol version matches the SDK's expected version
@@ -1216,7 +1243,7 @@ func (c *Client) connectViaTcp() error {
 
 // setupNotificationHandler configures handlers for session events, tool calls, and permission requests.
 func (c *Client) setupNotificationHandler() {
-	c.client.SetNotificationHandler(func(method string, params map[string]interface{}) {
+	c.client.SetNotificationHandler(func(method string, params map[string]any) {
 		if method == "session.event" {
 			// Extract sessionId and event
 			sessionID, ok := params["sessionId"].(string)
@@ -1253,7 +1280,7 @@ func (c *Client) setupNotificationHandler() {
 }
 
 // handleToolCallRequest handles a tool call request from the CLI server.
-func (c *Client) handleToolCallRequest(params map[string]interface{}) (map[string]interface{}, *JSONRPCError) {
+func (c *Client) handleToolCallRequest(params map[string]any) (map[string]any, *JSONRPCError) {
 	sessionID, _ := params["sessionId"].(string)
 	toolCallID, _ := params["toolCallId"].(string)
 	toolName, _ := params["toolName"].(string)
@@ -1271,19 +1298,19 @@ func (c *Client) handleToolCallRequest(params map[string]interface{}) (map[strin
 
 	handler, ok := session.getToolHandler(toolName)
 	if !ok {
-		return map[string]interface{}{"result": buildUnsupportedToolResult(toolName)}, nil
+		return map[string]any{"result": buildUnsupportedToolResult(toolName)}, nil
 	}
 
 	arguments := params["arguments"]
 	result := c.executeToolCall(sessionID, toolCallID, toolName, arguments, handler)
 
-	return map[string]interface{}{"result": result}, nil
+	return map[string]any{"result": result}, nil
 }
 
 // executeToolCall executes a tool handler and returns the result.
 func (c *Client) executeToolCall(
 	sessionID, toolCallID, toolName string,
-	arguments interface{},
+	arguments any,
 	handler ToolHandler,
 ) (result ToolResult) {
 	invocation := ToolInvocation{
@@ -1295,27 +1322,25 @@ func (c *Client) executeToolCall(
 
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Printf("Tool handler panic (%s): %v\n", toolName, r)
 			result = buildFailedToolResult(fmt.Sprintf("tool panic: %v", r))
 		}
 	}()
 
-	var err error
 	if handler != nil {
+		var err error
 		result, err = handler(invocation)
-	}
-
-	if err != nil {
-		return buildFailedToolResult(err.Error())
+		if err != nil {
+			result = buildFailedToolResult(err.Error())
+		}
 	}
 
 	return result
 }
 
 // handlePermissionRequest handles a permission request from the CLI server.
-func (c *Client) handlePermissionRequest(params map[string]interface{}) (map[string]interface{}, *JSONRPCError) {
+func (c *Client) handlePermissionRequest(params map[string]any) (map[string]any, *JSONRPCError) {
 	sessionID, _ := params["sessionId"].(string)
-	permissionRequest, _ := params["permissionRequest"].(map[string]interface{})
+	permissionRequest, _ := params["permissionRequest"].(map[string]any)
 
 	if sessionID == "" {
 		return nil, &JSONRPCError{Code: -32602, Message: "invalid permission request payload"}
@@ -1331,18 +1356,18 @@ func (c *Client) handlePermissionRequest(params map[string]interface{}) (map[str
 	result, err := session.handlePermissionRequest(permissionRequest)
 	if err != nil {
 		// Return denial on error
-		return map[string]interface{}{
-			"result": map[string]interface{}{
+		return map[string]any{
+			"result": map[string]any{
 				"kind": "denied-no-approval-rule-and-could-not-request-from-user",
 			},
 		}, nil
 	}
 
-	return map[string]interface{}{"result": result}, nil
+	return map[string]any{"result": result}, nil
 }
 
 // handleUserInputRequest handles a user input request from the CLI server.
-func (c *Client) handleUserInputRequest(params map[string]interface{}) (map[string]interface{}, *JSONRPCError) {
+func (c *Client) handleUserInputRequest(params map[string]any) (map[string]any, *JSONRPCError) {
 	sessionID, _ := params["sessionId"].(string)
 	question, _ := params["question"].(string)
 
@@ -1359,7 +1384,7 @@ func (c *Client) handleUserInputRequest(params map[string]interface{}) (map[stri
 
 	// Parse choices
 	var choices []string
-	if choicesRaw, ok := params["choices"].([]interface{}); ok {
+	if choicesRaw, ok := params["choices"].([]any); ok {
 		for _, choice := range choicesRaw {
 			if s, ok := choice.(string); ok {
 				choices = append(choices, s)
@@ -1383,17 +1408,17 @@ func (c *Client) handleUserInputRequest(params map[string]interface{}) (map[stri
 		return nil, &JSONRPCError{Code: -32603, Message: err.Error()}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"answer":      response.Answer,
 		"wasFreeform": response.WasFreeform,
 	}, nil
 }
 
 // handleHooksInvoke handles a hooks invocation from the CLI server.
-func (c *Client) handleHooksInvoke(params map[string]interface{}) (map[string]interface{}, *JSONRPCError) {
+func (c *Client) handleHooksInvoke(params map[string]any) (map[string]any, *JSONRPCError) {
 	sessionID, _ := params["sessionId"].(string)
 	hookType, _ := params["hookType"].(string)
-	input, _ := params["input"].(map[string]interface{})
+	input, _ := params["input"].(map[string]any)
 
 	if sessionID == "" || hookType == "" {
 		return nil, &JSONRPCError{Code: -32602, Message: "invalid hooks invoke payload"}
@@ -1411,7 +1436,7 @@ func (c *Client) handleHooksInvoke(params map[string]interface{}) (map[string]in
 		return nil, &JSONRPCError{Code: -32603, Message: err.Error()}
 	}
 
-	result := make(map[string]interface{})
+	result := make(map[string]any)
 	if output != nil {
 		result["output"] = output
 	}
@@ -1424,7 +1449,7 @@ func buildFailedToolResult(internalError string) ToolResult {
 		TextResultForLLM: "Invoking this tool produced an error. Detailed information is not available.",
 		ResultType:       "failure",
 		Error:            internalError,
-		ToolTelemetry:    map[string]interface{}{},
+		ToolTelemetry:    map[string]any{},
 	}
 }
 
@@ -1434,6 +1459,6 @@ func buildUnsupportedToolResult(toolName string) ToolResult {
 		TextResultForLLM: fmt.Sprintf("Tool '%s' is not supported by this client instance.", toolName),
 		ResultType:       "failure",
 		Error:            fmt.Sprintf("tool '%s' not supported", toolName),
-		ToolTelemetry:    map[string]interface{}{},
+		ToolTelemetry:    map[string]any{},
 	}
 }

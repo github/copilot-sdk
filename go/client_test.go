@@ -25,11 +25,11 @@ func TestClient_HandleToolCallRequest(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		params := map[string]interface{}{
+		params := map[string]any{
 			"sessionId":  session.SessionID,
 			"toolCallId": "123",
 			"toolName":   "missing_tool",
-			"arguments":  map[string]interface{}{},
+			"arguments":  map[string]any{},
 		}
 		response, _ := client.handleToolCallRequest(params)
 
@@ -118,9 +118,9 @@ func TestClient_URLParsing(t *testing.T) {
 			if r := recover(); r == nil {
 				t.Error("Expected panic for invalid URL format")
 			} else {
-				matched, _ := regexp.MatchString("Invalid CLIUrl format", r.(string))
+				matched, _ := regexp.MatchString("Invalid port in CLIUrl", r.(string))
 				if !matched {
-					t.Errorf("Expected panic message to contain 'Invalid CLIUrl format', got: %v", r)
+					t.Errorf("Expected panic message to contain 'Invalid port in CLIUrl', got: %v", r)
 				}
 			}
 		}()

@@ -11,9 +11,9 @@ import (
 
 // JSONRPCError represents a JSON-RPC error response
 type JSONRPCError struct {
-	Code    int                    `json:"code"`
-	Message string                 `json:"message"`
-	Data    map[string]interface{} `json:"data,omitempty"`
+	Code    int            `json:"code"`
+	Message string         `json:"message"`
+	Data    map[string]any `json:"data,omitempty"`
 }
 
 func (e *JSONRPCError) Error() string {
@@ -22,32 +22,32 @@ func (e *JSONRPCError) Error() string {
 
 // JSONRPCRequest represents a JSON-RPC 2.0 request
 type JSONRPCRequest struct {
-	JSONRPC string                 `json:"jsonrpc"`
-	ID      json.RawMessage        `json:"id"`
-	Method  string                 `json:"method"`
-	Params  map[string]interface{} `json:"params"`
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id"`
+	Method  string          `json:"method"`
+	Params  map[string]any  `json:"params"`
 }
 
 // JSONRPCResponse represents a JSON-RPC 2.0 response
 type JSONRPCResponse struct {
-	JSONRPC string                 `json:"jsonrpc"`
-	ID      json.RawMessage        `json:"id,omitempty"`
-	Result  map[string]interface{} `json:"result,omitempty"`
-	Error   *JSONRPCError          `json:"error,omitempty"`
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id,omitempty"`
+	Result  map[string]any  `json:"result,omitempty"`
+	Error   *JSONRPCError   `json:"error,omitempty"`
 }
 
 // JSONRPCNotification represents a JSON-RPC 2.0 notification
 type JSONRPCNotification struct {
-	JSONRPC string                 `json:"jsonrpc"`
-	Method  string                 `json:"method"`
-	Params  map[string]interface{} `json:"params"`
+	JSONRPC string         `json:"jsonrpc"`
+	Method  string         `json:"method"`
+	Params  map[string]any `json:"params"`
 }
 
 // NotificationHandler handles incoming notifications
-type NotificationHandler func(method string, params map[string]interface{})
+type NotificationHandler func(method string, params map[string]any)
 
 // RequestHandler handles incoming server requests and returns a result or error
-type RequestHandler func(params map[string]interface{}) (map[string]interface{}, *JSONRPCError)
+type RequestHandler func(params map[string]any) (map[string]any, *JSONRPCError)
 
 // JSONRPCClient is a minimal JSON-RPC 2.0 client for stdio transport
 type JSONRPCClient struct {
@@ -115,7 +115,7 @@ func (c *JSONRPCClient) SetRequestHandler(method string, handler RequestHandler)
 }
 
 // Request sends a JSON-RPC request and waits for the response
-func (c *JSONRPCClient) Request(method string, params map[string]interface{}) (map[string]interface{}, error) {
+func (c *JSONRPCClient) Request(method string, params map[string]any) (map[string]any, error) {
 	requestID := generateUUID()
 
 	// Create response channel
@@ -156,7 +156,7 @@ func (c *JSONRPCClient) Request(method string, params map[string]interface{}) (m
 }
 
 // Notify sends a JSON-RPC notification (no response expected)
-func (c *JSONRPCClient) Notify(method string, params map[string]interface{}) error {
+func (c *JSONRPCClient) Notify(method string, params map[string]any) error {
 	notification := JSONRPCNotification{
 		JSONRPC: "2.0",
 		Method:  method,
@@ -166,7 +166,7 @@ func (c *JSONRPCClient) Notify(method string, params map[string]interface{}) err
 }
 
 // sendMessage writes a message to stdin
-func (c *JSONRPCClient) sendMessage(message interface{}) error {
+func (c *JSONRPCClient) sendMessage(message any) error {
 	data, err := json.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %w", err)
@@ -304,13 +304,13 @@ func (c *JSONRPCClient) handleRequest(request *JSONRPCRequest) {
 			return
 		}
 		if result == nil {
-			result = make(map[string]interface{})
+			result = make(map[string]any)
 		}
 		c.sendResponse(request.ID, result)
 	}()
 }
 
-func (c *JSONRPCClient) sendResponse(id json.RawMessage, result map[string]interface{}) {
+func (c *JSONRPCClient) sendResponse(id json.RawMessage, result map[string]any) {
 	response := JSONRPCResponse{
 		JSONRPC: "2.0",
 		ID:      id,
@@ -321,7 +321,7 @@ func (c *JSONRPCClient) sendResponse(id json.RawMessage, result map[string]inter
 	}
 }
 
-func (c *JSONRPCClient) sendErrorResponse(id json.RawMessage, code int, message string, data map[string]interface{}) {
+func (c *JSONRPCClient) sendErrorResponse(id json.RawMessage, code int, message string, data map[string]any) {
 	response := JSONRPCResponse{
 		JSONRPC: "2.0",
 		ID:      id,

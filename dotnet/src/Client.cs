@@ -58,6 +58,8 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     private bool _disposed;
     private readonly int? _optionsPort;
     private readonly string? _optionsHost;
+    private List<ModelInfo>? _modelsCache;
+    private readonly SemaphoreSlim _modelsCacheLock = new(1, 1);
 
     /// <summary>
     /// Creates a new instance of <see cref="CopilotClient"/>.
@@ -283,6 +285,9 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
 
         try { ctx.Rpc.Dispose(); }
         catch (Exception ex) { errors?.Add(ex); }
+
+        // Clear models cache
+        _modelsCache = null;
 
         if (ctx.NetworkStream is not null)
         {
@@ -545,15 +550,38 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </summary>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
     /// <returns>A task that resolves with a list of available models.</returns>
+    /// <remarks>
+    /// Results are cached after the first successful call to avoid rate limiting.
+    /// The cache is cleared when the client disconnects.
+    /// </remarks>
     /// <exception cref="InvalidOperationException">Thrown when the client is not connected or not authenticated.</exception>
     public async Task<List<ModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
 
-        var response = await InvokeRpcAsync<GetModelsResponse>(
-            connection.Rpc, "models.list", [], cancellationToken);
+        // Use semaphore for async locking to prevent race condition with concurrent calls
+        await _modelsCacheLock.WaitAsync(cancellationToken);
+        try
+        {
+            // Check cache (already inside lock)
+            if (_modelsCache is not null)
+            {
+                return new List<ModelInfo>(_modelsCache); // Return a copy to prevent cache mutation
+            }
 
-        return response.Models;
+            // Cache miss - fetch from backend while holding lock
+            var response = await InvokeRpcAsync<GetModelsResponse>(
+                connection.Rpc, "models.list", [], cancellationToken);
+
+            // Update cache before releasing lock
+            _modelsCache = response.Models;
+
+            return new List<ModelInfo>(response.Models); // Return a copy to prevent cache mutation
+        }
+        finally
+        {
+            _modelsCacheLock.Release();
+        }
     }
 
     /// <summary>

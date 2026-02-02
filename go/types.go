@@ -91,15 +91,15 @@ type SystemMessageConfig struct {
 
 // PermissionRequest represents a permission request from the server
 type PermissionRequest struct {
-	Kind       string                 `json:"kind"`
-	ToolCallID string                 `json:"toolCallId,omitempty"`
-	Extra      map[string]interface{} `json:"-"` // Additional fields vary by kind
+	Kind       string         `json:"kind"`
+	ToolCallID string         `json:"toolCallId,omitempty"`
+	Extra      map[string]any `json:"-"` // Additional fields vary by kind
 }
 
 // PermissionRequestResult represents the result of a permission request
 type PermissionRequestResult struct {
-	Kind  string        `json:"kind"`
-	Rules []interface{} `json:"rules,omitempty"`
+	Kind  string `json:"kind"`
+	Rules []any  `json:"rules,omitempty"`
 }
 
 // PermissionHandler executes a permission request
@@ -135,19 +135,19 @@ type UserInputInvocation struct {
 
 // PreToolUseHookInput is the input for a pre-tool-use hook
 type PreToolUseHookInput struct {
-	Timestamp int64       `json:"timestamp"`
-	Cwd       string      `json:"cwd"`
-	ToolName  string      `json:"toolName"`
-	ToolArgs  interface{} `json:"toolArgs"`
+	Timestamp int64  `json:"timestamp"`
+	Cwd       string `json:"cwd"`
+	ToolName  string `json:"toolName"`
+	ToolArgs  any    `json:"toolArgs"`
 }
 
 // PreToolUseHookOutput is the output for a pre-tool-use hook
 type PreToolUseHookOutput struct {
-	PermissionDecision       string      `json:"permissionDecision,omitempty"` // "allow", "deny", "ask"
-	PermissionDecisionReason string      `json:"permissionDecisionReason,omitempty"`
-	ModifiedArgs             interface{} `json:"modifiedArgs,omitempty"`
-	AdditionalContext        string      `json:"additionalContext,omitempty"`
-	SuppressOutput           bool        `json:"suppressOutput,omitempty"`
+	PermissionDecision       string `json:"permissionDecision,omitempty"` // "allow", "deny", "ask"
+	PermissionDecisionReason string `json:"permissionDecisionReason,omitempty"`
+	ModifiedArgs             any    `json:"modifiedArgs,omitempty"`
+	AdditionalContext        string `json:"additionalContext,omitempty"`
+	SuppressOutput           bool   `json:"suppressOutput,omitempty"`
 }
 
 // PreToolUseHandler handles pre-tool-use hook invocations
@@ -155,18 +155,18 @@ type PreToolUseHandler func(input PreToolUseHookInput, invocation HookInvocation
 
 // PostToolUseHookInput is the input for a post-tool-use hook
 type PostToolUseHookInput struct {
-	Timestamp  int64       `json:"timestamp"`
-	Cwd        string      `json:"cwd"`
-	ToolName   string      `json:"toolName"`
-	ToolArgs   interface{} `json:"toolArgs"`
-	ToolResult interface{} `json:"toolResult"`
+	Timestamp  int64  `json:"timestamp"`
+	Cwd        string `json:"cwd"`
+	ToolName   string `json:"toolName"`
+	ToolArgs   any    `json:"toolArgs"`
+	ToolResult any    `json:"toolResult"`
 }
 
 // PostToolUseHookOutput is the output for a post-tool-use hook
 type PostToolUseHookOutput struct {
-	ModifiedResult    interface{} `json:"modifiedResult,omitempty"`
-	AdditionalContext string      `json:"additionalContext,omitempty"`
-	SuppressOutput    bool        `json:"suppressOutput,omitempty"`
+	ModifiedResult    any    `json:"modifiedResult,omitempty"`
+	AdditionalContext string `json:"additionalContext,omitempty"`
+	SuppressOutput    bool   `json:"suppressOutput,omitempty"`
 }
 
 // PostToolUseHandler handles post-tool-use hook invocations
@@ -199,8 +199,8 @@ type SessionStartHookInput struct {
 
 // SessionStartHookOutput is the output for a session-start hook
 type SessionStartHookOutput struct {
-	AdditionalContext string                 `json:"additionalContext,omitempty"`
-	ModifiedConfig    map[string]interface{} `json:"modifiedConfig,omitempty"`
+	AdditionalContext string         `json:"additionalContext,omitempty"`
+	ModifiedConfig    map[string]any `json:"modifiedConfig,omitempty"`
 }
 
 // SessionStartHandler handles session-start hook invocations
@@ -281,8 +281,8 @@ type MCPRemoteServerConfig struct {
 }
 
 // MCPServerConfig can be either MCPLocalServerConfig or MCPRemoteServerConfig
-// Use a map[string]interface{} for flexibility, or create separate configs
-type MCPServerConfig map[string]interface{}
+// Use a map[string]any for flexibility, or create separate configs
+type MCPServerConfig map[string]any
 
 // CustomAgentConfig configures a custom agent
 type CustomAgentConfig struct {
@@ -371,7 +371,7 @@ type SessionConfig struct {
 type Tool struct {
 	Name        string
 	Description string // optional
-	Parameters  map[string]interface{}
+	Parameters  map[string]any
 	Handler     ToolHandler
 }
 
@@ -380,7 +380,7 @@ type ToolInvocation struct {
 	SessionID  string
 	ToolCallID string
 	ToolName   string
-	Arguments  interface{}
+	Arguments  any
 }
 
 // ToolHandler executes a tool invocation.
@@ -389,12 +389,12 @@ type ToolHandler func(invocation ToolInvocation) (ToolResult, error)
 
 // ToolResult represents the result of a tool invocation.
 type ToolResult struct {
-	TextResultForLLM    string                 `json:"textResultForLlm"`
-	BinaryResultsForLLM []ToolBinaryResult     `json:"binaryResultsForLlm,omitempty"`
-	ResultType          string                 `json:"resultType"`
-	Error               string                 `json:"error,omitempty"`
-	SessionLog          string                 `json:"sessionLog,omitempty"`
-	ToolTelemetry       map[string]interface{} `json:"toolTelemetry,omitempty"`
+	TextResultForLLM    string             `json:"textResultForLlm"`
+	BinaryResultsForLLM []ToolBinaryResult `json:"binaryResultsForLlm,omitempty"`
+	ResultType          string             `json:"resultType"`
+	Error               string             `json:"error,omitempty"`
+	SessionLog          string             `json:"sessionLog,omitempty"`
+	ToolTelemetry       map[string]any     `json:"toolTelemetry,omitempty"`
 }
 
 // ResumeSessionConfig configures options when resuming a session

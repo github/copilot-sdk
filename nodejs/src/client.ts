@@ -112,6 +112,8 @@ export class CopilotClient {
     };
     private isExternalServer: boolean = false;
     private forceStopping: boolean = false;
+    private modelsCache: ModelInfo[] | null = null;
+    private modelsCacheLock: Promise<void> = Promise.resolve();
 
     /**
      * Creates a new CopilotClient instance.
@@ -315,6 +317,9 @@ export class CopilotClient {
             this.connection = null;
         }
 
+        // Clear models cache
+        this.modelsCache = null;
+
         if (this.socket) {
             try {
                 this.socket.end();
@@ -388,6 +393,9 @@ export class CopilotClient {
             }
             this.connection = null;
         }
+
+        // Clear models cache
+        this.modelsCache = null;
 
         if (this.socket) {
             try {
@@ -640,7 +648,11 @@ export class CopilotClient {
     }
 
     /**
-     * List available models with their metadata
+     * List available models with their metadata.
+     *
+     * Results are cached after the first successful call to avoid rate limiting.
+     * The cache is cleared when the client disconnects.
+     *
      * @throws Error if not authenticated
      */
     async listModels(): Promise<ModelInfo[]> {
@@ -648,9 +660,32 @@ export class CopilotClient {
             throw new Error("Client not connected");
         }
 
-        const result = await this.connection.sendRequest("models.list", {});
-        const response = result as { models: ModelInfo[] };
-        return response.models;
+        // Use promise-based locking to prevent race condition with concurrent calls
+        await this.modelsCacheLock;
+
+        let resolveLock: () => void;
+        this.modelsCacheLock = new Promise((resolve) => {
+            resolveLock = resolve;
+        });
+
+        try {
+            // Check cache (already inside lock)
+            if (this.modelsCache !== null) {
+                return [...this.modelsCache]; // Return a copy to prevent cache mutation
+            }
+
+            // Cache miss - fetch from backend while holding lock
+            const result = await this.connection.sendRequest("models.list", {});
+            const response = result as { models: ModelInfo[] };
+            const models = response.models;
+
+            // Update cache before releasing lock
+            this.modelsCache = models;
+
+            return [...models]; // Return a copy to prevent cache mutation
+        } finally {
+            resolveLock!();
+        }
     }
 
     /**

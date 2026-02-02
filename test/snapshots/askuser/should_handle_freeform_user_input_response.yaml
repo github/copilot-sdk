@@ -13,9 +13,9 @@ conversations:
             type: function
             function:
               name: ask_user
-              arguments: '{"question":"What is your favorite color?"}'
+              arguments: '{"question":"What is your favorite color?","allow_freeform":true}'
       - role: tool
         tool_call_id: toolcall_0
-        content: "User response (freeform): This is my custom freeform answer that was not in the choices"
+        content: "User responded: This is my custom freeform answer that was not in the choices"
       - role: assistant
         content: 'You answered: "This is my custom freeform answer that was not in the choices"'
