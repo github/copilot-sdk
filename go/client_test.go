@@ -118,9 +118,9 @@ func TestClient_URLParsing(t *testing.T) {
 			if r := recover(); r == nil {
 				t.Error("Expected panic for invalid URL format")
 			} else {
-				matched, _ := regexp.MatchString("Invalid CLIUrl format", r.(string))
+				matched, _ := regexp.MatchString("Invalid port in CLIUrl", r.(string))
 				if !matched {
-					t.Errorf("Expected panic message to contain 'Invalid CLIUrl format', got: %v", r)
+					t.Errorf("Expected panic message to contain 'Invalid port in CLIUrl', got: %v", r)
 				}
 			}
 		}()
