@@ -70,10 +70,10 @@ type Client struct {
 	sessions         map[string]*Session
 	sessionsMux      sync.Mutex
 	isExternalServer bool
-	conn             any  // stores net.Conn for external TCP connections
-	useStdio         bool // resolved value from options
-	autoStart        bool // resolved value from options
-	autoRestart      bool // resolved value from options
+	conn             net.Conn // stores net.Conn for external TCP connections
+	useStdio         bool     // resolved value from options
+	autoStart        bool     // resolved value from options
+	autoRestart      bool     // resolved value from options
 	modelsCache      []ModelInfo
 	modelsCacheMux   sync.Mutex
 }
@@ -187,29 +187,26 @@ func NewClient(options *ClientOptions) *Client {
 // Panics if the URL format is invalid or the port is out of range.
 func parseCliUrl(url string) (string, int) {
 	// Remove protocol if present
-	cleanUrl := regexp.MustCompile(`^https?://`).ReplaceAllString(url, "")
+	cleanUrl, _ := strings.CutPrefix(url, "https://")
+	cleanUrl, _ = strings.CutPrefix(cleanUrl, "http://")
 
-	// Check if it's just a port number
-	if matched, _ := regexp.MatchString(`^\d+$`, cleanUrl); matched {
-		port, err := strconv.Atoi(cleanUrl)
-		if err != nil || port <= 0 || port > 65535 {
-			panic(fmt.Sprintf("Invalid port in CLIUrl: %s", url))
-		}
-		return "localhost", port
+	// Parse host:port or port format
+	var host string
+	var portStr string
+	if before, after, found := strings.Cut(cleanUrl, ":"); found {
+		host = before
+		portStr = after
+	} else {
+		// Only port provided
+		portStr = before
 	}
 
-	// Parse host:port format
-	parts := regexp.MustCompile(`:`).Split(cleanUrl, 2)
-	if len(parts) != 2 {
-		panic(fmt.Sprintf("Invalid CLIUrl format: %s. Expected 'host:port', 'http://host:port', or 'port'", url))
-	}
-
-	host := parts[0]
 	if host == "" {
 		host = "localhost"
 	}
 
-	port, err := strconv.Atoi(parts[1])
+	// Validate port
+	port, err := strconv.Atoi(portStr)
 	if err != nil || port <= 0 || port > 65535 {
 		panic(fmt.Sprintf("Invalid port in CLIUrl: %s", url))
 	}
@@ -312,10 +309,8 @@ func (c *Client) Stop() []error {
 
 	// Close external TCP connection if exists
 	if c.isExternalServer && c.conn != nil {
-		if closer, ok := c.conn.(interface{ Close() error }); ok {
-			if err := closer.Close(); err != nil {
-				errors = append(errors, fmt.Errorf("failed to close socket: %w", err))
-			}
+		if err := c.conn.Close(); err != nil {
+			errors = append(errors, fmt.Errorf("failed to close socket: %w", err))
 		}
 		c.conn = nil
 	}
@@ -375,9 +370,7 @@ func (c *Client) ForceStop() {
 
 	// Close external TCP connection if exists
 	if c.isExternalServer && c.conn != nil {
-		if closer, ok := c.conn.(interface{ Close() error }); ok {
-			closer.Close() // Ignore errors
-		}
+		_ = c.conn.Close() // Ignore errors
 		c.conn = nil
 	}
 
@@ -1329,18 +1322,16 @@ func (c *Client) executeToolCall(
 
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Printf("Tool handler panic (%s): %v\n", toolName, r)
 			result = buildFailedToolResult(fmt.Sprintf("tool panic: %v", r))
 		}
 	}()
 
-	var err error
 	if handler != nil {
+		var err error
 		result, err = handler(invocation)
-	}
-
-	if err != nil {
-		return buildFailedToolResult(err.Error())
+		if err != nil {
+			result = buildFailedToolResult(err.Error())
+		}
 	}
 
 	return result
