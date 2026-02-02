@@ -425,7 +425,7 @@ class SessionConfig(TypedDict, total=False):
     """Configuration for creating a session"""
 
     session_id: str  # Optional custom session ID
-    model: Literal["gpt-5", "claude-sonnet-4", "claude-sonnet-4.5", "claude-haiku-4.5"]
+    model: str  # Model to use for this session. Use client.list_models() to see available models.
     # Reasoning effort level for models that support it.
     # Only valid for models where capabilities.supports.reasoning_effort is True.
     reasoning_effort: ReasoningEffort
