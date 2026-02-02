@@ -204,6 +204,7 @@ public class CopilotClient implements AutoCloseable {
             try {
                 String sessionId = params.get("sessionId").asText();
                 JsonNode eventNode = params.get("event");
+                LOG.fine("Received session.event: " + eventNode);
 
                 CopilotSession session = sessions.get(sessionId);
                 if (session != null && eventNode != null) {
@@ -337,15 +338,19 @@ public class CopilotClient implements AutoCloseable {
     }
 
     private void handleUserInputRequest(JsonRpcClient rpc, String requestId, JsonNode params) {
+        LOG.fine("Received userInput.request: " + params);
         CompletableFuture.runAsync(() -> {
             try {
                 String sessionId = params.get("sessionId").asText();
                 String question = params.get("question").asText();
+                LOG.fine("Processing userInput for session " + sessionId + ", question: " + question);
                 JsonNode choicesNode = params.get("choices");
                 JsonNode allowFreeformNode = params.get("allowFreeform");
 
                 CopilotSession session = sessions.get(sessionId);
+                LOG.fine("Found session: " + (session != null));
                 if (session == null) {
+                    LOG.fine("Session not found, sending error");
                     rpc.sendErrorResponse(Long.parseLong(requestId), -32602, "Unknown session " + sessionId);
                     return;
                 }
@@ -367,12 +372,15 @@ public class CopilotClient implements AutoCloseable {
                     try {
                         // Ensure answer is never null - CLI requires a non-null string
                         String answer = response.getAnswer() != null ? response.getAnswer() : "";
+                        LOG.fine("Sending userInput response: answer=" + answer + ", wasFreeform="
+                                + response.isWasFreeform());
                         rpc.sendResponse(Long.parseLong(requestId),
                                 Map.of("answer", answer, "wasFreeform", response.isWasFreeform()));
                     } catch (IOException e) {
                         LOG.log(Level.SEVERE, "Error sending user input response", e);
                     }
                 }).exceptionally(ex -> {
+                    LOG.log(Level.WARNING, "User input handler exception", ex);
                     try {
                         rpc.sendErrorResponse(Long.parseLong(requestId), -32603,
                                 "User input handler error: " + ex.getMessage());
@@ -536,7 +544,9 @@ public class CopilotClient implements AutoCloseable {
                 request.setExcludedTools(config.getExcludedTools());
                 request.setProvider(config.getProvider());
                 request.setRequestPermission(config.getOnPermissionRequest() != null ? true : null);
-                request.setRequestUserInput(config.getOnUserInputRequest() != null ? true : null);
+                boolean requestUserInput = config.getOnUserInputRequest() != null;
+                LOG.fine("Setting requestUserInput: " + requestUserInput + " for session.create");
+                request.setRequestUserInput(requestUserInput ? true : null);
                 request.setHooks(config.getHooks() != null && config.getHooks().hasHooks() ? true : null);
                 request.setWorkingDirectory(config.getWorkingDirectory());
                 request.setStreaming(config.isStreaming() ? true : null);

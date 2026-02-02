@@ -209,19 +209,14 @@ public class E2ETestContext implements AutoCloseable {
     }
 
     private static String getCliPath(Path repoRoot) throws IOException {
-        // First, try to find 'copilot' in PATH
-        String copilotInPath = findCopilotInPath();
-        if (copilotInPath != null) {
-            return copilotInPath;
-        }
-
-        // Try environment variable
+        // Try environment variable first (explicit override)
         String envPath = System.getenv("COPILOT_CLI_PATH");
         if (envPath != null && !envPath.isEmpty()) {
             return envPath;
         }
 
-        // Try test harness platform-specific binary (preferred as it works directly)
+        // Try test harness platform-specific binary (preferred as it has correct
+        // version)
         String os = System.getProperty("os.name").toLowerCase();
         String arch = System.getProperty("os.arch").toLowerCase();
         String platform = os.contains("mac") ? "darwin" : os.contains("win") ? "win32" : "linux";
@@ -246,6 +241,12 @@ public class E2ETestContext implements AutoCloseable {
         Path cliPath = repoRoot.resolve("nodejs/node_modules/@github/copilot/index.js");
         if (Files.exists(cliPath)) {
             return cliPath.toString();
+        }
+
+        // Fallback: try to find 'copilot' in PATH
+        String copilotInPath = findCopilotInPath();
+        if (copilotInPath != null) {
+            return copilotInPath;
         }
 
         throw new IOException("CLI not found. Either install 'copilot' globally, set COPILOT_CLI_PATH, "
