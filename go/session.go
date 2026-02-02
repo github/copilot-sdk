@@ -106,7 +106,7 @@ func NewSession(sessionID string, client *JSONRPCClient, workspacePath string) *
 //	    log.Printf("Failed to send message: %v", err)
 //	}
 func (s *Session) Send(options MessageOptions) (string, error) {
-	params := map[string]interface{}{
+	params := map[string]any{
 		"sessionId": s.SessionID,
 		"prompt":    options.Prompt,
 	}
@@ -304,7 +304,7 @@ func (s *Session) getPermissionHandler() PermissionHandler {
 
 // handlePermissionRequest handles a permission request from the Copilot CLI.
 // This is an internal method called by the SDK when the CLI requests permission.
-func (s *Session) handlePermissionRequest(requestData map[string]interface{}) (PermissionRequestResult, error) {
+func (s *Session) handlePermissionRequest(requestData map[string]any) (PermissionRequestResult, error) {
 	handler := s.getPermissionHandler()
 
 	if handler == nil {
@@ -386,7 +386,7 @@ func (s *Session) getHooks() *SessionHooks {
 
 // handleHooksInvoke handles a hook invocation from the Copilot CLI.
 // This is an internal method called by the SDK when the CLI invokes a hook.
-func (s *Session) handleHooksInvoke(hookType string, input map[string]interface{}) (interface{}, error) {
+func (s *Session) handleHooksInvoke(hookType string, input map[string]any) (any, error) {
 	hooks := s.getHooks()
 
 	if hooks == nil {
@@ -447,7 +447,7 @@ func (s *Session) handleHooksInvoke(hookType string, input map[string]interface{
 
 // Helper functions to parse hook inputs
 
-func parsePreToolUseInput(input map[string]interface{}) PreToolUseHookInput {
+func parsePreToolUseInput(input map[string]any) PreToolUseHookInput {
 	result := PreToolUseHookInput{}
 	if ts, ok := input["timestamp"].(float64); ok {
 		result.Timestamp = int64(ts)
@@ -462,7 +462,7 @@ func parsePreToolUseInput(input map[string]interface{}) PreToolUseHookInput {
 	return result
 }
 
-func parsePostToolUseInput(input map[string]interface{}) PostToolUseHookInput {
+func parsePostToolUseInput(input map[string]any) PostToolUseHookInput {
 	result := PostToolUseHookInput{}
 	if ts, ok := input["timestamp"].(float64); ok {
 		result.Timestamp = int64(ts)
@@ -478,7 +478,7 @@ func parsePostToolUseInput(input map[string]interface{}) PostToolUseHookInput {
 	return result
 }
 
-func parseUserPromptSubmittedInput(input map[string]interface{}) UserPromptSubmittedHookInput {
+func parseUserPromptSubmittedInput(input map[string]any) UserPromptSubmittedHookInput {
 	result := UserPromptSubmittedHookInput{}
 	if ts, ok := input["timestamp"].(float64); ok {
 		result.Timestamp = int64(ts)
@@ -492,7 +492,7 @@ func parseUserPromptSubmittedInput(input map[string]interface{}) UserPromptSubmi
 	return result
 }
 
-func parseSessionStartInput(input map[string]interface{}) SessionStartHookInput {
+func parseSessionStartInput(input map[string]any) SessionStartHookInput {
 	result := SessionStartHookInput{}
 	if ts, ok := input["timestamp"].(float64); ok {
 		result.Timestamp = int64(ts)
@@ -509,7 +509,7 @@ func parseSessionStartInput(input map[string]interface{}) SessionStartHookInput 
 	return result
 }
 
-func parseSessionEndInput(input map[string]interface{}) SessionEndHookInput {
+func parseSessionEndInput(input map[string]any) SessionEndHookInput {
 	result := SessionEndHookInput{}
 	if ts, ok := input["timestamp"].(float64); ok {
 		result.Timestamp = int64(ts)
@@ -529,7 +529,7 @@ func parseSessionEndInput(input map[string]interface{}) SessionEndHookInput {
 	return result
 }
 
-func parseErrorOccurredInput(input map[string]interface{}) ErrorOccurredHookInput {
+func parseErrorOccurredInput(input map[string]any) ErrorOccurredHookInput {
 	result := ErrorOccurredHookInput{}
 	if ts, ok := input["timestamp"].(float64); ok {
 		result.Timestamp = int64(ts)
@@ -594,7 +594,7 @@ func (s *Session) dispatchEvent(event SessionEvent) {
 //	    }
 //	}
 func (s *Session) GetMessages() ([]SessionEvent, error) {
-	params := map[string]interface{}{
+	params := map[string]any{
 		"sessionId": s.SessionID,
 	}
 
@@ -603,7 +603,7 @@ func (s *Session) GetMessages() ([]SessionEvent, error) {
 		return nil, fmt.Errorf("failed to get messages: %w", err)
 	}
 
-	eventsRaw, ok := result["events"].([]interface{})
+	eventsRaw, ok := result["events"].([]any)
 	if !ok {
 		return nil, fmt.Errorf("invalid response: missing events")
 	}
@@ -643,7 +643,7 @@ func (s *Session) GetMessages() ([]SessionEvent, error) {
 //	    log.Printf("Failed to destroy session: %v", err)
 //	}
 func (s *Session) Destroy() error {
-	params := map[string]interface{}{
+	params := map[string]any{
 		"sessionId": s.SessionID,
 	}
 
@@ -690,7 +690,7 @@ func (s *Session) Destroy() error {
 //	    log.Printf("Failed to abort: %v", err)
 //	}
 func (s *Session) Abort() error {
-	params := map[string]interface{}{
+	params := map[string]any{
 		"sessionId": s.SessionID,
 	}
 

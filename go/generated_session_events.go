@@ -107,7 +107,7 @@ type Data struct {
 	ProviderCallID                  *string                  `json:"providerCallId,omitempty"`
 	QuotaSnapshots                  map[string]QuotaSnapshot `json:"quotaSnapshots,omitempty"`
 	Reason                          *string                  `json:"reason,omitempty"`
-	Arguments                       interface{}              `json:"arguments"`
+	Arguments                       any                      `json:"arguments"`
 	ToolCallID                      *string                  `json:"toolCallId,omitempty"`
 	ToolName                        *string                  `json:"toolName,omitempty"`
 	MCPServerName                   *string                  `json:"mcpServerName,omitempty"`
@@ -116,15 +116,15 @@ type Data struct {
 	ProgressMessage                 *string                  `json:"progressMessage,omitempty"`
 	IsUserRequested                 *bool                    `json:"isUserRequested,omitempty"`
 	Result                          *Result                  `json:"result,omitempty"`
-	ToolTelemetry                   map[string]interface{}   `json:"toolTelemetry,omitempty"`
+	ToolTelemetry                   map[string]any           `json:"toolTelemetry,omitempty"`
 	AgentDescription                *string                  `json:"agentDescription,omitempty"`
 	AgentDisplayName                *string                  `json:"agentDisplayName,omitempty"`
 	AgentName                       *string                  `json:"agentName,omitempty"`
 	Tools                           []string                 `json:"tools"`
 	HookInvocationID                *string                  `json:"hookInvocationId,omitempty"`
 	HookType                        *string                  `json:"hookType,omitempty"`
-	Input                           interface{}              `json:"input"`
-	Output                          interface{}              `json:"output"`
+	Input                           any                      `json:"input"`
+	Output                          any                      `json:"output"`
 	Metadata                        *Metadata                `json:"metadata,omitempty"`
 	Name                            *string                  `json:"name,omitempty"`
 	Role                            *Role                    `json:"role,omitempty"`
@@ -174,8 +174,8 @@ type ErrorClass struct {
 }
 
 type Metadata struct {
-	PromptVersion *string                `json:"promptVersion,omitempty"`
-	Variables     map[string]interface{} `json:"variables,omitempty"`
+	PromptVersion *string        `json:"promptVersion,omitempty"`
+	Variables     map[string]any `json:"variables,omitempty"`
 }
 
 type QuotaSnapshot struct {
@@ -201,7 +201,7 @@ type Result struct {
 }
 
 type ToolRequest struct {
-	Arguments  interface{}      `json:"arguments"`
+	Arguments  any              `json:"arguments"`
 	Name       string           `json:"name"`
 	ToolCallID string           `json:"toolCallId"`
 	Type       *ToolRequestType `json:"type,omitempty"`
@@ -320,7 +320,7 @@ func (x *ErrorUnion) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, x.String, false, nil, x.ErrorClass != nil, x.ErrorClass, false, nil, false, nil, false)
 }
 
-func unmarshalUnion(data []byte, pi **int64, pf **float64, pb **bool, ps **string, haveArray bool, pa interface{}, haveObject bool, pc interface{}, haveMap bool, pm interface{}, haveEnum bool, pe interface{}, nullable bool) (bool, error) {
+func unmarshalUnion(data []byte, pi **int64, pf **float64, pb **bool, ps **string, haveArray bool, pa any, haveObject bool, pc any, haveMap bool, pm any, haveEnum bool, pe any, nullable bool) (bool, error) {
 	if pi != nil {
 		*pi = nil
 	}
@@ -402,7 +402,7 @@ func unmarshalUnion(data []byte, pi **int64, pf **float64, pb **bool, ps **strin
 	return false, errors.New("Cannot unmarshal union")
 }
 
-func marshalUnion(pi *int64, pf *float64, pb *bool, ps *string, haveArray bool, pa interface{}, haveObject bool, pc interface{}, haveMap bool, pm interface{}, haveEnum bool, pe interface{}, nullable bool) ([]byte, error) {
+func marshalUnion(pi *int64, pf *float64, pb *bool, ps *string, haveArray bool, pa any, haveObject bool, pc any, haveMap bool, pm any, haveEnum bool, pe any, nullable bool) ([]byte, error) {
 	if pi != nil {
 		return json.Marshal(*pi)
 	}

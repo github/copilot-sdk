@@ -47,7 +47,7 @@ func TestDefineTool(t *testing.T) {
 			t.Errorf("Expected schema type 'object', got %v", schema["type"])
 		}
 
-		props, ok := schema["properties"].(map[string]interface{})
+		props, ok := schema["properties"].(map[string]any)
 		if !ok {
 			t.Fatalf("Expected properties to be map, got %T", schema["properties"])
 		}
@@ -77,7 +77,7 @@ func TestDefineTool(t *testing.T) {
 			SessionID:  "session-1",
 			ToolCallID: "call-1",
 			ToolName:   "test",
-			Arguments: map[string]interface{}{
+			Arguments: map[string]any{
 				"name":  "Alice",
 				"count": float64(42), // JSON numbers are float64
 			},
@@ -110,7 +110,7 @@ func TestDefineTool(t *testing.T) {
 			SessionID:  "session-123",
 			ToolCallID: "call-456",
 			ToolName:   "test",
-			Arguments:  map[string]interface{}{},
+			Arguments:  map[string]any{},
 		}
 
 		tool.Handler(inv)
@@ -132,7 +132,7 @@ func TestDefineTool(t *testing.T) {
 			})
 
 		inv := ToolInvocation{
-			Arguments: map[string]interface{}{},
+			Arguments: map[string]any{},
 		}
 
 		_, err := tool.Handler(inv)
@@ -218,7 +218,7 @@ func TestNormalizeResult(t *testing.T) {
 	})
 
 	t.Run("map is JSON serialized", func(t *testing.T) {
-		result, err := normalizeResult(map[string]interface{}{
+		result, err := normalizeResult(map[string]any{
 			"key": "value",
 		})
 		if err != nil {
@@ -266,12 +266,12 @@ func TestGenerateSchemaForType(t *testing.T) {
 			t.Errorf("Expected type 'object', got %v", schema["type"])
 		}
 
-		props, ok := schema["properties"].(map[string]interface{})
+		props, ok := schema["properties"].(map[string]any)
 		if !ok {
 			t.Fatalf("Expected properties map, got %T", schema["properties"])
 		}
 
-		nameProp, ok := props["name"].(map[string]interface{})
+		nameProp, ok := props["name"].(map[string]any)
 		if !ok {
 			t.Fatal("Expected 'name' property")
 		}
@@ -279,7 +279,7 @@ func TestGenerateSchemaForType(t *testing.T) {
 			t.Errorf("Expected name type 'string', got %v", nameProp["type"])
 		}
 
-		ageProp, ok := props["age"].(map[string]interface{})
+		ageProp, ok := props["age"].(map[string]any)
 		if !ok {
 			t.Fatal("Expected 'age' property")
 		}
@@ -300,14 +300,14 @@ func TestGenerateSchemaForType(t *testing.T) {
 
 		schema := generateSchemaForType(reflect.TypeOf(Person{}))
 
-		props := schema["properties"].(map[string]interface{})
-		addrProp, ok := props["address"].(map[string]interface{})
+		props := schema["properties"].(map[string]any)
+		addrProp, ok := props["address"].(map[string]any)
 		if !ok {
 			t.Fatal("Expected 'address' property")
 		}
 
 		// Nested struct should have properties
-		addrProps, ok := addrProp["properties"].(map[string]interface{})
+		addrProps, ok := addrProp["properties"].(map[string]any)
 		if !ok {
 			t.Fatal("Expected address to have properties")
 		}
@@ -327,7 +327,7 @@ func TestGenerateSchemaForType(t *testing.T) {
 			t.Errorf("Expected type 'object', got %v", schema["type"])
 		}
 
-		props := schema["properties"].(map[string]interface{})
+		props := schema["properties"].(map[string]any)
 		if _, ok := props["value"]; !ok {
 			t.Error("Expected 'value' property")
 		}
@@ -348,8 +348,8 @@ func TestGenerateSchemaForType(t *testing.T) {
 
 		schema := generateSchemaForType(reflect.TypeOf(Params{}))
 
-		props := schema["properties"].(map[string]interface{})
-		tagsProp, ok := props["tags"].(map[string]interface{})
+		props := schema["properties"].(map[string]any)
+		tagsProp, ok := props["tags"].(map[string]any)
 		if !ok {
 			t.Fatal("Expected 'tags' property")
 		}
@@ -361,7 +361,7 @@ func TestGenerateSchemaForType(t *testing.T) {
 			if v != "array" {
 				t.Errorf("Expected tags type 'array', got %v", v)
 			}
-		case []interface{}:
+		case []any:
 			hasArray := false
 			for _, item := range v {
 				if item == "array" {

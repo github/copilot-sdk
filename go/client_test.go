@@ -25,11 +25,11 @@ func TestClient_HandleToolCallRequest(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		params := map[string]interface{}{
+		params := map[string]any{
 			"sessionId":  session.SessionID,
 			"toolCallId": "123",
 			"toolName":   "missing_tool",
-			"arguments":  map[string]interface{}{},
+			"arguments":  map[string]any{},
 		}
 		response, _ := client.handleToolCallRequest(params)
 

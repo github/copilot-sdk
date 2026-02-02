@@ -264,10 +264,10 @@ func TestSession(t *testing.T) {
 				{
 					Name:        "get_secret_number",
 					Description: "Gets the secret number",
-					Parameters: map[string]interface{}{
+					Parameters: map[string]any{
 						"type": "object",
-						"properties": map[string]interface{}{
-							"key": map[string]interface{}{
+						"properties": map[string]any{
+							"key": map[string]any{
 								"type":        "string",
 								"description": "Key",
 							},
@@ -275,7 +275,7 @@ func TestSession(t *testing.T) {
 						"required": []string{"key"},
 					},
 					Handler: func(invocation copilot.ToolInvocation) (copilot.ToolResult, error) {
-						args, _ := invocation.Arguments.(map[string]interface{})
+						args, _ := invocation.Arguments.(map[string]any)
 						key, _ := args["key"].(string)
 						if key == "ALPHA" {
 							return copilot.ToolResult{
