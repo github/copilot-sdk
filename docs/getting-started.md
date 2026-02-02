@@ -844,7 +844,7 @@ func main() {
 
 	session.On(func(event copilot.SessionEvent) {
 		if event.Type == "assistant.message_delta" {
-			if event.Data != nil && event.Data.DeltaContent != nil {
+			if event.Data.DeltaContent != nil {
 				fmt.Print(*event.Data.DeltaContent)
 			}
 		}
