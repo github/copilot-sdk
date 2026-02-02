@@ -317,7 +317,8 @@ class TestSessions:
 
     async def test_should_resume_session_with_system_message(self, ctx: E2ETestContext):
         # Create initial session with a system message
-        system_message_suffix = "End each response with 'Greetings from the resumed session!'"
+        greeting_text = "Greetings from the resumed session!"
+        system_message_suffix = f"End each response with '{greeting_text}'"
         session = await ctx.client.create_session(
             {"system_message": {"mode": "append", "content": "Initial system message."}}
         )
@@ -335,7 +336,7 @@ class TestSessions:
         # Send a message and verify the resumed system message is being used
         await session2.send({"prompt": "What is your purpose?"})
         assistant_message = await get_final_assistant_message(session2)
-        assert "Greetings from the resumed session!" in assistant_message.data.content
+        assert greeting_text in assistant_message.data.content
 
         # Also validate the underlying traffic
         traffic = await ctx.get_exchanges()
