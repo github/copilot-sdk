@@ -1,4 +1,4 @@
-package copilot
+package jsonrpc2
 
 import (
 	"bufio"
@@ -9,35 +9,35 @@ import (
 	"sync"
 )
 
-// JSONRPCError represents a JSON-RPC error response
-type JSONRPCError struct {
+// Error represents a JSON-RPC error response
+type Error struct {
 	Code    int            `json:"code"`
 	Message string         `json:"message"`
 	Data    map[string]any `json:"data,omitempty"`
 }
 
-func (e *JSONRPCError) Error() string {
+func (e *Error) Error() string {
 	return fmt.Sprintf("JSON-RPC Error %d: %s", e.Code, e.Message)
 }
 
-// JSONRPCRequest represents a JSON-RPC 2.0 request
-type JSONRPCRequest struct {
+// Request represents a JSON-RPC 2.0 request
+type Request struct {
 	JSONRPC string          `json:"jsonrpc"`
 	ID      json.RawMessage `json:"id"`
 	Method  string          `json:"method"`
 	Params  map[string]any  `json:"params"`
 }
 
-// JSONRPCResponse represents a JSON-RPC 2.0 response
-type JSONRPCResponse struct {
+// Response represents a JSON-RPC 2.0 response
+type Response struct {
 	JSONRPC string          `json:"jsonrpc"`
 	ID      json.RawMessage `json:"id,omitempty"`
 	Result  map[string]any  `json:"result,omitempty"`
-	Error   *JSONRPCError   `json:"error,omitempty"`
+	Error   *Error          `json:"error,omitempty"`
 }
 
-// JSONRPCNotification represents a JSON-RPC 2.0 notification
-type JSONRPCNotification struct {
+// Notification represents a JSON-RPC 2.0 notification
+type Notification struct {
 	JSONRPC string         `json:"jsonrpc"`
 	Method  string         `json:"method"`
 	Params  map[string]any `json:"params"`
@@ -47,14 +47,14 @@ type JSONRPCNotification struct {
 type NotificationHandler func(method string, params map[string]any)
 
 // RequestHandler handles incoming server requests and returns a result or error
-type RequestHandler func(params map[string]any) (map[string]any, *JSONRPCError)
+type RequestHandler func(params map[string]any) (map[string]any, *Error)
 
-// JSONRPCClient is a minimal JSON-RPC 2.0 client for stdio transport
-type JSONRPCClient struct {
+// Client is a minimal JSON-RPC 2.0 client for stdio transport
+type Client struct {
 	stdin               io.WriteCloser
 	stdout              io.ReadCloser
 	mu                  sync.Mutex
-	pendingRequests     map[string]chan *JSONRPCResponse
+	pendingRequests     map[string]chan *Response
 	notificationHandler NotificationHandler
 	requestHandlers     map[string]RequestHandler
 	running             bool
@@ -62,26 +62,26 @@ type JSONRPCClient struct {
 	wg                  sync.WaitGroup
 }
 
-// NewJSONRPCClient creates a new JSON-RPC client
-func NewJSONRPCClient(stdin io.WriteCloser, stdout io.ReadCloser) *JSONRPCClient {
-	return &JSONRPCClient{
+// NewClient creates a new JSON-RPC client
+func NewClient(stdin io.WriteCloser, stdout io.ReadCloser) *Client {
+	return &Client{
 		stdin:           stdin,
 		stdout:          stdout,
-		pendingRequests: make(map[string]chan *JSONRPCResponse),
+		pendingRequests: make(map[string]chan *Response),
 		requestHandlers: make(map[string]RequestHandler),
 		stopChan:        make(chan struct{}),
 	}
 }
 
 // Start begins listening for messages in a background goroutine
-func (c *JSONRPCClient) Start() {
+func (c *Client) Start() {
 	c.running = true
 	c.wg.Add(1)
 	go c.readLoop()
 }
 
 // Stop stops the client and cleans up
-func (c *JSONRPCClient) Stop() {
+func (c *Client) Stop() {
 	if !c.running {
 		return
 	}
@@ -97,14 +97,14 @@ func (c *JSONRPCClient) Stop() {
 }
 
 // SetNotificationHandler sets the handler for incoming notifications
-func (c *JSONRPCClient) SetNotificationHandler(handler NotificationHandler) {
+func (c *Client) SetNotificationHandler(handler NotificationHandler) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.notificationHandler = handler
 }
 
 // SetRequestHandler registers a handler for incoming requests from the server
-func (c *JSONRPCClient) SetRequestHandler(method string, handler RequestHandler) {
+func (c *Client) SetRequestHandler(method string, handler RequestHandler) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if handler == nil {
@@ -115,11 +115,11 @@ func (c *JSONRPCClient) SetRequestHandler(method string, handler RequestHandler)
 }
 
 // Request sends a JSON-RPC request and waits for the response
-func (c *JSONRPCClient) Request(method string, params map[string]any) (map[string]any, error) {
+func (c *Client) Request(method string, params map[string]any) (map[string]any, error) {
 	requestID := generateUUID()
 
 	// Create response channel
-	responseChan := make(chan *JSONRPCResponse, 1)
+	responseChan := make(chan *Response, 1)
 	c.mu.Lock()
 	c.pendingRequests[requestID] = responseChan
 	c.mu.Unlock()
@@ -132,7 +132,7 @@ func (c *JSONRPCClient) Request(method string, params map[string]any) (map[strin
 	}()
 
 	// Send request
-	request := JSONRPCRequest{
+	request := Request{
 		JSONRPC: "2.0",
 		ID:      json.RawMessage(`"` + requestID + `"`),
 		Method:  method,
@@ -156,8 +156,8 @@ func (c *JSONRPCClient) Request(method string, params map[string]any) (map[strin
 }
 
 // Notify sends a JSON-RPC notification (no response expected)
-func (c *JSONRPCClient) Notify(method string, params map[string]any) error {
-	notification := JSONRPCNotification{
+func (c *Client) Notify(method string, params map[string]any) error {
+	notification := Notification{
 		JSONRPC: "2.0",
 		Method:  method,
 		Params:  params,
@@ -166,7 +166,7 @@ func (c *JSONRPCClient) Notify(method string, params map[string]any) error {
 }
 
 // sendMessage writes a message to stdin
-func (c *JSONRPCClient) sendMessage(message any) error {
+func (c *Client) sendMessage(message any) error {
 	data, err := json.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %w", err)
@@ -188,7 +188,7 @@ func (c *JSONRPCClient) sendMessage(message any) error {
 }
 
 // readLoop reads messages from stdout in a background goroutine
-func (c *JSONRPCClient) readLoop() {
+func (c *Client) readLoop() {
 	defer c.wg.Done()
 
 	reader := bufio.NewReader(c.stdout)
@@ -230,21 +230,21 @@ func (c *JSONRPCClient) readLoop() {
 		}
 
 		// Try to parse as request first (has both ID and Method)
-		var request JSONRPCRequest
+		var request Request
 		if err := json.Unmarshal(body, &request); err == nil && request.Method != "" && len(request.ID) > 0 {
 			c.handleRequest(&request)
 			continue
 		}
 
 		// Try to parse as response (has ID but no Method)
-		var response JSONRPCResponse
+		var response Response
 		if err := json.Unmarshal(body, &response); err == nil && len(response.ID) > 0 {
 			c.handleResponse(&response)
 			continue
 		}
 
 		// Try to parse as notification (has Method but no ID)
-		var notification JSONRPCNotification
+		var notification Notification
 		if err := json.Unmarshal(body, &notification); err == nil && notification.Method != "" {
 			c.handleNotification(&notification)
 			continue
@@ -253,7 +253,7 @@ func (c *JSONRPCClient) readLoop() {
 }
 
 // handleResponse dispatches a response to the waiting request
-func (c *JSONRPCClient) handleResponse(response *JSONRPCResponse) {
+func (c *Client) handleResponse(response *Response) {
 	var id string
 	if err := json.Unmarshal(response.ID, &id); err != nil {
 		return // ignore responses with non-string IDs
@@ -271,7 +271,7 @@ func (c *JSONRPCClient) handleResponse(response *JSONRPCResponse) {
 }
 
 // handleNotification dispatches a notification to the handler
-func (c *JSONRPCClient) handleNotification(notification *JSONRPCNotification) {
+func (c *Client) handleNotification(notification *Notification) {
 	c.mu.Lock()
 	handler := c.notificationHandler
 	c.mu.Unlock()
@@ -281,7 +281,7 @@ func (c *JSONRPCClient) handleNotification(notification *JSONRPCNotification) {
 	}
 }
 
-func (c *JSONRPCClient) handleRequest(request *JSONRPCRequest) {
+func (c *Client) handleRequest(request *Request) {
 	c.mu.Lock()
 	handler := c.requestHandlers[request.Method]
 	c.mu.Unlock()
@@ -310,8 +310,8 @@ func (c *JSONRPCClient) handleRequest(request *JSONRPCRequest) {
 	}()
 }
 
-func (c *JSONRPCClient) sendResponse(id json.RawMessage, result map[string]any) {
-	response := JSONRPCResponse{
+func (c *Client) sendResponse(id json.RawMessage, result map[string]any) {
+	response := Response{
 		JSONRPC: "2.0",
 		ID:      id,
 		Result:  result,
@@ -321,11 +321,11 @@ func (c *JSONRPCClient) sendResponse(id json.RawMessage, result map[string]any) 
 	}
 }
 
-func (c *JSONRPCClient) sendErrorResponse(id json.RawMessage, code int, message string, data map[string]any) {
-	response := JSONRPCResponse{
+func (c *Client) sendErrorResponse(id json.RawMessage, code int, message string, data map[string]any) {
+	response := Response{
 		JSONRPC: "2.0",
 		ID:      id,
-		Error: &JSONRPCError{
+		Error: &Error{
 			Code:    code,
 			Message: message,
 			Data:    data,
@@ -343,8 +343,4 @@ func generateUUID() string {
 	b[6] = (b[6] & 0x0f) | 0x40 // Version 4
 	b[8] = (b[8] & 0x3f) | 0x80 // Variant is 10
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
-}
-
-func init() {
-
 }

@@ -36,7 +36,7 @@ func (p *CapiProxy) Start() (string, error) {
 	}
 
 	// The harness server is in the shared test directory
-	serverPath := "../../test/harness/server.ts"
+	serverPath := "../../../test/harness/server.ts"
 
 	p.cmd = exec.Command("npx", "tsx", serverPath)
 	p.cmd.Dir = "." // Will be resolved relative to test execution

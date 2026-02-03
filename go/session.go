@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
 )
 
 type sessionHandler struct {
@@ -48,7 +50,7 @@ type Session struct {
 	// SessionID is the unique identifier for this session.
 	SessionID         string
 	workspacePath     string
-	client            *JSONRPCClient
+	client            *jsonrpc2.Client
 	handlers          []sessionHandler
 	nextHandlerID     uint64
 	handlerMutex      sync.RWMutex
@@ -69,11 +71,8 @@ func (s *Session) WorkspacePath() string {
 	return s.workspacePath
 }
 
-// NewSession creates a new session wrapper with the given session ID and client.
-//
-// Note: This function is primarily for internal use. Use [Client.CreateSession]
-// to create sessions with proper initialization.
-func NewSession(sessionID string, client *JSONRPCClient, workspacePath string) *Session {
+// newSession creates a new session wrapper with the given session ID and client.
+func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string) *Session {
 	return &Session{
 		SessionID:     sessionID,
 		workspacePath: workspacePath,

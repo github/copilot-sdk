@@ -8,7 +8,7 @@ import (
 	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
-	"github.com/github/copilot-sdk/go/e2e/testharness"
+	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
 )
 
 func TestHooks(t *testing.T) {
