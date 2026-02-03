@@ -39,6 +39,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
 )
 
 // Client manages the connection to the Copilot CLI server and provides session management.
@@ -63,7 +65,7 @@ import (
 type Client struct {
 	options          ClientOptions
 	process          *exec.Cmd
-	client           *JSONRPCClient
+	client           *jsonrpc2.Client
 	actualPort       int
 	actualHost       string
 	state            ConnectionState
@@ -617,7 +619,7 @@ func (c *Client) CreateSession(config *SessionConfig) (*Session, error) {
 
 	workspacePath, _ := result["workspacePath"].(string)
 
-	session := NewSession(sessionID, c.client, workspacePath)
+	session := newSession(sessionID, c.client, workspacePath)
 
 	if config != nil {
 		session.registerTools(config.Tools)
@@ -785,7 +787,7 @@ func (c *Client) ResumeSessionWithOptions(sessionID string, config *ResumeSessio
 
 	workspacePath, _ := result["workspacePath"].(string)
 
-	session := NewSession(resumedSessionID, c.client, workspacePath)
+	session := newSession(resumedSessionID, c.client, workspacePath)
 	if config != nil {
 		session.registerTools(config.Tools)
 		if config.OnPermissionRequest != nil {
@@ -1165,7 +1167,7 @@ func (c *Client) startCLIServer() error {
 		}
 
 		// Create JSON-RPC client immediately
-		c.client = NewJSONRPCClient(stdin, stdout)
+		c.client = jsonrpc2.NewClient(stdin, stdout)
 		c.setupNotificationHandler()
 		c.client.Start()
 
@@ -1234,7 +1236,7 @@ func (c *Client) connectViaTcp() error {
 	c.conn = conn
 
 	// Create JSON-RPC client with the connection
-	c.client = NewJSONRPCClient(conn, conn)
+	c.client = jsonrpc2.NewClient(conn, conn)
 	c.setupNotificationHandler()
 	c.client.Start()
 
@@ -1280,20 +1282,20 @@ func (c *Client) setupNotificationHandler() {
 }
 
 // handleToolCallRequest handles a tool call request from the CLI server.
-func (c *Client) handleToolCallRequest(params map[string]any) (map[string]any, *JSONRPCError) {
+func (c *Client) handleToolCallRequest(params map[string]any) (map[string]any, *jsonrpc2.Error) {
 	sessionID, _ := params["sessionId"].(string)
 	toolCallID, _ := params["toolCallId"].(string)
 	toolName, _ := params["toolName"].(string)
 
 	if sessionID == "" || toolCallID == "" || toolName == "" {
-		return nil, &JSONRPCError{Code: -32602, Message: "invalid tool call payload"}
+		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid tool call payload"}
 	}
 
 	c.sessionsMux.Lock()
 	session, ok := c.sessions[sessionID]
 	c.sessionsMux.Unlock()
 	if !ok {
-		return nil, &JSONRPCError{Code: -32602, Message: fmt.Sprintf("unknown session %s", sessionID)}
+		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", sessionID)}
 	}
 
 	handler, ok := session.getToolHandler(toolName)
@@ -1338,19 +1340,19 @@ func (c *Client) executeToolCall(
 }
 
 // handlePermissionRequest handles a permission request from the CLI server.
-func (c *Client) handlePermissionRequest(params map[string]any) (map[string]any, *JSONRPCError) {
+func (c *Client) handlePermissionRequest(params map[string]any) (map[string]any, *jsonrpc2.Error) {
 	sessionID, _ := params["sessionId"].(string)
 	permissionRequest, _ := params["permissionRequest"].(map[string]any)
 
 	if sessionID == "" {
-		return nil, &JSONRPCError{Code: -32602, Message: "invalid permission request payload"}
+		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid permission request payload"}
 	}
 
 	c.sessionsMux.Lock()
 	session, ok := c.sessions[sessionID]
 	c.sessionsMux.Unlock()
 	if !ok {
-		return nil, &JSONRPCError{Code: -32602, Message: fmt.Sprintf("unknown session %s", sessionID)}
+		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", sessionID)}
 	}
 
 	result, err := session.handlePermissionRequest(permissionRequest)
@@ -1367,19 +1369,19 @@ func (c *Client) handlePermissionRequest(params map[string]any) (map[string]any,
 }
 
 // handleUserInputRequest handles a user input request from the CLI server.
-func (c *Client) handleUserInputRequest(params map[string]any) (map[string]any, *JSONRPCError) {
+func (c *Client) handleUserInputRequest(params map[string]any) (map[string]any, *jsonrpc2.Error) {
 	sessionID, _ := params["sessionId"].(string)
 	question, _ := params["question"].(string)
 
 	if sessionID == "" || question == "" {
-		return nil, &JSONRPCError{Code: -32602, Message: "invalid user input request payload"}
+		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid user input request payload"}
 	}
 
 	c.sessionsMux.Lock()
 	session, ok := c.sessions[sessionID]
 	c.sessionsMux.Unlock()
 	if !ok {
-		return nil, &JSONRPCError{Code: -32602, Message: fmt.Sprintf("unknown session %s", sessionID)}
+		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", sessionID)}
 	}
 
 	// Parse choices
@@ -1405,7 +1407,7 @@ func (c *Client) handleUserInputRequest(params map[string]any) (map[string]any, 
 
 	response, err := session.handleUserInputRequest(request)
 	if err != nil {
-		return nil, &JSONRPCError{Code: -32603, Message: err.Error()}
+		return nil, &jsonrpc2.Error{Code: -32603, Message: err.Error()}
 	}
 
 	return map[string]any{
@@ -1415,25 +1417,25 @@ func (c *Client) handleUserInputRequest(params map[string]any) (map[string]any, 
 }
 
 // handleHooksInvoke handles a hooks invocation from the CLI server.
-func (c *Client) handleHooksInvoke(params map[string]any) (map[string]any, *JSONRPCError) {
+func (c *Client) handleHooksInvoke(params map[string]any) (map[string]any, *jsonrpc2.Error) {
 	sessionID, _ := params["sessionId"].(string)
 	hookType, _ := params["hookType"].(string)
 	input, _ := params["input"].(map[string]any)
 
 	if sessionID == "" || hookType == "" {
-		return nil, &JSONRPCError{Code: -32602, Message: "invalid hooks invoke payload"}
+		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid hooks invoke payload"}
 	}
 
 	c.sessionsMux.Lock()
 	session, ok := c.sessions[sessionID]
 	c.sessionsMux.Unlock()
 	if !ok {
-		return nil, &JSONRPCError{Code: -32602, Message: fmt.Sprintf("unknown session %s", sessionID)}
+		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", sessionID)}
 	}
 
 	output, err := session.handleHooksInvoke(hookType, input)
 	if err != nil {
-		return nil, &JSONRPCError{Code: -32603, Message: err.Error()}
+		return nil, &jsonrpc2.Error{Code: -32603, Message: err.Error()}
 	}
 
 	result := make(map[string]any)
