@@ -288,6 +288,39 @@ public class CapiProxy implements AutoCloseable {
         return proxyUrl;
     }
 
+    /**
+     * Checks if the proxy process is still alive.
+     *
+     * @return true if the proxy is running, false otherwise
+     */
+    public boolean isAlive() {
+        return process != null && process.isAlive();
+    }
+
+    /**
+     * Restarts the proxy server. This stops the current instance (if any) and
+     * starts a new one.
+     *
+     * @return the new proxy URL
+     * @throws IOException
+     *             if the server fails to start
+     * @throws InterruptedException
+     *             if the startup is interrupted
+     */
+    public String restart() throws IOException, InterruptedException {
+        try {
+            stop(true); // Skip writing cache on restart
+        } catch (Exception e) {
+            // Best effort - force cleanup
+            if (process != null) {
+                process.destroyForcibly();
+                process = null;
+            }
+            proxyUrl = null;
+        }
+        return start();
+    }
+
     @Override
     public void close() throws Exception {
         stop();

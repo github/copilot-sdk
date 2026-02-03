@@ -55,7 +55,7 @@ public class E2ETestContext implements AutoCloseable {
     private final String cliPath;
     private final Path homeDir;
     private final Path workDir;
-    private final String proxyUrl;
+    private String proxyUrl;
     private final CapiProxy proxy;
     private final Path repoRoot;
 
@@ -133,12 +133,29 @@ public class E2ETestContext implements AutoCloseable {
      *             if configuration is interrupted
      */
     public void configureForTest(String testFile, String testName) throws IOException, InterruptedException {
+        // Restart the proxy if it has crashed
+        ensureProxyAlive();
+
         // Convert test method names to lowercase snake_case for snapshot filenames
         // to avoid case collisions on case-insensitive filesystems (macOS/Windows)
         String sanitizedName = SNAKE_CASE.matcher(testName).replaceAll("_").toLowerCase();
         String snapshotPath = repoRoot.resolve("test").resolve("snapshots").resolve(testFile)
                 .resolve(sanitizedName + ".yaml").toString();
         proxy.configure(snapshotPath, workDir.toString());
+    }
+
+    /**
+     * Ensures the proxy is alive, restarting it if necessary.
+     *
+     * @throws IOException
+     *             if the proxy cannot be restarted
+     * @throws InterruptedException
+     *             if interrupted during restart
+     */
+    public void ensureProxyAlive() throws IOException, InterruptedException {
+        if (!proxy.isAlive()) {
+            proxyUrl = proxy.restart();
+        }
     }
 
     /**
