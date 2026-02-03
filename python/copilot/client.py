@@ -16,6 +16,7 @@ import asyncio
 import inspect
 import os
 import re
+import shutil
 import subprocess
 import threading
 from dataclasses import asdict, is_dataclass
@@ -894,6 +895,14 @@ class CopilotClient:
             RuntimeError: If the server fails to start or times out.
         """
         cli_path = self.options["cli_path"]
+
+        # Resolve the full path on Windows (handles .cmd/.bat files)
+        # On Windows, subprocess.Popen doesn't use PATHEXT to resolve extensions,
+        # so we need to use shutil.which() to find the actual executable
+        resolved_path = shutil.which(cli_path)
+        if resolved_path:
+            cli_path = resolved_path
+
         args = ["--server", "--log-level", self.options["log_level"]]
 
         # Add auth-related flags

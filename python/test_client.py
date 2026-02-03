@@ -136,3 +136,66 @@ class TestAuthOptions:
             CopilotClient(
                 {"cli_url": "localhost:8080", "use_logged_in_user": False, "log_level": "error"}
             )
+
+
+class TestCLIPathResolution:
+    """Test that CLI path resolution works correctly, especially on Windows."""
+
+    @pytest.mark.asyncio
+    async def test_cli_path_resolved_with_which(self):
+        """Test that shutil.which() is used to resolve the CLI path."""
+        from unittest.mock import MagicMock, patch
+
+        # Create a mock resolved path
+        mock_resolved_path = "/usr/local/bin/copilot"
+
+        with patch("shutil.which", return_value=mock_resolved_path):
+            with patch("subprocess.Popen") as mock_popen:
+                # Mock the process and its stdout for TCP mode
+                mock_process = MagicMock()
+                mock_process.stdout.readline.return_value = b"listening on port 8080\n"
+                mock_popen.return_value = mock_process
+
+                client = CopilotClient(
+                    {"cli_path": "copilot", "use_stdio": False, "log_level": "error"}
+                )
+
+                try:
+                    await client._start_cli_server()
+
+                    # Verify that subprocess.Popen was called with the resolved path
+                    mock_popen.assert_called_once()
+                    args = mock_popen.call_args[0][0]
+                    assert args[0] == mock_resolved_path
+                finally:
+                    if client._process:
+                        client._process = None
+
+    @pytest.mark.asyncio
+    async def test_cli_path_not_resolved_when_which_returns_none(self):
+        """Test that original path is used when shutil.which() returns None."""
+        from unittest.mock import MagicMock, patch
+
+        original_path = "/custom/path/to/copilot"
+
+        with patch("shutil.which", return_value=None):
+            with patch("subprocess.Popen") as mock_popen:
+                # Mock the process and its stdout for TCP mode
+                mock_process = MagicMock()
+                mock_process.stdout.readline.return_value = b"listening on port 8080\n"
+                mock_popen.return_value = mock_process
+
+                client = CopilotClient(
+                    {"cli_path": original_path, "use_stdio": False, "log_level": "error"}
+                )
+
+                try:
+                    await client._start_cli_server()
+
+                    # Verify that subprocess.Popen was called with the original path
+                    mock_popen.assert_called_once()
+                    args = mock_popen.call_args[0][0]
+                    assert args[0] == original_path
+                finally:
+                    if client._process:
+                        client._process = None
