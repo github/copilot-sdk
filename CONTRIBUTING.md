@@ -38,7 +38,7 @@ This is a multi-language SDK repository. Install the tools for the SDK(s) you pl
 1. Install dependencies: `cd python && uv pip install -e ".[dev]"`
 
 ### Go SDK
-1. Install [Go 1.23+](https://go.dev/doc/install)
+1. Install [Go 1.24+](https://go.dev/doc/install)
 1. Install [golangci-lint](https://golangci-lint.run/welcome/install/#local-installation)
 1. Install dependencies: `cd go && go mod download`
 

@@ -29,7 +29,9 @@ package copilot
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -229,11 +231,11 @@ func parseCliUrl(url string) (string, int) {
 // Example:
 //
 //	client := copilot.NewClient(&copilot.ClientOptions{AutoStart: boolPtr(false)})
-//	if err := client.Start(); err != nil {
+//	if err := client.Start(context.Background()); err != nil {
 //	    log.Fatal("Failed to start:", err)
 //	}
 //	// Now ready to create sessions
-func (c *Client) Start() error {
+func (c *Client) Start(ctx context.Context) error {
 	if c.state == StateConnected {
 		return nil
 	}
@@ -242,20 +244,20 @@ func (c *Client) Start() error {
 
 	// Only start CLI server process if not connecting to external server
 	if !c.isExternalServer {
-		if err := c.startCLIServer(); err != nil {
+		if err := c.startCLIServer(ctx); err != nil {
 			c.state = StateError
 			return err
 		}
 	}
 
 	// Connect to the server
-	if err := c.connectToServer(); err != nil {
+	if err := c.connectToServer(ctx); err != nil {
 		c.state = StateError
 		return err
 	}
 
 	// Verify protocol version compatibility
-	if err := c.verifyProtocolVersion(); err != nil {
+	if err := c.verifyProtocolVersion(ctx); err != nil {
 		c.state = StateError
 		return err
 	}
@@ -271,17 +273,15 @@ func (c *Client) Start() error {
 //  2. Closes the JSON-RPC connection
 //  3. Terminates the CLI server process (if spawned by this client)
 //
-// Returns an array of errors encountered during cleanup. An empty slice indicates
-// all cleanup succeeded.
+// Returns an error that aggregates all errors encountered during cleanup.
 //
 // Example:
 //
-//	errors := client.Stop()
-//	for _, err := range errors {
+//	if err := client.Stop(); err != nil {
 //	    log.Printf("Cleanup error: %v", err)
 //	}
-func (c *Client) Stop() []error {
-	var errors []error
+func (c *Client) Stop() error {
+	var errs []error
 
 	// Destroy all active sessions
 	c.sessionsMux.Lock()
@@ -293,7 +293,7 @@ func (c *Client) Stop() []error {
 
 	for _, session := range sessions {
 		if err := session.Destroy(); err != nil {
-			errors = append(errors, fmt.Errorf("failed to destroy session %s: %w", session.SessionID, err))
+			errs = append(errs, fmt.Errorf("failed to destroy session %s: %w", session.SessionID, err))
 		}
 	}
 
@@ -304,7 +304,7 @@ func (c *Client) Stop() []error {
 	// Kill CLI process FIRST (this closes stdout and unblocks readLoop) - only if we spawned it
 	if c.process != nil && !c.isExternalServer {
 		if err := c.process.Process.Kill(); err != nil {
-			errors = append(errors, fmt.Errorf("failed to kill CLI process: %w", err))
+			errs = append(errs, fmt.Errorf("failed to kill CLI process: %w", err))
 		}
 		c.process = nil
 	}
@@ -312,7 +312,7 @@ func (c *Client) Stop() []error {
 	// Close external TCP connection if exists
 	if c.isExternalServer && c.conn != nil {
 		if err := c.conn.Close(); err != nil {
-			errors = append(errors, fmt.Errorf("failed to close socket: %w", err))
+			errs = append(errs, fmt.Errorf("failed to close socket: %w", err))
 		}
 		c.conn = nil
 	}
@@ -333,7 +333,7 @@ func (c *Client) Stop() []error {
 		c.actualPort = 0
 	}
 
-	return errors
+	return errors.Join(errs...)
 }
 
 // ForceStop forcefully stops the CLI server without graceful cleanup.
@@ -423,6 +423,16 @@ func buildProviderParams(p *ProviderConfig) map[string]any {
 	return params
 }
 
+func (c *Client) ensureConnected() error {
+	if c.client != nil {
+		return nil
+	}
+	if c.autoStart {
+		return c.Start(context.Background())
+	}
+	return fmt.Errorf("client not connected. Call Start() first")
+}
+
 // CreateSession creates a new conversation session with the Copilot CLI.
 //
 // Sessions maintain conversation state, handle events, and manage tool execution.
@@ -436,10 +446,10 @@ func buildProviderParams(p *ProviderConfig) map[string]any {
 // Example:
 //
 //	// Basic session
-//	session, err := client.CreateSession(nil)
+//	session, err := client.CreateSession(context.Background(), nil)
 //
 //	// Session with model and tools
-//	session, err := client.CreateSession(&copilot.SessionConfig{
+//	session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
 //	    Model: "gpt-4",
 //	    Tools: []copilot.Tool{
 //	        {
@@ -449,15 +459,9 @@ func buildProviderParams(p *ProviderConfig) map[string]any {
 //	        },
 //	    },
 //	})
-func (c *Client) CreateSession(config *SessionConfig) (*Session, error) {
-	if c.client == nil {
-		if c.autoStart {
-			if err := c.Start(); err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, fmt.Errorf("client not connected. Call Start() first")
-		}
+func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Session, error) {
+	if err := c.ensureConnected(); err != nil {
+		return nil, err
 	}
 
 	params := make(map[string]any)
@@ -649,9 +653,9 @@ func (c *Client) CreateSession(config *SessionConfig) (*Session, error) {
 //
 // Example:
 //
-//	session, err := client.ResumeSession("session-123")
-func (c *Client) ResumeSession(sessionID string) (*Session, error) {
-	return c.ResumeSessionWithOptions(sessionID, nil)
+//	session, err := client.ResumeSession(context.Background(), "session-123")
+func (c *Client) ResumeSession(ctx context.Context, sessionID string) (*Session, error) {
+	return c.ResumeSessionWithOptions(ctx, sessionID, nil)
 }
 
 // ResumeSessionWithOptions resumes an existing conversation session with additional configuration.
@@ -661,18 +665,12 @@ func (c *Client) ResumeSession(sessionID string) (*Session, error) {
 //
 // Example:
 //
-//	session, err := client.ResumeSessionWithOptions("session-123", &copilot.ResumeSessionConfig{
+//	session, err := client.ResumeSessionWithOptions(context.Background(), "session-123", &copilot.ResumeSessionConfig{
 //	    Tools: []copilot.Tool{myNewTool},
 //	})
-func (c *Client) ResumeSessionWithOptions(sessionID string, config *ResumeSessionConfig) (*Session, error) {
-	if c.client == nil {
-		if c.autoStart {
-			if err := c.Start(); err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, fmt.Errorf("client not connected. Call Start() first")
-		}
+func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string, config *ResumeSessionConfig) (*Session, error) {
+	if err := c.ensureConnected(); err != nil {
+		return nil, err
 	}
 
 	params := map[string]any{
@@ -817,22 +815,16 @@ func (c *Client) ResumeSessionWithOptions(sessionID string, config *ResumeSessio
 //
 // Example:
 //
-//	sessions, err := client.ListSessions()
+//	sessions, err := client.ListSessions(context.Background())
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
 //	for _, session := range sessions {
 //	    fmt.Printf("Session: %s\n", session.SessionID)
 //	}
-func (c *Client) ListSessions() ([]SessionMetadata, error) {
-	if c.client == nil {
-		if c.autoStart {
-			if err := c.Start(); err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, fmt.Errorf("client not connected. Call Start() first")
-		}
+func (c *Client) ListSessions(ctx context.Context) ([]SessionMetadata, error) {
+	if err := c.ensureConnected(); err != nil {
+		return nil, err
 	}
 
 	result, err := c.client.Request("session.list", map[string]any{})
@@ -861,18 +853,12 @@ func (c *Client) ListSessions() ([]SessionMetadata, error) {
 //
 // Example:
 //
-//	if err := client.DeleteSession("session-123"); err != nil {
+//	if err := client.DeleteSession(context.Background(), "session-123"); err != nil {
 //	    log.Fatal(err)
 //	}
-func (c *Client) DeleteSession(sessionID string) error {
-	if c.client == nil {
-		if c.autoStart {
-			if err := c.Start(); err != nil {
-				return err
-			}
-		} else {
-			return fmt.Errorf("client not connected. Call Start() first")
-		}
+func (c *Client) DeleteSession(ctx context.Context, sessionID string) error {
+	if err := c.ensureConnected(); err != nil {
+		return err
 	}
 
 	params := map[string]any{
@@ -911,16 +897,16 @@ func (c *Client) DeleteSession(sessionID string) error {
 	return nil
 }
 
-// GetState returns the current connection state of the client.
+// State returns the current connection state of the client.
 //
 // Possible states: StateDisconnected, StateConnecting, StateConnected, StateError.
 //
 // Example:
 //
-//	if client.GetState() == copilot.StateConnected {
-//	    session, err := client.CreateSession(nil)
+//	if client.State() == copilot.StateConnected {
+//	    session, err := client.CreateSession(context.Background(), nil)
 //	}
-func (c *Client) GetState() ConnectionState {
+func (c *Client) State() ConnectionState {
 	return c.state
 }
 
@@ -931,13 +917,13 @@ func (c *Client) GetState() ConnectionState {
 //
 // Example:
 //
-//	resp, err := client.Ping("health check")
+//	resp, err := client.Ping(context.Background(), "health check")
 //	if err != nil {
 //	    log.Printf("Server unreachable: %v", err)
 //	} else {
 //	    log.Printf("Server responded at %d", resp.Timestamp)
 //	}
-func (c *Client) Ping(message string) (*PingResponse, error) {
+func (c *Client) Ping(ctx context.Context, message string) (*PingResponse, error) {
 	if c.client == nil {
 		return nil, fmt.Errorf("client not connected")
 	}
@@ -968,7 +954,7 @@ func (c *Client) Ping(message string) (*PingResponse, error) {
 }
 
 // GetStatus returns CLI status including version and protocol information
-func (c *Client) GetStatus() (*GetStatusResponse, error) {
+func (c *Client) GetStatus(ctx context.Context) (*GetStatusResponse, error) {
 	if c.client == nil {
 		return nil, fmt.Errorf("client not connected")
 	}
@@ -990,7 +976,7 @@ func (c *Client) GetStatus() (*GetStatusResponse, error) {
 }
 
 // GetAuthStatus returns current authentication status
-func (c *Client) GetAuthStatus() (*GetAuthStatusResponse, error) {
+func (c *Client) GetAuthStatus(ctx context.Context) (*GetAuthStatusResponse, error) {
 	if c.client == nil {
 		return nil, fmt.Errorf("client not connected")
 	}
@@ -1024,7 +1010,7 @@ func (c *Client) GetAuthStatus() (*GetAuthStatusResponse, error) {
 //
 // Results are cached after the first successful call to avoid rate limiting.
 // The cache is cleared when the client disconnects.
-func (c *Client) ListModels() ([]ModelInfo, error) {
+func (c *Client) ListModels(ctx context.Context) ([]ModelInfo, error) {
 	if c.client == nil {
 		return nil, fmt.Errorf("client not connected")
 	}
@@ -1068,9 +1054,9 @@ func (c *Client) ListModels() ([]ModelInfo, error) {
 }
 
 // verifyProtocolVersion verifies that the server's protocol version matches the SDK's expected version
-func (c *Client) verifyProtocolVersion() error {
+func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 	expectedVersion := GetSdkProtocolVersion()
-	pingResult, err := c.Ping("")
+	pingResult, err := c.Ping(ctx, "")
 	if err != nil {
 		return err
 	}
@@ -1090,7 +1076,7 @@ func (c *Client) verifyProtocolVersion() error {
 //
 // This spawns the CLI server as a subprocess using the configured transport
 // mode (stdio or TCP).
-func (c *Client) startCLIServer() error {
+func (c *Client) startCLIServer(ctx context.Context) error {
 	args := []string{"--server", "--log-level", c.options.LogLevel}
 
 	// Choose transport mode
@@ -1123,7 +1109,7 @@ func (c *Client) startCLIServer() error {
 		args = append([]string{c.options.CLIPath}, args...)
 	}
 
-	c.process = exec.Command(command, args...)
+	c.process = exec.CommandContext(ctx, command, args...)
 
 	// Set working directory if specified
 	if c.options.Cwd != "" {
@@ -1210,25 +1196,28 @@ func (c *Client) startCLIServer() error {
 }
 
 // connectToServer establishes a connection to the server.
-func (c *Client) connectToServer() error {
+func (c *Client) connectToServer(ctx context.Context) error {
 	if c.useStdio {
 		// Already connected via stdio in startCLIServer
 		return nil
 	}
 
 	// Connect via TCP
-	return c.connectViaTcp()
+	return c.connectViaTcp(ctx)
 }
 
 // connectViaTcp connects to the CLI server via TCP socket.
-func (c *Client) connectViaTcp() error {
+func (c *Client) connectViaTcp(ctx context.Context) error {
 	if c.actualPort == 0 {
 		return fmt.Errorf("server port not available")
 	}
 
-	// Create TCP connection with 10 second timeout
+	// Create TCP connection that cancels on context done or after 10 seconds
 	address := net.JoinHostPort(c.actualHost, fmt.Sprintf("%d", c.actualPort))
-	conn, err := net.DialTimeout("tcp", address, 10*time.Second)
+	dialer := net.Dialer{
+		Timeout: 10 * time.Second,
+	}
+	conn, err := dialer.DialContext(ctx, "tcp", address)
 	if err != nil {
 		return fmt.Errorf("failed to connect to CLI server at %s: %w", address, err)
 	}

@@ -20,7 +20,7 @@ func TestClient_HandleToolCallRequest(t *testing.T) {
 		client := NewClient(&ClientOptions{CLIPath: cliPath})
 		t.Cleanup(func() { client.ForceStop() })
 
-		session, err := client.CreateSession(nil)
+		session, err := client.CreateSession(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}

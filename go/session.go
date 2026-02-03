@@ -2,6 +2,7 @@
 package copilot
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -95,7 +96,7 @@ func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string)
 //
 // Example:
 //
-//	messageID, err := session.Send(copilot.MessageOptions{
+//	messageID, err := session.Send(context.Background(), copilot.MessageOptions{
 //	    Prompt: "Explain this code",
 //	    Attachments: []copilot.Attachment{
 //	        {Type: "file", Path: "./main.go"},
@@ -104,7 +105,7 @@ func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string)
 //	if err != nil {
 //	    log.Printf("Failed to send message: %v", err)
 //	}
-func (s *Session) Send(options MessageOptions) (string, error) {
+func (s *Session) Send(ctx context.Context, options MessageOptions) (string, error) {
 	params := map[string]any{
 		"sessionId": s.SessionID,
 		"prompt":    options.Prompt,
@@ -148,18 +149,20 @@ func (s *Session) Send(options MessageOptions) (string, error) {
 //
 // Example:
 //
-//	response, err := session.SendAndWait(copilot.MessageOptions{
+//	response, err := session.SendAndWait(context.Background(), copilot.MessageOptions{
 //	    Prompt: "What is 2+2?",
-//	}, 0) // Use default 60s timeout
+//	}) // Use default 60s timeout
 //	if err != nil {
 //	    log.Printf("Failed: %v", err)
 //	}
 //	if response != nil {
 //	    fmt.Println(*response.Data.Content)
 //	}
-func (s *Session) SendAndWait(options MessageOptions, timeout time.Duration) (*SessionEvent, error) {
-	if timeout == 0 {
-		timeout = 60 * time.Second
+func (s *Session) SendAndWait(ctx context.Context, options MessageOptions) (*SessionEvent, error) {
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 60*time.Second)
+		defer cancel()
 	}
 
 	idleCh := make(chan struct{}, 1)
@@ -192,7 +195,7 @@ func (s *Session) SendAndWait(options MessageOptions, timeout time.Duration) (*S
 	})
 	defer unsubscribe()
 
-	_, err := s.Send(options)
+	_, err := s.Send(ctx, options)
 	if err != nil {
 		return nil, err
 	}
@@ -205,8 +208,8 @@ func (s *Session) SendAndWait(options MessageOptions, timeout time.Duration) (*S
 		return result, nil
 	case err := <-errCh:
 		return nil, err
-	case <-time.After(timeout):
-		return nil, fmt.Errorf("timeout after %v waiting for session.idle", timeout)
+	case <-ctx.Done(): // TODO: remove once session.Send honors the context
+		return nil, fmt.Errorf("waiting for session.idle: %w", ctx.Err())
 	}
 }
 
@@ -582,7 +585,7 @@ func (s *Session) dispatchEvent(event SessionEvent) {
 //
 // Example:
 //
-//	events, err := session.GetMessages()
+//	events, err := session.GetMessages(context.Background())
 //	if err != nil {
 //	    log.Printf("Failed to get messages: %v", err)
 //	    return
@@ -592,7 +595,7 @@ func (s *Session) dispatchEvent(event SessionEvent) {
 //	        fmt.Println("Assistant:", event.Data.Content)
 //	    }
 //	}
-func (s *Session) GetMessages() ([]SessionEvent, error) {
+func (s *Session) GetMessages(ctx context.Context) ([]SessionEvent, error) {
 	params := map[string]any{
 		"sessionId": s.SessionID,
 	}
@@ -678,17 +681,17 @@ func (s *Session) Destroy() error {
 //
 //	// Start a long-running request in a goroutine
 //	go func() {
-//	    session.Send(copilot.MessageOptions{
+//	    session.Send(context.Background(), copilot.MessageOptions{
 //	        Prompt: "Write a very long story...",
 //	    })
 //	}()
 //
 //	// Abort after 5 seconds
 //	time.Sleep(5 * time.Second)
-//	if err := session.Abort(); err != nil {
+//	if err := session.Abort(context.Background()); err != nil {
 //	    log.Printf("Failed to abort: %v", err)
 //	}
-func (s *Session) Abort() error {
+func (s *Session) Abort(ctx context.Context) error {
 	params := map[string]any{
 		"sessionId": s.SessionID,
 	}

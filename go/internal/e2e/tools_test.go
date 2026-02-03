@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
@@ -26,17 +25,17 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to write test file: %v", err)
 		}
 
-		session, err := client.CreateSession(nil)
+		session, err := client.CreateSession(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.Send(copilot.MessageOptions{Prompt: "What's the first line of README.md in this directory?"})
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What's the first line of README.md in this directory?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		answer, err := testharness.GetFinalAssistantMessage(session, 60*time.Second)
+		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -53,7 +52,7 @@ func TestTools(t *testing.T) {
 			Input string `json:"input" jsonschema:"String to encrypt"`
 		}
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			Tools: []copilot.Tool{
 				copilot.DefineTool("encrypt_string", "Encrypts a string",
 					func(params EncryptParams, inv copilot.ToolInvocation) (string, error) {
@@ -65,12 +64,12 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.Send(copilot.MessageOptions{Prompt: "Use encrypt_string to encrypt this string: Hello"})
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "Use encrypt_string to encrypt this string: Hello"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		answer, err := testharness.GetFinalAssistantMessage(session, 60*time.Second)
+		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -85,7 +84,7 @@ func TestTools(t *testing.T) {
 
 		type EmptyParams struct{}
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			Tools: []copilot.Tool{
 				copilot.DefineTool("get_user_location", "Gets the user's location",
 					func(params EmptyParams, inv copilot.ToolInvocation) (any, error) {
@@ -97,14 +96,14 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.Send(copilot.MessageOptions{
+		_, err = session.Send(t.Context(), copilot.MessageOptions{
 			Prompt: "What is my location? If you can't find out, just say 'unknown'.",
 		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		answer, err := testharness.GetFinalAssistantMessage(session, 60*time.Second)
+		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -187,7 +186,7 @@ func TestTools(t *testing.T) {
 
 		var receivedInvocation *copilot.ToolInvocation
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			Tools: []copilot.Tool{
 				copilot.DefineTool("db_query", "Performs a database query",
 					func(params DbQueryParams, inv copilot.ToolInvocation) ([]City, error) {
@@ -214,7 +213,7 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.Send(copilot.MessageOptions{
+		_, err = session.Send(t.Context(), copilot.MessageOptions{
 			Prompt: "Perform a DB query for the 'cities' table using IDs 12 and 19, sorting ascending. " +
 				"Reply only with lines of the form: [cityname] [population]",
 		})
@@ -222,7 +221,7 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		answer, err := testharness.GetFinalAssistantMessage(session, 60*time.Second)
+		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}

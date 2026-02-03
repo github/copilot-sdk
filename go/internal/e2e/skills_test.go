@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
@@ -57,7 +56,7 @@ func TestSkills(t *testing.T) {
 		cleanSkillsDir(t, ctx.WorkDir)
 		skillsDir := createTestSkillDir(t, ctx.WorkDir, skillMarker)
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			SkillDirectories: []string{skillsDir},
 		})
 		if err != nil {
@@ -65,9 +64,9 @@ func TestSkills(t *testing.T) {
 		}
 
 		// The skill instructs the model to include a marker - verify it appears
-		message, err := session.SendAndWait(copilot.MessageOptions{
+		message, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Say hello briefly using the test skill.",
-		}, 60*time.Second)
+		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
@@ -84,7 +83,7 @@ func TestSkills(t *testing.T) {
 		cleanSkillsDir(t, ctx.WorkDir)
 		skillsDir := createTestSkillDir(t, ctx.WorkDir, skillMarker)
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			SkillDirectories: []string{skillsDir},
 			DisabledSkills:   []string{"test-skill"},
 		})
@@ -93,9 +92,9 @@ func TestSkills(t *testing.T) {
 		}
 
 		// The skill is disabled, so the marker should NOT appear
-		message, err := session.SendAndWait(copilot.MessageOptions{
+		message, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Say hello briefly using the test skill.",
-		}, 60*time.Second)
+		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
@@ -114,14 +113,14 @@ func TestSkills(t *testing.T) {
 		skillsDir := createTestSkillDir(t, ctx.WorkDir, skillMarker)
 
 		// Create a session without skills first
-		session1, err := client.CreateSession(nil)
+		session1, err := client.CreateSession(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 		sessionID := session1.SessionID
 
 		// First message without skill - marker should not appear
-		message1, err := session1.SendAndWait(copilot.MessageOptions{Prompt: "Say hi."}, 60*time.Second)
+		message1, err := session1.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Say hi."})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
@@ -131,7 +130,7 @@ func TestSkills(t *testing.T) {
 		}
 
 		// Resume with skillDirectories - skill should now be active
-		session2, err := client.ResumeSessionWithOptions(sessionID, &copilot.ResumeSessionConfig{
+		session2, err := client.ResumeSessionWithOptions(t.Context(), sessionID, &copilot.ResumeSessionConfig{
 			SkillDirectories: []string{skillsDir},
 		})
 		if err != nil {
@@ -143,7 +142,7 @@ func TestSkills(t *testing.T) {
 		}
 
 		// Now the skill should be applied
-		message2, err := session2.SendAndWait(copilot.MessageOptions{Prompt: "Say hello again using the test skill."}, 60*time.Second)
+		message2, err := session2.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Say hello again using the test skill."})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}

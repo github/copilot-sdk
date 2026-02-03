@@ -3,7 +3,6 @@ package e2e
 import (
 	"strings"
 	"testing"
-	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
@@ -21,7 +20,7 @@ func TestCompaction(t *testing.T) {
 		backgroundThreshold := 0.005 // 0.5%
 		bufferThreshold := 0.01      // 1%
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			InfiniteSessions: &copilot.InfiniteSessionConfig{
 				Enabled:                       &enabled,
 				BackgroundCompactionThreshold: &backgroundThreshold,
@@ -45,17 +44,17 @@ func TestCompaction(t *testing.T) {
 		})
 
 		// Send multiple messages to fill up the context window
-		_, err = session.SendAndWait(copilot.MessageOptions{Prompt: "Tell me a long story about a dragon. Be very detailed."}, 60*time.Second)
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Tell me a long story about a dragon. Be very detailed."})
 		if err != nil {
 			t.Fatalf("Failed to send first message: %v", err)
 		}
 
-		_, err = session.SendAndWait(copilot.MessageOptions{Prompt: "Continue the story with more details about the dragon's castle."}, 60*time.Second)
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Continue the story with more details about the dragon's castle."})
 		if err != nil {
 			t.Fatalf("Failed to send second message: %v", err)
 		}
 
-		_, err = session.SendAndWait(copilot.MessageOptions{Prompt: "Now describe the dragon's treasure in great detail."}, 60*time.Second)
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Now describe the dragon's treasure in great detail."})
 		if err != nil {
 			t.Fatalf("Failed to send third message: %v", err)
 		}
@@ -80,7 +79,7 @@ func TestCompaction(t *testing.T) {
 		}
 
 		// Verify session still works after compaction
-		answer, err := session.SendAndWait(copilot.MessageOptions{Prompt: "What was the story about?"}, 60*time.Second)
+		answer, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What was the story about?"})
 		if err != nil {
 			t.Fatalf("Failed to send verification message: %v", err)
 		}
@@ -93,7 +92,7 @@ func TestCompaction(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		enabled := false
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			InfiniteSessions: &copilot.InfiniteSessionConfig{
 				Enabled: &enabled,
 			},
@@ -109,7 +108,7 @@ func TestCompaction(t *testing.T) {
 			}
 		})
 
-		_, err = session.SendAndWait(copilot.MessageOptions{Prompt: "What is 2+2?"}, 60*time.Second)
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 2+2?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}

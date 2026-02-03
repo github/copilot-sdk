@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
-	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
@@ -22,7 +21,7 @@ func TestHooks(t *testing.T) {
 		var preToolUseInputs []copilot.PreToolUseHookInput
 		var mu sync.Mutex
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			Hooks: &copilot.SessionHooks{
 				OnPreToolUse: func(input copilot.PreToolUseHookInput, invocation copilot.HookInvocation) (*copilot.PreToolUseHookOutput, error) {
 					mu.Lock()
@@ -48,9 +47,9 @@ func TestHooks(t *testing.T) {
 			t.Fatalf("Failed to write test file: %v", err)
 		}
 
-		_, err = session.SendAndWait(copilot.MessageOptions{
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Read the contents of hello.txt and tell me what it says",
-		}, 60*time.Second)
+		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
@@ -80,7 +79,7 @@ func TestHooks(t *testing.T) {
 		var postToolUseInputs []copilot.PostToolUseHookInput
 		var mu sync.Mutex
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			Hooks: &copilot.SessionHooks{
 				OnPostToolUse: func(input copilot.PostToolUseHookInput, invocation copilot.HookInvocation) (*copilot.PostToolUseHookOutput, error) {
 					mu.Lock()
@@ -106,9 +105,9 @@ func TestHooks(t *testing.T) {
 			t.Fatalf("Failed to write test file: %v", err)
 		}
 
-		_, err = session.SendAndWait(copilot.MessageOptions{
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Read the contents of world.txt and tell me what it says",
-		}, 60*time.Second)
+		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
@@ -145,7 +144,7 @@ func TestHooks(t *testing.T) {
 		var postToolUseInputs []copilot.PostToolUseHookInput
 		var mu sync.Mutex
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			Hooks: &copilot.SessionHooks{
 				OnPreToolUse: func(input copilot.PreToolUseHookInput, invocation copilot.HookInvocation) (*copilot.PreToolUseHookOutput, error) {
 					mu.Lock()
@@ -171,9 +170,9 @@ func TestHooks(t *testing.T) {
 			t.Fatalf("Failed to write test file: %v", err)
 		}
 
-		_, err = session.SendAndWait(copilot.MessageOptions{
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Read the contents of both.txt",
-		}, 60*time.Second)
+		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
@@ -214,7 +213,7 @@ func TestHooks(t *testing.T) {
 		var preToolUseInputs []copilot.PreToolUseHookInput
 		var mu sync.Mutex
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			Hooks: &copilot.SessionHooks{
 				OnPreToolUse: func(input copilot.PreToolUseHookInput, invocation copilot.HookInvocation) (*copilot.PreToolUseHookOutput, error) {
 					mu.Lock()
@@ -237,9 +236,9 @@ func TestHooks(t *testing.T) {
 			t.Fatalf("Failed to write test file: %v", err)
 		}
 
-		response, err := session.SendAndWait(copilot.MessageOptions{
+		response, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Edit protected.txt and replace 'Original' with 'Modified'",
-		}, 60*time.Second)
+		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}

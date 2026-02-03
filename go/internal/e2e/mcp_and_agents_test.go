@@ -3,7 +3,6 @@ package e2e
 import (
 	"strings"
 	"testing"
-	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
@@ -26,7 +25,7 @@ func TestMCPServers(t *testing.T) {
 			},
 		}
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			MCPServers: mcpServers,
 		})
 		if err != nil {
@@ -38,14 +37,14 @@ func TestMCPServers(t *testing.T) {
 		}
 
 		// Simple interaction to verify session works
-		_, err = session.Send(copilot.MessageOptions{
+		_, err = session.Send(t.Context(), copilot.MessageOptions{
 			Prompt: "What is 2+2?",
 		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		message, err := testharness.GetFinalAssistantMessage(session, 60*time.Second)
+		message, err := testharness.GetFinalAssistantMessage(t.Context(), session)
 		if err != nil {
 			t.Fatalf("Failed to get final message: %v", err)
 		}
@@ -61,13 +60,13 @@ func TestMCPServers(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		// Create a session first
-		session1, err := client.CreateSession(nil)
+		session1, err := client.CreateSession(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 		sessionID := session1.SessionID
 
-		_, err = session1.SendAndWait(copilot.MessageOptions{Prompt: "What is 1+1?"}, 60*time.Second)
+		_, err = session1.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
@@ -82,7 +81,7 @@ func TestMCPServers(t *testing.T) {
 			},
 		}
 
-		session2, err := client.ResumeSessionWithOptions(sessionID, &copilot.ResumeSessionConfig{
+		session2, err := client.ResumeSessionWithOptions(t.Context(), sessionID, &copilot.ResumeSessionConfig{
 			MCPServers: mcpServers,
 		})
 		if err != nil {
@@ -93,7 +92,7 @@ func TestMCPServers(t *testing.T) {
 			t.Errorf("Expected session ID %s, got %s", sessionID, session2.SessionID)
 		}
 
-		message, err := session2.SendAndWait(copilot.MessageOptions{Prompt: "What is 3+3?"}, 60*time.Second)
+		message, err := session2.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 3+3?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
@@ -123,7 +122,7 @@ func TestMCPServers(t *testing.T) {
 			},
 		}
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			MCPServers: mcpServers,
 		})
 		if err != nil {
@@ -157,7 +156,7 @@ func TestCustomAgents(t *testing.T) {
 			},
 		}
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			CustomAgents: customAgents,
 		})
 		if err != nil {
@@ -169,14 +168,14 @@ func TestCustomAgents(t *testing.T) {
 		}
 
 		// Simple interaction to verify session works
-		_, err = session.Send(copilot.MessageOptions{
+		_, err = session.Send(t.Context(), copilot.MessageOptions{
 			Prompt: "What is 5+5?",
 		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		message, err := testharness.GetFinalAssistantMessage(session, 60*time.Second)
+		message, err := testharness.GetFinalAssistantMessage(t.Context(), session)
 		if err != nil {
 			t.Fatalf("Failed to get final message: %v", err)
 		}
@@ -192,13 +191,13 @@ func TestCustomAgents(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		// Create a session first
-		session1, err := client.CreateSession(nil)
+		session1, err := client.CreateSession(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 		sessionID := session1.SessionID
 
-		_, err = session1.SendAndWait(copilot.MessageOptions{Prompt: "What is 1+1?"}, 60*time.Second)
+		_, err = session1.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
@@ -213,7 +212,7 @@ func TestCustomAgents(t *testing.T) {
 			},
 		}
 
-		session2, err := client.ResumeSessionWithOptions(sessionID, &copilot.ResumeSessionConfig{
+		session2, err := client.ResumeSessionWithOptions(t.Context(), sessionID, &copilot.ResumeSessionConfig{
 			CustomAgents: customAgents,
 		})
 		if err != nil {
@@ -224,7 +223,7 @@ func TestCustomAgents(t *testing.T) {
 			t.Errorf("Expected session ID %s, got %s", sessionID, session2.SessionID)
 		}
 
-		message, err := session2.SendAndWait(copilot.MessageOptions{Prompt: "What is 6+6?"}, 60*time.Second)
+		message, err := session2.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 6+6?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
@@ -251,7 +250,7 @@ func TestCustomAgents(t *testing.T) {
 			},
 		}
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			CustomAgents: customAgents,
 		})
 		if err != nil {
@@ -285,7 +284,7 @@ func TestCustomAgents(t *testing.T) {
 			},
 		}
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			CustomAgents: customAgents,
 		})
 		if err != nil {
@@ -321,7 +320,7 @@ func TestCustomAgents(t *testing.T) {
 			},
 		}
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			CustomAgents: customAgents,
 		})
 		if err != nil {
@@ -362,7 +361,7 @@ func TestCombinedConfiguration(t *testing.T) {
 			},
 		}
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			MCPServers:   mcpServers,
 			CustomAgents: customAgents,
 		})
@@ -374,14 +373,14 @@ func TestCombinedConfiguration(t *testing.T) {
 			t.Error("Expected non-empty session ID")
 		}
 
-		_, err = session.Send(copilot.MessageOptions{
+		_, err = session.Send(t.Context(), copilot.MessageOptions{
 			Prompt: "What is 7+7?",
 		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		message, err := testharness.GetFinalAssistantMessage(session, 60*time.Second)
+		message, err := testharness.GetFinalAssistantMessage(t.Context(), session)
 		if err != nil {
 			t.Fatalf("Failed to get final message: %v", err)
 		}
