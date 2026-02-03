@@ -67,7 +67,7 @@ import (
 type Client struct {
 	options                ClientOptions
 	process                *exec.Cmd
-	client                 *JSONRPCClient
+	client                 *jsonrpc2.Client
 	actualPort             int
 	actualHost             string
 	state                  ConnectionState
@@ -914,10 +914,10 @@ func (c *Client) DeleteSession(ctx context.Context, sessionID string) error {
 //	if sessionID != nil {
 //	    fmt.Printf("TUI is displaying session: %s\n", *sessionID)
 //	}
-func (c *Client) GetForegroundSessionID() (*string, error) {
+func (c *Client) GetForegroundSessionID(ctx context.Context) (*string, error) {
 	if c.client == nil {
 		if c.autoStart {
-			if err := c.Start(); err != nil {
+			if err := c.Start(ctx); err != nil {
 				return nil, err
 			}
 		} else {
@@ -953,10 +953,10 @@ func (c *Client) GetForegroundSessionID() (*string, error) {
 //	if err := client.SetForegroundSessionID("session-123"); err != nil {
 //	    log.Fatal(err)
 //	}
-func (c *Client) SetForegroundSessionID(sessionID string) error {
+func (c *Client) SetForegroundSessionID(ctx context.Context, sessionID string) error {
 	if c.client == nil {
 		if c.autoStart {
-			if err := c.Start(); err != nil {
+			if err := c.Start(ctx); err != nil {
 				return err
 			}
 		} else {
@@ -1264,7 +1264,7 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 //
 // This spawns the CLI server as a subprocess using the configured transport
 // mode (stdio or TCP).
-func (c *Client) startCLIServer() error {
+func (c *Client) startCLIServer(ctx context.Context) error {
 	args := []string{"--headless", "--log-level", c.options.LogLevel}
 
 	// Choose transport mode
