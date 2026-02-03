@@ -116,6 +116,41 @@ List all available sessions.
 
 Delete a session and its data from disk.
 
+##### `getForegroundSessionId(): Promise<string | undefined>`
+
+Get the ID of the session currently displayed in the TUI. Only available when connecting to a server running in TUI+server mode (`--ui-server`).
+
+##### `setForegroundSessionId(sessionId: string): Promise<void>`
+
+Request the TUI to switch to displaying the specified session. Only available in TUI+server mode.
+
+##### `on(eventType: SessionLifecycleEventType, handler): () => void`
+
+Subscribe to a specific session lifecycle event type. Returns an unsubscribe function.
+
+```typescript
+const unsubscribe = client.on("session.foreground", (event) => {
+    console.log(`Session ${event.sessionId} is now in foreground`);
+});
+```
+
+##### `on(handler: SessionLifecycleHandler): () => void`
+
+Subscribe to all session lifecycle events. Returns an unsubscribe function.
+
+```typescript
+const unsubscribe = client.on((event) => {
+    console.log(`${event.type}: ${event.sessionId}`);
+});
+```
+
+**Lifecycle Event Types:**
+- `session.created` - A new session was created
+- `session.deleted` - A session was deleted
+- `session.updated` - A session was updated (e.g., new messages)
+- `session.foreground` - A session became the foreground session in TUI
+- `session.background` - A session is no longer the foreground session
+
 ---
 
 ### CopilotSession

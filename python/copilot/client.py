@@ -19,7 +19,7 @@ import re
 import subprocess
 import threading
 from dataclasses import asdict, is_dataclass
-from typing import Any, Optional
+from typing import Any, Callable, Optional, cast
 
 from .generated.session_events import session_event_from_dict
 from .jsonrpc import JsonRpcClient
@@ -36,6 +36,9 @@ from .types import (
     ProviderConfig,
     ResumeSessionConfig,
     SessionConfig,
+    SessionLifecycleEvent,
+    SessionLifecycleEventType,
+    SessionLifecycleHandler,
     SessionMetadata,
     StopError,
     ToolHandler,
@@ -159,6 +162,11 @@ class CopilotClient:
         self._sessions_lock = threading.Lock()
         self._models_cache: Optional[list[ModelInfo]] = None
         self._models_cache_lock = asyncio.Lock()
+        self._lifecycle_handlers: list[SessionLifecycleHandler] = []
+        self._typed_lifecycle_handlers: dict[
+            SessionLifecycleEventType, list[SessionLifecycleHandler]
+        ] = {}
+        self._lifecycle_handlers_lock = threading.Lock()
 
     def _parse_cli_url(self, url: str) -> tuple[str, int]:
         """
@@ -808,6 +816,139 @@ class CopilotClient:
             if session_id in self._sessions:
                 del self._sessions[session_id]
 
+    async def get_foreground_session_id(self) -> Optional[str]:
+        """
+        Get the ID of the session currently displayed in the TUI.
+
+        This is only available when connecting to a server running in TUI+server mode
+        (--ui-server).
+
+        Returns:
+            The session ID, or None if no foreground session is set.
+
+        Raises:
+            RuntimeError: If the client is not connected.
+
+        Example:
+            >>> session_id = await client.get_foreground_session_id()
+            >>> if session_id:
+            ...     print(f"TUI is displaying session: {session_id}")
+        """
+        if not self._client:
+            raise RuntimeError("Client not connected")
+
+        response = await self._client.request("session.getForeground", {})
+        return response.get("sessionId")
+
+    async def set_foreground_session_id(self, session_id: str) -> None:
+        """
+        Request the TUI to switch to displaying the specified session.
+
+        This is only available when connecting to a server running in TUI+server mode
+        (--ui-server).
+
+        Args:
+            session_id: The ID of the session to display in the TUI.
+
+        Raises:
+            RuntimeError: If the client is not connected or the operation fails.
+
+        Example:
+            >>> await client.set_foreground_session_id("session-123")
+        """
+        if not self._client:
+            raise RuntimeError("Client not connected")
+
+        response = await self._client.request("session.setForeground", {"sessionId": session_id})
+
+        success = response.get("success", False)
+        if not success:
+            error = response.get("error", "Unknown error")
+            raise RuntimeError(f"Failed to set foreground session: {error}")
+
+    def on(
+        self,
+        event_type_or_handler: SessionLifecycleEventType | SessionLifecycleHandler,
+        handler: Optional[SessionLifecycleHandler] = None,
+    ) -> Callable[[], None]:
+        """
+        Subscribe to session lifecycle events.
+
+        Lifecycle events are emitted when sessions are created, deleted, updated,
+        or change foreground/background state (in TUI+server mode).
+
+        Can be called in two ways:
+        - on(handler): Subscribe to all lifecycle events
+        - on(event_type, handler): Subscribe to a specific event type
+
+        Args:
+            event_type_or_handler: Either a specific event type to listen for,
+                or a handler function for all events.
+            handler: Handler function when subscribing to a specific event type.
+
+        Returns:
+            A function that, when called, unsubscribes the handler.
+
+        Example:
+            >>> # Subscribe to specific event type
+            >>> unsubscribe = client.on("session.foreground", lambda e: print(e.sessionId))
+            >>>
+            >>> # Subscribe to all events
+            >>> unsubscribe = client.on(lambda e: print(f"{e.type}: {e.sessionId}"))
+            >>>
+            >>> # Later, to stop receiving events:
+            >>> unsubscribe()
+        """
+        with self._lifecycle_handlers_lock:
+            if callable(event_type_or_handler) and handler is None:
+                # Wildcard subscription: on(handler)
+                wildcard_handler = event_type_or_handler
+                self._lifecycle_handlers.append(wildcard_handler)
+
+                def unsubscribe_wildcard() -> None:
+                    with self._lifecycle_handlers_lock:
+                        if wildcard_handler in self._lifecycle_handlers:
+                            self._lifecycle_handlers.remove(wildcard_handler)
+
+                return unsubscribe_wildcard
+            elif isinstance(event_type_or_handler, str) and handler is not None:
+                # Typed subscription: on(event_type, handler)
+                event_type = cast(SessionLifecycleEventType, event_type_or_handler)
+                if event_type not in self._typed_lifecycle_handlers:
+                    self._typed_lifecycle_handlers[event_type] = []
+                self._typed_lifecycle_handlers[event_type].append(handler)
+
+                def unsubscribe_typed() -> None:
+                    with self._lifecycle_handlers_lock:
+                        handlers = self._typed_lifecycle_handlers.get(event_type, [])
+                        if handler in handlers:
+                            handlers.remove(handler)
+
+                return unsubscribe_typed
+            else:
+                raise ValueError("Invalid arguments: use on(handler) or on(event_type, handler)")
+
+    def _dispatch_lifecycle_event(self, event: SessionLifecycleEvent) -> None:
+        """Dispatch a lifecycle event to all registered handlers."""
+        with self._lifecycle_handlers_lock:
+            # Copy handlers to avoid holding lock during callbacks
+            typed_handlers = list(self._typed_lifecycle_handlers.get(event.type, []))
+            wildcard_handlers = list(self._lifecycle_handlers)
+
+        # Dispatch to typed handlers
+        for handler in typed_handlers:
+            try:
+                handler(event)
+            except Exception:
+                pass  # Ignore handler errors
+
+        # Dispatch to wildcard handlers
+        for handler in wildcard_handlers:
+            try:
+                handler(event)
+            except Exception:
+                pass  # Ignore handler errors
+
     async def _verify_protocol_version(self) -> None:
         """Verify that the server's protocol version matches the SDK's expected version."""
         expected_version = get_sdk_protocol_version()
@@ -894,7 +1035,7 @@ class CopilotClient:
             RuntimeError: If the server fails to start or times out.
         """
         cli_path = self.options["cli_path"]
-        args = ["--server", "--log-level", self.options["log_level"]]
+        args = ["--headless", "--log-level", self.options["log_level"]]
 
         # Add auth-related flags
         if self.options.get("github_token"):
@@ -1013,6 +1154,10 @@ class CopilotClient:
                     session = self._sessions.get(session_id)
                 if session:
                     session._dispatch_event(event)
+            elif method == "session.lifecycle":
+                # Handle session lifecycle events
+                lifecycle_event = SessionLifecycleEvent.from_dict(params)
+                self._dispatch_lifecycle_event(lifecycle_event)
 
         self._client.set_notification_handler(handle_notification)
         self._client.set_request_handler("tool.call", self._handle_tool_call_request)
@@ -1089,6 +1234,10 @@ class CopilotClient:
                 session = self._sessions.get(session_id)
                 if session:
                     session._dispatch_event(event)
+            elif method == "session.lifecycle":
+                # Handle session lifecycle events
+                lifecycle_event = SessionLifecycleEvent.from_dict(params)
+                self._dispatch_lifecycle_event(lifecycle_event)
 
         self._client.set_notification_handler(handle_notification)
         self._client.set_request_handler("tool.call", self._handle_tool_call_request)

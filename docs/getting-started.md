@@ -954,10 +954,10 @@ By default, the SDK automatically manages the Copilot CLI process lifecycle, sta
 
 ### Running the CLI in Server Mode
 
-Start the CLI in server mode using the `--server` flag and optionally specify a port:
+Start the CLI in server mode using the `--headless` flag and optionally specify a port:
 
 ```bash
-copilot --server --port 4321
+copilot --headless --port 4321
 ```
 
 If you don't specify a port, the CLI will choose a random available port.

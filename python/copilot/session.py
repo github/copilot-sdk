@@ -368,7 +368,7 @@ class CopilotSession:
             result = handler(
                 UserInputRequest(
                     question=request.get("question", ""),
-                    choices=request.get("choices"),
+                    choices=request.get("choices") or [],
                     allowFreeform=request.get("allowFreeform", True),
                 ),
                 {"session_id": self.session_id},

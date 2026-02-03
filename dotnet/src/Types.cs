@@ -1027,6 +1027,76 @@ public class GetModelsResponse
     public List<ModelInfo> Models { get; set; } = new();
 }
 
+// ============================================================================
+// Session Lifecycle Types (for TUI+server mode)
+// ============================================================================
+
+/// <summary>
+/// Types of session lifecycle events
+/// </summary>
+public static class SessionLifecycleEventTypes
+{
+    public const string Created = "session.created";
+    public const string Deleted = "session.deleted";
+    public const string Updated = "session.updated";
+    public const string Foreground = "session.foreground";
+    public const string Background = "session.background";
+}
+
+/// <summary>
+/// Metadata for session lifecycle events
+/// </summary>
+public class SessionLifecycleEventMetadata
+{
+    [JsonPropertyName("startTime")]
+    public string StartTime { get; set; } = string.Empty;
+
+    [JsonPropertyName("modifiedTime")]
+    public string ModifiedTime { get; set; } = string.Empty;
+
+    [JsonPropertyName("summary")]
+    public string? Summary { get; set; }
+}
+
+/// <summary>
+/// Session lifecycle event notification
+/// </summary>
+public class SessionLifecycleEvent
+{
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = string.Empty;
+
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    [JsonPropertyName("metadata")]
+    public SessionLifecycleEventMetadata? Metadata { get; set; }
+}
+
+/// <summary>
+/// Response from session.getForeground
+/// </summary>
+public class GetForegroundSessionResponse
+{
+    [JsonPropertyName("sessionId")]
+    public string? SessionId { get; set; }
+
+    [JsonPropertyName("workspacePath")]
+    public string? WorkspacePath { get; set; }
+}
+
+/// <summary>
+/// Response from session.setForeground
+/// </summary>
+public class SetForegroundSessionResponse
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+}
+
 [JsonSourceGenerationOptions(
     JsonSerializerDefaults.Web,
     AllowOutOfOrderMetadataProperties = true,
@@ -1035,6 +1105,7 @@ public class GetModelsResponse
 [JsonSerializable(typeof(AzureOptions))]
 [JsonSerializable(typeof(CustomAgentConfig))]
 [JsonSerializable(typeof(GetAuthStatusResponse))]
+[JsonSerializable(typeof(GetForegroundSessionResponse))]
 [JsonSerializable(typeof(GetModelsResponse))]
 [JsonSerializable(typeof(GetStatusResponse))]
 [JsonSerializable(typeof(McpLocalServerConfig))]
@@ -1052,7 +1123,10 @@ public class GetModelsResponse
 [JsonSerializable(typeof(PingRequest))]
 [JsonSerializable(typeof(PingResponse))]
 [JsonSerializable(typeof(ProviderConfig))]
+[JsonSerializable(typeof(SessionLifecycleEvent))]
+[JsonSerializable(typeof(SessionLifecycleEventMetadata))]
 [JsonSerializable(typeof(SessionMetadata))]
+[JsonSerializable(typeof(SetForegroundSessionResponse))]
 [JsonSerializable(typeof(SystemMessageConfig))]
 [JsonSerializable(typeof(ToolBinaryResult))]
 [JsonSerializable(typeof(ToolInvocation))]

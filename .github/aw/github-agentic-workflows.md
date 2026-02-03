@@ -214,18 +214,18 @@ The YAML frontmatter supports these fields:
     The `custom` engine allows you to define your own GitHub Actions steps instead of using an AI processor. Each step in the `steps` array follows standard GitHub Actions step syntax with `name`, `uses`/`run`, `with`, `env`, etc. This is useful for deterministic workflows that don't require AI processing.
 
     **Environment Variables Available to Custom Engines:**
-    
+
     Custom engine steps have access to the following environment variables:
-    
+
     - **`$GH_AW_PROMPT`**: Path to the generated prompt file (`/tmp/gh-aw/aw-prompts/prompt.txt`) containing the markdown content from the workflow. This file contains the natural language instructions that would normally be sent to an AI processor. Custom engines can read this file to access the workflow's markdown content programmatically.
     - **`$GH_AW_SAFE_OUTPUTS`**: Path to the safe outputs file (when safe-outputs are configured). Used for writing structured output that gets processed automatically.
     - **`$GH_AW_MAX_TURNS`**: Maximum number of turns/iterations (when max-turns is configured in engine config).
-    
+
     Example of accessing the prompt content:
     ```bash
     # Read the workflow prompt content
     cat $GH_AW_PROMPT
-    
+
     # Process the prompt content in a custom step
     - name: Process workflow instructions
       run: |
@@ -253,7 +253,7 @@ The YAML frontmatter supports these fields:
         log-level: debug                  # Optional: debug, info (default), warn, error
         args: ["--custom-arg", "value"]   # Optional: additional AWF arguments
     ```
-  
+
 - **`sandbox:`** - Sandbox configuration for AI engines (string or object)
   - String format: `"default"` (no sandbox), `"awf"` (Agent Workflow Firewall), `"srt"` or `"sandbox-runtime"` (Anthropic Sandbox Runtime)
   - Object format for full configuration:
@@ -703,7 +703,7 @@ cache:
     restore-keys: |
       node-modules-
   - key: build-cache-${{ github.sha }}
-    path: 
+    path:
       - dist
       - .cache
     restore-keys:
@@ -963,7 +963,7 @@ All other expressions are dissallowed.
 The `needs.activation.outputs.text` value provides automatically sanitized content based on the triggering event:
 
 - **Issues**: `title + "\n\n" + body`
-- **Pull Requests**: `title + "\n\n" + body`  
+- **Pull Requests**: `title + "\n\n" + body`
 - **Issue Comments**: `comment.body`
 - **PR Review Comments**: `comment.body`
 - **PR Reviews**: `review.body`
@@ -1163,7 +1163,7 @@ permissions:
 
 safe-outputs:
   create-issue:       # Automatic issue creation
-  add-comment:  # Automatic comment creation  
+  add-comment:  # Automatic comment creation
   create-pull-request: # Automatic PR creation
 ```
 
@@ -1437,7 +1437,7 @@ The `--start-date` and `--end-date` flags support delta time syntax for relative
 
 **Supported Time Units:**
 - **Days**: `-1d`, `-7d`
-- **Weeks**: `-1w`, `-4w` 
+- **Weeks**: `-1w`, `-4w`
 - **Months**: `-1mo`, `-6mo`
 - **Hours/Minutes**: `-12h`, `-30m` (for sub-day precision)
 - **Combinations**: `-1mo2w3d`, `-2w5d12h`
@@ -1447,7 +1447,7 @@ The `--start-date` and `--end-date` flags support delta time syntax for relative
 # Get runs from the last week
 gh aw logs --start-date -1w
 
-# Get runs up to yesterday  
+# Get runs up to yesterday
 gh aw logs --end-date -1d
 
 # Get runs from the last month
@@ -1502,7 +1502,7 @@ permissions:
 GitHub Agentic Workflows supports security scanning during compilation with `--actionlint`, `--zizmor`, and `--poutine` flags.
 
 **actionlint** - Lints GitHub Actions workflows and validates shell scripts with integrated shellcheck
-**zizmor** - Scans for security vulnerabilities, privilege escalation, and secret exposure  
+**zizmor** - Scans for security vulnerabilities, privilege escalation, and secret exposure
 **poutine** - Analyzes supply chain risks and third-party action usage
 
 ```bash
@@ -1559,7 +1559,7 @@ gh aw mcp list-tools github weekly-research
 
 This command is useful for:
 - **Discovering capabilities**: See what tools are available from each MCP server
-- **Workflow discovery**: Find which workflows use a specific MCP server  
+- **Workflow discovery**: Find which workflows use a specific MCP server
 - **Permission debugging**: Check which tools are allowed in your workflow configuration
 
 ## Compilation Process
@@ -1588,7 +1588,7 @@ Agentic workflows compile to GitHub Actions YAML:
 
 1. **Use descriptive workflow names** that clearly indicate purpose
 2. **Set appropriate timeouts** to prevent runaway costs
-3. **Include security notices** for workflows processing user content  
+3. **Include security notices** for workflows processing user content
 4. **Use the `imports:` field** in frontmatter for common patterns and security boilerplate
 5. **ALWAYS run `gh aw compile` after every change** to generate the GitHub Actions workflow (or `gh aw compile <workflow-id>` for specific workflows)
 6. **Review generated `.lock.yml`** files before deploying

@@ -937,3 +937,56 @@ export interface ModelInfo {
     /** Default reasoning effort level (only present if model supports reasoning effort) */
     defaultReasoningEffort?: ReasoningEffort;
 }
+
+// ============================================================================
+// Session Lifecycle Types (for TUI+server mode)
+// ============================================================================
+
+/**
+ * Types of session lifecycle events
+ */
+export type SessionLifecycleEventType =
+    | "session.created"
+    | "session.deleted"
+    | "session.updated"
+    | "session.foreground"
+    | "session.background";
+
+/**
+ * Session lifecycle event notification
+ * Sent when sessions are created, deleted, updated, or change foreground/background state
+ */
+export interface SessionLifecycleEvent {
+    /** Type of lifecycle event */
+    type: SessionLifecycleEventType;
+    /** ID of the session this event relates to */
+    sessionId: string;
+    /** Session metadata (not included for deleted sessions) */
+    metadata?: {
+        startTime: string;
+        modifiedTime: string;
+        summary?: string;
+    };
+}
+
+/**
+ * Handler for session lifecycle events
+ */
+export type SessionLifecycleHandler = (event: SessionLifecycleEvent) => void;
+
+/**
+ * Typed handler for specific session lifecycle event types
+ */
+export type TypedSessionLifecycleHandler<K extends SessionLifecycleEventType> = (
+    event: SessionLifecycleEvent & { type: K }
+) => void;
+
+/**
+ * Information about the foreground session in TUI+server mode
+ */
+export interface ForegroundSessionInfo {
+    /** ID of the foreground session, or undefined if none */
+    sessionId?: string;
+    /** Workspace path of the foreground session */
+    workspacePath?: string;
+}

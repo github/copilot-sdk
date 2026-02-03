@@ -65,21 +65,24 @@ import (
 //	}
 //	defer client.Stop()
 type Client struct {
-	options          ClientOptions
-	process          *exec.Cmd
-	client           *jsonrpc2.Client
-	actualPort       int
-	actualHost       string
-	state            ConnectionState
-	sessions         map[string]*Session
-	sessionsMux      sync.Mutex
-	isExternalServer bool
-	conn             net.Conn // stores net.Conn for external TCP connections
-	useStdio         bool     // resolved value from options
-	autoStart        bool     // resolved value from options
-	autoRestart      bool     // resolved value from options
-	modelsCache      []ModelInfo
-	modelsCacheMux   sync.Mutex
+	options                ClientOptions
+	process                *exec.Cmd
+	client                 *jsonrpc2.Client
+	actualPort             int
+	actualHost             string
+	state                  ConnectionState
+	sessions               map[string]*Session
+	sessionsMux            sync.Mutex
+	isExternalServer       bool
+	conn                   net.Conn // stores net.Conn for external TCP connections
+	useStdio               bool     // resolved value from options
+	autoStart              bool     // resolved value from options
+	autoRestart            bool     // resolved value from options
+	modelsCache            []ModelInfo
+	modelsCacheMux         sync.Mutex
+	lifecycleHandlers      []SessionLifecycleHandler
+	typedLifecycleHandlers map[SessionLifecycleEventType][]SessionLifecycleHandler
+	lifecycleHandlersMux   sync.Mutex
 }
 
 // NewClient creates a new Copilot CLI client with the given options.
@@ -897,6 +900,191 @@ func (c *Client) DeleteSession(ctx context.Context, sessionID string) error {
 	return nil
 }
 
+// GetForegroundSessionID returns the ID of the session currently displayed in the TUI.
+//
+// This is only available when connecting to a server running in TUI+server mode
+// (--ui-server). Returns nil if no foreground session is set.
+//
+// Example:
+//
+//	sessionID, err := client.GetForegroundSessionID()
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	if sessionID != nil {
+//	    fmt.Printf("TUI is displaying session: %s\n", *sessionID)
+//	}
+func (c *Client) GetForegroundSessionID(ctx context.Context) (*string, error) {
+	if c.client == nil {
+		if c.autoStart {
+			if err := c.Start(ctx); err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, fmt.Errorf("client not connected. Call Start() first")
+		}
+	}
+
+	result, err := c.client.Request("session.getForeground", map[string]any{})
+	if err != nil {
+		return nil, err
+	}
+
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal getForeground response: %w", err)
+	}
+
+	var response GetForegroundSessionResponse
+	if err := json.Unmarshal(jsonBytes, &response); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal getForeground response: %w", err)
+	}
+
+	return response.SessionID, nil
+}
+
+// SetForegroundSessionID requests the TUI to switch to displaying the specified session.
+//
+// This is only available when connecting to a server running in TUI+server mode
+// (--ui-server).
+//
+// Example:
+//
+//	if err := client.SetForegroundSessionID("session-123"); err != nil {
+//	    log.Fatal(err)
+//	}
+func (c *Client) SetForegroundSessionID(ctx context.Context, sessionID string) error {
+	if c.client == nil {
+		if c.autoStart {
+			if err := c.Start(ctx); err != nil {
+				return err
+			}
+		} else {
+			return fmt.Errorf("client not connected. Call Start() first")
+		}
+	}
+
+	params := map[string]any{
+		"sessionId": sessionID,
+	}
+
+	result, err := c.client.Request("session.setForeground", params)
+	if err != nil {
+		return err
+	}
+
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Errorf("failed to marshal setForeground response: %w", err)
+	}
+
+	var response SetForegroundSessionResponse
+	if err := json.Unmarshal(jsonBytes, &response); err != nil {
+		return fmt.Errorf("failed to unmarshal setForeground response: %w", err)
+	}
+
+	if !response.Success {
+		errorMsg := "unknown error"
+		if response.Error != nil {
+			errorMsg = *response.Error
+		}
+		return fmt.Errorf("failed to set foreground session: %s", errorMsg)
+	}
+
+	return nil
+}
+
+// On subscribes to all session lifecycle events.
+//
+// Lifecycle events are emitted when sessions are created, deleted, updated,
+// or change foreground/background state (in TUI+server mode).
+//
+// Returns a function that, when called, unsubscribes the handler.
+//
+// Example:
+//
+//	unsubscribe := client.On(func(event copilot.SessionLifecycleEvent) {
+//	    fmt.Printf("Session %s: %s\n", event.SessionID, event.Type)
+//	})
+//	defer unsubscribe()
+func (c *Client) On(handler SessionLifecycleHandler) func() {
+	c.lifecycleHandlersMux.Lock()
+	c.lifecycleHandlers = append(c.lifecycleHandlers, handler)
+	c.lifecycleHandlersMux.Unlock()
+
+	return func() {
+		c.lifecycleHandlersMux.Lock()
+		defer c.lifecycleHandlersMux.Unlock()
+		for i, h := range c.lifecycleHandlers {
+			// Compare function pointers
+			if &h == &handler {
+				c.lifecycleHandlers = append(c.lifecycleHandlers[:i], c.lifecycleHandlers[i+1:]...)
+				break
+			}
+		}
+	}
+}
+
+// OnEventType subscribes to a specific session lifecycle event type.
+//
+// Returns a function that, when called, unsubscribes the handler.
+//
+// Example:
+//
+//	unsubscribe := client.OnEventType(copilot.SessionLifecycleForeground, func(event copilot.SessionLifecycleEvent) {
+//	    fmt.Printf("Session %s is now in foreground\n", event.SessionID)
+//	})
+//	defer unsubscribe()
+func (c *Client) OnEventType(eventType SessionLifecycleEventType, handler SessionLifecycleHandler) func() {
+	c.lifecycleHandlersMux.Lock()
+	if c.typedLifecycleHandlers == nil {
+		c.typedLifecycleHandlers = make(map[SessionLifecycleEventType][]SessionLifecycleHandler)
+	}
+	c.typedLifecycleHandlers[eventType] = append(c.typedLifecycleHandlers[eventType], handler)
+	c.lifecycleHandlersMux.Unlock()
+
+	return func() {
+		c.lifecycleHandlersMux.Lock()
+		defer c.lifecycleHandlersMux.Unlock()
+		handlers := c.typedLifecycleHandlers[eventType]
+		for i, h := range handlers {
+			if &h == &handler {
+				c.typedLifecycleHandlers[eventType] = append(handlers[:i], handlers[i+1:]...)
+				break
+			}
+		}
+	}
+}
+
+// dispatchLifecycleEvent dispatches a lifecycle event to all registered handlers
+func (c *Client) dispatchLifecycleEvent(event SessionLifecycleEvent) {
+	c.lifecycleHandlersMux.Lock()
+	// Copy handlers to avoid holding lock during callbacks
+	typedHandlers := make([]SessionLifecycleHandler, 0)
+	if handlers, ok := c.typedLifecycleHandlers[event.Type]; ok {
+		typedHandlers = append(typedHandlers, handlers...)
+	}
+	wildcardHandlers := make([]SessionLifecycleHandler, len(c.lifecycleHandlers))
+	copy(wildcardHandlers, c.lifecycleHandlers)
+	c.lifecycleHandlersMux.Unlock()
+
+	// Dispatch to typed handlers
+	for _, handler := range typedHandlers {
+		func() {
+			defer func() { recover() }() // Ignore handler panics
+			handler(event)
+		}()
+	}
+
+	// Dispatch to wildcard handlers
+	for _, handler := range wildcardHandlers {
+		func() {
+			defer func() { recover() }() // Ignore handler panics
+			handler(event)
+		}()
+	}
+}
+
 // State returns the current connection state of the client.
 //
 // Possible states: StateDisconnected, StateConnecting, StateConnected, StateError.
@@ -1077,7 +1265,7 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 // This spawns the CLI server as a subprocess using the configured transport
 // mode (stdio or TCP).
 func (c *Client) startCLIServer(ctx context.Context) error {
-	args := []string{"--server", "--log-level", c.options.LogLevel}
+	args := []string{"--headless", "--log-level", c.options.LogLevel}
 
 	// Choose transport mode
 	if c.useStdio {
@@ -1235,7 +1423,8 @@ func (c *Client) connectViaTcp(ctx context.Context) error {
 // setupNotificationHandler configures handlers for session events, tool calls, and permission requests.
 func (c *Client) setupNotificationHandler() {
 	c.client.SetNotificationHandler(func(method string, params map[string]any) {
-		if method == "session.event" {
+		switch method {
+		case "session.event":
 			// Extract sessionId and event
 			sessionID, ok := params["sessionId"].(string)
 			if !ok {
@@ -1261,6 +1450,19 @@ func (c *Client) setupNotificationHandler() {
 			if ok {
 				session.dispatchEvent(event)
 			}
+		case "session.lifecycle":
+			// Handle session lifecycle events
+			eventJSON, err := json.Marshal(params)
+			if err != nil {
+				return
+			}
+
+			var event SessionLifecycleEvent
+			if err := json.Unmarshal(eventJSON, &event); err != nil {
+				return
+			}
+
+			c.dispatchLifecycleEvent(event)
 		}
 	})
 
