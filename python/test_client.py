@@ -4,6 +4,8 @@ CopilotClient Unit Tests
 This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py instead.
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from copilot import CopilotClient
@@ -144,13 +146,11 @@ class TestCLIPathResolution:
     @pytest.mark.asyncio
     async def test_cli_path_resolved_with_which(self):
         """Test that shutil.which() is used to resolve the CLI path."""
-        from unittest.mock import MagicMock, patch
-
         # Create a mock resolved path
         mock_resolved_path = "/usr/local/bin/copilot"
 
-        with patch("shutil.which", return_value=mock_resolved_path):
-            with patch("subprocess.Popen") as mock_popen:
+        with patch("copilot.client.shutil.which", return_value=mock_resolved_path):
+            with patch("copilot.client.subprocess.Popen") as mock_popen:
                 # Mock the process and its stdout for TCP mode
                 mock_process = MagicMock()
                 mock_process.stdout.readline.return_value = b"listening on port 8080\n"
@@ -174,12 +174,10 @@ class TestCLIPathResolution:
     @pytest.mark.asyncio
     async def test_cli_path_not_resolved_when_which_returns_none(self):
         """Test that original path is used when shutil.which() returns None."""
-        from unittest.mock import MagicMock, patch
-
         original_path = "/custom/path/to/copilot"
 
-        with patch("shutil.which", return_value=None):
-            with patch("subprocess.Popen") as mock_popen:
+        with patch("copilot.client.shutil.which", return_value=None):
+            with patch("copilot.client.subprocess.Popen") as mock_popen:
                 # Mock the process and its stdout for TCP mode
                 mock_process = MagicMock()
                 mock_process.stdout.readline.return_value = b"listening on port 8080\n"
