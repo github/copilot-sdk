@@ -65,6 +65,7 @@ public partial class CapiProxy : IAsyncDisposable
             {
                 if (e.Data == null) return;
                 errorOutput.AppendLine(e.Data);
+                Console.Error.WriteLine(e.Data);
             };
 
             _process.Start();

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -26,7 +27,7 @@ func CLIPath() string {
 		}
 
 		// Look for CLI in sibling nodejs directory's node_modules
-		abs, err := filepath.Abs("../../nodejs/node_modules/@github/copilot/index.js")
+		abs, err := filepath.Abs("../../../nodejs/node_modules/@github/copilot/index.js")
 		if err == nil && fileExists(abs) {
 			cliPath = abs
 			return
@@ -95,12 +96,25 @@ func (c *TestContext) ConfigureForTest(t *testing.T) {
 
 	// Format: test/snapshots/<testFile>/<testName>.yaml
 	// e.g., test/snapshots/session/should_have_stateful_conversation.yaml
+
+	// Get the test file name from the caller's file path
+	_, callerFile, _, ok := runtime.Caller(1)
+	if !ok {
+		t.Fatal("Failed to get caller information")
+	}
+
+	// Extract test file name: ask_user_test.go -> ask_user
+	testFile := strings.TrimSuffix(filepath.Base(callerFile), "_test.go")
+
+	// Extract and sanitize the subtest name from t.Name()
+	// t.Name() returns "TestAskUser/should_handle_freeform_user_input_response"
 	testName := t.Name()
 	parts := strings.SplitN(testName, "/", 2)
-
-	testFile := strings.ToLower(strings.TrimPrefix(parts[0], "Test"))
+	if len(parts) < 2 {
+		t.Fatalf("Expected test name with subtest, got: %s", testName)
+	}
 	sanitizedName := strings.ToLower(regexp.MustCompile(`[^a-zA-Z0-9]`).ReplaceAllString(parts[1], "_"))
-	snapshotPath := filepath.Join("..", "..", "test", "snapshots", testFile, sanitizedName+".yaml")
+	snapshotPath := filepath.Join("..", "..", "..", "test", "snapshots", testFile, sanitizedName+".yaml")
 
 	absSnapshotPath, err := filepath.Abs(snapshotPath)
 	if err != nil {
@@ -145,11 +159,18 @@ func (c *TestContext) Env() []string {
 
 // NewClient creates a CopilotClient configured for this test context.
 func (c *TestContext) NewClient() *copilot.Client {
-	return copilot.NewClient(&copilot.ClientOptions{
+	options := &copilot.ClientOptions{
 		CLIPath: c.CLIPath,
 		Cwd:     c.WorkDir,
 		Env:     c.Env(),
-	})
+	}
+
+	// Use fake token in CI to allow cached responses without real auth
+	if os.Getenv("CI") == "true" {
+		options.GithubToken = "fake-token-for-e2e-tests"
+	}
+
+	return copilot.NewClient(options)
 }
 
 func fileExists(path string) bool {

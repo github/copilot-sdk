@@ -29,13 +29,13 @@ func main() {
     })
 
     // Start the client
-    if err := client.Start(); err != nil {
+    if err := client.Start(context.Background()); err != nil {
         log.Fatal(err)
     }
     defer client.Stop()
 
     // Create a session
-    session, err := client.CreateSession(&copilot.SessionConfig{
+    session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
         Model: "gpt-5",
     })
     if err != nil {
@@ -57,7 +57,7 @@ func main() {
     })
 
     // Send a message
-    _, err = session.Send(copilot.MessageOptions{
+    _, err = session.Send(context.Background(), copilot.MessageOptions{
         Prompt: "What is 2+2?",
     })
     if err != nil {
@@ -74,8 +74,8 @@ func main() {
 ### Client
 
 - `NewClient(options *ClientOptions) *Client` - Create a new client
-- `Start() error` - Start the CLI server
-- `Stop() []error` - Stop the CLI server (returns array of errors, empty if all succeeded)
+- `Start(ctx context.Context) error` - Start the CLI server
+- `Stop() error` - Stop the CLI server
 - `ForceStop()` - Forcefully stop without graceful cleanup
 - `CreateSession(config *SessionConfig) (*Session, error)` - Create a new session
 - `ResumeSession(sessionID string) (*Session, error)` - Resume an existing session
@@ -142,10 +142,10 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 
 ### Session
 
-- `Send(options MessageOptions) (string, error)` - Send a message
+- `Send(ctx context.Context, options MessageOptions) (string, error)` - Send a message
 - `On(handler SessionEventHandler) func()` - Subscribe to events (returns unsubscribe function)
-- `Abort() error` - Abort the currently processing message
-- `GetMessages() ([]SessionEvent, error)` - Get message history
+- `Abort(ctx context.Context) error` - Abort the currently processing message
+- `GetMessages(ctx context.Context) ([]SessionEvent, error)` - Get message history
 - `Destroy() error` - Destroy the session
 
 ### Helper Functions
@@ -157,7 +157,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 The SDK supports image attachments via the `Attachments` field in `MessageOptions`. You can attach images by providing their file path:
 
 ```go
-_, err = session.Send(copilot.MessageOptions{
+_, err = session.Send(context.Background(), copilot.MessageOptions{
     Prompt: "What's in this image?",
     Attachments: []copilot.Attachment{
         {
@@ -171,7 +171,7 @@ _, err = session.Send(copilot.MessageOptions{
 Supported image formats include JPG, PNG, GIF, and other common image types. The agent's `view` tool can also read images directly from the filesystem, so you can also ask questions like:
 
 ```go
-_, err = session.Send(copilot.MessageOptions{
+_, err = session.Send(context.Background(), copilot.MessageOptions{
     Prompt: "What does the most recent jpg in this directory portray?",
 })
 ```
@@ -199,7 +199,7 @@ lookupIssue := copilot.DefineTool("lookup_issue", "Fetch issue details from our 
         return issue.Summary, nil
     })
 
-session, _ := client.CreateSession(&copilot.SessionConfig{
+session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Model: "gpt-5",
     Tools: []copilot.Tool{lookupIssue},
 })
@@ -237,7 +237,7 @@ lookupIssue := copilot.Tool{
     },
 }
 
-session, _ := client.CreateSession(&copilot.SessionConfig{
+session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Model: "gpt-5",
     Tools: []copilot.Tool{lookupIssue},
 })
@@ -262,12 +262,12 @@ import (
 func main() {
     client := copilot.NewClient(nil)
 
-    if err := client.Start(); err != nil {
+    if err := client.Start(context.Background()); err != nil {
         log.Fatal(err)
     }
     defer client.Stop()
 
-    session, err := client.CreateSession(&copilot.SessionConfig{
+    session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
         Model:     "gpt-5",
         Streaming: true,
     })
@@ -307,7 +307,7 @@ func main() {
         }
     })
 
-    _, err = session.Send(copilot.MessageOptions{
+    _, err = session.Send(context.Background(), copilot.MessageOptions{
         Prompt: "Tell me a short story",
     })
     if err != nil {
@@ -333,7 +333,7 @@ By default, sessions use **infinite sessions** which automatically manage contex
 
 ```go
 // Default: infinite sessions enabled with default thresholds
-session, _ := client.CreateSession(&copilot.SessionConfig{
+session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Model: "gpt-5",
 })
 
@@ -342,7 +342,7 @@ fmt.Println(session.WorkspacePath())
 // => ~/.copilot/session-state/{sessionId}/
 
 // Custom thresholds
-session, _ := client.CreateSession(&copilot.SessionConfig{
+session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Model: "gpt-5",
     InfiniteSessions: &copilot.InfiniteSessionConfig{
         Enabled:                       copilot.Bool(true),
@@ -352,7 +352,7 @@ session, _ := client.CreateSession(&copilot.SessionConfig{
 })
 
 // Disable infinite sessions
-session, _ := client.CreateSession(&copilot.SessionConfig{
+session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Model: "gpt-5",
     InfiniteSessions: &copilot.InfiniteSessionConfig{
         Enabled: copilot.Bool(false),
@@ -381,7 +381,7 @@ The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own K
 **Example with Ollama:**
 
 ```go
-session, err := client.CreateSession(&copilot.SessionConfig{
+session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Model: "deepseek-coder-v2:16b", // Required when using custom provider
     Provider: &copilot.ProviderConfig{
         Type:    "openai",
@@ -394,7 +394,7 @@ session, err := client.CreateSession(&copilot.SessionConfig{
 **Example with custom OpenAI-compatible API:**
 
 ```go
-session, err := client.CreateSession(&copilot.SessionConfig{
+session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Model: "gpt-4",
     Provider: &copilot.ProviderConfig{
         Type:    "openai",
@@ -407,7 +407,7 @@ session, err := client.CreateSession(&copilot.SessionConfig{
 **Example with Azure OpenAI:**
 
 ```go
-session, err := client.CreateSession(&copilot.SessionConfig{
+session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Model: "gpt-4",
     Provider: &copilot.ProviderConfig{
         Type:    "azure",  // Must be "azure" for Azure endpoints, NOT "openai"
@@ -429,7 +429,7 @@ session, err := client.CreateSession(&copilot.SessionConfig{
 Enable the agent to ask questions to the user using the `ask_user` tool by providing an `OnUserInputRequest` handler:
 
 ```go
-session, err := client.CreateSession(&copilot.SessionConfig{
+session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Model: "gpt-5",
     OnUserInputRequest: func(request copilot.UserInputRequest, invocation copilot.UserInputInvocation) (copilot.UserInputResponse, error) {
         // request.Question - The question to ask
@@ -455,7 +455,7 @@ session, err := client.CreateSession(&copilot.SessionConfig{
 Hook into session lifecycle events by providing handlers in the `Hooks` configuration:
 
 ```go
-session, err := client.CreateSession(&copilot.SessionConfig{
+session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Model: "gpt-5",
     Hooks: &copilot.SessionHooks{
         // Called before each tool execution

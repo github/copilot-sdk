@@ -26,6 +26,8 @@ permissions:
 jobs:
   test:
     name: "Go SDK Tests"
+    env:
+      POWERSHELL_UPDATECHECK: Off
     strategy:
       fail-fast: false
       matrix:
@@ -41,7 +43,7 @@ jobs:
         id: setup-copilot
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.23"
+          go-version: "1.24"
 
       - name: Run go fmt
         if: runner.os == 'Linux'
