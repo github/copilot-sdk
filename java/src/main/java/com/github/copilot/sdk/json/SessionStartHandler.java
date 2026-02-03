@@ -16,11 +16,9 @@ import java.util.concurrent.CompletableFuture;
  *
  * <pre>{@code
  * SessionStartHandler handler = (input, invocation) -> {
- *     System.out.println("Session started from: " + input.getSource());
- *     return CompletableFuture.completedFuture(
- *         new SessionStartHookOutput()
- *             .setAdditionalContext("Custom initialization context")
- *     );
+ * 	System.out.println("Session started from: " + input.getSource());
+ * 	return CompletableFuture
+ * 			.completedFuture(new SessionStartHookOutput().setAdditionalContext("Custom initialization context"));
  * };
  * }</pre>
  *

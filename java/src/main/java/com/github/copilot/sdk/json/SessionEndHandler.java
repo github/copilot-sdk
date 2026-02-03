@@ -16,11 +16,9 @@ import java.util.concurrent.CompletableFuture;
  *
  * <pre>{@code
  * SessionEndHandler handler = (input, invocation) -> {
- *     System.out.println("Session ended: " + input.getReason());
- *     return CompletableFuture.completedFuture(
- *         new SessionEndHookOutput()
- *             .setSessionSummary("Session completed successfully")
- *     );
+ * 	System.out.println("Session ended: " + input.getReason());
+ * 	return CompletableFuture
+ * 			.completedFuture(new SessionEndHookOutput().setSessionSummary("Session completed successfully"));
  * };
  * }</pre>
  *

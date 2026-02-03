@@ -160,7 +160,7 @@ public class SessionHooks {
      * @return {@code true} if at least one hook handler is set
      */
     public boolean hasHooks() {
-        return onPreToolUse != null || onPostToolUse != null || onUserPromptSubmitted != null
-                || onSessionStart != null || onSessionEnd != null;
+        return onPreToolUse != null || onPostToolUse != null || onUserPromptSubmitted != null || onSessionStart != null
+                || onSessionEnd != null;
     }
 }

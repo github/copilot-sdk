@@ -16,12 +16,10 @@ import java.util.concurrent.CompletableFuture;
  *
  * <pre>{@code
  * UserPromptSubmittedHandler handler = (input, invocation) -> {
- *     System.out.println("User submitted: " + input.getPrompt());
- *     // Optionally modify the prompt
- *     return CompletableFuture.completedFuture(
- *         new UserPromptSubmittedHookOutput()
- *             .setModifiedPrompt(input.getPrompt() + " (enhanced)")
- *     );
+ * 	System.out.println("User submitted: " + input.getPrompt());
+ * 	// Optionally modify the prompt
+ * 	return CompletableFuture.completedFuture(
+ * 			new UserPromptSubmittedHookOutput().setModifiedPrompt(input.getPrompt() + " (enhanced)"));
  * };
  * }</pre>
  *

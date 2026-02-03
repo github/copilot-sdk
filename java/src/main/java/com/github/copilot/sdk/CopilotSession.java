@@ -549,8 +549,8 @@ public final class CopilotSession implements AutoCloseable {
                     break;
                 case "userPromptSubmitted" :
                     if (hooks.getOnUserPromptSubmitted() != null) {
-                        UserPromptSubmittedHookInput promptInput =
-                                MAPPER.treeToValue(input, UserPromptSubmittedHookInput.class);
+                        UserPromptSubmittedHookInput promptInput = MAPPER.treeToValue(input,
+                                UserPromptSubmittedHookInput.class);
                         return hooks.getOnUserPromptSubmitted().handle(promptInput, invocation)
                                 .thenApply(output -> (Object) output);
                     }

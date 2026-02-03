@@ -30,8 +30,8 @@ import com.github.copilot.sdk.json.SessionStartHookInput;
 import com.github.copilot.sdk.json.UserPromptSubmittedHookInput;
 
 /**
- * Tests for hooks functionality (pre-tool-use, post-tool-use, user-prompt-submitted,
- * session-start, and session-end hooks).
+ * Tests for hooks functionality (pre-tool-use, post-tool-use,
+ * user-prompt-submitted, session-start, and session-end hooks).
  *
  * <p>
  * These tests use the shared CapiProxy infrastructure for deterministic API
@@ -205,8 +205,8 @@ public class HooksTest {
         List<UserPromptSubmittedHookInput> promptInputs = new ArrayList<>();
         final String[] sessionIdHolder = new String[1];
 
-        SessionConfig config =
-                new SessionConfig().setHooks(new SessionHooks().setOnUserPromptSubmitted((input, invocation) -> {
+        SessionConfig config = new SessionConfig()
+                .setHooks(new SessionHooks().setOnUserPromptSubmitted((input, invocation) -> {
                     promptInputs.add(input);
                     assertEquals(sessionIdHolder[0], invocation.getSessionId());
                     return CompletableFuture.completedFuture(null);
@@ -233,8 +233,8 @@ public class HooksTest {
 
         List<SessionStartHookInput> startInputs = new ArrayList<>();
 
-        SessionConfig config =
-                new SessionConfig().setHooks(new SessionHooks().setOnSessionStart((input, invocation) -> {
+        SessionConfig config = new SessionConfig()
+                .setHooks(new SessionHooks().setOnSessionStart((input, invocation) -> {
                     startInputs.add(input);
                     return CompletableFuture.completedFuture(null);
                 }));

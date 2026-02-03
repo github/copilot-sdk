@@ -78,8 +78,7 @@ public class SessionEndHookInput {
     /**
      * Gets the reason for session end.
      *
-     * @return the reason: "complete", "error", "abort", "timeout", or
-     *         "user_exit"
+     * @return the reason: "complete", "error", "abort", "timeout", or "user_exit"
      */
     public String getReason() {
         return reason;
