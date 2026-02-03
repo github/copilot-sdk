@@ -19,7 +19,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.DisabledIfEnvironmentVariable;
 
 import com.github.copilot.sdk.events.AbstractSessionEvent;
 import com.github.copilot.sdk.events.AbortEvent;
@@ -487,12 +486,9 @@ public class CopilotSessionTest {
         }
     }
 
-    // Skip in CI - this test validates client-side timeout behavior, not LLM
-    // responses.
-    // The test intentionally times out before receiving a response, so there's no
-    // snapshot to replay.
+    // This test validates client-side timeout behavior. The snapshot has no
+    // assistant response because the test expects timeout BEFORE completion.
     @Test
-    @DisabledIfEnvironmentVariable(named = "CI", matches = ".*")
     void testSendAndWaitThrowsOnTimeout() throws Exception {
         ctx.configureForTest("session", "sendandwait_throws_on_timeout");
 

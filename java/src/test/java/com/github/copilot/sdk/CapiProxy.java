@@ -289,12 +289,34 @@ public class CapiProxy implements AutoCloseable {
     }
 
     /**
-     * Checks if the proxy process is still alive.
+     * Checks if the proxy process is still alive and responsive. This does both a
+     * process alive check AND an HTTP health check.
      *
-     * @return true if the proxy is running, false otherwise
+     * @return true if the proxy is running and responsive, false otherwise
      */
     public boolean isAlive() {
-        return process != null && process.isAlive();
+        if (process == null || !process.isAlive()) {
+            return false;
+        }
+
+        // Also verify the proxy is responsive via HTTP
+        if (proxyUrl != null) {
+            try {
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL(proxyUrl + "/exchanges")
+                        .openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(1000);
+                conn.setReadTimeout(1000);
+                int responseCode = conn.getResponseCode();
+                conn.disconnect();
+                return responseCode == 200;
+            } catch (Exception e) {
+                // If HTTP check fails, the proxy is not responsive
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
