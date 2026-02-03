@@ -904,7 +904,7 @@ func (c *Client) DeleteSession(ctx context.Context, sessionID string) error {
 // Example:
 //
 //	if client.State() == copilot.StateConnected {
-//	    session, err := client.CreateSession(nil)
+//	    session, err := client.CreateSession(context.Background(), nil)
 //	}
 func (c *Client) State() ConnectionState {
 	return c.state

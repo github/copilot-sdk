@@ -209,7 +209,7 @@ func (s *Session) SendAndWait(ctx context.Context, options MessageOptions) (*Ses
 	case err := <-errCh:
 		return nil, err
 	case <-ctx.Done(): // TODO: remove once session.Send honors the context
-		return nil, fmt.Errorf("timeout after %v waiting for session.idle", ctx.Err())
+		return nil, fmt.Errorf("waiting for session.idle: %w", ctx.Err())
 	}
 }
 
