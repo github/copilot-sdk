@@ -19,7 +19,7 @@ import re
 import subprocess
 import threading
 from dataclasses import asdict, is_dataclass
-from typing import Any, Optional
+from typing import Any, Callable, Optional, cast
 
 from .generated.session_events import session_event_from_dict
 from .jsonrpc import JsonRpcClient
@@ -821,7 +821,7 @@ class CopilotClient:
         Get the ID of the session currently displayed in the TUI.
 
         This is only available when connecting to a server running in TUI+server mode
-        (--interactive --server).
+        (--ui-server).
 
         Returns:
             The session ID, or None if no foreground session is set.
@@ -845,7 +845,7 @@ class CopilotClient:
         Request the TUI to switch to displaying the specified session.
 
         This is only available when connecting to a server running in TUI+server mode
-        (--interactive --server).
+        (--ui-server).
 
         Args:
             session_id: The ID of the session to display in the TUI.
@@ -859,9 +859,7 @@ class CopilotClient:
         if not self._client:
             raise RuntimeError("Client not connected")
 
-        response = await self._client.request(
-            "session.setForeground", {"sessionId": session_id}
-        )
+        response = await self._client.request("session.setForeground", {"sessionId": session_id})
 
         success = response.get("success", False)
         if not success:
@@ -915,7 +913,7 @@ class CopilotClient:
                 return unsubscribe_wildcard
             elif isinstance(event_type_or_handler, str) and handler is not None:
                 # Typed subscription: on(event_type, handler)
-                event_type: SessionLifecycleEventType = event_type_or_handler
+                event_type = cast(SessionLifecycleEventType, event_type_or_handler)
                 if event_type not in self._typed_lifecycle_handlers:
                     self._typed_lifecycle_handlers[event_type] = []
                 self._typed_lifecycle_handlers[event_type].append(handler)
@@ -928,17 +926,13 @@ class CopilotClient:
 
                 return unsubscribe_typed
             else:
-                raise ValueError(
-                    "Invalid arguments: use on(handler) or on(event_type, handler)"
-                )
+                raise ValueError("Invalid arguments: use on(handler) or on(event_type, handler)")
 
     def _dispatch_lifecycle_event(self, event: SessionLifecycleEvent) -> None:
         """Dispatch a lifecycle event to all registered handlers."""
         with self._lifecycle_handlers_lock:
             # Copy handlers to avoid holding lock during callbacks
-            typed_handlers = list(
-                self._typed_lifecycle_handlers.get(event.type, [])
-            )
+            typed_handlers = list(self._typed_lifecycle_handlers.get(event.type, []))
             wildcard_handlers = list(self._lifecycle_handlers)
 
         # Dispatch to typed handlers
@@ -1041,7 +1035,7 @@ class CopilotClient:
             RuntimeError: If the server fails to start or times out.
         """
         cli_path = self.options["cli_path"]
-        args = ["--server", "--log-level", self.options["log_level"]]
+        args = ["--headless", "--log-level", self.options["log_level"]]
 
         # Add auth-related flags
         if self.options.get("github_token"):

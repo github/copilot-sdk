@@ -825,7 +825,7 @@ export class CopilotClient {
      * Gets the foreground session ID in TUI+server mode.
      *
      * This returns the ID of the session currently displayed in the TUI.
-     * Only available when connecting to a server running in TUI+server mode (--interactive --server).
+     * Only available when connecting to a server running in TUI+server mode (--ui-server).
      *
      * @returns A promise that resolves with the foreground session ID, or undefined if none
      * @throws Error if the client is not connected
@@ -851,7 +851,7 @@ export class CopilotClient {
      * Sets the foreground session in TUI+server mode.
      *
      * This requests the TUI to switch to displaying the specified session.
-     * Only available when connecting to a server running in TUI+server mode (--interactive --server).
+     * Only available when connecting to a server running in TUI+server mode (--ui-server).
      *
      * @param sessionId - The ID of the session to display in the TUI
      * @returns A promise that resolves when the session is switched
@@ -962,7 +962,7 @@ export class CopilotClient {
         return new Promise((resolve, reject) => {
             const args = [
                 ...this.options.cliArgs,
-                "--server",
+                "--headless",
                 "--log-level",
                 this.options.logLevel,
             ];

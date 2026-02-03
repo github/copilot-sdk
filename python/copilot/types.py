@@ -931,10 +931,10 @@ class SessionLifecycleEventMetadata:
 
     startTime: str
     modifiedTime: str
-    summary: Optional[str] = None
+    summary: str | None = None
 
     @staticmethod
-    def from_dict(data: dict) -> "SessionLifecycleEventMetadata":
+    def from_dict(data: dict) -> SessionLifecycleEventMetadata:
         return SessionLifecycleEventMetadata(
             startTime=data.get("startTime", ""),
             modifiedTime=data.get("modifiedTime", ""),
@@ -948,10 +948,10 @@ class SessionLifecycleEvent:
 
     type: SessionLifecycleEventType
     sessionId: str
-    metadata: Optional[SessionLifecycleEventMetadata] = None
+    metadata: SessionLifecycleEventMetadata | None = None
 
     @staticmethod
-    def from_dict(data: dict) -> "SessionLifecycleEvent":
+    def from_dict(data: dict) -> SessionLifecycleEvent:
         metadata = None
         if "metadata" in data and data["metadata"]:
             metadata = SessionLifecycleEventMetadata.from_dict(data["metadata"])

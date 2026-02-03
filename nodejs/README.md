@@ -118,7 +118,7 @@ Delete a session and its data from disk.
 
 ##### `getForegroundSessionId(): Promise<string | undefined>`
 
-Get the ID of the session currently displayed in the TUI. Only available when connecting to a server running in TUI+server mode (`--interactive --server`).
+Get the ID of the session currently displayed in the TUI. Only available when connecting to a server running in TUI+server mode (`--ui-server`).
 
 ##### `setForegroundSessionId(sessionId: string): Promise<void>`
 

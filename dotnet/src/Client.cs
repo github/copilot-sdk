@@ -673,7 +673,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </summary>
     /// <remarks>
     /// This is only available when connecting to a server running in TUI+server mode
-    /// (--interactive --server).
+    /// (--ui-server).
     /// </remarks>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The session ID, or null if no foreground session is set.</returns>
@@ -701,7 +701,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </summary>
     /// <remarks>
     /// This is only available when connecting to a server running in TUI+server mode
-    /// (--interactive --server).
+    /// (--ui-server).
     /// </remarks>
     /// <param name="sessionId">The ID of the session to display in the TUI.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
@@ -875,7 +875,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
             args.AddRange(options.CliArgs);
         }
 
-        args.AddRange(["--server", "--log-level", options.LogLevel]);
+        args.AddRange(["--headless", "--log-level", options.LogLevel]);
 
         if (options.UseStdio)
         {

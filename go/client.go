@@ -61,24 +61,24 @@ import (
 //	}
 //	defer client.Stop()
 type Client struct {
-	options                  ClientOptions
-	process                  *exec.Cmd
-	client                   *JSONRPCClient
-	actualPort               int
-	actualHost               string
-	state                    ConnectionState
-	sessions                 map[string]*Session
-	sessionsMux              sync.Mutex
-	isExternalServer         bool
-	conn                     net.Conn // stores net.Conn for external TCP connections
-	useStdio                 bool     // resolved value from options
-	autoStart                bool     // resolved value from options
-	autoRestart              bool     // resolved value from options
-	modelsCache              []ModelInfo
-	modelsCacheMux           sync.Mutex
-	lifecycleHandlers        []SessionLifecycleHandler
-	typedLifecycleHandlers   map[SessionLifecycleEventType][]SessionLifecycleHandler
-	lifecycleHandlersMux     sync.Mutex
+	options                ClientOptions
+	process                *exec.Cmd
+	client                 *JSONRPCClient
+	actualPort             int
+	actualHost             string
+	state                  ConnectionState
+	sessions               map[string]*Session
+	sessionsMux            sync.Mutex
+	isExternalServer       bool
+	conn                   net.Conn // stores net.Conn for external TCP connections
+	useStdio               bool     // resolved value from options
+	autoStart              bool     // resolved value from options
+	autoRestart            bool     // resolved value from options
+	modelsCache            []ModelInfo
+	modelsCacheMux         sync.Mutex
+	lifecycleHandlers      []SessionLifecycleHandler
+	typedLifecycleHandlers map[SessionLifecycleEventType][]SessionLifecycleHandler
+	lifecycleHandlersMux   sync.Mutex
 }
 
 // NewClient creates a new Copilot CLI client with the given options.
@@ -915,7 +915,7 @@ func (c *Client) DeleteSession(sessionID string) error {
 // GetForegroundSessionID returns the ID of the session currently displayed in the TUI.
 //
 // This is only available when connecting to a server running in TUI+server mode
-// (--interactive --server). Returns nil if no foreground session is set.
+// (--ui-server). Returns nil if no foreground session is set.
 //
 // Example:
 //
@@ -958,7 +958,7 @@ func (c *Client) GetForegroundSessionID() (*string, error) {
 // SetForegroundSessionID requests the TUI to switch to displaying the specified session.
 //
 // This is only available when connecting to a server running in TUI+server mode
-// (--interactive --server).
+// (--ui-server).
 //
 // Example:
 //
@@ -1277,7 +1277,7 @@ func (c *Client) verifyProtocolVersion() error {
 // This spawns the CLI server as a subprocess using the configured transport
 // mode (stdio or TCP).
 func (c *Client) startCLIServer() error {
-	args := []string{"--server", "--log-level", c.options.LogLevel}
+	args := []string{"--headless", "--log-level", c.options.LogLevel}
 
 	// Choose transport mode
 	if c.useStdio {
@@ -1432,7 +1432,8 @@ func (c *Client) connectViaTcp() error {
 // setupNotificationHandler configures handlers for session events, tool calls, and permission requests.
 func (c *Client) setupNotificationHandler() {
 	c.client.SetNotificationHandler(func(method string, params map[string]any) {
-		if method == "session.event" {
+		switch method {
+		case "session.event":
 			// Extract sessionId and event
 			sessionID, ok := params["sessionId"].(string)
 			if !ok {
@@ -1458,7 +1459,7 @@ func (c *Client) setupNotificationHandler() {
 			if ok {
 				session.dispatchEvent(event)
 			}
-		} else if method == "session.lifecycle" {
+		case "session.lifecycle":
 			// Handle session lifecycle events
 			eventJSON, err := json.Marshal(params)
 			if err != nil {
