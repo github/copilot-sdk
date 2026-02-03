@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledIfEnvironmentVariable;
 
 import com.github.copilot.sdk.events.AbstractSessionEvent;
 import com.github.copilot.sdk.events.AbortEvent;
@@ -486,9 +487,14 @@ public class CopilotSessionTest {
         }
     }
 
+    // Skip in CI - this test validates client-side timeout behavior, not LLM
+    // responses.
+    // The test intentionally times out before receiving a response, so there's no
+    // snapshot to replay.
     @Test
+    @DisabledIfEnvironmentVariable(named = "CI", matches = ".*")
     void testSendAndWaitThrowsOnTimeout() throws Exception {
-        ctx.configureForTest("session", "should_receive_session_events");
+        ctx.configureForTest("session", "sendandwait_throws_on_timeout");
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession().get();
@@ -496,7 +502,7 @@ public class CopilotSessionTest {
             // Use a very short timeout that will definitely expire
             try {
                 // Note: We use a command that takes time so timeout triggers before completion
-                session.sendAndWait(new MessageOptions().setPrompt("Run 'sleep 10 && echo done'"), 100).get(5,
+                session.sendAndWait(new MessageOptions().setPrompt("Run 'sleep 2 && echo done'"), 100).get(5,
                         TimeUnit.SECONDS);
                 fail("Expected timeout exception");
             } catch (Exception e) {

@@ -55,7 +55,7 @@ public class E2ETestContext implements AutoCloseable {
     private final String cliPath;
     private final Path homeDir;
     private final Path workDir;
-    private final String proxyUrl;
+    private String proxyUrl;
     private final CapiProxy proxy;
     private final Path repoRoot;
 
@@ -133,12 +133,29 @@ public class E2ETestContext implements AutoCloseable {
      *             if configuration is interrupted
      */
     public void configureForTest(String testFile, String testName) throws IOException, InterruptedException {
+        // Restart the proxy if it has crashed
+        ensureProxyAlive();
+
         // Convert test method names to lowercase snake_case for snapshot filenames
         // to avoid case collisions on case-insensitive filesystems (macOS/Windows)
         String sanitizedName = SNAKE_CASE.matcher(testName).replaceAll("_").toLowerCase();
         String snapshotPath = repoRoot.resolve("test").resolve("snapshots").resolve(testFile)
                 .resolve(sanitizedName + ".yaml").toString();
         proxy.configure(snapshotPath, workDir.toString());
+    }
+
+    /**
+     * Ensures the proxy is alive, restarting it if necessary.
+     *
+     * @throws IOException
+     *             if the proxy cannot be restarted
+     * @throws InterruptedException
+     *             if interrupted during restart
+     */
+    public void ensureProxyAlive() throws IOException, InterruptedException {
+        if (!proxy.isAlive()) {
+            proxyUrl = proxy.restart();
+        }
     }
 
     /**
@@ -173,8 +190,16 @@ public class E2ETestContext implements AutoCloseable {
      * @return a new CopilotClient
      */
     public CopilotClient createClient() {
-        return new CopilotClient(new CopilotClientOptions().setCliPath(cliPath).setCwd(workDir.toString())
-                .setEnvironment(getEnvironment()));
+        CopilotClientOptions options = new CopilotClientOptions().setCliPath(cliPath).setCwd(workDir.toString())
+                .setEnvironment(getEnvironment());
+
+        // In CI, use a fake token to avoid auth issues
+        String ci = System.getenv("CI");
+        if (ci != null && !ci.isEmpty()) {
+            options.setGithubToken("fake-token-for-e2e-tests");
+        }
+
+        return new CopilotClient(options);
     }
 
     @Override
