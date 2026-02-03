@@ -26,11 +26,43 @@ ConnectionState = Literal["disconnected", "connecting", "connected", "error"]
 LogLevel = Literal["none", "error", "warning", "info", "debug", "all"]
 
 
-# Attachment type
-class Attachment(TypedDict):
-    type: Literal["file", "directory"]
+# Selection range for text attachments
+class SelectionRange(TypedDict):
+    line: int
+    character: int
+
+
+class Selection(TypedDict):
+    start: SelectionRange
+    end: SelectionRange
+
+
+# Attachment types - discriminated union based on 'type' field
+class FileAttachment(TypedDict):
+    """File attachment."""
+    type: Literal["file"]
     path: str
     displayName: NotRequired[str]
+
+
+class DirectoryAttachment(TypedDict):
+    """Directory attachment."""
+    type: Literal["directory"]
+    path: str
+    displayName: NotRequired[str]
+
+
+class SelectionAttachment(TypedDict):
+    """Selection attachment with text from a file."""
+    type: Literal["selection"]
+    filePath: str
+    displayName: str
+    selection: NotRequired[Selection]
+    text: NotRequired[str]
+
+
+# Attachment type - union of all attachment types
+Attachment = Union[FileAttachment, DirectoryAttachment, SelectionAttachment]
 
 
 # Options for creating a CopilotClient
@@ -912,3 +944,55 @@ class SessionMetadata:
         if self.summary is not None:
             result["summary"] = self.summary
         return result
+
+
+# Session Lifecycle Types (for TUI+server mode)
+
+SessionLifecycleEventType = Literal[
+    "session.created",
+    "session.deleted",
+    "session.updated",
+    "session.foreground",
+    "session.background",
+]
+
+
+@dataclass
+class SessionLifecycleEventMetadata:
+    """Metadata for session lifecycle events."""
+
+    startTime: str
+    modifiedTime: str
+    summary: str | None = None
+
+    @staticmethod
+    def from_dict(data: dict) -> SessionLifecycleEventMetadata:
+        return SessionLifecycleEventMetadata(
+            startTime=data.get("startTime", ""),
+            modifiedTime=data.get("modifiedTime", ""),
+            summary=data.get("summary"),
+        )
+
+
+@dataclass
+class SessionLifecycleEvent:
+    """Session lifecycle event notification."""
+
+    type: SessionLifecycleEventType
+    sessionId: str
+    metadata: SessionLifecycleEventMetadata | None = None
+
+    @staticmethod
+    def from_dict(data: dict) -> SessionLifecycleEvent:
+        metadata = None
+        if "metadata" in data and data["metadata"]:
+            metadata = SessionLifecycleEventMetadata.from_dict(data["metadata"])
+        return SessionLifecycleEvent(
+            type=data.get("type", "session.updated"),
+            sessionId=data.get("sessionId", ""),
+            metadata=metadata,
+        )
+
+
+# Handler types for session lifecycle events
+SessionLifecycleHandler = Callable[[SessionLifecycleEvent], None]
