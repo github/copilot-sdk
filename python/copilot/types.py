@@ -26,11 +26,43 @@ ConnectionState = Literal["disconnected", "connecting", "connected", "error"]
 LogLevel = Literal["none", "error", "warning", "info", "debug", "all"]
 
 
-# Attachment type
-class Attachment(TypedDict):
-    type: Literal["file", "directory"]
+# Selection range for text attachments
+class SelectionRange(TypedDict):
+    line: int
+    character: int
+
+
+class Selection(TypedDict):
+    start: SelectionRange
+    end: SelectionRange
+
+
+# Attachment types - discriminated union based on 'type' field
+class FileAttachment(TypedDict):
+    """File attachment."""
+    type: Literal["file"]
     path: str
     displayName: NotRequired[str]
+
+
+class DirectoryAttachment(TypedDict):
+    """Directory attachment."""
+    type: Literal["directory"]
+    path: str
+    displayName: NotRequired[str]
+
+
+class SelectionAttachment(TypedDict):
+    """Selection attachment with text from a file."""
+    type: Literal["selection"]
+    filePath: str
+    displayName: str
+    selection: NotRequired[Selection]
+    text: NotRequired[str]
+
+
+# Attachment type - union of all attachment types
+Attachment = Union[FileAttachment, DirectoryAttachment, SelectionAttachment]
 
 
 # Options for creating a CopilotClient
