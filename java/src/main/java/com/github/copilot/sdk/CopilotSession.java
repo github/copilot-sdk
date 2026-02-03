@@ -39,12 +39,15 @@ import com.github.copilot.sdk.json.PostToolUseHookInput;
 import com.github.copilot.sdk.json.PreToolUseHookInput;
 import com.github.copilot.sdk.json.SendMessageRequest;
 import com.github.copilot.sdk.json.SendMessageResponse;
+import com.github.copilot.sdk.json.SessionEndHookInput;
 import com.github.copilot.sdk.json.SessionHooks;
+import com.github.copilot.sdk.json.SessionStartHookInput;
 import com.github.copilot.sdk.json.ToolDefinition;
 import com.github.copilot.sdk.json.UserInputHandler;
 import com.github.copilot.sdk.json.UserInputInvocation;
 import com.github.copilot.sdk.json.UserInputRequest;
 import com.github.copilot.sdk.json.UserInputResponse;
+import com.github.copilot.sdk.json.UserPromptSubmittedHookInput;
 
 /**
  * Represents a single conversation session with the Copilot CLI.
@@ -544,8 +547,30 @@ public final class CopilotSession implements AutoCloseable {
                                 .thenApply(output -> (Object) output);
                     }
                     break;
+                case "userPromptSubmitted" :
+                    if (hooks.getOnUserPromptSubmitted() != null) {
+                        UserPromptSubmittedHookInput promptInput =
+                                MAPPER.treeToValue(input, UserPromptSubmittedHookInput.class);
+                        return hooks.getOnUserPromptSubmitted().handle(promptInput, invocation)
+                                .thenApply(output -> (Object) output);
+                    }
+                    break;
+                case "sessionStart" :
+                    if (hooks.getOnSessionStart() != null) {
+                        SessionStartHookInput startInput = MAPPER.treeToValue(input, SessionStartHookInput.class);
+                        return hooks.getOnSessionStart().handle(startInput, invocation)
+                                .thenApply(output -> (Object) output);
+                    }
+                    break;
+                case "sessionEnd" :
+                    if (hooks.getOnSessionEnd() != null) {
+                        SessionEndHookInput endInput = MAPPER.treeToValue(input, SessionEndHookInput.class);
+                        return hooks.getOnSessionEnd().handle(endInput, invocation)
+                                .thenApply(output -> (Object) output);
+                    }
+                    break;
                 default :
-                    LOG.warning("Unknown hook type: " + hookType);
+                    LOG.fine("Unhandled hook type: " + hookType);
             }
         } catch (Exception e) {
             LOG.log(Level.SEVERE, "Failed to process hook invocation", e);
