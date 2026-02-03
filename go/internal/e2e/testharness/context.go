@@ -26,7 +26,7 @@ func CLIPath() string {
 		}
 
 		// Look for CLI in sibling nodejs directory's node_modules
-		abs, err := filepath.Abs("../../nodejs/node_modules/@github/copilot/index.js")
+		abs, err := filepath.Abs("../../../nodejs/node_modules/@github/copilot/index.js")
 		if err == nil && fileExists(abs) {
 			cliPath = abs
 			return
@@ -100,7 +100,7 @@ func (c *TestContext) ConfigureForTest(t *testing.T) {
 
 	testFile := strings.ToLower(strings.TrimPrefix(parts[0], "Test"))
 	sanitizedName := strings.ToLower(regexp.MustCompile(`[^a-zA-Z0-9]`).ReplaceAllString(parts[1], "_"))
-	snapshotPath := filepath.Join("..", "..", "test", "snapshots", testFile, sanitizedName+".yaml")
+	snapshotPath := filepath.Join("..", "..", "..", "test", "snapshots", testFile, sanitizedName+".yaml")
 
 	absSnapshotPath, err := filepath.Abs(snapshotPath)
 	if err != nil {
