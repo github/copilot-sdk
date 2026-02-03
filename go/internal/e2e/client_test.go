@@ -21,15 +21,15 @@ func TestClient(t *testing.T) {
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
-		if err := client.Start(); err != nil {
+		if err := client.Start(t.Context()); err != nil {
 			t.Fatalf("Failed to start client: %v", err)
 		}
 
-		if client.GetState() != copilot.StateConnected {
-			t.Errorf("Expected state to be 'connected', got %q", client.GetState())
+		if client.State() != copilot.StateConnected {
+			t.Errorf("Expected state to be 'connected', got %q", client.State())
 		}
 
-		pong, err := client.Ping("test message")
+		pong, err := client.Ping(t.Context(), "test message")
 		if err != nil {
 			t.Fatalf("Failed to ping: %v", err)
 		}
@@ -42,12 +42,12 @@ func TestClient(t *testing.T) {
 			t.Errorf("Expected pong.timestamp >= 0, got %d", pong.Timestamp)
 		}
 
-		if errs := client.Stop(); len(errs) != 0 {
-			t.Errorf("Expected no errors on stop, got %v", errs)
+		if err := client.Stop(); err != nil {
+			t.Errorf("Expected no errors on stop, got %v", err)
 		}
 
-		if client.GetState() != copilot.StateDisconnected {
-			t.Errorf("Expected state to be 'disconnected', got %q", client.GetState())
+		if client.State() != copilot.StateDisconnected {
+			t.Errorf("Expected state to be 'disconnected', got %q", client.State())
 		}
 	})
 
@@ -58,15 +58,15 @@ func TestClient(t *testing.T) {
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
-		if err := client.Start(); err != nil {
+		if err := client.Start(t.Context()); err != nil {
 			t.Fatalf("Failed to start client: %v", err)
 		}
 
-		if client.GetState() != copilot.StateConnected {
-			t.Errorf("Expected state to be 'connected', got %q", client.GetState())
+		if client.State() != copilot.StateConnected {
+			t.Errorf("Expected state to be 'connected', got %q", client.State())
 		}
 
-		pong, err := client.Ping("test message")
+		pong, err := client.Ping(t.Context(), "test message")
 		if err != nil {
 			t.Fatalf("Failed to ping: %v", err)
 		}
@@ -79,12 +79,12 @@ func TestClient(t *testing.T) {
 			t.Errorf("Expected pong.timestamp >= 0, got %d", pong.Timestamp)
 		}
 
-		if errs := client.Stop(); len(errs) != 0 {
-			t.Errorf("Expected no errors on stop, got %v", errs)
+		if err := client.Stop(); err != nil {
+			t.Errorf("Expected no errors on stop, got %v", err)
 		}
 
-		if client.GetState() != copilot.StateDisconnected {
-			t.Errorf("Expected state to be 'disconnected', got %q", client.GetState())
+		if client.State() != copilot.StateDisconnected {
+			t.Errorf("Expected state to be 'disconnected', got %q", client.State())
 		}
 	})
 
@@ -94,7 +94,7 @@ func TestClient(t *testing.T) {
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
-		_, err := client.CreateSession(nil)
+		_, err := client.CreateSession(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
@@ -103,13 +103,12 @@ func TestClient(t *testing.T) {
 		client.ForceStop()
 		time.Sleep(100 * time.Millisecond)
 
-		errs := client.Stop()
-		if len(errs) > 0 {
-			t.Logf("Got expected errors: %v", errs)
+		if err := client.Stop(); err != nil {
+			t.Logf("Got expected errors: %v", err)
 		}
 
-		if client.GetState() != copilot.StateDisconnected {
-			t.Errorf("Expected state to be 'disconnected', got %q", client.GetState())
+		if client.State() != copilot.StateDisconnected {
+			t.Errorf("Expected state to be 'disconnected', got %q", client.State())
 		}
 	})
 
@@ -119,15 +118,15 @@ func TestClient(t *testing.T) {
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
-		_, err := client.CreateSession(nil)
+		_, err := client.CreateSession(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
 		client.ForceStop()
 
-		if client.GetState() != copilot.StateDisconnected {
-			t.Errorf("Expected state to be 'disconnected', got %q", client.GetState())
+		if client.State() != copilot.StateDisconnected {
+			t.Errorf("Expected state to be 'disconnected', got %q", client.State())
 		}
 	})
 
@@ -138,11 +137,11 @@ func TestClient(t *testing.T) {
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
-		if err := client.Start(); err != nil {
+		if err := client.Start(t.Context()); err != nil {
 			t.Fatalf("Failed to start client: %v", err)
 		}
 
-		status, err := client.GetStatus()
+		status, err := client.GetStatus(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get status: %v", err)
 		}
@@ -165,11 +164,11 @@ func TestClient(t *testing.T) {
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
-		if err := client.Start(); err != nil {
+		if err := client.Start(t.Context()); err != nil {
 			t.Fatalf("Failed to start client: %v", err)
 		}
 
-		authStatus, err := client.GetAuthStatus()
+		authStatus, err := client.GetAuthStatus(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get auth status: %v", err)
 		}
@@ -194,11 +193,11 @@ func TestClient(t *testing.T) {
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
-		if err := client.Start(); err != nil {
+		if err := client.Start(t.Context()); err != nil {
 			t.Fatalf("Failed to start client: %v", err)
 		}
 
-		authStatus, err := client.GetAuthStatus()
+		authStatus, err := client.GetAuthStatus(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get auth status: %v", err)
 		}
@@ -209,7 +208,7 @@ func TestClient(t *testing.T) {
 			return
 		}
 
-		models, err := client.ListModels()
+		models, err := client.ListModels(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to list models: %v", err)
 		}

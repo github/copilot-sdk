@@ -3,7 +3,6 @@ package e2e
 import (
 	"sync"
 	"testing"
-	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
@@ -20,7 +19,7 @@ func TestAskUser(t *testing.T) {
 		var userInputRequests []copilot.UserInputRequest
 		var mu sync.Mutex
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnUserInputRequest: func(request copilot.UserInputRequest, invocation copilot.UserInputInvocation) (copilot.UserInputResponse, error) {
 				mu.Lock()
 				userInputRequests = append(userInputRequests, request)
@@ -48,9 +47,9 @@ func TestAskUser(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.SendAndWait(copilot.MessageOptions{
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Ask me to choose between 'Option A' and 'Option B' using the ask_user tool. Wait for my response before continuing.",
-		}, 60*time.Second)
+		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
@@ -80,7 +79,7 @@ func TestAskUser(t *testing.T) {
 		var userInputRequests []copilot.UserInputRequest
 		var mu sync.Mutex
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnUserInputRequest: func(request copilot.UserInputRequest, invocation copilot.UserInputInvocation) (copilot.UserInputResponse, error) {
 				mu.Lock()
 				userInputRequests = append(userInputRequests, request)
@@ -102,9 +101,9 @@ func TestAskUser(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.SendAndWait(copilot.MessageOptions{
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Use the ask_user tool to ask me to pick between exactly two options: 'Red' and 'Blue'. These should be provided as choices. Wait for my answer.",
-		}, 60*time.Second)
+		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
@@ -135,7 +134,7 @@ func TestAskUser(t *testing.T) {
 		var mu sync.Mutex
 		freeformAnswer := "This is my custom freeform answer that was not in the choices"
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnUserInputRequest: func(request copilot.UserInputRequest, invocation copilot.UserInputInvocation) (copilot.UserInputResponse, error) {
 				mu.Lock()
 				userInputRequests = append(userInputRequests, request)
@@ -152,9 +151,9 @@ func TestAskUser(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		response, err := session.SendAndWait(copilot.MessageOptions{
+		response, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Ask me a question using ask_user and then include my answer in your response. The question should be 'What is your favorite color?'",
-		}, 60*time.Second)
+		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}

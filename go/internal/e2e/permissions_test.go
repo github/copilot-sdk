@@ -6,7 +6,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
@@ -35,7 +34,7 @@ func TestPermissions(t *testing.T) {
 			return copilot.PermissionRequestResult{Kind: "approved"}, nil
 		}
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: onPermissionRequest,
 		})
 		if err != nil {
@@ -48,9 +47,9 @@ func TestPermissions(t *testing.T) {
 			t.Fatalf("Failed to write test file: %v", err)
 		}
 
-		_, err = session.SendAndWait(copilot.MessageOptions{
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Edit test.txt and replace 'original' with 'modified'",
-		}, 60*time.Second)
+		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
@@ -86,16 +85,16 @@ func TestPermissions(t *testing.T) {
 			return copilot.PermissionRequestResult{Kind: "approved"}, nil
 		}
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: onPermissionRequest,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.SendAndWait(copilot.MessageOptions{
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Run 'echo hello' and tell me the output",
-		}, 60*time.Second)
+		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
@@ -121,7 +120,7 @@ func TestPermissions(t *testing.T) {
 			return copilot.PermissionRequestResult{Kind: "denied-interactively-by-user"}, nil
 		}
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: onPermissionRequest,
 		})
 		if err != nil {
@@ -135,14 +134,14 @@ func TestPermissions(t *testing.T) {
 			t.Fatalf("Failed to write test file: %v", err)
 		}
 
-		_, err = session.Send(copilot.MessageOptions{
+		_, err = session.Send(t.Context(), copilot.MessageOptions{
 			Prompt: "Edit protected.txt and replace 'protected' with 'hacked'.",
 		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		_, err = testharness.GetFinalAssistantMessage(session, 60*time.Second)
+		_, err = testharness.GetFinalAssistantMessage(t.Context(), session)
 		if err != nil {
 			t.Fatalf("Failed to get final message: %v", err)
 		}
@@ -161,17 +160,17 @@ func TestPermissions(t *testing.T) {
 	t.Run("without permission handler", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		session, err := client.CreateSession(nil)
+		session, err := client.CreateSession(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.Send(copilot.MessageOptions{Prompt: "What is 2+2?"})
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 2+2?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		message, err := testharness.GetFinalAssistantMessage(session, 60*time.Second)
+		message, err := testharness.GetFinalAssistantMessage(t.Context(), session)
 		if err != nil {
 			t.Fatalf("Failed to get final message: %v", err)
 		}

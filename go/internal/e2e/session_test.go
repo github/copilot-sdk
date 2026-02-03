@@ -18,7 +18,7 @@ func TestSession(t *testing.T) {
 	t.Run("should create and destroy sessions", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		session, err := client.CreateSession(&copilot.SessionConfig{Model: "fake-test-model"})
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{Model: "fake-test-model"})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
@@ -28,7 +28,7 @@ func TestSession(t *testing.T) {
 			t.Errorf("Expected session ID to match UUID pattern, got %q", session.SessionID)
 		}
 
-		messages, err := session.GetMessages()
+		messages, err := session.GetMessages(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get messages: %v", err)
 		}
@@ -49,7 +49,7 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to destroy session: %v", err)
 		}
 
-		_, err = session.GetMessages()
+		_, err = session.GetMessages(t.Context())
 		if err == nil || !strings.Contains(err.Error(), "not found") {
 			t.Errorf("Expected GetMessages to fail with 'not found' after destroy, got %v", err)
 		}
@@ -58,12 +58,12 @@ func TestSession(t *testing.T) {
 	t.Run("should have stateful conversation", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		session, err := client.CreateSession(nil)
+		session, err := client.CreateSession(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		assistantMessage, err := session.SendAndWait(copilot.MessageOptions{Prompt: "What is 1+1?"}, 60*time.Second)
+		assistantMessage, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
@@ -72,7 +72,7 @@ func TestSession(t *testing.T) {
 			t.Errorf("Expected assistant message to contain '2', got %v", assistantMessage.Data.Content)
 		}
 
-		secondMessage, err := session.SendAndWait(copilot.MessageOptions{Prompt: "Now if you double that, what do you get?"}, 60*time.Second)
+		secondMessage, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Now if you double that, what do you get?"})
 		if err != nil {
 			t.Fatalf("Failed to send second message: %v", err)
 		}
@@ -86,7 +86,7 @@ func TestSession(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		systemMessageSuffix := "End each response with the phrase 'Have a nice day!'"
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			SystemMessage: &copilot.SystemMessageConfig{
 				Mode:    "append",
 				Content: systemMessageSuffix,
@@ -96,7 +96,7 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		assistantMessage, err := session.SendAndWait(copilot.MessageOptions{Prompt: "What is your full name?"}, 60*time.Second)
+		assistantMessage, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is your full name?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
@@ -134,7 +134,7 @@ func TestSession(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		testSystemMessage := "You are an assistant called Testy McTestface. Reply succinctly."
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			SystemMessage: &copilot.SystemMessageConfig{
 				Mode:    "replace",
 				Content: testSystemMessage,
@@ -144,12 +144,12 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.Send(copilot.MessageOptions{Prompt: "What is your full name?"})
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is your full name?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		assistantMessage, err := testharness.GetFinalAssistantMessage(session, 60*time.Second)
+		assistantMessage, err := testharness.GetFinalAssistantMessage(t.Context(), session)
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -183,19 +183,19 @@ func TestSession(t *testing.T) {
 	t.Run("should create a session with availableTools", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			AvailableTools: []string{"view", "edit"},
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.Send(copilot.MessageOptions{Prompt: "What is 1+1?"})
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		_, err = testharness.GetFinalAssistantMessage(session, 60*time.Second)
+		_, err = testharness.GetFinalAssistantMessage(t.Context(), session)
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -221,19 +221,19 @@ func TestSession(t *testing.T) {
 	t.Run("should create a session with excludedTools", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			ExcludedTools: []string{"view"},
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.Send(copilot.MessageOptions{Prompt: "What is 1+1?"})
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		_, err = testharness.GetFinalAssistantMessage(session, 60*time.Second)
+		_, err = testharness.GetFinalAssistantMessage(t.Context(), session)
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -259,7 +259,7 @@ func TestSession(t *testing.T) {
 	t.Run("should create session with custom tool", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			Tools: []copilot.Tool{
 				{
 					Name:        "get_secret_number",
@@ -295,12 +295,12 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.Send(copilot.MessageOptions{Prompt: "What is the secret number for key ALPHA?"})
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is the secret number for key ALPHA?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		assistantMessage, err := testharness.GetFinalAssistantMessage(session, 60*time.Second)
+		assistantMessage, err := testharness.GetFinalAssistantMessage(t.Context(), session)
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -323,18 +323,18 @@ func TestSession(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		// Create initial session
-		session1, err := client.CreateSession(nil)
+		session1, err := client.CreateSession(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 		sessionID := session1.SessionID
 
-		_, err = session1.Send(copilot.MessageOptions{Prompt: "What is 1+1?"})
+		_, err = session1.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		answer, err := testharness.GetFinalAssistantMessage(session1, 60*time.Second)
+		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session1)
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -344,7 +344,7 @@ func TestSession(t *testing.T) {
 		}
 
 		// Resume using the same client
-		session2, err := client.ResumeSession(sessionID)
+		session2, err := client.ResumeSession(t.Context(), sessionID)
 		if err != nil {
 			t.Fatalf("Failed to resume session: %v", err)
 		}
@@ -353,7 +353,7 @@ func TestSession(t *testing.T) {
 			t.Errorf("Expected resumed session ID to match, got %q vs %q", session2.SessionID, sessionID)
 		}
 
-		answer2, err := testharness.GetFinalAssistantMessage(session2, 60*time.Second)
+		answer2, err := testharness.GetFinalAssistantMessage(t.Context(), session2)
 		if err != nil {
 			t.Fatalf("Failed to get assistant message from resumed session: %v", err)
 		}
@@ -367,18 +367,18 @@ func TestSession(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		// Create initial session
-		session1, err := client.CreateSession(nil)
+		session1, err := client.CreateSession(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 		sessionID := session1.SessionID
 
-		_, err = session1.Send(copilot.MessageOptions{Prompt: "What is 1+1?"})
+		_, err = session1.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		answer, err := testharness.GetFinalAssistantMessage(session1, 60*time.Second)
+		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session1)
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -395,7 +395,7 @@ func TestSession(t *testing.T) {
 		})
 		defer newClient.ForceStop()
 
-		session2, err := newClient.ResumeSession(sessionID)
+		session2, err := newClient.ResumeSession(t.Context(), sessionID)
 		if err != nil {
 			t.Fatalf("Failed to resume session: %v", err)
 		}
@@ -405,7 +405,7 @@ func TestSession(t *testing.T) {
 		}
 
 		// When resuming with a new client, we check messages contain expected types
-		messages, err := session2.GetMessages()
+		messages, err := session2.GetMessages(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get messages: %v", err)
 		}
@@ -432,7 +432,7 @@ func TestSession(t *testing.T) {
 	t.Run("should throw error when resuming non-existent session", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		_, err := client.ResumeSession("non-existent-session-id")
+		_, err := client.ResumeSession(t.Context(), "non-existent-session-id")
 		if err == nil {
 			t.Error("Expected error when resuming non-existent session")
 		}
@@ -441,14 +441,14 @@ func TestSession(t *testing.T) {
 	t.Run("should resume session with a custom provider", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		session, err := client.CreateSession(nil)
+		session, err := client.CreateSession(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 		sessionID := session.SessionID
 
 		// Resume the session with a provider
-		session2, err := client.ResumeSessionWithOptions(sessionID, &copilot.ResumeSessionConfig{
+		session2, err := client.ResumeSessionWithOptions(t.Context(), sessionID, &copilot.ResumeSessionConfig{
 			Provider: &copilot.ProviderConfig{
 				Type:    "openai",
 				BaseURL: "https://api.openai.com/v1",
@@ -467,7 +467,7 @@ func TestSession(t *testing.T) {
 	t.Run("should abort a session", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		session, err := client.CreateSession(nil)
+		session, err := client.CreateSession(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
@@ -496,7 +496,7 @@ func TestSession(t *testing.T) {
 		}()
 
 		// Send a message that triggers a long-running shell command
-		_, err = session.Send(copilot.MessageOptions{Prompt: "run the shell command 'sleep 100' (note this works on both bash and PowerShell)"})
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "run the shell command 'sleep 100' (note this works on both bash and PowerShell)"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
@@ -510,7 +510,7 @@ func TestSession(t *testing.T) {
 		}
 
 		// Abort the session
-		err = session.Abort()
+		err = session.Abort(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to abort session: %v", err)
 		}
@@ -524,7 +524,7 @@ func TestSession(t *testing.T) {
 		}
 
 		// The session should still be alive and usable after abort
-		messages, err := session.GetMessages()
+		messages, err := session.GetMessages(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get messages after abort: %v", err)
 		}
@@ -545,7 +545,7 @@ func TestSession(t *testing.T) {
 		}
 
 		// We should be able to send another message
-		answer, err := session.SendAndWait(copilot.MessageOptions{Prompt: "What is 2+2?"}, 60*time.Second)
+		answer, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 2+2?"})
 		if err != nil {
 			t.Fatalf("Failed to send message after abort: %v", err)
 		}
@@ -558,7 +558,7 @@ func TestSession(t *testing.T) {
 	t.Run("should receive streaming delta events when streaming is enabled", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			Streaming: true,
 		})
 		if err != nil {
@@ -579,7 +579,7 @@ func TestSession(t *testing.T) {
 			}
 		})
 
-		_, err = session.Send(copilot.MessageOptions{Prompt: "What is 2+2?"})
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 2+2?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
@@ -597,7 +597,7 @@ func TestSession(t *testing.T) {
 		}
 
 		// Get the final message to compare
-		assistantMessage, err := testharness.GetFinalAssistantMessage(session, 60*time.Second)
+		assistantMessage, err := testharness.GetFinalAssistantMessage(t.Context(), session)
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -618,7 +618,7 @@ func TestSession(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		// Verify that the streaming option is accepted without errors
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			Streaming: true,
 		})
 		if err != nil {
@@ -631,12 +631,12 @@ func TestSession(t *testing.T) {
 		}
 
 		// Session should still work normally
-		_, err = session.Send(copilot.MessageOptions{Prompt: "What is 1+1?"})
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		assistantMessage, err := testharness.GetFinalAssistantMessage(session, 60*time.Second)
+		assistantMessage, err := testharness.GetFinalAssistantMessage(t.Context(), session)
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -649,7 +649,7 @@ func TestSession(t *testing.T) {
 	t.Run("should receive session events", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		session, err := client.CreateSession(nil)
+		session, err := client.CreateSession(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
@@ -668,7 +668,7 @@ func TestSession(t *testing.T) {
 		})
 
 		// Send a message to trigger events
-		_, err = session.Send(copilot.MessageOptions{Prompt: "What is 100+200?"})
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 100+200?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
@@ -710,7 +710,7 @@ func TestSession(t *testing.T) {
 		}
 
 		// Verify the assistant response contains the expected answer
-		assistantMessage, err := testharness.GetFinalAssistantMessage(session, 60*time.Second)
+		assistantMessage, err := testharness.GetFinalAssistantMessage(t.Context(), session)
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -723,7 +723,7 @@ func TestSession(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		customConfigDir := ctx.HomeDir + "/custom-config"
-		session, err := client.CreateSession(&copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			ConfigDir: customConfigDir,
 		})
 		if err != nil {
@@ -736,12 +736,12 @@ func TestSession(t *testing.T) {
 		}
 
 		// Session should work normally with custom config dir
-		_, err = session.Send(copilot.MessageOptions{Prompt: "What is 1+1?"})
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		assistantMessage, err := testharness.GetFinalAssistantMessage(session, 60*time.Second)
+		assistantMessage, err := testharness.GetFinalAssistantMessage(t.Context(), session)
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
@@ -755,22 +755,22 @@ func TestSession(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		// Create a couple of sessions and send messages to persist them
-		session1, err := client.CreateSession(nil)
+		session1, err := client.CreateSession(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("Failed to create session1: %v", err)
 		}
 
-		_, err = session1.SendAndWait(copilot.MessageOptions{Prompt: "Say hello"}, 60*time.Second)
+		_, err = session1.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Say hello"})
 		if err != nil {
 			t.Fatalf("Failed to send message to session1: %v", err)
 		}
 
-		session2, err := client.CreateSession(nil)
+		session2, err := client.CreateSession(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("Failed to create session2: %v", err)
 		}
 
-		_, err = session2.SendAndWait(copilot.MessageOptions{Prompt: "Say goodbye"}, 60*time.Second)
+		_, err = session2.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Say goodbye"})
 		if err != nil {
 			t.Fatalf("Failed to send message to session2: %v", err)
 		}
@@ -779,7 +779,7 @@ func TestSession(t *testing.T) {
 		time.Sleep(200 * time.Millisecond)
 
 		// List sessions and verify they're included
-		sessions, err := client.ListSessions()
+		sessions, err := client.ListSessions(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to list sessions: %v", err)
 		}
@@ -822,12 +822,12 @@ func TestSession(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		// Create a session and send a message to persist it
-		session, err := client.CreateSession(nil)
+		session, err := client.CreateSession(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.SendAndWait(copilot.MessageOptions{Prompt: "Hello"}, 60*time.Second)
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Hello"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
@@ -838,7 +838,7 @@ func TestSession(t *testing.T) {
 		time.Sleep(200 * time.Millisecond)
 
 		// Verify session exists in the list
-		sessions, err := client.ListSessions()
+		sessions, err := client.ListSessions(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to list sessions: %v", err)
 		}
@@ -853,13 +853,13 @@ func TestSession(t *testing.T) {
 		}
 
 		// Delete the session
-		err = client.DeleteSession(sessionID)
+		err = client.DeleteSession(t.Context(), sessionID)
 		if err != nil {
 			t.Fatalf("Failed to delete session: %v", err)
 		}
 
 		// Verify session no longer exists in the list
-		sessionsAfter, err := client.ListSessions()
+		sessionsAfter, err := client.ListSessions(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to list sessions after delete: %v", err)
 		}
@@ -874,7 +874,7 @@ func TestSession(t *testing.T) {
 		}
 
 		// Verify we cannot resume the deleted session
-		_, err = client.ResumeSession(sessionID)
+		_, err = client.ResumeSession(t.Context(), sessionID)
 		if err == nil {
 			t.Error("Expected error when resuming deleted session")
 		}
