@@ -971,24 +971,10 @@ public class CopilotClient implements AutoCloseable {
         }
     }
 
-    private static class ProcessInfo {
-        final Process process;
-        final Integer port;
+    private static record ProcessInfo(Process process, Integer port) {
+    };
 
-        ProcessInfo(Process process, Integer port) {
-            this.process = process;
-            this.port = port;
-        }
-    }
+    private static record Connection(JsonRpcClient rpc, Process process) {
+    };
 
-    private static class Connection {
-        final JsonRpcClient rpc;
-
-        final Process process;
-
-        Connection(JsonRpcClient rpc, Process process) {
-            this.rpc = rpc;
-            this.process = process;
-        }
-    }
 }
