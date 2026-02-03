@@ -28,6 +28,8 @@ permissions:
 jobs:
   test:
     name: "Node.js SDK Tests"
+    env:
+      POWERSHELL_UPDATECHECK: Off
     strategy:
       fail-fast: false
       matrix:
