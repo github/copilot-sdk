@@ -40,6 +40,7 @@ class Selection(TypedDict):
 # Attachment types - discriminated union based on 'type' field
 class FileAttachment(TypedDict):
     """File attachment."""
+
     type: Literal["file"]
     path: str
     displayName: NotRequired[str]
@@ -47,6 +48,7 @@ class FileAttachment(TypedDict):
 
 class DirectoryAttachment(TypedDict):
     """Directory attachment."""
+
     type: Literal["directory"]
     path: str
     displayName: NotRequired[str]
@@ -54,6 +56,7 @@ class DirectoryAttachment(TypedDict):
 
 class SelectionAttachment(TypedDict):
     """Selection attachment with text from a file."""
+
     type: Literal["selection"]
     filePath: str
     displayName: str
