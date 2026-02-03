@@ -292,6 +292,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
             state.workDir,
             state.toolResultNormalizers,
           );
+          return;
         }
         super.performRequest(options);
       } catch (err) {
