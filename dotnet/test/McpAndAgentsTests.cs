@@ -8,7 +8,7 @@ using Xunit.Abstractions;
 
 namespace GitHub.Copilot.SDK.Test;
 
-public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "mcp-and-agents", output)
+public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "mcp_and_agents", output)
 {
     [Fact]
     public async Task Should_Accept_MCP_Server_Configuration_On_Session_Create()

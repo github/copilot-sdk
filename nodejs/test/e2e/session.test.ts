@@ -5,7 +5,7 @@ import { CLI_PATH, createSdkTestContext } from "./harness/sdkTestContext.js";
 import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
 
 describe("Sessions", async () => {
-    const { copilotClient: client, openAiEndpoint, homeDir } = await createSdkTestContext();
+    const { copilotClient: client, openAiEndpoint, homeDir, env } = await createSdkTestContext();
 
     it("should create and destroy sessions", async () => {
         const session = await client.createSession({ model: "fake-test-model" });
@@ -158,11 +158,8 @@ describe("Sessions", async () => {
         // Resume using a new client
         const newClient = new CopilotClient({
             cliPath: CLI_PATH,
-            env: {
-                ...process.env,
-                XDG_CONFIG_HOME: homeDir,
-                XDG_STATE_HOME: homeDir,
-            },
+            env,
+            githubToken: process.env.CI === "true" ? "fake-token-for-e2e-tests" : undefined,
         });
 
         onTestFinished(() => newClient.forceStop());
@@ -387,7 +384,9 @@ describe("Send Blocking Behavior", async () => {
         expect(events).toContain("assistant.message");
     });
 
-    it("sendAndWait throws on timeout", async () => {
+    // Skip in CI - this test validates client-side timeout behavior, not LLM responses.
+    // The test intentionally times out before receiving a response, so there's no snapshot to replay.
+    it.skipIf(process.env.CI === "true")("sendAndWait throws on timeout", async () => {
         const session = await client.createSession();
 
         // Use a slow command to ensure timeout triggers before completion

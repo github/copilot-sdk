@@ -26,6 +26,8 @@ permissions:
 jobs:
   test:
     name: "Go SDK Tests"
+    env:
+      POWERSHELL_UPDATECHECK: Off
     strategy:
       fail-fast: false
       matrix:

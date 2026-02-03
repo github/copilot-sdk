@@ -10,7 +10,7 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
 class TestAskUser:
-    async def test_invoke_user_input_handler_when_model_uses_ask_user_tool(
+    async def test_should_invoke_user_input_handler_when_model_uses_ask_user_tool(
         self, ctx: E2ETestContext
     ):
         """Test that user input handler is invoked when model uses ask_user tool"""
@@ -48,7 +48,7 @@ class TestAskUser:
 
         await session.destroy()
 
-    async def test_receive_choices_in_user_input_request(self, ctx: E2ETestContext):
+    async def test_should_receive_choices_in_user_input_request(self, ctx: E2ETestContext):
         """Test that choices are received in user input request"""
         user_input_requests = []
 
@@ -84,7 +84,7 @@ class TestAskUser:
 
         await session.destroy()
 
-    async def test_handle_freeform_user_input_response(self, ctx: E2ETestContext):
+    async def test_should_handle_freeform_user_input_response(self, ctx: E2ETestContext):
         """Test that freeform user input responses work"""
         user_input_requests = []
         freeform_answer = "This is my custom freeform answer that was not in the choices"

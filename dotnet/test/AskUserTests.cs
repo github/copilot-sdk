@@ -8,7 +8,7 @@ using Xunit.Abstractions;
 
 namespace GitHub.Copilot.SDK.Test;
 
-public class AskUserTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "ask-user", output)
+public class AskUserTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "ask_user", output)
 {
     [Fact]
     public async Task Should_Invoke_User_Input_Handler_When_Model_Uses_Ask_User_Tool()

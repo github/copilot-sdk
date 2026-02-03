@@ -96,7 +96,8 @@ public class E2ETestContext : IAsyncDisposable
     {
         CliPath = CliPath,
         Cwd = WorkDir,
-        Environment = GetEnvironment()
+        Environment = GetEnvironment(),
+        GithubToken = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CI")) ? "fake-token-for-e2e-tests" : null,
     });
 
     public async ValueTask DisposeAsync()

@@ -45,6 +45,8 @@ export async function createSdkTestContext({
         cwd: workDir,
         env,
         logLevel: logLevel || "error",
+        // Use fake token in CI to allow cached responses without real auth
+        githubToken: process.env.CI === "true" ? "fake-token-for-e2e-tests" : undefined,
     });
 
     const harness = { homeDir, workDir, openAiEndpoint, copilotClient, env };
@@ -93,7 +95,8 @@ function getTrafficCapturePath(testContext: TestContext): string {
         );
     }
 
-    const testFileName = basename(testFilePath, suffix);
+    // Convert to snake_case for cross-SDK snapshot compatibility
+    const testFileName = basename(testFilePath, suffix).replace(/-/g, "_");
     const taskNameAsFilename = testContext.task.name.replace(/[^a-z0-9]/gi, "_").toLowerCase();
     return join(SNAPSHOTS_DIR, testFileName, `${taskNameAsFilename}.yaml`);
 }
