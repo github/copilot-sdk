@@ -173,8 +173,16 @@ public class E2ETestContext implements AutoCloseable {
      * @return a new CopilotClient
      */
     public CopilotClient createClient() {
-        return new CopilotClient(new CopilotClientOptions().setCliPath(cliPath).setCwd(workDir.toString())
-                .setEnvironment(getEnvironment()));
+        CopilotClientOptions options = new CopilotClientOptions().setCliPath(cliPath).setCwd(workDir.toString())
+                .setEnvironment(getEnvironment());
+
+        // In CI, use a fake token to avoid auth issues
+        String ci = System.getenv("CI");
+        if (ci != null && !ci.isEmpty()) {
+            options.setGithubToken("fake-token-for-e2e-tests");
+        }
+
+        return new CopilotClient(options);
     }
 
     @Override

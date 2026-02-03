@@ -25,7 +25,7 @@ import com.github.copilot.sdk.json.UserInputResponse;
  *
  * <p>
  * These tests use the shared CapiProxy infrastructure for deterministic API
- * response replay. Snapshots are stored in test/snapshots/ask-user/.
+ * response replay. Snapshots are stored in test/snapshots/ask_user/.
  * </p>
  */
 public class AskUserTest {
@@ -46,7 +46,7 @@ public class AskUserTest {
 
     @Test
     void testUserInputHandlerInvokedWhenModelUsesAskUserTool() throws Exception {
-        ctx.configureForTest("ask-user", "should_invoke_user_input_handler_when_model_uses_ask_user_tool");
+        ctx.configureForTest("ask_user", "should_invoke_user_input_handler_when_model_uses_ask_user_tool");
 
         List<UserInputRequest> userInputRequests = new ArrayList<>();
         final String[] sessionIdHolder = new String[1];
@@ -84,7 +84,7 @@ public class AskUserTest {
 
     @Test
     void testUserInputRequestWithChoices() throws Exception {
-        ctx.configureForTest("ask-user", "should_receive_choices_in_user_input_request");
+        ctx.configureForTest("ask_user", "should_receive_choices_in_user_input_request");
 
         List<UserInputRequest> userInputRequests = new ArrayList<>();
 
@@ -120,7 +120,7 @@ public class AskUserTest {
      */
     @Test
     void testFreeformUserInputResponse() throws Exception {
-        ctx.configureForTest("ask-user", "should_handle_freeform_user_input_response");
+        ctx.configureForTest("ask_user", "should_handle_freeform_user_input_response");
 
         final List<UserInputRequest> userInputRequests = new ArrayList<>();
         String freeformAnswer = "This is my custom freeform answer that was not in the choices";
