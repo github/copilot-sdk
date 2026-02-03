@@ -159,11 +159,18 @@ func (c *TestContext) Env() []string {
 
 // NewClient creates a CopilotClient configured for this test context.
 func (c *TestContext) NewClient() *copilot.Client {
-	return copilot.NewClient(&copilot.ClientOptions{
+	options := &copilot.ClientOptions{
 		CLIPath: c.CLIPath,
 		Cwd:     c.WorkDir,
 		Env:     c.Env(),
-	})
+	}
+
+	// Use fake token in CI to allow cached responses without real auth
+	if os.Getenv("CI") == "true" {
+		options.GithubToken = "fake-token-for-e2e-tests"
+	}
+
+	return copilot.NewClient(options)
 }
 
 func fileExists(path string) bool {
