@@ -124,6 +124,43 @@ List all available sessions.
 
 Delete a session and its data from disk.
 
+##### `GetForegroundSessionIdAsync(): Task<string?>`
+
+Get the ID of the session currently displayed in the TUI. Only available when connecting to a server running in TUI+server mode (`--interactive --server`).
+
+##### `SetForegroundSessionIdAsync(string sessionId): Task`
+
+Request the TUI to switch to displaying the specified session. Only available in TUI+server mode.
+
+##### `On(Action<SessionLifecycleEvent> handler): IDisposable`
+
+Subscribe to all session lifecycle events. Returns an `IDisposable` that unsubscribes when disposed.
+
+```csharp
+using var subscription = client.On(evt =>
+{
+    Console.WriteLine($"Session {evt.SessionId}: {evt.Type}");
+});
+```
+
+##### `On(string eventType, Action<SessionLifecycleEvent> handler): IDisposable`
+
+Subscribe to a specific lifecycle event type. Use `SessionLifecycleEventTypes` constants.
+
+```csharp
+using var subscription = client.On(SessionLifecycleEventTypes.Foreground, evt =>
+{
+    Console.WriteLine($"Session {evt.SessionId} is now in foreground");
+});
+```
+
+**Lifecycle Event Types:**
+- `SessionLifecycleEventTypes.Created` - A new session was created
+- `SessionLifecycleEventTypes.Deleted` - A session was deleted
+- `SessionLifecycleEventTypes.Updated` - A session was updated
+- `SessionLifecycleEventTypes.Foreground` - A session became the foreground session in TUI
+- `SessionLifecycleEventTypes.Background` - A session is no longer the foreground session
+
 ---
 
 ### CopilotSession

@@ -84,6 +84,27 @@ func main() {
 - `DeleteSession(sessionID string) error` - Delete a session permanently
 - `GetState() ConnectionState` - Get connection state
 - `Ping(message string) (*PingResponse, error)` - Ping the server
+- `GetForegroundSessionID() (*string, error)` - Get the session ID currently displayed in TUI (TUI+server mode only)
+- `SetForegroundSessionID(sessionID string) error` - Request TUI to display a specific session (TUI+server mode only)
+- `On(handler SessionLifecycleHandler) func()` - Subscribe to all lifecycle events; returns unsubscribe function
+- `OnEventType(eventType SessionLifecycleEventType, handler SessionLifecycleHandler) func()` - Subscribe to specific lifecycle event type
+
+**Session Lifecycle Events:**
+
+```go
+// Subscribe to all lifecycle events
+unsubscribe := client.On(func(event copilot.SessionLifecycleEvent) {
+    fmt.Printf("Session %s: %s\n", event.SessionID, event.Type)
+})
+defer unsubscribe()
+
+// Subscribe to specific event type
+unsubscribe := client.OnEventType(copilot.SessionLifecycleForeground, func(event copilot.SessionLifecycleEvent) {
+    fmt.Printf("Session %s is now in foreground\n", event.SessionID)
+})
+```
+
+Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifecycleUpdated`, `SessionLifecycleForeground`, `SessionLifecycleBackground`
 
 **ClientOptions:**
 
