@@ -41,7 +41,7 @@ jobs:
         shell: bash
         working-directory: ./python
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-copilot
         id: setup-copilot
       - uses: actions/setup-python@v6

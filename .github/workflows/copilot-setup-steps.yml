@@ -24,7 +24,7 @@ jobs:
     steps:
       # Checkout the repository to install dependencies
       - name: Checkout code
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v6
 
       # Setup Node.js (for TypeScript/JavaScript SDK and tooling)
       - name: Set up Node.js
