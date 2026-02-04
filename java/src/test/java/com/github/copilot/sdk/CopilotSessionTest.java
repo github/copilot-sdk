@@ -511,4 +511,54 @@ public class CopilotSessionTest {
             session.close();
         }
     }
+
+    @Test
+    void testListSessions() throws Exception {
+        ctx.configureForTest("session", "should_list_sessions");
+
+        try (CopilotClient client = ctx.createClient()) {
+            // Create a session and send messages
+            CopilotSession session = client.createSession().get();
+            session.sendAndWait(new MessageOptions().setPrompt("Say hello")).get(60, TimeUnit.SECONDS);
+            session.sendAndWait(new MessageOptions().setPrompt("Say goodbye")).get(60, TimeUnit.SECONDS);
+
+            // List all sessions
+            var sessions = client.listSessions().get(30, TimeUnit.SECONDS);
+
+            // Should have at least the session we created
+            assertNotNull(sessions);
+            assertFalse(sessions.isEmpty(), "Should have at least 1 session");
+
+            // Our session should be in the list
+            boolean foundSession = sessions.stream().anyMatch(s -> s.getSessionId().equals(session.getSessionId()));
+            assertTrue(foundSession, "Our session should be in the list");
+
+            session.close();
+        }
+    }
+
+    @Test
+    void testDeleteSession() throws Exception {
+        ctx.configureForTest("session", "should_delete_session");
+
+        try (CopilotClient client = ctx.createClient()) {
+            // Create a session
+            CopilotSession session = client.createSession().get();
+            String sessionId = session.getSessionId();
+
+            session.sendAndWait(new MessageOptions().setPrompt("Hello")).get(60, TimeUnit.SECONDS);
+
+            // Delete the session using the client API
+            client.deleteSession(sessionId).get(30, TimeUnit.SECONDS);
+
+            // Trying to resume the deleted session should fail
+            try {
+                client.resumeSession(sessionId).get(30, TimeUnit.SECONDS);
+                fail("Expected exception when resuming deleted session");
+            } catch (Exception e) {
+                // Should throw an error indicating session not found
+                assertTrue(e.getMessage() != null || e.getCause() != null, "Exception should have a message or cause");
+            }
+        }
+    }
 }
