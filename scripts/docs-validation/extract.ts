@@ -260,15 +260,68 @@ function wrapCodeForValidation(block: CodeBlock): string {
     }
   }
 
-  // C#: wrap in minimal structure if needed
+  // C#: wrap in a class to avoid top-level statements conflicts
+  // (C# only allows one file with top-level statements per project)
   if (block.language === "csharp") {
     // Check if it's a complete file (has namespace or class)
     const hasStructure =
       code.includes("namespace ") ||
       code.includes("class ") ||
-      code.includes("record ");
+      code.includes("record ") ||
+      code.includes("public delegate ");
+
     if (!hasStructure) {
-      // Top-level statements are fine in modern C#, just ensure usings are at top
+      // Extract any existing using statements
+      const lines = code.split("\n");
+      const usings: string[] = [];
+      const rest: string[] = [];
+
+      for (const line of lines) {
+        if (line.trim().startsWith("using ") && line.trim().endsWith(";")) {
+          usings.push(line);
+        } else {
+          rest.push(line);
+        }
+      }
+
+      // Always ensure SDK using is present
+      if (!usings.some(u => u.includes("GitHub.Copilot.SDK"))) {
+        usings.push("using GitHub.Copilot.SDK;");
+      }
+
+      // Generate a unique class name based on block location
+      const className = `ValidationClass_${block.file.replace(/[^a-zA-Z0-9]/g, "_")}_${block.line}`;
+
+      // Wrap in async method to support await
+      const hasAwait = code.includes("await ");
+      const indentedCode = rest.map(l => "        " + l).join("\n");
+
+      if (hasAwait) {
+        code = `${usings.join("\n")}
+
+public static class ${className}
+{
+    public static async Task Main()
+    {
+${indentedCode}
+    }
+}`;
+      } else {
+        code = `${usings.join("\n")}
+
+public static class ${className}
+{
+    public static void Main()
+    {
+${indentedCode}
+    }
+}`;
+      }
+    } else {
+      // Has structure, but may still need using directive
+      if (!code.includes("using GitHub.Copilot.SDK;")) {
+        code = "using GitHub.Copilot.SDK;\n" + code;
+      }
     }
   }
 
