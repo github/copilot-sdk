@@ -354,13 +354,13 @@ async function validateCSharp(): Promise<ValidationResult[]> {
   return results;
 }
 
-function printResults(results: ValidationResult[], language: string): number {
+function printResults(results: ValidationResult[], language: string): { failed: number; passed: number; failures: ValidationResult[] } {
   const failed = results.filter((r) => !r.success);
   const passed = results.filter((r) => r.success);
 
   if (failed.length === 0) {
     console.log(`  ✅ ${passed.length} files passed`);
-    return 0;
+    return { failed: 0, passed: passed.length, failures: [] };
   }
 
   console.log(`  ❌ ${failed.length} failed, ${passed.length} passed\n`);
@@ -377,7 +377,46 @@ function printResults(results: ValidationResult[], language: string): number {
     console.log(`  └─`);
   }
 
-  return failed.length;
+  return { failed: failed.length, passed: passed.length, failures: failed };
+}
+
+function writeGitHubSummary(summaryData: { language: string; passed: number; failed: number; failures: ValidationResult[] }[]) {
+  const summaryFile = process.env.GITHUB_STEP_SUMMARY;
+  if (!summaryFile) return;
+
+  const totalPassed = summaryData.reduce((sum, d) => sum + d.passed, 0);
+  const totalFailed = summaryData.reduce((sum, d) => sum + d.failed, 0);
+  const allPassed = totalFailed === 0;
+
+  let summary = `## 📖 Documentation Validation Results\n\n`;
+
+  if (allPassed) {
+    summary += `✅ **All ${totalPassed} code blocks passed validation**\n\n`;
+  } else {
+    summary += `❌ **${totalFailed} failures** out of ${totalPassed + totalFailed} code blocks\n\n`;
+  }
+
+  summary += `| Language | Status | Passed | Failed |\n`;
+  summary += `|----------|--------|--------|--------|\n`;
+
+  for (const { language, passed, failed } of summaryData) {
+    const status = failed === 0 ? "✅" : "❌";
+    summary += `| ${language} | ${status} | ${passed} | ${failed} |\n`;
+  }
+
+  if (totalFailed > 0) {
+    summary += `\n### Failures\n\n`;
+    for (const { language, failures } of summaryData) {
+      if (failures.length === 0) continue;
+      summary += `#### ${language}\n\n`;
+      for (const f of failures) {
+        summary += `- **${f.sourceFile}:${f.sourceLine}**\n`;
+        summary += `  \`\`\`\n  ${f.errors.slice(0, 3).join("\n  ")}\n  \`\`\`\n`;
+      }
+    }
+  }
+
+  fs.appendFileSync(summaryFile, summary);
 }
 
 async function main() {
@@ -394,6 +433,7 @@ async function main() {
   }
 
   let totalFailed = 0;
+  const summaryData: { language: string; passed: number; failed: number; failures: ValidationResult[] }[] = [];
 
   const validators: [string, () => Promise<ValidationResult[]>][] = [
     ["TypeScript", validateTypeScript],
@@ -408,8 +448,13 @@ async function main() {
 
     console.log(`\n${name}:`);
     const results = await validator();
-    totalFailed += printResults(results, name);
+    const { failed, passed, failures } = printResults(results, name);
+    totalFailed += failed;
+    summaryData.push({ language: name, passed, failed, failures });
   }
+
+  // Write GitHub Actions summary
+  writeGitHubSummary(summaryData);
 
   console.log("\n" + "─".repeat(40));
 
