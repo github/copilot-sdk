@@ -98,7 +98,7 @@ func NotificationHandlerFor[In any](handler func(params In)) RequestHandler {
 		var in In
 		// If In is a pointer type, allocate the underlying value and unmarshal into it directly
 		var target any = &in
-		if t := reflect.TypeOf(in); t != nil && t.Kind() == reflect.Pointer {
+		if t := reflect.TypeFor[In](); t.Kind() == reflect.Pointer {
 			in = reflect.New(t.Elem()).Interface().(In)
 			target = in
 		}

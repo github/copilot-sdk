@@ -546,7 +546,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		if config.OnPermissionRequest != nil {
 			req.RequestPermission = Bool(true)
 		}
-		if config.OnPermissionRequest != nil {
+		if config.OnUserInputRequest != nil {
 			req.RequestUserInput = Bool(true)
 		}
 		if config.Hooks != nil && (config.Hooks.OnPreToolUse != nil ||
@@ -817,7 +817,7 @@ func (c *Client) OnEventType(eventType SessionLifecycleEventType, handler Sessio
 	}
 }
 
-// dispatchLifecycleEvent dispatches a lifecycle event to all registered handlers
+// handleLifecycleEvent dispatches a lifecycle event to all registered handlers
 func (c *Client) handleLifecycleEvent(event SessionLifecycleEvent) {
 	c.lifecycleHandlersMux.Lock()
 	// Copy handlers to avoid holding lock during callbacks
