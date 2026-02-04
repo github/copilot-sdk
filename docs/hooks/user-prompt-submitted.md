@@ -113,7 +113,7 @@ session = await client.create_session({
 <summary><strong>Go</strong></summary>
 
 ```go
-session, _ := client.CreateSession(ctx, copilot.SessionConfig{
+session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Hooks: &copilot.SessionHooks{
         OnUserPromptSubmitted: func(input copilot.UserPromptSubmittedHookInput, inv copilot.HookInvocation) (*copilot.UserPromptSubmittedHookOutput, error) {
             fmt.Printf("[%s] User: %s\n", inv.SessionID, input.Prompt)

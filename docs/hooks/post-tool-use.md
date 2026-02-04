@@ -119,7 +119,7 @@ session = await client.create_session({
 <summary><strong>Go</strong></summary>
 
 ```go
-session, _ := client.CreateSession(ctx, copilot.SessionConfig{
+session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Hooks: &copilot.SessionHooks{
         OnPostToolUse: func(input copilot.PostToolUseHookInput, inv copilot.HookInvocation) (*copilot.PostToolUseHookOutput, error) {
             fmt.Printf("[%s] Tool: %s\n", inv.SessionID, input.ToolName)

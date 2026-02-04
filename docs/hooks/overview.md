@@ -87,14 +87,15 @@ async def main():
 package main
 
 import (
+    "context"
     "fmt"
     copilot "github.com/github/copilot-sdk/go"
 )
 
 func main() {
-    client, _ := copilot.NewClient(copilot.ClientOptions{})
+    client := copilot.NewClient(nil)
 
-    session, _ := client.CreateSession(ctx, copilot.SessionConfig{
+    session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
         Hooks: &copilot.SessionHooks{
             OnPreToolUse: func(input copilot.PreToolUseHookInput, inv copilot.HookInvocation) (*copilot.PreToolUseHookOutput, error) {
                 fmt.Printf("Tool called: %s\n", input.ToolName)
@@ -113,6 +114,7 @@ func main() {
             },
         },
     })
+    _ = session
 }
 ```
 
