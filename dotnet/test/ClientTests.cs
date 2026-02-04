@@ -243,4 +243,13 @@ public class ClientTests : IAsyncLifetime
             });
         });
     }
+
+    [Fact]
+    public async Task Should_Not_Throw_When_Disposing_Session_After_Stopping_Client()
+    {
+        await using var client = new CopilotClient(new CopilotClientOptions { CliPath = _cliPath });
+        await using var session = await client.CreateSessionAsync();
+
+        await client.StopAsync();
+    }
 }
