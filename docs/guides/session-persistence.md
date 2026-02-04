@@ -37,7 +37,7 @@ const session = await client.createSession({
 });
 
 // Do some work...
-await session.sendPrompt({ content: "Analyze my codebase" });
+await session.sendAndWait({ prompt: "Analyze my codebase" });
 
 // Session state is automatically persisted
 // You can safely close the client
@@ -57,7 +57,7 @@ session = await client.create_session(
 )
 
 # Do some work...
-await session.send_prompt(content="Analyze my codebase")
+await session.send_and_wait({"prompt": "Analyze my codebase"})
 
 # Session state is automatically persisted
 ```
@@ -65,16 +65,16 @@ await session.send_prompt(content="Analyze my codebase")
 ### Go
 
 ```go
-client, _ := copilot.NewClient()
+client := copilot.NewClient(nil)
 
 // Create a session with a meaningful ID
-session, _ := client.CreateSession(copilot.CreateSessionOptions{
+session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     SessionID: "user-123-task-456",
     Model:     "gpt-5.2-codex",
 })
 
 // Do some work...
-session.SendPrompt(copilot.PromptOptions{Content: "Analyze my codebase"})
+session.SendAndWait(context.Background(), copilot.MessageOptions{Prompt: "Analyze my codebase"})
 
 // Session state is automatically persisted
 ```
@@ -94,7 +94,7 @@ var session = await client.CreateSessionAsync(new CreateSessionOptions
 });
 
 // Do some work...
-await session.SendPromptAsync(new PromptOptions { Content = "Analyze my codebase" });
+await session.SendAndWaitAsync(new MessageOptions { Prompt = "Analyze my codebase" });
 
 // Session state is automatically persisted
 ```
@@ -124,7 +124,7 @@ flowchart LR
 const session = await client.resumeSession("user-123-task-456");
 
 // Continue where you left off
-await session.sendPrompt({ content: "What did we discuss earlier?" });
+await session.sendAndWait({ prompt: "What did we discuss earlier?" });
 ```
 
 ### Python
@@ -134,17 +134,17 @@ await session.sendPrompt({ content: "What did we discuss earlier?" });
 session = await client.resume_session("user-123-task-456")
 
 # Continue where you left off
-await session.send_prompt(content="What did we discuss earlier?")
+await session.send_and_wait({"prompt": "What did we discuss earlier?"})
 ```
 
 ### Go
 
 ```go
 // Resume from a different client instance (or after restart)
-session, _ := client.ResumeSession("user-123-task-456", copilot.ResumeSessionOptions{})
+session, _ := client.ResumeSession(context.Background(), "user-123-task-456", nil)
 
 // Continue where you left off
-session.SendPrompt(copilot.PromptOptions{Content: "What did we discuss earlier?"})
+session.SendAndWait(context.Background(), copilot.MessageOptions{Prompt: "What did we discuss earlier?"})
 ```
 
 ### C# (.NET)
@@ -154,7 +154,7 @@ session.SendPrompt(copilot.PromptOptions{Content: "What did we discuss earlier?"
 var session = await client.ResumeSessionAsync("user-123-task-456");
 
 // Continue where you left off
-await session.SendPromptAsync(new PromptOptions { Content = "What did we discuss earlier?" });
+await session.SendAndWaitAsync(new MessageOptions { Prompt = "What did we discuss earlier?" });
 ```
 
 ## Using BYOK (Bring Your Own Key) with Resumed Sessions
@@ -290,7 +290,7 @@ When a task completes, destroy the session explicitly rather than waiting for ti
 ```typescript
 try {
   // Do work...
-  await session.sendPrompt({ content: "Complete the task" });
+  await session.sendAndWait({ prompt: "Complete the task" });
   
   // Task complete - clean up
   await session.destroy();
@@ -472,7 +472,7 @@ async function withSessionLock<T>(
 // Usage
 await withSessionLock("user-123-task-456", async () => {
   const session = await client.resumeSession("user-123-task-456");
-  await session.sendPrompt({ content: "Continue the task" });
+  await session.sendAndWait({ prompt: "Continue the task" });
 });
 ```
 

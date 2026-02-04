@@ -126,7 +126,7 @@ session = await client.create_session({
 <summary><strong>Go</strong></summary>
 
 ```go
-session, _ := client.CreateSession(ctx, copilot.SessionConfig{
+session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Hooks: &copilot.SessionHooks{
         OnPreToolUse: func(input copilot.PreToolUseHookInput, inv copilot.HookInvocation) (*copilot.PreToolUseHookOutput, error) {
             fmt.Printf("[%s] Calling %s\n", inv.SessionID, input.ToolName)

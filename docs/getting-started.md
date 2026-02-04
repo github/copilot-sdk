@@ -1020,7 +1020,7 @@ const session = await client.createSession({
 });
 ```
 
-📖 **[Full MCP documentation →](./mcp.md)** - Learn about local vs remote servers, all configuration options, and troubleshooting.
+📖 **[Full MCP documentation →](./mcp/overview.md)** - Learn about local vs remote servers, all configuration options, and troubleshooting.
 
 ### Create Custom Agents
 

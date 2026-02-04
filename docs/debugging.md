@@ -47,7 +47,7 @@ client = CopilotClient(log_level="debug")
 ```go
 import copilot "github.com/github/copilot-sdk/go"
 
-client, err := copilot.NewClient(copilot.ClientOptions{
+client := copilot.NewClient(&copilot.ClientOptions{
     LogLevel: "debug",
 })
 ```
@@ -169,7 +169,7 @@ var client = new CopilotClient(new CopilotClientOptions
    <summary><strong>Go</strong></summary>
 
    ```go
-   client, _ := copilot.NewClient(copilot.ClientOptions{
+   client := copilot.NewClient(&copilot.ClientOptions{
        CLIPath: "/usr/local/bin/copilot",
    })
    ```
@@ -222,7 +222,7 @@ var client = new CopilotClient(new CopilotClientOptions
    <summary><strong>Go</strong></summary>
 
    ```go
-   client, _ := copilot.NewClient(copilot.ClientOptions{
+   client := copilot.NewClient(&copilot.ClientOptions{
        GithubToken: os.Getenv("GITHUB_TOKEN"),
    })
    ```
