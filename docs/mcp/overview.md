@@ -255,20 +255,18 @@ directories for different applications.
 | "Timeout" errors | Increase the `timeout` value or check server performance |
 | Tools work but aren't called | Ensure your prompt clearly requires the tool's functionality |
 
-### Debugging tips
-
-1. **Enable verbose logging** in your MCP server to see incoming requests
-2. **Test your MCP server independently** before integrating with the SDK
-3. **Start with a simple tool** to verify the integration works
+For detailed debugging guidance, see the **[MCP Debugging Guide](./debugging.md)**.
 
 ## Related Resources
 
 - [Model Context Protocol Specification](https://modelcontextprotocol.io/)
 - [MCP Servers Directory](https://github.com/modelcontextprotocol/servers) - Community MCP servers
 - [GitHub MCP Server](https://github.com/github/github-mcp-server) - Official GitHub MCP server
-- [Getting Started Guide](./getting-started.md) - SDK basics and custom tools
+- [Getting Started Guide](../getting-started.md) - SDK basics and custom tools
+- [General Debugging Guide](../debugging.md) - SDK-wide debugging
 
 ## See Also
 
+- [MCP Debugging Guide](./debugging.md) - Detailed MCP troubleshooting
 - [Issue #9](https://github.com/github/copilot-sdk/issues/9) - Original MCP tools usage question
 - [Issue #36](https://github.com/github/copilot-sdk/issues/36) - MCP documentation tracking issue

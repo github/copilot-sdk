@@ -1155,11 +1155,13 @@ await using var session = await client.CreateSessionAsync();
 
 ## Learn More
 
+- [Authentication Guide](./auth/index.md) - GitHub OAuth, environment variables, and BYOK
+- [BYOK (Bring Your Own Key)](./auth/byok.md) - Use your own API keys from Azure AI Foundry, OpenAI, etc.
 - [Node.js SDK Reference](../nodejs/README.md)
 - [Python SDK Reference](../python/README.md)
 - [Go SDK Reference](../go/README.md)
 - [.NET SDK Reference](../dotnet/README.md)
-- [Using MCP Servers](./mcp.md) - Integrate external tools via Model Context Protocol
+- [Using MCP Servers](./mcp) - Integrate external tools via Model Context Protocol
 - [GitHub MCP Server Documentation](https://github.com/github/github-mcp-server)
 - [MCP Servers Directory](https://github.com/modelcontextprotocol/servers) - Explore more MCP servers
 

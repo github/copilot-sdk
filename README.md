@@ -63,7 +63,19 @@ Billing for the GitHub Copilot SDK is based on the same model as the Copilot CLI
 
 ### Does it support BYOK (Bring Your Own Key)?
 
-Yes, the GitHub Copilot SDK supports BYOK (Bring Your Own Key). You can configure the SDK to use your own API keys from supported LLM providers (e.g. OpenAI, Azure, Anthropic) to access models through those providers. Refer to the individual SDK documentation for instructions on setting up BYOK.
+Yes, the GitHub Copilot SDK supports BYOK (Bring Your Own Key). You can configure the SDK to use your own API keys from supported LLM providers (e.g. OpenAI, Azure AI Foundry, Anthropic) to access models through those providers. See the **[BYOK documentation](./docs/auth/byok.md)** for setup instructions and examples.
+
+**Note:** BYOK uses key-based authentication only. Microsoft Entra ID (Azure AD), managed identities, and third-party identity providers are not supported.
+
+### What authentication methods are supported?
+
+The SDK supports multiple authentication methods:
+- **GitHub signed-in user** - Uses stored OAuth credentials from `copilot` CLI login
+- **OAuth GitHub App** - Pass user tokens from your GitHub OAuth app
+- **Environment variables** - `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_TOKEN`
+- **BYOK** - Use your own API keys (no GitHub auth required)
+
+See the **[Authentication documentation](./docs/auth/index.md)** for details on each method.
 
 ### Do I need to install the Copilot CLI separately?
 
@@ -96,6 +108,7 @@ Please use the [GitHub Issues](https://github.com/github/copilot-sdk/issues) pag
 ## Quick Links
 
 - **[Getting Started](./docs/getting-started.md)** – Tutorial to get up and running
+- **[Authentication](./docs/auth/index.md)** – GitHub OAuth, BYOK, and more
 - **[Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk)** – Practical recipes for common tasks across all languages
 - **[More Resources](https://github.com/github/awesome-copilot/blob/main/collections/copilot-sdk.md)** – Additional examples, tutorials, and community resources
 
