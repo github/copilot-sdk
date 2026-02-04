@@ -1239,7 +1239,7 @@ if err := client.Start(ctx); err != nil {
 defer client.Stop()
 
 // Use the client normally
-session, err := client.CreateSession()
+session, err := client.CreateSession(ctx, nil)
 // ...
 ```
 
