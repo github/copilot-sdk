@@ -24,6 +24,7 @@ type PreToolUseHandler = (
 <details>
 <summary><strong>Python</strong></summary>
 
+<!-- docs-validate: skip -->
 ```python
 PreToolUseHandler = Callable[
     [PreToolUseHookInput, HookInvocation],

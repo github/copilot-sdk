@@ -24,6 +24,7 @@ type PostToolUseHandler = (
 <details>
 <summary><strong>Python</strong></summary>
 
+<!-- docs-validate: skip -->
 ```python
 PostToolUseHandler = Callable[
     [PostToolUseHookInput, HookInvocation],

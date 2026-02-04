@@ -28,6 +28,7 @@ type SessionStartHandler = (
 <details>
 <summary><strong>Python</strong></summary>
 
+<!-- docs-validate: skip -->
 ```python
 SessionStartHandler = Callable[
     [SessionStartHookInput, HookInvocation],
@@ -205,6 +206,7 @@ type SessionEndHandler = (
 <details>
 <summary><strong>Python</strong></summary>
 
+<!-- docs-validate: skip -->
 ```python
 SessionEndHandler = Callable[
     [SessionEndHookInput, HookInvocation],

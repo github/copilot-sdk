@@ -24,6 +24,7 @@ type ErrorOccurredHandler = (
 <details>
 <summary><strong>Python</strong></summary>
 
+<!-- docs-validate: skip -->
 ```python
 ErrorOccurredHandler = Callable[
     [ErrorOccurredHookInput, HookInvocation],

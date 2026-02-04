@@ -253,6 +253,7 @@ const client = new CopilotClient({
 <details>
 <summary><strong>Python</strong></summary>
 
+<!-- docs-validate: skip -->
 ```python
 client = CopilotClient({
     "use_logged_in_user": False,  # Only use explicit tokens

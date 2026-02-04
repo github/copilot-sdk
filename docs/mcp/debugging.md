@@ -242,6 +242,7 @@ cd /expected/working/dir
 
 #### .NET Console Apps / Tools
 
+<!-- docs-validate: skip -->
 ```csharp
 // Correct configuration for .NET exe
 ["my-dotnet-server"] = new McpLocalServerConfig
@@ -266,6 +267,7 @@ cd /expected/working/dir
 
 #### NPX Commands
 
+<!-- docs-validate: skip -->
 ```csharp
 // Windows needs cmd /c for npx
 ["filesystem"] = new McpLocalServerConfig

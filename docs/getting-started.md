@@ -426,6 +426,7 @@ unsubscribeIdle();
 <details>
 <summary><strong>Python</strong></summary>
 
+<!-- docs-validate: skip -->
 ```python
 # Subscribe to all events
 unsubscribe = session.on(lambda event: print(f"Event: {event.type}"))

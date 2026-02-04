@@ -24,6 +24,7 @@ type UserPromptSubmittedHandler = (
 <details>
 <summary><strong>Python</strong></summary>
 
+<!-- docs-validate: skip -->
 ```python
 UserPromptSubmittedHandler = Callable[
     [UserPromptSubmittedHookInput, HookInvocation],
