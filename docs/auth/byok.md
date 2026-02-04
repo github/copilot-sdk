@@ -104,13 +104,14 @@ import (
 )
 
 func main() {
+    ctx := context.Background()
     client := copilot.NewClient(nil)
     if err := client.Start(); err != nil {
         panic(err)
     }
     defer client.Stop()
 
-    session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
+    session, err := client.CreateSession(ctx, &copilot.SessionConfig{
         Model: "gpt-5.2-codex",  // Your deployment name
         Provider: &copilot.ProviderConfig{
             Type:    "openai",
@@ -123,9 +124,9 @@ func main() {
         panic(err)
     }
 
-    response, err := session.SendAndWait(copilot.MessageOptions{
+    response, err := session.SendAndWait(ctx, copilot.MessageOptions{
         Prompt: "What is 2+2?",
-    }, 0)
+    })
     if err != nil {
         panic(err)
     }

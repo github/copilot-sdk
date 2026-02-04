@@ -81,13 +81,14 @@ import (
 )
 
 func main() {
+    ctx := context.Background()
     client := copilot.NewClient(nil)
     if err := client.Start(); err != nil {
         log.Fatal(err)
     }
     defer client.Stop()
 
-    session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
+    session, err := client.CreateSession(ctx, &copilot.SessionConfig{
         Model: "gpt-4.1",
         SkillDirectories: []string{
             "./skills/code-review",
@@ -100,7 +101,7 @@ func main() {
     }
 
     // Copilot now has access to skills in those directories
-    _, err = session.SendAndWait(context.Background(), copilot.MessageOptions{
+    _, err = session.SendAndWait(ctx, copilot.MessageOptions{
         Prompt: "Review this code for security issues",
     })
     if err != nil {

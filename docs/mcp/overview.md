@@ -168,7 +168,6 @@ import { CopilotClient } from "@github/copilot-sdk";
 
 async function main() {
     const client = new CopilotClient();
-    await client.start();
 
     // Create session with filesystem MCP server
     const session = await client.createSession({
