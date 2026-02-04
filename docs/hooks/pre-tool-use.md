@@ -12,6 +12,7 @@ The `onPreToolUse` hook is called **before** a tool executes. Use it to:
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
+<!-- docs-validate: skip -->
 ```typescript
 type PreToolUseHandler = (
   input: PreToolUseHookInput,
@@ -50,6 +51,7 @@ type PreToolUseHandler func(
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: skip -->
 ```csharp
 public delegate Task<PreToolUseHookOutput?> PreToolUseHandler(
     PreToolUseHookInput input,

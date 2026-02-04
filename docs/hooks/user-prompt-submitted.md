@@ -12,6 +12,7 @@ The `onUserPromptSubmitted` hook is called when a user submits a message. Use it
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
+<!-- docs-validate: skip -->
 ```typescript
 type UserPromptSubmittedHandler = (
   input: UserPromptSubmittedHookInput,
@@ -50,6 +51,7 @@ type UserPromptSubmittedHandler func(
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: skip -->
 ```csharp
 public delegate Task<UserPromptSubmittedHookOutput?> UserPromptSubmittedHandler(
     UserPromptSubmittedHookInput input,

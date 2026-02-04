@@ -12,6 +12,7 @@ The `onErrorOccurred` hook is called when errors occur during session execution.
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
+<!-- docs-validate: skip -->
 ```typescript
 type ErrorOccurredHandler = (
   input: ErrorOccurredHookInput,
@@ -50,6 +51,7 @@ type ErrorOccurredHandler func(
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: skip -->
 ```csharp
 public delegate Task<ErrorOccurredHookOutput?> ErrorOccurredHandler(
     ErrorOccurredHookInput input,

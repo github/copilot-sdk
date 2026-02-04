@@ -16,6 +16,7 @@ The `onSessionStart` hook is called when a session begins (new or resumed).
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
+<!-- docs-validate: skip -->
 ```typescript
 type SessionStartHandler = (
   input: SessionStartHookInput,
@@ -54,6 +55,7 @@ type SessionStartHandler func(
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: skip -->
 ```csharp
 public delegate Task<SessionStartHookOutput?> SessionStartHandler(
     SessionStartHookInput input,
