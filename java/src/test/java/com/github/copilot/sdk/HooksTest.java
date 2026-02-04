@@ -24,18 +24,20 @@ import com.github.copilot.sdk.json.PostToolUseHookInput;
 import com.github.copilot.sdk.json.PreToolUseHookInput;
 import com.github.copilot.sdk.json.PreToolUseHookOutput;
 import com.github.copilot.sdk.json.SessionConfig;
-import com.github.copilot.sdk.json.SessionEndHookInput;
 import com.github.copilot.sdk.json.SessionHooks;
-import com.github.copilot.sdk.json.SessionStartHookInput;
-import com.github.copilot.sdk.json.UserPromptSubmittedHookInput;
 
 /**
- * Tests for hooks functionality (pre-tool-use, post-tool-use,
- * user-prompt-submitted, session-start, and session-end hooks).
+ * Tests for hooks functionality (pre-tool-use and post-tool-use hooks).
  *
  * <p>
  * These tests use the shared CapiProxy infrastructure for deterministic API
  * response replay. Snapshots are stored in test/snapshots/hooks/.
+ * </p>
+ *
+ * <p>
+ * Note: Tests for userPromptSubmitted, sessionStart, and sessionEnd hooks are
+ * not included as they are not tested in the upstream .NET or Node.js SDKs and
+ * require test harness updates to properly invoke these hooks.
  * </p>
  */
 public class HooksTest {
@@ -195,91 +197,6 @@ public class HooksTest {
 
             // The response should be defined
             assertNotNull(response, "Response should not be null");
-        }
-    }
-
-    @Test
-    @org.junit.jupiter.api.Disabled("Requires test harness update to support userPromptSubmitted hook invocation")
-    void testUserPromptSubmittedHookInvokedWhenUserSendsMessage() throws Exception {
-        ctx.configureForTest("hooks", "invoke_user_prompt_submitted_hook");
-
-        List<UserPromptSubmittedHookInput> promptInputs = new ArrayList<>();
-        final String[] sessionIdHolder = new String[1];
-
-        SessionConfig config = new SessionConfig()
-                .setHooks(new SessionHooks().setOnUserPromptSubmitted((input, invocation) -> {
-                    promptInputs.add(input);
-                    assertEquals(sessionIdHolder[0], invocation.getSessionId());
-                    return CompletableFuture.completedFuture(null);
-                }));
-
-        try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(config).get();
-            sessionIdHolder[0] = session.getSessionId();
-
-            session.sendAndWait(new MessageOptions().setPrompt("Hello, Copilot!")).get(60, TimeUnit.SECONDS);
-
-            // Should have received at least one userPromptSubmitted hook call
-            assertFalse(promptInputs.isEmpty(), "Should have received userPromptSubmitted hook calls");
-
-            // Should have received the prompt
-            assertTrue(promptInputs.stream().anyMatch(i -> i.getPrompt() != null && !i.getPrompt().isEmpty()),
-                    "Should have received prompt in userPromptSubmitted hook");
-        }
-    }
-
-    @Test
-    @org.junit.jupiter.api.Disabled("Requires test harness update to support sessionStart hook invocation")
-    void testSessionStartHookInvokedWhenSessionCreated() throws Exception {
-        ctx.configureForTest("hooks", "invoke_session_start_hook");
-
-        List<SessionStartHookInput> startInputs = new ArrayList<>();
-
-        SessionConfig config = new SessionConfig()
-                .setHooks(new SessionHooks().setOnSessionStart((input, invocation) -> {
-                    startInputs.add(input);
-                    return CompletableFuture.completedFuture(null);
-                }));
-
-        try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(config).get();
-
-            // Send a message to trigger the session lifecycle
-            session.sendAndWait(new MessageOptions().setPrompt("Hello")).get(60, TimeUnit.SECONDS);
-
-            // Should have received at least one sessionStart hook call
-            assertFalse(startInputs.isEmpty(), "Should have received sessionStart hook calls");
-
-            // Should have received the source
-            assertTrue(startInputs.stream().anyMatch(i -> i.getSource() != null),
-                    "Should have received source in sessionStart hook");
-        }
-    }
-
-    @Test
-    @org.junit.jupiter.api.Disabled("Requires test harness update to support sessionEnd hook invocation")
-    void testSessionEndHookInvokedWhenSessionEnds() throws Exception {
-        ctx.configureForTest("hooks", "invoke_session_end_hook");
-
-        List<SessionEndHookInput> endInputs = new ArrayList<>();
-
-        SessionConfig config = new SessionConfig().setHooks(new SessionHooks().setOnSessionEnd((input, invocation) -> {
-            endInputs.add(input);
-            return CompletableFuture.completedFuture(null);
-        }));
-
-        try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(config).get();
-
-            // Send a message and wait for completion
-            session.sendAndWait(new MessageOptions().setPrompt("Say hello")).get(60, TimeUnit.SECONDS);
-
-            // Should have received at least one sessionEnd hook call
-            assertFalse(endInputs.isEmpty(), "Should have received sessionEnd hook calls");
-
-            // Should have received the reason
-            assertTrue(endInputs.stream().anyMatch(i -> i.getReason() != null),
-                    "Should have received reason in sessionEnd hook");
         }
     }
 }
