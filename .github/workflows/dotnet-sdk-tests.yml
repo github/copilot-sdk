@@ -26,6 +26,8 @@ permissions:
 jobs:
   test:
     name: ".NET SDK Tests"
+    env:
+      POWERSHELL_UPDATECHECK: Off
     strategy:
       fail-fast: false
       matrix:

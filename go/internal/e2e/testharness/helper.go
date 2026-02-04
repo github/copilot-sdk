@@ -1,6 +1,7 @@
 package testharness
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -8,7 +9,7 @@ import (
 )
 
 // GetFinalAssistantMessage waits for and returns the final assistant message from a session turn.
-func GetFinalAssistantMessage(session *copilot.Session, timeout time.Duration) (*copilot.SessionEvent, error) {
+func GetFinalAssistantMessage(ctx context.Context, session *copilot.Session) (*copilot.SessionEvent, error) {
 	result := make(chan *copilot.SessionEvent, 1)
 	errCh := make(chan error, 1)
 
@@ -34,7 +35,7 @@ func GetFinalAssistantMessage(session *copilot.Session, timeout time.Duration) (
 
 	// Also check existing messages in case the response already arrived
 	go func() {
-		existing, err := getExistingFinalResponse(session)
+		existing, err := getExistingFinalResponse(ctx, session)
 		if err != nil {
 			errCh <- err
 			return
@@ -49,7 +50,7 @@ func GetFinalAssistantMessage(session *copilot.Session, timeout time.Duration) (
 		return msg, nil
 	case err := <-errCh:
 		return nil, err
-	case <-time.After(timeout):
+	case <-ctx.Done():
 		return nil, errors.New("timeout waiting for assistant message")
 	}
 }
@@ -89,8 +90,8 @@ func GetNextEventOfType(session *copilot.Session, eventType copilot.SessionEvent
 	}
 }
 
-func getExistingFinalResponse(session *copilot.Session) (*copilot.SessionEvent, error) {
-	messages, err := session.GetMessages()
+func getExistingFinalResponse(ctx context.Context, session *copilot.Session) (*copilot.SessionEvent, error) {
+	messages, err := session.GetMessages(ctx)
 	if err != nil {
 		return nil, err
 	}

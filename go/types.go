@@ -591,3 +591,48 @@ type DeleteSessionResponse struct {
 	Success bool    `json:"success"`
 	Error   *string `json:"error,omitempty"`
 }
+
+// SessionLifecycleEventType represents the type of session lifecycle event
+type SessionLifecycleEventType string
+
+const (
+	SessionLifecycleCreated    SessionLifecycleEventType = "session.created"
+	SessionLifecycleDeleted    SessionLifecycleEventType = "session.deleted"
+	SessionLifecycleUpdated    SessionLifecycleEventType = "session.updated"
+	SessionLifecycleForeground SessionLifecycleEventType = "session.foreground"
+	SessionLifecycleBackground SessionLifecycleEventType = "session.background"
+)
+
+// SessionLifecycleEvent represents a session lifecycle notification
+type SessionLifecycleEvent struct {
+	Type      SessionLifecycleEventType      `json:"type"`
+	SessionID string                         `json:"sessionId"`
+	Metadata  *SessionLifecycleEventMetadata `json:"metadata,omitempty"`
+}
+
+// SessionLifecycleEventMetadata contains optional metadata for lifecycle events
+type SessionLifecycleEventMetadata struct {
+	StartTime    string  `json:"startTime"`
+	ModifiedTime string  `json:"modifiedTime"`
+	Summary      *string `json:"summary,omitempty"`
+}
+
+// SessionLifecycleHandler is a callback for session lifecycle events
+type SessionLifecycleHandler func(event SessionLifecycleEvent)
+
+// GetForegroundSessionResponse is the response from session.getForeground
+type GetForegroundSessionResponse struct {
+	SessionID     *string `json:"sessionId,omitempty"`
+	WorkspacePath *string `json:"workspacePath,omitempty"`
+}
+
+// SetForegroundSessionRequest is the request for session.setForeground
+type SetForegroundSessionRequest struct {
+	SessionID string `json:"sessionId"`
+}
+
+// SetForegroundSessionResponse is the response from session.setForeground
+type SetForegroundSessionResponse struct {
+	Success bool    `json:"success"`
+	Error   *string `json:"error,omitempty"`
+}
