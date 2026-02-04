@@ -215,7 +215,7 @@ async function downloadCli(
         }
 
         await new Promise<void>((resolve, reject) => {
-            writeStream.end((err: Error | null | undefined) => {
+            writeStream.close((err: Error | null | undefined) => {
                 if (err) reject(err);
                 else resolve();
             });
@@ -259,18 +259,27 @@ async function downloadCli(
     }
 }
 
-// tar is built-in on Windows 10+, macOS, and Linux
+// tar is built-in on Windows 10+, macOS, and Linux and handles .zip and .tar.gz
 async function extractArchive(archivePath: string, destDir: string): Promise<void> {
     return new Promise((resolve, reject) => {
-        const proc = spawn("tar", ["-xf", archivePath, "-C", destDir], { stdio: "ignore" });
+        const proc = spawn("tar", ["-xf", archivePath, "-C", destDir], { stdio: "pipe" });
+
+        let stderr = "";
+        proc.stderr?.on("data", (data) => {
+            stderr += data.toString();
+        });
 
         proc.on("error", reject);
         proc.on("exit", (code) => {
             if (code === 0) resolve();
-            else
+            else {
+                const msg = stderr ? `: ${stderr.trim()}` : "";
                 reject(
-                    new Error(`Archive extraction failed for ${archivePath} (exit code ${code})`)
+                    new Error(
+                        `Archive extraction failed for ${archivePath} (exit code ${code})${msg}`
+                    )
                 );
+            }
         });
     });
 }
