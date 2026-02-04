@@ -83,6 +83,15 @@ public final class AssistantMessageEvent extends AbstractSessionEvent {
         @JsonProperty("parentToolCallId")
         private String parentToolCallId;
 
+        @JsonProperty("reasoningOpaque")
+        private String reasoningOpaque;
+
+        @JsonProperty("reasoningText")
+        private String reasoningText;
+
+        @JsonProperty("encryptedContent")
+        private String encryptedContent;
+
         /**
          * Gets the unique message identifier.
          *
@@ -157,6 +166,63 @@ public final class AssistantMessageEvent extends AbstractSessionEvent {
          */
         public void setParentToolCallId(String parentToolCallId) {
             this.parentToolCallId = parentToolCallId;
+        }
+
+        /**
+         * Gets the opaque reasoning content (encrypted/encoded).
+         *
+         * @return the opaque reasoning content, or {@code null}
+         */
+        public String getReasoningOpaque() {
+            return reasoningOpaque;
+        }
+
+        /**
+         * Sets the opaque reasoning content.
+         *
+         * @param reasoningOpaque
+         *            the opaque reasoning content
+         */
+        public void setReasoningOpaque(String reasoningOpaque) {
+            this.reasoningOpaque = reasoningOpaque;
+        }
+
+        /**
+         * Gets the human-readable reasoning text.
+         *
+         * @return the reasoning text, or {@code null}
+         */
+        public String getReasoningText() {
+            return reasoningText;
+        }
+
+        /**
+         * Sets the reasoning text.
+         *
+         * @param reasoningText
+         *            the reasoning text
+         */
+        public void setReasoningText(String reasoningText) {
+            this.reasoningText = reasoningText;
+        }
+
+        /**
+         * Gets the encrypted content.
+         *
+         * @return the encrypted content, or {@code null}
+         */
+        public String getEncryptedContent() {
+            return encryptedContent;
+        }
+
+        /**
+         * Sets the encrypted content.
+         *
+         * @param encryptedContent
+         *            the encrypted content
+         */
+        public void setEncryptedContent(String encryptedContent) {
+            this.encryptedContent = encryptedContent;
         }
 
         /**

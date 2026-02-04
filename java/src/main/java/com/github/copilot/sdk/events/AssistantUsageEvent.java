@@ -66,6 +66,9 @@ public final class AssistantUsageEvent extends AbstractSessionEvent {
         @JsonProperty("providerCallId")
         private String providerCallId;
 
+        @JsonProperty("parentToolCallId")
+        private String parentToolCallId;
+
         @JsonProperty("quotaSnapshots")
         private Map<String, Object> quotaSnapshots;
 
@@ -147,6 +150,14 @@ public final class AssistantUsageEvent extends AbstractSessionEvent {
 
         public void setProviderCallId(String providerCallId) {
             this.providerCallId = providerCallId;
+        }
+
+        public String getParentToolCallId() {
+            return parentToolCallId;
+        }
+
+        public void setParentToolCallId(String parentToolCallId) {
+            this.parentToolCallId = parentToolCallId;
         }
 
         public Map<String, Object> getQuotaSnapshots() {

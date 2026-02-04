@@ -43,6 +43,12 @@ public final class SessionErrorEvent extends AbstractSessionEvent {
         @JsonProperty("stack")
         private String stack;
 
+        @JsonProperty("statusCode")
+        private Double statusCode;
+
+        @JsonProperty("providerCallId")
+        private String providerCallId;
+
         public String getErrorType() {
             return errorType;
         }
@@ -65,6 +71,22 @@ public final class SessionErrorEvent extends AbstractSessionEvent {
 
         public void setStack(String stack) {
             this.stack = stack;
+        }
+
+        public Double getStatusCode() {
+            return statusCode;
+        }
+
+        public void setStatusCode(Double statusCode) {
+            this.statusCode = statusCode;
+        }
+
+        public String getProviderCallId() {
+            return providerCallId;
+        }
+
+        public void setProviderCallId(String providerCallId) {
+            this.providerCallId = providerCallId;
         }
     }
 }

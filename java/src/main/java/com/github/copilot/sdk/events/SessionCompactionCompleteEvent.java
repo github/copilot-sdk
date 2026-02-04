@@ -58,6 +58,12 @@ public final class SessionCompactionCompleteEvent extends AbstractSessionEvent {
         @JsonProperty("summaryContent")
         private String summaryContent;
 
+        @JsonProperty("checkpointNumber")
+        private Double checkpointNumber;
+
+        @JsonProperty("checkpointPath")
+        private String checkpointPath;
+
         public boolean isSuccess() {
             return success;
         }
@@ -120,6 +126,22 @@ public final class SessionCompactionCompleteEvent extends AbstractSessionEvent {
 
         public void setSummaryContent(String summaryContent) {
             this.summaryContent = summaryContent;
+        }
+
+        public Double getCheckpointNumber() {
+            return checkpointNumber;
+        }
+
+        public void setCheckpointNumber(Double checkpointNumber) {
+            this.checkpointNumber = checkpointNumber;
+        }
+
+        public String getCheckpointPath() {
+            return checkpointPath;
+        }
+
+        public void setCheckpointPath(String checkpointPath) {
+            this.checkpointPath = checkpointPath;
         }
     }
 }
