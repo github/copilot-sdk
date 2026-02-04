@@ -8,23 +8,16 @@ When you create a session, the Copilot CLI maintains conversation history, tool 
 
 ```mermaid
 flowchart LR
-    subgraph Lifecycle["Session Lifecycle"]
-        A[Create Session] --> B[Active]
-        B --> C[Paused]
-        C --> D[Resume]
-        D --> B
-    end
-    
-    A --> |"session_id assigned"| A1[" "]
-    B --> |"prompts, tool calls"| B1[" "]
-    C --> |"state saved to disk"| C1[" "]
-    D --> |"state loaded from disk"| D1[" "]
-    
-    style A1 fill:none,stroke:none
-    style B1 fill:none,stroke:none
-    style C1 fill:none,stroke:none
-    style D1 fill:none,stroke:none
+    A[🆕 Create] --> B[⚡ Active] --> C[💾 Paused] --> D[🔄 Resume]
+    D --> B
 ```
+
+| State | What happens |
+|-------|--------------|
+| **Create** | `session_id` assigned |
+| **Active** | Send prompts, tool calls, responses |
+| **Paused** | State saved to disk |
+| **Resume** | State loaded from disk |
 
 ## Quick Start: Creating a Resumable Session
 
@@ -111,23 +104,17 @@ await session.SendPromptAsync(new PromptOptions { Content = "Analyze my codebase
 Later—minutes, hours, or even days—you can resume the session from where you left off.
 
 ```mermaid
-flowchart TB
-    subgraph Day1["Client A (Day 1)"]
-        A1[createSession<br/>id: task-456] --> A2[Work...<br/>Messages<br/>Tool calls]
+flowchart LR
+    subgraph Day1["Day 1"]
+        A1[Client A:<br/>createSession] --> A2[Work...]
     end
     
-    subgraph Day2["Client B (Day 2)"]
-        B1[resumeSession<br/>id: task-456] --> B2[Continue from<br/>where you left off]
-    end
+    A2 --> S[(💾 Storage:<br/>~/.copilot/session-state/)]
+    S --> B1
     
-    subgraph Storage["~/.copilot/session-state/task-456/"]
-        S1[checkpoints/]
-        S2[plan.md]
-        S3[files/]
+    subgraph Day2["Day 2"]
+        B1[Client B:<br/>resumeSession] --> B2[Continue]
     end
-    
-    A2 --> |"persist"| Storage
-    Storage --> |"restore"| B1
 ```
 
 ### TypeScript
@@ -228,29 +215,12 @@ Session state is saved to `~/.copilot/session-state/{sessionId}/`:
 
 Choose session IDs that encode ownership and purpose. This makes auditing and cleanup much easier.
 
-```mermaid
-flowchart TB
-    subgraph Bad["❌ Bad: Random IDs"]
-        B1["abc123"]
-        B2["session-7f3d2a1b"]
-    end
-    
-    subgraph Good["✅ Good: Structured IDs"]
-        G1["user-{userId}-{taskId}"]
-        G2["tenant-{tenantId}-{workflow}"]
-        G3["{userId}-{taskId}-{timestamp}"]
-    end
-    
-    subgraph Examples["Examples"]
-        E1["user-alice-pr-review-42"]
-        E2["tenant-acme-onboarding"]
-        E3["alice-deploy-1706932800"]
-    end
-    
-    G1 --> E1
-    G2 --> E2
-    G3 --> E3
-```
+| Pattern | Example | Use Case |
+|---------|---------|----------|
+| ❌ `abc123` | Random IDs | Hard to audit, no ownership info |
+| ✅ `user-{userId}-{taskId}` | `user-alice-pr-review-42` | Multi-user apps |
+| ✅ `tenant-{tenantId}-{workflow}` | `tenant-acme-onboarding` | Multi-tenant SaaS |
+| ✅ `{userId}-{taskId}-{timestamp}` | `alice-deploy-1706932800` | Time-based cleanup |
 
 **Benefits of structured IDs:**
 - Easy to audit: "Show all sessions for user alice"
@@ -336,14 +306,8 @@ try {
 The CLI has a built-in 30-minute idle timeout. Sessions without activity are automatically cleaned up:
 
 ```mermaid
-timeline
-    title Session Idle Timeout
-    section Active
-        Last Activity : Session in use
-    section Warning
-        25 minutes : session.timeout_warning event
-    section Cleanup
-        30 minutes : session.destroyed event
+flowchart LR
+    A["⚡ Last Activity"] --> B["⏳ 25 min<br/>timeout_warning"] --> C["🧹 30 min<br/>destroyed"]
 ```
 
 Listen for idle events to know when work completes:
@@ -361,26 +325,15 @@ session.on("session.idle", (event) => {
 Best for: Strong isolation, multi-tenant environments, Azure Dynamic Sessions.
 
 ```mermaid
-flowchart TB
-    subgraph Users
-        UA[User A Client]
-        UB[User B Client]
-        UC[User C Client]
+flowchart LR
+    subgraph Users[" "]
+        UA[User A] --> CA[CLI A]
+        UB[User B] --> CB[CLI B]
+        UC[User C] --> CC[CLI C]
     end
-    
-    subgraph Isolated["Isolated Containers"]
-        UA --> CA[CLI Server A]
-        UB --> CB[CLI Server B]
-        UC --> CC[CLI Server C]
-        
-        CA --> SA[(Session Storage A)]
-        CB --> SB[(Session Storage B)]
-        CC --> SC[(Session Storage C)]
-    end
-    
-    style CA fill:#90EE90
-    style CB fill:#90EE90
-    style CC fill:#90EE90
+    CA --> SA[(Storage A)]
+    CB --> SB[(Storage B)]
+    CC --> SC[(Storage C)]
 ```
 
 **Benefits:** ✅ Complete isolation | ✅ Simple security | ✅ Easy scaling
@@ -390,24 +343,13 @@ flowchart TB
 Best for: Internal tools, trusted environments, resource-constrained setups.
 
 ```mermaid
-flowchart TB
-    subgraph Users
-        UA[User A Client]
-        UB[User B Client]
-        UC[User C Client]
-    end
-    
-    UA --> CLI
-    UB --> CLI
-    UC --> CLI
-    
-    CLI[Shared CLI Server]
-    
-    CLI --> SA[Session A<br/>user-a-*]
-    CLI --> SB[Session B<br/>user-b-*]
-    CLI --> SC[Session C<br/>user-c-*]
-    
-    style CLI fill:#FFD700
+flowchart LR
+    UA[User A] --> CLI
+    UB[User B] --> CLI
+    UC[User C] --> CLI
+    CLI[🖥️ Shared CLI] --> SA[Session A]
+    CLI --> SB[Session B]
+    CLI --> SC[Session C]
 ```
 
 **Requirements:**
@@ -458,23 +400,17 @@ volumes:
 ```
 
 ```mermaid
-flowchart TB
-    subgraph ContainerA["Container A (original)"]
-        CLI1[CLI Server<br/>Session X]
+flowchart LR
+    subgraph Before["Container A"]
+        CLI1[CLI + Session X]
     end
     
-    subgraph ContainerB["Container B (after restart)"]
-        CLI2[CLI Server<br/>Session X]
+    CLI1 --> |persist| Azure[(☁️ Azure File Share)]
+    Azure --> |restore| CLI2
+    
+    subgraph After["Container B (restart)"]
+        CLI2[CLI + Session X]
     end
-    
-    subgraph Azure["Azure File Share (Persistent)"]
-        FS["/session-state/<br/>└── session-x/<br/>    ├── checkpoints/<br/>    └── plan.md"]
-    end
-    
-    CLI1 --> |"persist"| Azure
-    Azure --> |"restore"| CLI2
-    
-    style Azure fill:#0078D4,color:#fff
 ```
 
 **Session survives container restarts!**
