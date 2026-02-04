@@ -890,7 +890,7 @@ func (c *Client) Ping(ctx context.Context, message string) (*pingResponse, error
 }
 
 // GetStatus returns CLI status including version and protocol information
-func (c *Client) GetStatus(ctx context.Context) (*getStatusResponse, error) {
+func (c *Client) GetStatus(ctx context.Context) (*GetStatusResponse, error) {
 	if c.client == nil {
 		return nil, fmt.Errorf("client not connected")
 	}
@@ -900,7 +900,7 @@ func (c *Client) GetStatus(ctx context.Context) (*getStatusResponse, error) {
 		return nil, err
 	}
 
-	var response getStatusResponse
+	var response GetStatusResponse
 	if err := json.Unmarshal(result, &response); err != nil {
 		return nil, err
 	}
@@ -908,7 +908,7 @@ func (c *Client) GetStatus(ctx context.Context) (*getStatusResponse, error) {
 }
 
 // GetAuthStatus returns current authentication status
-func (c *Client) GetAuthStatus(ctx context.Context) (*getAuthStatusResponse, error) {
+func (c *Client) GetAuthStatus(ctx context.Context) (*GetAuthStatusResponse, error) {
 	if c.client == nil {
 		return nil, fmt.Errorf("client not connected")
 	}
@@ -918,7 +918,7 @@ func (c *Client) GetAuthStatus(ctx context.Context) (*getAuthStatusResponse, err
 		return nil, err
 	}
 
-	var response getAuthStatusResponse
+	var response GetAuthStatusResponse
 	if err := json.Unmarshal(result, &response); err != nil {
 		return nil, err
 	}

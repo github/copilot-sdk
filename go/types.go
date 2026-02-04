@@ -687,8 +687,8 @@ type pingResponse struct {
 // getStatusRequest is the request for status.get
 type getStatusRequest struct{}
 
-// getStatusResponse is the response from status.get
-type getStatusResponse struct {
+// GetStatusResponse is the response from status.get
+type GetStatusResponse struct {
 	Version         string `json:"version"`
 	ProtocolVersion int    `json:"protocolVersion"`
 }
@@ -696,8 +696,8 @@ type getStatusResponse struct {
 // getAuthStatusRequest is the request for auth.getStatus
 type getAuthStatusRequest struct{}
 
-// getAuthStatusResponse is the response from auth.getStatus
-type getAuthStatusResponse struct {
+// GetAuthStatusResponse is the response from auth.getStatus
+type GetAuthStatusResponse struct {
 	IsAuthenticated bool    `json:"isAuthenticated"`
 	AuthType        *string `json:"authType,omitempty"`
 	Host            *string `json:"host,omitempty"`
