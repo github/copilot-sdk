@@ -185,20 +185,20 @@ const session = await client.createSession({
 
 ```typescript
 const ERROR_MESSAGES: Record<string, string> = {
-  "rate_limit": "Too many requests. Please wait a moment and try again.",
-  "auth_failed": "Authentication failed. Please check your credentials.",
-  "network_error": "Network connection issue. Please check your internet connection.",
-  "timeout": "Request timed out. Try breaking your request into smaller parts.",
+  "model_call": "There was an issue communicating with the AI model. Please try again.",
+  "tool_execution": "A tool failed to execute. Please check your inputs and try again.",
+  "system": "A system error occurred. Please try again later.",
+  "user_input": "There was an issue with your input. Please check and try again.",
 };
 
 const session = await client.createSession({
   hooks: {
     onErrorOccurred: async (input) => {
-      const friendlyMessage = ERROR_MESSAGES[input.errorType];
+      const friendlyMessage = ERROR_MESSAGES[input.errorContext];
       
       if (friendlyMessage) {
         return {
-          modifiedMessage: friendlyMessage,
+          userNotification: friendlyMessage,
         };
       }
       
@@ -211,17 +211,13 @@ const session = await client.createSession({
 ### Suppress Non-Critical Errors
 
 ```typescript
-const SUPPRESSED_ERRORS = [
-  "tool_not_found",
-  "file_not_found",
-];
-
 const session = await client.createSession({
   hooks: {
     onErrorOccurred: async (input) => {
-      if (SUPPRESSED_ERRORS.includes(input.errorType)) {
-        console.log(`Suppressed error: ${input.errorType}`);
-        return { suppressError: true };
+      // Suppress tool execution errors that are recoverable
+      if (input.errorContext === "tool_execution" && input.recoverable) {
+        console.log(`Suppressed recoverable error: ${input.error}`);
+        return { suppressOutput: true };
       }
       return null;
     },
@@ -235,9 +231,9 @@ const session = await client.createSession({
 const session = await client.createSession({
   hooks: {
     onErrorOccurred: async (input) => {
-      if (input.errorType === "tool_execution_failed") {
+      if (input.errorContext === "tool_execution") {
         return {
-          additionalContext: `
+          userNotification: `
 The tool failed. Here are some recovery suggestions:
 - Check if required dependencies are installed
 - Verify file paths are correct
@@ -246,9 +242,11 @@ The tool failed. Here are some recovery suggestions:
         };
       }
       
-      if (input.errorType === "rate_limit") {
+      if (input.errorContext === "model_call" && input.error.includes("rate")) {
         return {
-          additionalContext: "Rate limit hit. Waiting before retry.",
+          errorHandling: "retry",
+          retryCount: 3,
+          userNotification: "Rate limit hit. Retrying...",
         };
       }
       
@@ -272,7 +270,7 @@ const errorStats = new Map<string, ErrorStats>();
 const session = await client.createSession({
   hooks: {
     onErrorOccurred: async (input, invocation) => {
-      const key = `${input.errorType}:${input.error.substring(0, 50)}`;
+      const key = `${input.errorContext}:${input.error.substring(0, 50)}`;
       
       const existing = errorStats.get(key) || {
         count: 0,
@@ -300,17 +298,17 @@ const session = await client.createSession({
 ### Alert on Critical Errors
 
 ```typescript
-const CRITICAL_ERRORS = ["auth_failed", "api_error", "system_error"];
+const CRITICAL_CONTEXTS = ["system", "model_call"];
 
 const session = await client.createSession({
   hooks: {
     onErrorOccurred: async (input, invocation) => {
-      if (CRITICAL_ERRORS.includes(input.errorType)) {
+      if (CRITICAL_CONTEXTS.includes(input.errorContext) && !input.recoverable) {
         await sendAlert({
           level: "critical",
           message: `Critical error in session ${invocation.sessionId}`,
           error: input.error,
-          type: input.errorType,
+          context: input.errorContext,
           timestamp: new Date(input.timestamp).toISOString(),
         });
       }
@@ -347,7 +345,7 @@ const session = await client.createSession({
       
       console.error(`Error in session ${invocation.sessionId}:`);
       console.error(`  Error: ${input.error}`);
-      console.error(`  Type: ${input.errorType}`);
+      console.error(`  Context: ${input.errorContext}`);
       if (ctx?.lastTool) {
         console.error(`  Last tool: ${ctx.lastTool}`);
       }
