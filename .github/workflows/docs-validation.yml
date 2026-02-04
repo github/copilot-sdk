@@ -85,7 +85,7 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.23"
+          go-version: "1.24"
           cache-dependency-path: "go/go.sum"
 
       - name: Install validation dependencies
