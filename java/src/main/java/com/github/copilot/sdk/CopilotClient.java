@@ -91,6 +91,9 @@ public class CopilotClient implements AutoCloseable {
     private final Integer optionsPort;
     private volatile List<ModelInfo> modelsCache;
     private final Object modelsCacheLock = new Object();
+    private final List<com.github.copilot.sdk.json.SessionLifecycleHandler> lifecycleHandlers = new ArrayList<>();
+    private final Map<String, List<com.github.copilot.sdk.json.SessionLifecycleHandler>> typedLifecycleHandlers = new ConcurrentHashMap<>();
+    private final Object lifecycleHandlersLock = new Object();
 
     /**
      * Creates a new CopilotClient with default options.
@@ -215,6 +218,28 @@ public class CopilotClient implements AutoCloseable {
                 }
             } catch (Exception e) {
                 LOG.log(Level.SEVERE, "Error handling session event", e);
+            }
+        });
+
+        // Handle session lifecycle events
+        rpc.registerMethodHandler("session.lifecycle", (requestId, params) -> {
+            try {
+                String type = params.has("type") ? params.get("type").asText() : "";
+                String sessionId = params.has("sessionId") ? params.get("sessionId").asText() : "";
+
+                com.github.copilot.sdk.json.SessionLifecycleEvent event = new com.github.copilot.sdk.json.SessionLifecycleEvent();
+                event.setType(type);
+                event.setSessionId(sessionId);
+
+                if (params.has("metadata") && !params.get("metadata").isNull()) {
+                    com.github.copilot.sdk.json.SessionLifecycleEventMetadata metadata = MAPPER.treeToValue(
+                            params.get("metadata"), com.github.copilot.sdk.json.SessionLifecycleEventMetadata.class);
+                    event.setMetadata(metadata);
+                }
+
+                dispatchLifecycleEvent(event);
+            } catch (Exception e) {
+                LOG.log(Level.SEVERE, "Error handling session lifecycle event", e);
             }
         });
 
@@ -803,6 +828,124 @@ public class CopilotClient implements AutoCloseable {
         return ensureConnected()
                 .thenCompose(connection -> connection.rpc.invoke("session.list", Map.of(), ListSessionsResponse.class)
                         .thenApply(ListSessionsResponse::getSessions));
+    }
+
+    /**
+     * Gets the ID of the session currently displayed in the TUI.
+     * <p>
+     * This is only available when connecting to a server running in TUI+server mode
+     * (--ui-server).
+     *
+     * @return a future that resolves with the session ID, or null if no foreground
+     *         session is set
+     */
+    public CompletableFuture<String> getForegroundSessionId() {
+        return ensureConnected().thenCompose(connection -> connection.rpc
+                .invoke("session.getForeground", Map.of(),
+                        com.github.copilot.sdk.json.GetForegroundSessionResponse.class)
+                .thenApply(com.github.copilot.sdk.json.GetForegroundSessionResponse::getSessionId));
+    }
+
+    /**
+     * Requests the TUI to switch to displaying the specified session.
+     * <p>
+     * This is only available when connecting to a server running in TUI+server mode
+     * (--ui-server).
+     *
+     * @param sessionId
+     *            the ID of the session to display in the TUI
+     * @return a future that completes when the operation is done
+     * @throws RuntimeException
+     *             if the operation fails
+     */
+    public CompletableFuture<Void> setForegroundSessionId(String sessionId) {
+        return ensureConnected()
+                .thenCompose(
+                        connection -> connection.rpc
+                                .invoke("session.setForeground", Map.of("sessionId", sessionId),
+                                        com.github.copilot.sdk.json.SetForegroundSessionResponse.class)
+                                .thenAccept(response -> {
+                                    if (!response.isSuccess()) {
+                                        throw new RuntimeException(response.getError() != null
+                                                ? response.getError()
+                                                : "Failed to set foreground session");
+                                    }
+                                }));
+    }
+
+    /**
+     * Subscribes to all session lifecycle events.
+     * <p>
+     * Lifecycle events are emitted when sessions are created, deleted, updated, or
+     * change foreground/background state (in TUI+server mode).
+     *
+     * @param handler
+     *            a callback that receives lifecycle events
+     * @return an AutoCloseable that, when closed, unsubscribes the handler
+     */
+    public AutoCloseable onLifecycle(com.github.copilot.sdk.json.SessionLifecycleHandler handler) {
+        synchronized (lifecycleHandlersLock) {
+            lifecycleHandlers.add(handler);
+        }
+        return () -> {
+            synchronized (lifecycleHandlersLock) {
+                lifecycleHandlers.remove(handler);
+            }
+        };
+    }
+
+    /**
+     * Subscribes to a specific session lifecycle event type.
+     *
+     * @param eventType
+     *            the event type to listen for (use
+     *            {@link com.github.copilot.sdk.json.SessionLifecycleEventTypes}
+     *            constants)
+     * @param handler
+     *            a callback that receives events of the specified type
+     * @return an AutoCloseable that, when closed, unsubscribes the handler
+     */
+    public AutoCloseable onLifecycle(String eventType, com.github.copilot.sdk.json.SessionLifecycleHandler handler) {
+        synchronized (lifecycleHandlersLock) {
+            typedLifecycleHandlers.computeIfAbsent(eventType, k -> new ArrayList<>()).add(handler);
+        }
+        return () -> {
+            synchronized (lifecycleHandlersLock) {
+                List<com.github.copilot.sdk.json.SessionLifecycleHandler> handlers = typedLifecycleHandlers
+                        .get(eventType);
+                if (handlers != null) {
+                    handlers.remove(handler);
+                }
+            }
+        };
+    }
+
+    void dispatchLifecycleEvent(com.github.copilot.sdk.json.SessionLifecycleEvent event) {
+        List<com.github.copilot.sdk.json.SessionLifecycleHandler> typed;
+        List<com.github.copilot.sdk.json.SessionLifecycleHandler> wildcard;
+
+        synchronized (lifecycleHandlersLock) {
+            List<com.github.copilot.sdk.json.SessionLifecycleHandler> handlers = typedLifecycleHandlers
+                    .get(event.getType());
+            typed = handlers != null ? new ArrayList<>(handlers) : new ArrayList<>();
+            wildcard = new ArrayList<>(lifecycleHandlers);
+        }
+
+        for (com.github.copilot.sdk.json.SessionLifecycleHandler handler : typed) {
+            try {
+                handler.onLifecycleEvent(event);
+            } catch (Exception e) {
+                LOG.log(Level.WARNING, "Lifecycle handler error", e);
+            }
+        }
+
+        for (com.github.copilot.sdk.json.SessionLifecycleHandler handler : wildcard) {
+            try {
+                handler.onLifecycleEvent(event);
+            } catch (Exception e) {
+                LOG.log(Level.WARNING, "Lifecycle handler error", e);
+            }
+        }
     }
 
     private CompletableFuture<Connection> ensureConnected() {
