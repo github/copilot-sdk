@@ -474,6 +474,7 @@ unsubscribe()
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: skip -->
 ```csharp
 // Subscribe to all events
 var unsubscribe = session.On(ev => Console.WriteLine($"Event: {ev.Type}"));

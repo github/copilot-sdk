@@ -153,8 +153,8 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
         {
             Type = "local",
             Command = "node",
-            Args = new[] { "./mcp-server.js" },
-            Tools = new[] { "*" },
+            Args = new List<string> { "./mcp-server.js" },
+            Tools = new List<string> { "*" },
         },
     },
 });

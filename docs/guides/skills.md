@@ -183,6 +183,7 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: skip -->
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {

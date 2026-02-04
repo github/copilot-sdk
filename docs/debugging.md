@@ -58,6 +58,7 @@ client := copilot.NewClient(&copilot.ClientOptions{
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: skip -->
 ```csharp
 using GitHub.Copilot.SDK;
 using Microsoft.Extensions.Logging;

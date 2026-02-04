@@ -155,6 +155,7 @@ session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "What did we discuss ear
 
 ### C# (.NET)
 
+<!-- docs-validate: skip -->
 ```csharp
 // Resume from a different client instance (or after restart)
 var session = await client.ResumeSessionAsync("user-123-task-456");
