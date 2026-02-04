@@ -384,9 +384,9 @@ describe("Send Blocking Behavior", async () => {
         expect(events).toContain("assistant.message");
     });
 
-    // Skip in CI - this test validates client-side timeout behavior, not LLM responses.
-    // The test intentionally times out before receiving a response, so there's no snapshot to replay.
-    it.skipIf(process.env.CI === "true")("sendAndWait throws on timeout", async () => {
+    // This test validates client-side timeout behavior.
+    // The snapshot has no assistant response since we expect timeout before completion.
+    it("sendAndWait throws on timeout", async () => {
         const session = await client.createSession();
 
         // Use a slow command to ensure timeout triggers before completion
