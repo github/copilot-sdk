@@ -205,9 +205,10 @@ const session = await client.createSession({
     onUserPromptSubmitted: async (input) => {
       for (const pattern of BLOCKED_PATTERNS) {
         if (pattern.test(input.prompt)) {
+          // Replace the prompt with a warning message
           return {
-            reject: true,
-            rejectReason: "Please don't include sensitive credentials in your prompts. Use environment variables instead.",
+            modifiedPrompt: "[Content blocked: Please don't include sensitive credentials in your prompts. Use environment variables instead.]",
+            suppressOutput: true,
           };
         }
       }
@@ -226,9 +227,10 @@ const session = await client.createSession({
   hooks: {
     onUserPromptSubmitted: async (input) => {
       if (input.prompt.length > MAX_PROMPT_LENGTH) {
+        // Truncate the prompt and add context
         return {
-          reject: true,
-          rejectReason: `Prompt too long (${input.prompt.length} chars). Maximum allowed: ${MAX_PROMPT_LENGTH} chars. Please shorten your request.`,
+          modifiedPrompt: input.prompt.substring(0, MAX_PROMPT_LENGTH),
+          additionalContext: `Note: The original prompt was ${input.prompt.length} characters and was truncated to ${MAX_PROMPT_LENGTH} characters.`,
         };
       }
       return null;

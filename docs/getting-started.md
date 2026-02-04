@@ -393,6 +393,108 @@ await session.SendAndWaitAsync(new MessageOptions { Prompt = "Tell me a short jo
 
 Run the code again. You'll see the response appear word by word.
 
+### Event Subscription Methods
+
+The SDK provides three methods for subscribing to session events:
+
+| Method | Description |
+|--------|-------------|
+| `on(handler)` | Subscribe to all events; returns unsubscribe function |
+| `on(eventType, handler)` | Subscribe to specific event type; returns unsubscribe function |
+| `once(eventType, handler)` | Subscribe to next occurrence only; auto-unsubscribes after firing |
+
+<details open>
+<summary><strong>Node.js / TypeScript</strong></summary>
+
+```typescript
+// Subscribe to all events
+const unsubscribeAll = session.on((event) => {
+    console.log("Event:", event.type);
+});
+
+// Subscribe to specific event type
+const unsubscribeIdle = session.on("session.idle", (event) => {
+    console.log("Session is idle");
+});
+
+// Subscribe to next occurrence only (auto-unsubscribes)
+session.once("assistant.message", (event) => {
+    console.log("First message:", event.data.content);
+});
+
+// Later, to unsubscribe:
+unsubscribeAll();
+unsubscribeIdle();
+```
+
+</details>
+
+<details>
+<summary><strong>Python</strong></summary>
+
+```python
+# Subscribe to all events
+unsubscribe_all = session.on(lambda event: print(f"Event: {event.type}"))
+
+# Subscribe to specific event type  
+unsubscribe_idle = session.on("session.idle", lambda event: print("Session is idle"))
+
+# Subscribe to next occurrence only (auto-unsubscribes)
+session.once("assistant.message", lambda event: print(f"First message: {event.data.content}"))
+
+# Later, to unsubscribe:
+unsubscribe_all()
+unsubscribe_idle()
+```
+
+</details>
+
+<details>
+<summary><strong>Go</strong></summary>
+
+```go
+// Subscribe to all events
+unsubscribeAll := session.On(func(event copilot.SessionEvent) {
+    fmt.Println("Event:", event.Type)
+})
+
+// Subscribe to specific event type
+unsubscribeIdle := session.OnType("session.idle", func(event copilot.SessionEvent) {
+    fmt.Println("Session is idle")
+})
+
+// Subscribe to next occurrence only (auto-unsubscribes)
+session.Once("assistant.message", func(event copilot.SessionEvent) {
+    fmt.Println("First message:", *event.Data.Content)
+})
+
+// Later, to unsubscribe:
+unsubscribeAll()
+unsubscribeIdle()
+```
+
+</details>
+
+<details>
+<summary><strong>.NET</strong></summary>
+
+```csharp
+// Subscribe to all events
+var unsubscribeAll = session.On(ev => Console.WriteLine($"Event: {ev.Type}"));
+
+// Subscribe to specific event type
+var unsubscribeIdle = session.On<SessionIdleEvent>(ev => Console.WriteLine("Session is idle"));
+
+// Subscribe to next occurrence only (auto-unsubscribes)
+session.Once<AssistantMessageEvent>(ev => Console.WriteLine($"First message: {ev.Data.Content}"));
+
+// Later, to unsubscribe:
+unsubscribeAll();
+unsubscribeIdle();
+```
+
+</details>
+
 ## Step 4: Add a Custom Tool
 
 Now for the powerful part. Let's give Copilot the ability to call your code by defining a custom tool. We'll create a simple weather lookup tool.

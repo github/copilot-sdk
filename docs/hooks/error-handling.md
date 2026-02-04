@@ -105,7 +105,7 @@ const session = await client.createSession({
 ```python
 async def on_error_occurred(input_data, invocation):
     print(f"[{invocation['session_id']}] Error: {input_data['error']}")
-    print(f"  Context: {input_data['error_context']}")
+    print(f"  Context: {input_data['errorContext']}")
     print(f"  Recoverable: {input_data['recoverable']}")
     return None
 
@@ -145,11 +145,8 @@ var session = await client.CreateSessionAsync(new SessionConfig
         OnErrorOccurred = (input, invocation) =>
         {
             Console.Error.WriteLine($"[{invocation.SessionId}] Error: {input.Error}");
-            Console.Error.WriteLine($"  Type: {input.ErrorType}");
-            if (!string.IsNullOrEmpty(input.Stack))
-            {
-                Console.Error.WriteLine($"  Stack: {input.Stack}");
-            }
+            Console.Error.WriteLine($"  Context: {input.ErrorContext}");
+            Console.Error.WriteLine($"  Recoverable: {input.Recoverable}");
             return Task.FromResult<ErrorOccurredHookOutput?>(null);
         },
     },
@@ -169,11 +166,11 @@ const session = await client.createSession({
       captureException(new Error(input.error), {
         tags: {
           sessionId: invocation.sessionId,
-          errorType: input.errorType,
+          errorContext: input.errorContext,
         },
         extra: {
-          stack: input.stack,
-          context: input.context,
+          error: input.error,
+          recoverable: input.recoverable,
           cwd: input.cwd,
         },
       });

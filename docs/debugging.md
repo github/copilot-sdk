@@ -161,7 +161,7 @@ var client = new CopilotClient(new CopilotClientOptions
    <summary><strong>Python</strong></summary>
 
    ```python
-   client = CopilotClient(cli_path="/usr/local/bin/copilot")
+   client = CopilotClient({"cli_path": "/usr/local/bin/copilot"})
    ```
    </details>
 
@@ -214,7 +214,7 @@ var client = new CopilotClient(new CopilotClientOptions
 
    ```python
    import os
-   client = CopilotClient(github_token=os.environ.get("GITHUB_TOKEN"))
+   client = CopilotClient({"github_token": os.environ.get("GITHUB_TOKEN")})
    ```
    </details>
 
