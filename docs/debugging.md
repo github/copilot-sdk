@@ -36,7 +36,7 @@ const client = new CopilotClient({
 ```python
 from copilot import CopilotClient
 
-client = CopilotClient(log_level="debug")
+client = CopilotClient({"log_level": "debug"})
 ```
 
 </details>

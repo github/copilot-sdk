@@ -104,18 +104,20 @@ asyncio.run(main())
 package main
 
 import (
+    "context"
     "log"
     copilot "github.com/github/copilot-sdk/go"
 )
 
 func main() {
+    ctx := context.Background()
     client := copilot.NewClient(nil)
     if err := client.Start(); err != nil {
         log.Fatal(err)
     }
     defer client.Stop()
 
-    session, err := client.CreateSession(&copilot.SessionConfig{
+    session, err := client.CreateSession(ctx, &copilot.SessionConfig{
         Model: "gpt-5",
         MCPServers: map[string]copilot.MCPServerConfig{
             "my-local-server": {

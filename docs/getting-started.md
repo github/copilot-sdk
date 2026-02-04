@@ -162,6 +162,7 @@ Create `main.go`:
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -170,18 +171,19 @@ import (
 )
 
 func main() {
+	ctx := context.Background()
 	client := copilot.NewClient(nil)
 	if err := client.Start(); err != nil {
 		log.Fatal(err)
 	}
 	defer client.Stop()
 
-	session, err := client.CreateSession(&copilot.SessionConfig{Model: "gpt-4.1"})
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{Model: "gpt-4.1"})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	response, err := session.SendAndWait(copilot.MessageOptions{Prompt: "What is 2 + 2?"}, 0)
+	response, err := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "What is 2 + 2?"})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -312,6 +314,7 @@ Update `main.go`:
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -320,13 +323,14 @@ import (
 )
 
 func main() {
+	ctx := context.Background()
 	client := copilot.NewClient(nil)
 	if err := client.Start(); err != nil {
 		log.Fatal(err)
 	}
 	defer client.Stop()
 
-	session, err := client.CreateSession(&copilot.SessionConfig{
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		Model:     "gpt-4.1",
 		Streaming: true,
 	})
@@ -344,7 +348,7 @@ func main() {
 		}
 	})
 
-	_, err = session.SendAndWait(copilot.MessageOptions{Prompt: "Tell me a short joke"}, 0)
+	_, err = session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Tell me a short joke"})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -513,6 +517,7 @@ Update `main.go`:
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
@@ -534,6 +539,8 @@ type WeatherResult struct {
 }
 
 func main() {
+	ctx := context.Background()
+
 	// Define a tool that Copilot can call
 	getWeather := copilot.DefineTool(
 		"get_weather",
@@ -557,7 +564,7 @@ func main() {
 	}
 	defer client.Stop()
 
-	session, err := client.CreateSession(&copilot.SessionConfig{
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		Model:     "gpt-4.1",
 		Streaming: true,
 		Tools:     []copilot.Tool{getWeather},
@@ -575,9 +582,9 @@ func main() {
 		}
 	})
 
-	_, err = session.SendAndWait(copilot.MessageOptions{
+	_, err = session.SendAndWait(ctx, copilot.MessageOptions{
 		Prompt: "What's the weather like in Seattle and Tokyo?",
-	}, 0)
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -796,6 +803,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
@@ -816,6 +824,8 @@ type WeatherResult struct {
 }
 
 func main() {
+	ctx := context.Background()
+
 	getWeather := copilot.DefineTool(
 		"get_weather",
 		"Get the current weather for a city",
@@ -837,7 +847,7 @@ func main() {
 	}
 	defer client.Stop()
 
-	session, err := client.CreateSession(&copilot.SessionConfig{
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		Model:     "gpt-4.1",
 		Streaming: true,
 		Tools:     []copilot.Tool{getWeather},
@@ -872,7 +882,7 @@ func main() {
 		}
 
 		fmt.Print("Assistant: ")
-		_, err = session.SendAndWait(copilot.MessageOptions{Prompt: input}, 0)
+		_, err = session.SendAndWait(ctx, copilot.MessageOptions{Prompt: input})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			break

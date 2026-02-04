@@ -49,12 +49,13 @@ await session.sendAndWait({ prompt: "Analyze my codebase" });
 from copilot import CopilotClient
 
 client = CopilotClient()
+await client.start()
 
 # Create a session with a meaningful ID
-session = await client.create_session(
-    session_id="user-123-task-456",
-    model="gpt-5.2-codex",
-)
+session = await client.create_session({
+    "session_id": "user-123-task-456",
+    "model": "gpt-5.2-codex",
+})
 
 # Do some work...
 await session.send_and_wait({"prompt": "Analyze my codebase"})
@@ -87,7 +88,7 @@ using GitHub.Copilot.SDK;
 var client = new CopilotClient();
 
 // Create a session with a meaningful ID
-var session = await client.CreateSessionAsync(new CreateSessionOptions
+var session = await client.CreateSessionAsync(new SessionConfig
 {
     SessionId = "user-123-task-456",
     Model = "gpt-5.2-codex",
