@@ -173,7 +173,7 @@ import (
 func main() {
 	ctx := context.Background()
 	client := copilot.NewClient(nil)
-	if err := client.Start(); err != nil {
+	if err := client.Start(ctx); err != nil {
 		log.Fatal(err)
 	}
 	defer client.Stop()
@@ -325,7 +325,7 @@ import (
 func main() {
 	ctx := context.Background()
 	client := copilot.NewClient(nil)
-	if err := client.Start(); err != nil {
+	if err := client.Start(ctx); err != nil {
 		log.Fatal(err)
 	}
 	defer client.Stop()
@@ -448,6 +448,7 @@ unsubscribe()
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 // Subscribe to all events
 unsubscribe := session.On(func(event copilot.SessionEvent) {
@@ -662,7 +663,7 @@ func main() {
 	)
 
 	client := copilot.NewClient(nil)
-	if err := client.Start(); err != nil {
+	if err := client.Start(ctx); err != nil {
 		log.Fatal(err)
 	}
 	defer client.Stop()
@@ -945,7 +946,7 @@ func main() {
 	)
 
 	client := copilot.NewClient(nil)
-	if err := client.Start(); err != nil {
+	if err := client.Start(ctx); err != nil {
 		log.Fatal(err)
 	}
 	defer client.Stop()
@@ -1224,6 +1225,7 @@ session = await client.create_session()
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 import copilot "github.com/github/copilot-sdk/go"
 
@@ -1231,7 +1233,7 @@ client := copilot.NewClient(&copilot.ClientOptions{
     CLIUrl: "localhost:4321",
 })
 
-if err := client.Start(); err != nil {
+if err := client.Start(ctx); err != nil {
     log.Fatal(err)
 }
 defer client.Stop()

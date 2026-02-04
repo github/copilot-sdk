@@ -302,6 +302,7 @@ xattr -d com.apple.quarantine /path/to/mcp-server
 
 #### Homebrew Paths
 
+<!-- docs-validate: skip -->
 ```typescript
 // GUI apps may not have /opt/homebrew in PATH
 mcpServers: {

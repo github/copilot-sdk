@@ -83,7 +83,7 @@ import (
 func main() {
     ctx := context.Background()
     client := copilot.NewClient(nil)
-    if err := client.Start(); err != nil {
+    if err := client.Start(ctx); err != nil {
         log.Fatal(err)
     }
     defer client.Stop()
@@ -170,6 +170,7 @@ session = await client.create_session({
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     SkillDirectories: []string{"./skills"},

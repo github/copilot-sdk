@@ -36,6 +36,7 @@ PostToolUseHandler = Callable[
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 type PostToolUseHandler func(
     input PostToolUseHookInput,
@@ -118,6 +119,7 @@ session = await client.create_session({
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Hooks: &copilot.SessionHooks{

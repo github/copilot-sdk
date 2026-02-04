@@ -112,7 +112,7 @@ import (
 func main() {
     ctx := context.Background()
     client := copilot.NewClient(nil)
-    if err := client.Start(); err != nil {
+    if err := client.Start(ctx); err != nil {
         log.Fatal(err)
     }
     defer client.Stop()
@@ -132,6 +132,7 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
+    defer session.Destroy()
 
     // Use the session...
 }

@@ -106,7 +106,7 @@ import (
 func main() {
     ctx := context.Background()
     client := copilot.NewClient(nil)
-    if err := client.Start(); err != nil {
+    if err := client.Start(ctx); err != nil {
         panic(err)
     }
     defer client.Stop()
@@ -326,6 +326,7 @@ const session = await client.createSession({
 
 For Azure OpenAI endpoints (`*.openai.azure.com`), use the correct type:
 
+<!-- docs-validate: skip -->
 ```typescript
 // ❌ Wrong: Using "openai" type with native Azure endpoint
 provider: {
@@ -342,6 +343,7 @@ provider: {
 
 However, if your Azure AI Foundry deployment provides an OpenAI-compatible endpoint path (e.g., `/openai/v1/`), use `type: "openai"`:
 
+<!-- docs-validate: skip -->
 ```typescript
 // ✅ Correct: OpenAI-compatible Azure AI Foundry endpoint
 provider: {

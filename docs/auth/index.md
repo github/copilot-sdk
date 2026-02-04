@@ -50,6 +50,7 @@ await client.start()
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 import copilot "github.com/github/copilot-sdk/go"
 
@@ -119,6 +120,7 @@ await client.start()
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 import copilot "github.com/github/copilot-sdk/go"
 
@@ -262,6 +264,7 @@ client = CopilotClient({
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
     UseLoggedInUser: copilot.Bool(false),  // Only use explicit tokens

@@ -44,6 +44,7 @@ client = CopilotClient({"log_level": "debug"})
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 import copilot "github.com/github/copilot-sdk/go"
 
@@ -108,6 +109,7 @@ const client = new CopilotClient({
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 // The Go SDK does not currently support passing extra CLI arguments.
 // For custom log directories, run the CLI manually with --log-dir

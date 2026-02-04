@@ -40,6 +40,7 @@ SessionStartHandler = Callable[
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 type SessionStartHandler func(
     input SessionStartHookInput,
@@ -216,6 +217,7 @@ SessionEndHandler = Callable[
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 type SessionEndHandler func(
     input SessionEndHookInput,

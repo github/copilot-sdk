@@ -65,6 +65,7 @@ await session.send_and_wait({"prompt": "Analyze my codebase"})
 
 ### Go
 
+<!-- docs-validate: skip -->
 ```go
 ctx := context.Background()
 client := copilot.NewClient(nil)
@@ -141,6 +142,7 @@ await session.send_and_wait({"prompt": "What did we discuss earlier?"})
 
 ### Go
 
+<!-- docs-validate: skip -->
 ```go
 ctx := context.Background()
 

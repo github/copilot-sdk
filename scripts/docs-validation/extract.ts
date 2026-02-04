@@ -140,16 +140,81 @@ function getExtension(language: string): string {
   }
 }
 
+/**
+ * Detect code fragments that can't be validated as standalone files.
+ * These are typically partial snippets showing configuration options
+ * or code that's meant to be part of a larger context.
+ */
+function shouldSkipFragment(block: CodeBlock): boolean {
+  const code = block.code.trim();
+
+  // TypeScript/JavaScript: Skip bare object literals (config snippets)
+  if (block.language === "typescript") {
+    // Starts with property: value pattern (e.g., "provider: {")
+    if (/^[a-zA-Z_]+\s*:\s*[\{\[]/.test(code)) {
+      return true;
+    }
+    // Starts with just an object/array that's not assigned
+    if (/^\{[\s\S]*\}$/.test(code) && !code.includes("import ") && !code.includes("export ")) {
+      return true;
+    }
+  }
+
+  // Go: Skip fragments that are just type definitions without package
+  if (block.language === "go") {
+    // Function signatures without bodies (interface definitions shown in docs)
+    if (/^func\s+\w+\([^)]*\)\s*\([^)]*\)\s*$/.test(code)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function wrapCodeForValidation(block: CodeBlock): string {
   let code = block.code;
 
-  // Python: wrap in async main if needed
-  if (block.language === "python" && block.wrapAsync) {
-    const indented = code
-      .split("\n")
-      .map((l) => "    " + l)
-      .join("\n");
-    code = `import asyncio\n\nasync def main():\n${indented}\n\nasyncio.run(main())`;
+  // Python: auto-detect async code and wrap if needed
+  if (block.language === "python") {
+    const hasAwait = /\bawait\b/.test(code);
+    const hasAsyncDef = /\basync\s+def\b/.test(code);
+
+    // Check if await is used outside of any async def
+    // Simple heuristic: if await appears at column 0 or after assignment at column 0
+    const lines = code.split("\n");
+    let awaitOutsideFunction = false;
+    let inAsyncFunction = false;
+    let indentLevel = 0;
+
+    for (const line of lines) {
+      const trimmed = line.trimStart();
+      const leadingSpaces = line.length - trimmed.length;
+
+      // Track if we're in an async function
+      if (trimmed.startsWith("async def ")) {
+        inAsyncFunction = true;
+        indentLevel = leadingSpaces;
+      } else if (inAsyncFunction && leadingSpaces <= indentLevel && trimmed && !trimmed.startsWith("#")) {
+        // Dedented back, we're out of the function
+        inAsyncFunction = false;
+      }
+
+      // Check for await outside function
+      if (trimmed.includes("await ") && !inAsyncFunction) {
+        awaitOutsideFunction = true;
+        break;
+      }
+    }
+
+    const needsWrap = block.wrapAsync || awaitOutsideFunction || (hasAwait && !hasAsyncDef);
+
+    if (needsWrap) {
+      const indented = code
+        .split("\n")
+        .map((l) => "    " + l)
+        .join("\n");
+      code = `import asyncio\n\nasync def main():\n${indented}\n\nasyncio.run(main())`;
+    }
   }
 
   // Go: ensure package declaration
@@ -254,6 +319,12 @@ async function main() {
 
       // Skip empty or trivial blocks
       if (block.code.trim().length < 10) {
+        continue;
+      }
+
+      // Skip incomplete code fragments that can't be validated standalone
+      if (shouldSkipFragment(block)) {
+        skippedBlocks++;
         continue;
       }
 
