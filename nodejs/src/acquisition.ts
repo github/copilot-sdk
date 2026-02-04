@@ -9,7 +9,7 @@ import { join, dirname, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import * as semver from "semver";
 import { CopilotClient } from "./client.js";
-import { PREFERRED_CLI_VERSION } from "./generated/versions.js";
+import { PREFERRED_CLI_VERSION } from "./generatedOnBuild/versions.js";
 
 export { PREFERRED_CLI_VERSION };
 
