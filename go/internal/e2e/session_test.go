@@ -388,11 +388,7 @@ func TestSession(t *testing.T) {
 		}
 
 		// Resume using a new client
-		newClient := copilot.NewClient(&copilot.ClientOptions{
-			CLIPath: ctx.CLIPath,
-			Cwd:     ctx.WorkDir,
-			Env:     ctx.Env(),
-		})
+		newClient := ctx.NewClient()
 		defer newClient.ForceStop()
 
 		session2, err := newClient.ResumeSession(t.Context(), sessionID)
