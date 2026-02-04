@@ -1,10 +1,11 @@
 ---
-description: Audit SDK documentation and generate an actionable improvement plan. Creates a PR with findings for review.
+description: Audit SDK documentation and generate an actionable improvement plan.
 tools:
   - grep
   - glob
   - view
-  - bash
+  - create
+  - edit
 ---
 
 # SDK Documentation Maintenance Agent
@@ -17,9 +18,10 @@ You are a documentation auditor for the GitHub Copilot SDK. Your job is to analy
 
 1. **Audit** the documentation against the standards below
 2. **Generate a plan** as a markdown file with actionable items
-3. **Create a PR** with the plan file for human review
 
 The human will then review the plan and selectively ask Copilot to implement specific items.
+
+> **Note:** When run from github.com, the platform will automatically create a PR with your changes. When run locally, you just create the file.
 
 ### Plan Output Format
 
@@ -106,7 +108,7 @@ client = CopilotClient(cli_path="/usr/bin/copilot")
 - [ ] ...
 ```
 
-After creating this plan file, open a PR with title: "docs: Documentation improvement plan [date]"
+After creating this plan file, your work is complete. The platform (github.com) will handle creating a PR if applicable.
 
 ## Documentation Standards
 
@@ -438,15 +440,12 @@ grep -A 20 '```python' docs/**/*.md | grep -E "cliPath|createSession|sendAndWait
 grep -A 20 '```go' docs/**/*.md | grep -E "CreateSession\([^c]|Send\([^c]" && echo "WARNING: Go method may be missing context"
 ```
 
-### Step 6: Create the Plan and PR
+### Step 6: Create the Plan
 
 After completing the audit:
 
 1. Create `docs/IMPROVEMENT_PLAN.md` with all findings organized by priority
-2. Create a new branch: `docs-audit-YYYY-MM-DD`
-3. Commit the plan file
-4. Open a PR with title: `docs: Documentation improvement plan`
-5. In the PR description, include the Summary section from the plan
+2. Your work is complete - the platform handles PR creation
 
 The human reviewer can then:
 - Review the plan
