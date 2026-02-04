@@ -42,7 +42,7 @@
   "dependencies": {
     "@github/copilot": "^0.0.402",
     "vscode-jsonrpc": "^8.2.1",
-    "zod": "^4.3.5"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^25.2.0",
@@ -50,10 +50,10 @@
     "@typescript-eslint/parser": "^8.54.0",
     "esbuild": "^0.27.2",
     "eslint": "^9.0.0",
-    "glob": "^11.0.0",
+    "glob": "^13.0.1",
     "json-schema": "^0.4.0",
     "json-schema-to-typescript": "^15.0.4",
-    "prettier": "^3.4.0",
+    "prettier": "^3.8.1",
     "quicktype-core": "^23.2.6",
     "rimraf": "^6.1.2",
     "semver": "^7.7.3",
