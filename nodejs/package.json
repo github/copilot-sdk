@@ -50,7 +50,7 @@
     "@typescript-eslint/parser": "^8.54.0",
     "esbuild": "^0.27.2",
     "eslint": "^9.0.0",
-    "glob": "^11.0.0",
+    "glob": "^13.0.1",
     "json-schema": "^0.4.0",
     "json-schema-to-typescript": "^15.0.4",
     "prettier": "^3.4.0",
