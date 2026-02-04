@@ -27,7 +27,6 @@ const client = new CopilotClient({
     logLevel: "info",
     acquisition: {
         downloadDir: join(homedir(), ".copilot-sdk-example", "cli"),
-        minVersion: "0.0.400",
         onProgress: ({ bytesDownloaded, totalBytes }) => {
             if (totalBytes > 0) {
                 const pct = Math.round((bytesDownloaded / totalBytes) * 100);
