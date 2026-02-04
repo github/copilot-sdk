@@ -84,6 +84,8 @@ public class SessionEventParser {
         TYPE_MAP.put("hook.start", HookStartEvent.class);
         TYPE_MAP.put("hook.end", HookEndEvent.class);
         TYPE_MAP.put("system.message", SystemMessageEvent.class);
+        TYPE_MAP.put("session.shutdown", SessionShutdownEvent.class);
+        TYPE_MAP.put("skill.invoked", SkillInvokedEvent.class);
     }
 
     /**

@@ -53,7 +53,7 @@ public abstract sealed class AbstractSessionEvent permits
         // Session events
         SessionStartEvent, SessionResumeEvent, SessionErrorEvent, SessionIdleEvent, SessionInfoEvent,
         SessionModelChangeEvent, SessionHandoffEvent, SessionTruncationEvent, SessionSnapshotRewindEvent,
-        SessionUsageInfoEvent, SessionCompactionStartEvent, SessionCompactionCompleteEvent,
+        SessionUsageInfoEvent, SessionCompactionStartEvent, SessionCompactionCompleteEvent, SessionShutdownEvent,
         // Assistant events
         AssistantTurnStartEvent, AssistantIntentEvent, AssistantReasoningEvent, AssistantReasoningDeltaEvent,
         AssistantMessageEvent, AssistantMessageDeltaEvent, AssistantTurnEndEvent, AssistantUsageEvent, AbortEvent,
@@ -62,6 +62,8 @@ public abstract sealed class AbstractSessionEvent permits
         ToolExecutionCompleteEvent,
         // User events
         UserMessageEvent, PendingMessagesModifiedEvent,
+        // Skill events
+        SkillInvokedEvent,
         // Other events
         SubagentStartedEvent, SubagentCompletedEvent, SubagentFailedEvent, SubagentSelectedEvent, HookStartEvent,
         HookEndEvent, SystemMessageEvent {
