@@ -36,7 +36,7 @@ const client = new CopilotClient({
 ```python
 from copilot import CopilotClient
 
-client = CopilotClient(log_level="debug")
+client = CopilotClient({"log_level": "debug"})
 ```
 
 </details>
@@ -44,6 +44,7 @@ client = CopilotClient(log_level="debug")
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 import copilot "github.com/github/copilot-sdk/go"
 
@@ -57,6 +58,7 @@ client := copilot.NewClient(&copilot.ClientOptions{
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: skip -->
 ```csharp
 using GitHub.Copilot.SDK;
 using Microsoft.Extensions.Logging;
@@ -108,6 +110,7 @@ const client = new CopilotClient({
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 // The Go SDK does not currently support passing extra CLI arguments.
 // For custom log directories, run the CLI manually with --log-dir
@@ -161,7 +164,7 @@ var client = new CopilotClient(new CopilotClientOptions
    <summary><strong>Python</strong></summary>
 
    ```python
-   client = CopilotClient(cli_path="/usr/local/bin/copilot")
+   client = CopilotClient({"cli_path": "/usr/local/bin/copilot"})
    ```
    </details>
 
@@ -214,7 +217,7 @@ var client = new CopilotClient(new CopilotClientOptions
 
    ```python
    import os
-   client = CopilotClient(github_token=os.environ.get("GITHUB_TOKEN"))
+   client = CopilotClient({"github_token": os.environ.get("GITHUB_TOKEN")})
    ```
    </details>
 

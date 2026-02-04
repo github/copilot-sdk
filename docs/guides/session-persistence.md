@@ -49,12 +49,13 @@ await session.sendAndWait({ prompt: "Analyze my codebase" });
 from copilot import CopilotClient
 
 client = CopilotClient()
+await client.start()
 
 # Create a session with a meaningful ID
-session = await client.create_session(
-    session_id="user-123-task-456",
-    model="gpt-5.2-codex",
-)
+session = await client.create_session({
+    "session_id": "user-123-task-456",
+    "model": "gpt-5.2-codex",
+})
 
 # Do some work...
 await session.send_and_wait({"prompt": "Analyze my codebase"})
@@ -64,17 +65,19 @@ await session.send_and_wait({"prompt": "Analyze my codebase"})
 
 ### Go
 
+<!-- docs-validate: skip -->
 ```go
+ctx := context.Background()
 client := copilot.NewClient(nil)
 
 // Create a session with a meaningful ID
-session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
     SessionID: "user-123-task-456",
     Model:     "gpt-5.2-codex",
 })
 
 // Do some work...
-session.SendAndWait(context.Background(), copilot.MessageOptions{Prompt: "Analyze my codebase"})
+session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Analyze my codebase"})
 
 // Session state is automatically persisted
 ```
@@ -87,7 +90,7 @@ using GitHub.Copilot.SDK;
 var client = new CopilotClient();
 
 // Create a session with a meaningful ID
-var session = await client.CreateSessionAsync(new CreateSessionOptions
+var session = await client.CreateSessionAsync(new SessionConfig
 {
     SessionId = "user-123-task-456",
     Model = "gpt-5.2-codex",
@@ -139,16 +142,20 @@ await session.send_and_wait({"prompt": "What did we discuss earlier?"})
 
 ### Go
 
+<!-- docs-validate: skip -->
 ```go
+ctx := context.Background()
+
 // Resume from a different client instance (or after restart)
-session, _ := client.ResumeSession(context.Background(), "user-123-task-456", nil)
+session, _ := client.ResumeSession(ctx, "user-123-task-456", nil)
 
 // Continue where you left off
-session.SendAndWait(context.Background(), copilot.MessageOptions{Prompt: "What did we discuss earlier?"})
+session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "What did we discuss earlier?"})
 ```
 
 ### C# (.NET)
 
+<!-- docs-validate: skip -->
 ```csharp
 // Resume from a different client instance (or after restart)
 var session = await client.ResumeSessionAsync("user-123-task-456");

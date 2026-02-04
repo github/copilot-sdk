@@ -57,6 +57,7 @@ from copilot import CopilotClient
 
 async def main():
     client = CopilotClient()
+    await client.start()
 
     async def on_pre_tool_use(input_data, invocation):
         print(f"Tool called: {input_data['toolName']}")
@@ -231,5 +232,5 @@ const session = await client.createSession({
 ## See Also
 
 - [Getting Started Guide](../getting-started.md)
-- [Custom Tools](../getting-started.md#step-4-add-custom-tools)
+- [Custom Tools](../getting-started.md#step-4-add-a-custom-tool)
 - [Debugging Guide](../debugging.md)

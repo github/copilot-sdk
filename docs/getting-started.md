@@ -162,6 +162,7 @@ Create `main.go`:
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -170,18 +171,19 @@ import (
 )
 
 func main() {
+	ctx := context.Background()
 	client := copilot.NewClient(nil)
-	if err := client.Start(); err != nil {
+	if err := client.Start(ctx); err != nil {
 		log.Fatal(err)
 	}
 	defer client.Stop()
 
-	session, err := client.CreateSession(&copilot.SessionConfig{Model: "gpt-4.1"})
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{Model: "gpt-4.1"})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	response, err := session.SendAndWait(copilot.MessageOptions{Prompt: "What is 2 + 2?"}, 0)
+	response, err := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "What is 2 + 2?"})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -312,6 +314,7 @@ Update `main.go`:
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -320,13 +323,14 @@ import (
 )
 
 func main() {
+	ctx := context.Background()
 	client := copilot.NewClient(nil)
-	if err := client.Start(); err != nil {
+	if err := client.Start(ctx); err != nil {
 		log.Fatal(err)
 	}
 	defer client.Stop()
 
-	session, err := client.CreateSession(&copilot.SessionConfig{
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		Model:     "gpt-4.1",
 		Streaming: true,
 	})
@@ -344,7 +348,7 @@ func main() {
 		}
 	})
 
-	_, err = session.SendAndWait(copilot.MessageOptions{Prompt: "Tell me a short joke"}, 0)
+	_, err = session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Tell me a short joke"})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -388,6 +392,112 @@ await session.SendAndWaitAsync(new MessageOptions { Prompt = "Tell me a short jo
 </details>
 
 Run the code again. You'll see the response appear word by word.
+
+### Event Subscription Methods
+
+The SDK provides methods for subscribing to session events:
+
+| Method | Description |
+|--------|-------------|
+| `on(handler)` | Subscribe to all events; returns unsubscribe function |
+| `on(eventType, handler)` | Subscribe to specific event type (Node.js/TypeScript only); returns unsubscribe function |
+
+<details open>
+<summary><strong>Node.js / TypeScript</strong></summary>
+
+```typescript
+// Subscribe to all events
+const unsubscribeAll = session.on((event) => {
+    console.log("Event:", event.type);
+});
+
+// Subscribe to specific event type
+const unsubscribeIdle = session.on("session.idle", (event) => {
+    console.log("Session is idle");
+});
+
+// Later, to unsubscribe:
+unsubscribeAll();
+unsubscribeIdle();
+```
+
+</details>
+
+<details>
+<summary><strong>Python</strong></summary>
+
+<!-- docs-validate: skip -->
+```python
+# Subscribe to all events
+unsubscribe = session.on(lambda event: print(f"Event: {event.type}"))
+
+# Filter by event type in your handler
+def handle_event(event):
+    if event.type == SessionEventType.SESSION_IDLE:
+        print("Session is idle")
+    elif event.type == SessionEventType.ASSISTANT_MESSAGE:
+        print(f"Message: {event.data.content}")
+
+unsubscribe = session.on(handle_event)
+
+# Later, to unsubscribe:
+unsubscribe()
+```
+
+</details>
+
+<details>
+<summary><strong>Go</strong></summary>
+
+<!-- docs-validate: skip -->
+```go
+// Subscribe to all events
+unsubscribe := session.On(func(event copilot.SessionEvent) {
+    fmt.Println("Event:", event.Type)
+})
+
+// Filter by event type in your handler
+session.On(func(event copilot.SessionEvent) {
+    if event.Type == "session.idle" {
+        fmt.Println("Session is idle")
+    } else if event.Type == "assistant.message" {
+        fmt.Println("Message:", *event.Data.Content)
+    }
+})
+
+// Later, to unsubscribe:
+unsubscribe()
+```
+
+</details>
+
+<details>
+<summary><strong>.NET</strong></summary>
+
+<!-- docs-validate: skip -->
+```csharp
+// Subscribe to all events
+var unsubscribe = session.On(ev => Console.WriteLine($"Event: {ev.Type}"));
+
+// Filter by event type using pattern matching
+session.On(ev =>
+{
+    switch (ev)
+    {
+        case SessionIdleEvent:
+            Console.WriteLine("Session is idle");
+            break;
+        case AssistantMessageEvent msg:
+            Console.WriteLine($"Message: {msg.Data.Content}");
+            break;
+    }
+});
+
+// Later, to unsubscribe:
+unsubscribe.Dispose();
+```
+
+</details>
 
 ## Step 4: Add a Custom Tool
 
@@ -513,6 +623,7 @@ Update `main.go`:
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
@@ -534,6 +645,8 @@ type WeatherResult struct {
 }
 
 func main() {
+	ctx := context.Background()
+
 	// Define a tool that Copilot can call
 	getWeather := copilot.DefineTool(
 		"get_weather",
@@ -552,12 +665,12 @@ func main() {
 	)
 
 	client := copilot.NewClient(nil)
-	if err := client.Start(); err != nil {
+	if err := client.Start(ctx); err != nil {
 		log.Fatal(err)
 	}
 	defer client.Stop()
 
-	session, err := client.CreateSession(&copilot.SessionConfig{
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		Model:     "gpt-4.1",
 		Streaming: true,
 		Tools:     []copilot.Tool{getWeather},
@@ -575,9 +688,9 @@ func main() {
 		}
 	})
 
-	_, err = session.SendAndWait(copilot.MessageOptions{
+	_, err = session.SendAndWait(ctx, copilot.MessageOptions{
 		Prompt: "What's the weather like in Seattle and Tokyo?",
-	}, 0)
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -796,6 +909,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
@@ -816,6 +930,8 @@ type WeatherResult struct {
 }
 
 func main() {
+	ctx := context.Background()
+
 	getWeather := copilot.DefineTool(
 		"get_weather",
 		"Get the current weather for a city",
@@ -832,12 +948,12 @@ func main() {
 	)
 
 	client := copilot.NewClient(nil)
-	if err := client.Start(); err != nil {
+	if err := client.Start(ctx); err != nil {
 		log.Fatal(err)
 	}
 	defer client.Stop()
 
-	session, err := client.CreateSession(&copilot.SessionConfig{
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		Model:     "gpt-4.1",
 		Streaming: true,
 		Tools:     []copilot.Tool{getWeather},
@@ -872,7 +988,7 @@ func main() {
 		}
 
 		fmt.Print("Assistant: ")
-		_, err = session.SendAndWait(copilot.MessageOptions{Prompt: input}, 0)
+		_, err = session.SendAndWait(ctx, copilot.MessageOptions{Prompt: input})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			break
@@ -1111,6 +1227,7 @@ session = await client.create_session()
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 import copilot "github.com/github/copilot-sdk/go"
 
@@ -1118,13 +1235,13 @@ client := copilot.NewClient(&copilot.ClientOptions{
     CLIUrl: "localhost:4321",
 })
 
-if err := client.Start(); err != nil {
+if err := client.Start(ctx); err != nil {
     log.Fatal(err)
 }
 defer client.Stop()
 
 // Use the client normally
-session, err := client.CreateSession()
+session, err := client.CreateSession(ctx, nil)
 // ...
 ```
 

@@ -50,6 +50,7 @@ await client.start()
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 import copilot "github.com/github/copilot-sdk/go"
 
@@ -119,6 +120,7 @@ await client.start()
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 import copilot "github.com/github/copilot-sdk/go"
 
@@ -133,6 +135,7 @@ client := copilot.NewClient(&copilot.ClientOptions{
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: skip -->
 ```csharp
 using GitHub.Copilot.SDK;
 
@@ -251,6 +254,7 @@ const client = new CopilotClient({
 <details>
 <summary><strong>Python</strong></summary>
 
+<!-- docs-validate: skip -->
 ```python
 client = CopilotClient({
     "use_logged_in_user": False,  # Only use explicit tokens
@@ -262,6 +266,7 @@ client = CopilotClient({
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
     UseLoggedInUser: copilot.Bool(false),  // Only use explicit tokens

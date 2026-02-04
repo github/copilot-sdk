@@ -242,6 +242,7 @@ cd /expected/working/dir
 
 #### .NET Console Apps / Tools
 
+<!-- docs-validate: skip -->
 ```csharp
 // Correct configuration for .NET exe
 ["my-dotnet-server"] = new McpLocalServerConfig
@@ -266,6 +267,7 @@ cd /expected/working/dir
 
 #### NPX Commands
 
+<!-- docs-validate: skip -->
 ```csharp
 // Windows needs cmd /c for npx
 ["filesystem"] = new McpLocalServerConfig
@@ -302,6 +304,7 @@ xattr -d com.apple.quarantine /path/to/mcp-server
 
 #### Homebrew Paths
 
+<!-- docs-validate: skip -->
 ```typescript
 // GUI apps may not have /opt/homebrew in PATH
 mcpServers: {

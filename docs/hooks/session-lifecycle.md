@@ -16,6 +16,7 @@ The `onSessionStart` hook is called when a session begins (new or resumed).
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
+<!-- docs-validate: skip -->
 ```typescript
 type SessionStartHandler = (
   input: SessionStartHookInput,
@@ -28,6 +29,7 @@ type SessionStartHandler = (
 <details>
 <summary><strong>Python</strong></summary>
 
+<!-- docs-validate: skip -->
 ```python
 SessionStartHandler = Callable[
     [SessionStartHookInput, HookInvocation],
@@ -40,6 +42,7 @@ SessionStartHandler = Callable[
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 type SessionStartHandler func(
     input SessionStartHookInput,
@@ -52,6 +55,7 @@ type SessionStartHandler func(
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: skip -->
 ```csharp
 public delegate Task<SessionStartHookOutput?> SessionStartHandler(
     SessionStartHookInput input,
@@ -204,6 +208,7 @@ type SessionEndHandler = (
 <details>
 <summary><strong>Python</strong></summary>
 
+<!-- docs-validate: skip -->
 ```python
 SessionEndHandler = Callable[
     [SessionEndHookInput, HookInvocation],
@@ -216,6 +221,7 @@ SessionEndHandler = Callable[
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 type SessionEndHandler func(
     input SessionEndHookInput,

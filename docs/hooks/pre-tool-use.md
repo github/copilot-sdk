@@ -12,6 +12,7 @@ The `onPreToolUse` hook is called **before** a tool executes. Use it to:
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
+<!-- docs-validate: skip -->
 ```typescript
 type PreToolUseHandler = (
   input: PreToolUseHookInput,
@@ -24,6 +25,7 @@ type PreToolUseHandler = (
 <details>
 <summary><strong>Python</strong></summary>
 
+<!-- docs-validate: skip -->
 ```python
 PreToolUseHandler = Callable[
     [PreToolUseHookInput, HookInvocation],
@@ -36,6 +38,7 @@ PreToolUseHandler = Callable[
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 type PreToolUseHandler func(
     input PreToolUseHookInput,
@@ -48,6 +51,7 @@ type PreToolUseHandler func(
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: skip -->
 ```csharp
 public delegate Task<PreToolUseHookOutput?> PreToolUseHandler(
     PreToolUseHookInput input,
@@ -125,6 +129,7 @@ session = await client.create_session({
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Hooks: &copilot.SessionHooks{
@@ -144,6 +149,7 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: skip -->
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {

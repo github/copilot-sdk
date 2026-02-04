@@ -12,6 +12,7 @@ The `onPostToolUse` hook is called **after** a tool executes. Use it to:
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
+<!-- docs-validate: skip -->
 ```typescript
 type PostToolUseHandler = (
   input: PostToolUseHookInput,
@@ -24,6 +25,7 @@ type PostToolUseHandler = (
 <details>
 <summary><strong>Python</strong></summary>
 
+<!-- docs-validate: skip -->
 ```python
 PostToolUseHandler = Callable[
     [PostToolUseHookInput, HookInvocation],
@@ -36,6 +38,7 @@ PostToolUseHandler = Callable[
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 type PostToolUseHandler func(
     input PostToolUseHookInput,
@@ -48,6 +51,7 @@ type PostToolUseHandler func(
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: skip -->
 ```csharp
 public delegate Task<PostToolUseHookOutput?> PostToolUseHandler(
     PostToolUseHookInput input,
@@ -118,6 +122,7 @@ session = await client.create_session({
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Hooks: &copilot.SessionHooks{
@@ -136,6 +141,7 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: skip -->
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {

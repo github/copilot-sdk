@@ -12,6 +12,7 @@ The `onErrorOccurred` hook is called when errors occur during session execution.
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
+<!-- docs-validate: skip -->
 ```typescript
 type ErrorOccurredHandler = (
   input: ErrorOccurredHookInput,
@@ -24,6 +25,7 @@ type ErrorOccurredHandler = (
 <details>
 <summary><strong>Python</strong></summary>
 
+<!-- docs-validate: skip -->
 ```python
 ErrorOccurredHandler = Callable[
     [ErrorOccurredHookInput, HookInvocation],
@@ -36,6 +38,7 @@ ErrorOccurredHandler = Callable[
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 type ErrorOccurredHandler func(
     input ErrorOccurredHookInput,
@@ -48,6 +51,7 @@ type ErrorOccurredHandler func(
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: skip -->
 ```csharp
 public delegate Task<ErrorOccurredHookOutput?> ErrorOccurredHandler(
     ErrorOccurredHookInput input,
@@ -105,7 +109,7 @@ const session = await client.createSession({
 ```python
 async def on_error_occurred(input_data, invocation):
     print(f"[{invocation['session_id']}] Error: {input_data['error']}")
-    print(f"  Context: {input_data['error_context']}")
+    print(f"  Context: {input_data['errorContext']}")
     print(f"  Recoverable: {input_data['recoverable']}")
     return None
 
@@ -119,6 +123,7 @@ session = await client.create_session({
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Hooks: &copilot.SessionHooks{
@@ -137,6 +142,7 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: skip -->
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {
@@ -145,11 +151,8 @@ var session = await client.CreateSessionAsync(new SessionConfig
         OnErrorOccurred = (input, invocation) =>
         {
             Console.Error.WriteLine($"[{invocation.SessionId}] Error: {input.Error}");
-            Console.Error.WriteLine($"  Type: {input.ErrorType}");
-            if (!string.IsNullOrEmpty(input.Stack))
-            {
-                Console.Error.WriteLine($"  Stack: {input.Stack}");
-            }
+            Console.Error.WriteLine($"  Context: {input.ErrorContext}");
+            Console.Error.WriteLine($"  Recoverable: {input.Recoverable}");
             return Task.FromResult<ErrorOccurredHookOutput?>(null);
         },
     },
@@ -169,11 +172,11 @@ const session = await client.createSession({
       captureException(new Error(input.error), {
         tags: {
           sessionId: invocation.sessionId,
-          errorType: input.errorType,
+          errorContext: input.errorContext,
         },
         extra: {
-          stack: input.stack,
-          context: input.context,
+          error: input.error,
+          recoverable: input.recoverable,
           cwd: input.cwd,
         },
       });
@@ -188,20 +191,20 @@ const session = await client.createSession({
 
 ```typescript
 const ERROR_MESSAGES: Record<string, string> = {
-  "rate_limit": "Too many requests. Please wait a moment and try again.",
-  "auth_failed": "Authentication failed. Please check your credentials.",
-  "network_error": "Network connection issue. Please check your internet connection.",
-  "timeout": "Request timed out. Try breaking your request into smaller parts.",
+  "model_call": "There was an issue communicating with the AI model. Please try again.",
+  "tool_execution": "A tool failed to execute. Please check your inputs and try again.",
+  "system": "A system error occurred. Please try again later.",
+  "user_input": "There was an issue with your input. Please check and try again.",
 };
 
 const session = await client.createSession({
   hooks: {
     onErrorOccurred: async (input) => {
-      const friendlyMessage = ERROR_MESSAGES[input.errorType];
+      const friendlyMessage = ERROR_MESSAGES[input.errorContext];
       
       if (friendlyMessage) {
         return {
-          modifiedMessage: friendlyMessage,
+          userNotification: friendlyMessage,
         };
       }
       
@@ -214,17 +217,13 @@ const session = await client.createSession({
 ### Suppress Non-Critical Errors
 
 ```typescript
-const SUPPRESSED_ERRORS = [
-  "tool_not_found",
-  "file_not_found",
-];
-
 const session = await client.createSession({
   hooks: {
     onErrorOccurred: async (input) => {
-      if (SUPPRESSED_ERRORS.includes(input.errorType)) {
-        console.log(`Suppressed error: ${input.errorType}`);
-        return { suppressError: true };
+      // Suppress tool execution errors that are recoverable
+      if (input.errorContext === "tool_execution" && input.recoverable) {
+        console.log(`Suppressed recoverable error: ${input.error}`);
+        return { suppressOutput: true };
       }
       return null;
     },
@@ -238,9 +237,9 @@ const session = await client.createSession({
 const session = await client.createSession({
   hooks: {
     onErrorOccurred: async (input) => {
-      if (input.errorType === "tool_execution_failed") {
+      if (input.errorContext === "tool_execution") {
         return {
-          additionalContext: `
+          userNotification: `
 The tool failed. Here are some recovery suggestions:
 - Check if required dependencies are installed
 - Verify file paths are correct
@@ -249,9 +248,11 @@ The tool failed. Here are some recovery suggestions:
         };
       }
       
-      if (input.errorType === "rate_limit") {
+      if (input.errorContext === "model_call" && input.error.includes("rate")) {
         return {
-          additionalContext: "Rate limit hit. Waiting before retry.",
+          errorHandling: "retry",
+          retryCount: 3,
+          userNotification: "Rate limit hit. Retrying...",
         };
       }
       
@@ -275,7 +276,7 @@ const errorStats = new Map<string, ErrorStats>();
 const session = await client.createSession({
   hooks: {
     onErrorOccurred: async (input, invocation) => {
-      const key = `${input.errorType}:${input.error.substring(0, 50)}`;
+      const key = `${input.errorContext}:${input.error.substring(0, 50)}`;
       
       const existing = errorStats.get(key) || {
         count: 0,
@@ -303,17 +304,17 @@ const session = await client.createSession({
 ### Alert on Critical Errors
 
 ```typescript
-const CRITICAL_ERRORS = ["auth_failed", "api_error", "system_error"];
+const CRITICAL_CONTEXTS = ["system", "model_call"];
 
 const session = await client.createSession({
   hooks: {
     onErrorOccurred: async (input, invocation) => {
-      if (CRITICAL_ERRORS.includes(input.errorType)) {
+      if (CRITICAL_CONTEXTS.includes(input.errorContext) && !input.recoverable) {
         await sendAlert({
           level: "critical",
           message: `Critical error in session ${invocation.sessionId}`,
           error: input.error,
-          type: input.errorType,
+          context: input.errorContext,
           timestamp: new Date(input.timestamp).toISOString(),
         });
       }
@@ -350,7 +351,7 @@ const session = await client.createSession({
       
       console.error(`Error in session ${invocation.sessionId}:`);
       console.error(`  Error: ${input.error}`);
-      console.error(`  Type: ${input.errorType}`);
+      console.error(`  Context: ${input.errorContext}`);
       if (ctx?.lastTool) {
         console.error(`  Last tool: ${ctx.lastTool}`);
       }

@@ -1,0 +1,19 @@
+{
+  "name": "docs-validation",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "extract": "tsx extract.ts",
+    "validate": "tsx validate.ts",
+    "validate:ts": "tsx validate.ts --lang typescript",
+    "validate:py": "tsx validate.ts --lang python",
+    "validate:go": "tsx validate.ts --lang go",
+    "validate:cs": "tsx validate.ts --lang csharp"
+  },
+  "dependencies": {
+    "glob": "^11.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
