@@ -701,6 +701,67 @@ public class SessionEventParserTest {
         assertEquals("system.message", event.getType());
     }
 
+    @Test
+    void testParseSessionShutdownEvent() {
+        String json = """
+                {
+                    "type": "session.shutdown",
+                    "data": {
+                        "shutdownType": "routine",
+                        "totalPremiumRequests": 5,
+                        "totalApiDurationMs": 1234.5,
+                        "sessionStartTime": 1612345678000,
+                        "codeChanges": {
+                            "linesAdded": 10,
+                            "linesRemoved": 3,
+                            "filesModified": ["file1.java", "file2.java"]
+                        },
+                        "modelMetrics": {},
+                        "currentModel": "gpt-4"
+                    }
+                }
+                """;
+
+        AbstractSessionEvent event = SessionEventParser.parse(json);
+        assertNotNull(event);
+        assertInstanceOf(SessionShutdownEvent.class, event);
+        assertEquals("session.shutdown", event.getType());
+
+        SessionShutdownEvent shutdownEvent = (SessionShutdownEvent) event;
+        assertEquals(SessionShutdownEvent.ShutdownType.ROUTINE, shutdownEvent.getData().getShutdownType());
+        assertEquals(5, shutdownEvent.getData().getTotalPremiumRequests());
+        assertEquals("gpt-4", shutdownEvent.getData().getCurrentModel());
+        assertNotNull(shutdownEvent.getData().getCodeChanges());
+        assertEquals(10, shutdownEvent.getData().getCodeChanges().getLinesAdded());
+    }
+
+    @Test
+    void testParseSkillInvokedEvent() {
+        String json = """
+                {
+                    "type": "skill.invoked",
+                    "data": {
+                        "name": "code-review",
+                        "path": "/path/to/skill",
+                        "content": "Skill instructions here",
+                        "allowedTools": ["view", "edit", "grep"]
+                    }
+                }
+                """;
+
+        AbstractSessionEvent event = SessionEventParser.parse(json);
+        assertNotNull(event);
+        assertInstanceOf(SkillInvokedEvent.class, event);
+        assertEquals("skill.invoked", event.getType());
+
+        SkillInvokedEvent skillEvent = (SkillInvokedEvent) event;
+        assertEquals("code-review", skillEvent.getData().getName());
+        assertEquals("/path/to/skill", skillEvent.getData().getPath());
+        assertEquals("Skill instructions here", skillEvent.getData().getContent());
+        assertNotNull(skillEvent.getData().getAllowedTools());
+        assertEquals(3, skillEvent.getData().getAllowedTools().size());
+    }
+
     // =========================================================================
     // Edge Cases
     // =========================================================================
