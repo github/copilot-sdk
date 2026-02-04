@@ -68,6 +68,10 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
+		if assistantMessage == nil {
+			t.Fatal("Expected assistant message, got nil")
+		}
+
 		if assistantMessage.Data.Content == nil || !strings.Contains(*assistantMessage.Data.Content, "2") {
 			t.Errorf("Expected assistant message to contain '2', got %v", assistantMessage.Data.Content)
 		}
@@ -75,6 +79,10 @@ func TestSession(t *testing.T) {
 		secondMessage, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Now if you double that, what do you get?"})
 		if err != nil {
 			t.Fatalf("Failed to send second message: %v", err)
+		}
+
+		if secondMessage == nil {
+			t.Fatal("Expected second assistant message, got nil")
 		}
 
 		if secondMessage.Data.Content == nil || !strings.Contains(*secondMessage.Data.Content, "4") {
