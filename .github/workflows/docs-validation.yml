@@ -17,36 +17,8 @@ permissions:
   contents: read
 
 jobs:
-  extract:
-    name: "Extract Code Blocks"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: "npm"
-          cache-dependency-path: "scripts/docs-validation/package-lock.json"
-
-      - name: Install extraction dependencies
-        working-directory: scripts/docs-validation
-        run: npm ci
-
-      - name: Extract code blocks
-        working-directory: scripts/docs-validation
-        run: npm run extract
-
-      - name: Upload extracted code
-        uses: actions/upload-artifact@v4
-        with:
-          name: extracted-code
-          path: docs/.validation/
-          retention-days: 1
-
   validate-typescript:
     name: "Validate TypeScript"
-    needs: extract
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -65,22 +37,19 @@ jobs:
         working-directory: scripts/docs-validation
         run: npm ci
 
-      - name: Download extracted code
-        uses: actions/download-artifact@v4
-        with:
-          name: extracted-code
-          path: docs/.validation/
-
-      - name: Validate TypeScript
+      - name: Extract and validate TypeScript
         working-directory: scripts/docs-validation
-        run: npm run validate:ts
+        run: npm run extract && npm run validate:ts
 
   validate-python:
     name: "Validate Python"
-    needs: extract
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
       - uses: actions/setup-python@v5
         with:
@@ -100,79 +69,55 @@ jobs:
         working-directory: scripts/docs-validation
         run: npm ci
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Download extracted code
-        uses: actions/download-artifact@v4
-        with:
-          name: extracted-code
-          path: docs/.validation/
-
-      - name: Validate Python
+      - name: Extract and validate Python
         working-directory: scripts/docs-validation
-        run: npm run validate:py
+        run: npm run extract && npm run validate:py
 
   validate-go:
     name: "Validate Go"
-    needs: extract
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23"
           cache-dependency-path: "go/go.sum"
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
       - name: Install validation dependencies
         working-directory: scripts/docs-validation
         run: npm ci
 
-      - name: Download extracted code
-        uses: actions/download-artifact@v4
-        with:
-          name: extracted-code
-          path: docs/.validation/
-
-      - name: Validate Go
+      - name: Extract and validate Go
         working-directory: scripts/docs-validation
-        run: npm run validate:go
+        run: npm run extract && npm run validate:go
 
   validate-csharp:
     name: "Validate C#"
-    needs: extract
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
       - name: Install validation dependencies
         working-directory: scripts/docs-validation
         run: npm ci
-
-      - name: Download extracted code
-        uses: actions/download-artifact@v4
-        with:
-          name: extracted-code
-          path: docs/.validation/
 
       - name: Restore SDK dependencies
         working-directory: dotnet
         run: dotnet restore
 
-      - name: Validate C#
+      - name: Extract and validate C#
         working-directory: scripts/docs-validation
-        run: npm run validate:cs
+        run: npm run extract && npm run validate:cs
