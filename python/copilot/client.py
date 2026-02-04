@@ -634,6 +634,9 @@ class CopilotClient:
         resumed_session_id = response["sessionId"]
         workspace_path = response.get("workspacePath")
         session = CopilotSession(resumed_session_id, self._client, workspace_path)
+        usage_info = response.get("usageInfo") or response.get("usage_info")
+        if usage_info:
+            session.usage_info = usage_info
         session._register_tools(cfg.get("tools"))
         if on_permission_request:
             session._register_permission_handler(on_permission_request)
