@@ -370,6 +370,10 @@ func TestCombinedConfiguration(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
+		if message == nil {
+			t.Fatalf("Expected a message, got nil")
+		}
+
 		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "14") {
 			t.Errorf("Expected message to contain '14', got: %v", message.Data.Content)
 		}
