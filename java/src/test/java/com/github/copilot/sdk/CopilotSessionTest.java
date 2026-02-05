@@ -517,23 +517,30 @@ public class CopilotSessionTest {
         ctx.configureForTest("session", "should_list_sessions");
 
         try (CopilotClient client = ctx.createClient()) {
-            // Create a session and send messages
-            CopilotSession session = client.createSession().get();
-            session.sendAndWait(new MessageOptions().setPrompt("Say hello")).get(60, TimeUnit.SECONDS);
-            session.sendAndWait(new MessageOptions().setPrompt("Say goodbye")).get(60, TimeUnit.SECONDS);
+            // Create two sessions and send one message to each (matches snapshot format)
+            CopilotSession session1 = client.createSession().get();
+            session1.sendAndWait(new MessageOptions().setPrompt("Say hello")).get(60, TimeUnit.SECONDS);
+
+            CopilotSession session2 = client.createSession().get();
+            session2.sendAndWait(new MessageOptions().setPrompt("Say goodbye")).get(60, TimeUnit.SECONDS);
+
+            // Small delay to ensure session files are written to disk
+            Thread.sleep(200);
 
             // List all sessions
             var sessions = client.listSessions().get(30, TimeUnit.SECONDS);
 
-            // Should have at least the session we created
+            // Should have at least the sessions we created
             assertNotNull(sessions);
             assertFalse(sessions.isEmpty(), "Should have at least 1 session");
 
-            // Our session should be in the list
-            boolean foundSession = sessions.stream().anyMatch(s -> s.getSessionId().equals(session.getSessionId()));
-            assertTrue(foundSession, "Our session should be in the list");
+            // Our sessions should be in the list
+            var sessionIds = sessions.stream().map(s -> s.getSessionId()).toList();
+            assertTrue(sessionIds.contains(session1.getSessionId()), "Session 1 should be in the list");
+            assertTrue(sessionIds.contains(session2.getSessionId()), "Session 2 should be in the list");
 
-            session.close();
+            session1.close();
+            session2.close();
         }
     }
 
