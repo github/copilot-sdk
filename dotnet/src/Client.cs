@@ -343,6 +343,19 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     public async Task<CopilotSession> CreateSessionAsync(SessionConfig? config = null, CancellationToken cancellationToken = default)
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
+        Console.WriteLine("Creating new Copilot session");
+        if (!string.IsNullOrEmpty(config?.Model))
+        {
+            var availableModels = await ListModelsAsync(cancellationToken).ConfigureAwait(false);
+            var validModelIds = availableModels.Select(m => m.Id).ToList();
+
+            if (!validModelIds.Contains(config.Model, StringComparer.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException(
+                    $"Invalid model '{config.Model}'. Available models: {string.Join(", ", validModelIds)}",
+                    nameof(config));
+            }
+        }
 
         var hasHooks = config?.Hooks != null && (
             config.Hooks.OnPreToolUse != null ||

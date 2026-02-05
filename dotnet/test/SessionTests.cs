@@ -15,7 +15,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     [Fact]
     public async Task ShouldCreateAndDestroySessions()
     {
-        var session = await Client.CreateSessionAsync(new SessionConfig { Model = "fake-test-model" });
+        var session = await Client.CreateSessionAsync(new SessionConfig { Model = "claude-sonnet-4.5" });
 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
 
@@ -394,5 +394,20 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
         Assert.NotNull(assistantMessage);
         Assert.Contains("2", assistantMessage!.Data.Content);
+    }
+
+    [Fact]
+    public async Task CreateSessionAsync_WithInvalidModel_ThrowsArgumentException()
+    {
+        var exception = await Assert.ThrowsAsync<ArgumentException>(async () =>
+        {
+            await Client.CreateSessionAsync(new SessionConfig
+            {
+                Model = "INVALID_MODEL_THAT_DOES_NOT_EXIST"
+            });
+        });
+
+        Assert.Contains("Invalid model", exception.Message);
+        Assert.Contains("INVALID_MODEL_THAT_DOES_NOT_EXIST", exception.Message);
     }
 }
