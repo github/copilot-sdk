@@ -162,3 +162,10 @@ cython_debug/
 # Ruff and ty cache
 .ruff_cache/
 .ty_cache/
+
+# Build script caches
+.cli-cache/
+.build-temp/
+
+# Bundled CLI binary (only in platform wheels, not in repo)
+copilot/bin/

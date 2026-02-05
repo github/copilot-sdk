@@ -153,12 +153,18 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22.x"
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
+      - name: Install Node.js dependencies (for CLI version)
+        working-directory: ./nodejs
+        run: npm ci --ignore-scripts
       - name: Set version
         run: sed -i "s/^version = .*/version = \"${{ needs.version.outputs.version }}\"/" pyproject.toml
-      - name: Build package
-        run: uv build
+      - name: Build platform wheels
+        run: node scripts/build-wheels.mjs --output-dir dist
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
