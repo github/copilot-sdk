@@ -137,7 +137,18 @@ async function downloadCliBinary(platform, cliVersion, cacheDir) {
     return cachedBinary;
 }
 
-async function buildWheel(platform, pkgVersion, cliVersion, outputDir) {
+function getCliLicensePath() {
+    // Use license from node_modules (requires npm ci in nodejs/ first)
+    const licensePath = join(repoRoot, "nodejs", "node_modules", "@github", "copilot", "LICENSE.md");
+    if (!existsSync(licensePath)) {
+        throw new Error(
+            `CLI LICENSE.md not found at ${licensePath}. Run 'npm ci' in nodejs/ first.`
+        );
+    }
+    return licensePath;
+}
+
+async function buildWheel(platform, pkgVersion, cliVersion, outputDir, licensePath) {
     const [wheelTag, binaryName] = PLATFORMS[platform];
     console.log(`\nBuilding wheel for ${platform}...`);
 
@@ -169,8 +180,14 @@ async function buildWheel(platform, pkgVersion, cliVersion, outputDir) {
     // Create __init__.py
     writeFileSync(join(binDir, "__init__.py"), '"""Bundled Copilot CLI binary."""\n');
 
-    // Copy and modify pyproject.toml
+    // Copy and modify pyproject.toml - replace license reference with file
     let pyprojectContent = readFileSync(join(pythonDir, "pyproject.toml"), "utf-8");
+
+    // Replace the license specification with file reference
+    pyprojectContent = pyprojectContent.replace(
+        'license = {text = "MIT"}',
+        'license = {file = "CLI-LICENSE.md"}'
+    );
 
     // Add package-data configuration
     const packageDataConfig = `
@@ -184,6 +201,9 @@ async function buildWheel(platform, pkgVersion, cliVersion, outputDir) {
     if (existsSync(join(pythonDir, "README.md"))) {
         cpSync(join(pythonDir, "README.md"), join(buildDir, "README.md"));
     }
+
+    // Copy CLI LICENSE
+    cpSync(licensePath, join(buildDir, "CLI-LICENSE.md"));
 
     // Build wheel using uv (faster and doesn't require build package to be installed)
     const distDir = join(buildDir, "dist");
@@ -314,12 +334,15 @@ async function main() {
 
     mkdirSync(outputDir, { recursive: true });
 
+    // Get CLI license from node_modules
+    const licensePath = getCliLicensePath();
+
     const platforms = platform ? [platform] : Object.keys(PLATFORMS);
     const wheels = [];
 
     for (const p of platforms) {
         try {
-            const wheel = await buildWheel(p, pkgVersion, cliVersion, outputDir);
+            const wheel = await buildWheel(p, pkgVersion, cliVersion, outputDir, licensePath);
             wheels.push(wheel);
         } catch (e) {
             console.error(`Error building wheel for ${p}:`, e.message);
