@@ -16,6 +16,8 @@ import type {
     AcpSessionUpdate,
     AcpSessionUpdateParams,
     AcpMcpServerConfig,
+    AcpToolCallUpdateInner,
+    AcpToolCallUpdateUpdateInner,
 } from "./acp-types.js";
 
 let eventIdCounter = 0;
@@ -172,6 +174,103 @@ export function acpUpdateToSessionEvent(update: AcpSessionUpdate): SessionEvent 
         default:
             return null;
     }
+}
+
+/**
+ * Helper to extract text content from ACP tool call content array.
+ */
+function extractToolCallContent(content?: { type: string; text: string }[]): string {
+    if (!content || content.length === 0) {
+        return "";
+    }
+    return content.map((c) => c.text).join("\n");
+}
+
+/**
+ * Maps ACP tool_call or tool_call_update to Copilot SessionEvent.
+ * Handles both initial tool calls and updates to existing tool calls.
+ */
+export function acpToolCallToSessionEvent(
+    update: AcpToolCallUpdateInner | AcpToolCallUpdateUpdateInner
+): SessionEvent | null {
+    const meta = createEventMetadata();
+
+    if (update.sessionUpdate === "tool_call") {
+        const toolCall = update as AcpToolCallUpdateInner;
+
+        // If status is completed or failed, return tool.execution_complete
+        if (toolCall.status === "completed" || toolCall.status === "failed") {
+            const content = extractToolCallContent(toolCall.content);
+            const success = toolCall.status === "completed";
+
+            return {
+                ...meta,
+                type: "tool.execution_complete",
+                data: {
+                    toolCallId: toolCall.toolCallId,
+                    success,
+                    ...(success
+                        ? { result: { content } }
+                        : { error: { message: content || "Tool execution failed" } }),
+                },
+            };
+        }
+
+        // Otherwise, return tool.execution_start
+        return {
+            ...meta,
+            type: "tool.execution_start",
+            data: {
+                toolCallId: toolCall.toolCallId,
+                toolName: toolCall.kind,
+                ...(toolCall.rawInput !== undefined && { arguments: toolCall.rawInput }),
+            },
+        };
+    }
+
+    if (update.sessionUpdate === "tool_call_update") {
+        const toolCallUpdate = update as AcpToolCallUpdateUpdateInner;
+        const content = extractToolCallContent(toolCallUpdate.content);
+
+        // If status is completed, return tool.execution_complete with success
+        if (toolCallUpdate.status === "completed") {
+            return {
+                ...meta,
+                type: "tool.execution_complete",
+                data: {
+                    toolCallId: toolCallUpdate.toolCallId,
+                    success: true,
+                    result: { content },
+                },
+            };
+        }
+
+        // If status is failed, return tool.execution_complete with error
+        if (toolCallUpdate.status === "failed") {
+            return {
+                ...meta,
+                type: "tool.execution_complete",
+                data: {
+                    toolCallId: toolCallUpdate.toolCallId,
+                    success: false,
+                    error: { message: content || "Tool execution failed" },
+                },
+            };
+        }
+
+        // If status is running (or undefined), return tool.execution_progress
+        return {
+            ...meta,
+            ephemeral: true,
+            type: "tool.execution_progress",
+            data: {
+                toolCallId: toolCallUpdate.toolCallId,
+                progressMessage: content,
+            },
+        };
+    }
+
+    return null;
 }
 
 /**

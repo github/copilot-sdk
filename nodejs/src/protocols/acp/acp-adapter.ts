@@ -18,10 +18,15 @@ import {
     type AcpInitializeResult,
     type AcpSessionNewResult,
     type AcpSessionPromptResult,
+    type AcpRequestPermissionParams,
+    type AcpRequestPermissionResult,
+    type AcpToolCallUpdateInner,
+    type AcpToolCallUpdateUpdateInner,
 } from "./acp-types.js";
 import {
     stringToAcpContent,
     acpSessionUpdateToSessionEvent,
+    acpToolCallToSessionEvent,
     copilotSessionConfigToAcpParams,
 } from "./acp-mapper.js";
 
@@ -33,6 +38,7 @@ class AcpConnection implements ProtocolConnection {
     private transport: AcpTransport;
     private requestId = 0;
     private notificationHandlers: Map<string, Set<(params: unknown) => void>> = new Map();
+    private requestHandlers: Map<string, (params: unknown) => Promise<unknown>> = new Map();
     private closeHandlers: Set<() => void> = new Set();
     private errorHandlers: Set<(error: Error) => void> = new Set();
 
@@ -42,6 +48,11 @@ class AcpConnection implements ProtocolConnection {
         // Set up transport notification handler for session/update
         this.transport.onNotification("session/update", (params) => {
             this.handleAcpUpdate(params as AcpSessionUpdateParams);
+        });
+
+        // Set up transport request handler for session/request_permission
+        this.transport.onRequest("session/request_permission", async (id, params) => {
+            await this.handleAcpPermissionRequest(id, params as AcpRequestPermissionParams);
         });
 
         this.transport.onClose(() => {
@@ -100,9 +111,9 @@ class AcpConnection implements ProtocolConnection {
         this.notificationHandlers.get(method)!.add(handler);
     }
 
-    onRequest(_method: string, _handler: (params: unknown) => Promise<unknown>): void {
-        // ACP doesn't support server-to-client requests (tool calls, permissions, etc.)
-        // This is a limitation of the ACP protocol
+    onRequest(method: string, handler: (params: unknown) => Promise<unknown>): void {
+        // Store the handler for ACP requests (permission.request maps to session/request_permission)
+        this.requestHandlers.set(method, handler);
     }
 
     onClose(handler: () => void): void {
@@ -116,6 +127,7 @@ class AcpConnection implements ProtocolConnection {
     dispose(): void {
         this.transport.dispose();
         this.notificationHandlers.clear();
+        this.requestHandlers.clear();
         this.closeHandlers.clear();
         this.errorHandlers.clear();
     }
@@ -248,17 +260,34 @@ class AcpConnection implements ProtocolConnection {
     }
 
     private handleAcpUpdate(updateParams: AcpSessionUpdateParams): void {
+        const { update } = updateParams;
+
+        // Check if this is a tool call update
+        if (update.sessionUpdate === "tool_call" || update.sessionUpdate === "tool_call_update") {
+            const toolEvent = acpToolCallToSessionEvent(
+                update as AcpToolCallUpdateInner | AcpToolCallUpdateUpdateInner
+            );
+            if (toolEvent) {
+                this.dispatchSessionEvent(updateParams.sessionId, toolEvent);
+            }
+            return;
+        }
+
+        // Handle message updates
         const sessionEvent = acpSessionUpdateToSessionEvent(updateParams);
         if (!sessionEvent) {
             return;
         }
 
-        // Dispatch as session.event notification with Copilot format
+        this.dispatchSessionEvent(updateParams.sessionId, sessionEvent);
+    }
+
+    private dispatchSessionEvent(sessionId: string, event: unknown): void {
         const handlers = this.notificationHandlers.get("session.event");
         if (handlers) {
             const notification = {
-                sessionId: updateParams.sessionId,
-                event: sessionEvent,
+                sessionId,
+                event,
             };
 
             for (const handler of handlers) {
@@ -268,6 +297,47 @@ class AcpConnection implements ProtocolConnection {
                     // Ignore handler errors
                 }
             }
+        }
+    }
+
+    private async handleAcpPermissionRequest(
+        id: string | number,
+        params: AcpRequestPermissionParams
+    ): Promise<void> {
+        const handler = this.requestHandlers.get("permission.request");
+
+        if (!handler) {
+            // No handler registered, return cancelled
+            const result: AcpRequestPermissionResult = { outcome: "cancelled" };
+            this.transport.sendResponse(id, result);
+            return;
+        }
+
+        try {
+            // Translate ACP permission request to Copilot format
+            const copilotParams = {
+                sessionId: params.sessionId,
+                permissionRequest: {
+                    toolCallId: params.toolCall.toolCallId,
+                    title: params.toolCall.title,
+                    kind: params.toolCall.kind,
+                    rawInput: params.toolCall.rawInput,
+                    options: params.options,
+                },
+            };
+
+            const response = (await handler(copilotParams)) as { result?: { optionId?: string } };
+
+            // Translate response back to ACP format
+            const result: AcpRequestPermissionResult = {
+                outcome: "selected",
+                optionId: response.result?.optionId,
+            };
+            this.transport.sendResponse(id, result);
+        } catch {
+            // Handler rejected or threw - return cancelled
+            const result: AcpRequestPermissionResult = { outcome: "cancelled" };
+            this.transport.sendResponse(id, result);
         }
     }
 }

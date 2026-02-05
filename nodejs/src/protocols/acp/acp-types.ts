@@ -151,14 +151,71 @@ export interface AcpTextContent {
 }
 
 /**
- * ACP update inner structure
+ * ACP tool call status
  */
-export interface AcpUpdateInner {
+export type AcpToolCallStatus = "running" | "completed" | "failed";
+
+/**
+ * ACP tool call kind (affects UI treatment)
+ */
+export type AcpToolCallKind = "file_edit" | "file_read" | "command" | "search" | "other";
+
+/**
+ * ACP tool call content result
+ */
+export interface AcpToolCallContent {
+    type: "text";
+    text: string;
+}
+
+/**
+ * ACP tool call location (affected file paths)
+ */
+export interface AcpToolCallLocation {
+    path: string;
+}
+
+/**
+ * ACP update inner structure for message updates
+ */
+export interface AcpMessageUpdateInner {
     sessionUpdate: "agent_message_chunk" | "agent_thought_chunk" | "agent_message" | "end_turn" | "error";
     content?: AcpTextContent;
     message?: string;
     code?: string;
 }
+
+/**
+ * ACP update inner structure for tool_call
+ */
+export interface AcpToolCallUpdateInner {
+    sessionUpdate: "tool_call";
+    toolCallId: string;
+    title: string;
+    kind: AcpToolCallKind;
+    status: AcpToolCallStatus;
+    rawInput?: unknown;
+    rawOutput?: unknown;
+    content?: AcpToolCallContent[];
+    locations?: AcpToolCallLocation[];
+}
+
+/**
+ * ACP update inner structure for tool_call_update
+ */
+export interface AcpToolCallUpdateUpdateInner {
+    sessionUpdate: "tool_call_update";
+    toolCallId: string;
+    status?: AcpToolCallStatus;
+    rawOutput?: unknown;
+    content?: AcpToolCallContent[];
+    locations?: AcpToolCallLocation[];
+}
+
+/**
+ * ACP update inner structure (union of all update types)
+ */
+export type AcpUpdateInner = AcpMessageUpdateInner | AcpToolCallUpdateInner | AcpToolCallUpdateUpdateInner;
 
 /**
  * ACP session/update notification params (actual Gemini format)
@@ -215,6 +272,51 @@ export type AcpSessionUpdate =
     | AcpErrorParams;
 
 // ============================================================================
+// ACP Permission Request Types
+// ============================================================================
+
+/**
+ * ACP permission option kind (semantic hint for UI)
+ */
+export type AcpPermissionOptionKind = "allow_once" | "allow_always" | "reject_once" | "reject_always";
+
+/**
+ * ACP permission option
+ */
+export interface AcpPermissionOption {
+    optionId: string;
+    name: string;
+    kind: AcpPermissionOptionKind;
+}
+
+/**
+ * ACP tool call info for permission requests
+ */
+export interface AcpPermissionToolCall {
+    toolCallId: string;
+    title: string;
+    kind: AcpToolCallKind;
+    rawInput?: unknown;
+}
+
+/**
+ * ACP session/request_permission request params
+ */
+export interface AcpRequestPermissionParams {
+    sessionId: string;
+    toolCall: AcpPermissionToolCall;
+    options: AcpPermissionOption[];
+}
+
+/**
+ * ACP session/request_permission response
+ */
+export interface AcpRequestPermissionResult {
+    outcome: "selected" | "cancelled";
+    optionId?: string;
+}
+
+// ============================================================================
 // Method Name Mappings
 // ============================================================================
 
@@ -248,10 +350,10 @@ export const UNSUPPORTED_ACP_METHODS = [
     "session.setForeground",
     "status.get",
     "auth.getStatus",
-    "permission.request",
+    // permission.request is now supported via session/request_permission
     "userInput.request",
     "hooks.invoke",
-    "tool.call",
+    // tool.call is now supported via session/update tool_call events
 ] as const;
 
 export type UnsupportedAcpMethod = (typeof UNSUPPORTED_ACP_METHODS)[number];

@@ -26,6 +26,8 @@ export class AcpTransport {
     private buffer = "";
     private pendingRequests: Map<string | number, PendingRequest> = new Map();
     private notificationHandlers: Map<string, Set<(params: unknown) => void>> = new Map();
+    private requestHandlers: Map<string, (id: string | number, params: unknown) => Promise<void>> =
+        new Map();
     private messageHandlers: Set<(message: AcpMessage) => void> = new Set();
     private closeHandlers: Set<() => void> = new Set();
     private errorHandlers: Set<(error: Error) => void> = new Set();
@@ -121,6 +123,25 @@ export class AcpTransport {
     }
 
     /**
+     * Registers a handler for incoming requests (server-to-client).
+     */
+    onRequest(method: string, handler: (id: string | number, params: unknown) => Promise<void>): void {
+        this.requestHandlers.set(method, handler);
+    }
+
+    /**
+     * Sends a response to an incoming request.
+     */
+    sendResponse(id: string | number, result: unknown): void {
+        const response: AcpResponse = {
+            jsonrpc: "2.0",
+            id,
+            result,
+        };
+        this.send(response);
+    }
+
+    /**
      * Registers a handler for close events.
      */
     onClose(handler: () => void): void {
@@ -150,6 +171,7 @@ export class AcpTransport {
         // Clear handlers
         this.messageHandlers.clear();
         this.notificationHandlers.clear();
+        this.requestHandlers.clear();
         this.closeHandlers.clear();
         this.errorHandlers.clear();
     }
@@ -203,8 +225,42 @@ export class AcpTransport {
             return;
         }
 
-        // Request with both id and method - could be a request from server
-        // For now, we don't handle incoming requests in the transport layer
+        // Request with both id and method - incoming request from server
+        if ("id" in message && "method" in message) {
+            this.handleIncomingRequest(message as AcpRequest);
+            return;
+        }
+    }
+
+    private handleIncomingRequest(request: AcpRequest): void {
+        const handler = this.requestHandlers.get(request.method);
+        if (!handler) {
+            // No handler registered, send error response
+            const errorResponse: AcpResponse = {
+                jsonrpc: "2.0",
+                id: request.id,
+                error: {
+                    code: -32601,
+                    message: `Method not found: ${request.method}`,
+                },
+            };
+            this.send(errorResponse);
+            return;
+        }
+
+        // Call the handler - it's responsible for sending the response
+        handler(request.id, request.params).catch((error) => {
+            // If handler fails, send error response
+            const errorResponse: AcpResponse = {
+                jsonrpc: "2.0",
+                id: request.id,
+                error: {
+                    code: -32603,
+                    message: error instanceof Error ? error.message : "Internal error",
+                },
+            };
+            this.send(errorResponse);
+        });
     }
 
     private handleResponse(response: AcpResponse): void {

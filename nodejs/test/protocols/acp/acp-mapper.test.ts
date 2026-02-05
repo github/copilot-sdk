@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
     stringToAcpContent,
     acpUpdateToSessionEvent,
+    acpToolCallToSessionEvent,
     copilotSessionConfigToAcpParams,
     copilotMessageOptionsToAcpParams,
 } from "../../../src/protocols/acp/acp-mapper.js";
@@ -11,6 +12,8 @@ import type {
     AcpAgentMessageParams,
     AcpEndTurnParams,
     AcpErrorParams,
+    AcpToolCallUpdateInner,
+    AcpToolCallUpdateUpdateInner,
 } from "../../../src/protocols/acp/acp-types.js";
 
 describe("AcpMapper", () => {
@@ -243,6 +246,150 @@ describe("AcpMapper", () => {
             expect(result).toEqual({
                 sessionId: "sess-123",
                 prompt: [{ type: "text", text: "Analyze this file" }],
+            });
+        });
+    });
+
+    describe("acpToolCallToSessionEvent", () => {
+        it("should map tool_call with status running to tool.execution_start", () => {
+            const update: AcpToolCallUpdateInner = {
+                sessionUpdate: "tool_call",
+                toolCallId: "tool-123",
+                title: "Reading file config.json",
+                kind: "file_read",
+                status: "running",
+                rawInput: { path: "config.json" },
+            };
+
+            const event = acpToolCallToSessionEvent(update);
+
+            expect(event).toMatchObject({
+                type: "tool.execution_start",
+                data: {
+                    toolCallId: "tool-123",
+                    toolName: "file_read",
+                    arguments: { path: "config.json" },
+                },
+            });
+            expect(event).toHaveProperty("id");
+            expect(event).toHaveProperty("timestamp");
+            expect(event).toHaveProperty("parentId", null);
+        });
+
+        it("should map tool_call_update with status completed to tool.execution_complete", () => {
+            const update: AcpToolCallUpdateUpdateInner = {
+                sessionUpdate: "tool_call_update",
+                toolCallId: "tool-123",
+                status: "completed",
+                rawOutput: { success: true },
+                content: [{ type: "text", text: "File content here" }],
+            };
+
+            const event = acpToolCallToSessionEvent(update);
+
+            expect(event).toMatchObject({
+                type: "tool.execution_complete",
+                data: {
+                    toolCallId: "tool-123",
+                    success: true,
+                    result: {
+                        content: "File content here",
+                    },
+                },
+            });
+            expect(event).toHaveProperty("id");
+            expect(event).toHaveProperty("timestamp");
+        });
+
+        it("should map tool_call_update with status failed to tool.execution_complete with error", () => {
+            const update: AcpToolCallUpdateUpdateInner = {
+                sessionUpdate: "tool_call_update",
+                toolCallId: "tool-123",
+                status: "failed",
+                content: [{ type: "text", text: "File not found" }],
+            };
+
+            const event = acpToolCallToSessionEvent(update);
+
+            expect(event).toMatchObject({
+                type: "tool.execution_complete",
+                data: {
+                    toolCallId: "tool-123",
+                    success: false,
+                    error: {
+                        message: "File not found",
+                    },
+                },
+            });
+            expect(event).toHaveProperty("id");
+            expect(event).toHaveProperty("timestamp");
+        });
+
+        it("should map tool_call_update with status running to tool.execution_progress", () => {
+            const update: AcpToolCallUpdateUpdateInner = {
+                sessionUpdate: "tool_call_update",
+                toolCallId: "tool-123",
+                status: "running",
+                content: [{ type: "text", text: "Processing 50%..." }],
+            };
+
+            const event = acpToolCallToSessionEvent(update);
+
+            expect(event).toMatchObject({
+                type: "tool.execution_progress",
+                ephemeral: true,
+                data: {
+                    toolCallId: "tool-123",
+                    progressMessage: "Processing 50%...",
+                },
+            });
+            expect(event).toHaveProperty("id");
+            expect(event).toHaveProperty("timestamp");
+        });
+
+        it("should handle tool_call with completed status directly", () => {
+            const update: AcpToolCallUpdateInner = {
+                sessionUpdate: "tool_call",
+                toolCallId: "tool-456",
+                title: "Quick command",
+                kind: "command",
+                status: "completed",
+                rawInput: { command: "echo hello" },
+                rawOutput: { exitCode: 0 },
+                content: [{ type: "text", text: "hello" }],
+            };
+
+            const event = acpToolCallToSessionEvent(update);
+
+            expect(event).toMatchObject({
+                type: "tool.execution_complete",
+                data: {
+                    toolCallId: "tool-456",
+                    success: true,
+                    result: {
+                        content: "hello",
+                    },
+                },
+            });
+        });
+
+        it("should handle tool_call with no content", () => {
+            const update: AcpToolCallUpdateInner = {
+                sessionUpdate: "tool_call",
+                toolCallId: "tool-789",
+                title: "Silent operation",
+                kind: "other",
+                status: "running",
+            };
+
+            const event = acpToolCallToSessionEvent(update);
+
+            expect(event).toMatchObject({
+                type: "tool.execution_start",
+                data: {
+                    toolCallId: "tool-789",
+                    toolName: "other",
+                },
             });
         });
     });

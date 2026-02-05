@@ -332,6 +332,191 @@ describe("AcpProtocolAdapter", () => {
         });
     });
 
+    describe("tool_call handling", () => {
+        beforeEach(() => {
+            adapter = new AcpProtocolAdapter(options);
+        });
+
+        afterEach(async () => {
+            await adapter.forceStop();
+        });
+
+        it("should translate tool_call updates to tool events", async () => {
+            adapter.start();
+            await new Promise((resolve) => setImmediate(resolve));
+
+            const connection = adapter.getConnection();
+            connection.listen();
+
+            const eventHandler = vi.fn();
+            connection.onNotification("session.event", eventHandler);
+
+            // Send ACP tool_call notification
+            const acpNotification = {
+                jsonrpc: "2.0",
+                method: "session/update",
+                params: {
+                    sessionId: "sess-123",
+                    update: {
+                        sessionUpdate: "tool_call",
+                        toolCallId: "tool-456",
+                        title: "Reading file",
+                        kind: "file_read",
+                        status: "running",
+                        rawInput: { path: "test.txt" },
+                    },
+                },
+            };
+            mockProcess.stdout.write(JSON.stringify(acpNotification) + "\n");
+
+            await new Promise((resolve) => setImmediate(resolve));
+
+            expect(eventHandler).toHaveBeenCalled();
+            const callArg = eventHandler.mock.calls[0][0];
+            expect(callArg.sessionId).toBe("sess-123");
+            expect(callArg.event.type).toBe("tool.execution_start");
+            expect(callArg.event.data.toolCallId).toBe("tool-456");
+            expect(callArg.event.data.toolName).toBe("file_read");
+        });
+
+        it("should translate tool_call_update with completed status", async () => {
+            adapter.start();
+            await new Promise((resolve) => setImmediate(resolve));
+
+            const connection = adapter.getConnection();
+            connection.listen();
+
+            const eventHandler = vi.fn();
+            connection.onNotification("session.event", eventHandler);
+
+            const acpNotification = {
+                jsonrpc: "2.0",
+                method: "session/update",
+                params: {
+                    sessionId: "sess-123",
+                    update: {
+                        sessionUpdate: "tool_call_update",
+                        toolCallId: "tool-456",
+                        status: "completed",
+                        content: [{ type: "text", text: "File content here" }],
+                    },
+                },
+            };
+            mockProcess.stdout.write(JSON.stringify(acpNotification) + "\n");
+
+            await new Promise((resolve) => setImmediate(resolve));
+
+            expect(eventHandler).toHaveBeenCalled();
+            const callArg = eventHandler.mock.calls[0][0];
+            expect(callArg.event.type).toBe("tool.execution_complete");
+            expect(callArg.event.data.toolCallId).toBe("tool-456");
+            expect(callArg.event.data.success).toBe(true);
+            expect(callArg.event.data.result.content).toBe("File content here");
+        });
+    });
+
+    describe("permission request handling", () => {
+        beforeEach(() => {
+            adapter = new AcpProtocolAdapter(options);
+        });
+
+        afterEach(async () => {
+            await adapter.forceStop();
+        });
+
+        it("should handle session/request_permission and return user choice", async () => {
+            adapter.start();
+            await new Promise((resolve) => setImmediate(resolve));
+
+            const connection = adapter.getConnection();
+            connection.listen();
+
+            // Register a permission handler that always allows
+            const permissionHandler = vi.fn().mockResolvedValue({
+                result: { optionId: "allow_once" },
+            });
+            connection.onRequest("permission.request", permissionHandler);
+
+            // Send ACP permission request
+            const acpRequest = {
+                jsonrpc: "2.0",
+                id: 100,
+                method: "session/request_permission",
+                params: {
+                    sessionId: "sess-123",
+                    toolCall: {
+                        toolCallId: "tool-456",
+                        title: "Write to file",
+                        kind: "file_edit",
+                        rawInput: { path: "test.txt" },
+                    },
+                    options: [
+                        { optionId: "allow_once", name: "Allow once", kind: "allow_once" },
+                        { optionId: "reject_once", name: "Reject", kind: "reject_once" },
+                    ],
+                },
+            };
+            mockProcess.stdout.write(JSON.stringify(acpRequest) + "\n");
+
+            await new Promise((resolve) => setImmediate(resolve));
+
+            // Check that the permission handler was called
+            expect(permissionHandler).toHaveBeenCalled();
+
+            // Read the response sent back
+            const sentData = mockProcess.stdin.read();
+            if (sentData) {
+                const sentMessage = JSON.parse(sentData.toString().trim());
+                expect(sentMessage.id).toBe(100);
+                expect(sentMessage.result).toMatchObject({
+                    outcome: "selected",
+                    optionId: "allow_once",
+                });
+            }
+        });
+
+        it("should return cancelled when permission handler rejects", async () => {
+            adapter.start();
+            await new Promise((resolve) => setImmediate(resolve));
+
+            const connection = adapter.getConnection();
+            connection.listen();
+
+            // Register a permission handler that rejects
+            const permissionHandler = vi.fn().mockRejectedValue(new Error("User cancelled"));
+            connection.onRequest("permission.request", permissionHandler);
+
+            // Send ACP permission request
+            const acpRequest = {
+                jsonrpc: "2.0",
+                id: 101,
+                method: "session/request_permission",
+                params: {
+                    sessionId: "sess-123",
+                    toolCall: {
+                        toolCallId: "tool-789",
+                        title: "Delete file",
+                        kind: "file_edit",
+                    },
+                    options: [
+                        { optionId: "allow_once", name: "Allow", kind: "allow_once" },
+                    ],
+                },
+            };
+            mockProcess.stdout.write(JSON.stringify(acpRequest) + "\n");
+
+            await new Promise((resolve) => setImmediate(resolve));
+
+            // Read the response - should indicate cancelled
+            const sentData = mockProcess.stdin.read();
+            if (sentData) {
+                const sentMessage = JSON.parse(sentData.toString().trim());
+                expect(sentMessage.id).toBe(101);
+                expect(sentMessage.result.outcome).toBe("cancelled");
+            }
+        });
+    });
+
     describe("verifyProtocolVersion", () => {
         beforeEach(() => {
             adapter = new AcpProtocolAdapter(options);
