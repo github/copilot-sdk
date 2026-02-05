@@ -9,7 +9,6 @@ namespace GitHub.Copilot.SDK.Test.Harness;
 
 public class E2ETestContext : IAsyncDisposable
 {
-    public string CliPath { get; }
     public string HomeDir { get; }
     public string WorkDir { get; }
     public string ProxyUrl { get; }
@@ -17,9 +16,8 @@ public class E2ETestContext : IAsyncDisposable
     private readonly CapiProxy _proxy;
     private readonly string _repoRoot;
 
-    private E2ETestContext(string cliPath, string homeDir, string workDir, string proxyUrl, CapiProxy proxy, string repoRoot)
+    private E2ETestContext(string homeDir, string workDir, string proxyUrl, CapiProxy proxy, string repoRoot)
     {
-        CliPath = cliPath;
         HomeDir = homeDir;
         WorkDir = workDir;
         ProxyUrl = proxyUrl;
@@ -30,7 +28,6 @@ public class E2ETestContext : IAsyncDisposable
     public static async Task<E2ETestContext> CreateAsync()
     {
         var repoRoot = FindRepoRoot();
-        var cliPath = GetCliPath(repoRoot);
 
         var homeDir = Path.Combine(Path.GetTempPath(), $"copilot-test-config-{Guid.NewGuid()}");
         var workDir = Path.Combine(Path.GetTempPath(), $"copilot-test-work-{Guid.NewGuid()}");
@@ -41,7 +38,7 @@ public class E2ETestContext : IAsyncDisposable
         var proxy = new CapiProxy();
         var proxyUrl = await proxy.StartAsync();
 
-        return new E2ETestContext(cliPath, homeDir, workDir, proxyUrl, proxy, repoRoot);
+        return new E2ETestContext(homeDir, workDir, proxyUrl, proxy, repoRoot);
     }
 
     private static string FindRepoRoot()
@@ -94,7 +91,6 @@ public class E2ETestContext : IAsyncDisposable
 
     public CopilotClient CreateClient() => new(new CopilotClientOptions
     {
-        CliPath = CliPath,
         Cwd = WorkDir,
         Environment = GetEnvironment(),
         GithubToken = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CI")) ? "fake-token-for-e2e-tests" : null,
