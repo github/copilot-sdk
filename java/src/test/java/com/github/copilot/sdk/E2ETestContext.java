@@ -10,9 +10,12 @@ import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.github.copilot.sdk.json.CopilotClientOptions;
@@ -50,7 +53,10 @@ import com.github.copilot.sdk.json.CopilotClientOptions;
  */
 public class E2ETestContext implements AutoCloseable {
 
+    private static final Logger LOG = Logger.getLogger(E2ETestContext.class.getName());
     private static final Pattern SNAKE_CASE = Pattern.compile("[^a-zA-Z0-9]");
+    private static final Pattern USER_CONTENT_PATTERN = Pattern
+            .compile("^\\s+-\\s+role:\\s+user\\s*$\\s+content:\\s*(.+?)$", Pattern.MULTILINE);
 
     private final String cliPath;
     private final Path homeDir;
@@ -58,6 +64,7 @@ public class E2ETestContext implements AutoCloseable {
     private String proxyUrl;
     private final CapiProxy proxy;
     private final Path repoRoot;
+    private Path currentSnapshotFile;
 
     private E2ETestContext(String cliPath, Path homeDir, Path workDir, String proxyUrl, CapiProxy proxy,
             Path repoRoot) {
@@ -139,9 +146,71 @@ public class E2ETestContext implements AutoCloseable {
         // Convert test method names to lowercase snake_case for snapshot filenames
         // to avoid case collisions on case-insensitive filesystems (macOS/Windows)
         String sanitizedName = SNAKE_CASE.matcher(testName).replaceAll("_").toLowerCase();
-        String snapshotPath = repoRoot.resolve("test").resolve("snapshots").resolve(testFile)
-                .resolve(sanitizedName + ".yaml").toString();
-        proxy.configure(snapshotPath, workDir.toString());
+        Path snapshotFile = repoRoot.resolve("test").resolve("snapshots").resolve(testFile)
+                .resolve(sanitizedName + ".yaml");
+
+        // Validate snapshot exists - fail fast with a clear message
+        if (!Files.exists(snapshotFile)) {
+            Path snapshotsDir = repoRoot.resolve("test").resolve("snapshots").resolve(testFile);
+            String availableSnapshots = "";
+            if (Files.exists(snapshotsDir)) {
+                try (var files = Files.list(snapshotsDir)) {
+                    availableSnapshots = files.filter(p -> p.toString().endsWith(".yaml"))
+                            .map(p -> p.getFileName().toString().replace(".yaml", "")).sorted()
+                            .reduce((a, b) -> a + ", " + b).orElse("<none>");
+                }
+            }
+            throw new IOException(String.format(
+                    "Snapshot file not found: %s%n" + "Category: %s, Test: %s (sanitized: %s)%n"
+                            + "Available snapshots in '%s/': %s%n"
+                            + "Ensure the snapshot exists and the test name matches exactly.",
+                    snapshotFile, testFile, testName, sanitizedName, testFile, availableSnapshots));
+        }
+
+        this.currentSnapshotFile = snapshotFile;
+        proxy.configure(snapshotFile.toString(), workDir.toString());
+
+        // Log expected prompts to help debug prompt mismatch issues
+        List<String> expectedPrompts = getExpectedUserPrompts();
+        if (!expectedPrompts.isEmpty()) {
+            LOG.info(() -> String.format("Configured snapshot '%s/%s' expects prompts: %s", testFile, sanitizedName,
+                    expectedPrompts));
+        }
+    }
+
+    /**
+     * Gets the expected user prompts from the current snapshot file.
+     * <p>
+     * This is useful for debugging when tests fail with "No cached response found"
+     * errors from CapiProxy. The prompts in your test must match these exactly.
+     * </p>
+     *
+     * @return list of expected user prompt strings, or empty list if none found
+     */
+    public List<String> getExpectedUserPrompts() {
+        if (currentSnapshotFile == null || !Files.exists(currentSnapshotFile)) {
+            return List.of();
+        }
+        try {
+            String content = Files.readString(currentSnapshotFile);
+            List<String> prompts = new ArrayList<>();
+            Matcher matcher = USER_CONTENT_PATTERN.matcher(content);
+            while (matcher.find()) {
+                String prompt = matcher.group(1).trim();
+                // Remove quotes if present
+                if ((prompt.startsWith("\"") && prompt.endsWith("\""))
+                        || (prompt.startsWith("'") && prompt.endsWith("'"))) {
+                    prompt = prompt.substring(1, prompt.length() - 1);
+                }
+                if (!prompts.contains(prompt)) {
+                    prompts.add(prompt);
+                }
+            }
+            return prompts;
+        } catch (IOException e) {
+            LOG.warning("Failed to read snapshot file: " + e.getMessage());
+            return List.of();
+        }
     }
 
     /**
