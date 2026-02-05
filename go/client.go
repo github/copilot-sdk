@@ -537,9 +537,13 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	var req resumeSessionRequest
 	req.SessionID = sessionID
 	if config != nil {
+		req.Model = config.Model
 		req.ReasoningEffort = config.ReasoningEffort
+		req.SystemMessage = config.SystemMessage
 		req.Tools = config.Tools
 		req.Provider = config.Provider
+		req.AvailableTools = config.AvailableTools
+		req.ExcludedTools = config.ExcludedTools
 		if config.Streaming {
 			req.Streaming = Bool(true)
 		}
@@ -558,6 +562,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 			req.Hooks = Bool(true)
 		}
 		req.WorkingDirectory = config.WorkingDirectory
+		req.ConfigDir = config.ConfigDir
 		if config.DisableResume {
 			req.DisableResume = Bool(true)
 		}
@@ -567,6 +572,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		req.CustomAgents = config.CustomAgents
 		req.SkillDirectories = config.SkillDirectories
 		req.DisabledSkills = config.DisabledSkills
+		req.InfiniteSessions = config.InfiniteSessions
 	}
 
 	result, err := c.client.Request("session.resume", req)
