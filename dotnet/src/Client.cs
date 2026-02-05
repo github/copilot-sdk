@@ -343,7 +343,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     public async Task<CopilotSession> CreateSessionAsync(SessionConfig? config = null, CancellationToken cancellationToken = default)
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
-        Console.WriteLine("Creating new Copilot session");
+
         if (!string.IsNullOrEmpty(config?.Model))
         {
             var availableModels = await ListModelsAsync(cancellationToken).ConfigureAwait(false);
