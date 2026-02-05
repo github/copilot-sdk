@@ -7,6 +7,7 @@ package com.github.copilot.sdk;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
+import java.util.logging.Logger;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -33,6 +34,7 @@ import java.util.Map;
  */
 public class ErrorHandlingTest {
 
+    private static final Logger LOG = Logger.getLogger(ErrorHandlingTest.class.getName());
     private static E2ETestContext ctx;
 
     @BeforeAll
@@ -52,6 +54,7 @@ public class ErrorHandlingTest {
      */
     @Test
     void testToolErrorDoesNotCrashSession() throws Exception {
+        LOG.info("Running test: testToolErrorDoesNotCrashSession");
         ctx.configureForTest("tools", "handles_tool_calling_errors");
 
         List<AbstractSessionEvent> allEvents = new ArrayList<>();
@@ -89,6 +92,7 @@ public class ErrorHandlingTest {
      */
     @Test
     void testToolReturnsFailureResult() throws Exception {
+        LOG.info("Running test: testToolReturnsFailureResult");
         ctx.configureForTest("tools", "handles_tool_calling_errors");
 
         ToolDefinition failTool = ToolDefinition.create("get_user_location", "Gets the user's location",
@@ -117,6 +121,7 @@ public class ErrorHandlingTest {
      */
     @Test
     void testPermissionHandlerErrorDeniesPermission() throws Exception {
+        LOG.info("Running test: testPermissionHandlerErrorDeniesPermission");
         ctx.configureForTest("permissions", "should_handle_permission_handler_errors_gracefully");
 
         List<SessionErrorEvent> errorEvents = new ArrayList<>();
@@ -153,6 +158,7 @@ public class ErrorHandlingTest {
      */
     @Test
     void testSessionErrorEventContainsDetails() throws Exception {
+        LOG.info("Running test: testSessionErrorEventContainsDetails");
         ctx.configureForTest("permissions", "permission_handler_errors");
 
         List<SessionErrorEvent> errorEvents = new ArrayList<>();
@@ -171,7 +177,9 @@ public class ErrorHandlingTest {
             });
 
             try {
-                session.sendAndWait(new MessageOptions().setPrompt("Run 'ls' command")).get(60, TimeUnit.SECONDS);
+                // Use prompt that matches the snapshot
+                session.sendAndWait(new MessageOptions().setPrompt("Run 'echo test'. If you can't, say 'failed'."))
+                        .get(60, TimeUnit.SECONDS);
             } catch (Exception e) {
                 // Error is expected in some cases
             }
@@ -189,6 +197,7 @@ public class ErrorHandlingTest {
      */
     @Test
     void testSessionContinuesAfterToolError() throws Exception {
+        LOG.info("Running test: testSessionContinuesAfterToolError");
         ctx.configureForTest("tools", "handles_tool_calling_errors");
 
         ToolDefinition errorTool = ToolDefinition.create("get_user_location", "Gets the user's location",
