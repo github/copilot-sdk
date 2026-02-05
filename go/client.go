@@ -872,7 +872,7 @@ func (c *Client) State() ConnectionState {
 //	} else {
 //	    log.Printf("Server responded at %d", resp.Timestamp)
 //	}
-func (c *Client) Ping(ctx context.Context, message string) (*pingResponse, error) {
+func (c *Client) Ping(ctx context.Context, message string) (*PingResponse, error) {
 	if c.client == nil {
 		return nil, fmt.Errorf("client not connected")
 	}
@@ -882,7 +882,7 @@ func (c *Client) Ping(ctx context.Context, message string) (*pingResponse, error
 		return nil, err
 	}
 
-	var response pingResponse
+	var response PingResponse
 	if err := json.Unmarshal(result, &response); err != nil {
 		return nil, err
 	}

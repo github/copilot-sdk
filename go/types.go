@@ -677,8 +677,8 @@ type pingRequest struct {
 	Message string `json:"message,omitempty"`
 }
 
-// pingResponse is the response from a ping request
-type pingResponse struct {
+// PingResponse is the response from a ping request
+type PingResponse struct {
 	Message         string `json:"message"`
 	Timestamp       int64  `json:"timestamp"`
 	ProtocolVersion *int   `json:"protocolVersion,omitempty"`
