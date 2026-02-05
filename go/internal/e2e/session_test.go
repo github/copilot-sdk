@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -152,14 +153,9 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is your full name?"})
+		assistantMessage, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is your full name?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		assistantMessage, err := testharness.GetFinalAssistantMessage(t.Context(), session)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
 		content := ""
@@ -198,14 +194,9 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		_, err = testharness.GetFinalAssistantMessage(t.Context(), session)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
 		// Validate that only the specified tools are present
@@ -236,14 +227,9 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		_, err = testharness.GetFinalAssistantMessage(t.Context(), session)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
 		// Validate that excluded tool is not present but others are
@@ -303,14 +289,9 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is the secret number for key ALPHA?"})
+		assistantMessage, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is the secret number for key ALPHA?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		assistantMessage, err := testharness.GetFinalAssistantMessage(t.Context(), session)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
 		content := ""
@@ -337,14 +318,9 @@ func TestSession(t *testing.T) {
 		}
 		sessionID := session1.SessionID
 
-		_, err = session1.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
+		answer, err := session1.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session1)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
 		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "2") {
@@ -361,13 +337,21 @@ func TestSession(t *testing.T) {
 			t.Errorf("Expected resumed session ID to match, got %q vs %q", session2.SessionID, sessionID)
 		}
 
-		answer2, err := testharness.GetFinalAssistantMessage(t.Context(), session2)
+		messages, err := session2.GetMessages(t.Context())
 		if err != nil {
-			t.Fatalf("Failed to get assistant message from resumed session: %v", err)
+			t.Fatalf("Failed to get messages: %v", err)
 		}
 
-		if answer2.Data.Content == nil || !strings.Contains(*answer2.Data.Content, "2") {
-			t.Errorf("Expected resumed session answer to contain '2', got %v", answer2.Data.Content)
+		answer2Idx := slices.IndexFunc(messages, func(m copilot.SessionEvent) bool {
+			return m.Type == "assistant.message"
+		})
+
+		if answer2Idx == -1 {
+			t.Fatalf("Expected to find an assistant.message in resumed session messages, got %v", messages)
+		}
+
+		if messages[answer2Idx].Data.Content == nil || !strings.Contains(*messages[answer2Idx].Data.Content, "2") {
+			t.Errorf("Expected resumed session answer to contain '2', got %v", messages[answer2Idx].Data.Content)
 		}
 	})
 
@@ -381,14 +365,9 @@ func TestSession(t *testing.T) {
 		}
 		sessionID := session1.SessionID
 
-		_, err = session1.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
+		answer, err := session1.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session1)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
 		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "2") {
@@ -570,40 +549,26 @@ func TestSession(t *testing.T) {
 		}
 
 		var deltaContents []string
-		done := make(chan bool)
 
-		session.On(func(event copilot.SessionEvent) {
+		unsubscribe := session.On(func(event copilot.SessionEvent) {
 			switch event.Type {
 			case "assistant.message_delta":
 				if event.Data.DeltaContent != nil {
 					deltaContents = append(deltaContents, *event.Data.DeltaContent)
 				}
-			case "session.idle":
-				close(done)
+			case "assistant.message":
 			}
 		})
 
-		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 2+2?"})
+		assistantMessage, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 2+2?"})
+		unsubscribe()
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		// Wait for completion
-		select {
-		case <-done:
-		case <-time.After(60 * time.Second):
-			t.Fatal("Timed out waiting for session.idle")
 		}
 
 		// Should have received delta events
 		if len(deltaContents) == 0 {
 			t.Error("Expected to receive delta events, got none")
-		}
-
-		// Get the final message to compare
-		assistantMessage, err := testharness.GetFinalAssistantMessage(t.Context(), session)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
 		// Accumulated deltas should equal the final message
@@ -635,14 +600,9 @@ func TestSession(t *testing.T) {
 		}
 
 		// Session should still work normally
-		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
+		assistantMessage, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		assistantMessage, err := testharness.GetFinalAssistantMessage(t.Context(), session)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
 		if assistantMessage.Data.Content == nil || !strings.Contains(*assistantMessage.Data.Content, "2") {
@@ -659,29 +619,14 @@ func TestSession(t *testing.T) {
 		}
 
 		var receivedEvents []copilot.SessionEvent
-		idle := make(chan bool)
-
 		session.On(func(event copilot.SessionEvent) {
 			receivedEvents = append(receivedEvents, event)
-			if event.Type == "session.idle" {
-				select {
-				case idle <- true:
-				default:
-				}
-			}
 		})
 
 		// Send a message to trigger events
-		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 100+200?"})
+		assistantMessage, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 100+200?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		// Wait for session to become idle
-		select {
-		case <-idle:
-		case <-time.After(60 * time.Second):
-			t.Fatal("Timed out waiting for session.idle")
 		}
 
 		// Should have received multiple events
@@ -713,11 +658,6 @@ func TestSession(t *testing.T) {
 			t.Error("Expected to receive session.idle event")
 		}
 
-		// Verify the assistant response contains the expected answer
-		assistantMessage, err := testharness.GetFinalAssistantMessage(t.Context(), session)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
-		}
 		if assistantMessage.Data.Content == nil || !strings.Contains(*assistantMessage.Data.Content, "300") {
 			t.Errorf("Expected assistant message to contain '300', got %v", assistantMessage.Data.Content)
 		}
@@ -740,14 +680,9 @@ func TestSession(t *testing.T) {
 		}
 
 		// Session should work normally with custom config dir
-		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
+		assistantMessage, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		assistantMessage, err := testharness.GetFinalAssistantMessage(t.Context(), session)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
 		if assistantMessage.Data.Content == nil || !strings.Contains(*assistantMessage.Data.Content, "2") {

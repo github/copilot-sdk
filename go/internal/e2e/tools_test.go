@@ -30,14 +30,9 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What's the first line of README.md in this directory?"})
+		answer, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What's the first line of README.md in this directory?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
 		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "ELIZA") {
@@ -64,14 +59,9 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "Use encrypt_string to encrypt this string: Hello"})
+		answer, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Use encrypt_string to encrypt this string: Hello"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
 		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "HELLO") {
@@ -96,16 +86,11 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.Send(t.Context(), copilot.MessageOptions{
+		answer, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "What is my location? If you can't find out, just say 'unknown'.",
 		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
 		// Check the underlying traffic
@@ -213,17 +198,12 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		_, err = session.Send(t.Context(), copilot.MessageOptions{
+		answer, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Perform a DB query for the 'cities' table using IDs 12 and 19, sorting ascending. " +
 				"Reply only with lines of the form: [cityname] [population]",
 		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
 		if answer == nil || answer.Data.Content == nil {

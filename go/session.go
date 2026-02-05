@@ -564,11 +564,7 @@ func (s *Session) Destroy() error {
 //	    log.Printf("Failed to abort: %v", err)
 //	}
 func (s *Session) Abort(ctx context.Context) error {
-	req := sessionAbortRequest{
-		SessionID: s.SessionID,
-	}
-
-	_, err := s.client.Request("session.abort", req)
+	_, err := s.client.Request("session.abort", sessionAbortRequest{SessionID: s.SessionID})
 	if err != nil {
 		return fmt.Errorf("failed to abort session: %w", err)
 	}
