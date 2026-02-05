@@ -550,7 +550,11 @@ export class CopilotClient {
 
         const response = await this.connection!.sendRequest("session.resume", {
             sessionId,
+            model: config.model,
             reasoningEffort: config.reasoningEffort,
+            systemMessage: config.systemMessage,
+            availableTools: config.availableTools,
+            excludedTools: config.excludedTools,
             tools: config.tools?.map((tool) => ({
                 name: tool.name,
                 description: tool.description,
@@ -561,11 +565,13 @@ export class CopilotClient {
             requestUserInput: !!config.onUserInputRequest,
             hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
             workingDirectory: config.workingDirectory,
+            configDir: config.configDir,
             streaming: config.streaming,
             mcpServers: config.mcpServers,
             customAgents: config.customAgents,
             skillDirectories: config.skillDirectories,
             disabledSkills: config.disabledSkills,
+            infiniteSessions: config.infiniteSessions,
             disableResume: config.disableResume,
         });
 

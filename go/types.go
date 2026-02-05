@@ -399,8 +399,18 @@ type ToolResult struct {
 
 // ResumeSessionConfig configures options when resuming a session
 type ResumeSessionConfig struct {
+	// Model to use for this session. Can change the model when resuming.
+	Model string
 	// Tools exposes caller-implemented tools to the CLI
 	Tools []Tool
+	// SystemMessage configures system message customization
+	SystemMessage *SystemMessageConfig
+	// AvailableTools is a list of tool names to allow. When specified, only these tools will be available.
+	// Takes precedence over ExcludedTools.
+	AvailableTools []string
+	// ExcludedTools is a list of tool names to disable. All other tools remain available.
+	// Ignored if AvailableTools is specified.
+	ExcludedTools []string
 	// Provider configures a custom model provider
 	Provider *ProviderConfig
 	// ReasoningEffort level for models that support it.
@@ -415,6 +425,8 @@ type ResumeSessionConfig struct {
 	// WorkingDirectory is the working directory for the session.
 	// Tool operations will be relative to this directory.
 	WorkingDirectory string
+	// ConfigDir overrides the default configuration directory location.
+	ConfigDir string
 	// Streaming enables streaming of assistant message and reasoning chunks.
 	// When true, assistant.message_delta and assistant.reasoning_delta events
 	// with deltaContent are sent as the response is generated.
@@ -427,6 +439,8 @@ type ResumeSessionConfig struct {
 	SkillDirectories []string
 	// DisabledSkills is a list of skill names to disable
 	DisabledSkills []string
+	// InfiniteSessions configures infinite sessions for persistent workspaces and automatic compaction.
+	InfiniteSessions *InfiniteSessionConfig
 	// DisableResume, when true, skips emitting the session.resume event.
 	// Useful for reconnecting to a session without triggering resume-related side effects.
 	DisableResume bool

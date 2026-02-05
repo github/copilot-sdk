@@ -566,10 +566,30 @@ class CopilotClient:
                 tool_defs.append(definition)
 
         payload: dict[str, Any] = {"sessionId": session_id}
+
+        # Add model if provided
+        model = cfg.get("model")
+        if model:
+            payload["model"] = model
+
         if cfg.get("reasoning_effort"):
             payload["reasoningEffort"] = cfg["reasoning_effort"]
         if tool_defs:
             payload["tools"] = tool_defs
+
+        # Add system message configuration if provided
+        system_message = cfg.get("system_message")
+        if system_message:
+            payload["systemMessage"] = system_message
+
+        # Add available/excluded tools if provided
+        available_tools = cfg.get("available_tools")
+        if available_tools:
+            payload["availableTools"] = available_tools
+
+        excluded_tools = cfg.get("excluded_tools")
+        if excluded_tools:
+            payload["excludedTools"] = excluded_tools
 
         provider = cfg.get("provider")
         if provider:
@@ -600,6 +620,11 @@ class CopilotClient:
         if working_directory:
             payload["workingDirectory"] = working_directory
 
+        # Add config directory if provided
+        config_dir = cfg.get("config_dir")
+        if config_dir:
+            payload["configDir"] = config_dir
+
         # Add disable resume flag if provided
         disable_resume = cfg.get("disable_resume")
         if disable_resume:
@@ -626,6 +651,22 @@ class CopilotClient:
         disabled_skills = cfg.get("disabled_skills")
         if disabled_skills:
             payload["disabledSkills"] = disabled_skills
+
+        # Add infinite sessions configuration if provided
+        infinite_sessions = cfg.get("infinite_sessions")
+        if infinite_sessions:
+            wire_config: dict[str, Any] = {}
+            if "enabled" in infinite_sessions:
+                wire_config["enabled"] = infinite_sessions["enabled"]
+            if "background_compaction_threshold" in infinite_sessions:
+                wire_config["backgroundCompactionThreshold"] = infinite_sessions[
+                    "background_compaction_threshold"
+                ]
+            if "buffer_exhaustion_threshold" in infinite_sessions:
+                wire_config["bufferExhaustionThreshold"] = infinite_sessions[
+                    "buffer_exhaustion_threshold"
+                ]
+            payload["infiniteSessions"] = wire_config
 
         if not self._client:
             raise RuntimeError("Client not connected")

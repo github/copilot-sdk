@@ -770,7 +770,30 @@ public class SessionConfig
 
 public class ResumeSessionConfig
 {
+    /// <summary>
+    /// Model to use for this session. Can change the model when resuming.
+    /// </summary>
+    public string? Model { get; set; }
+
     public ICollection<AIFunction>? Tools { get; set; }
+
+    /// <summary>
+    /// System message configuration.
+    /// </summary>
+    public SystemMessageConfig? SystemMessage { get; set; }
+
+    /// <summary>
+    /// List of tool names to allow. When specified, only these tools will be available.
+    /// Takes precedence over ExcludedTools.
+    /// </summary>
+    public List<string>? AvailableTools { get; set; }
+
+    /// <summary>
+    /// List of tool names to disable. All other tools remain available.
+    /// Ignored if AvailableTools is specified.
+    /// </summary>
+    public List<string>? ExcludedTools { get; set; }
+
     public ProviderConfig? Provider { get; set; }
 
     /// <summary>
@@ -800,6 +823,11 @@ public class ResumeSessionConfig
     /// Working directory for the session.
     /// </summary>
     public string? WorkingDirectory { get; set; }
+
+    /// <summary>
+    /// Override the default configuration directory location.
+    /// </summary>
+    public string? ConfigDir { get; set; }
 
     /// <summary>
     /// When true, the session.resume event is not emitted.
@@ -834,6 +862,11 @@ public class ResumeSessionConfig
     /// List of skill names to disable.
     /// </summary>
     public List<string>? DisabledSkills { get; set; }
+
+    /// <summary>
+    /// Infinite session configuration for persistent workspaces and automatic compaction.
+    /// </summary>
+    public InfiniteSessionConfig? InfiniteSessions { get; set; }
 }
 
 public class MessageOptions
