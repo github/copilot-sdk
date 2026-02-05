@@ -151,16 +151,27 @@ class AcpConnection implements ProtocolConnection {
                 const config = params as SessionConfig & { workingDirectory?: string };
                 const acpParams = copilotSessionConfigToAcpParams(config);
                 // ACP requires cwd and mcpServers (as array)
+                // Gemini expects env as array of "KEY=value" strings
+                const mcpServers = acpParams.mcpServers
+                    ? Object.entries(acpParams.mcpServers).map(([name, serverConfig]) => {
+                          const envArray: string[] = serverConfig.env
+                              ? Object.entries(serverConfig.env).map(
+                                    ([key, value]) => `${key}=${value}`
+                                )
+                              : [];
+                          return {
+                              name,
+                              command: serverConfig.command,
+                              args: serverConfig.args ?? [],
+                              env: envArray,
+                          };
+                      })
+                    : [];
                 return {
                     acpMethod: "session/new",
                     acpParams: {
                         cwd: acpParams.cwd || process.cwd(),
-                        mcpServers: acpParams.mcpServers
-                            ? Object.entries(acpParams.mcpServers).map(([name, config]) => ({
-                                  name,
-                                  ...config,
-                              }))
-                            : [],
+                        mcpServers,
                     },
                 };
             }
