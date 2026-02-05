@@ -165,6 +165,10 @@ func TestPermissions(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
+		if message == nil {
+			t.Fatal("Expected a message, got nil")
+		}
+
 		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "4") {
 			t.Errorf("Expected message to contain '4', got: %v", message.Data.Content)
 		}

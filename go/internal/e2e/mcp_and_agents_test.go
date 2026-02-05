@@ -96,6 +96,10 @@ func TestMCPServers(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
+		if message == nil {
+			t.Fatalf("Expected a message, got nil")
+		}
+
 		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "6") {
 			t.Errorf("Expected message to contain '6', got: %v", message.Data.Content)
 		}
@@ -224,6 +228,10 @@ func TestCustomAgents(t *testing.T) {
 		message, err := session2.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 6+6?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		if message == nil {
+			t.Fatalf("Expected a message, got nil")
 		}
 
 		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "12") {
