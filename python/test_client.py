@@ -4,7 +4,6 @@ CopilotClient Unit Tests
 This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py instead.
 """
 
-from unittest.mock import MagicMock, patch
 
 import pytest
 

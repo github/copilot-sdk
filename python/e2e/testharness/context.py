@@ -24,9 +24,7 @@ def get_cli_path_for_tests() -> str:
     if full_path.exists():
         return str(full_path.resolve())
 
-    raise RuntimeError(
-        "CLI not found for tests. Run 'npm install' in the nodejs directory."
-    )
+    raise RuntimeError("CLI not found for tests. Run 'npm install' in the nodejs directory.")
 
 
 CLI_PATH = get_cli_path_for_tests()
