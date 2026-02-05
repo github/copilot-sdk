@@ -158,6 +158,10 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
+		if assistantMessage == nil {
+			t.Fatal("Expected assistant message, got nil")
+		}
+
 		content := ""
 		if assistantMessage.Data.Content != nil {
 			content = *assistantMessage.Data.Content
@@ -294,6 +298,10 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
+		if assistantMessage == nil {
+			t.Fatal("Expected assistant message, got nil")
+		}
+
 		content := ""
 		if assistantMessage.Data.Content != nil {
 			content = *assistantMessage.Data.Content
@@ -321,6 +329,10 @@ func TestSession(t *testing.T) {
 		answer, err := session1.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		if answer == nil {
+			t.Fatalf("Expected an answer, got nil")
 		}
 
 		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "2") {
@@ -368,6 +380,10 @@ func TestSession(t *testing.T) {
 		answer, err := session1.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		if answer == nil {
+			t.Fatalf("Expected an answer, got nil")
 		}
 
 		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "2") {
