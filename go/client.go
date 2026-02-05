@@ -566,9 +566,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		if config.DisableResume {
 			req.DisableResume = Bool(true)
 		}
-		if len(config.MCPServers) > 0 {
-			req.MCPServers = config.MCPServers
-		}
+		req.MCPServers = config.MCPServers
 		req.CustomAgents = config.CustomAgents
 		req.SkillDirectories = config.SkillDirectories
 		req.DisabledSkills = config.DisabledSkills
