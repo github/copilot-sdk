@@ -355,6 +355,7 @@ export class AcpProtocolAdapter implements ProtocolAdapter {
     // Store bound handlers for cleanup
     private stderrHandler: ((data: Buffer) => void) | null = null;
     private stdinErrorHandler: ((err: Error) => void) | null = null;
+    private exitHandler: (() => void) | null = null;
 
     constructor(options: CopilotClientOptions) {
         this.options = options;
@@ -363,6 +364,20 @@ export class AcpProtocolAdapter implements ProtocolAdapter {
     async start(): Promise<void> {
         await this.startCliProcess();
         this.createConnection();
+
+        // Register process exit handler to cleanup child process
+        this.exitHandler = () => {
+            if (this.cliProcess) {
+                try {
+                    this.cliProcess.kill("SIGKILL");
+                } catch {
+                    // Ignore errors during exit cleanup
+                }
+            }
+        };
+        process.on("exit", this.exitHandler);
+        process.on("SIGINT", this.exitHandler);
+        process.on("SIGTERM", this.exitHandler);
     }
 
     async stop(): Promise<Error[]> {
@@ -414,6 +429,14 @@ export class AcpProtocolAdapter implements ProtocolAdapter {
             }
         }
 
+        // Remove process exit handlers
+        if (this.exitHandler) {
+            process.removeListener("exit", this.exitHandler);
+            process.removeListener("SIGINT", this.exitHandler);
+            process.removeListener("SIGTERM", this.exitHandler);
+            this.exitHandler = null;
+        }
+
         return errors;
     }
 
@@ -447,6 +470,14 @@ export class AcpProtocolAdapter implements ProtocolAdapter {
                 // Ignore errors
             }
             this.cliProcess = null;
+        }
+
+        // Remove process exit handlers
+        if (this.exitHandler) {
+            process.removeListener("exit", this.exitHandler);
+            process.removeListener("SIGINT", this.exitHandler);
+            process.removeListener("SIGTERM", this.exitHandler);
+            this.exitHandler = null;
         }
     }
 
