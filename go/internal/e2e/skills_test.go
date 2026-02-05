@@ -71,6 +71,10 @@ func TestSkills(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
+		if message == nil {
+			t.Fatalf("Expected a message, got nil")
+		}
+
 		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, skillMarker) {
 			t.Errorf("Expected message to contain skill marker '%s', got: %v", skillMarker, message.Data.Content)
 		}
@@ -97,6 +101,10 @@ func TestSkills(t *testing.T) {
 		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		if message == nil {
+			t.Fatalf("Expected a message, got nil")
 		}
 
 		if message.Data.Content != nil && strings.Contains(*message.Data.Content, skillMarker) {

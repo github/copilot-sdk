@@ -35,6 +35,10 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
+		if answer == nil {
+			t.Fatalf("Expected an answer, got nil")
+		}
+
 		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "ELIZA") {
 			t.Errorf("Expected answer to contain 'ELIZA', got %v", answer.Data.Content)
 		}
@@ -64,6 +68,10 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
+		if answer == nil {
+			t.Fatalf("Expected an answer, got nil")
+		}
+
 		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "HELLO") {
 			t.Errorf("Expected answer to contain 'HELLO', got %v", answer.Data.Content)
 		}
@@ -91,6 +99,10 @@ func TestTools(t *testing.T) {
 		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		if answer == nil {
+			t.Fatalf("Expected an answer, got nil")
 		}
 
 		// Check the underlying traffic

@@ -533,6 +533,10 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to send message after abort: %v", err)
 		}
 
+		if answer == nil {
+			t.Fatalf("Expected an answer after abort, got nil")
+		}
+
 		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "4") {
 			t.Errorf("Expected answer to contain '4', got %v", answer.Data.Content)
 		}
@@ -550,7 +554,7 @@ func TestSession(t *testing.T) {
 
 		var deltaContents []string
 
-		unsubscribe := session.On(func(event copilot.SessionEvent) {
+		session.On(func(event copilot.SessionEvent) {
 			switch event.Type {
 			case "assistant.message_delta":
 				if event.Data.DeltaContent != nil {
@@ -561,9 +565,12 @@ func TestSession(t *testing.T) {
 		})
 
 		assistantMessage, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 2+2?"})
-		unsubscribe()
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		if assistantMessage == nil {
+			t.Fatal("Expected assistant message, got nil")
 		}
 
 		// Should have received delta events
@@ -605,6 +612,10 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
+		if assistantMessage == nil {
+			t.Fatal("Expected assistant message, got nil")
+		}
+
 		if assistantMessage.Data.Content == nil || !strings.Contains(*assistantMessage.Data.Content, "2") {
 			t.Errorf("Expected assistant message to contain '2', got %v", assistantMessage.Data.Content)
 		}
@@ -627,6 +638,10 @@ func TestSession(t *testing.T) {
 		assistantMessage, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 100+200?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		if assistantMessage == nil {
+			t.Fatal("Expected assistant message, got nil")
 		}
 
 		// Should have received multiple events
@@ -683,6 +698,10 @@ func TestSession(t *testing.T) {
 		assistantMessage, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		if assistantMessage == nil {
+			t.Fatal("Expected assistant message, got nil")
 		}
 
 		if assistantMessage.Data.Content == nil || !strings.Contains(*assistantMessage.Data.Content, "2") {
