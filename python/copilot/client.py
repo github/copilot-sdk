@@ -580,7 +580,6 @@ class CopilotClient:
         # Add system message configuration if provided
         system_message = cfg.get("system_message")
         if system_message:
-            # Pass through the system message configuration directly, matching create_session behavior.
             payload["systemMessage"] = system_message
 
         # Add available/excluded tools if provided
