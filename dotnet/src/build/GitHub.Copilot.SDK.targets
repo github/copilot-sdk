@@ -28,7 +28,7 @@
 
   <!-- Download and extract CLI binary -->
   <Target Name="_DownloadCopilotCli" BeforeTargets="BeforeBuild" Condition="'$(_CopilotPlatform)' != ''">
-    <Error Condition="'$(CopilotCliVersion)' == ''" Text="CopilotCliVersion is not set. The GitHub.Copilot.SDK.Version.props file may be missing from the NuGet package." />
+    <Error Condition="'$(CopilotCliVersion)' == ''" Text="CopilotCliVersion is not set. The GitHub.Copilot.SDK.props file may be missing from the NuGet package." />
 
     <!-- Compute paths using version (now available) -->
     <PropertyGroup>
@@ -38,14 +38,21 @@
       <_CopilotDownloadUrl>https://registry.npmjs.org/@github/copilot-$(_CopilotPlatform)/-/copilot-$(_CopilotPlatform)-$(CopilotCliVersion).tgz</_CopilotDownloadUrl>
     </PropertyGroup>
 
+    <!-- Delete archive if binary missing (handles partial/corrupted downloads) -->
+    <Delete Files="$(_CopilotArchivePath)" Condition="!Exists('$(_CopilotCliBinaryPath)') And Exists('$(_CopilotArchivePath)')" />
+
     <!-- Download if not cached -->
     <MakeDir Directories="$(_CopilotCacheDir)" Condition="!Exists('$(_CopilotCliBinaryPath)')" />
     <Message Importance="high" Text="Downloading Copilot CLI $(CopilotCliVersion) for $(_CopilotPlatform)..." Condition="!Exists('$(_CopilotCliBinaryPath)')" />
     <DownloadFile SourceUrl="$(_CopilotDownloadUrl)" DestinationFolder="$(_CopilotCacheDir)" DestinationFileName="copilot.tgz"
-                  Condition="!Exists('$(_CopilotCliBinaryPath)') And !Exists('$(_CopilotArchivePath)')" />
+                  Condition="!Exists('$(_CopilotCliBinaryPath)')" />
 
-    <!-- Extract using tar -->
-    <Exec Command="tar -xzf &quot;$(_CopilotArchivePath)&quot; --strip-components=1 -C &quot;$(_CopilotCacheDir)&quot;"
+    <!-- Extract using tar (use Windows system tar explicitly to avoid Git bash tar issues) -->
+    <PropertyGroup>
+      <_TarCommand Condition="$([MSBuild]::IsOSPlatform('Windows'))">$(SystemRoot)\System32\tar.exe</_TarCommand>
+      <_TarCommand Condition="'$(_TarCommand)' == ''">tar</_TarCommand>
+    </PropertyGroup>
+    <Exec Command="&quot;$(_TarCommand)&quot; -xzf &quot;$(_CopilotArchivePath)&quot; --strip-components=1 -C &quot;$(_CopilotCacheDir)&quot;"
           Condition="!Exists('$(_CopilotCliBinaryPath)')" />
 
     <Error Condition="!Exists('$(_CopilotCliBinaryPath)')" Text="Failed to extract Copilot CLI binary to $(_CopilotCliBinaryPath)" />

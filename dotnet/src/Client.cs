@@ -975,7 +975,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     private static string? GetBundledCliPath(out string searchedPath)
     {
         var binaryName = OperatingSystem.IsWindows() ? "copilot.exe" : "copilot";
-        var rid = System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier;
+        var rid = Path.GetFileName(System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier);
         searchedPath = Path.Combine(AppContext.BaseDirectory, "runtimes", rid, "native", binaryName);
         return File.Exists(searchedPath) ? searchedPath : null;
     }

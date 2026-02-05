@@ -80,5 +80,4 @@ jobs:
       - name: Run .NET SDK tests
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
-          COPILOT_CLI_PATH: ${{ steps.setup-copilot.outputs.cli-path }}
         run: dotnet test --no-build -v n
