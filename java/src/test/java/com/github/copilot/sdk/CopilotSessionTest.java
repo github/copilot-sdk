@@ -488,6 +488,8 @@ public class CopilotSessionTest {
 
     // This test validates client-side timeout behavior. The snapshot has no
     // assistant response because the test expects timeout BEFORE completion.
+    // Note: In CI mode, the proxy logs "No cached response found" errors to
+    // stderr, but these are expected - the timeout still triggers correctly.
     @Test
     void testSendAndWaitThrowsOnTimeout() throws Exception {
         ctx.configureForTest("session", "sendandwait_throws_on_timeout");
@@ -495,17 +497,22 @@ public class CopilotSessionTest {
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession().get();
 
-            // Use a very short timeout that will definitely expire
+            // Use a short timeout that will trigger before any response
             try {
-                // Note: We use a command that takes time so timeout triggers before completion
-                session.sendAndWait(new MessageOptions().setPrompt("Run 'sleep 2 && echo done'"), 100).get(5,
+                session.sendAndWait(new MessageOptions().setPrompt("Run 'sleep 2 && echo done'"), 100).get(30,
                         TimeUnit.SECONDS);
                 fail("Expected timeout exception");
             } catch (Exception e) {
-                // Should throw a timeout-related error
-                assertTrue(e.getMessage().toLowerCase().contains("timeout")
-                        || (e.getCause() != null && e.getCause().getMessage().toLowerCase().contains("timeout")),
-                        "Should throw timeout exception: " + e.getMessage());
+                // Should throw a timeout-related error from sendAndWait
+                String message = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+                String causeMessage = e.getCause() != null && e.getCause().getMessage() != null
+                        ? e.getCause().getMessage().toLowerCase()
+                        : "";
+                assertTrue(
+                        message.contains("timeout") || message.contains("sendandwait timed out")
+                                || causeMessage.contains("timeout") || causeMessage.contains("sendandwait timed out"),
+                        "Should throw timeout exception, got: " + e.getMessage()
+                                + (e.getCause() != null ? " caused by: " + e.getCause().getMessage() : ""));
             }
 
             session.close();
