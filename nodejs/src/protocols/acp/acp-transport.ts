@@ -34,6 +34,11 @@ export class AcpTransport {
     private isListening = false;
     private disposed = false;
 
+    // Bound handlers for proper removal
+    private boundDataHandler: ((chunk: Buffer) => void) | null = null;
+    private boundEndHandler: (() => void) | null = null;
+    private boundErrorHandler: ((error: Error) => void) | null = null;
+
     constructor(
         private readonly inputStream: Readable,
         private readonly outputStream: Writable
@@ -48,20 +53,25 @@ export class AcpTransport {
         }
         this.isListening = true;
 
-        this.inputStream.on("data", (chunk: Buffer) => {
+        // Create bound handlers so we can remove them later
+        this.boundDataHandler = (chunk: Buffer) => {
             if (this.disposed) return;
             this.handleData(chunk.toString());
-        });
+        };
 
-        this.inputStream.on("end", () => {
+        this.boundEndHandler = () => {
             if (this.disposed) return;
             this.handleClose();
-        });
+        };
 
-        this.inputStream.on("error", (error: Error) => {
+        this.boundErrorHandler = (error: Error) => {
             if (this.disposed) return;
             this.emitError(error);
-        });
+        };
+
+        this.inputStream.on("data", this.boundDataHandler);
+        this.inputStream.on("end", this.boundEndHandler);
+        this.inputStream.on("error", this.boundErrorHandler);
     }
 
     /**
@@ -161,6 +171,24 @@ export class AcpTransport {
     dispose(): void {
         this.disposed = true;
         this.isListening = false;
+
+        // Remove event listeners from input stream
+        if (this.boundDataHandler) {
+            this.inputStream.removeListener("data", this.boundDataHandler);
+            this.boundDataHandler = null;
+        }
+        if (this.boundEndHandler) {
+            this.inputStream.removeListener("end", this.boundEndHandler);
+            this.boundEndHandler = null;
+        }
+        if (this.boundErrorHandler) {
+            this.inputStream.removeListener("error", this.boundErrorHandler);
+            this.boundErrorHandler = null;
+        }
+
+        // Remove all remaining listeners from streams
+        this.inputStream.removeAllListeners();
+        this.outputStream.removeAllListeners();
 
         // Reject all pending requests
         for (const pending of this.pendingRequests.values()) {

@@ -352,6 +352,10 @@ export class AcpProtocolAdapter implements ProtocolAdapter {
     private options: CopilotClientOptions;
     private forceStopping = false;
 
+    // Store bound handlers for cleanup
+    private stderrHandler: ((data: Buffer) => void) | null = null;
+    private stdinErrorHandler: ((err: Error) => void) | null = null;
+
     constructor(options: CopilotClientOptions) {
         this.options = options;
     }
@@ -378,16 +382,36 @@ export class AcpProtocolAdapter implements ProtocolAdapter {
         }
 
         if (this.cliProcess) {
-            try {
-                this.cliProcess.kill();
-            } catch (error) {
-                errors.push(
-                    new Error(
-                        `Failed to kill CLI process: ${error instanceof Error ? error.message : String(error)}`
-                    )
-                );
-            }
+            const childProcess = this.cliProcess;
             this.cliProcess = null;
+
+            // Remove event listeners to allow process to exit
+            if (this.stderrHandler && childProcess.stderr) {
+                childProcess.stderr.removeListener("data", this.stderrHandler);
+                this.stderrHandler = null;
+            }
+            if (this.stdinErrorHandler && childProcess.stdin) {
+                childProcess.stdin.removeListener("error", this.stdinErrorHandler);
+                this.stdinErrorHandler = null;
+            }
+
+            // Remove all listeners from process and streams
+            childProcess.removeAllListeners();
+            childProcess.stdout?.removeAllListeners();
+            childProcess.stderr?.removeAllListeners();
+            childProcess.stdin?.removeAllListeners();
+
+            try {
+                // Kill the process first
+                childProcess.kill();
+
+                // Destroy all streams to properly close them
+                childProcess.stdin?.destroy();
+                childProcess.stdout?.destroy();
+                childProcess.stderr?.destroy();
+            } catch {
+                // Process may already be dead
+            }
         }
 
         return errors;
@@ -406,6 +430,17 @@ export class AcpProtocolAdapter implements ProtocolAdapter {
         }
 
         if (this.cliProcess) {
+            // Remove event listeners
+            if (this.stderrHandler && this.cliProcess.stderr) {
+                this.cliProcess.stderr.removeListener("data", this.stderrHandler);
+                this.stderrHandler = null;
+            }
+            if (this.stdinErrorHandler && this.cliProcess.stdin) {
+                this.cliProcess.stdin.removeListener("error", this.stdinErrorHandler);
+                this.stdinErrorHandler = null;
+            }
+            this.cliProcess.removeAllListeners();
+
             try {
                 this.cliProcess.kill("SIGKILL");
             } catch {
@@ -475,7 +510,8 @@ export class AcpProtocolAdapter implements ProtocolAdapter {
             resolved = true;
             resolve();
 
-            this.cliProcess.stderr?.on("data", (data: Buffer) => {
+            // Store handler for cleanup
+            this.stderrHandler = (data: Buffer) => {
                 // Forward CLI stderr to parent's stderr
                 const lines = data.toString().split("\n");
                 for (const line of lines) {
@@ -483,7 +519,8 @@ export class AcpProtocolAdapter implements ProtocolAdapter {
                         process.stderr.write(`[ACP CLI] ${line}\n`);
                     }
                 }
-            });
+            };
+            this.cliProcess.stderr?.on("data", this.stderrHandler);
 
             this.cliProcess.on("error", (error) => {
                 if (!resolved) {
@@ -500,11 +537,12 @@ export class AcpProtocolAdapter implements ProtocolAdapter {
             });
 
             // Handle stdin errors during force stop
-            this.cliProcess.stdin?.on("error", (err) => {
+            this.stdinErrorHandler = (err: Error) => {
                 if (!this.forceStopping) {
                     throw err;
                 }
-            });
+            };
+            this.cliProcess.stdin?.on("error", this.stdinErrorHandler);
 
             // Timeout after 10 seconds
             setTimeout(() => {
