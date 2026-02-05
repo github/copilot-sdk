@@ -250,7 +250,7 @@ Sessions emit various events during processing:
 - `assistant.message` - Assistant response
 - `assistant.message_delta` - Streaming response chunk
 - `tool.execution_start` - Tool execution started
-- `tool.execution_end` - Tool execution completed
+- `tool.execution_complete` - Tool execution completed
 - And more...
 
 See `SessionEvent` type in the source for full details.
