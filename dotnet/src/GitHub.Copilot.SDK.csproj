@@ -1,31 +1,56 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <Version>0.1.0</Version>
+        <Description>SDK for programmatic control of GitHub Copilot CLI</Description>
+        <Authors>GitHub</Authors>
+        <Company>GitHub</Company>
+        <Copyright>Copyright (c) Microsoft Corporation. All rights reserved.</Copyright>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <RepositoryUrl>https://github.com/github/copilot-sdk</RepositoryUrl>
+        <PackageTags>github;copilot;sdk;jsonrpc;agent</PackageTags>
+        <IsAotCompatible>true</IsAotCompatible>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="../README.md" Pack="true" PackagePath="/" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="10.2.0" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
+        <PackageReference Include="StreamJsonRpc" Version="2.24.84" PrivateAssets="compile" />
+        <PackageReference Include="System.Text.Json" Version="10.0.2" />
+    </ItemGroup>
+
+    <!-- Generate version props file at build time (gitignored) -->
+    <Target Name="_GenerateVersionProps" BeforeTargets="BeforeBuild">
+        <Exec Command="node -e &quot;console.log(require('./nodejs/package-lock.json').packages['node_modules/@github/copilot'].version)&quot;" WorkingDirectory="$(MSBuildThisFileDirectory)../.." ConsoleToMSBuild="true" StandardOutputImportance="low">
+            <Output TaskParameter="ConsoleOutput" PropertyName="CopilotCliVersion" />
+        </Exec>
+        <Error Condition="'$(CopilotCliVersion)' == ''" Text="CopilotCliVersion could not be read from nodejs/package-lock.json" />
+        <PropertyGroup>
+            <_VersionPropsContent>
+                <![CDATA[<Project>
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <Version>0.1.0</Version>
-    <Description>SDK for programmatic control of GitHub Copilot CLI</Description>
-    <Authors>GitHub</Authors>
-    <Company>GitHub</Company>
-    <Copyright>Copyright (c) Microsoft Corporation. All rights reserved.</Copyright>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-    <RepositoryUrl>https://github.com/github/copilot-sdk</RepositoryUrl>
-    <PackageTags>github;copilot;sdk;jsonrpc;agent</PackageTags>
-    <IsAotCompatible>true</IsAotCompatible>
+    <CopilotCliVersion>$(CopilotCliVersion)</CopilotCliVersion>
   </PropertyGroup>
+</Project>]]>
+            </_VersionPropsContent>
+        </PropertyGroup>
+        <WriteLinesToFile File="$(MSBuildThisFileDirectory)build\GitHub.Copilot.SDK.props" Lines="$(_VersionPropsContent)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    </Target>
 
-  <ItemGroup>
-    <None Include="../README.md" Pack="true" PackagePath="/" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="10.2.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
-    <PackageReference Include="StreamJsonRpc" Version="2.24.84" PrivateAssets="compile" />
-    <PackageReference Include="System.Text.Json" Version="10.0.2" />
-  </ItemGroup>
+    <!-- Include .targets and .props files in package -->
+    <!-- Also import the .targets for local dev (same logic consumers get) -->
+    <ItemGroup>
+        <None Include="build\GitHub.Copilot.SDK.*" Pack="true" PackagePath="build\" CopyToOutputDirectory="Never" />
+    </ItemGroup>
+    <Import Project="build\GitHub.Copilot.SDK.targets" />
 
 </Project>
