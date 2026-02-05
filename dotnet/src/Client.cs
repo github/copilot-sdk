@@ -346,6 +346,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
 
         if (!string.IsNullOrEmpty(config?.Model))
         {
+            // ListModelsAsync caches results after the first call, so this validation has minimal overhead
             var availableModels = await ListModelsAsync(cancellationToken).ConfigureAwait(false);
             var validModelIds = new HashSet<string>(availableModels.Select(m => m.Id), StringComparer.OrdinalIgnoreCase);
 
