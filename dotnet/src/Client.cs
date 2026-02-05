@@ -347,9 +347,9 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         if (!string.IsNullOrEmpty(config?.Model))
         {
             var availableModels = await ListModelsAsync(cancellationToken).ConfigureAwait(false);
-            var validModelIds = availableModels.Select(m => m.Id).ToList();
+            var validModelIds = new HashSet<string>(availableModels.Select(m => m.Id), StringComparer.OrdinalIgnoreCase);
 
-            if (!validModelIds.Contains(config.Model, StringComparer.OrdinalIgnoreCase))
+            if (!validModelIds.Contains(config.Model))
             {
                 throw new ArgumentException(
                     $"Invalid model '{config.Model}'. Available models: {string.Join(", ", validModelIds)}",
