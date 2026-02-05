@@ -326,20 +326,20 @@ func (c *Client) handleRequest(request *Request) {
 		return
 	}
 
+	// Notifications run synchronously, calls run in a goroutine to avoid blocking
+	if !request.IsCall() {
+		handler(request.Params)
+		return
+	}
+
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				if request.IsCall() {
-					c.sendErrorResponse(request.ID, -32603, fmt.Sprintf("request handler panic: %v", r), nil)
-				}
+				c.sendErrorResponse(request.ID, -32603, fmt.Sprintf("request handler panic: %v", r), nil)
 			}
 		}()
 
 		result, err := handler(request.Params)
-		if !request.IsCall() {
-			// Only send a response if this is a call
-			return
-		}
 		if err != nil {
 			c.sendErrorResponse(request.ID, err.Code, err.Message, err.Data)
 			return
