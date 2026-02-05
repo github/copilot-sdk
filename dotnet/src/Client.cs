@@ -437,19 +437,25 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
 
         var request = new ResumeSessionRequest(
             sessionId,
+            config?.Model,
             config?.ReasoningEffort,
             config?.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
+            config?.SystemMessage,
+            config?.AvailableTools,
+            config?.ExcludedTools,
             config?.Provider,
             config?.OnPermissionRequest != null ? true : null,
             config?.OnUserInputRequest != null ? true : null,
             hasHooks ? true : null,
             config?.WorkingDirectory,
+            config?.ConfigDir,
             config?.DisableResume == true ? true : null,
             config?.Streaming == true ? true : null,
             config?.McpServers,
             config?.CustomAgents,
             config?.SkillDirectories,
-            config?.DisabledSkills);
+            config?.DisabledSkills,
+            config?.InfiniteSessions);
 
         var response = await InvokeRpcAsync<ResumeSessionResponse>(
             connection.Rpc, "session.resume", [request], cancellationToken);
@@ -1326,19 +1332,25 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
 
     internal record ResumeSessionRequest(
         string SessionId,
+        string? Model,
         string? ReasoningEffort,
         List<ToolDefinition>? Tools,
+        SystemMessageConfig? SystemMessage,
+        List<string>? AvailableTools,
+        List<string>? ExcludedTools,
         ProviderConfig? Provider,
         bool? RequestPermission,
         bool? RequestUserInput,
         bool? Hooks,
         string? WorkingDirectory,
+        string? ConfigDir,
         bool? DisableResume,
         bool? Streaming,
         Dictionary<string, object>? McpServers,
         List<CustomAgentConfig>? CustomAgents,
         List<string>? SkillDirectories,
-        List<string>? DisabledSkills);
+        List<string>? DisabledSkills,
+        InfiniteSessionConfig? InfiniteSessions);
 
     internal record ResumeSessionResponse(
         string SessionId,

@@ -527,7 +527,14 @@ class ProviderConfig(TypedDict, total=False):
 class ResumeSessionConfig(TypedDict, total=False):
     """Configuration for resuming a session"""
 
+    # Model to use for this session. Can change the model when resuming.
+    model: str
     tools: list[Tool]
+    system_message: SystemMessageConfig  # System message configuration
+    # List of tool names to allow (takes precedence over excluded_tools)
+    available_tools: list[str]
+    # List of tool names to disable (ignored if available_tools is set)
+    excluded_tools: list[str]
     provider: ProviderConfig
     # Reasoning effort level for models that support it.
     reasoning_effort: ReasoningEffort
@@ -538,6 +545,8 @@ class ResumeSessionConfig(TypedDict, total=False):
     hooks: SessionHooks
     # Working directory for the session. Tool operations will be relative to this directory.
     working_directory: str
+    # Override the default configuration directory location.
+    config_dir: str
     # Enable streaming of assistant message chunks
     streaming: bool
     # MCP server configurations for the session
@@ -548,6 +557,8 @@ class ResumeSessionConfig(TypedDict, total=False):
     skill_directories: list[str]
     # List of skill names to disable
     disabled_skills: list[str]
+    # Infinite session configuration for persistent workspaces and automatic compaction.
+    infinite_sessions: InfiniteSessionConfig
     # When True, skips emitting the session.resume event.
     # Useful for reconnecting to a session without triggering resume-related side effects.
     disable_resume: bool

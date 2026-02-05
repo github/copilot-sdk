@@ -730,7 +730,11 @@ export interface SessionConfig {
  */
 export type ResumeSessionConfig = Pick<
     SessionConfig,
+    | "model"
     | "tools"
+    | "systemMessage"
+    | "availableTools"
+    | "excludedTools"
     | "provider"
     | "streaming"
     | "reasoningEffort"
@@ -738,10 +742,12 @@ export type ResumeSessionConfig = Pick<
     | "onUserInputRequest"
     | "hooks"
     | "workingDirectory"
+    | "configDir"
     | "mcpServers"
     | "customAgents"
     | "skillDirectories"
     | "disabledSkills"
+    | "infiniteSessions"
 > & {
     /**
      * When true, skips emitting the session.resume event.

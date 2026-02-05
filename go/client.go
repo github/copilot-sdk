@@ -681,8 +681,38 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	}
 
 	if config != nil {
+		if config.Model != "" {
+			params["model"] = config.Model
+		}
 		if config.ReasoningEffort != "" {
 			params["reasoningEffort"] = config.ReasoningEffort
+		}
+		if config.SystemMessage != nil {
+			systemMessage := make(map[string]any)
+
+			if config.SystemMessage.Mode != "" {
+				systemMessage["mode"] = config.SystemMessage.Mode
+			}
+
+			if config.SystemMessage.Mode == "replace" {
+				if config.SystemMessage.Content != "" {
+					systemMessage["content"] = config.SystemMessage.Content
+				}
+			} else {
+				if config.SystemMessage.Content != "" {
+					systemMessage["content"] = config.SystemMessage.Content
+				}
+			}
+
+			if len(systemMessage) > 0 {
+				params["systemMessage"] = systemMessage
+			}
+		}
+		if len(config.AvailableTools) > 0 {
+			params["availableTools"] = config.AvailableTools
+		}
+		if len(config.ExcludedTools) > 0 {
+			params["excludedTools"] = config.ExcludedTools
 		}
 		if len(config.Tools) > 0 {
 			toolDefs := make([]map[string]any, 0, len(config.Tools))
@@ -731,6 +761,10 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		if config.WorkingDirectory != "" {
 			params["workingDirectory"] = config.WorkingDirectory
 		}
+		// Add config directory
+		if config.ConfigDir != "" {
+			params["configDir"] = config.ConfigDir
+		}
 		// Add disable resume flag
 		if config.DisableResume {
 			params["disableResume"] = true
@@ -773,6 +807,20 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		// Add disabled skills configuration
 		if len(config.DisabledSkills) > 0 {
 			params["disabledSkills"] = config.DisabledSkills
+		}
+		// Add infinite sessions configuration
+		if config.InfiniteSessions != nil {
+			infiniteSessions := map[string]any{}
+			if config.InfiniteSessions.Enabled != nil {
+				infiniteSessions["enabled"] = *config.InfiniteSessions.Enabled
+			}
+			if config.InfiniteSessions.BackgroundCompactionThreshold != nil {
+				infiniteSessions["backgroundCompactionThreshold"] = *config.InfiniteSessions.BackgroundCompactionThreshold
+			}
+			if config.InfiniteSessions.BufferExhaustionThreshold != nil {
+				infiniteSessions["bufferExhaustionThreshold"] = *config.InfiniteSessions.BufferExhaustionThreshold
+			}
+			params["infiniteSessions"] = infiniteSessions
 		}
 	}
 

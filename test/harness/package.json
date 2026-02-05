@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@github/copilot": "^0.0.402",
+    "@github/copilot": "^0.0.403",
     "@types/node": "^25.2.0",
     "openai": "^6.17.0",
     "tsx": "^4.21.0",
