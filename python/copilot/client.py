@@ -580,14 +580,8 @@ class CopilotClient:
         # Add system message configuration if provided
         system_message = cfg.get("system_message")
         if system_message:
-            wire_system_message: dict[str, Any] = {}
-            if "prefix" in system_message:
-                wire_system_message["prefix"] = system_message["prefix"]
-            if "suffix" in system_message:
-                wire_system_message["suffix"] = system_message["suffix"]
-            if "override" in system_message:
-                wire_system_message["override"] = system_message["override"]
-            payload["systemMessage"] = wire_system_message
+            # Pass through the system message configuration directly, matching create_session behavior.
+            payload["systemMessage"] = system_message
 
         # Add available/excluded tools if provided
         available_tools = cfg.get("available_tools")
