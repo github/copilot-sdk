@@ -44,8 +44,14 @@ public class AskUserTest {
         }
     }
 
+    /**
+     * Verifies that user input handler is invoked when model uses ask_user tool.
+     *
+     * @see Snapshot:
+     *      ask_user/should_invoke_user_input_handler_when_model_uses_ask_user_tool
+     */
     @Test
-    void testUserInputHandlerInvokedWhenModelUsesAskUserTool() throws Exception {
+    void testShouldInvokeUserInputHandlerWhenModelUsesAskUserTool() throws Exception {
         ctx.configureForTest("ask_user", "should_invoke_user_input_handler_when_model_uses_ask_user_tool");
 
         List<UserInputRequest> userInputRequests = new ArrayList<>();
@@ -82,8 +88,13 @@ public class AskUserTest {
         }
     }
 
+    /**
+     * Verifies that choices are received in user input requests.
+     *
+     * @see Snapshot: ask_user/should_receive_choices_in_user_input_request
+     */
     @Test
-    void testUserInputRequestWithChoices() throws Exception {
+    void testShouldReceiveChoicesInUserInputRequest() throws Exception {
         ctx.configureForTest("ask_user", "should_receive_choices_in_user_input_request");
 
         List<UserInputRequest> userInputRequests = new ArrayList<>();
@@ -116,10 +127,12 @@ public class AskUserTest {
     }
 
     /**
-     * Test for freeform user input response.
+     * Verifies that freeform user input responses are handled.
+     *
+     * @see Snapshot: ask_user/should_handle_freeform_user_input_response
      */
     @Test
-    void testFreeformUserInputResponse() throws Exception {
+    void testShouldHandleFreeformUserInputResponse() throws Exception {
         ctx.configureForTest("ask_user", "should_handle_freeform_user_input_response");
 
         final List<UserInputRequest> userInputRequests = new ArrayList<>();

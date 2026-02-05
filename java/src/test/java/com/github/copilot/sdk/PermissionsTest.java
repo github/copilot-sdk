@@ -49,6 +49,11 @@ public class PermissionsTest {
         }
     }
 
+    /**
+     * Verifies that permission handler is invoked for write operations.
+     *
+     * @see Snapshot: permissions/permission_handler_for_write_operations
+     */
     @Test
     void testPermissionHandlerForWriteOperations(TestInfo testInfo) throws Exception {
         ctx.configureForTest("permissions", "permission_handler_for_write_operations");
@@ -86,6 +91,11 @@ public class PermissionsTest {
         }
     }
 
+    /**
+     * Verifies that permissions can be denied.
+     *
+     * @see Snapshot: permissions/deny_permission
+     */
     @Test
     void testDenyPermission(TestInfo testInfo) throws Exception {
         ctx.configureForTest("permissions", "deny_permission");
@@ -115,6 +125,11 @@ public class PermissionsTest {
         }
     }
 
+    /**
+     * Verifies that sessions work without a permission handler.
+     *
+     * @see Snapshot: permissions/without_permission_handler
+     */
     @Test
     void testWithoutPermissionHandler(TestInfo testInfo) throws Exception {
         ctx.configureForTest("permissions", "without_permission_handler");
@@ -134,6 +149,11 @@ public class PermissionsTest {
         }
     }
 
+    /**
+     * Verifies that async permission handlers work correctly.
+     *
+     * @see Snapshot: permissions/async_permission_handler
+     */
     @Test
     void testAsyncPermissionHandler(TestInfo testInfo) throws Exception {
         ctx.configureForTest("permissions", "async_permission_handler");
@@ -167,6 +187,11 @@ public class PermissionsTest {
         }
     }
 
+    /**
+     * Verifies that permission handlers work when resuming a session.
+     *
+     * @see Snapshot: permissions/resume_session_with_permission_handler
+     */
     @Test
     void testResumeSessionWithPermissionHandler(TestInfo testInfo) throws Exception {
         ctx.configureForTest("permissions", "resume_session_with_permission_handler");
@@ -199,6 +224,11 @@ public class PermissionsTest {
         }
     }
 
+    /**
+     * Verifies that tool call IDs are included in permission requests.
+     *
+     * @see Snapshot: permissions/tool_call_id_in_permission_requests
+     */
     @Test
     void testToolCallIdInPermissionRequests(TestInfo testInfo) throws Exception {
         ctx.configureForTest("permissions", "tool_call_id_in_permission_requests");
@@ -225,9 +255,13 @@ public class PermissionsTest {
     }
 
     /**
-     * Note: This test verifies error handling in permission handlers. When the
-     * handler throws an exception, the SDK should deny the permission and the
-     * assistant should indicate it couldn't complete the task.
+     * Verifies that permission handler errors are handled gracefully.
+     * <p>
+     * When the handler throws an exception, the SDK should deny the permission and
+     * the assistant should indicate it couldn't complete the task.
+     * </p>
+     *
+     * @see Snapshot: permissions/should_handle_permission_handler_errors_gracefully
      */
     @Test
     void testShouldHandlePermissionHandlerErrorsGracefully(TestInfo testInfo) throws Exception {

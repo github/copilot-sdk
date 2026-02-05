@@ -48,6 +48,11 @@ public class ToolsTest {
         }
     }
 
+    /**
+     * Verifies that built-in tools are invoked correctly.
+     *
+     * @see Snapshot: tools/invokes_built_in_tools
+     */
     @Test
     void testInvokesBuiltInTools(TestInfo testInfo) throws Exception {
         ctx.configureForTest("tools", "invokes_built_in_tools");
@@ -72,6 +77,11 @@ public class ToolsTest {
         }
     }
 
+    /**
+     * Verifies that custom tools are invoked correctly.
+     *
+     * @see Snapshot: tools/invokes_custom_tool
+     */
     @Test
     void testInvokesCustomTool(TestInfo testInfo) throws Exception {
         ctx.configureForTest("tools", "invokes_custom_tool");
@@ -109,6 +119,11 @@ public class ToolsTest {
         }
     }
 
+    /**
+     * Verifies that tool calling errors are handled gracefully.
+     *
+     * @see Snapshot: tools/handles_tool_calling_errors
+     */
     @Test
     void testHandlesToolCallingErrors(TestInfo testInfo) throws Exception {
         ctx.configureForTest("tools", "handles_tool_calling_errors");
@@ -144,6 +159,11 @@ public class ToolsTest {
         }
     }
 
+    /**
+     * Verifies that tools can receive and return complex types.
+     *
+     * @see Snapshot: tools/can_receive_and_return_complex_types
+     */
     @Test
     void testCanReceiveAndReturnComplexTypes(TestInfo testInfo) throws Exception {
         ctx.configureForTest("tools", "can_receive_and_return_complex_types");

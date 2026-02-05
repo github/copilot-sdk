@@ -48,9 +48,15 @@ public class CompactionTest {
         }
     }
 
+    /**
+     * Verifies that compaction is triggered with low threshold and emits events.
+     *
+     * @see Snapshot:
+     *      compaction/should_trigger_compaction_with_low_threshold_and_emit_events
+     */
     @Test
     @Timeout(value = 120, unit = TimeUnit.SECONDS)
-    void testTriggerCompactionWithLowThresholdAndEmitEvents() throws Exception {
+    void testShouldTriggerCompactionWithLowThresholdAndEmitEvents() throws Exception {
         ctx.configureForTest("compaction", "should_trigger_compaction_with_low_threshold_and_emit_events");
 
         // Create session with very low compaction thresholds to trigger compaction
@@ -114,8 +120,15 @@ public class CompactionTest {
         }
     }
 
+    /**
+     * Verifies that compaction events are not emitted when infinite sessions is
+     * disabled.
+     *
+     * @see Snapshot:
+     *      compaction/should_not_emit_compaction_events_when_infinite_sessions_disabled
+     */
     @Test
-    void testNotEmitCompactionEventsWhenInfiniteSessionsDisabled() throws Exception {
+    void testShouldNotEmitCompactionEventsWhenInfiniteSessionsDisabled() throws Exception {
         ctx.configureForTest("compaction", "should_not_emit_compaction_events_when_infinite_sessions_disabled");
 
         InfiniteSessionConfig infiniteConfig = new InfiniteSessionConfig().setEnabled(false);

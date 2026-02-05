@@ -94,8 +94,13 @@ public class SkillsTest {
         return skillsDir;
     }
 
+    /**
+     * Verifies that skills are loaded and applied from skill directories.
+     *
+     * @see Snapshot: skills/should_load_and_apply_skill_from_skilldirectories
+     */
     @Test
-    void testLoadAndApplySkillFromSkillDirectories() throws Exception {
+    void testShouldLoadAndApplySkillFromSkillDirectories() throws Exception {
         ctx.configureForTest("skills", "should_load_and_apply_skill_from_skilldirectories");
 
         Path skillsDir = createSkillDir();
@@ -120,8 +125,13 @@ public class SkillsTest {
         }
     }
 
+    /**
+     * Verifies that skills are not applied when disabled via disabledSkills.
+     *
+     * @see Snapshot: skills/should_not_apply_skill_when_disabled_via_disabledskills
+     */
     @Test
-    void testNotApplySkillWhenDisabledViaDisabledSkills() throws Exception {
+    void testShouldNotApplySkillWhenDisabledViaDisabledSkills() throws Exception {
         ctx.configureForTest("skills", "should_not_apply_skill_when_disabled_via_disabledskills");
 
         Path skillsDir = createSkillDir();

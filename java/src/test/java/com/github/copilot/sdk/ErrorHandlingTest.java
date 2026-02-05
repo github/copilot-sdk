@@ -50,11 +50,13 @@ public class ErrorHandlingTest {
     }
 
     /**
-     * Tests that tool errors are handled gracefully and don't crash the session.
+     * Verifies that tool errors are handled gracefully and don't crash the session.
+     *
+     * @see Snapshot: tools/handles_tool_calling_errors
      */
     @Test
-    void testToolErrorDoesNotCrashSession() throws Exception {
-        LOG.info("Running test: testToolErrorDoesNotCrashSession");
+    void testHandlesToolCallingErrors_toolErrorDoesNotCrashSession() throws Exception {
+        LOG.info("Running test: testHandlesToolCallingErrors_toolErrorDoesNotCrashSession");
         ctx.configureForTest("tools", "handles_tool_calling_errors");
 
         List<AbstractSessionEvent> allEvents = new ArrayList<>();
@@ -88,11 +90,13 @@ public class ErrorHandlingTest {
     }
 
     /**
-     * Tests that returning a failure result from a tool is handled properly.
+     * Verifies that returning a failure result from a tool is handled properly.
+     *
+     * @see Snapshot: tools/handles_tool_calling_errors
      */
     @Test
-    void testToolReturnsFailureResult() throws Exception {
-        LOG.info("Running test: testToolReturnsFailureResult");
+    void testHandlesToolCallingErrors_toolReturnsFailureResult() throws Exception {
+        LOG.info("Running test: testHandlesToolCallingErrors_toolReturnsFailureResult");
         ctx.configureForTest("tools", "handles_tool_calling_errors");
 
         ToolDefinition failTool = ToolDefinition.create("get_user_location", "Gets the user's location",
@@ -117,11 +121,13 @@ public class ErrorHandlingTest {
     }
 
     /**
-     * Tests that permission handler errors result in denied permission.
+     * Verifies that permission handler errors result in denied permission.
+     *
+     * @see Snapshot: permissions/should_handle_permission_handler_errors_gracefully
      */
     @Test
-    void testPermissionHandlerErrorDeniesPermission() throws Exception {
-        LOG.info("Running test: testPermissionHandlerErrorDeniesPermission");
+    void testShouldHandlePermissionHandlerErrorsGracefully_deniesPermission() throws Exception {
+        LOG.info("Running test: testShouldHandlePermissionHandlerErrorsGracefully_deniesPermission");
         ctx.configureForTest("permissions", "should_handle_permission_handler_errors_gracefully");
 
         List<SessionErrorEvent> errorEvents = new ArrayList<>();
@@ -154,11 +160,13 @@ public class ErrorHandlingTest {
     }
 
     /**
-     * Tests that session error events contain proper error information.
+     * Verifies that session error events contain proper error information.
+     *
+     * @see Snapshot: permissions/permission_handler_errors
      */
     @Test
-    void testSessionErrorEventContainsDetails() throws Exception {
-        LOG.info("Running test: testSessionErrorEventContainsDetails");
+    void testPermissionHandlerErrors_sessionErrorEventContainsDetails() throws Exception {
+        LOG.info("Running test: testPermissionHandlerErrors_sessionErrorEventContainsDetails");
         ctx.configureForTest("permissions", "permission_handler_errors");
 
         List<SessionErrorEvent> errorEvents = new ArrayList<>();
@@ -193,11 +201,13 @@ public class ErrorHandlingTest {
     }
 
     /**
-     * Tests that the session continues to work after a tool error.
+     * Verifies that the session continues to work after a tool error.
+     *
+     * @see Snapshot: tools/handles_tool_calling_errors
      */
     @Test
-    void testSessionContinuesAfterToolError() throws Exception {
-        LOG.info("Running test: testSessionContinuesAfterToolError");
+    void testHandlesToolCallingErrors_sessionContinuesAfterToolError() throws Exception {
+        LOG.info("Running test: testHandlesToolCallingErrors_sessionContinuesAfterToolError");
         ctx.configureForTest("tools", "handles_tool_calling_errors");
 
         ToolDefinition errorTool = ToolDefinition.create("get_user_location", "Gets the user's location",

@@ -56,8 +56,13 @@ public class HooksTest {
         }
     }
 
+    /**
+     * Verifies that pre-tool-use hook is invoked when model runs a tool.
+     *
+     * @see Snapshot: hooks/invoke_pre_tool_use_hook_when_model_runs_a_tool
+     */
     @Test
-    void testPreToolUseHookInvokedWhenModelRunsTool() throws Exception {
+    void testInvokePreToolUseHookWhenModelRunsATool() throws Exception {
         ctx.configureForTest("hooks", "invoke_pre_tool_use_hook_when_model_runs_a_tool");
 
         List<PreToolUseHookInput> preToolUseInputs = new ArrayList<>();
@@ -90,8 +95,13 @@ public class HooksTest {
         }
     }
 
+    /**
+     * Verifies that post-tool-use hook is invoked after model runs a tool.
+     *
+     * @see Snapshot: hooks/invoke_post_tool_use_hook_after_model_runs_a_tool
+     */
     @Test
-    void testPostToolUseHookInvokedAfterModelRunsTool() throws Exception {
+    void testInvokePostToolUseHookAfterModelRunsATool() throws Exception {
         ctx.configureForTest("hooks", "invoke_post_tool_use_hook_after_model_runs_a_tool");
 
         List<PostToolUseHookInput> postToolUseInputs = new ArrayList<>();
@@ -126,8 +136,13 @@ public class HooksTest {
         }
     }
 
+    /**
+     * Verifies that both hooks are invoked for a single tool call.
+     *
+     * @see Snapshot: hooks/invoke_both_hooks_for_single_tool_call
+     */
     @Test
-    void testBothHooksInvokedForSingleToolCall() throws Exception {
+    void testInvokeBothHooksForSingleToolCall() throws Exception {
         ctx.configureForTest("hooks", "invoke_both_hooks_for_single_tool_call");
 
         List<PreToolUseHookInput> preToolUseInputs = new ArrayList<>();
@@ -167,6 +182,11 @@ public class HooksTest {
         }
     }
 
+    /**
+     * Verifies that tool execution is denied when pre-tool-use returns deny.
+     *
+     * @see Snapshot: hooks/deny_tool_execution_when_pre_tool_use_returns_deny
+     */
     @Test
     void testDenyToolExecutionWhenPreToolUseReturnsDeny() throws Exception {
         ctx.configureForTest("hooks", "deny_tool_execution_when_pre_tool_use_returns_deny");

@@ -51,9 +51,15 @@ public class SessionEventsE2ETest {
         }
     }
 
+    /**
+     * Verifies that assistant turn events (turn_start, turn_end) are emitted.
+     *
+     * @see Snapshot: session/should_receive_session_events
+     */
     @Test
-    void testAssistantTurnEventsEmitted() throws Exception {
-        ctx.configureForTest("events", "assistant_turn_events_emitted");
+    void testShouldReceiveSessionEvents_assistantTurnEvents() throws Exception {
+        // Use existing session snapshot that emits turn events
+        ctx.configureForTest("session", "should_receive_session_events");
 
         List<AbstractSessionEvent> allEvents = new ArrayList<>();
 
@@ -62,7 +68,8 @@ public class SessionEventsE2ETest {
 
             session.on(event -> allEvents.add(event));
 
-            session.sendAndWait(new MessageOptions().setPrompt("Say hello")).get(60, TimeUnit.SECONDS);
+            // Use prompt that matches the snapshot
+            session.sendAndWait(new MessageOptions().setPrompt("What is 100+200?")).get(60, TimeUnit.SECONDS);
 
             // Verify turn lifecycle events
             assertTrue(allEvents.stream().anyMatch(e -> e instanceof AssistantTurnStartEvent),
@@ -85,9 +92,15 @@ public class SessionEventsE2ETest {
         }
     }
 
+    /**
+     * Verifies that user message events are emitted.
+     *
+     * @see Snapshot: session/should_receive_session_events
+     */
     @Test
-    void testUserMessageEventEmitted() throws Exception {
-        ctx.configureForTest("events", "user_message_event_emitted");
+    void testShouldReceiveSessionEvents_userMessageEvent() throws Exception {
+        // Use existing session snapshot
+        ctx.configureForTest("session", "should_receive_session_events");
 
         List<UserMessageEvent> userMessages = new ArrayList<>();
 
@@ -96,16 +109,23 @@ public class SessionEventsE2ETest {
 
             session.on(UserMessageEvent.class, userMessages::add);
 
-            session.sendAndWait(new MessageOptions().setPrompt("Hello, Copilot!")).get(60, TimeUnit.SECONDS);
+            // Use prompt that matches the snapshot
+            session.sendAndWait(new MessageOptions().setPrompt("What is 100+200?")).get(60, TimeUnit.SECONDS);
 
             // Verify user message was captured
             assertFalse(userMessages.isEmpty(), "Should receive user.message event");
         }
     }
 
+    /**
+     * Verifies that tool execution complete events are emitted.
+     *
+     * @see Snapshot: tools/invokes_built_in_tools
+     */
     @Test
-    void testToolExecutionCompleteEventEmitted() throws Exception {
-        ctx.configureForTest("events", "tool_execution_complete_event_emitted");
+    void testInvokesBuiltInTools_toolExecutionCompleteEvent() throws Exception {
+        // Use existing tools snapshot for built-in tool invocation
+        ctx.configureForTest("tools", "invokes_built_in_tools");
 
         List<ToolExecutionStartEvent> toolStarts = new ArrayList<>();
         List<ToolExecutionCompleteEvent> toolCompletes = new ArrayList<>();
@@ -116,12 +136,15 @@ public class SessionEventsE2ETest {
             session.on(ToolExecutionStartEvent.class, toolStarts::add);
             session.on(ToolExecutionCompleteEvent.class, toolCompletes::add);
 
-            // Create a file for the model to read
-            Path testFile = ctx.getWorkDir().resolve("test-events.txt");
-            Files.writeString(testFile, "Event test content");
+            // Create the README.md file expected by the snapshot - must have ONLY one line
+            // to match the snapshot's expected tool response: "1. # ELIZA, the only chatbot
+            // you'll ever need"
+            Path testFile = ctx.getWorkDir().resolve("README.md");
+            Files.writeString(testFile, "# ELIZA, the only chatbot you'll ever need");
 
-            session.sendAndWait(new MessageOptions().setPrompt("Read the contents of test-events.txt")).get(60,
-                    TimeUnit.SECONDS);
+            // Use prompt that matches the snapshot
+            session.sendAndWait(new MessageOptions().setPrompt("What's the first line of README.md in this directory?"))
+                    .get(60, TimeUnit.SECONDS);
 
             // Verify tool execution events
             assertFalse(toolStarts.isEmpty(), "Should receive tool.execution_start event");
@@ -133,9 +156,15 @@ public class SessionEventsE2ETest {
         }
     }
 
+    /**
+     * Verifies that assistant usage events are handled when emitted.
+     *
+     * @see Snapshot: session/should_receive_session_events
+     */
     @Test
-    void testAssistantUsageEventEmitted() throws Exception {
-        ctx.configureForTest("events", "assistant_usage_event_emitted");
+    void testShouldReceiveSessionEvents_assistantUsageEvent() throws Exception {
+        // Use existing session snapshot
+        ctx.configureForTest("session", "should_receive_session_events");
 
         List<AssistantUsageEvent> usageEvents = new ArrayList<>();
 
@@ -144,7 +173,8 @@ public class SessionEventsE2ETest {
 
             session.on(AssistantUsageEvent.class, usageEvents::add);
 
-            session.sendAndWait(new MessageOptions().setPrompt("What is 2+2?")).get(60, TimeUnit.SECONDS);
+            // Use prompt that matches the snapshot
+            session.sendAndWait(new MessageOptions().setPrompt("What is 100+200?")).get(60, TimeUnit.SECONDS);
 
             // Usage events may or may not be emitted depending on the model/API version
             // This test verifies the event handler works when they are emitted
@@ -152,9 +182,15 @@ public class SessionEventsE2ETest {
         }
     }
 
+    /**
+     * Verifies that session.idle event is emitted after message completion.
+     *
+     * @see Snapshot: session/should_receive_session_events
+     */
     @Test
-    void testSessionIdleEventAfterMessageComplete() throws Exception {
-        ctx.configureForTest("events", "session_idle_after_message");
+    void testShouldReceiveSessionEvents_sessionIdleAfterMessage() throws Exception {
+        // Use existing session snapshot
+        ctx.configureForTest("session", "should_receive_session_events");
 
         List<AbstractSessionEvent> allEvents = new ArrayList<>();
 
@@ -163,7 +199,8 @@ public class SessionEventsE2ETest {
 
             session.on(event -> allEvents.add(event));
 
-            session.sendAndWait(new MessageOptions().setPrompt("Say OK")).get(60, TimeUnit.SECONDS);
+            // Use prompt that matches the snapshot
+            session.sendAndWait(new MessageOptions().setPrompt("What is 100+200?")).get(60, TimeUnit.SECONDS);
 
             // Verify session.idle is emitted after assistant.message
             assertTrue(allEvents.stream().anyMatch(e -> e instanceof SessionIdleEvent),
@@ -186,9 +223,15 @@ public class SessionEventsE2ETest {
         }
     }
 
+    /**
+     * Verifies the order of events during tool execution.
+     *
+     * @see Snapshot: tools/invokes_built_in_tools
+     */
     @Test
-    void testEventOrderDuringToolExecution() throws Exception {
-        ctx.configureForTest("events", "event_order_during_tool_execution");
+    void testInvokesBuiltInTools_eventOrderDuringToolExecution() throws Exception {
+        // Use existing tools snapshot for built-in tool invocation
+        ctx.configureForTest("tools", "invokes_built_in_tools");
 
         List<String> eventTypes = new ArrayList<>();
 
@@ -197,12 +240,15 @@ public class SessionEventsE2ETest {
 
             session.on(event -> eventTypes.add(event.getType()));
 
-            // Create a file for the model to read
-            Path testFile = ctx.getWorkDir().resolve("order-test.txt");
-            Files.writeString(testFile, "Order test content");
+            // Create the README.md file expected by the snapshot - must have ONLY one line
+            // to match the snapshot's expected tool response: "1. # ELIZA, the only chatbot
+            // you'll ever need"
+            Path testFile = ctx.getWorkDir().resolve("README.md");
+            Files.writeString(testFile, "# ELIZA, the only chatbot you'll ever need");
 
-            session.sendAndWait(new MessageOptions().setPrompt("Read the contents of order-test.txt")).get(60,
-                    TimeUnit.SECONDS);
+            // Use prompt that matches the snapshot
+            session.sendAndWait(new MessageOptions().setPrompt("What's the first line of README.md in this directory?"))
+                    .get(60, TimeUnit.SECONDS);
 
             // Verify expected event types are present
             assertTrue(eventTypes.contains("user.message"), "Should have user.message");

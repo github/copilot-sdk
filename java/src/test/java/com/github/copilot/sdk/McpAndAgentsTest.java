@@ -57,8 +57,14 @@ public class McpAndAgentsTest {
 
     // ============ MCP Server Tests ============
 
+    /**
+     * Verifies that MCP server configuration is accepted on session create.
+     *
+     * @see Snapshot:
+     *      mcp_and_agents/should_accept_mcp_server_configuration_on_session_create
+     */
     @Test
-    void testAcceptMcpServerConfigurationOnSessionCreate() throws Exception {
+    void testShouldAcceptMcpServerConfigurationOnSessionCreate() throws Exception {
         ctx.configureForTest("mcp_and_agents", "should_accept_mcp_server_configuration_on_session_create");
 
         Map<String, Object> mcpServers = new HashMap<>();
@@ -81,8 +87,14 @@ public class McpAndAgentsTest {
         }
     }
 
+    /**
+     * Verifies that MCP server configuration is accepted on session resume.
+     *
+     * @see Snapshot:
+     *      mcp_and_agents/should_accept_mcp_server_configuration_on_session_resume
+     */
     @Test
-    void testAcceptMcpServerConfigurationOnSessionResume() throws Exception {
+    void testShouldAcceptMcpServerConfigurationOnSessionResume() throws Exception {
         ctx.configureForTest("mcp_and_agents", "should_accept_mcp_server_configuration_on_session_resume");
 
         try (CopilotClient client = ctx.createClient()) {
@@ -111,8 +123,14 @@ public class McpAndAgentsTest {
         }
     }
 
+    /**
+     * Verifies that multiple MCP servers can be configured.
+     *
+     * @see Snapshot:
+     *      mcp_and_agents/should_accept_mcp_server_configuration_on_session_create
+     */
     @Test
-    void testHandleMultipleMcpServers() throws Exception {
+    void testShouldHandleMultipleMcpServers() throws Exception {
         // Use same snapshot as single MCP server test since it doesn't depend on server
         // count
         ctx.configureForTest("mcp_and_agents", "should_accept_mcp_server_configuration_on_session_create");
@@ -131,8 +149,14 @@ public class McpAndAgentsTest {
 
     // ============ Custom Agent Tests ============
 
+    /**
+     * Verifies that custom agent configuration is accepted on session create.
+     *
+     * @see Snapshot:
+     *      mcp_and_agents/should_accept_custom_agent_configuration_on_session_create
+     */
     @Test
-    void testAcceptCustomAgentConfigurationOnSessionCreate() throws Exception {
+    void testShouldAcceptCustomAgentConfigurationOnSessionCreate() throws Exception {
         ctx.configureForTest("mcp_and_agents", "should_accept_custom_agent_configuration_on_session_create");
 
         List<CustomAgentConfig> customAgents = List.of(new CustomAgentConfig().setName("test-agent")
@@ -156,8 +180,14 @@ public class McpAndAgentsTest {
         }
     }
 
+    /**
+     * Verifies that custom agent configuration is accepted on session resume.
+     *
+     * @see Snapshot:
+     *      mcp_and_agents/should_accept_custom_agent_configuration_on_session_resume
+     */
     @Test
-    void testAcceptCustomAgentConfigurationOnSessionResume() throws Exception {
+    void testShouldAcceptCustomAgentConfigurationOnSessionResume() throws Exception {
         ctx.configureForTest("mcp_and_agents", "should_accept_custom_agent_configuration_on_session_resume");
 
         try (CopilotClient client = ctx.createClient()) {
@@ -187,8 +217,14 @@ public class McpAndAgentsTest {
         }
     }
 
+    /**
+     * Verifies that custom agents can be configured with tools.
+     *
+     * @see Snapshot:
+     *      mcp_and_agents/should_accept_custom_agent_configuration_on_session_create
+     */
     @Test
-    void testCustomAgentWithToolsConfiguration() throws Exception {
+    void testShouldAcceptCustomAgentWithToolsConfiguration() throws Exception {
         // Use same snapshot as create test since this just verifies configuration
         // acceptance
         ctx.configureForTest("mcp_and_agents", "should_accept_custom_agent_configuration_on_session_create");
@@ -205,8 +241,14 @@ public class McpAndAgentsTest {
         }
     }
 
+    /**
+     * Verifies that custom agents can be configured with MCP servers.
+     *
+     * @see Snapshot:
+     *      mcp_and_agents/should_accept_both_mcp_servers_and_custom_agents
+     */
     @Test
-    void testCustomAgentWithMcpServers() throws Exception {
+    void testShouldAcceptCustomAgentWithMcpServers() throws Exception {
         // Use combined snapshot since this uses both MCP servers and custom agents
         ctx.configureForTest("mcp_and_agents", "should_accept_both_mcp_servers_and_custom_agents");
 
@@ -225,8 +267,14 @@ public class McpAndAgentsTest {
         }
     }
 
+    /**
+     * Verifies that multiple custom agents can be configured.
+     *
+     * @see Snapshot:
+     *      mcp_and_agents/should_accept_custom_agent_configuration_on_session_create
+     */
     @Test
-    void testMultipleCustomAgents() throws Exception {
+    void testShouldAcceptMultipleCustomAgents() throws Exception {
         // Use same snapshot as create test
         ctx.configureForTest("mcp_and_agents", "should_accept_custom_agent_configuration_on_session_create");
 
@@ -246,8 +294,14 @@ public class McpAndAgentsTest {
 
     // ============ Combined Configuration Tests ============
 
+    /**
+     * Verifies that both MCP servers and custom agents can be configured.
+     *
+     * @see Snapshot:
+     *      mcp_and_agents/should_accept_both_mcp_servers_and_custom_agents
+     */
     @Test
-    void testAcceptBothMcpServersAndCustomAgents() throws Exception {
+    void testShouldAcceptBothMcpServersAndCustomAgents() throws Exception {
         ctx.configureForTest("mcp_and_agents", "should_accept_both_mcp_servers_and_custom_agents");
 
         Map<String, Object> mcpServers = new HashMap<>();
