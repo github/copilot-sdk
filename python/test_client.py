@@ -96,25 +96,36 @@ class TestURLParsing:
 
 class TestAuthOptions:
     def test_accepts_github_token(self):
-        client = CopilotClient({"github_token": "gho_test_token", "log_level": "error"})
+        client = CopilotClient(
+            {"cli_path": CLI_PATH, "github_token": "gho_test_token", "log_level": "error"}
+        )
         assert client.options.get("github_token") == "gho_test_token"
 
     def test_default_use_logged_in_user_true_without_token(self):
-        client = CopilotClient({"log_level": "error"})
+        client = CopilotClient({"cli_path": CLI_PATH, "log_level": "error"})
         assert client.options.get("use_logged_in_user") is True
 
     def test_default_use_logged_in_user_false_with_token(self):
-        client = CopilotClient({"github_token": "gho_test_token", "log_level": "error"})
+        client = CopilotClient(
+            {"cli_path": CLI_PATH, "github_token": "gho_test_token", "log_level": "error"}
+        )
         assert client.options.get("use_logged_in_user") is False
 
     def test_explicit_use_logged_in_user_true_with_token(self):
         client = CopilotClient(
-            {"github_token": "gho_test_token", "use_logged_in_user": True, "log_level": "error"}
+            {
+                "cli_path": CLI_PATH,
+                "github_token": "gho_test_token",
+                "use_logged_in_user": True,
+                "log_level": "error",
+            }
         )
         assert client.options.get("use_logged_in_user") is True
 
     def test_explicit_use_logged_in_user_false_without_token(self):
-        client = CopilotClient({"use_logged_in_user": False, "log_level": "error"})
+        client = CopilotClient(
+            {"cli_path": CLI_PATH, "use_logged_in_user": False, "log_level": "error"}
+        )
         assert client.options.get("use_logged_in_user") is False
 
     def test_github_token_with_cli_url_raises(self):

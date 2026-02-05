@@ -152,7 +152,10 @@ class CopilotClient:
             self._actual_port = None
 
         # Determine CLI path: explicit option > bundled binary
-        if opts.get("cli_path"):
+        # Not needed when connecting to external server via cli_url
+        if opts.get("cli_url"):
+            default_cli_path = ""  # Not used for external server
+        elif opts.get("cli_path"):
             default_cli_path = opts["cli_path"]
         else:
             bundled_path = _get_bundled_cli_path()
