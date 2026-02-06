@@ -556,19 +556,19 @@ public class SessionEventHandlingTest {
 
         dispatchEvent(createAssistantMessageEvent("Test"));
 
-        // All handlers should have been called (CONTINUE is default)
+        // All handlers should have been called (SUPPRESS is default)
         assertEquals(1, handler1Called.get());
         assertEquals(1, handler2Called.get());
         assertEquals(1, handler3Called.get());
     }
 
     @Test
-    void testStopPolicyStopsOnFirstError() {
+    void testPropagatePolicyStopsOnFirstError() {
         var handler1Called = new AtomicInteger(0);
         var handler2Called = new AtomicInteger(0);
         var errorHandlerCalls = new AtomicInteger(0);
 
-        session.setEventErrorPolicy(EventErrorPolicy.STOP);
+        session.setEventErrorPolicy(EventErrorPolicy.PROPAGATE);
         session.setEventErrorHandler((event, exception) -> {
             errorHandlerCalls.incrementAndGet();
         });
@@ -586,17 +586,17 @@ public class SessionEventHandlingTest {
 
         dispatchEvent(createAssistantMessageEvent("Test"));
 
-        // Only one handler should have been called (STOP policy)
+        // Only one handler should have been called (PROPAGATE policy)
         assertEquals(1, errorHandlerCalls.get());
         int totalCalls = handler1Called.get() + handler2Called.get();
-        assertEquals(1, totalCalls, "Only one handler should execute with STOP policy");
+        assertEquals(1, totalCalls, "Only one handler should execute with PROPAGATE policy");
     }
 
     @Test
-    void testStopPolicyErrorHandlerAlwaysInvoked() {
+    void testPropagatePolicyErrorHandlerAlwaysInvoked() {
         var errorHandlerCalls = new AtomicInteger(0);
 
-        session.setEventErrorPolicy(EventErrorPolicy.STOP);
+        session.setEventErrorPolicy(EventErrorPolicy.PROPAGATE);
         session.setEventErrorHandler((event, exception) -> {
             errorHandlerCalls.incrementAndGet();
         });
@@ -607,16 +607,16 @@ public class SessionEventHandlingTest {
 
         dispatchEvent(createAssistantMessageEvent("Test"));
 
-        // Error handler should be called even with STOP policy
+        // Error handler should be called even with PROPAGATE policy
         assertEquals(1, errorHandlerCalls.get());
     }
 
     @Test
-    void testContinuePolicyWithMultipleErrors() {
+    void testSuppressPolicyWithMultipleErrors() {
         var errorHandlerCalls = new AtomicInteger(0);
         var successfulHandlerCalls = new AtomicInteger(0);
 
-        session.setEventErrorPolicy(EventErrorPolicy.CONTINUE);
+        session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS);
         session.setEventErrorHandler((event, exception) -> {
             errorHandlerCalls.incrementAndGet();
         });
@@ -660,8 +660,8 @@ public class SessionEventHandlingTest {
             throw new RuntimeException("error");
         });
 
-        // With CONTINUE, both should fire
-        session.setEventErrorPolicy(EventErrorPolicy.CONTINUE);
+        // With SUPPRESS, both should fire
+        session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS);
         dispatchEvent(createAssistantMessageEvent("Test1"));
         assertEquals(1, handler1Called.get());
         assertEquals(1, handler2Called.get());
@@ -669,20 +669,20 @@ public class SessionEventHandlingTest {
         handler1Called.set(0);
         handler2Called.set(0);
 
-        // Switch to STOP — only one should fire
-        session.setEventErrorPolicy(EventErrorPolicy.STOP);
+        // Switch to PROPAGATE — only one should fire
+        session.setEventErrorPolicy(EventErrorPolicy.PROPAGATE);
         dispatchEvent(createAssistantMessageEvent("Test2"));
         int totalCalls = handler1Called.get() + handler2Called.get();
-        assertEquals(1, totalCalls, "Only one handler should execute after switching to STOP");
+        assertEquals(1, totalCalls, "Only one handler should execute after switching to PROPAGATE");
     }
 
     @Test
-    void testStopPolicyNoErrorHandlerSilentlyStops() {
+    void testPropagatePolicyNoErrorHandlerSilentlyStops() {
         var handler1Called = new AtomicInteger(0);
         var handler2Called = new AtomicInteger(0);
 
-        // No error handler set, STOP policy
-        session.setEventErrorPolicy(EventErrorPolicy.STOP);
+        // No error handler set, PROPAGATE policy
+        session.setEventErrorPolicy(EventErrorPolicy.PROPAGATE);
 
         session.on(AssistantMessageEvent.class, msg -> {
             handler1Called.incrementAndGet();
@@ -696,9 +696,9 @@ public class SessionEventHandlingTest {
 
         assertDoesNotThrow(() -> dispatchEvent(createAssistantMessageEvent("Test")));
 
-        // STOP policy should stop after first error, even without error handler
+        // PROPAGATE policy should stop after first error, even without error handler
         int totalCalls = handler1Called.get() + handler2Called.get();
-        assertEquals(1, totalCalls, "Only one handler should execute with STOP policy and no error handler");
+        assertEquals(1, totalCalls, "Only one handler should execute with PROPAGATE policy and no error handler");
     }
 
     @Test
@@ -711,8 +711,8 @@ public class SessionEventHandlingTest {
         sessionLogger.setLevel(Level.OFF);
 
         try {
-            // CONTINUE policy, but error handler throws
-            session.setEventErrorPolicy(EventErrorPolicy.CONTINUE);
+            // SUPPRESS policy, but error handler throws
+            session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS);
             session.setEventErrorHandler((event, exception) -> {
                 throw new RuntimeException("error handler broke");
             });
@@ -729,10 +729,10 @@ public class SessionEventHandlingTest {
 
             assertDoesNotThrow(() -> dispatchEvent(createAssistantMessageEvent("Test")));
 
-            // Error handler threw — should stop regardless of CONTINUE policy
+            // Error handler threw — should stop regardless of SUPPRESS policy
             int totalCalls = handler1Called.get() + handler2Called.get();
             assertEquals(1, totalCalls,
-                    "Only one handler should execute when error handler throws, even with CONTINUE policy");
+                    "Only one handler should execute when error handler throws, even with SUPPRESS policy");
         } finally {
             sessionLogger.setLevel(originalLevel);
         }

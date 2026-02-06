@@ -19,14 +19,19 @@ package com.github.copilot.sdk;
  * continues after the error handler has been called.
  *
  * <p>
+ * The naming follows the convention used by Spring Framework's
+ * {@code TaskUtils.LOG_AND_SUPPRESS_ERROR_HANDLER} and
+ * {@code TaskUtils.LOG_AND_PROPAGATE_ERROR_HANDLER}.
+ *
+ * <p>
  * <b>Example:</b>
  *
  * <pre>{@code
- * // Default: continue dispatching despite errors
- * session.setEventErrorPolicy(EventErrorPolicy.CONTINUE);
+ * // Default: suppress errors and continue dispatching
+ * session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS);
  *
- * // Opt-in to short-circuit on first error
- * session.setEventErrorPolicy(EventErrorPolicy.STOP);
+ * // Opt-in to propagate errors (stop dispatch on first error)
+ * session.setEventErrorPolicy(EventErrorPolicy.PROPAGATE);
  * }</pre>
  *
  * @see CopilotSession#setEventErrorPolicy(EventErrorPolicy)
@@ -36,18 +41,21 @@ package com.github.copilot.sdk;
 public enum EventErrorPolicy {
 
     /**
-     * Stop dispatching on first listener error.
+     * Suppress errors and continue dispatching to remaining listeners (default).
+     * <p>
+     * When a handler throws an exception, remaining handlers still execute. The
+     * configured {@link EventErrorHandler} is called for each error. This is
+     * analogous to Spring's {@code LOG_AND_SUPPRESS_ERROR_HANDLER} behavior.
+     */
+    SUPPRESS,
+
+    /**
+     * Propagate the error effect by stopping dispatch on first listener error.
      * <p>
      * When a handler throws an exception, no further handlers are invoked. The
      * configured {@link EventErrorHandler} is still called before dispatch stops.
+     * This is analogous to Spring's {@code LOG_AND_PROPAGATE_ERROR_HANDLER}
+     * behavior.
      */
-    STOP,
-
-    /**
-     * Continue dispatching to remaining listeners despite errors (default).
-     * <p>
-     * When a handler throws an exception, remaining handlers still execute. The
-     * configured {@link EventErrorHandler} is called for each error.
-     */
-    CONTINUE
+    PROPAGATE
 }

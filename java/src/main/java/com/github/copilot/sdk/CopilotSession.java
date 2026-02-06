@@ -96,7 +96,7 @@ public final class CopilotSession implements AutoCloseable {
     private final AtomicReference<UserInputHandler> userInputHandler = new AtomicReference<>();
     private final AtomicReference<SessionHooks> hooksHandler = new AtomicReference<>();
     private volatile EventErrorHandler eventErrorHandler;
-    private volatile EventErrorPolicy eventErrorPolicy = EventErrorPolicy.CONTINUE;
+    private volatile EventErrorPolicy eventErrorPolicy = EventErrorPolicy.SUPPRESS;
 
     /**
      * Creates a new session with the given ID and RPC client.
@@ -200,10 +200,10 @@ public final class CopilotSession implements AutoCloseable {
      * preceding listener throws an exception.
      *
      * <ul>
-     * <li>{@link EventErrorPolicy#CONTINUE} (default) — dispatch to all remaining
-     * listeners regardless of errors</li>
-     * <li>{@link EventErrorPolicy#STOP} — stop dispatching after the first
-     * error</li>
+     * <li>{@link EventErrorPolicy#SUPPRESS} (default) — suppress the error and
+     * dispatch to all remaining listeners regardless</li>
+     * <li>{@link EventErrorPolicy#PROPAGATE} — propagate the error effect by
+     * stopping dispatch after the first error</li>
      * </ul>
      *
      * <p>
@@ -214,14 +214,14 @@ public final class CopilotSession implements AutoCloseable {
      * <b>Example:</b>
      *
      * <pre>{@code
-     * // Opt-in to short-circuit on first error
-     * session.setEventErrorPolicy(EventErrorPolicy.STOP);
+     * // Opt-in to propagate errors (stop dispatch on first error)
+     * session.setEventErrorPolicy(EventErrorPolicy.PROPAGATE);
      * session.setEventErrorHandler(
      * 		(event, ex) -> logger.error("Handler failed, stopping dispatch: {}", ex.getMessage(), ex));
      * }</pre>
      *
      * @param policy
-     *            the error policy (default is {@link EventErrorPolicy#CONTINUE})
+     *            the error policy (default is {@link EventErrorPolicy#SUPPRESS})
      * @see EventErrorPolicy
      * @see #setEventErrorHandler(EventErrorHandler)
      * @since 1.0.8
@@ -465,9 +465,10 @@ public final class CopilotSession implements AutoCloseable {
      * handler is invoked in its own try/catch block. Whether dispatch continues
      * after a handler error depends on the configured {@link EventErrorPolicy}:
      * <ul>
-     * <li>{@link EventErrorPolicy#CONTINUE} (default) — remaining handlers still
+     * <li>{@link EventErrorPolicy#SUPPRESS} (default) — remaining handlers still
      * execute</li>
-     * <li>{@link EventErrorPolicy#STOP} — dispatch stops after the first error</li>
+     * <li>{@link EventErrorPolicy#PROPAGATE} — dispatch stops after the first
+     * error</li>
      * </ul>
      * <p>
      * The configured {@link EventErrorHandler} is always invoked (if set),
@@ -494,7 +495,7 @@ public final class CopilotSession implements AutoCloseable {
                         break; // error handler itself failed — stop regardless of policy
                     }
                 }
-                if (eventErrorPolicy == EventErrorPolicy.STOP) {
+                if (eventErrorPolicy == EventErrorPolicy.PROPAGATE) {
                     break;
                 }
             }
