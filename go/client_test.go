@@ -5,8 +5,14 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strings"
 	"testing"
 )
+
+// contains checks if a string contains a substring (case-insensitive)
+func contains(s, substr string) bool {
+	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
+}
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.go instead
 
@@ -46,6 +52,38 @@ func TestClient_HandleToolCallRequest(t *testing.T) {
 			t.Errorf("Expected error to be \"tool 'missing_tool' not supported\", got %q", result.Error)
 		}
 	})
+}
+
+func TestClient_CreateSession_WithInvalidModel(t *testing.T) {
+	cliPath := findCLIPathForTest()
+	if cliPath == "" {
+		t.Skip("CLI not found")
+	}
+
+	client := NewClient(&ClientOptions{CLIPath: cliPath})
+	t.Cleanup(func() { client.ForceStop() })
+
+	err := client.Start(t.Context())
+	if err != nil {
+		t.Fatalf("Failed to start client: %v", err)
+	}
+
+	_, err = client.CreateSession(t.Context(), &SessionConfig{
+		Model: "INVALID_MODEL_THAT_DOES_NOT_EXIST",
+	})
+
+	if err == nil {
+		t.Fatal("Expected error when creating session with invalid model, got nil")
+	}
+
+	errorMsg := err.Error()
+	if !contains(errorMsg, "invalid model") {
+		t.Errorf("Expected error message to contain 'invalid model', got: %s", errorMsg)
+	}
+
+	if !contains(errorMsg, "INVALID_MODEL_THAT_DOES_NOT_EXIST") {
+		t.Errorf("Expected error message to contain 'INVALID_MODEL_THAT_DOES_NOT_EXIST', got: %s", errorMsg)
+	}
 }
 
 func TestClient_URLParsing(t *testing.T) {

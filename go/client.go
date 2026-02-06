@@ -470,6 +470,30 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	params := make(map[string]any)
 	if config != nil {
 		if config.Model != "" {
+			// Validate model if specified
+			// ListModels caches results after the first call, so this validation has minimal overhead
+			availableModels, err := c.ListModels(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to list models: %w", err)
+			}
+
+			modelLower := strings.ToLower(config.Model)
+			modelFound := false
+			for _, model := range availableModels {
+				if strings.ToLower(model.ID) == modelLower {
+					modelFound = true
+					break
+				}
+			}
+
+			if !modelFound {
+				validIDs := make([]string, len(availableModels))
+				for i, model := range availableModels {
+					validIDs[i] = model.ID
+				}
+				return nil, fmt.Errorf("invalid model '%s'. Available models: %s", config.Model, strings.Join(validIDs, ", "))
+			}
+
 			params["model"] = config.Model
 		}
 		if config.SessionID != "" {
