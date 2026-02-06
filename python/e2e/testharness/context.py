@@ -100,16 +100,18 @@ class E2ETestContext:
             await self._proxy.configure(abs_snapshot_path, self.work_dir)
 
         # Clear temp directories between tests (but leave them in place)
+        # Use ignore_errors=True to handle race conditions where files may still
+        # be written by background processes during cleanup
         for item in Path(self.home_dir).iterdir():
             if item.is_dir():
-                shutil.rmtree(item)
+                shutil.rmtree(item, ignore_errors=True)
             else:
-                item.unlink()
+                item.unlink(missing_ok=True)
         for item in Path(self.work_dir).iterdir():
             if item.is_dir():
-                shutil.rmtree(item)
+                shutil.rmtree(item, ignore_errors=True)
             else:
-                item.unlink()
+                item.unlink(missing_ok=True)
 
     def get_env(self) -> dict:
         """Return environment variables configured for isolated testing."""
