@@ -33,13 +33,13 @@ describe("CopilotClient", () => {
         await client.start();
         onTestFinished(() => client.forceStop());
 
-        await expect(
-            client.createSession({ model: "INVALID_MODEL_THAT_DOES_NOT_EXIST" })
-        ).rejects.toThrow(/Invalid model/);
+        const error = await client
+            .createSession({ model: "INVALID_MODEL_THAT_DOES_NOT_EXIST" })
+            .catch((e) => e);
 
-        await expect(
-            client.createSession({ model: "INVALID_MODEL_THAT_DOES_NOT_EXIST" })
-        ).rejects.toThrow(/INVALID_MODEL_THAT_DOES_NOT_EXIST/);
+        expect(error).toBeInstanceOf(Error);
+        expect(error.message).toContain("Invalid model");
+        expect(error.message).toContain("INVALID_MODEL_THAT_DOES_NOT_EXIST");
     });
 
     describe("URL parsing", () => {

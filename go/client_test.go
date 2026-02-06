@@ -9,8 +9,8 @@ import (
 	"testing"
 )
 
-// contains checks if a string contains a substring (case-insensitive)
-func contains(s, substr string) bool {
+// containsIgnoreCase checks if a string containsIgnoreCase a substring (case-insensitive)
+func containsIgnoreCase(s, substr string) bool {
 	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }
 
@@ -77,11 +77,11 @@ func TestClient_CreateSession_WithInvalidModel(t *testing.T) {
 	}
 
 	errorMsg := err.Error()
-	if !contains(errorMsg, "invalid model") {
+	if !containsIgnoreCase(errorMsg, "invalid model") {
 		t.Errorf("Expected error message to contain 'invalid model', got: %s", errorMsg)
 	}
 
-	if !contains(errorMsg, "INVALID_MODEL_THAT_DOES_NOT_EXIST") {
+	if !containsIgnoreCase(errorMsg, "INVALID_MODEL_THAT_DOES_NOT_EXIST") {
 		t.Errorf("Expected error message to contain 'INVALID_MODEL_THAT_DOES_NOT_EXIST', got: %s", errorMsg)
 	}
 }
