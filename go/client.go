@@ -1313,7 +1313,7 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 // This spawns the CLI server as a subprocess using the configured transport
 // mode (stdio or TCP).
 func (c *Client) startCLIServer(ctx context.Context) error {
-	args := []string{"--headless", "--log-level", c.options.LogLevel}
+	args := []string{"--headless", "--no-auto-update", "--log-level", c.options.LogLevel}
 
 	// Choose transport mode
 	if c.useStdio {

@@ -986,6 +986,7 @@ export class CopilotClient {
             const args = [
                 ...this.options.cliArgs,
                 "--headless",
+                "--no-auto-update",
                 "--log-level",
                 this.options.logLevel,
             ];
