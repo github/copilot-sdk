@@ -266,12 +266,15 @@ Use the [Foundry Local SDK](https://github.com/microsoft/Foundry-Local#-integrat
 
 provider: {
     type: "openai",
-    baseUrl: "http://localhost:5272/v1",  // Default Foundry Local endpoint
+    baseUrl: manager.endpoint,            // e.g., "http://localhost:5272/v1"
     apiKey: manager.apiKey,               // Provided by Foundry Local SDK
+    wireApi: "completions",               // Foundry Local uses Chat Completions API
 }
 ```
 
 > **Note:** Foundry Local must be [installed separately](https://github.com/microsoft/Foundry-Local#installing). Run `foundry model run gpt-oss-20b` to download and start a model.
+
+For a complete walkthrough including tool calling, streaming, and multi-turn conversations, see the [Foundry Local Copilot SDK integration guide](https://github.com/microsoft/Foundry-Local/blob/main/docs/copilot-sdk-integration.md) and the [working Node.js sample](https://github.com/microsoft/Foundry-Local/tree/main/samples/js/copilot-sdk-foundry-local).
 
 ### Anthropic
 
