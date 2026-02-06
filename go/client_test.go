@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// containsIgnoreCase checks if a string containsIgnoreCase a substring (case-insensitive)
+// containsIgnoreCase checks if a string contains a substring (case-insensitive)
 func containsIgnoreCase(s, substr string) bool {
 	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }
