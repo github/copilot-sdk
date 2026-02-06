@@ -89,7 +89,7 @@ public class CapiProxy implements AutoCloseable {
         }
 
         // Start the harness server using npx tsx
-        ProcessBuilder pb = new ProcessBuilder("npx", "tsx", "server.ts");
+        var pb = new ProcessBuilder("npx", "tsx", "server.ts");
         pb.directory(harnessDir.toFile());
         pb.redirectErrorStream(false);
 

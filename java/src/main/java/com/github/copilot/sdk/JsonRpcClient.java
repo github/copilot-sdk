@@ -66,7 +66,7 @@ class JsonRpcClient implements AutoCloseable {
     }
 
     static ObjectMapper createObjectMapper() {
-        ObjectMapper mapper = new ObjectMapper();
+        var mapper = new ObjectMapper();
         mapper.registerModule(new JavaTimeModule());
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
@@ -105,10 +105,10 @@ class JsonRpcClient implements AutoCloseable {
      */
     public <T> CompletableFuture<T> invoke(String method, Object params, Class<T> responseType) {
         long id = requestIdCounter.incrementAndGet();
-        CompletableFuture<JsonNode> future = new CompletableFuture<>();
+        var future = new CompletableFuture<JsonNode>();
         pendingRequests.put(id, future);
 
-        JsonRpcRequest request = new JsonRpcRequest();
+        var request = new JsonRpcRequest();
         request.setJsonrpc("2.0");
         request.setId(id);
         request.setMethod(method);
@@ -137,7 +137,7 @@ class JsonRpcClient implements AutoCloseable {
      * Sends a JSON-RPC notification (no response expected).
      */
     public void notify(String method, Object params) throws IOException {
-        JsonRpcRequest notification = new JsonRpcRequest();
+        var notification = new JsonRpcRequest();
         notification.setJsonrpc("2.0");
         notification.setMethod(method);
         notification.setParams(params);
@@ -148,7 +148,7 @@ class JsonRpcClient implements AutoCloseable {
      * Sends a JSON-RPC response to a server request.
      */
     public void sendResponse(Object id, Object result) throws IOException {
-        JsonRpcResponse response = new JsonRpcResponse();
+        var response = new JsonRpcResponse();
         response.setJsonrpc("2.0");
         response.setId(id);
         response.setResult(result);
@@ -159,10 +159,10 @@ class JsonRpcClient implements AutoCloseable {
      * Sends a JSON-RPC error response to a server request.
      */
     public void sendErrorResponse(Object id, int code, String message) throws IOException {
-        JsonRpcResponse response = new JsonRpcResponse();
+        var response = new JsonRpcResponse();
         response.setJsonrpc("2.0");
         response.setId(id);
-        JsonRpcError error = new JsonRpcError();
+        var error = new JsonRpcError();
         error.setCode(code);
         error.setMessage(message);
         response.setError(error);
@@ -186,12 +186,12 @@ class JsonRpcClient implements AutoCloseable {
             try {
                 // We need to read bytes because Content-Length specifies bytes, not characters.
                 // Using BufferedReader would cause issues with multi-byte UTF-8 characters.
-                BufferedInputStream bis = new BufferedInputStream(inputStream);
+                var bis = new BufferedInputStream(inputStream);
 
                 while (running) {
                     // Read headers line by line
                     int contentLength = -1;
-                    StringBuilder headerLine = new StringBuilder();
+                    var headerLine = new StringBuilder();
                     boolean lastWasCR = false;
                     boolean inHeaders = true;
 

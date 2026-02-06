@@ -281,14 +281,13 @@ public final class CopilotClient implements AutoCloseable {
 
                 ToolDefinition tool = session.getTool(toolName);
                 if (tool == null || tool.getHandler() == null) {
-                    ToolResultObject result = new ToolResultObject()
-                            .setTextResultForLlm("Tool '" + toolName + "' is not supported.").setResultType("failure")
-                            .setError("tool '" + toolName + "' not supported");
+                    var result = new ToolResultObject().setTextResultForLlm("Tool '" + toolName + "' is not supported.")
+                            .setResultType("failure").setError("tool '" + toolName + "' not supported");
                     rpc.sendResponse(Long.parseLong(requestId), Map.of("result", result));
                     return;
                 }
 
-                ToolInvocation invocation = new ToolInvocation().setSessionId(sessionId).setToolCallId(toolCallId)
+                var invocation = new ToolInvocation().setSessionId(sessionId).setToolCallId(toolCallId)
                         .setToolName(toolName).setArguments(arguments);
 
                 tool.getHandler().invoke(invocation).thenAccept(result -> {
@@ -306,7 +305,7 @@ public final class CopilotClient implements AutoCloseable {
                     }
                 }).exceptionally(ex -> {
                     try {
-                        ToolResultObject result = new ToolResultObject()
+                        var result = new ToolResultObject()
                                 .setTextResultForLlm(
                                         "Invoking this tool produced an error. Detailed information is not available.")
                                 .setResultType("failure").setError(ex.getMessage());
@@ -335,7 +334,7 @@ public final class CopilotClient implements AutoCloseable {
 
                 CopilotSession session = sessions.get(sessionId);
                 if (session == null) {
-                    PermissionRequestResult result = new PermissionRequestResult()
+                    var result = new PermissionRequestResult()
                             .setKind("denied-no-approval-rule-and-could-not-request-from-user");
                     rpc.sendResponse(Long.parseLong(requestId), Map.of("result", result));
                     return;
@@ -349,7 +348,7 @@ public final class CopilotClient implements AutoCloseable {
                     }
                 }).exceptionally(ex -> {
                     try {
-                        PermissionRequestResult result = new PermissionRequestResult()
+                        var result = new PermissionRequestResult()
                                 .setKind("denied-no-approval-rule-and-could-not-request-from-user");
                         rpc.sendResponse(Long.parseLong(requestId), Map.of("result", result));
                     } catch (IOException e) {
@@ -381,10 +380,9 @@ public final class CopilotClient implements AutoCloseable {
                     return;
                 }
 
-                com.github.copilot.sdk.json.UserInputRequest request = new com.github.copilot.sdk.json.UserInputRequest()
-                        .setQuestion(question);
+                var request = new com.github.copilot.sdk.json.UserInputRequest().setQuestion(question);
                 if (choicesNode != null && choicesNode.isArray()) {
-                    List<String> choices = new ArrayList<>();
+                    var choices = new ArrayList<String>();
                     for (JsonNode choice : choicesNode) {
                         choices.add(choice.asText());
                     }
@@ -461,7 +459,7 @@ public final class CopilotClient implements AutoCloseable {
 
     private void verifyProtocolVersion(Connection connection) throws Exception {
         int expectedVersion = SdkProtocolVersion.get();
-        Map<String, Object> params = new HashMap<>();
+        var params = new HashMap<String, Object>();
         params.put("message", null);
         PingResponse pingResponse = connection.rpc.invoke("ping", params, PingResponse.class).get(30, TimeUnit.SECONDS);
 
@@ -484,7 +482,7 @@ public final class CopilotClient implements AutoCloseable {
      * @return A future that completes when the client is stopped
      */
     public CompletableFuture<Void> stop() {
-        List<CompletableFuture<Void>> closeFutures = new ArrayList<>();
+        var closeFutures = new ArrayList<CompletableFuture<Void>>();
 
         for (CopilotSession session : new ArrayList<>(sessions.values())) {
             closeFutures.add(CompletableFuture.runAsync(() -> {
@@ -555,7 +553,7 @@ public final class CopilotClient implements AutoCloseable {
      */
     public CompletableFuture<CopilotSession> createSession(SessionConfig config) {
         return ensureConnected().thenCompose(connection -> {
-            CreateSessionRequest request = new CreateSessionRequest();
+            var request = new CreateSessionRequest();
             if (config != null) {
                 request.setModel(config.getModel());
                 request.setSessionId(config.getSessionId());
@@ -585,8 +583,7 @@ public final class CopilotClient implements AutoCloseable {
             }
 
             return connection.rpc.invoke("session.create", request, CreateSessionResponse.class).thenApply(response -> {
-                CopilotSession session = new CopilotSession(response.getSessionId(), connection.rpc,
-                        response.getWorkspacePath());
+                var session = new CopilotSession(response.getSessionId(), connection.rpc, response.getWorkspacePath());
                 if (config != null && config.getTools() != null) {
                     session.registerTools(config.getTools());
                 }
@@ -632,7 +629,7 @@ public final class CopilotClient implements AutoCloseable {
      */
     public CompletableFuture<CopilotSession> resumeSession(String sessionId, ResumeSessionConfig config) {
         return ensureConnected().thenCompose(connection -> {
-            ResumeSessionRequest request = new ResumeSessionRequest();
+            var request = new ResumeSessionRequest();
             request.setSessionId(sessionId);
             if (config != null) {
                 request.setReasoningEffort(config.getReasoningEffort());
@@ -655,8 +652,7 @@ public final class CopilotClient implements AutoCloseable {
             }
 
             return connection.rpc.invoke("session.resume", request, ResumeSessionResponse.class).thenApply(response -> {
-                CopilotSession session = new CopilotSession(response.getSessionId(), connection.rpc,
-                        response.getWorkspacePath());
+                var session = new CopilotSession(response.getSessionId(), connection.rpc, response.getWorkspacePath());
                 if (config != null && config.getTools() != null) {
                     session.registerTools(config.getTools());
                 }
@@ -960,7 +956,7 @@ public final class CopilotClient implements AutoCloseable {
 
     private ProcessInfo startCliServer() throws IOException, InterruptedException {
         String cliPath = options.getCliPath() != null ? options.getCliPath() : "copilot";
-        List<String> args = new ArrayList<>();
+        var args = new ArrayList<String>();
 
         if (options.getCliArgs() != null) {
             args.addAll(Arrays.asList(options.getCliArgs()));
@@ -993,7 +989,7 @@ public final class CopilotClient implements AutoCloseable {
 
         List<String> command = resolveCliCommand(cliPath, args);
 
-        ProcessBuilder pb = new ProcessBuilder(command);
+        var pb = new ProcessBuilder(command);
         pb.redirectErrorStream(false);
 
         if (options.getCwd() != null) {
@@ -1014,7 +1010,7 @@ public final class CopilotClient implements AutoCloseable {
         Process process = pb.start();
 
         // Forward stderr to logger in background
-        Thread stderrThread = new Thread(() -> {
+        var stderrThread = new Thread(() -> {
             try (BufferedReader reader = new BufferedReader(
                     new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
                 String line;
@@ -1063,7 +1059,7 @@ public final class CopilotClient implements AutoCloseable {
         boolean isJsFile = cliPath.toLowerCase().endsWith(".js");
 
         if (isJsFile) {
-            List<String> result = new ArrayList<>();
+            var result = new ArrayList<String>();
             result.add("node");
             result.add(cliPath);
             result.addAll(args);
@@ -1073,7 +1069,7 @@ public final class CopilotClient implements AutoCloseable {
         // On Windows, use cmd /c to resolve the executable
         String os = System.getProperty("os.name").toLowerCase();
         if (os.contains("win") && !new File(cliPath).isAbsolute()) {
-            List<String> result = new ArrayList<>();
+            var result = new ArrayList<String>();
             result.add("cmd");
             result.add("/c");
             result.add(cliPath);
@@ -1081,7 +1077,7 @@ public final class CopilotClient implements AutoCloseable {
             return result;
         }
 
-        List<String> result = new ArrayList<>();
+        var result = new ArrayList<String>();
         result.add(cliPath);
         result.addAll(args);
         return result;

@@ -59,7 +59,7 @@ public class ErrorHandlingTest {
         LOG.info("Running test: testHandlesToolCallingErrors_toolErrorDoesNotCrashSession");
         ctx.configureForTest("tools", "handles_tool_calling_errors");
 
-        List<AbstractSessionEvent> allEvents = new ArrayList<>();
+        var allEvents = new ArrayList<AbstractSessionEvent>();
 
         ToolDefinition errorTool = ToolDefinition.create("get_user_location", "Gets the user's location",
                 Map.of("type", "object", "properties", Map.of()), (invocation) -> {
@@ -130,9 +130,9 @@ public class ErrorHandlingTest {
         LOG.info("Running test: testShouldHandlePermissionHandlerErrorsGracefully_deniesPermission");
         ctx.configureForTest("permissions", "should_handle_permission_handler_errors_gracefully");
 
-        List<SessionErrorEvent> errorEvents = new ArrayList<>();
+        var errorEvents = new ArrayList<SessionErrorEvent>();
 
-        SessionConfig config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
+        var config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
             throw new RuntimeException("Permission handler crashed");
         });
 
@@ -169,9 +169,9 @@ public class ErrorHandlingTest {
         LOG.info("Running test: testPermissionHandlerErrors_sessionErrorEventContainsDetails");
         ctx.configureForTest("permissions", "permission_handler_errors");
 
-        List<SessionErrorEvent> errorEvents = new ArrayList<>();
+        var errorEvents = new ArrayList<SessionErrorEvent>();
 
-        SessionConfig config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
+        var config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
             throw new RuntimeException("Test error message");
         });
 

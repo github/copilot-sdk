@@ -7,7 +7,6 @@ package com.github.copilot.sdk;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
@@ -61,15 +60,15 @@ public class CompactionTest {
 
         // Create session with very low compaction thresholds to trigger compaction
         // quickly
-        InfiniteSessionConfig infiniteConfig = new InfiniteSessionConfig().setEnabled(true)
+        var infiniteConfig = new InfiniteSessionConfig().setEnabled(true)
                 // Trigger background compaction at 0.5% context usage (~1000 tokens)
                 .setBackgroundCompactionThreshold(0.005)
                 // Block at 1% to ensure compaction runs
                 .setBufferExhaustionThreshold(0.01);
 
-        SessionConfig config = new SessionConfig().setInfiniteSessions(infiniteConfig);
+        var config = new SessionConfig().setInfiniteSessions(infiniteConfig);
 
-        List<AbstractSessionEvent> events = new ArrayList<>();
+        var events = new ArrayList<AbstractSessionEvent>();
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession(config).get();
@@ -131,11 +130,11 @@ public class CompactionTest {
     void testShouldNotEmitCompactionEventsWhenInfiniteSessionsDisabled() throws Exception {
         ctx.configureForTest("compaction", "should_not_emit_compaction_events_when_infinite_sessions_disabled");
 
-        InfiniteSessionConfig infiniteConfig = new InfiniteSessionConfig().setEnabled(false);
+        var infiniteConfig = new InfiniteSessionConfig().setEnabled(false);
 
-        SessionConfig config = new SessionConfig().setInfiniteSessions(infiniteConfig);
+        var config = new SessionConfig().setInfiniteSessions(infiniteConfig);
 
-        List<AbstractSessionEvent> compactionEvents = new ArrayList<>();
+        var compactionEvents = new ArrayList<AbstractSessionEvent>();
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession(config).get();

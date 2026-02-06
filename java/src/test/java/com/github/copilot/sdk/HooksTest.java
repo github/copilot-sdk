@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -65,10 +64,10 @@ public class HooksTest {
     void testInvokePreToolUseHookWhenModelRunsATool() throws Exception {
         ctx.configureForTest("hooks", "invoke_pre_tool_use_hook_when_model_runs_a_tool");
 
-        List<PreToolUseHookInput> preToolUseInputs = new ArrayList<>();
+        var preToolUseInputs = new ArrayList<PreToolUseHookInput>();
         final String[] sessionIdHolder = new String[1];
 
-        SessionConfig config = new SessionConfig().setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {
+        var config = new SessionConfig().setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {
             preToolUseInputs.add(input);
             assertEquals(sessionIdHolder[0], invocation.getSessionId());
             return CompletableFuture.completedFuture(new PreToolUseHookOutput().setPermissionDecision("allow"));
@@ -104,10 +103,10 @@ public class HooksTest {
     void testInvokePostToolUseHookAfterModelRunsATool() throws Exception {
         ctx.configureForTest("hooks", "invoke_post_tool_use_hook_after_model_runs_a_tool");
 
-        List<PostToolUseHookInput> postToolUseInputs = new ArrayList<>();
+        var postToolUseInputs = new ArrayList<PostToolUseHookInput>();
         final String[] sessionIdHolder = new String[1];
 
-        SessionConfig config = new SessionConfig().setHooks(new SessionHooks().setOnPostToolUse((input, invocation) -> {
+        var config = new SessionConfig().setHooks(new SessionHooks().setOnPostToolUse((input, invocation) -> {
             postToolUseInputs.add(input);
             assertEquals(sessionIdHolder[0], invocation.getSessionId());
             return CompletableFuture.completedFuture(null);
@@ -145,10 +144,10 @@ public class HooksTest {
     void testInvokeBothHooksForSingleToolCall() throws Exception {
         ctx.configureForTest("hooks", "invoke_both_hooks_for_single_tool_call");
 
-        List<PreToolUseHookInput> preToolUseInputs = new ArrayList<>();
-        List<PostToolUseHookInput> postToolUseInputs = new ArrayList<>();
+        var preToolUseInputs = new ArrayList<PreToolUseHookInput>();
+        var postToolUseInputs = new ArrayList<PostToolUseHookInput>();
 
-        SessionConfig config = new SessionConfig().setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {
+        var config = new SessionConfig().setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {
             preToolUseInputs.add(input);
             return CompletableFuture.completedFuture(new PreToolUseHookOutput().setPermissionDecision("allow"));
         }).setOnPostToolUse((input, invocation) -> {
@@ -191,9 +190,9 @@ public class HooksTest {
     void testDenyToolExecutionWhenPreToolUseReturnsDeny() throws Exception {
         ctx.configureForTest("hooks", "deny_tool_execution_when_pre_tool_use_returns_deny");
 
-        List<PreToolUseHookInput> preToolUseInputs = new ArrayList<>();
+        var preToolUseInputs = new ArrayList<PreToolUseHookInput>();
 
-        SessionConfig config = new SessionConfig().setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {
+        var config = new SessionConfig().setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {
             preToolUseInputs.add(input);
             // Deny all tool calls
             return CompletableFuture.completedFuture(new PreToolUseHookOutput().setPermissionDecision("deny"));

@@ -7,7 +7,6 @@ package com.github.copilot.sdk;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -54,10 +53,10 @@ public class AskUserTest {
     void testShouldInvokeUserInputHandlerWhenModelUsesAskUserTool() throws Exception {
         ctx.configureForTest("ask_user", "should_invoke_user_input_handler_when_model_uses_ask_user_tool");
 
-        List<UserInputRequest> userInputRequests = new ArrayList<>();
+        var userInputRequests = new ArrayList<UserInputRequest>();
         final String[] sessionIdHolder = new String[1];
 
-        SessionConfig config = new SessionConfig().setOnUserInputRequest((request, invocation) -> {
+        var config = new SessionConfig().setOnUserInputRequest((request, invocation) -> {
             userInputRequests.add(request);
             assertEquals(sessionIdHolder[0], invocation.getSessionId());
 
@@ -97,9 +96,9 @@ public class AskUserTest {
     void testShouldReceiveChoicesInUserInputRequest() throws Exception {
         ctx.configureForTest("ask_user", "should_receive_choices_in_user_input_request");
 
-        List<UserInputRequest> userInputRequests = new ArrayList<>();
+        var userInputRequests = new ArrayList<UserInputRequest>();
 
-        SessionConfig config = new SessionConfig().setOnUserInputRequest((request, invocation) -> {
+        var config = new SessionConfig().setOnUserInputRequest((request, invocation) -> {
             userInputRequests.add(request);
 
             // Pick the first choice
@@ -135,10 +134,10 @@ public class AskUserTest {
     void testShouldHandleFreeformUserInputResponse() throws Exception {
         ctx.configureForTest("ask_user", "should_handle_freeform_user_input_response");
 
-        final List<UserInputRequest> userInputRequests = new ArrayList<>();
+        final var userInputRequests = new ArrayList<UserInputRequest>();
         String freeformAnswer = "This is my custom freeform answer that was not in the choices";
 
-        SessionConfig config = new SessionConfig().setOnUserInputRequest((request, invocation) -> {
+        var config = new SessionConfig().setOnUserInputRequest((request, invocation) -> {
             userInputRequests.add(request);
 
             // Return a freeform answer (not from choices)

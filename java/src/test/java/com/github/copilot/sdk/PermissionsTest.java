@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -58,11 +57,11 @@ public class PermissionsTest {
     void testPermissionHandlerForWriteOperations(TestInfo testInfo) throws Exception {
         ctx.configureForTest("permissions", "permission_handler_for_write_operations");
 
-        List<PermissionRequest> permissionRequests = new ArrayList<>();
+        var permissionRequests = new ArrayList<PermissionRequest>();
 
         final String[] sessionIdHolder = new String[1];
 
-        SessionConfig config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
+        var config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
             permissionRequests.add(request);
             assertEquals(sessionIdHolder[0], invocation.getSessionId());
             // Approve the permission
@@ -100,7 +99,7 @@ public class PermissionsTest {
     void testDenyPermission(TestInfo testInfo) throws Exception {
         ctx.configureForTest("permissions", "deny_permission");
 
-        SessionConfig config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
+        var config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
             // Deny all permissions
             return CompletableFuture
                     .completedFuture(new PermissionRequestResult().setKind("denied-interactively-by-user"));
@@ -158,9 +157,9 @@ public class PermissionsTest {
     void testAsyncPermissionHandler(TestInfo testInfo) throws Exception {
         ctx.configureForTest("permissions", "async_permission_handler");
 
-        List<PermissionRequest> permissionRequests = new ArrayList<>();
+        var permissionRequests = new ArrayList<PermissionRequest>();
 
-        SessionConfig config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
+        var config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
             permissionRequests.add(request);
 
             // Simulate async permission check with delay
@@ -196,7 +195,7 @@ public class PermissionsTest {
     void testResumeSessionWithPermissionHandler(TestInfo testInfo) throws Exception {
         ctx.configureForTest("permissions", "resume_session_with_permission_handler");
 
-        List<PermissionRequest> permissionRequests = new ArrayList<>();
+        var permissionRequests = new ArrayList<PermissionRequest>();
 
         try (CopilotClient client = ctx.createClient()) {
             // Create session without permission handler
@@ -205,11 +204,10 @@ public class PermissionsTest {
             session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60, TimeUnit.SECONDS);
 
             // Resume with permission handler
-            ResumeSessionConfig resumeConfig = new ResumeSessionConfig()
-                    .setOnPermissionRequest((request, invocation) -> {
-                        permissionRequests.add(request);
-                        return CompletableFuture.completedFuture(new PermissionRequestResult().setKind("approved"));
-                    });
+            var resumeConfig = new ResumeSessionConfig().setOnPermissionRequest((request, invocation) -> {
+                permissionRequests.add(request);
+                return CompletableFuture.completedFuture(new PermissionRequestResult().setKind("approved"));
+            });
 
             CopilotSession session2 = client.resumeSession(sessionId, resumeConfig).get();
 
@@ -235,7 +233,7 @@ public class PermissionsTest {
 
         final boolean[] receivedToolCallId = {false};
 
-        SessionConfig config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
+        var config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
             if (request.getToolCallId() != null) {
                 receivedToolCallId[0] = true;
                 assertFalse(request.getToolCallId().isEmpty(), "Tool call ID should not be empty");
@@ -267,7 +265,7 @@ public class PermissionsTest {
     void testShouldHandlePermissionHandlerErrorsGracefully(TestInfo testInfo) throws Exception {
         ctx.configureForTest("permissions", "should_handle_permission_handler_errors_gracefully");
 
-        SessionConfig config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
+        var config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
             // Throw an error in the handler
             throw new RuntimeException("Handler error");
         });

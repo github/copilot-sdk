@@ -87,9 +87,9 @@ public class ToolsTest {
         ctx.configureForTest("tools", "invokes_custom_tool");
 
         // Define a simple encrypt_string tool
-        Map<String, Object> parameters = new HashMap<>();
-        Map<String, Object> properties = new HashMap<>();
-        Map<String, Object> inputProp = new HashMap<>();
+        var parameters = new HashMap<String, Object>();
+        var properties = new HashMap<String, Object>();
+        var inputProp = new HashMap<String, Object>();
         inputProp.put("type", "string");
         inputProp.put("description", "String to encrypt");
         properties.put("input", inputProp);
@@ -129,7 +129,7 @@ public class ToolsTest {
         ctx.configureForTest("tools", "handles_tool_calling_errors");
 
         // Define a tool that throws an error
-        Map<String, Object> parameters = new HashMap<>();
+        var parameters = new HashMap<String, Object>();
         parameters.put("type", "object");
         parameters.put("properties", new HashMap<>());
 
@@ -169,8 +169,8 @@ public class ToolsTest {
         ctx.configureForTest("tools", "can_receive_and_return_complex_types");
 
         // Define a db_query tool with complex parameter and return types
-        Map<String, Object> querySchema = new HashMap<>();
-        Map<String, Object> queryProps = new HashMap<>();
+        var querySchema = new HashMap<String, Object>();
+        var queryProps = new HashMap<String, Object>();
         queryProps.put("table", Map.of("type", "string"));
         queryProps.put("ids", Map.of("type", "array", "items", Map.of("type", "integer")));
         queryProps.put("sortAscending", Map.of("type", "boolean"));
@@ -178,8 +178,8 @@ public class ToolsTest {
         querySchema.put("properties", queryProps);
         querySchema.put("required", List.of("table", "ids", "sortAscending"));
 
-        Map<String, Object> parameters = new HashMap<>();
-        Map<String, Object> properties = new HashMap<>();
+        var parameters = new HashMap<String, Object>();
+        var properties = new HashMap<String, Object>();
         properties.put("query", querySchema);
         parameters.put("type", "object");
         parameters.put("properties", properties);

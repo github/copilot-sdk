@@ -43,7 +43,7 @@ public class SessionEventParserTest {
         assertInstanceOf(SessionStartEvent.class, event);
         assertEquals("session.start", event.getType());
 
-        SessionStartEvent startEvent = (SessionStartEvent) event;
+        var startEvent = (SessionStartEvent) event;
         assertEquals("sess-123", startEvent.getData().getSessionId());
     }
 
@@ -82,7 +82,7 @@ public class SessionEventParserTest {
         assertInstanceOf(SessionErrorEvent.class, event);
         assertEquals("session.error", event.getType());
 
-        SessionErrorEvent errorEvent = (SessionErrorEvent) event;
+        var errorEvent = (SessionErrorEvent) event;
         assertEquals("RateLimitError", errorEvent.getData().getErrorType());
         assertEquals("Rate limit exceeded", errorEvent.getData().getMessage());
         assertNotNull(errorEvent.getData().getStack());
@@ -120,7 +120,7 @@ public class SessionEventParserTest {
         assertInstanceOf(SessionInfoEvent.class, event);
         assertEquals("session.info", event.getType());
 
-        SessionInfoEvent infoEvent = (SessionInfoEvent) event;
+        var infoEvent = (SessionInfoEvent) event;
         assertEquals("status", infoEvent.getData().getInfoType());
         assertEquals("Processing request", infoEvent.getData().getMessage());
     }
@@ -300,7 +300,7 @@ public class SessionEventParserTest {
         assertInstanceOf(AssistantTurnStartEvent.class, event);
         assertEquals("assistant.turn_start", event.getType());
 
-        AssistantTurnStartEvent turnEvent = (AssistantTurnStartEvent) event;
+        var turnEvent = (AssistantTurnStartEvent) event;
         assertEquals("turn-123", turnEvent.getData().getTurnId());
     }
 
@@ -338,7 +338,7 @@ public class SessionEventParserTest {
         assertInstanceOf(AssistantReasoningEvent.class, event);
         assertEquals("assistant.reasoning", event.getType());
 
-        AssistantReasoningEvent reasoningEvent = (AssistantReasoningEvent) event;
+        var reasoningEvent = (AssistantReasoningEvent) event;
         assertEquals("reason-123", reasoningEvent.getData().getReasoningId());
         assertEquals("Analyzing the code structure...", reasoningEvent.getData().getContent());
     }
@@ -378,7 +378,7 @@ public class SessionEventParserTest {
         assertInstanceOf(AssistantMessageEvent.class, event);
         assertEquals("assistant.message", event.getType());
 
-        AssistantMessageEvent msgEvent = (AssistantMessageEvent) event;
+        var msgEvent = (AssistantMessageEvent) event;
         assertEquals("Here is the code you requested.", msgEvent.getData().getContent());
     }
 
@@ -533,7 +533,7 @@ public class SessionEventParserTest {
         assertInstanceOf(ToolExecutionCompleteEvent.class, event);
         assertEquals("tool.execution_complete", event.getType());
 
-        ToolExecutionCompleteEvent completeEvent = (ToolExecutionCompleteEvent) event;
+        var completeEvent = (ToolExecutionCompleteEvent) event;
         assertTrue(completeEvent.getData().isSuccess());
     }
 
@@ -560,7 +560,7 @@ public class SessionEventParserTest {
         assertInstanceOf(SubagentStartedEvent.class, event);
         assertEquals("subagent.started", event.getType());
 
-        SubagentStartedEvent startedEvent = (SubagentStartedEvent) event;
+        var startedEvent = (SubagentStartedEvent) event;
         assertEquals("code-review", startedEvent.getData().getAgentName());
         assertEquals("Code Review Agent", startedEvent.getData().getAgentDisplayName());
     }
@@ -640,7 +640,7 @@ public class SessionEventParserTest {
         assertInstanceOf(HookStartEvent.class, event);
         assertEquals("hook.start", event.getType());
 
-        HookStartEvent hookEvent = (HookStartEvent) event;
+        var hookEvent = (HookStartEvent) event;
         assertEquals("hook-123", hookEvent.getData().getHookInvocationId());
         assertEquals("preToolUse", hookEvent.getData().getHookType());
     }
@@ -727,7 +727,7 @@ public class SessionEventParserTest {
         assertInstanceOf(SessionShutdownEvent.class, event);
         assertEquals("session.shutdown", event.getType());
 
-        SessionShutdownEvent shutdownEvent = (SessionShutdownEvent) event;
+        var shutdownEvent = (SessionShutdownEvent) event;
         assertEquals(SessionShutdownEvent.ShutdownType.ROUTINE, shutdownEvent.getData().getShutdownType());
         assertEquals(5, shutdownEvent.getData().getTotalPremiumRequests());
         assertEquals("gpt-4", shutdownEvent.getData().getCurrentModel());
@@ -754,7 +754,7 @@ public class SessionEventParserTest {
         assertInstanceOf(SkillInvokedEvent.class, event);
         assertEquals("skill.invoked", event.getType());
 
-        SkillInvokedEvent skillEvent = (SkillInvokedEvent) event;
+        var skillEvent = (SkillInvokedEvent) event;
         assertEquals("code-review", skillEvent.getData().getName());
         assertEquals("/path/to/skill", skillEvent.getData().getPath());
         assertEquals("Skill instructions here", skillEvent.getData().getContent());

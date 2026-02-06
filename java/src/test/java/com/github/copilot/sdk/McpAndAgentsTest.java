@@ -47,7 +47,7 @@ public class McpAndAgentsTest {
 
     // Helper method to create an MCP local server configuration
     private Map<String, Object> createLocalMcpServer(String command, List<String> args) {
-        Map<String, Object> server = new HashMap<>();
+        var server = new HashMap<String, Object>();
         server.put("type", "local");
         server.put("command", command);
         server.put("args", args);
@@ -67,7 +67,7 @@ public class McpAndAgentsTest {
     void testShouldAcceptMcpServerConfigurationOnSessionCreate() throws Exception {
         ctx.configureForTest("mcp_and_agents", "should_accept_mcp_server_configuration_on_session_create");
 
-        Map<String, Object> mcpServers = new HashMap<>();
+        var mcpServers = new HashMap<String, Object>();
         mcpServers.put("test-server", createLocalMcpServer("echo", List.of("hello")));
 
         try (CopilotClient client = ctx.createClient()) {
@@ -104,7 +104,7 @@ public class McpAndAgentsTest {
             session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60, TimeUnit.SECONDS);
 
             // Resume with MCP servers
-            Map<String, Object> mcpServers = new HashMap<>();
+            var mcpServers = new HashMap<String, Object>();
             mcpServers.put("test-server", createLocalMcpServer("echo", List.of("hello")));
 
             CopilotSession session2 = client
@@ -135,7 +135,7 @@ public class McpAndAgentsTest {
         // count
         ctx.configureForTest("mcp_and_agents", "should_accept_mcp_server_configuration_on_session_create");
 
-        Map<String, Object> mcpServers = new HashMap<>();
+        var mcpServers = new HashMap<String, Object>();
         mcpServers.put("server1", createLocalMcpServer("echo", List.of("server1")));
         mcpServers.put("server2", createLocalMcpServer("echo", List.of("server2")));
 
@@ -252,7 +252,7 @@ public class McpAndAgentsTest {
         // Use combined snapshot since this uses both MCP servers and custom agents
         ctx.configureForTest("mcp_and_agents", "should_accept_both_mcp_servers_and_custom_agents");
 
-        Map<String, Object> agentMcpServers = new HashMap<>();
+        var agentMcpServers = new HashMap<String, Object>();
         agentMcpServers.put("agent-server", createLocalMcpServer("echo", List.of("agent-mcp")));
 
         List<CustomAgentConfig> customAgents = List.of(new CustomAgentConfig().setName("mcp-agent")
@@ -304,7 +304,7 @@ public class McpAndAgentsTest {
     void testShouldAcceptBothMcpServersAndCustomAgents() throws Exception {
         ctx.configureForTest("mcp_and_agents", "should_accept_both_mcp_servers_and_custom_agents");
 
-        Map<String, Object> mcpServers = new HashMap<>();
+        var mcpServers = new HashMap<String, Object>();
         mcpServers.put("shared-server", createLocalMcpServer("echo", List.of("shared")));
 
         List<CustomAgentConfig> customAgents = List.of(new CustomAgentConfig().setName("combined-agent")

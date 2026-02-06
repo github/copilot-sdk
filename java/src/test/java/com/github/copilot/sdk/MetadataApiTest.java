@@ -62,7 +62,7 @@ public class MetadataApiTest {
     private static String findCopilotInPath() {
         try {
             String command = System.getProperty("os.name").toLowerCase().contains("win") ? "where" : "which";
-            ProcessBuilder pb = new ProcessBuilder(command, "copilot");
+            var pb = new ProcessBuilder(command, "copilot");
             pb.redirectErrorStream(true);
             Process process = pb.start();
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {

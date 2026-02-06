@@ -178,9 +178,9 @@ public class CopilotSessionTest {
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession().get();
 
-            List<String> events = new ArrayList<>();
-            AtomicReference<AssistantMessageEvent> lastMessage = new AtomicReference<>();
-            CompletableFuture<Void> done = new CompletableFuture<>();
+            var events = new ArrayList<String>();
+            var lastMessage = new AtomicReference<AssistantMessageEvent>();
+            var done = new CompletableFuture<Void>();
 
             session.on(evt -> {
                 events.add(evt.getType());
@@ -224,7 +224,7 @@ public class CopilotSessionTest {
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession().get();
 
-            List<String> events = new ArrayList<>();
+            var events = new ArrayList<String>();
             session.on(evt -> events.add(evt.getType()));
 
             AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt("What is 2+2?")).get(60,
@@ -391,8 +391,8 @@ public class CopilotSessionTest {
 
             CopilotSession session = client.createSession(config).get();
 
-            List<AbstractSessionEvent> receivedEvents = new ArrayList<>();
-            CompletableFuture<Void> idleReceived = new CompletableFuture<>();
+            var receivedEvents = new ArrayList<AbstractSessionEvent>();
+            var idleReceived = new CompletableFuture<Void>();
 
             session.on(evt -> {
                 receivedEvents.add(evt);
@@ -427,8 +427,8 @@ public class CopilotSessionTest {
             assertNotNull(session.getSessionId());
 
             // Set up wait for tool execution to start BEFORE sending
-            CompletableFuture<ToolExecutionStartEvent> toolStartFuture = new CompletableFuture<>();
-            CompletableFuture<SessionIdleEvent> sessionIdleFuture = new CompletableFuture<>();
+            var toolStartFuture = new CompletableFuture<ToolExecutionStartEvent>();
+            var sessionIdleFuture = new CompletableFuture<SessionIdleEvent>();
 
             session.on(evt -> {
                 if (evt instanceof ToolExecutionStartEvent toolStart && !toolStartFuture.isDone()) {

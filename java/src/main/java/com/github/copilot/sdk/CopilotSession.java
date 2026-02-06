@@ -13,7 +13,6 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -196,7 +195,7 @@ public final class CopilotSession implements AutoCloseable {
      * @see #send(String)
      */
     public CompletableFuture<String> send(MessageOptions options) {
-        SendMessageRequest request = new SendMessageRequest();
+        var request = new SendMessageRequest();
         request.setSessionId(sessionId);
         request.setPrompt(options.getPrompt());
         request.setAttachments(options.getAttachments());
@@ -225,8 +224,8 @@ public final class CopilotSession implements AutoCloseable {
      * @see #send(MessageOptions)
      */
     public CompletableFuture<AssistantMessageEvent> sendAndWait(MessageOptions options, long timeoutMs) {
-        CompletableFuture<AssistantMessageEvent> future = new CompletableFuture<>();
-        AtomicReference<AssistantMessageEvent> lastAssistantMessage = new AtomicReference<>();
+        var future = new CompletableFuture<AssistantMessageEvent>();
+        var lastAssistantMessage = new AtomicReference<AssistantMessageEvent>();
 
         Consumer<AbstractSessionEvent> handler = evt -> {
             if (evt instanceof AssistantMessageEvent msg) {
@@ -252,8 +251,8 @@ public final class CopilotSession implements AutoCloseable {
         });
 
         // Set up timeout with daemon thread so it doesn't prevent JVM exit
-        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "sendAndWait-timeout");
+        var scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            var t = new Thread(r, "sendAndWait-timeout");
             t.setDaemon(true);
             return t;
         });
@@ -444,7 +443,7 @@ public final class CopilotSession implements AutoCloseable {
 
         try {
             PermissionRequest request = MAPPER.treeToValue(permissionRequestData, PermissionRequest.class);
-            PermissionInvocation invocation = new PermissionInvocation();
+            var invocation = new PermissionInvocation();
             invocation.setSessionId(sessionId);
             return handler.handle(request, invocation).exceptionally(ex -> {
                 LOG.log(Level.SEVERE, "Permission handler threw an exception", ex);
@@ -489,7 +488,7 @@ public final class CopilotSession implements AutoCloseable {
         }
 
         try {
-            UserInputInvocation invocation = new UserInputInvocation().setSessionId(sessionId);
+            var invocation = new UserInputInvocation().setSessionId(sessionId);
             return handler.handle(request, invocation).exceptionally(ex -> {
                 LOG.log(Level.SEVERE, "User input handler threw an exception", ex);
                 throw new RuntimeException("User input handler error", ex);
@@ -529,7 +528,7 @@ public final class CopilotSession implements AutoCloseable {
             return CompletableFuture.completedFuture(null);
         }
 
-        HookInvocation invocation = new HookInvocation().setSessionId(sessionId);
+        var invocation = new HookInvocation().setSessionId(sessionId);
 
         try {
             switch (hookType) {
@@ -592,7 +591,7 @@ public final class CopilotSession implements AutoCloseable {
     public CompletableFuture<List<AbstractSessionEvent>> getMessages() {
         return rpc.invoke("session.getMessages", Map.of("sessionId", sessionId), GetMessagesResponse.class)
                 .thenApply(response -> {
-                    List<AbstractSessionEvent> events = new ArrayList<>();
+                    var events = new ArrayList<AbstractSessionEvent>();
                     if (response.getEvents() != null) {
                         for (JsonNode eventNode : response.getEvents()) {
                             try {

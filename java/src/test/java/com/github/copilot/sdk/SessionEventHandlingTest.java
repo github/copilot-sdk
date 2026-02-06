@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.io.Closeable;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
@@ -49,7 +48,7 @@ public class SessionEventHandlingTest {
 
     @Test
     void testGenericEventHandler() {
-        List<AbstractSessionEvent> receivedEvents = new ArrayList<>();
+        var receivedEvents = new ArrayList<AbstractSessionEvent>();
 
         session.on(event -> receivedEvents.add(event));
 
@@ -66,7 +65,7 @@ public class SessionEventHandlingTest {
 
     @Test
     void testTypedEventHandler() {
-        List<AssistantMessageEvent> receivedMessages = new ArrayList<>();
+        var receivedMessages = new ArrayList<AssistantMessageEvent>();
 
         session.on(AssistantMessageEvent.class, msg -> receivedMessages.add(msg));
 
@@ -84,9 +83,9 @@ public class SessionEventHandlingTest {
 
     @Test
     void testMultipleTypedHandlers() {
-        List<AssistantMessageEvent> messages = new ArrayList<>();
-        List<SessionIdleEvent> idles = new ArrayList<>();
-        List<SessionStartEvent> starts = new ArrayList<>();
+        var messages = new ArrayList<AssistantMessageEvent>();
+        var idles = new ArrayList<SessionIdleEvent>();
+        var starts = new ArrayList<SessionStartEvent>();
 
         session.on(AssistantMessageEvent.class, messages::add);
         session.on(SessionIdleEvent.class, idles::add);
@@ -104,7 +103,7 @@ public class SessionEventHandlingTest {
 
     @Test
     void testUnsubscribe() {
-        AtomicInteger count = new AtomicInteger(0);
+        var count = new AtomicInteger(0);
 
         Closeable subscription = session.on(AssistantMessageEvent.class, msg -> count.incrementAndGet());
 
@@ -125,7 +124,7 @@ public class SessionEventHandlingTest {
 
     @Test
     void testUnsubscribeGenericHandler() {
-        AtomicInteger count = new AtomicInteger(0);
+        var count = new AtomicInteger(0);
 
         Closeable subscription = session.on(event -> count.incrementAndGet());
 
@@ -144,8 +143,8 @@ public class SessionEventHandlingTest {
 
     @Test
     void testMixedHandlers() {
-        List<String> allEvents = new ArrayList<>();
-        List<String> messageEvents = new ArrayList<>();
+        var allEvents = new ArrayList<String>();
+        var messageEvents = new ArrayList<String>();
 
         // Generic handler captures everything
         session.on(event -> allEvents.add(event.getType()));
@@ -164,8 +163,8 @@ public class SessionEventHandlingTest {
 
     @Test
     void testHandlerReceivesCorrectEventData() {
-        AtomicReference<String> capturedContent = new AtomicReference<>();
-        AtomicReference<String> capturedSessionId = new AtomicReference<>();
+        var capturedContent = new AtomicReference<String>();
+        var capturedSessionId = new AtomicReference<String>();
 
         session.on(AssistantMessageEvent.class, msg -> {
             capturedContent.set(msg.getData().getContent());
@@ -188,7 +187,7 @@ public class SessionEventHandlingTest {
 
     @Test
     void testHandlerExceptionDoesNotBreakOtherHandlers() {
-        List<String> handler2Events = new ArrayList<>();
+        var handler2Events = new ArrayList<String>();
 
         // Suppress logging for this test to avoid confusing stack traces in build
         // output
@@ -241,16 +240,16 @@ public class SessionEventHandlingTest {
 
     // Factory methods for creating test events
     private SessionStartEvent createSessionStartEvent() {
-        SessionStartEvent event = new SessionStartEvent();
-        SessionStartEvent.SessionStartData data = new SessionStartEvent.SessionStartData();
+        var event = new SessionStartEvent();
+        var data = new SessionStartEvent.SessionStartData();
         data.setSessionId("test-session");
         event.setData(data);
         return event;
     }
 
     private AssistantMessageEvent createAssistantMessageEvent(String content) {
-        AssistantMessageEvent event = new AssistantMessageEvent();
-        AssistantMessageEvent.AssistantMessageData data = new AssistantMessageEvent.AssistantMessageData();
+        var event = new AssistantMessageEvent();
+        var data = new AssistantMessageEvent.AssistantMessageData();
         data.setContent(content);
         event.setData(data);
         return event;
