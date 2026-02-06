@@ -1,5 +1,7 @@
 package copilot
 
+import "encoding/json"
+
 // ConnectionState represents the client connection state
 type ConnectionState string
 
@@ -113,15 +115,15 @@ type PermissionInvocation struct {
 
 // UserInputRequest represents a request for user input from the agent
 type UserInputRequest struct {
-	Question      string   `json:"question"`
-	Choices       []string `json:"choices,omitempty"`
-	AllowFreeform *bool    `json:"allowFreeform,omitempty"`
+	Question      string
+	Choices       []string
+	AllowFreeform *bool
 }
 
 // UserInputResponse represents the user's response to an input request
 type UserInputResponse struct {
-	Answer      string `json:"answer"`
-	WasFreeform bool   `json:"wasFreeform"`
+	Answer      string
+	WasFreeform bool
 }
 
 // UserInputHandler handles user input requests from the agent
@@ -307,13 +309,13 @@ type CustomAgentConfig struct {
 // limits through background compaction and persist state to a workspace directory.
 type InfiniteSessionConfig struct {
 	// Enabled controls whether infinite sessions are enabled (default: true)
-	Enabled *bool
+	Enabled *bool `json:"enabled,omitempty"`
 	// BackgroundCompactionThreshold is the context utilization (0.0-1.0) at which
 	// background compaction starts. Default: 0.80
-	BackgroundCompactionThreshold *float64
+	BackgroundCompactionThreshold *float64 `json:"backgroundCompactionThreshold,omitempty"`
 	// BufferExhaustionThreshold is the context utilization (0.0-1.0) at which
 	// the session blocks until compaction completes. Default: 0.95
-	BufferExhaustionThreshold *float64
+	BufferExhaustionThreshold *float64 `json:"bufferExhaustionThreshold,omitempty"`
 }
 
 // SessionConfig configures a new session
@@ -369,10 +371,10 @@ type SessionConfig struct {
 
 // Tool describes a caller-implemented tool that can be invoked by Copilot
 type Tool struct {
-	Name        string
-	Description string // optional
-	Parameters  map[string]any
-	Handler     ToolHandler
+	Name        string         `json:"name"`
+	Description string         `json:"description,omitempty"`
+	Parameters  map[string]any `json:"parameters,omitempty"`
+	Handler     ToolHandler    `json:"-"`
 }
 
 // ToolInvocation describes a tool call initiated by Copilot
@@ -491,43 +493,6 @@ type MessageOptions struct {
 // SessionEventHandler is a callback for session events
 type SessionEventHandler func(event SessionEvent)
 
-// PingResponse is the response from a ping request
-type PingResponse struct {
-	Message         string `json:"message"`
-	Timestamp       int64  `json:"timestamp"`
-	ProtocolVersion *int   `json:"protocolVersion,omitempty"`
-}
-
-// SessionCreateResponse is the response from session.create
-type SessionCreateResponse struct {
-	SessionID string `json:"sessionId"`
-}
-
-// SessionSendResponse is the response from session.send
-type SessionSendResponse struct {
-	MessageID string `json:"messageId"`
-}
-
-// SessionGetMessagesResponse is the response from session.getMessages
-type SessionGetMessagesResponse struct {
-	Events []SessionEvent `json:"events"`
-}
-
-// GetStatusResponse is the response from status.get
-type GetStatusResponse struct {
-	Version         string `json:"version"`
-	ProtocolVersion int    `json:"protocolVersion"`
-}
-
-// GetAuthStatusResponse is the response from auth.getStatus
-type GetAuthStatusResponse struct {
-	IsAuthenticated bool    `json:"isAuthenticated"`
-	AuthType        *string `json:"authType,omitempty"`
-	Host            *string `json:"host,omitempty"`
-	Login           *string `json:"login,omitempty"`
-	StatusMessage   *string `json:"statusMessage,omitempty"`
-}
-
 // ModelVisionLimits contains vision-specific limits
 type ModelVisionLimits struct {
 	SupportedMediaTypes []string `json:"supported_media_types"`
@@ -576,11 +541,6 @@ type ModelInfo struct {
 	DefaultReasoningEffort    string            `json:"defaultReasoningEffort,omitempty"`
 }
 
-// GetModelsResponse is the response from models.list
-type GetModelsResponse struct {
-	Models []ModelInfo `json:"models"`
-}
-
 // SessionMetadata contains metadata about a session
 type SessionMetadata struct {
 	SessionID    string  `json:"sessionId"`
@@ -588,22 +548,6 @@ type SessionMetadata struct {
 	ModifiedTime string  `json:"modifiedTime"`
 	Summary      *string `json:"summary,omitempty"`
 	IsRemote     bool    `json:"isRemote"`
-}
-
-// ListSessionsResponse is the response from session.list
-type ListSessionsResponse struct {
-	Sessions []SessionMetadata `json:"sessions"`
-}
-
-// DeleteSessionRequest is the request for session.delete
-type DeleteSessionRequest struct {
-	SessionID string `json:"sessionId"`
-}
-
-// DeleteSessionResponse is the response from session.delete
-type DeleteSessionResponse struct {
-	Success bool    `json:"success"`
-	Error   *string `json:"error,omitempty"`
 }
 
 // SessionLifecycleEventType represents the type of session lifecycle event
@@ -634,19 +578,224 @@ type SessionLifecycleEventMetadata struct {
 // SessionLifecycleHandler is a callback for session lifecycle events
 type SessionLifecycleHandler func(event SessionLifecycleEvent)
 
-// GetForegroundSessionResponse is the response from session.getForeground
-type GetForegroundSessionResponse struct {
+// permissionRequestRequest represents the request data for a permission request
+type permissionRequestRequest struct {
+	SessionID string            `json:"sessionId"`
+	Request   PermissionRequest `json:"permissionRequest"`
+}
+
+// permissionRequestResponse represents the response to a permission request
+type permissionRequestResponse struct {
+	Result PermissionRequestResult `json:"result"`
+}
+
+// createSessionRequest is the request for session.create
+type createSessionRequest struct {
+	Model             string                     `json:"model,omitempty"`
+	SessionID         string                     `json:"sessionId,omitempty"`
+	ReasoningEffort   string                     `json:"reasoningEffort,omitempty"`
+	Tools             []Tool                     `json:"tools,omitempty"`
+	SystemMessage     *SystemMessageConfig       `json:"systemMessage,omitempty"`
+	AvailableTools    []string                   `json:"availableTools,omitempty"`
+	ExcludedTools     []string                   `json:"excludedTools,omitempty"`
+	Provider          *ProviderConfig            `json:"provider,omitempty"`
+	RequestPermission *bool                      `json:"requestPermission,omitempty"`
+	RequestUserInput  *bool                      `json:"requestUserInput,omitempty"`
+	Hooks             *bool                      `json:"hooks,omitempty"`
+	WorkingDirectory  string                     `json:"workingDirectory,omitempty"`
+	Streaming         *bool                      `json:"streaming,omitempty"`
+	MCPServers        map[string]MCPServerConfig `json:"mcpServers,omitempty"`
+	CustomAgents      []CustomAgentConfig        `json:"customAgents,omitempty"`
+	ConfigDir         string                     `json:"configDir,omitempty"`
+	SkillDirectories  []string                   `json:"skillDirectories,omitempty"`
+	DisabledSkills    []string                   `json:"disabledSkills,omitempty"`
+	InfiniteSessions  *InfiniteSessionConfig     `json:"infiniteSessions,omitempty"`
+}
+
+// createSessionResponse is the response from session.create
+type createSessionResponse struct {
+	SessionID     string `json:"sessionId"`
+	WorkspacePath string `json:"workspacePath"`
+}
+
+// resumeSessionRequest is the request for session.resume
+type resumeSessionRequest struct {
+	SessionID         string                     `json:"sessionId"`
+	Model             string                     `json:"model,omitempty"`
+	ReasoningEffort   string                     `json:"reasoningEffort,omitempty"`
+	Tools             []Tool                     `json:"tools,omitempty"`
+	SystemMessage     *SystemMessageConfig       `json:"systemMessage,omitempty"`
+	AvailableTools    []string                   `json:"availableTools,omitempty"`
+	ExcludedTools     []string                   `json:"excludedTools,omitempty"`
+	Provider          *ProviderConfig            `json:"provider,omitempty"`
+	RequestPermission *bool                      `json:"requestPermission,omitempty"`
+	RequestUserInput  *bool                      `json:"requestUserInput,omitempty"`
+	Hooks             *bool                      `json:"hooks,omitempty"`
+	WorkingDirectory  string                     `json:"workingDirectory,omitempty"`
+	ConfigDir         string                     `json:"configDir,omitempty"`
+	DisableResume     *bool                      `json:"disableResume,omitempty"`
+	Streaming         *bool                      `json:"streaming,omitempty"`
+	MCPServers        map[string]MCPServerConfig `json:"mcpServers,omitempty"`
+	CustomAgents      []CustomAgentConfig        `json:"customAgents,omitempty"`
+	SkillDirectories  []string                   `json:"skillDirectories,omitempty"`
+	DisabledSkills    []string                   `json:"disabledSkills,omitempty"`
+	InfiniteSessions  *InfiniteSessionConfig     `json:"infiniteSessions,omitempty"`
+}
+
+// resumeSessionResponse is the response from session.resume
+type resumeSessionResponse struct {
+	SessionID     string `json:"sessionId"`
+	WorkspacePath string `json:"workspacePath"`
+}
+
+type hooksInvokeRequest struct {
+	SessionID string          `json:"sessionId"`
+	Type      string          `json:"hookType"`
+	Input     json.RawMessage `json:"input"`
+}
+
+// listSessionsRequest is the request for session.list
+type listSessionsRequest struct{}
+
+// listSessionsResponse is the response from session.list
+type listSessionsResponse struct {
+	Sessions []SessionMetadata `json:"sessions"`
+}
+
+// deleteSessionRequest is the request for session.delete
+type deleteSessionRequest struct {
+	SessionID string `json:"sessionId"`
+}
+
+// deleteSessionResponse is the response from session.delete
+type deleteSessionResponse struct {
+	Success bool    `json:"success"`
+	Error   *string `json:"error,omitempty"`
+}
+
+// getForegroundSessionRequest is the request for session.getForeground
+type getForegroundSessionRequest struct{}
+
+// getForegroundSessionResponse is the response from session.getForeground
+type getForegroundSessionResponse struct {
 	SessionID     *string `json:"sessionId,omitempty"`
 	WorkspacePath *string `json:"workspacePath,omitempty"`
 }
 
-// SetForegroundSessionRequest is the request for session.setForeground
-type SetForegroundSessionRequest struct {
+// setForegroundSessionRequest is the request for session.setForeground
+type setForegroundSessionRequest struct {
 	SessionID string `json:"sessionId"`
 }
 
-// SetForegroundSessionResponse is the response from session.setForeground
-type SetForegroundSessionResponse struct {
+// setForegroundSessionResponse is the response from session.setForeground
+type setForegroundSessionResponse struct {
 	Success bool    `json:"success"`
 	Error   *string `json:"error,omitempty"`
+}
+
+type pingRequest struct {
+	Message string `json:"message,omitempty"`
+}
+
+// PingResponse is the response from a ping request
+type PingResponse struct {
+	Message         string `json:"message"`
+	Timestamp       int64  `json:"timestamp"`
+	ProtocolVersion *int   `json:"protocolVersion,omitempty"`
+}
+
+// getStatusRequest is the request for status.get
+type getStatusRequest struct{}
+
+// GetStatusResponse is the response from status.get
+type GetStatusResponse struct {
+	Version         string `json:"version"`
+	ProtocolVersion int    `json:"protocolVersion"`
+}
+
+// getAuthStatusRequest is the request for auth.getStatus
+type getAuthStatusRequest struct{}
+
+// GetAuthStatusResponse is the response from auth.getStatus
+type GetAuthStatusResponse struct {
+	IsAuthenticated bool    `json:"isAuthenticated"`
+	AuthType        *string `json:"authType,omitempty"`
+	Host            *string `json:"host,omitempty"`
+	Login           *string `json:"login,omitempty"`
+	StatusMessage   *string `json:"statusMessage,omitempty"`
+}
+
+// listModelsRequest is the request for models.list
+type listModelsRequest struct{}
+
+// listModelsResponse is the response from models.list
+type listModelsResponse struct {
+	Models []ModelInfo `json:"models"`
+}
+
+// sessionGetMessagesRequest is the request for session.getMessages
+type sessionGetMessagesRequest struct {
+	SessionID string `json:"sessionId"`
+}
+
+// sessionGetMessagesResponse is the response from session.getMessages
+type sessionGetMessagesResponse struct {
+	Events []SessionEvent `json:"events"`
+}
+
+// sessionDestroyRequest is the request for session.destroy
+type sessionDestroyRequest struct {
+	SessionID string `json:"sessionId"`
+}
+
+// sessionAbortRequest is the request for session.abort
+type sessionAbortRequest struct {
+	SessionID string `json:"sessionId"`
+}
+
+type sessionSendRequest struct {
+	SessionID   string       `json:"sessionId"`
+	Prompt      string       `json:"prompt"`
+	Attachments []Attachment `json:"attachments,omitempty"`
+	Mode        string       `json:"mode,omitempty"`
+}
+
+// sessionSendResponse is the response from session.send
+type sessionSendResponse struct {
+	MessageID string `json:"messageId"`
+}
+
+// sessionEventRequest is the request for session event notifications
+type sessionEventRequest struct {
+	SessionID string       `json:"sessionId"`
+	Event     SessionEvent `json:"event"`
+}
+
+// toolCallRequest represents a tool call request from the server
+// to the client for execution.
+type toolCallRequest struct {
+	SessionID  string `json:"sessionId"`
+	ToolCallID string `json:"toolCallId"`
+	ToolName   string `json:"toolName"`
+	Arguments  any    `json:"arguments"`
+}
+
+// toolCallResponse represents the response to a tool call request
+// from the client back to the server.
+type toolCallResponse struct {
+	Result ToolResult `json:"result"`
+}
+
+// userInputRequest represents a request for user input from the agent
+type userInputRequest struct {
+	SessionID     string   `json:"sessionId"`
+	Question      string   `json:"question"`
+	Choices       []string `json:"choices,omitempty"`
+	AllowFreeform *bool    `json:"allowFreeform,omitempty"`
+}
+
+// userInputResponse represents the user's response to an input request
+type userInputResponse struct {
+	Answer      string `json:"answer"`
+	WasFreeform bool   `json:"wasFreeform"`
 }
