@@ -7,6 +7,7 @@ package com.github.copilot.sdk.events;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -161,7 +162,7 @@ public final class AssistantUsageEvent extends AbstractSessionEvent {
         }
 
         public Map<String, Object> getQuotaSnapshots() {
-            return quotaSnapshots;
+            return quotaSnapshots == null ? null : Collections.unmodifiableMap(quotaSnapshots);
         }
 
         public void setQuotaSnapshots(Map<String, Object> quotaSnapshots) {

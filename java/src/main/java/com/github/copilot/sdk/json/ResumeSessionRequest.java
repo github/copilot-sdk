@@ -4,6 +4,7 @@
 
 package com.github.copilot.sdk.json;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -91,7 +92,7 @@ public final class ResumeSessionRequest {
 
     /** Gets the tools. @return the tool definitions */
     public List<ToolDef> getTools() {
-        return tools;
+        return tools == null ? null : Collections.unmodifiableList(tools);
     }
 
     /** Sets the tools. @param tools the tool definitions */
@@ -171,7 +172,7 @@ public final class ResumeSessionRequest {
 
     /** Gets MCP servers. @return the servers map */
     public Map<String, Object> getMcpServers() {
-        return mcpServers;
+        return mcpServers == null ? null : Collections.unmodifiableMap(mcpServers);
     }
 
     /** Sets MCP servers. @param mcpServers the servers map */
@@ -181,7 +182,7 @@ public final class ResumeSessionRequest {
 
     /** Gets custom agents. @return the agents */
     public List<CustomAgentConfig> getCustomAgents() {
-        return customAgents;
+        return customAgents == null ? null : Collections.unmodifiableList(customAgents);
     }
 
     /** Sets custom agents. @param customAgents the agents */
@@ -191,7 +192,7 @@ public final class ResumeSessionRequest {
 
     /** Gets skill directories. @return the directories */
     public List<String> getSkillDirectories() {
-        return skillDirectories;
+        return skillDirectories == null ? null : Collections.unmodifiableList(skillDirectories);
     }
 
     /** Sets skill directories. @param skillDirectories the directories */
@@ -201,7 +202,7 @@ public final class ResumeSessionRequest {
 
     /** Gets disabled skills. @return the disabled skill names */
     public List<String> getDisabledSkills() {
-        return disabledSkills;
+        return disabledSkills == null ? null : Collections.unmodifiableList(disabledSkills);
     }
 
     /** Sets disabled skills. @param disabledSkills the skill names to disable */

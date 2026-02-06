@@ -4,6 +4,7 @@
 
 package com.github.copilot.sdk.json;
 
+import java.util.Collections;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -56,7 +57,7 @@ public class UserInputRequest {
      * @return the list of choices, or {@code null} for freeform input
      */
     public List<String> getChoices() {
-        return choices;
+        return choices == null ? null : Collections.unmodifiableList(choices);
     }
 
     /**

@@ -4,6 +4,7 @@
 
 package com.github.copilot.sdk.json;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -115,7 +116,7 @@ public final class CreateSessionRequest {
 
     /** Gets the tools. @return the tool definitions */
     public List<ToolDef> getTools() {
-        return tools;
+        return tools == null ? null : Collections.unmodifiableList(tools);
     }
 
     /** Sets the tools. @param tools the tool definitions */
@@ -135,7 +136,7 @@ public final class CreateSessionRequest {
 
     /** Gets available tools. @return the tool names */
     public List<String> getAvailableTools() {
-        return availableTools;
+        return availableTools == null ? null : Collections.unmodifiableList(availableTools);
     }
 
     /** Sets available tools. @param availableTools the tool names */
@@ -145,7 +146,7 @@ public final class CreateSessionRequest {
 
     /** Gets excluded tools. @return the tool names */
     public List<String> getExcludedTools() {
-        return excludedTools;
+        return excludedTools == null ? null : Collections.unmodifiableList(excludedTools);
     }
 
     /** Sets excluded tools. @param excludedTools the tool names */
@@ -215,7 +216,7 @@ public final class CreateSessionRequest {
 
     /** Gets MCP servers. @return the servers map */
     public Map<String, Object> getMcpServers() {
-        return mcpServers;
+        return mcpServers == null ? null : Collections.unmodifiableMap(mcpServers);
     }
 
     /** Sets MCP servers. @param mcpServers the servers map */
@@ -225,7 +226,7 @@ public final class CreateSessionRequest {
 
     /** Gets custom agents. @return the agents */
     public List<CustomAgentConfig> getCustomAgents() {
-        return customAgents;
+        return customAgents == null ? null : Collections.unmodifiableList(customAgents);
     }
 
     /** Sets custom agents. @param customAgents the agents */
@@ -245,7 +246,7 @@ public final class CreateSessionRequest {
 
     /** Gets skill directories. @return the skill directories */
     public List<String> getSkillDirectories() {
-        return skillDirectories;
+        return skillDirectories == null ? null : Collections.unmodifiableList(skillDirectories);
     }
 
     /** Sets skill directories. @param skillDirectories the directories */
@@ -255,7 +256,7 @@ public final class CreateSessionRequest {
 
     /** Gets disabled skills. @return the disabled skill names */
     public List<String> getDisabledSkills() {
-        return disabledSkills;
+        return disabledSkills == null ? null : Collections.unmodifiableList(disabledSkills);
     }
 
     /** Sets disabled skills. @param disabledSkills the skill names to disable */

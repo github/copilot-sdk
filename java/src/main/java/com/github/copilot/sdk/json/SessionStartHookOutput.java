@@ -4,6 +4,7 @@
 
 package com.github.copilot.sdk.json;
 
+import java.util.Collections;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -52,7 +53,7 @@ public class SessionStartHookOutput {
      * @return the modified configuration map, or {@code null}
      */
     public Map<String, Object> getModifiedConfig() {
-        return modifiedConfig;
+        return modifiedConfig == null ? null : Collections.unmodifiableMap(modifiedConfig);
     }
 
     /**

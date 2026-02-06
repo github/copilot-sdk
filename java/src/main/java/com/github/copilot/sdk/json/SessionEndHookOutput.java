@@ -4,6 +4,7 @@
 
 package com.github.copilot.sdk.json;
 
+import java.util.Collections;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -55,7 +56,7 @@ public class SessionEndHookOutput {
      * @return the cleanup actions, or {@code null}
      */
     public List<String> getCleanupActions() {
-        return cleanupActions;
+        return cleanupActions == null ? null : Collections.unmodifiableList(cleanupActions);
     }
 
     /**

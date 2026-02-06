@@ -4,6 +4,7 @@
 
 package com.github.copilot.sdk.json;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -51,7 +52,7 @@ public class ResumeSessionConfig {
      * @return the list of tool definitions
      */
     public List<ToolDefinition> getTools() {
-        return tools;
+        return tools == null ? null : Collections.unmodifiableList(tools);
     }
 
     /**
@@ -249,7 +250,7 @@ public class ResumeSessionConfig {
      * @return the MCP servers map
      */
     public Map<String, Object> getMcpServers() {
-        return mcpServers;
+        return mcpServers == null ? null : Collections.unmodifiableMap(mcpServers);
     }
 
     /**
@@ -270,7 +271,7 @@ public class ResumeSessionConfig {
      * @return the list of custom agent configurations
      */
     public List<CustomAgentConfig> getCustomAgents() {
-        return customAgents;
+        return customAgents == null ? null : Collections.unmodifiableList(customAgents);
     }
 
     /**
@@ -292,7 +293,7 @@ public class ResumeSessionConfig {
      * @return the list of skill directory paths
      */
     public List<String> getSkillDirectories() {
-        return skillDirectories;
+        return skillDirectories == null ? null : Collections.unmodifiableList(skillDirectories);
     }
 
     /**
@@ -313,7 +314,7 @@ public class ResumeSessionConfig {
      * @return the list of disabled skill names
      */
     public List<String> getDisabledSkills() {
-        return disabledSkills;
+        return disabledSkills == null ? null : Collections.unmodifiableList(disabledSkills);
     }
 
     /**

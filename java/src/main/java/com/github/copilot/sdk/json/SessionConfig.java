@@ -4,6 +4,7 @@
 
 package com.github.copilot.sdk.json;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -127,7 +128,7 @@ public class SessionConfig {
      * @return the list of tool definitions
      */
     public List<ToolDefinition> getTools() {
-        return tools;
+        return tools == null ? null : Collections.unmodifiableList(tools);
     }
 
     /**
@@ -179,7 +180,7 @@ public class SessionConfig {
      * @return the list of available tool names
      */
     public List<String> getAvailableTools() {
-        return availableTools;
+        return availableTools == null ? null : Collections.unmodifiableList(availableTools);
     }
 
     /**
@@ -202,7 +203,7 @@ public class SessionConfig {
      * @return the list of excluded tool names
      */
     public List<String> getExcludedTools() {
-        return excludedTools;
+        return excludedTools == null ? null : Collections.unmodifiableList(excludedTools);
     }
 
     /**
@@ -369,7 +370,7 @@ public class SessionConfig {
      * @return the MCP servers map
      */
     public Map<String, Object> getMcpServers() {
-        return mcpServers;
+        return mcpServers == null ? null : Collections.unmodifiableMap(mcpServers);
     }
 
     /**
@@ -393,7 +394,7 @@ public class SessionConfig {
      * @return the list of custom agent configurations
      */
     public List<CustomAgentConfig> getCustomAgents() {
-        return customAgents;
+        return customAgents == null ? null : Collections.unmodifiableList(customAgents);
     }
 
     /**
@@ -445,7 +446,7 @@ public class SessionConfig {
      * @return the list of skill directory paths
      */
     public List<String> getSkillDirectories() {
-        return skillDirectories;
+        return skillDirectories == null ? null : Collections.unmodifiableList(skillDirectories);
     }
 
     /**
@@ -470,7 +471,7 @@ public class SessionConfig {
      * @return the list of disabled skill names
      */
     public List<String> getDisabledSkills() {
-        return disabledSkills;
+        return disabledSkills == null ? null : Collections.unmodifiableList(disabledSkills);
     }
 
     /**

@@ -7,6 +7,7 @@ package com.github.copilot.sdk.events;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -136,7 +137,7 @@ public final class AssistantMessageEvent extends AbstractSessionEvent {
          * @return the tool requests, or {@code null} if none
          */
         public List<ToolRequest> getToolRequests() {
-            return toolRequests;
+            return toolRequests == null ? null : Collections.unmodifiableList(toolRequests);
         }
 
         /**

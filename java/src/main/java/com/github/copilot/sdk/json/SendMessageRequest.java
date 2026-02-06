@@ -4,6 +4,7 @@
 
 package com.github.copilot.sdk.json;
 
+import java.util.Collections;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -57,7 +58,7 @@ public final class SendMessageRequest {
 
     /** Gets the attachments. @return the list of attachments */
     public List<Attachment> getAttachments() {
-        return attachments;
+        return attachments == null ? null : Collections.unmodifiableList(attachments);
     }
 
     /** Sets the attachments. @param attachments the list of attachments */

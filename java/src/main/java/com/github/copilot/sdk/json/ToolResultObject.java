@@ -4,6 +4,7 @@
 
 package com.github.copilot.sdk.json;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -80,7 +81,7 @@ public final class ToolResultObject {
      * @return the list of binary results
      */
     public List<ToolBinaryResult> getBinaryResultsForLlm() {
-        return binaryResultsForLlm;
+        return binaryResultsForLlm == null ? null : Collections.unmodifiableList(binaryResultsForLlm);
     }
 
     /**
@@ -164,7 +165,7 @@ public final class ToolResultObject {
      * @return the telemetry map
      */
     public Map<String, Object> getToolTelemetry() {
-        return toolTelemetry;
+        return toolTelemetry == null ? null : Collections.unmodifiableMap(toolTelemetry);
     }
 
     public ToolResultObject setToolTelemetry(Map<String, Object> toolTelemetry) {
