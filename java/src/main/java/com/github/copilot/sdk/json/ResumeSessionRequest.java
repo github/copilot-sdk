@@ -29,11 +29,23 @@ public final class ResumeSessionRequest {
     @JsonProperty("sessionId")
     private String sessionId;
 
+    @JsonProperty("model")
+    private String model;
+
     @JsonProperty("reasoningEffort")
     private String reasoningEffort;
 
     @JsonProperty("tools")
     private List<ToolDef> tools;
+
+    @JsonProperty("systemMessage")
+    private SystemMessageConfig systemMessage;
+
+    @JsonProperty("availableTools")
+    private List<String> availableTools;
+
+    @JsonProperty("excludedTools")
+    private List<String> excludedTools;
 
     @JsonProperty("provider")
     private ProviderConfig provider;
@@ -49,6 +61,9 @@ public final class ResumeSessionRequest {
 
     @JsonProperty("workingDirectory")
     private String workingDirectory;
+
+    @JsonProperty("configDir")
+    private String configDir;
 
     @JsonProperty("disableResume")
     private Boolean disableResume;
@@ -68,6 +83,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("disabledSkills")
     private List<String> disabledSkills;
 
+    @JsonProperty("infiniteSessions")
+    private InfiniteSessionConfig infiniteSessions;
+
     /** Gets the session ID. @return the session ID */
     public String getSessionId() {
         return sessionId;
@@ -76,6 +94,16 @@ public final class ResumeSessionRequest {
     /** Sets the session ID. @param sessionId the session ID */
     public void setSessionId(String sessionId) {
         this.sessionId = sessionId;
+    }
+
+    /** Gets the model name. @return the model */
+    public String getModel() {
+        return model;
+    }
+
+    /** Sets the model name. @param model the model */
+    public void setModel(String model) {
+        this.model = model;
     }
 
     /** Gets the reasoning effort. @return the reasoning effort level */
@@ -98,6 +126,39 @@ public final class ResumeSessionRequest {
     /** Sets the tools. @param tools the tool definitions */
     public void setTools(List<ToolDef> tools) {
         this.tools = tools;
+    }
+
+    /** Gets the system message config. @return the system message config */
+    public SystemMessageConfig getSystemMessage() {
+        return systemMessage;
+    }
+
+    /**
+     * Sets the system message config. @param systemMessage the system message
+     * config
+     */
+    public void setSystemMessage(SystemMessageConfig systemMessage) {
+        this.systemMessage = systemMessage;
+    }
+
+    /** Gets available tools. @return the available tool names */
+    public List<String> getAvailableTools() {
+        return availableTools == null ? null : Collections.unmodifiableList(availableTools);
+    }
+
+    /** Sets available tools. @param availableTools the available tool names */
+    public void setAvailableTools(List<String> availableTools) {
+        this.availableTools = availableTools;
+    }
+
+    /** Gets excluded tools. @return the excluded tool names */
+    public List<String> getExcludedTools() {
+        return excludedTools == null ? null : Collections.unmodifiableList(excludedTools);
+    }
+
+    /** Sets excluded tools. @param excludedTools the excluded tool names */
+    public void setExcludedTools(List<String> excludedTools) {
+        this.excludedTools = excludedTools;
     }
 
     /** Gets the provider config. @return the provider */
@@ -148,6 +209,16 @@ public final class ResumeSessionRequest {
     /** Sets working directory. @param workingDirectory the working directory */
     public void setWorkingDirectory(String workingDirectory) {
         this.workingDirectory = workingDirectory;
+    }
+
+    /** Gets config directory. @return the config directory */
+    public String getConfigDir() {
+        return configDir;
+    }
+
+    /** Sets config directory. @param configDir the config directory */
+    public void setConfigDir(String configDir) {
+        this.configDir = configDir;
     }
 
     /** Gets disable resume flag. @return the flag */
@@ -208,5 +279,18 @@ public final class ResumeSessionRequest {
     /** Sets disabled skills. @param disabledSkills the skill names to disable */
     public void setDisabledSkills(List<String> disabledSkills) {
         this.disabledSkills = disabledSkills;
+    }
+
+    /** Gets infinite sessions config. @return the infinite sessions config */
+    public InfiniteSessionConfig getInfiniteSessions() {
+        return infiniteSessions;
+    }
+
+    /**
+     * Sets infinite sessions config. @param infiniteSessions the infinite sessions
+     * config
+     */
+    public void setInfiniteSessions(InfiniteSessionConfig infiniteSessions) {
+        this.infiniteSessions = infiniteSessions;
     }
 }

@@ -32,19 +32,48 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ResumeSessionConfig {
 
+    private String model;
     private List<ToolDefinition> tools;
+    private SystemMessageConfig systemMessage;
+    private List<String> availableTools;
+    private List<String> excludedTools;
     private ProviderConfig provider;
     private String reasoningEffort;
     private PermissionHandler onPermissionRequest;
     private UserInputHandler onUserInputRequest;
     private SessionHooks hooks;
     private String workingDirectory;
+    private String configDir;
     private boolean disableResume;
     private boolean streaming;
     private Map<String, Object> mcpServers;
     private List<CustomAgentConfig> customAgents;
     private List<String> skillDirectories;
     private List<String> disabledSkills;
+    private InfiniteSessionConfig infiniteSessions;
+
+    /**
+     * Gets the AI model to use.
+     *
+     * @return the model name
+     */
+    public String getModel() {
+        return model;
+    }
+
+    /**
+     * Sets the AI model to use for the resumed session.
+     * <p>
+     * Can change the model when resuming an existing session.
+     *
+     * @param model
+     *            the model name
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setModel(String model) {
+        this.model = model;
+        return this;
+    }
 
     /**
      * Gets the custom tools for this session.
@@ -65,6 +94,78 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setTools(List<ToolDefinition> tools) {
         this.tools = tools;
+        return this;
+    }
+
+    /**
+     * Gets the system message configuration.
+     *
+     * @return the system message config
+     */
+    public SystemMessageConfig getSystemMessage() {
+        return systemMessage;
+    }
+
+    /**
+     * Sets the system message configuration.
+     * <p>
+     * The system message controls the behavior and personality of the assistant.
+     *
+     * @param systemMessage
+     *            the system message configuration
+     * @return this config for method chaining
+     * @see SystemMessageConfig
+     */
+    public ResumeSessionConfig setSystemMessage(SystemMessageConfig systemMessage) {
+        this.systemMessage = systemMessage;
+        return this;
+    }
+
+    /**
+     * Gets the list of allowed tool names.
+     *
+     * @return the list of available tool names
+     */
+    public List<String> getAvailableTools() {
+        return availableTools == null ? null : Collections.unmodifiableList(availableTools);
+    }
+
+    /**
+     * Sets the list of tool names that are allowed in this session.
+     * <p>
+     * When specified, only tools in this list will be available to the assistant.
+     * Takes precedence over excluded tools.
+     *
+     * @param availableTools
+     *            the list of allowed tool names
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setAvailableTools(List<String> availableTools) {
+        this.availableTools = availableTools;
+        return this;
+    }
+
+    /**
+     * Gets the list of excluded tool names.
+     *
+     * @return the list of excluded tool names
+     */
+    public List<String> getExcludedTools() {
+        return excludedTools == null ? null : Collections.unmodifiableList(excludedTools);
+    }
+
+    /**
+     * Sets the list of tool names to exclude from this session.
+     * <p>
+     * Tools in this list will not be available to the assistant. Ignored if
+     * available tools is specified.
+     *
+     * @param excludedTools
+     *            the list of tool names to exclude
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setExcludedTools(List<String> excludedTools) {
+        this.excludedTools = excludedTools;
         return this;
     }
 
@@ -201,6 +302,29 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the configuration directory path.
+     *
+     * @return the configuration directory path
+     */
+    public String getConfigDir() {
+        return configDir;
+    }
+
+    /**
+     * Sets the configuration directory path.
+     * <p>
+     * Override the default configuration directory location.
+     *
+     * @param configDir
+     *            the configuration directory path
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setConfigDir(String configDir) {
+        this.configDir = configDir;
+        return this;
+    }
+
+    /**
      * Returns whether the resume event is disabled.
      *
      * @return {@code true} if the session.resume event is suppressed
@@ -326,6 +450,29 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setDisabledSkills(List<String> disabledSkills) {
         this.disabledSkills = disabledSkills;
+        return this;
+    }
+
+    /**
+     * Gets the infinite session configuration.
+     *
+     * @return the infinite session config
+     */
+    public InfiniteSessionConfig getInfiniteSessions() {
+        return infiniteSessions;
+    }
+
+    /**
+     * Sets the infinite session configuration for persistent workspaces and
+     * automatic compaction.
+     *
+     * @param infiniteSessions
+     *            the infinite session configuration
+     * @return this config for method chaining
+     * @see InfiniteSessionConfig
+     */
+    public ResumeSessionConfig setInfiniteSessions(InfiniteSessionConfig infiniteSessions) {
+        this.infiniteSessions = infiniteSessions;
         return this;
     }
 }

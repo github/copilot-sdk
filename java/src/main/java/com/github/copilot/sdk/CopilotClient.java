@@ -630,23 +630,29 @@ public final class CopilotClient implements AutoCloseable {
             var request = new ResumeSessionRequest();
             request.setSessionId(sessionId);
             if (config != null) {
+                request.setModel(config.getModel());
                 request.setReasoningEffort(config.getReasoningEffort());
                 request.setTools(config.getTools() != null
                         ? config.getTools().stream()
                                 .map(t -> new ToolDef(t.getName(), t.getDescription(), t.getParameters()))
                                 .collect(Collectors.toList())
                         : null);
+                request.setSystemMessage(config.getSystemMessage());
+                request.setAvailableTools(config.getAvailableTools());
+                request.setExcludedTools(config.getExcludedTools());
                 request.setProvider(config.getProvider());
                 request.setRequestPermission(config.getOnPermissionRequest() != null ? true : null);
                 request.setRequestUserInput(config.getOnUserInputRequest() != null ? true : null);
                 request.setHooks(config.getHooks() != null && config.getHooks().hasHooks() ? true : null);
                 request.setWorkingDirectory(config.getWorkingDirectory());
+                request.setConfigDir(config.getConfigDir());
                 request.setDisableResume(config.isDisableResume() ? true : null);
                 request.setStreaming(config.isStreaming() ? true : null);
                 request.setMcpServers(config.getMcpServers());
                 request.setCustomAgents(config.getCustomAgents());
                 request.setSkillDirectories(config.getSkillDirectories());
                 request.setDisabledSkills(config.getDisabledSkills());
+                request.setInfiniteSessions(config.getInfiniteSessions());
             }
 
             return connection.rpc.invoke("session.resume", request, ResumeSessionResponse.class).thenApply(response -> {
