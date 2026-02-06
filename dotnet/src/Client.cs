@@ -348,12 +348,11 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             // ListModelsAsync caches results after the first call, so this validation has minimal overhead
             var availableModels = await ListModelsAsync(cancellationToken).ConfigureAwait(false);
-            var validModelIds = new HashSet<string>(availableModels.Select(m => m.Id), StringComparer.OrdinalIgnoreCase);
 
-            if (!validModelIds.Contains(config.Model))
+            if (!availableModels.Any(m => string.Equals(m.Id, config.Model, StringComparison.OrdinalIgnoreCase)))
             {
                 throw new ArgumentException(
-                    $"Invalid model '{config.Model}'. Available models: {string.Join(", ", validModelIds)}",
+                    $"Invalid model '{config.Model}'. Available models: {string.Join(", ", availableModels.Select(m => m.Id))}",
                     nameof(config));
             }
         }
