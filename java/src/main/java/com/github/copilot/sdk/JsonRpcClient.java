@@ -306,7 +306,7 @@ class JsonRpcClient implements AutoCloseable {
                     }
                 }
             }
-        } catch (Exception e) {
+        } catch (JsonProcessingException e) {
             LOG.log(Level.SEVERE, "Error parsing JSON-RPC message", e);
         }
     }
