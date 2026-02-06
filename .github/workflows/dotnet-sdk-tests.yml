@@ -1,6 +1,9 @@
 name: ".NET SDK Tests"
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     paths:
       - 'dotnet/**'

@@ -4,6 +4,9 @@ env:
   HUSKY: 0
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     paths:
       - 'nodejs/**'
