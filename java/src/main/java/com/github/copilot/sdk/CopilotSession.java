@@ -297,6 +297,10 @@ public final class CopilotSession implements AutoCloseable {
      * instead.
      *
      * <p>
+     * <b>Exception isolation:</b> If a handler throws an exception, the error is
+     * logged and remaining handlers still execute.
+     *
+     * <p>
      * <b>Example:</b>
      *
      * <pre>{@code
@@ -322,6 +326,10 @@ public final class CopilotSession implements AutoCloseable {
      * This provides a type-safe way to handle specific events without needing
      * {@code instanceof} checks. The handler will only be called for events
      * matching the specified type.
+     *
+     * <p>
+     * <b>Exception isolation:</b> If a handler throws an exception, the error is
+     * logged and remaining handlers still execute.
      *
      * <p>
      * <b>Example Usage</b>
@@ -367,7 +375,10 @@ public final class CopilotSession implements AutoCloseable {
     /**
      * Dispatches an event to all registered handlers.
      * <p>
-     * This is called internally when events are received from the server.
+     * This is called internally when events are received from the server. Each
+     * handler is invoked in its own try/catch block so that an exception thrown by
+     * one handler does not prevent subsequent handlers from executing. Exceptions
+     * are logged at {@link Level#SEVERE}.
      *
      * @param event
      *            the event to dispatch
