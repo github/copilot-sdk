@@ -1031,27 +1031,28 @@ public class CopilotClient implements AutoCloseable {
         Integer detectedPort = null;
         if (!options.isUseStdio()) {
             // Wait for port announcement
-            BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
-            Pattern portPattern = Pattern.compile("listening on port (\\d+)", Pattern.CASE_INSENSITIVE);
-            long deadline = System.currentTimeMillis() + 30000;
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+                Pattern portPattern = Pattern.compile("listening on port (\\d+)", Pattern.CASE_INSENSITIVE);
+                long deadline = System.currentTimeMillis() + 30000;
 
-            while (System.currentTimeMillis() < deadline) {
-                String line = reader.readLine();
-                if (line == null) {
-                    throw new IOException("CLI process exited unexpectedly");
+                while (System.currentTimeMillis() < deadline) {
+                    String line = reader.readLine();
+                    if (line == null) {
+                        throw new IOException("CLI process exited unexpectedly");
+                    }
+
+                    Matcher matcher = portPattern.matcher(line);
+                    if (matcher.find()) {
+                        detectedPort = Integer.parseInt(matcher.group(1));
+                        break;
+                    }
                 }
 
-                Matcher matcher = portPattern.matcher(line);
-                if (matcher.find()) {
-                    detectedPort = Integer.parseInt(matcher.group(1));
-                    break;
+                if (detectedPort == null) {
+                    process.destroyForcibly();
+                    throw new IOException("Timeout waiting for CLI to announce port");
                 }
-            }
-
-            if (detectedPort == null) {
-                process.destroyForcibly();
-                throw new IOException("Timeout waiting for CLI to announce port");
             }
         }
 
