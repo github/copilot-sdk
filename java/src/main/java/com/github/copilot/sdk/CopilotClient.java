@@ -4,15 +4,8 @@
 
 package com.github.copilot.sdk;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.Socket;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,16 +15,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.copilot.sdk.events.AbstractSessionEvent;
-import com.github.copilot.sdk.events.SessionEventParser;
 import com.github.copilot.sdk.json.CopilotClientOptions;
-import com.github.copilot.sdk.json.CreateSessionRequest;
 import com.github.copilot.sdk.json.CreateSessionResponse;
 import com.github.copilot.sdk.json.DeleteSessionResponse;
 import com.github.copilot.sdk.json.GetAuthStatusResponse;
@@ -40,17 +25,12 @@ import com.github.copilot.sdk.json.GetModelsResponse;
 import com.github.copilot.sdk.json.GetStatusResponse;
 import com.github.copilot.sdk.json.ListSessionsResponse;
 import com.github.copilot.sdk.json.ModelInfo;
-import com.github.copilot.sdk.json.PermissionRequestResult;
 import com.github.copilot.sdk.json.PingResponse;
 import com.github.copilot.sdk.json.ResumeSessionConfig;
-import com.github.copilot.sdk.json.ResumeSessionRequest;
 import com.github.copilot.sdk.json.ResumeSessionResponse;
 import com.github.copilot.sdk.json.SessionConfig;
+import com.github.copilot.sdk.json.SessionLifecycleHandler;
 import com.github.copilot.sdk.json.SessionMetadata;
-import com.github.copilot.sdk.json.ToolDef;
-import com.github.copilot.sdk.json.ToolDefinition;
-import com.github.copilot.sdk.json.ToolInvocation;
-import com.github.copilot.sdk.json.ToolResultObject;
 
 /**
  * Provides a client for interacting with the Copilot CLI server.
@@ -80,9 +60,10 @@ import com.github.copilot.sdk.json.ToolResultObject;
 public final class CopilotClient implements AutoCloseable {
 
     private static final Logger LOG = Logger.getLogger(CopilotClient.class.getName());
-    private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();
 
     private final CopilotClientOptions options;
+    private final CliServerManager serverManager;
+    private final LifecycleEventManager lifecycleManager = new LifecycleEventManager();
     private final Map<String, CopilotSession> sessions = new ConcurrentHashMap<>();
     private volatile CompletableFuture<Connection> connectionFuture;
     private volatile boolean disposed = false;
@@ -90,9 +71,6 @@ public final class CopilotClient implements AutoCloseable {
     private final Integer optionsPort;
     private volatile List<ModelInfo> modelsCache;
     private final Object modelsCacheLock = new Object();
-    private final List<com.github.copilot.sdk.json.SessionLifecycleHandler> lifecycleHandlers = new ArrayList<>();
-    private final Map<String, List<com.github.copilot.sdk.json.SessionLifecycleHandler>> typedLifecycleHandlers = new ConcurrentHashMap<>();
-    private final Object lifecycleHandlersLock = new Object();
 
     /**
      * Creates a new CopilotClient with default options.
@@ -127,30 +105,15 @@ public final class CopilotClient implements AutoCloseable {
 
         // Parse CliUrl if provided
         if (this.options.getCliUrl() != null && !this.options.getCliUrl().isEmpty()) {
-            URI uri = parseCliUrl(this.options.getCliUrl());
+            URI uri = CliServerManager.parseCliUrl(this.options.getCliUrl());
             this.optionsHost = uri.getHost();
             this.optionsPort = uri.getPort();
         } else {
             this.optionsHost = null;
             this.optionsPort = null;
         }
-    }
 
-    private static URI parseCliUrl(String url) {
-        // If it's just a port number, treat as localhost
-        try {
-            int port = Integer.parseInt(url);
-            return URI.create("http://localhost:" + port);
-        } catch (NumberFormatException e) {
-            // Not a port number, continue
-        }
-
-        // Add scheme if missing
-        if (!url.toLowerCase().startsWith("http://") && !url.toLowerCase().startsWith("https://")) {
-            url = "https://" + url;
-        }
-
-        return URI.create(url);
+        this.serverManager = new CliServerManager(this.options);
     }
 
     /**
@@ -174,20 +137,25 @@ public final class CopilotClient implements AutoCloseable {
 
         return CompletableFuture.supplyAsync(() -> {
             try {
-                Connection connection;
+                JsonRpcClient rpc;
+                Process process = null;
 
                 if (optionsHost != null && optionsPort != null) {
                     // External server (TCP)
-                    connection = connectToServer(null, optionsHost, optionsPort);
+                    rpc = serverManager.connectToServer(null, optionsHost, optionsPort);
                 } else {
                     // Child process (stdio or TCP)
-                    ProcessInfo processInfo = startCliServer();
-                    connection = connectToServer(processInfo.process, processInfo.port != null ? "localhost" : null,
-                            processInfo.port);
+                    CliServerManager.ProcessInfo processInfo = serverManager.startCliServer();
+                    process = processInfo.process();
+                    rpc = serverManager.connectToServer(process, processInfo.port() != null ? "localhost" : null,
+                            processInfo.port());
                 }
 
+                Connection connection = new Connection(rpc, process);
+
                 // Register handlers for server-to-client calls
-                registerRpcHandlers(connection.rpc);
+                RpcHandlerDispatcher dispatcher = new RpcHandlerDispatcher(sessions, lifecycleManager::dispatch);
+                dispatcher.registerHandlers(rpc);
 
                 // Verify protocol version
                 verifyProtocolVersion(connection);
@@ -196,261 +164,6 @@ public final class CopilotClient implements AutoCloseable {
                 return connection;
             } catch (Exception e) {
                 throw new CompletionException(e);
-            }
-        });
-    }
-
-    private void registerRpcHandlers(JsonRpcClient rpc) {
-        // Handle session events
-        rpc.registerMethodHandler("session.event", (requestId, params) -> {
-            try {
-                String sessionId = params.get("sessionId").asText();
-                JsonNode eventNode = params.get("event");
-                LOG.fine("Received session.event: " + eventNode);
-
-                CopilotSession session = sessions.get(sessionId);
-                if (session != null && eventNode != null) {
-                    AbstractSessionEvent event = SessionEventParser.parse(eventNode.toString());
-                    if (event != null) {
-                        session.dispatchEvent(event);
-                    }
-                }
-            } catch (Exception e) {
-                LOG.log(Level.SEVERE, "Error handling session event", e);
-            }
-        });
-
-        // Handle session lifecycle events
-        rpc.registerMethodHandler("session.lifecycle", (requestId, params) -> {
-            try {
-                String type = params.has("type") ? params.get("type").asText() : "";
-                String sessionId = params.has("sessionId") ? params.get("sessionId").asText() : "";
-
-                com.github.copilot.sdk.json.SessionLifecycleEvent event = new com.github.copilot.sdk.json.SessionLifecycleEvent();
-                event.setType(type);
-                event.setSessionId(sessionId);
-
-                if (params.has("metadata") && !params.get("metadata").isNull()) {
-                    com.github.copilot.sdk.json.SessionLifecycleEventMetadata metadata = MAPPER.treeToValue(
-                            params.get("metadata"), com.github.copilot.sdk.json.SessionLifecycleEventMetadata.class);
-                    event.setMetadata(metadata);
-                }
-
-                dispatchLifecycleEvent(event);
-            } catch (Exception e) {
-                LOG.log(Level.SEVERE, "Error handling session lifecycle event", e);
-            }
-        });
-
-        // Handle tool calls
-        rpc.registerMethodHandler("tool.call", (requestId, params) -> {
-            handleToolCall(rpc, requestId, params);
-        });
-
-        // Handle permission requests
-        rpc.registerMethodHandler("permission.request", (requestId, params) -> {
-            handlePermissionRequest(rpc, requestId, params);
-        });
-
-        // Handle user input requests
-        rpc.registerMethodHandler("userInput.request", (requestId, params) -> {
-            handleUserInputRequest(rpc, requestId, params);
-        });
-
-        // Handle hooks invocations
-        rpc.registerMethodHandler("hooks.invoke", (requestId, params) -> {
-            handleHooksInvoke(rpc, requestId, params);
-        });
-    }
-
-    private void handleToolCall(JsonRpcClient rpc, String requestId, JsonNode params) {
-        CompletableFuture.runAsync(() -> {
-            try {
-                String sessionId = params.get("sessionId").asText();
-                String toolCallId = params.get("toolCallId").asText();
-                String toolName = params.get("toolName").asText();
-                JsonNode arguments = params.get("arguments");
-
-                CopilotSession session = sessions.get(sessionId);
-                if (session == null) {
-                    rpc.sendErrorResponse(Long.parseLong(requestId), -32602, "Unknown session " + sessionId);
-                    return;
-                }
-
-                ToolDefinition tool = session.getTool(toolName);
-                if (tool == null || tool.getHandler() == null) {
-                    var result = new ToolResultObject().setTextResultForLlm("Tool '" + toolName + "' is not supported.")
-                            .setResultType("failure").setError("tool '" + toolName + "' not supported");
-                    rpc.sendResponse(Long.parseLong(requestId), Map.of("result", result));
-                    return;
-                }
-
-                var invocation = new ToolInvocation().setSessionId(sessionId).setToolCallId(toolCallId)
-                        .setToolName(toolName).setArguments(arguments);
-
-                tool.getHandler().invoke(invocation).thenAccept(result -> {
-                    try {
-                        ToolResultObject toolResult;
-                        if (result instanceof ToolResultObject tr) {
-                            toolResult = tr;
-                        } else {
-                            toolResult = new ToolResultObject().setResultType("success").setTextResultForLlm(
-                                    result instanceof String s ? s : MAPPER.writeValueAsString(result));
-                        }
-                        rpc.sendResponse(Long.parseLong(requestId), Map.of("result", toolResult));
-                    } catch (Exception e) {
-                        LOG.log(Level.SEVERE, "Error sending tool result", e);
-                    }
-                }).exceptionally(ex -> {
-                    try {
-                        var result = new ToolResultObject()
-                                .setTextResultForLlm(
-                                        "Invoking this tool produced an error. Detailed information is not available.")
-                                .setResultType("failure").setError(ex.getMessage());
-                        rpc.sendResponse(Long.parseLong(requestId), Map.of("result", result));
-                    } catch (Exception e) {
-                        LOG.log(Level.SEVERE, "Error sending tool error", e);
-                    }
-                    return null;
-                });
-            } catch (Exception e) {
-                LOG.log(Level.SEVERE, "Error handling tool call", e);
-                try {
-                    rpc.sendErrorResponse(Long.parseLong(requestId), -32603, e.getMessage());
-                } catch (IOException ioe) {
-                    LOG.log(Level.SEVERE, "Failed to send error response", ioe);
-                }
-            }
-        });
-    }
-
-    private void handlePermissionRequest(JsonRpcClient rpc, String requestId, JsonNode params) {
-        CompletableFuture.runAsync(() -> {
-            try {
-                String sessionId = params.get("sessionId").asText();
-                JsonNode permissionRequest = params.get("permissionRequest");
-
-                CopilotSession session = sessions.get(sessionId);
-                if (session == null) {
-                    var result = new PermissionRequestResult()
-                            .setKind("denied-no-approval-rule-and-could-not-request-from-user");
-                    rpc.sendResponse(Long.parseLong(requestId), Map.of("result", result));
-                    return;
-                }
-
-                session.handlePermissionRequest(permissionRequest).thenAccept(result -> {
-                    try {
-                        rpc.sendResponse(Long.parseLong(requestId), Map.of("result", result));
-                    } catch (IOException e) {
-                        LOG.log(Level.SEVERE, "Error sending permission result", e);
-                    }
-                }).exceptionally(ex -> {
-                    try {
-                        var result = new PermissionRequestResult()
-                                .setKind("denied-no-approval-rule-and-could-not-request-from-user");
-                        rpc.sendResponse(Long.parseLong(requestId), Map.of("result", result));
-                    } catch (IOException e) {
-                        LOG.log(Level.SEVERE, "Error sending permission denied", e);
-                    }
-                    return null;
-                });
-            } catch (Exception e) {
-                LOG.log(Level.SEVERE, "Error handling permission request", e);
-            }
-        });
-    }
-
-    private void handleUserInputRequest(JsonRpcClient rpc, String requestId, JsonNode params) {
-        LOG.fine("Received userInput.request: " + params);
-        CompletableFuture.runAsync(() -> {
-            try {
-                String sessionId = params.get("sessionId").asText();
-                String question = params.get("question").asText();
-                LOG.fine("Processing userInput for session " + sessionId + ", question: " + question);
-                JsonNode choicesNode = params.get("choices");
-                JsonNode allowFreeformNode = params.get("allowFreeform");
-
-                CopilotSession session = sessions.get(sessionId);
-                LOG.fine("Found session: " + (session != null));
-                if (session == null) {
-                    LOG.fine("Session not found, sending error");
-                    rpc.sendErrorResponse(Long.parseLong(requestId), -32602, "Unknown session " + sessionId);
-                    return;
-                }
-
-                var request = new com.github.copilot.sdk.json.UserInputRequest().setQuestion(question);
-                if (choicesNode != null && choicesNode.isArray()) {
-                    var choices = new ArrayList<String>();
-                    for (JsonNode choice : choicesNode) {
-                        choices.add(choice.asText());
-                    }
-                    request.setChoices(choices);
-                }
-                if (allowFreeformNode != null) {
-                    request.setAllowFreeform(allowFreeformNode.asBoolean());
-                }
-
-                session.handleUserInputRequest(request).thenAccept(response -> {
-                    try {
-                        // Ensure answer is never null - CLI requires a non-null string
-                        String answer = response.getAnswer() != null ? response.getAnswer() : "";
-                        LOG.fine("Sending userInput response: answer=" + answer + ", wasFreeform="
-                                + response.isWasFreeform());
-                        rpc.sendResponse(Long.parseLong(requestId),
-                                Map.of("answer", answer, "wasFreeform", response.isWasFreeform()));
-                    } catch (IOException e) {
-                        LOG.log(Level.SEVERE, "Error sending user input response", e);
-                    }
-                }).exceptionally(ex -> {
-                    LOG.log(Level.WARNING, "User input handler exception", ex);
-                    try {
-                        rpc.sendErrorResponse(Long.parseLong(requestId), -32603,
-                                "User input handler error: " + ex.getMessage());
-                    } catch (IOException e) {
-                        LOG.log(Level.SEVERE, "Error sending user input error", e);
-                    }
-                    return null;
-                });
-            } catch (Exception e) {
-                LOG.log(Level.SEVERE, "Error handling user input request", e);
-            }
-        });
-    }
-
-    private void handleHooksInvoke(JsonRpcClient rpc, String requestId, JsonNode params) {
-        CompletableFuture.runAsync(() -> {
-            try {
-                String sessionId = params.get("sessionId").asText();
-                String hookType = params.get("hookType").asText();
-                JsonNode input = params.get("input");
-
-                CopilotSession session = sessions.get(sessionId);
-                if (session == null) {
-                    rpc.sendErrorResponse(Long.parseLong(requestId), -32602, "Unknown session " + sessionId);
-                    return;
-                }
-
-                session.handleHooksInvoke(hookType, input).thenAccept(output -> {
-                    try {
-                        if (output != null) {
-                            rpc.sendResponse(Long.parseLong(requestId), Map.of("output", output));
-                        } else {
-                            rpc.sendResponse(Long.parseLong(requestId), Map.of("output", (Object) null));
-                        }
-                    } catch (IOException e) {
-                        LOG.log(Level.SEVERE, "Error sending hooks response", e);
-                    }
-                }).exceptionally(ex -> {
-                    try {
-                        rpc.sendErrorResponse(Long.parseLong(requestId), -32603,
-                                "Hooks handler error: " + ex.getMessage());
-                    } catch (IOException e) {
-                        LOG.log(Level.SEVERE, "Error sending hooks error", e);
-                    }
-                    return null;
-                });
-            } catch (Exception e) {
-                LOG.log(Level.SEVERE, "Error handling hooks invoke", e);
             }
         });
     }
@@ -551,49 +264,11 @@ public final class CopilotClient implements AutoCloseable {
      */
     public CompletableFuture<CopilotSession> createSession(SessionConfig config) {
         return ensureConnected().thenCompose(connection -> {
-            var request = new CreateSessionRequest();
-            if (config != null) {
-                request.setModel(config.getModel());
-                request.setSessionId(config.getSessionId());
-                request.setReasoningEffort(config.getReasoningEffort());
-                request.setTools(config.getTools() != null
-                        ? config.getTools().stream()
-                                .map(t -> new ToolDef(t.getName(), t.getDescription(), t.getParameters()))
-                                .collect(Collectors.toList())
-                        : null);
-                request.setSystemMessage(config.getSystemMessage());
-                request.setAvailableTools(config.getAvailableTools());
-                request.setExcludedTools(config.getExcludedTools());
-                request.setProvider(config.getProvider());
-                request.setRequestPermission(config.getOnPermissionRequest() != null ? true : null);
-                boolean requestUserInput = config.getOnUserInputRequest() != null;
-                LOG.fine("Setting requestUserInput: " + requestUserInput + " for session.create");
-                request.setRequestUserInput(requestUserInput ? true : null);
-                request.setHooks(config.getHooks() != null && config.getHooks().hasHooks() ? true : null);
-                request.setWorkingDirectory(config.getWorkingDirectory());
-                request.setStreaming(config.isStreaming() ? true : null);
-                request.setMcpServers(config.getMcpServers());
-                request.setCustomAgents(config.getCustomAgents());
-                request.setInfiniteSessions(config.getInfiniteSessions());
-                request.setSkillDirectories(config.getSkillDirectories());
-                request.setDisabledSkills(config.getDisabledSkills());
-                request.setConfigDir(config.getConfigDir());
-            }
+            var request = SessionRequestBuilder.buildCreateRequest(config);
 
             return connection.rpc.invoke("session.create", request, CreateSessionResponse.class).thenApply(response -> {
                 var session = new CopilotSession(response.getSessionId(), connection.rpc, response.getWorkspacePath());
-                if (config != null && config.getTools() != null) {
-                    session.registerTools(config.getTools());
-                }
-                if (config != null && config.getOnPermissionRequest() != null) {
-                    session.registerPermissionHandler(config.getOnPermissionRequest());
-                }
-                if (config != null && config.getOnUserInputRequest() != null) {
-                    session.registerUserInputHandler(config.getOnUserInputRequest());
-                }
-                if (config != null && config.getHooks() != null) {
-                    session.registerHooks(config.getHooks());
-                }
+                SessionRequestBuilder.configureSession(session, config);
                 sessions.put(response.getSessionId(), session);
                 return session;
             });
@@ -627,48 +302,11 @@ public final class CopilotClient implements AutoCloseable {
      */
     public CompletableFuture<CopilotSession> resumeSession(String sessionId, ResumeSessionConfig config) {
         return ensureConnected().thenCompose(connection -> {
-            var request = new ResumeSessionRequest();
-            request.setSessionId(sessionId);
-            if (config != null) {
-                request.setModel(config.getModel());
-                request.setReasoningEffort(config.getReasoningEffort());
-                request.setTools(config.getTools() != null
-                        ? config.getTools().stream()
-                                .map(t -> new ToolDef(t.getName(), t.getDescription(), t.getParameters()))
-                                .collect(Collectors.toList())
-                        : null);
-                request.setSystemMessage(config.getSystemMessage());
-                request.setAvailableTools(config.getAvailableTools());
-                request.setExcludedTools(config.getExcludedTools());
-                request.setProvider(config.getProvider());
-                request.setRequestPermission(config.getOnPermissionRequest() != null ? true : null);
-                request.setRequestUserInput(config.getOnUserInputRequest() != null ? true : null);
-                request.setHooks(config.getHooks() != null && config.getHooks().hasHooks() ? true : null);
-                request.setWorkingDirectory(config.getWorkingDirectory());
-                request.setConfigDir(config.getConfigDir());
-                request.setDisableResume(config.isDisableResume() ? true : null);
-                request.setStreaming(config.isStreaming() ? true : null);
-                request.setMcpServers(config.getMcpServers());
-                request.setCustomAgents(config.getCustomAgents());
-                request.setSkillDirectories(config.getSkillDirectories());
-                request.setDisabledSkills(config.getDisabledSkills());
-                request.setInfiniteSessions(config.getInfiniteSessions());
-            }
+            var request = SessionRequestBuilder.buildResumeRequest(sessionId, config);
 
             return connection.rpc.invoke("session.resume", request, ResumeSessionResponse.class).thenApply(response -> {
                 var session = new CopilotSession(response.getSessionId(), connection.rpc, response.getWorkspacePath());
-                if (config != null && config.getTools() != null) {
-                    session.registerTools(config.getTools());
-                }
-                if (config != null && config.getOnPermissionRequest() != null) {
-                    session.registerPermissionHandler(config.getOnPermissionRequest());
-                }
-                if (config != null && config.getOnUserInputRequest() != null) {
-                    session.registerUserInputHandler(config.getOnUserInputRequest());
-                }
-                if (config != null && config.getHooks() != null) {
-                    session.registerHooks(config.getHooks());
-                }
+                SessionRequestBuilder.configureSession(session, config);
                 sessions.put(response.getSessionId(), session);
                 return session;
             });
@@ -884,15 +522,8 @@ public final class CopilotClient implements AutoCloseable {
      *            a callback that receives lifecycle events
      * @return an AutoCloseable that, when closed, unsubscribes the handler
      */
-    public AutoCloseable onLifecycle(com.github.copilot.sdk.json.SessionLifecycleHandler handler) {
-        synchronized (lifecycleHandlersLock) {
-            lifecycleHandlers.add(handler);
-        }
-        return () -> {
-            synchronized (lifecycleHandlersLock) {
-                lifecycleHandlers.remove(handler);
-            }
-        };
+    public AutoCloseable onLifecycle(SessionLifecycleHandler handler) {
+        return lifecycleManager.subscribe(handler);
     }
 
     /**
@@ -906,47 +537,8 @@ public final class CopilotClient implements AutoCloseable {
      *            a callback that receives events of the specified type
      * @return an AutoCloseable that, when closed, unsubscribes the handler
      */
-    public AutoCloseable onLifecycle(String eventType, com.github.copilot.sdk.json.SessionLifecycleHandler handler) {
-        synchronized (lifecycleHandlersLock) {
-            typedLifecycleHandlers.computeIfAbsent(eventType, k -> new ArrayList<>()).add(handler);
-        }
-        return () -> {
-            synchronized (lifecycleHandlersLock) {
-                List<com.github.copilot.sdk.json.SessionLifecycleHandler> handlers = typedLifecycleHandlers
-                        .get(eventType);
-                if (handlers != null) {
-                    handlers.remove(handler);
-                }
-            }
-        };
-    }
-
-    void dispatchLifecycleEvent(com.github.copilot.sdk.json.SessionLifecycleEvent event) {
-        List<com.github.copilot.sdk.json.SessionLifecycleHandler> typed;
-        List<com.github.copilot.sdk.json.SessionLifecycleHandler> wildcard;
-
-        synchronized (lifecycleHandlersLock) {
-            List<com.github.copilot.sdk.json.SessionLifecycleHandler> handlers = typedLifecycleHandlers
-                    .get(event.getType());
-            typed = handlers != null ? new ArrayList<>(handlers) : new ArrayList<>();
-            wildcard = new ArrayList<>(lifecycleHandlers);
-        }
-
-        for (com.github.copilot.sdk.json.SessionLifecycleHandler handler : typed) {
-            try {
-                handler.onLifecycleEvent(event);
-            } catch (Exception e) {
-                LOG.log(Level.WARNING, "Lifecycle handler error", e);
-            }
-        }
-
-        for (com.github.copilot.sdk.json.SessionLifecycleHandler handler : wildcard) {
-            try {
-                handler.onLifecycleEvent(event);
-            } catch (Exception e) {
-                LOG.log(Level.WARNING, "Lifecycle handler error", e);
-            }
-        }
+    public AutoCloseable onLifecycle(String eventType, SessionLifecycleHandler handler) {
+        return lifecycleManager.subscribe(eventType, handler);
     }
 
     private CompletableFuture<Connection> ensureConnected() {
@@ -956,154 +548,6 @@ public final class CopilotClient implements AutoCloseable {
 
         start();
         return connectionFuture;
-    }
-
-    private ProcessInfo startCliServer() throws IOException, InterruptedException {
-        String cliPath = options.getCliPath() != null ? options.getCliPath() : "copilot";
-        var args = new ArrayList<String>();
-
-        if (options.getCliArgs() != null) {
-            args.addAll(Arrays.asList(options.getCliArgs()));
-        }
-
-        args.add("--server");
-        args.add("--log-level");
-        args.add(options.getLogLevel());
-
-        if (options.isUseStdio()) {
-            args.add("--stdio");
-        } else if (options.getPort() > 0) {
-            args.add("--port");
-            args.add(String.valueOf(options.getPort()));
-        }
-
-        // Add auth-related flags
-        if (options.getGithubToken() != null && !options.getGithubToken().isEmpty()) {
-            args.add("--auth-token-env");
-            args.add("COPILOT_SDK_AUTH_TOKEN");
-        }
-
-        // Default UseLoggedInUser to false when GithubToken is provided
-        boolean useLoggedInUser = options.getUseLoggedInUser() != null
-                ? options.getUseLoggedInUser()
-                : (options.getGithubToken() == null || options.getGithubToken().isEmpty());
-        if (!useLoggedInUser) {
-            args.add("--no-auto-login");
-        }
-
-        List<String> command = resolveCliCommand(cliPath, args);
-
-        var pb = new ProcessBuilder(command);
-        pb.redirectErrorStream(false);
-
-        if (options.getCwd() != null) {
-            pb.directory(new File(options.getCwd()));
-        }
-
-        if (options.getEnvironment() != null) {
-            pb.environment().clear();
-            pb.environment().putAll(options.getEnvironment());
-        }
-        pb.environment().remove("NODE_DEBUG");
-
-        // Set auth token in environment if provided
-        if (options.getGithubToken() != null && !options.getGithubToken().isEmpty()) {
-            pb.environment().put("COPILOT_SDK_AUTH_TOKEN", options.getGithubToken());
-        }
-
-        Process process = pb.start();
-
-        // Forward stderr to logger in background
-        var stderrThread = new Thread(() -> {
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    LOG.fine("[CLI] " + line);
-                }
-            } catch (IOException e) {
-                LOG.log(Level.FINE, "Error reading stderr", e);
-            }
-        }, "cli-stderr-reader");
-        stderrThread.setDaemon(true);
-        stderrThread.start();
-
-        Integer detectedPort = null;
-        if (!options.isUseStdio()) {
-            // Wait for port announcement
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-                Pattern portPattern = Pattern.compile("listening on port (\\d+)", Pattern.CASE_INSENSITIVE);
-                long deadline = System.currentTimeMillis() + 30000;
-
-                while (System.currentTimeMillis() < deadline) {
-                    String line = reader.readLine();
-                    if (line == null) {
-                        throw new IOException("CLI process exited unexpectedly");
-                    }
-
-                    Matcher matcher = portPattern.matcher(line);
-                    if (matcher.find()) {
-                        detectedPort = Integer.parseInt(matcher.group(1));
-                        break;
-                    }
-                }
-
-                if (detectedPort == null) {
-                    process.destroyForcibly();
-                    throw new IOException("Timeout waiting for CLI to announce port");
-                }
-            }
-        }
-
-        return new ProcessInfo(process, detectedPort);
-    }
-
-    private List<String> resolveCliCommand(String cliPath, List<String> args) {
-        boolean isJsFile = cliPath.toLowerCase().endsWith(".js");
-
-        if (isJsFile) {
-            var result = new ArrayList<String>();
-            result.add("node");
-            result.add(cliPath);
-            result.addAll(args);
-            return result;
-        }
-
-        // On Windows, use cmd /c to resolve the executable
-        String os = System.getProperty("os.name").toLowerCase();
-        if (os.contains("win") && !new File(cliPath).isAbsolute()) {
-            var result = new ArrayList<String>();
-            result.add("cmd");
-            result.add("/c");
-            result.add(cliPath);
-            result.addAll(args);
-            return result;
-        }
-
-        var result = new ArrayList<String>();
-        result.add(cliPath);
-        result.addAll(args);
-        return result;
-    }
-
-    private Connection connectToServer(Process process, String tcpHost, Integer tcpPort) throws IOException {
-        JsonRpcClient rpc;
-
-        if (options.isUseStdio()) {
-            if (process == null) {
-                throw new IllegalStateException("CLI process not started");
-            }
-            rpc = JsonRpcClient.fromProcess(process);
-        } else {
-            if (tcpHost == null || tcpPort == null) {
-                throw new IllegalStateException("Cannot connect because TCP host or port are not available");
-            }
-            Socket socket = new Socket(tcpHost, tcpPort);
-            rpc = JsonRpcClient.fromSocket(socket);
-        }
-
-        return new Connection(rpc, process);
     }
 
     @Override
@@ -1117,9 +561,6 @@ public final class CopilotClient implements AutoCloseable {
             LOG.log(Level.FINE, "Error during close", e);
         }
     }
-
-    private static record ProcessInfo(Process process, Integer port) {
-    };
 
     private static record Connection(JsonRpcClient rpc, Process process) {
     };
