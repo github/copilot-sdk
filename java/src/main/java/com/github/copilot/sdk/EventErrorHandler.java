@@ -16,9 +16,8 @@ import com.github.copilot.sdk.events.AbstractSessionEvent;
  * being dispatched and the exception that was thrown.
  *
  * <p>
- * The default behavior logs errors at {@link java.util.logging.Level#SEVERE}.
- * You can override this to integrate with your own logging, metrics, or
- * error-reporting systems:
+ * When no error handler is set, exceptions are silently consumed. Applications
+ * should set an error handler to log, track, or respond to handler failures:
  *
  * <pre>{@code
  * session.setEventErrorHandler((event, exception) -> {
@@ -28,10 +27,18 @@ import com.github.copilot.sdk.events.AbstractSessionEvent;
  * }</pre>
  *
  * <p>
- * If the error handler itself throws an exception, that exception is silently
- * caught and logged to prevent cascading failures.
+ * Whether dispatch continues or stops after an error is controlled by the
+ * {@link EventErrorPolicy} set via
+ * {@link CopilotSession#setEventErrorPolicy(EventErrorPolicy)}. The error
+ * handler is always invoked regardless of the policy.
+ *
+ * <p>
+ * If the error handler itself throws an exception, that exception is caught and
+ * logged at {@link java.util.logging.Level#SEVERE}, and dispatch is stopped
+ * regardless of the configured policy.
  *
  * @see CopilotSession#setEventErrorHandler(EventErrorHandler)
+ * @see EventErrorPolicy
  * @since 1.0.8
  */
 @FunctionalInterface
