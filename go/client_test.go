@@ -25,25 +25,20 @@ func TestClient_HandleToolCallRequest(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		params := map[string]any{
-			"sessionId":  session.SessionID,
-			"toolCallId": "123",
-			"toolName":   "missing_tool",
-			"arguments":  map[string]any{},
+		params := toolCallRequest{
+			SessionID:  session.SessionID,
+			ToolCallID: "123",
+			ToolName:   "missing_tool",
+			Arguments:  map[string]any{},
 		}
 		response, _ := client.handleToolCallRequest(params)
 
-		result, ok := response["result"].(ToolResult)
-		if !ok {
-			t.Fatalf("Expected result to be ToolResult, got %T", response["result"])
+		if response.Result.ResultType != "failure" {
+			t.Errorf("Expected resultType to be 'failure', got %q", response.Result.ResultType)
 		}
 
-		if result.ResultType != "failure" {
-			t.Errorf("Expected resultType to be 'failure', got %q", result.ResultType)
-		}
-
-		if result.Error != "tool 'missing_tool' not supported" {
-			t.Errorf("Expected error to be \"tool 'missing_tool' not supported\", got %q", result.Error)
+		if response.Result.Error != "tool 'missing_tool' not supported" {
+			t.Errorf("Expected error to be \"tool 'missing_tool' not supported\", got %q", response.Result.Error)
 		}
 	})
 }

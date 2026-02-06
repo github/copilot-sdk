@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"reflect"
 	"sync"
 )
 
@@ -23,43 +24,39 @@ func (e *Error) Error() string {
 // Request represents a JSON-RPC 2.0 request
 type Request struct {
 	JSONRPC string          `json:"jsonrpc"`
-	ID      json.RawMessage `json:"id"`
+	ID      json.RawMessage `json:"id"` // nil for notifications
 	Method  string          `json:"method"`
-	Params  map[string]any  `json:"params"`
+	Params  json.RawMessage `json:"params"`
+}
+
+func (r *Request) IsCall() bool {
+	return len(r.ID) > 0
 }
 
 // Response represents a JSON-RPC 2.0 response
 type Response struct {
 	JSONRPC string          `json:"jsonrpc"`
 	ID      json.RawMessage `json:"id,omitempty"`
-	Result  map[string]any  `json:"result,omitempty"`
+	Result  json.RawMessage `json:"result,omitempty"`
 	Error   *Error          `json:"error,omitempty"`
 }
 
-// Notification represents a JSON-RPC 2.0 notification
-type Notification struct {
-	JSONRPC string         `json:"jsonrpc"`
-	Method  string         `json:"method"`
-	Params  map[string]any `json:"params"`
-}
-
 // NotificationHandler handles incoming notifications
-type NotificationHandler func(method string, params map[string]any)
+type NotificationHandler func(method string, params json.RawMessage)
 
 // RequestHandler handles incoming server requests and returns a result or error
-type RequestHandler func(params map[string]any) (map[string]any, *Error)
+type RequestHandler func(params json.RawMessage) (json.RawMessage, *Error)
 
 // Client is a minimal JSON-RPC 2.0 client for stdio transport
 type Client struct {
-	stdin               io.WriteCloser
-	stdout              io.ReadCloser
-	mu                  sync.Mutex
-	pendingRequests     map[string]chan *Response
-	notificationHandler NotificationHandler
-	requestHandlers     map[string]RequestHandler
-	running             bool
-	stopChan            chan struct{}
-	wg                  sync.WaitGroup
+	stdin           io.WriteCloser
+	stdout          io.ReadCloser
+	mu              sync.Mutex
+	pendingRequests map[string]chan *Response
+	requestHandlers map[string]RequestHandler
+	running         bool
+	stopChan        chan struct{}
+	wg              sync.WaitGroup
 }
 
 // NewClient creates a new JSON-RPC client
@@ -96,11 +93,55 @@ func (c *Client) Stop() {
 	c.wg.Wait()
 }
 
-// SetNotificationHandler sets the handler for incoming notifications
-func (c *Client) SetNotificationHandler(handler NotificationHandler) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.notificationHandler = handler
+func NotificationHandlerFor[In any](handler func(params In)) RequestHandler {
+	return func(params json.RawMessage) (json.RawMessage, *Error) {
+		var in In
+		// If In is a pointer type, allocate the underlying value and unmarshal into it directly
+		var target any = &in
+		if t := reflect.TypeFor[In](); t.Kind() == reflect.Pointer {
+			in = reflect.New(t.Elem()).Interface().(In)
+			target = in
+		}
+		if err := json.Unmarshal(params, target); err != nil {
+			return nil, &Error{
+				Code:    -32602,
+				Message: fmt.Sprintf("Invalid params: %v", err),
+			}
+		}
+		handler(in)
+		return nil, nil
+	}
+}
+
+// RequestHandlerFor creates a RequestHandler from a typed function
+func RequestHandlerFor[In, Out any](handler func(params In) (Out, *Error)) RequestHandler {
+	return func(params json.RawMessage) (json.RawMessage, *Error) {
+		var in In
+		// If In is a pointer type, allocate the underlying value and unmarshal into it directly
+		var target any = &in
+		if t := reflect.TypeOf(in); t != nil && t.Kind() == reflect.Pointer {
+			in = reflect.New(t.Elem()).Interface().(In)
+			target = in
+		}
+		if err := json.Unmarshal(params, target); err != nil {
+			return nil, &Error{
+				Code:    -32602,
+				Message: fmt.Sprintf("Invalid params: %v", err),
+			}
+		}
+		out, errj := handler(in)
+		if errj != nil {
+			return nil, errj
+		}
+		outData, err := json.Marshal(out)
+		if err != nil {
+			return nil, &Error{
+				Code:    -32603,
+				Message: fmt.Sprintf("Failed to marshal response: %v", err),
+			}
+		}
+		return outData, nil
+	}
 }
 
 // SetRequestHandler registers a handler for incoming requests from the server
@@ -115,7 +156,7 @@ func (c *Client) SetRequestHandler(method string, handler RequestHandler) {
 }
 
 // Request sends a JSON-RPC request and waits for the response
-func (c *Client) Request(method string, params map[string]any) (map[string]any, error) {
+func (c *Client) Request(method string, params any) (json.RawMessage, error) {
 	requestID := generateUUID()
 
 	// Create response channel
@@ -131,12 +172,17 @@ func (c *Client) Request(method string, params map[string]any) (map[string]any, 
 		c.mu.Unlock()
 	}()
 
+	paramsData, err := json.Marshal(params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal params: %w", err)
+	}
+
 	// Send request
 	request := Request{
 		JSONRPC: "2.0",
 		ID:      json.RawMessage(`"` + requestID + `"`),
 		Method:  method,
-		Params:  params,
+		Params:  json.RawMessage(paramsData),
 	}
 
 	if err := c.sendMessage(request); err != nil {
@@ -156,11 +202,16 @@ func (c *Client) Request(method string, params map[string]any) (map[string]any, 
 }
 
 // Notify sends a JSON-RPC notification (no response expected)
-func (c *Client) Notify(method string, params map[string]any) error {
-	notification := Notification{
+func (c *Client) Notify(method string, params any) error {
+	paramsData, err := json.Marshal(params)
+	if err != nil {
+		return fmt.Errorf("failed to marshal params: %w", err)
+	}
+
+	notification := Request{
 		JSONRPC: "2.0",
 		Method:  method,
-		Params:  params,
+		Params:  json.RawMessage(paramsData),
 	}
 	return c.sendMessage(notification)
 }
@@ -231,7 +282,7 @@ func (c *Client) readLoop() {
 
 		// Try to parse as request first (has both ID and Method)
 		var request Request
-		if err := json.Unmarshal(body, &request); err == nil && request.Method != "" && len(request.ID) > 0 {
+		if err := json.Unmarshal(body, &request); err == nil && request.Method != "" {
 			c.handleRequest(&request)
 			continue
 		}
@@ -240,13 +291,6 @@ func (c *Client) readLoop() {
 		var response Response
 		if err := json.Unmarshal(body, &response); err == nil && len(response.ID) > 0 {
 			c.handleResponse(&response)
-			continue
-		}
-
-		// Try to parse as notification (has Method but no ID)
-		var notification Notification
-		if err := json.Unmarshal(body, &notification); err == nil && notification.Method != "" {
-			c.handleNotification(&notification)
 			continue
 		}
 	}
@@ -270,24 +314,21 @@ func (c *Client) handleResponse(response *Response) {
 	}
 }
 
-// handleNotification dispatches a notification to the handler
-func (c *Client) handleNotification(notification *Notification) {
-	c.mu.Lock()
-	handler := c.notificationHandler
-	c.mu.Unlock()
-
-	if handler != nil {
-		handler(notification.Method, notification.Params)
-	}
-}
-
 func (c *Client) handleRequest(request *Request) {
 	c.mu.Lock()
 	handler := c.requestHandlers[request.Method]
 	c.mu.Unlock()
 
 	if handler == nil {
-		c.sendErrorResponse(request.ID, -32601, fmt.Sprintf("Method not found: %s", request.Method), nil)
+		if request.IsCall() {
+			c.sendErrorResponse(request.ID, -32601, fmt.Sprintf("Method not found: %s", request.Method), nil)
+		}
+		return
+	}
+
+	// Notifications run synchronously, calls run in a goroutine to avoid blocking
+	if !request.IsCall() {
+		handler(request.Params)
 		return
 	}
 
@@ -303,14 +344,11 @@ func (c *Client) handleRequest(request *Request) {
 			c.sendErrorResponse(request.ID, err.Code, err.Message, err.Data)
 			return
 		}
-		if result == nil {
-			result = make(map[string]any)
-		}
 		c.sendResponse(request.ID, result)
 	}()
 }
 
-func (c *Client) sendResponse(id json.RawMessage, result map[string]any) {
+func (c *Client) sendResponse(id json.RawMessage, result json.RawMessage) {
 	response := Response{
 		JSONRPC: "2.0",
 		ID:      id,
