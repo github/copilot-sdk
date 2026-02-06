@@ -158,26 +158,45 @@ public final class CopilotSession implements AutoCloseable {
      * <p>
      * When an event handler registered via {@link #on(Consumer)} or
      * {@link #on(Class, Consumer)} throws an exception during event dispatch, the
-     * error handler is invoked instead of the default behavior (logging at
-     * {@link Level#SEVERE}).
+     * error handler is invoked to handle the error. The handler's return value
+     * controls whether dispatch continues to remaining handlers:
+     * <ul>
+     * <li>Return {@code true} to continue dispatching (default behavior for
+     * independent listeners)</li>
+     * <li>Return {@code false} to stop dispatching (short-circuit for validation
+     * or critical errors)</li>
+     * </ul>
      *
      * <p>
-     * If the error handler itself throws an exception, that exception is silently
-     * caught and logged to prevent cascading failures.
+     * When no error handler is set, exceptions are silently caught and dispatch
+     * continues. Applications should set an error handler to log, track, or respond
+     * to handler failures.
+     *
+     * <p>
+     * If the error handler itself throws an exception, that exception is caught,
+     * logged at {@link Level#SEVERE}, and dispatch is stopped to prevent cascading
+     * failures.
      *
      * <p>
      * <b>Example:</b>
      *
      * <pre>{@code
+     * // Continue on error (log and keep dispatching)
      * session.setEventErrorHandler((event, exception) -> {
-     * 	metrics.increment("handler.errors");
-     * 	logger.error("Handler failed on {}: {}", event.getType(), exception.getMessage());
+     * 	logger.error("Handler failed: {}", exception.getMessage(), exception);
+     * 	return true; // keep dispatching
+     * });
+     *
+     * // Short-circuit on error (stop at first failure)
+     * session.setEventErrorHandler((event, exception) -> {
+     * 	logger.error("Handler failed, stopping: {}", exception.getMessage(), exception);
+     * 	return false; // stop dispatching
      * });
      * }</pre>
      *
      * @param handler
-     *            the error handler, or {@code null} to restore default logging
-     *            behavior
+     *            the error handler, or {@code null} to restore default silent
+     *            continuation behavior
      * @see EventErrorHandler
      * @since 1.0.8
      */
@@ -330,8 +349,10 @@ public final class CopilotSession implements AutoCloseable {
      * instead.
      *
      * <p>
-     * <b>Exception isolation:</b> If a handler throws an exception, the error is
-     * logged and remaining handlers still execute.
+     * <b>Exception handling:</b> If a handler throws an exception, the error is
+     * routed to the configured {@link EventErrorHandler} (if set), which can choose
+     * to continue or stop dispatching. When no error handler is set, exceptions are
+     * silently caught and remaining handlers still execute.
      *
      * <p>
      * <b>Example:</b>
@@ -347,6 +368,7 @@ public final class CopilotSession implements AutoCloseable {
      * @return a Closeable that, when closed, unsubscribes the handler
      * @see #on(Class, Consumer)
      * @see AbstractSessionEvent
+     * @see #setEventErrorHandler(EventErrorHandler)
      */
     public Closeable on(Consumer<AbstractSessionEvent> handler) {
         eventHandlers.add(handler);
@@ -361,8 +383,10 @@ public final class CopilotSession implements AutoCloseable {
      * matching the specified type.
      *
      * <p>
-     * <b>Exception isolation:</b> If a handler throws an exception, the error is
-     * logged and remaining handlers still execute.
+     * <b>Exception handling:</b> If a handler throws an exception, the error is
+     * routed to the configured {@link EventErrorHandler} (if set), which can choose
+     * to continue or stop dispatching. When no error handler is set, exceptions are
+     * silently caught and remaining handlers still execute.
      *
      * <p>
      * <b>Example Usage</b>
@@ -394,6 +418,7 @@ public final class CopilotSession implements AutoCloseable {
      * @return a Closeable that unsubscribes the handler when closed
      * @see #on(Consumer)
      * @see AbstractSessionEvent
+     * @see #setEventErrorHandler(EventErrorHandler)
      */
     public <T extends AbstractSessionEvent> Closeable on(Class<T> eventType, Consumer<T> handler) {
         Consumer<AbstractSessionEvent> wrapper = event -> {
@@ -410,11 +435,20 @@ public final class CopilotSession implements AutoCloseable {
      * <p>
      * This is called internally when events are received from the server. Each
      * handler is invoked in its own try/catch block so that an exception thrown by
-     * one handler does not prevent subsequent handlers from executing.
+     * one handler does not prevent subsequent handlers from executing by default.
      * <p>
      * If a custom {@link EventErrorHandler} has been set via
      * {@link #setEventErrorHandler(EventErrorHandler)}, it is called with the event
-     * and exception. Otherwise, exceptions are logged at {@link Level#SEVERE}.
+     * and exception. The error handler's return value controls whether dispatch
+     * continues:
+     * <ul>
+     * <li>{@code true} - continue dispatching to remaining handlers</li>
+     * <li>{@code false} - stop dispatching (short-circuit)</li>
+     * </ul>
+     * <p>
+     * When no error handler is set, exceptions are silently caught and dispatch
+     * continues. If the error handler itself throws an exception, dispatch is
+     * stopped and the error is logged at {@link Level#SEVERE}.
      *
      * @param event
      *            the event to dispatch
@@ -428,13 +462,15 @@ public final class CopilotSession implements AutoCloseable {
                 EventErrorHandler errorHandler = this.eventErrorHandler;
                 if (errorHandler != null) {
                     try {
-                        errorHandler.handleError(event, e);
+                        if (!errorHandler.handleError(event, e)) {
+                            break; // stop dispatching
+                        }
                     } catch (Exception errorHandlerException) {
                         LOG.log(Level.SEVERE, "Error in event error handler", errorHandlerException);
+                        break; // error handler itself failed — stop to be safe
                     }
-                } else {
-                    LOG.log(Level.SEVERE, "Error in event handler", e);
                 }
+                // No error handler set: continue silently (no logging)
             }
         }
     }
