@@ -1,6 +1,9 @@
 name: "Go SDK Tests"
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     paths:
       - 'go/**'
