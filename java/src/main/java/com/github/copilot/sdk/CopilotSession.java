@@ -469,8 +469,9 @@ public final class CopilotSession implements AutoCloseable {
                         LOG.log(Level.SEVERE, "Error in event error handler", errorHandlerException);
                         break; // error handler itself failed — stop to be safe
                     }
+                } else {
+                    // No error handler set: continue silently (no logging)
                 }
-                // No error handler set: continue silently (no logging)
             }
         }
     }

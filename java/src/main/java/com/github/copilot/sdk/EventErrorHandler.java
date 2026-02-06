@@ -57,7 +57,8 @@ import com.github.copilot.sdk.events.AbstractSessionEvent;
  * <p>
  * If the error handler itself throws an exception, that exception is caught,
  * logged at {@link java.util.logging.Level#SEVERE}, and dispatch is stopped to
- * prevent cascading failures.
+ * prevent cascading failures. When the error handler throws, its return value
+ * (if it would have been computed) is ignored.
  *
  * @see CopilotSession#setEventErrorHandler(EventErrorHandler)
  * @since 1.0.8
