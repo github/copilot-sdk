@@ -389,6 +389,19 @@ class CopilotClient:
 
         cfg = config or {}
 
+        # Validate model if specified
+        model = cfg.get("model")
+        if model:
+            # list_models() caches results, so this has minimal overhead
+            available_models = await self.list_models()
+            model_lower = model.lower()
+
+            if not any(m.id.lower() == model_lower for m in available_models):
+                valid_ids = [m.id for m in available_models]
+                raise ValueError(
+                    f"Invalid model '{model}'. Available models: {', '.join(valid_ids)}"
+                )
+
         tool_defs = []
         tools = cfg.get("tools")
         if tools:
