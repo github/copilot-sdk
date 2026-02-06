@@ -12,15 +12,15 @@ class CopilotSDK {
             client.start().get();
 
             // Create a session
-            var sessionConfig = new SessionConfig().setModel("claude-sonnet-4.5");
-            var session = client.createSession(sessionConfig).get();
+            var session = client.createSession(
+                new SessionConfig().setModel("claude-sonnet-4.5")).get();
 
-            // Wait for response using session.idle event
-            var done = new CompletableFuture<Void>();
-
+            // Handle assistant message events
             session.on(AssistantMessageEvent.class, msg -> {
                 System.out.println(msg.getData().getContent());
             });
+
+            // Handle session usage info events
             session.on(SessionUsageInfoEvent.class, usage -> {
                 var data = usage.getData();
                 System.out.println("\n--- Usage Metrics ---");
@@ -28,11 +28,11 @@ class CopilotSDK {
                 System.out.println("Token limit: " + (int) data.getTokenLimit());
                 System.out.println("Messages count: " + (int) data.getMessagesLength());
             });
-            session.on(SessionIdleEvent.class, idle -> done.complete(null));
 
-            // Send a message and wait for completion
-            session.send(new MessageOptions().setPrompt("What is 2+2?")).get();
-            done.get();
+            // Send a message
+            var completable = session.sendAndWait(new MessageOptions().setPrompt("What is 2+2?"));
+            // and wait for completion
+            completable.get();
         }
     }
 }
