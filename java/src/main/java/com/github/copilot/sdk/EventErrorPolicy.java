@@ -11,12 +11,14 @@ package com.github.copilot.sdk;
  * This policy is set via
  * {@link CopilotSession#setEventErrorPolicy(EventErrorPolicy)} and determines
  * whether remaining event listeners continue to execute after a preceding
- * listener throws an exception.
+ * listener throws an exception. Errors are always logged at
+ * {@link java.util.logging.Level#WARNING} regardless of the policy.
  *
  * <p>
  * The configured {@link EventErrorHandler} (if any) is always invoked
  * regardless of the policy — the policy only controls whether dispatch
- * continues after the error handler has been called.
+ * continues after the error has been logged and the error handler has been
+ * called.
  *
  * <p>
  * The naming follows the convention used by Spring Framework's
@@ -27,11 +29,11 @@ package com.github.copilot.sdk;
  * <b>Example:</b>
  *
  * <pre>{@code
- * // Default: suppress errors and continue dispatching
- * session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS);
+ * // Default: propagate errors (stop dispatch on first error, log the error)
+ * session.setEventErrorPolicy(EventErrorPolicy.PROPAGATE_AND_LOG_ERRORS);
  *
- * // Opt-in to propagate errors (stop dispatch on first error)
- * session.setEventErrorPolicy(EventErrorPolicy.PROPAGATE);
+ * // Opt-in to suppress errors (continue dispatching, log each error)
+ * session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS_AND_LOG_ERRORS);
  * }</pre>
  *
  * @see CopilotSession#setEventErrorPolicy(EventErrorPolicy)
@@ -41,21 +43,25 @@ package com.github.copilot.sdk;
 public enum EventErrorPolicy {
 
     /**
-     * Suppress errors and continue dispatching to remaining listeners (default).
+     * Suppress errors: log the error and continue dispatching to remaining
+     * listeners.
      * <p>
-     * When a handler throws an exception, remaining handlers still execute. The
-     * configured {@link EventErrorHandler} is called for each error. This is
+     * When a handler throws an exception, the error is logged at
+     * {@link java.util.logging.Level#WARNING} and remaining handlers still execute.
+     * The configured {@link EventErrorHandler} is called for each error. This is
      * analogous to Spring's {@code LOG_AND_SUPPRESS_ERROR_HANDLER} behavior.
      */
-    SUPPRESS,
+    SUPPRESS_AND_LOG_ERRORS,
 
     /**
-     * Propagate the error effect by stopping dispatch on first listener error.
+     * Propagate errors: log the error and stop dispatch on first listener error
+     * (default).
      * <p>
-     * When a handler throws an exception, no further handlers are invoked. The
-     * configured {@link EventErrorHandler} is still called before dispatch stops.
-     * This is analogous to Spring's {@code LOG_AND_PROPAGATE_ERROR_HANDLER}
+     * When a handler throws an exception, the error is logged at
+     * {@link java.util.logging.Level#WARNING} and no further handlers are invoked.
+     * The configured {@link EventErrorHandler} is still called before dispatch
+     * stops. This is analogous to Spring's {@code LOG_AND_PROPAGATE_ERROR_HANDLER}
      * behavior.
      */
-    PROPAGATE
+    PROPAGATE_AND_LOG_ERRORS
 }

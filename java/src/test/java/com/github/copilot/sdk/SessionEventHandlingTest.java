@@ -200,6 +200,9 @@ public class SessionEventHandlingTest {
         sessionLogger.setLevel(Level.OFF);
 
         try {
+            // Use SUPPRESS policy so second handler still runs
+            session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS_AND_LOG_ERRORS);
+
             // First handler throws an exception
             session.on(AssistantMessageEvent.class, msg -> {
                 throw new RuntimeException("Handler 1 error");
@@ -381,22 +384,35 @@ public class SessionEventHandlingTest {
     // ====================================================================
 
     @Test
-    void testDefaultNoErrorHandlerSilentlyContinues() {
-        // Without a custom error handler, exceptions should be silently consumed
-        var received = new ArrayList<String>();
+    void testDefaultPolicyPropagatesAndLogs() {
+        // Default policy is PROPAGATE_AND_LOG_ERRORS — stops dispatch on first error
+        var handler1Called = new AtomicInteger(0);
+        var handler2Called = new AtomicInteger(0);
 
-        session.on(AssistantMessageEvent.class, msg -> {
-            throw new RuntimeException("boom");
-        });
+        Logger sessionLogger = Logger.getLogger(CopilotSession.class.getName());
+        Level originalLevel = sessionLogger.getLevel();
+        sessionLogger.setLevel(Level.OFF);
 
-        session.on(AssistantMessageEvent.class, msg -> {
-            received.add(msg.getData().getContent());
-        });
+        try {
+            // Both handlers throw — with PROPAGATE only one should execute
+            session.on(AssistantMessageEvent.class, msg -> {
+                handler1Called.incrementAndGet();
+                throw new RuntimeException("boom 1");
+            });
 
-        assertDoesNotThrow(() -> dispatchEvent(createAssistantMessageEvent("Test")));
+            session.on(AssistantMessageEvent.class, msg -> {
+                handler2Called.incrementAndGet();
+                throw new RuntimeException("boom 2");
+            });
 
-        // Second handler should still execute (default CONTINUE policy)
-        assertEquals(1, received.size());
+            assertDoesNotThrow(() -> dispatchEvent(createAssistantMessageEvent("Test")));
+
+            // Only one handler should execute (default PROPAGATE_AND_LOG_ERRORS policy)
+            int totalCalls = handler1Called.get() + handler2Called.get();
+            assertEquals(1, totalCalls, "Only one handler should execute with default PROPAGATE_AND_LOG_ERRORS policy");
+        } finally {
+            sessionLogger.setLevel(originalLevel);
+        }
     }
 
     @Test
@@ -404,44 +420,61 @@ public class SessionEventHandlingTest {
         var capturedEvents = new ArrayList<AbstractSessionEvent>();
         var capturedExceptions = new ArrayList<Exception>();
 
-        session.setEventErrorHandler((event, exception) -> {
-            capturedEvents.add(event);
-            capturedExceptions.add(exception);
-        });
+        Logger sessionLogger = Logger.getLogger(CopilotSession.class.getName());
+        Level originalLevel = sessionLogger.getLevel();
+        sessionLogger.setLevel(Level.OFF);
 
-        var thrownException = new RuntimeException("test error");
-        session.on(AssistantMessageEvent.class, msg -> {
-            throw thrownException;
-        });
+        try {
+            session.setEventErrorHandler((event, exception) -> {
+                capturedEvents.add(event);
+                capturedExceptions.add(exception);
+            });
 
-        var event = createAssistantMessageEvent("Hello");
-        dispatchEvent(event);
+            var thrownException = new RuntimeException("test error");
+            session.on(AssistantMessageEvent.class, msg -> {
+                throw thrownException;
+            });
 
-        assertEquals(1, capturedEvents.size());
-        assertSame(event, capturedEvents.get(0));
-        assertEquals(1, capturedExceptions.size());
-        assertSame(thrownException, capturedExceptions.get(0));
+            var event = createAssistantMessageEvent("Hello");
+            dispatchEvent(event);
+
+            assertEquals(1, capturedEvents.size());
+            assertSame(event, capturedEvents.get(0));
+            assertEquals(1, capturedExceptions.size());
+            assertSame(thrownException, capturedExceptions.get(0));
+        } finally {
+            sessionLogger.setLevel(originalLevel);
+        }
     }
 
     @Test
     void testCustomErrorHandlerCalledForAllErrors() {
         var errorCount = new AtomicInteger(0);
 
-        session.setEventErrorHandler((event, exception) -> {
-            errorCount.incrementAndGet();
-        });
+        Logger sessionLogger = Logger.getLogger(CopilotSession.class.getName());
+        Level originalLevel = sessionLogger.getLevel();
+        sessionLogger.setLevel(Level.OFF);
 
-        session.on(AssistantMessageEvent.class, msg -> {
-            throw new RuntimeException("error 1");
-        });
-        session.on(AssistantMessageEvent.class, msg -> {
-            throw new RuntimeException("error 2");
-        });
+        try {
+            session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS_AND_LOG_ERRORS);
+            session.setEventErrorHandler((event, exception) -> {
+                errorCount.incrementAndGet();
+            });
 
-        dispatchEvent(createAssistantMessageEvent("Test"));
+            session.on(AssistantMessageEvent.class, msg -> {
+                throw new RuntimeException("error 1");
+            });
+            session.on(AssistantMessageEvent.class, msg -> {
+                throw new RuntimeException("error 2");
+            });
 
-        // Both handler errors should be reported to the custom error handler
-        assertEquals(2, errorCount.get());
+            dispatchEvent(createAssistantMessageEvent("Test"));
+
+            // Both handler errors should be reported to the custom error handler
+            assertEquals(2, errorCount.get());
+        } finally {
+            sessionLogger.setLevel(originalLevel);
+        }
     }
 
     @Test
@@ -483,48 +516,65 @@ public class SessionEventHandlingTest {
     void testSetEventErrorHandlerToNullRestoresDefaultBehavior() {
         var errorCount = new AtomicInteger(0);
 
-        // Set custom handler
-        session.setEventErrorHandler((event, exception) -> {
-            errorCount.incrementAndGet();
-        });
+        Logger sessionLogger = Logger.getLogger(CopilotSession.class.getName());
+        Level originalLevel = sessionLogger.getLevel();
+        sessionLogger.setLevel(Level.OFF);
 
-        session.on(AssistantMessageEvent.class, msg -> {
-            throw new RuntimeException("error");
-        });
+        try {
+            // Set custom handler
+            session.setEventErrorHandler((event, exception) -> {
+                errorCount.incrementAndGet();
+            });
 
-        dispatchEvent(createAssistantMessageEvent("Test1"));
-        assertEquals(1, errorCount.get());
+            session.on(AssistantMessageEvent.class, msg -> {
+                throw new RuntimeException("error");
+            });
 
-        // Reset to null (restore default silent behavior)
-        session.setEventErrorHandler(null);
+            dispatchEvent(createAssistantMessageEvent("Test1"));
+            assertEquals(1, errorCount.get());
 
-        dispatchEvent(createAssistantMessageEvent("Test2"));
+            // Reset to null (restore default logging-only behavior)
+            session.setEventErrorHandler(null);
 
-        // Custom handler should NOT have been called again
-        assertEquals(1, errorCount.get());
+            dispatchEvent(createAssistantMessageEvent("Test2"));
+
+            // Custom handler should NOT have been called again
+            assertEquals(1, errorCount.get());
+        } finally {
+            sessionLogger.setLevel(originalLevel);
+        }
     }
 
     @Test
     void testErrorHandlerReceivesCorrectEventType() {
         var capturedEvents = new ArrayList<AbstractSessionEvent>();
 
-        session.setEventErrorHandler((event, exception) -> {
-            capturedEvents.add(event);
-        });
+        Logger sessionLogger = Logger.getLogger(CopilotSession.class.getName());
+        Level originalLevel = sessionLogger.getLevel();
+        sessionLogger.setLevel(Level.OFF);
 
-        session.on(event -> {
-            throw new RuntimeException("always fails");
-        });
+        try {
+            session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS_AND_LOG_ERRORS);
+            session.setEventErrorHandler((event, exception) -> {
+                capturedEvents.add(event);
+            });
 
-        var msgEvent = createAssistantMessageEvent("msg");
-        var idleEvent = createSessionIdleEvent();
+            session.on(event -> {
+                throw new RuntimeException("always fails");
+            });
 
-        dispatchEvent(msgEvent);
-        dispatchEvent(idleEvent);
+            var msgEvent = createAssistantMessageEvent("msg");
+            var idleEvent = createSessionIdleEvent();
 
-        assertEquals(2, capturedEvents.size());
-        assertInstanceOf(AssistantMessageEvent.class, capturedEvents.get(0));
-        assertInstanceOf(SessionIdleEvent.class, capturedEvents.get(1));
+            dispatchEvent(msgEvent);
+            dispatchEvent(idleEvent);
+
+            assertEquals(2, capturedEvents.size());
+            assertInstanceOf(AssistantMessageEvent.class, capturedEvents.get(0));
+            assertInstanceOf(SessionIdleEvent.class, capturedEvents.get(1));
+        } finally {
+            sessionLogger.setLevel(originalLevel);
+        }
     }
 
     // ====================================================================
@@ -532,34 +582,38 @@ public class SessionEventHandlingTest {
     // ====================================================================
 
     @Test
-    void testDefaultPolicyContinuesOnError() {
+    void testDefaultPolicyPropagatesOnError() {
         var handler1Called = new AtomicInteger(0);
         var handler2Called = new AtomicInteger(0);
-        var handler3Called = new AtomicInteger(0);
 
-        session.setEventErrorHandler((event, exception) -> {
-            // just consume
-        });
+        Logger sessionLogger = Logger.getLogger(CopilotSession.class.getName());
+        Level originalLevel = sessionLogger.getLevel();
+        sessionLogger.setLevel(Level.OFF);
 
-        session.on(AssistantMessageEvent.class, msg -> {
-            handler1Called.incrementAndGet();
-            throw new RuntimeException("error");
-        });
+        try {
+            session.setEventErrorHandler((event, exception) -> {
+                // just consume
+            });
 
-        session.on(AssistantMessageEvent.class, msg -> {
-            handler2Called.incrementAndGet();
-        });
+            // Both handlers throw — with PROPAGATE only one should execute
+            session.on(AssistantMessageEvent.class, msg -> {
+                handler1Called.incrementAndGet();
+                throw new RuntimeException("error 1");
+            });
 
-        session.on(AssistantMessageEvent.class, msg -> {
-            handler3Called.incrementAndGet();
-        });
+            session.on(AssistantMessageEvent.class, msg -> {
+                handler2Called.incrementAndGet();
+                throw new RuntimeException("error 2");
+            });
 
-        dispatchEvent(createAssistantMessageEvent("Test"));
+            dispatchEvent(createAssistantMessageEvent("Test"));
 
-        // All handlers should have been called (SUPPRESS is default)
-        assertEquals(1, handler1Called.get());
-        assertEquals(1, handler2Called.get());
-        assertEquals(1, handler3Called.get());
+            // Default is PROPAGATE_AND_LOG_ERRORS — only one handler runs
+            int totalCalls = handler1Called.get() + handler2Called.get();
+            assertEquals(1, totalCalls, "Only one handler should execute with default PROPAGATE_AND_LOG_ERRORS policy");
+        } finally {
+            sessionLogger.setLevel(originalLevel);
+        }
     }
 
     @Test
@@ -568,47 +622,63 @@ public class SessionEventHandlingTest {
         var handler2Called = new AtomicInteger(0);
         var errorHandlerCalls = new AtomicInteger(0);
 
-        session.setEventErrorPolicy(EventErrorPolicy.PROPAGATE);
-        session.setEventErrorHandler((event, exception) -> {
-            errorHandlerCalls.incrementAndGet();
-        });
+        Logger sessionLogger = Logger.getLogger(CopilotSession.class.getName());
+        Level originalLevel = sessionLogger.getLevel();
+        sessionLogger.setLevel(Level.OFF);
 
-        // Two handlers that throw
-        session.on(AssistantMessageEvent.class, msg -> {
-            handler1Called.incrementAndGet();
-            throw new RuntimeException("error 1");
-        });
+        try {
+            session.setEventErrorPolicy(EventErrorPolicy.PROPAGATE_AND_LOG_ERRORS);
+            session.setEventErrorHandler((event, exception) -> {
+                errorHandlerCalls.incrementAndGet();
+            });
 
-        session.on(AssistantMessageEvent.class, msg -> {
-            handler2Called.incrementAndGet();
-            throw new RuntimeException("error 2");
-        });
+            // Two handlers that throw
+            session.on(AssistantMessageEvent.class, msg -> {
+                handler1Called.incrementAndGet();
+                throw new RuntimeException("error 1");
+            });
 
-        dispatchEvent(createAssistantMessageEvent("Test"));
+            session.on(AssistantMessageEvent.class, msg -> {
+                handler2Called.incrementAndGet();
+                throw new RuntimeException("error 2");
+            });
 
-        // Only one handler should have been called (PROPAGATE policy)
-        assertEquals(1, errorHandlerCalls.get());
-        int totalCalls = handler1Called.get() + handler2Called.get();
-        assertEquals(1, totalCalls, "Only one handler should execute with PROPAGATE policy");
+            dispatchEvent(createAssistantMessageEvent("Test"));
+
+            // Only one handler should have been called (PROPAGATE_AND_LOG_ERRORS policy)
+            assertEquals(1, errorHandlerCalls.get());
+            int totalCalls = handler1Called.get() + handler2Called.get();
+            assertEquals(1, totalCalls, "Only one handler should execute with PROPAGATE_AND_LOG_ERRORS policy");
+        } finally {
+            sessionLogger.setLevel(originalLevel);
+        }
     }
 
     @Test
     void testPropagatePolicyErrorHandlerAlwaysInvoked() {
         var errorHandlerCalls = new AtomicInteger(0);
 
-        session.setEventErrorPolicy(EventErrorPolicy.PROPAGATE);
-        session.setEventErrorHandler((event, exception) -> {
-            errorHandlerCalls.incrementAndGet();
-        });
+        Logger sessionLogger = Logger.getLogger(CopilotSession.class.getName());
+        Level originalLevel = sessionLogger.getLevel();
+        sessionLogger.setLevel(Level.OFF);
 
-        session.on(AssistantMessageEvent.class, msg -> {
-            throw new RuntimeException("error");
-        });
+        try {
+            session.setEventErrorPolicy(EventErrorPolicy.PROPAGATE_AND_LOG_ERRORS);
+            session.setEventErrorHandler((event, exception) -> {
+                errorHandlerCalls.incrementAndGet();
+            });
 
-        dispatchEvent(createAssistantMessageEvent("Test"));
+            session.on(AssistantMessageEvent.class, msg -> {
+                throw new RuntimeException("error");
+            });
 
-        // Error handler should be called even with PROPAGATE policy
-        assertEquals(1, errorHandlerCalls.get());
+            dispatchEvent(createAssistantMessageEvent("Test"));
+
+            // Error handler should be called even with PROPAGATE_AND_LOG_ERRORS policy
+            assertEquals(1, errorHandlerCalls.get());
+        } finally {
+            sessionLogger.setLevel(originalLevel);
+        }
     }
 
     @Test
@@ -616,29 +686,37 @@ public class SessionEventHandlingTest {
         var errorHandlerCalls = new AtomicInteger(0);
         var successfulHandlerCalls = new AtomicInteger(0);
 
-        session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS);
-        session.setEventErrorHandler((event, exception) -> {
-            errorHandlerCalls.incrementAndGet();
-        });
+        Logger sessionLogger = Logger.getLogger(CopilotSession.class.getName());
+        Level originalLevel = sessionLogger.getLevel();
+        sessionLogger.setLevel(Level.OFF);
 
-        session.on(AssistantMessageEvent.class, msg -> {
-            throw new RuntimeException("error 1");
-        });
-        session.on(AssistantMessageEvent.class, msg -> {
-            throw new RuntimeException("error 2");
-        });
-        session.on(AssistantMessageEvent.class, msg -> {
-            successfulHandlerCalls.incrementAndGet();
-        });
-        session.on(AssistantMessageEvent.class, msg -> {
-            throw new RuntimeException("error 3");
-        });
+        try {
+            session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS_AND_LOG_ERRORS);
+            session.setEventErrorHandler((event, exception) -> {
+                errorHandlerCalls.incrementAndGet();
+            });
 
-        dispatchEvent(createAssistantMessageEvent("Test"));
+            session.on(AssistantMessageEvent.class, msg -> {
+                throw new RuntimeException("error 1");
+            });
+            session.on(AssistantMessageEvent.class, msg -> {
+                throw new RuntimeException("error 2");
+            });
+            session.on(AssistantMessageEvent.class, msg -> {
+                successfulHandlerCalls.incrementAndGet();
+            });
+            session.on(AssistantMessageEvent.class, msg -> {
+                throw new RuntimeException("error 3");
+            });
 
-        // All errors should be reported, successful handler should run
-        assertEquals(3, errorHandlerCalls.get());
-        assertEquals(1, successfulHandlerCalls.get());
+            dispatchEvent(createAssistantMessageEvent("Test"));
+
+            // All errors should be reported, successful handler should run
+            assertEquals(3, errorHandlerCalls.get());
+            assertEquals(1, successfulHandlerCalls.get());
+        } finally {
+            sessionLogger.setLevel(originalLevel);
+        }
     }
 
     @Test
@@ -646,59 +724,76 @@ public class SessionEventHandlingTest {
         var handler1Called = new AtomicInteger(0);
         var handler2Called = new AtomicInteger(0);
 
-        session.setEventErrorHandler((event, exception) -> {
-            // just consume
-        });
+        Logger sessionLogger = Logger.getLogger(CopilotSession.class.getName());
+        Level originalLevel = sessionLogger.getLevel();
+        sessionLogger.setLevel(Level.OFF);
 
-        // Two handlers that throw
-        session.on(AssistantMessageEvent.class, msg -> {
-            handler1Called.incrementAndGet();
-            throw new RuntimeException("error");
-        });
-        session.on(AssistantMessageEvent.class, msg -> {
-            handler2Called.incrementAndGet();
-            throw new RuntimeException("error");
-        });
+        try {
+            session.setEventErrorHandler((event, exception) -> {
+                // just consume
+            });
 
-        // With SUPPRESS, both should fire
-        session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS);
-        dispatchEvent(createAssistantMessageEvent("Test1"));
-        assertEquals(1, handler1Called.get());
-        assertEquals(1, handler2Called.get());
+            // Two handlers that throw
+            session.on(AssistantMessageEvent.class, msg -> {
+                handler1Called.incrementAndGet();
+                throw new RuntimeException("error");
+            });
+            session.on(AssistantMessageEvent.class, msg -> {
+                handler2Called.incrementAndGet();
+                throw new RuntimeException("error");
+            });
 
-        handler1Called.set(0);
-        handler2Called.set(0);
+            // With SUPPRESS_AND_LOG_ERRORS, both should fire
+            session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS_AND_LOG_ERRORS);
+            dispatchEvent(createAssistantMessageEvent("Test1"));
+            assertEquals(1, handler1Called.get());
+            assertEquals(1, handler2Called.get());
 
-        // Switch to PROPAGATE — only one should fire
-        session.setEventErrorPolicy(EventErrorPolicy.PROPAGATE);
-        dispatchEvent(createAssistantMessageEvent("Test2"));
-        int totalCalls = handler1Called.get() + handler2Called.get();
-        assertEquals(1, totalCalls, "Only one handler should execute after switching to PROPAGATE");
+            handler1Called.set(0);
+            handler2Called.set(0);
+
+            // Switch to PROPAGATE_AND_LOG_ERRORS — only one should fire
+            session.setEventErrorPolicy(EventErrorPolicy.PROPAGATE_AND_LOG_ERRORS);
+            dispatchEvent(createAssistantMessageEvent("Test2"));
+            int totalCalls = handler1Called.get() + handler2Called.get();
+            assertEquals(1, totalCalls, "Only one handler should execute after switching to PROPAGATE_AND_LOG_ERRORS");
+        } finally {
+            sessionLogger.setLevel(originalLevel);
+        }
     }
 
     @Test
-    void testPropagatePolicyNoErrorHandlerSilentlyStops() {
+    void testPropagatePolicyNoErrorHandlerStopsAndLogs() {
         var handler1Called = new AtomicInteger(0);
         var handler2Called = new AtomicInteger(0);
 
-        // No error handler set, PROPAGATE policy
-        session.setEventErrorPolicy(EventErrorPolicy.PROPAGATE);
+        Logger sessionLogger = Logger.getLogger(CopilotSession.class.getName());
+        Level originalLevel = sessionLogger.getLevel();
+        sessionLogger.setLevel(Level.OFF);
 
-        session.on(AssistantMessageEvent.class, msg -> {
-            handler1Called.incrementAndGet();
-            throw new RuntimeException("error");
-        });
+        try {
+            // No error handler set, PROPAGATE_AND_LOG_ERRORS policy
+            session.setEventErrorPolicy(EventErrorPolicy.PROPAGATE_AND_LOG_ERRORS);
 
-        session.on(AssistantMessageEvent.class, msg -> {
-            handler2Called.incrementAndGet();
-            throw new RuntimeException("error");
-        });
+            session.on(AssistantMessageEvent.class, msg -> {
+                handler1Called.incrementAndGet();
+                throw new RuntimeException("error");
+            });
 
-        assertDoesNotThrow(() -> dispatchEvent(createAssistantMessageEvent("Test")));
+            session.on(AssistantMessageEvent.class, msg -> {
+                handler2Called.incrementAndGet();
+                throw new RuntimeException("error");
+            });
 
-        // PROPAGATE policy should stop after first error, even without error handler
-        int totalCalls = handler1Called.get() + handler2Called.get();
-        assertEquals(1, totalCalls, "Only one handler should execute with PROPAGATE policy and no error handler");
+            assertDoesNotThrow(() -> dispatchEvent(createAssistantMessageEvent("Test")));
+
+            // PROPAGATE_AND_LOG_ERRORS policy should stop after first error
+            int totalCalls = handler1Called.get() + handler2Called.get();
+            assertEquals(1, totalCalls,
+                    "Only one handler should execute with PROPAGATE_AND_LOG_ERRORS policy and no error handler");
+        } finally {
+            sessionLogger.setLevel(originalLevel);
+        }
     }
 
     @Test
@@ -711,8 +806,8 @@ public class SessionEventHandlingTest {
         sessionLogger.setLevel(Level.OFF);
 
         try {
-            // SUPPRESS policy, but error handler throws
-            session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS);
+            // SUPPRESS_AND_LOG_ERRORS policy, but error handler throws
+            session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS_AND_LOG_ERRORS);
             session.setEventErrorHandler((event, exception) -> {
                 throw new RuntimeException("error handler broke");
             });
@@ -729,10 +824,11 @@ public class SessionEventHandlingTest {
 
             assertDoesNotThrow(() -> dispatchEvent(createAssistantMessageEvent("Test")));
 
-            // Error handler threw — should stop regardless of SUPPRESS policy
+            // Error handler threw — should stop regardless of SUPPRESS_AND_LOG_ERRORS
+            // policy
             int totalCalls = handler1Called.get() + handler2Called.get();
             assertEquals(1, totalCalls,
-                    "Only one handler should execute when error handler throws, even with SUPPRESS policy");
+                    "Only one handler should execute when error handler throws, even with SUPPRESS_AND_LOG_ERRORS policy");
         } finally {
             sessionLogger.setLevel(originalLevel);
         }

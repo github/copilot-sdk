@@ -96,7 +96,7 @@ public final class CopilotSession implements AutoCloseable {
     private final AtomicReference<UserInputHandler> userInputHandler = new AtomicReference<>();
     private final AtomicReference<SessionHooks> hooksHandler = new AtomicReference<>();
     private volatile EventErrorHandler eventErrorHandler;
-    private volatile EventErrorPolicy eventErrorPolicy = EventErrorPolicy.SUPPRESS;
+    private volatile EventErrorPolicy eventErrorPolicy = EventErrorPolicy.PROPAGATE_AND_LOG_ERRORS;
 
     /**
      * Creates a new session with the given ID and RPC client.
@@ -159,8 +159,9 @@ public final class CopilotSession implements AutoCloseable {
      * <p>
      * When an event handler registered via {@link #on(Consumer)} or
      * {@link #on(Class, Consumer)} throws an exception during event dispatch, the
-     * error handler is invoked with the event and exception. When no error handler
-     * is set, exceptions are silently consumed.
+     * error handler is invoked with the event and exception. The error is always
+     * logged at {@link Level#WARNING} regardless of whether a custom handler is
+     * set.
      *
      * <p>
      * Whether dispatch continues or stops after an error is controlled by the
@@ -183,7 +184,7 @@ public final class CopilotSession implements AutoCloseable {
      * }</pre>
      *
      * @param handler
-     *            the error handler, or {@code null} to restore default silent
+     *            the error handler, or {@code null} to use only the default logging
      *            behavior
      * @see EventErrorHandler
      * @see #setEventErrorPolicy(EventErrorPolicy)
@@ -197,13 +198,14 @@ public final class CopilotSession implements AutoCloseable {
      * Sets the error propagation policy for event dispatch.
      * <p>
      * Controls whether remaining event listeners continue to execute when a
-     * preceding listener throws an exception.
+     * preceding listener throws an exception. Errors are always logged at
+     * {@link Level#WARNING} regardless of the policy.
      *
      * <ul>
-     * <li>{@link EventErrorPolicy#SUPPRESS} (default) — suppress the error and
-     * dispatch to all remaining listeners regardless</li>
-     * <li>{@link EventErrorPolicy#PROPAGATE} — propagate the error effect by
-     * stopping dispatch after the first error</li>
+     * <li>{@link EventErrorPolicy#PROPAGATE_AND_LOG_ERRORS} (default) — log the
+     * error and stop dispatch after the first error</li>
+     * <li>{@link EventErrorPolicy#SUPPRESS_AND_LOG_ERRORS} — log the error and
+     * continue dispatching to all remaining listeners</li>
      * </ul>
      *
      * <p>
@@ -214,14 +216,14 @@ public final class CopilotSession implements AutoCloseable {
      * <b>Example:</b>
      *
      * <pre>{@code
-     * // Opt-in to propagate errors (stop dispatch on first error)
-     * session.setEventErrorPolicy(EventErrorPolicy.PROPAGATE);
-     * session.setEventErrorHandler(
-     * 		(event, ex) -> logger.error("Handler failed, stopping dispatch: {}", ex.getMessage(), ex));
+     * // Opt-in to suppress errors (continue dispatching despite errors)
+     * session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS_AND_LOG_ERRORS);
+     * session.setEventErrorHandler((event, ex) -> logger.error("Handler failed, continuing: {}", ex.getMessage(), ex));
      * }</pre>
      *
      * @param policy
-     *            the error policy (default is {@link EventErrorPolicy#SUPPRESS})
+     *            the error policy (default is
+     *            {@link EventErrorPolicy#PROPAGATE_AND_LOG_ERRORS})
      * @see EventErrorPolicy
      * @see #setEventErrorHandler(EventErrorHandler)
      * @since 1.0.8
@@ -462,18 +464,18 @@ public final class CopilotSession implements AutoCloseable {
      * Dispatches an event to all registered handlers.
      * <p>
      * This is called internally when events are received from the server. Each
-     * handler is invoked in its own try/catch block. Whether dispatch continues
-     * after a handler error depends on the configured {@link EventErrorPolicy}:
+     * handler is invoked in its own try/catch block. Errors are always logged at
+     * {@link Level#WARNING}. Whether dispatch continues after a handler error
+     * depends on the configured {@link EventErrorPolicy}:
      * <ul>
-     * <li>{@link EventErrorPolicy#SUPPRESS} (default) — remaining handlers still
-     * execute</li>
-     * <li>{@link EventErrorPolicy#PROPAGATE} — dispatch stops after the first
-     * error</li>
+     * <li>{@link EventErrorPolicy#PROPAGATE_AND_LOG_ERRORS} (default) — dispatch
+     * stops after the first error</li>
+     * <li>{@link EventErrorPolicy#SUPPRESS_AND_LOG_ERRORS} — remaining handlers
+     * still execute</li>
      * </ul>
      * <p>
      * The configured {@link EventErrorHandler} is always invoked (if set),
-     * regardless of the policy. When no error handler is set, exceptions are
-     * silently consumed. If the error handler itself throws, dispatch stops
+     * regardless of the policy. If the error handler itself throws, dispatch stops
      * regardless of policy and the error is logged at {@link Level#SEVERE}.
      *
      * @param event
@@ -486,6 +488,7 @@ public final class CopilotSession implements AutoCloseable {
             try {
                 handler.accept(event);
             } catch (Exception e) {
+                LOG.log(Level.WARNING, "Error in event handler", e);
                 EventErrorHandler errorHandler = this.eventErrorHandler;
                 if (errorHandler != null) {
                     try {
@@ -495,7 +498,7 @@ public final class CopilotSession implements AutoCloseable {
                         break; // error handler itself failed — stop regardless of policy
                     }
                 }
-                if (eventErrorPolicy == EventErrorPolicy.PROPAGATE) {
+                if (eventErrorPolicy == EventErrorPolicy.PROPAGATE_AND_LOG_ERRORS) {
                     break;
                 }
             }

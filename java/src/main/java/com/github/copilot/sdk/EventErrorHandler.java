@@ -16,8 +16,10 @@ import com.github.copilot.sdk.events.AbstractSessionEvent;
  * being dispatched and the exception that was thrown.
  *
  * <p>
- * When no error handler is set, exceptions are silently consumed. Applications
- * should set an error handler to log, track, or respond to handler failures:
+ * Errors are always logged at {@link java.util.logging.Level#WARNING}
+ * regardless of whether an error handler is set. The error handler provides
+ * additional custom handling such as metrics, alerts, or integration with
+ * external error-reporting systems:
  *
  * <pre>{@code
  * session.setEventErrorHandler((event, exception) -> {
