@@ -97,7 +97,7 @@ public final class CopilotSession implements AutoCloseable {
     private final AtomicReference<SessionHooks> hooksHandler = new AtomicReference<>();
     private volatile EventErrorHandler eventErrorHandler;
     private volatile EventErrorPolicy eventErrorPolicy = EventErrorPolicy.PROPAGATE_AND_LOG_ERRORS;
-    
+
     /** Tracks whether this session instance has been terminated via close(). */
     private volatile boolean isTerminated = false;
 
@@ -189,7 +189,8 @@ public final class CopilotSession implements AutoCloseable {
      * @param handler
      *            the error handler, or {@code null} to use only the default logging
      *            behavior
-     * @throws IllegalStateException if this session has been terminated
+     * @throws IllegalStateException
+     *             if this session has been terminated
      * @see EventErrorHandler
      * @see #setEventErrorPolicy(EventErrorPolicy)
      * @since 1.0.8
@@ -229,7 +230,8 @@ public final class CopilotSession implements AutoCloseable {
      * @param policy
      *            the error policy (default is
      *            {@link EventErrorPolicy#PROPAGATE_AND_LOG_ERRORS})
-     * @throws IllegalStateException if this session has been terminated
+     * @throws IllegalStateException
+     *             if this session has been terminated
      * @see EventErrorPolicy
      * @see #setEventErrorHandler(EventErrorHandler)
      * @since 1.0.8
@@ -251,7 +253,8 @@ public final class CopilotSession implements AutoCloseable {
      * @param prompt
      *            the message text to send
      * @return a future that resolves with the message ID assigned by the server
-     * @throws IllegalStateException if this session has been terminated
+     * @throws IllegalStateException
+     *             if this session has been terminated
      * @see #send(MessageOptions)
      */
     public CompletableFuture<String> send(String prompt) {
@@ -269,7 +272,8 @@ public final class CopilotSession implements AutoCloseable {
      *            the message text to send
      * @return a future that resolves with the final assistant message event, or
      *         {@code null} if no assistant message was received
-     * @throws IllegalStateException if this session has been terminated
+     * @throws IllegalStateException
+     *             if this session has been terminated
      * @see #sendAndWait(MessageOptions)
      */
     public CompletableFuture<AssistantMessageEvent> sendAndWait(String prompt) {
@@ -286,7 +290,8 @@ public final class CopilotSession implements AutoCloseable {
      * @param options
      *            the message options containing the prompt and attachments
      * @return a future that resolves with the message ID assigned by the server
-     * @throws IllegalStateException if this session has been terminated
+     * @throws IllegalStateException
+     *             if this session has been terminated
      * @see #sendAndWait(MessageOptions)
      * @see #send(String)
      */
@@ -317,7 +322,8 @@ public final class CopilotSession implements AutoCloseable {
      *         {@code null} if no assistant message was received. The future
      *         completes exceptionally with a TimeoutException if the timeout
      *         expires.
-     * @throws IllegalStateException if this session has been terminated
+     * @throws IllegalStateException
+     *             if this session has been terminated
      * @see #sendAndWait(MessageOptions)
      * @see #send(MessageOptions)
      */
@@ -380,7 +386,8 @@ public final class CopilotSession implements AutoCloseable {
      *            the message options containing the prompt and attachments
      * @return a future that resolves with the final assistant message event, or
      *         {@code null} if no assistant message was received
-     * @throws IllegalStateException if this session has been terminated
+     * @throws IllegalStateException
+     *             if this session has been terminated
      * @see #sendAndWait(MessageOptions, long)
      */
     public CompletableFuture<AssistantMessageEvent> sendAndWait(MessageOptions options) {
@@ -414,7 +421,8 @@ public final class CopilotSession implements AutoCloseable {
      * @param handler
      *            a callback to be invoked when a session event occurs
      * @return a Closeable that, when closed, unsubscribes the handler
-     * @throws IllegalStateException if this session has been terminated
+     * @throws IllegalStateException
+     *             if this session has been terminated
      * @see #on(Class, Consumer)
      * @see AbstractSessionEvent
      * @see #setEventErrorPolicy(EventErrorPolicy)
@@ -466,7 +474,8 @@ public final class CopilotSession implements AutoCloseable {
      * @param handler
      *            a callback invoked when events of this type occur
      * @return a Closeable that unsubscribes the handler when closed
-     * @throws IllegalStateException if this session has been terminated
+     * @throws IllegalStateException
+     *             if this session has been terminated
      * @see #on(Consumer)
      * @see AbstractSessionEvent
      */
@@ -729,7 +738,8 @@ public final class CopilotSession implements AutoCloseable {
      * assistant responses, tool invocations, and other session events.
      *
      * @return a future that resolves with a list of all session events
-     * @throws IllegalStateException if this session has been terminated
+     * @throws IllegalStateException
+     *             if this session has been terminated
      * @see AbstractSessionEvent
      */
     public CompletableFuture<List<AbstractSessionEvent>> getMessages() {
@@ -760,17 +770,19 @@ public final class CopilotSession implements AutoCloseable {
      * continuing to generate a response.
      *
      * @return a future that completes when the abort is acknowledged
-     * @throws IllegalStateException if this session has been terminated
+     * @throws IllegalStateException
+     *             if this session has been terminated
      */
     public CompletableFuture<Void> abort() {
         ensureNotTerminated();
         return rpc.invoke("session.abort", Map.of("sessionId", sessionId), Void.class);
     }
-    
+
     /**
      * Verifies that this session has not yet been terminated.
-     * 
-     * @throws IllegalStateException if close() has already been invoked
+     *
+     * @throws IllegalStateException
+     *             if close() has already been invoked
      */
     private void ensureNotTerminated() {
         if (isTerminated) {

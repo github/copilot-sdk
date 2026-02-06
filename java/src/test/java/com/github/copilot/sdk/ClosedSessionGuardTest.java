@@ -17,11 +17,11 @@ import com.github.copilot.sdk.json.SessionConfig;
 
 /**
  * Tests for closed-session guard functionality in CopilotSession.
- * 
+ *
  * <p>
  * Verifies that all public methods that interact with session state throw
- * IllegalStateException when invoked after close(), and that close() itself
- * is idempotent.
+ * IllegalStateException when invoked after close(), and that close() itself is
+ * idempotent.
  * </p>
  */
 public class ClosedSessionGuardTest {
@@ -60,8 +60,8 @@ public class ClosedSessionGuardTest {
     }
 
     /**
-     * Verifies that send(MessageOptions) throws IllegalStateException after
-     * session is terminated.
+     * Verifies that send(MessageOptions) throws IllegalStateException after session
+     * is terminated.
      */
     @Test
     void testSendOptionsThrowsAfterTermination() throws Exception {
