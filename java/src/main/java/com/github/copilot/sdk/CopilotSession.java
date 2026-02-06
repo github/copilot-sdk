@@ -59,13 +59,14 @@ import com.github.copilot.sdk.json.UserPromptSubmittedHookInput;
  *
  * <pre>{@code
  * // Create a session
- * CopilotSession session = client.createSession(new SessionConfig().setModel("gpt-5")).get();
+ * var session = client.createSession(new SessionConfig().setModel("gpt-5")).get();
  *
- * // Register event handlers
- * session.on(evt -> {
- * 	if (evt instanceof AssistantMessageEvent msg) {
- * 		System.out.println(msg.getData().getContent());
- * 	}
+ * // Register type-safe event handlers
+ * session.on(AssistantMessageEvent.class, msg -> {
+ * 	System.out.println(msg.getData().getContent());
+ * });
+ * session.on(SessionIdleEvent.class, idle -> {
+ * 	System.out.println("Session is idle");
  * });
  *
  * // Send messages
@@ -288,28 +289,26 @@ public final class CopilotSession implements AutoCloseable {
     }
 
     /**
-     * Registers a callback for session events.
+     * Registers a callback for all session events.
      * <p>
-     * The handler will be invoked for all events in this session, including
-     * assistant messages, tool calls, and session state changes.
+     * The handler will be invoked for every event in this session, including
+     * assistant messages, tool calls, and session state changes. For type-safe
+     * handling of specific event types, prefer {@link #on(Class, Consumer)}
+     * instead.
      *
      * <p>
      * <b>Example:</b>
      *
      * <pre>{@code
-     * Closeable subscription = session.on(evt -> {
-     * 	if (evt instanceof AssistantMessageEvent msg) {
-     * 		System.out.println(msg.getData().getContent());
-     * 	}
-     * });
-     *
-     * // Later, to unsubscribe:
-     * subscription.close();
+     * // Collect all events
+     * var events = new ArrayList<AbstractSessionEvent>();
+     * session.on(events::add);
      * }</pre>
      *
      * @param handler
      *            a callback to be invoked when a session event occurs
      * @return a Closeable that, when closed, unsubscribes the handler
+     * @see #on(Class, Consumer)
      * @see AbstractSessionEvent
      */
     public Closeable on(Consumer<AbstractSessionEvent> handler) {

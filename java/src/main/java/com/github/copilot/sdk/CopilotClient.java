@@ -62,15 +62,13 @@ import com.github.copilot.sdk.json.ToolResultObject;
  * Example usage:
  *
  * <pre>{@code
- * try (CopilotClient client = new CopilotClient()) {
+ * try (var client = new CopilotClient()) {
  * 	client.start().get();
  *
- * 	CopilotSession session = client.createSession(new SessionConfig().setModel("gpt-5")).get();
+ * 	var session = client.createSession(new SessionConfig().setModel("gpt-5")).get();
  *
- * 	session.on(evt -> {
- * 		if (evt instanceof AssistantMessageEvent msg) {
- * 			System.out.println(msg.getData().getContent());
- * 		}
+ * 	session.on(AssistantMessageEvent.class, msg -> {
+ * 		System.out.println(msg.getData().getContent());
  * 	});
  *
  * 	session.send(new MessageOptions().setPrompt("Hello!")).get();

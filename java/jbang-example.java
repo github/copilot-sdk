@@ -18,19 +18,17 @@ class CopilotSDK {
             // Wait for response using session.idle event
             var done = new CompletableFuture<Void>();
 
-            session.on(evt -> {
-                if (evt instanceof AssistantMessageEvent msg) {
-                    System.out.println(msg.getData().getContent());
-                } else if (evt instanceof SessionUsageInfoEvent usage) {
-                    var data = usage.getData();
-                    System.out.println("\n--- Usage Metrics ---");
-                    System.out.println("Current tokens: " + (int) data.getCurrentTokens());
-                    System.out.println("Token limit: " + (int) data.getTokenLimit());
-                    System.out.println("Messages count: " + (int) data.getMessagesLength());
-                } else if (evt instanceof SessionIdleEvent) {
-                    done.complete(null);
-                }
+            session.on(AssistantMessageEvent.class, msg -> {
+                System.out.println(msg.getData().getContent());
             });
+            session.on(SessionUsageInfoEvent.class, usage -> {
+                var data = usage.getData();
+                System.out.println("\n--- Usage Metrics ---");
+                System.out.println("Current tokens: " + (int) data.getCurrentTokens());
+                System.out.println("Token limit: " + (int) data.getTokenLimit());
+                System.out.println("Messages count: " + (int) data.getMessagesLength());
+            });
+            session.on(SessionIdleEvent.class, idle -> done.complete(null));
 
             // Send a message and wait for completion
             session.send(new MessageOptions().setPrompt("What is 2+2?")).get();

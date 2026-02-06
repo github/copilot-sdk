@@ -33,10 +33,8 @@
  *
  * 	var session = client.createSession(new SessionConfig().setModel("gpt-4.1")).get();
  *
- * 	session.on(evt -> {
- * 		if (evt instanceof AssistantMessageEvent msg) {
- * 			System.out.println(msg.getData().getContent());
- * 		}
+ * 	session.on(AssistantMessageEvent.class, msg -> {
+ * 		System.out.println(msg.getData().getContent());
  * 	});
  *
  * 	session.send(new MessageOptions().setPrompt("Hello, Copilot!")).get();
