@@ -1,8 +1,8 @@
 import { describe, expect, it, onTestFinished } from "vitest";
 import { ParsedHttpExchange } from "../../../test/harness/replayingCapiProxy.js";
-import { CopilotClient } from "../../src/index.js";
+import { CopilotClient, SessionEvent } from "../../src/index.js";
 import { CLI_PATH, createSdkTestContext } from "./harness/sdkTestContext.js";
-import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
+import { getNextEventOfType } from "./harness/sdkTestHelper.js";
 
 describe("Sessions", async () => {
     const { copilotClient: client, openAiEndpoint, homeDir, env } = await createSdkTestContext();
@@ -167,7 +167,7 @@ describe("Sessions", async () => {
         expect(session2.sessionId).toBe(sessionId);
 
         // TODO: There's an inconsistency here. When resuming with a new client, we don't see
-        // the session.idle message in the history, which means we can't use getFinalAssistantMessage.
+        // the session.idle message in the history, so we can't easily identify when a turn completed.
 
         const messages = await session2.getMessages();
         expect(messages).toContainEqual(expect.objectContaining({ type: "user.message" }));
@@ -328,9 +328,8 @@ describe("Sessions", async () => {
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
 
         // Session should work normally with custom config dir
-        await session.send({ prompt: "What is 1+1?" });
-        const assistantMessage = await getFinalAssistantMessage(session);
-        expect(assistantMessage.data.content).toContain("2");
+        const assistantMessage = await session.sendAndWait({ prompt: "What is 1+1?" });
+        expect(assistantMessage?.data.content).toContain("2");
     });
 });
 
@@ -348,23 +347,28 @@ describe("Send Blocking Behavior", async () => {
     it("send returns immediately while events stream in background", async () => {
         const session = await client.createSession();
 
-        const events: string[] = [];
-        session.on((event) => {
-            events.push(event.type);
-        });
+        const events: Array<SessionEvent> = [];
+        session.on((event) => events.push(event));
+
+        // Set up promise to wait for idle BEFORE sending
+        const idlePromise = getNextEventOfType(session, "session.idle");
 
         // Use a slow command so we can verify send() returns before completion
         await session.send({ prompt: "Run 'sleep 2 && echo done'" });
 
         // send() should return before turn completes (no session.idle yet)
-        expect(events).not.toContain("session.idle");
+        expect(events.some((e) => e.type === "session.idle")).toBe(false);
 
         // Wait for turn to complete
-        const message = await getFinalAssistantMessage(session);
+        await idlePromise;
 
-        expect(message.data.content).toContain("done");
-        expect(events).toContain("session.idle");
-        expect(events).toContain("assistant.message");
+        // Find the last assistant message from collected events
+        const assistantMessages = events.filter((e) => e.type === "assistant.message");
+        const message = assistantMessages[assistantMessages.length - 1];
+
+        expect(message.data?.content).toContain("done");
+        expect(events.some((e) => e.type === "session.idle")).toBe(true);
+        expect(events.some((e) => e.type === "assistant.message")).toBe(true);
     });
 
     it("sendAndWait blocks until session.idle and returns final assistant message", async () => {
