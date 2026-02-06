@@ -257,6 +257,7 @@ provider: {
 
 Use the [Foundry Local SDK](https://github.com/microsoft/Foundry-Local#-integrate-with-your-applications-using-the-sdk) to bootstrap the service and model, then point the Copilot SDK at the local endpoint:
 
+<!-- docs-validate: skip -->
 ```typescript
 // Bootstrap: npm install foundry-local-sdk
 // import { FoundryLocalManager } from "foundry-local-sdk";
