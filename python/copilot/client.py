@@ -1116,7 +1116,7 @@ class CopilotClient:
         if not os.path.exists(cli_path):
             raise RuntimeError(f"Copilot CLI not found at {cli_path}")
 
-        args = ["--headless", "--log-level", self.options["log_level"]]
+        args = ["--headless", "--no-auto-update", "--log-level", self.options["log_level"]]
 
         # Add auth-related flags
         if self.options.get("github_token"):

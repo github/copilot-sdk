@@ -883,7 +883,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
             args.AddRange(options.CliArgs);
         }
 
-        args.AddRange(["--headless", "--log-level", options.LogLevel]);
+        args.AddRange(["--headless", "--no-auto-update", "--log-level", options.LogLevel]);
 
         if (options.UseStdio)
         {
