@@ -7,7 +7,6 @@ on:
       - 'test/**'
       - 'nodejs/package.json'
       - '.github/workflows/dotnet-sdk-tests.yml'
-      - '.github/actions/setup-copilot/**'
       - '!**/*.md'
       - '!**/LICENSE*'
       - '!**/.gitignore'
@@ -39,17 +38,16 @@ jobs:
         working-directory: ./dotnet
     steps:
       - uses: actions/checkout@v6.0.2
-      - uses: ./.github/actions/setup-copilot
-        id: setup-copilot
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "8.0.x"
       - uses: actions/setup-node@v6
         with:
+          node-version: "24"
           cache: "npm"
           cache-dependency-path: "./nodejs/package-lock.json"
 
-      - name: Install Node.js dependencies (for CLI)
+      - name: Install Node.js dependencies (for CLI version extraction)
         working-directory: ./nodejs
         run: npm ci --ignore-scripts
 
@@ -80,5 +78,4 @@ jobs:
       - name: Run .NET SDK tests
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
-          COPILOT_CLI_PATH: ${{ steps.setup-copilot.outputs.cli-path }}
         run: dotnet test --no-build -v n

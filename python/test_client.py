@@ -4,8 +4,6 @@ CopilotClient Unit Tests
 This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py instead.
 """
 
-from unittest.mock import MagicMock, patch
-
 import pytest
 
 from copilot import CopilotClient
@@ -98,25 +96,36 @@ class TestURLParsing:
 
 class TestAuthOptions:
     def test_accepts_github_token(self):
-        client = CopilotClient({"github_token": "gho_test_token", "log_level": "error"})
+        client = CopilotClient(
+            {"cli_path": CLI_PATH, "github_token": "gho_test_token", "log_level": "error"}
+        )
         assert client.options.get("github_token") == "gho_test_token"
 
     def test_default_use_logged_in_user_true_without_token(self):
-        client = CopilotClient({"log_level": "error"})
+        client = CopilotClient({"cli_path": CLI_PATH, "log_level": "error"})
         assert client.options.get("use_logged_in_user") is True
 
     def test_default_use_logged_in_user_false_with_token(self):
-        client = CopilotClient({"github_token": "gho_test_token", "log_level": "error"})
+        client = CopilotClient(
+            {"cli_path": CLI_PATH, "github_token": "gho_test_token", "log_level": "error"}
+        )
         assert client.options.get("use_logged_in_user") is False
 
     def test_explicit_use_logged_in_user_true_with_token(self):
         client = CopilotClient(
-            {"github_token": "gho_test_token", "use_logged_in_user": True, "log_level": "error"}
+            {
+                "cli_path": CLI_PATH,
+                "github_token": "gho_test_token",
+                "use_logged_in_user": True,
+                "log_level": "error",
+            }
         )
         assert client.options.get("use_logged_in_user") is True
 
     def test_explicit_use_logged_in_user_false_without_token(self):
-        client = CopilotClient({"use_logged_in_user": False, "log_level": "error"})
+        client = CopilotClient(
+            {"cli_path": CLI_PATH, "use_logged_in_user": False, "log_level": "error"}
+        )
         assert client.options.get("use_logged_in_user") is False
 
     def test_github_token_with_cli_url_raises(self):
@@ -138,62 +147,3 @@ class TestAuthOptions:
             CopilotClient(
                 {"cli_url": "localhost:8080", "use_logged_in_user": False, "log_level": "error"}
             )
-
-
-class TestCLIPathResolution:
-    """Test that CLI path resolution works correctly, especially on Windows."""
-
-    @pytest.mark.asyncio
-    async def test_cli_path_resolved_with_which(self):
-        """Test that shutil.which() is used to resolve the CLI path."""
-        # Create a mock resolved path
-        mock_resolved_path = "/usr/local/bin/copilot"
-
-        with patch("copilot.client.shutil.which", return_value=mock_resolved_path):
-            with patch("copilot.client.subprocess.Popen") as mock_popen:
-                # Mock the process and its stdout for TCP mode
-                mock_process = MagicMock()
-                mock_process.stdout.readline.return_value = b"listening on port 8080\n"
-                mock_popen.return_value = mock_process
-
-                client = CopilotClient(
-                    {"cli_path": "copilot", "use_stdio": False, "log_level": "error"}
-                )
-
-                try:
-                    await client._start_cli_server()
-
-                    # Verify that subprocess.Popen was called with the resolved path
-                    mock_popen.assert_called_once()
-                    args = mock_popen.call_args[0][0]
-                    assert args[0] == mock_resolved_path
-                finally:
-                    if client._process:
-                        client._process = None
-
-    @pytest.mark.asyncio
-    async def test_cli_path_not_resolved_when_which_returns_none(self):
-        """Test that original path is used when shutil.which() returns None."""
-        original_path = "/custom/path/to/copilot"
-
-        with patch("copilot.client.shutil.which", return_value=None):
-            with patch("copilot.client.subprocess.Popen") as mock_popen:
-                # Mock the process and its stdout for TCP mode
-                mock_process = MagicMock()
-                mock_process.stdout.readline.return_value = b"listening on port 8080\n"
-                mock_popen.return_value = mock_process
-
-                client = CopilotClient(
-                    {"cli_path": original_path, "use_stdio": False, "log_level": "error"}
-                )
-
-                try:
-                    await client._start_cli_server()
-
-                    # Verify that subprocess.Popen was called with the original path
-                    mock_popen.assert_called_once()
-                    args = mock_popen.call_args[0][0]
-                    assert args[0] == original_path
-                finally:
-                    if client._process:
-                        client._process = None

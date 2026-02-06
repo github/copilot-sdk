@@ -16,25 +16,18 @@ from copilot import CopilotClient
 from .proxy import CapiProxy
 
 
-def get_cli_path() -> str:
-    """Get CLI path from environment or try to find it. Raises if not found."""
-    # Check environment variable first
-    cli_path = os.environ.get("COPILOT_CLI_PATH")
-    if cli_path and os.path.exists(cli_path):
-        return cli_path
-
+def get_cli_path_for_tests() -> str:
+    """Get CLI path for E2E tests. Uses node_modules CLI during development."""
     # Look for CLI in sibling nodejs directory's node_modules
-    base_path = Path(__file__).parents[3]  # equivalent to: path.parent.parent.parent.parent
+    base_path = Path(__file__).parents[3]
     full_path = base_path / "nodejs" / "node_modules" / "@github" / "copilot" / "index.js"
     if full_path.exists():
         return str(full_path.resolve())
 
-    raise RuntimeError(
-        "CLI not found. Set COPILOT_CLI_PATH or run 'npm install' in the nodejs directory."
-    )
+    raise RuntimeError("CLI not found for tests. Run 'npm install' in the nodejs directory.")
 
 
-CLI_PATH = get_cli_path()
+CLI_PATH = get_cli_path_for_tests()
 SNAPSHOTS_DIR = Path(__file__).parents[3] / "test" / "snapshots"
 
 
@@ -51,12 +44,7 @@ class E2ETestContext:
 
     async def setup(self):
         """Set up the test context with a shared client."""
-        cli_path = get_cli_path()
-        if not cli_path or not os.path.exists(cli_path):
-            raise RuntimeError(
-                f"CLI not found at {cli_path}. Run 'npm install' in the nodejs directory first."
-            )
-        self.cli_path = cli_path
+        self.cli_path = get_cli_path_for_tests()
 
         self.home_dir = tempfile.mkdtemp(prefix="copilot-test-config-")
         self.work_dir = tempfile.mkdtemp(prefix="copilot-test-work-")

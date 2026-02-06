@@ -106,6 +106,7 @@ jobs:
           name: nodejs-package
           path: nodejs/*.tgz
       - name: Publish to npm
+        if: github.ref == 'refs/heads/main'
         run: npm publish --tag ${{ github.event.inputs.dist-tag }} --access public --registry https://registry.npmjs.org
 
   publish-dotnet:
@@ -130,6 +131,7 @@ jobs:
           name: dotnet-package
           path: dotnet/artifacts/*.nupkg
       - name: NuGet login (OIDC)
+        if: github.ref == 'refs/heads/main'
         uses: NuGet/login@v1
         id: nuget-login
         with:
@@ -139,6 +141,7 @@ jobs:
           # are associated with individual maintainers' accounts too.
           user: stevesanderson
       - name: Publish to NuGet
+        if: github.ref == 'refs/heads/main'
         run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
   publish-python:
@@ -153,18 +156,25 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22.x"
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
+      - name: Install Node.js dependencies (for CLI version)
+        working-directory: ./nodejs
+        run: npm ci --ignore-scripts
       - name: Set version
         run: sed -i "s/^version = .*/version = \"${{ needs.version.outputs.version }}\"/" pyproject.toml
-      - name: Build package
-        run: uv build
+      - name: Build platform wheels
+        run: node scripts/build-wheels.mjs --output-dir dist
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
           name: python-package
           path: python/dist/*
       - name: Publish to PyPI
+        if: github.ref == 'refs/heads/main'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: python/dist/

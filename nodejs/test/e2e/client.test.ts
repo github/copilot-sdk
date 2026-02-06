@@ -1,7 +1,6 @@
 import { ChildProcess } from "child_process";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { CopilotClient } from "../../src/index.js";
-import { CLI_PATH } from "./harness/sdkTestContext.js";
 
 function onTestFinishedForceStop(client: CopilotClient) {
     onTestFinished(async () => {
@@ -15,7 +14,7 @@ function onTestFinishedForceStop(client: CopilotClient) {
 
 describe("Client", () => {
     it("should start and connect to server using stdio", async () => {
-        const client = new CopilotClient({ cliPath: CLI_PATH, useStdio: true });
+        const client = new CopilotClient({ useStdio: true });
         onTestFinishedForceStop(client);
 
         await client.start();
@@ -30,7 +29,7 @@ describe("Client", () => {
     });
 
     it("should start and connect to server using tcp", async () => {
-        const client = new CopilotClient({ cliPath: CLI_PATH, useStdio: false });
+        const client = new CopilotClient({ useStdio: false });
         onTestFinishedForceStop(client);
 
         await client.start();
@@ -50,7 +49,7 @@ describe("Client", () => {
         // saying "Cannot call write after a stream was destroyed"
         // because the JSON-RPC logic is still trying to write to stdin after
         // the process has exited.
-        const client = new CopilotClient({ cliPath: CLI_PATH, useStdio: false });
+        const client = new CopilotClient({ useStdio: false });
 
         await client.createSession();
 
@@ -67,7 +66,7 @@ describe("Client", () => {
     });
 
     it("should forceStop without cleanup", async () => {
-        const client = new CopilotClient({ cliPath: CLI_PATH });
+        const client = new CopilotClient({});
         onTestFinishedForceStop(client);
 
         await client.createSession();
@@ -76,7 +75,7 @@ describe("Client", () => {
     });
 
     it("should get status with version and protocol info", async () => {
-        const client = new CopilotClient({ cliPath: CLI_PATH, useStdio: true });
+        const client = new CopilotClient({ useStdio: true });
         onTestFinishedForceStop(client);
 
         await client.start();
@@ -92,7 +91,7 @@ describe("Client", () => {
     });
 
     it("should get auth status", async () => {
-        const client = new CopilotClient({ cliPath: CLI_PATH, useStdio: true });
+        const client = new CopilotClient({ useStdio: true });
         onTestFinishedForceStop(client);
 
         await client.start();
@@ -108,7 +107,7 @@ describe("Client", () => {
     });
 
     it("should list models when authenticated", async () => {
-        const client = new CopilotClient({ cliPath: CLI_PATH, useStdio: true });
+        const client = new CopilotClient({ useStdio: true });
         onTestFinishedForceStop(client);
 
         await client.start();

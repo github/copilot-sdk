@@ -15,8 +15,8 @@ export type SessionEvent = GeneratedSessionEvent;
  */
 export interface CopilotClientOptions {
     /**
-     * Path to the Copilot CLI executable
-     * @default "copilot" (searches PATH)
+     * Path to the CLI executable or JavaScript entry point.
+     * If not specified, uses the bundled CLI from the @github/copilot package.
      */
     cliPath?: string;
 

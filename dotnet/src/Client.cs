@@ -873,7 +873,9 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private static async Task<(Process Process, int? DetectedLocalhostTcpPort)> StartCliServerAsync(CopilotClientOptions options, ILogger logger, CancellationToken cancellationToken)
     {
-        var cliPath = options.CliPath ?? "copilot";
+        // Use explicit path or bundled CLI - no PATH fallback
+        var cliPath = options.CliPath ?? GetBundledCliPath(out var searchedPath)
+            ?? throw new InvalidOperationException($"Copilot CLI not found at '{searchedPath}'. Ensure the SDK NuGet package was restored correctly or provide an explicit CliPath.");
         var args = new List<string>();
 
         if (options.CliArgs != null)
@@ -976,6 +978,14 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         return (cliProcess, detectedLocalhostTcpPort);
     }
 
+    private static string? GetBundledCliPath(out string searchedPath)
+    {
+        var binaryName = OperatingSystem.IsWindows() ? "copilot.exe" : "copilot";
+        var rid = Path.GetFileName(System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier);
+        searchedPath = Path.Combine(AppContext.BaseDirectory, "runtimes", rid, "native", binaryName);
+        return File.Exists(searchedPath) ? searchedPath : null;
+    }
+
     private static (string FileName, IEnumerable<string> Args) ResolveCliCommand(string cliPath, IEnumerable<string> args)
     {
         var isJsFile = cliPath.EndsWith(".js", StringComparison.OrdinalIgnoreCase);
@@ -983,13 +993,6 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         if (isJsFile)
         {
             return ("node", new[] { cliPath }.Concat(args));
-        }
-
-        // On Windows with UseShellExecute=false, Process.Start doesn't search PATHEXT,
-        // so use cmd /c to let the shell resolve the executable
-        if (OperatingSystem.IsWindows() && !Path.IsPathRooted(cliPath))
-        {
-            return ("cmd", new[] { "/c", cliPath }.Concat(args));
         }
 
         return (cliPath, args);

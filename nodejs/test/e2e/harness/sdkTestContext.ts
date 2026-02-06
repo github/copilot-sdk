@@ -17,10 +17,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const SNAPSHOTS_DIR = resolve(__dirname, "../../../../test/snapshots");
 
-export const CLI_PATH =
-    process.env.COPILOT_CLI_PATH ||
-    resolve(__dirname, "../../../node_modules/@github/copilot/index.js");
-
 export async function createSdkTestContext({
     logLevel,
 }: { logLevel?: "error" | "none" | "warning" | "info" | "debug" | "all" } = {}) {
@@ -41,7 +37,6 @@ export async function createSdkTestContext({
     };
 
     const copilotClient = new CopilotClient({
-        cliPath: CLI_PATH,
         cwd: workDir,
         env,
         logLevel: logLevel || "error",

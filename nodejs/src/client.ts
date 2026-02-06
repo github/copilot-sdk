@@ -12,7 +12,10 @@
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
+import { existsSync } from "node:fs";
 import { Socket } from "node:net";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
     createMessageConnection,
     MessageConnection,
@@ -100,6 +103,20 @@ function toJsonSchema(parameters: Tool["parameters"]): Record<string, unknown> |
  * await client.stop();
  * ```
  */
+
+/**
+ * Gets the path to the bundled CLI from the @github/copilot package.
+ * Uses index.js directly rather than npm-loader.js (which spawns the native binary).
+ */
+function getBundledCliPath(): string {
+    // Find the actual location of the @github/copilot package by resolving its sdk export
+    const sdkUrl = import.meta.resolve("@github/copilot/sdk");
+    const sdkPath = fileURLToPath(sdkUrl);
+    // sdkPath is like .../node_modules/@github/copilot/sdk/index.js
+    // Go up two levels to get the package root, then append index.js
+    return join(dirname(dirname(sdkPath)), "index.js");
+}
+
 export class CopilotClient {
     private cliProcess: ChildProcess | null = null;
     private connection: MessageConnection | null = null;
@@ -168,7 +185,7 @@ export class CopilotClient {
         }
 
         this.options = {
-            cliPath: options.cliPath || "copilot",
+            cliPath: options.cliPath || getBundledCliPath(),
             cliArgs: options.cliArgs ?? [],
             cwd: options.cwd ?? process.cwd(),
             port: options.port || 0,
@@ -997,34 +1014,33 @@ export class CopilotClient {
                 envWithoutNodeDebug.COPILOT_SDK_AUTH_TOKEN = this.options.githubToken;
             }
 
-            // If cliPath is a .js file, spawn it with node
-            // Note that we can't rely on the shebang as Windows doesn't support it
-            const isJsFile = this.options.cliPath.endsWith(".js");
-            const isAbsolutePath =
-                this.options.cliPath.startsWith("/") || /^[a-zA-Z]:/.test(this.options.cliPath);
-
-            let command: string;
-            let spawnArgs: string[];
-
-            if (isJsFile) {
-                command = "node";
-                spawnArgs = [this.options.cliPath, ...args];
-            } else if (process.platform === "win32" && !isAbsolutePath) {
-                // On Windows, spawn doesn't search PATHEXT, so use cmd /c to resolve the executable.
-                command = "cmd";
-                spawnArgs = ["/c", `${this.options.cliPath}`, ...args];
-            } else {
-                command = this.options.cliPath;
-                spawnArgs = args;
+            // Verify CLI exists before attempting to spawn
+            if (!existsSync(this.options.cliPath)) {
+                throw new Error(
+                    `Copilot CLI not found at ${this.options.cliPath}. Ensure @github/copilot is installed.`
+                );
             }
 
-            this.cliProcess = spawn(command, spawnArgs, {
-                stdio: this.options.useStdio
-                    ? ["pipe", "pipe", "pipe"]
-                    : ["ignore", "pipe", "pipe"],
-                cwd: this.options.cwd,
-                env: envWithoutNodeDebug,
-            });
+            const stdioConfig: ["pipe", "pipe", "pipe"] | ["ignore", "pipe", "pipe"] = this.options
+                .useStdio
+                ? ["pipe", "pipe", "pipe"]
+                : ["ignore", "pipe", "pipe"];
+
+            // For .js files, spawn node explicitly; for executables, spawn directly
+            const isJsFile = this.options.cliPath.endsWith(".js");
+            if (isJsFile) {
+                this.cliProcess = spawn(process.execPath, [this.options.cliPath, ...args], {
+                    stdio: stdioConfig,
+                    cwd: this.options.cwd,
+                    env: envWithoutNodeDebug,
+                });
+            } else {
+                this.cliProcess = spawn(this.options.cliPath, args, {
+                    stdio: stdioConfig,
+                    cwd: this.options.cwd,
+                    env: envWithoutNodeDebug,
+                });
+            }
 
             let stdout = "";
             let resolved = false;

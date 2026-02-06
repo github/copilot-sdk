@@ -8,37 +8,12 @@ namespace GitHub.Copilot.SDK.Test;
 
 // These tests bypass E2ETestBase because they are about how the CLI subprocess is started
 // Other test classes should instead inherit from E2ETestBase
-public class ClientTests : IAsyncLifetime
+public class ClientTests
 {
-    private string _cliPath = null!;
-
-    public Task InitializeAsync()
-    {
-        _cliPath = GetCliPath();
-        return Task.CompletedTask;
-    }
-
-    public Task DisposeAsync() => Task.CompletedTask;
-
-    private static string GetCliPath()
-    {
-        var envPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
-        if (!string.IsNullOrEmpty(envPath)) return envPath;
-
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null)
-        {
-            var path = Path.Combine(dir.FullName, "nodejs/node_modules/@github/copilot/index.js");
-            if (File.Exists(path)) return path;
-            dir = dir.Parent;
-        }
-        throw new InvalidOperationException("CLI not found. Run 'npm install' in the nodejs directory first.");
-    }
-
     [Fact]
     public async Task Should_Start_And_Connect_To_Server_Using_Stdio()
     {
-        using var client = new CopilotClient(new CopilotClientOptions { CliPath = _cliPath, UseStdio = true });
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = true });
 
         try
         {
@@ -61,7 +36,7 @@ public class ClientTests : IAsyncLifetime
     [Fact]
     public async Task Should_Start_And_Connect_To_Server_Using_Tcp()
     {
-        using var client = new CopilotClient(new CopilotClientOptions { CliPath = _cliPath, UseStdio = false });
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = false });
 
         try
         {
@@ -82,7 +57,7 @@ public class ClientTests : IAsyncLifetime
     [Fact]
     public async Task Should_Force_Stop_Without_Cleanup()
     {
-        using var client = new CopilotClient(new CopilotClientOptions { CliPath = _cliPath });
+        using var client = new CopilotClient(new CopilotClientOptions());
 
         await client.CreateSessionAsync();
         await client.ForceStopAsync();
@@ -93,7 +68,7 @@ public class ClientTests : IAsyncLifetime
     [Fact]
     public async Task Should_Get_Status_With_Version_And_Protocol_Info()
     {
-        using var client = new CopilotClient(new CopilotClientOptions { CliPath = _cliPath, UseStdio = true });
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = true });
 
         try
         {
@@ -115,7 +90,7 @@ public class ClientTests : IAsyncLifetime
     [Fact]
     public async Task Should_Get_Auth_Status()
     {
-        using var client = new CopilotClient(new CopilotClientOptions { CliPath = _cliPath, UseStdio = true });
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = true });
 
         try
         {
@@ -140,7 +115,7 @@ public class ClientTests : IAsyncLifetime
     [Fact]
     public async Task Should_List_Models_When_Authenticated()
     {
-        using var client = new CopilotClient(new CopilotClientOptions { CliPath = _cliPath, UseStdio = true });
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = true });
 
         try
         {
@@ -178,7 +153,6 @@ public class ClientTests : IAsyncLifetime
     {
         var options = new CopilotClientOptions
         {
-            CliPath = _cliPath,
             GithubToken = "gho_test_token"
         };
 
@@ -188,7 +162,7 @@ public class ClientTests : IAsyncLifetime
     [Fact]
     public void Should_Default_UseLoggedInUser_To_Null()
     {
-        var options = new CopilotClientOptions { CliPath = _cliPath };
+        var options = new CopilotClientOptions();
 
         Assert.Null(options.UseLoggedInUser);
     }
@@ -198,7 +172,6 @@ public class ClientTests : IAsyncLifetime
     {
         var options = new CopilotClientOptions
         {
-            CliPath = _cliPath,
             UseLoggedInUser = false
         };
 
@@ -210,7 +183,6 @@ public class ClientTests : IAsyncLifetime
     {
         var options = new CopilotClientOptions
         {
-            CliPath = _cliPath,
             GithubToken = "gho_test_token",
             UseLoggedInUser = true
         };

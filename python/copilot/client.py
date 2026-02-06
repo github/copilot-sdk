@@ -16,10 +16,11 @@ import asyncio
 import inspect
 import os
 import re
-import shutil
 import subprocess
+import sys
 import threading
 from dataclasses import asdict, is_dataclass
+from pathlib import Path
 from typing import Any, Callable, Optional, cast
 
 from .generated.session_events import session_event_from_dict
@@ -46,6 +47,26 @@ from .types import (
     ToolInvocation,
     ToolResult,
 )
+
+
+def _get_bundled_cli_path() -> Optional[str]:
+    """Get the path to the bundled CLI binary, if available."""
+    # The binary is bundled in copilot/bin/ within the package
+    bin_dir = Path(__file__).parent / "bin"
+    if not bin_dir.exists():
+        return None
+
+    # Determine binary name based on platform
+    if sys.platform == "win32":
+        binary_name = "copilot.exe"
+    else:
+        binary_name = "copilot"
+
+    binary_path = bin_dir / binary_name
+    if binary_path.exists():
+        return str(binary_path)
+
+    return None
 
 
 class CopilotClient:
@@ -130,8 +151,21 @@ class CopilotClient:
         else:
             self._actual_port = None
 
-        # Check environment variable for CLI path
-        default_cli_path = os.environ.get("COPILOT_CLI_PATH", "copilot")
+        # Determine CLI path: explicit option > bundled binary
+        # Not needed when connecting to external server via cli_url
+        if opts.get("cli_url"):
+            default_cli_path = ""  # Not used for external server
+        elif opts.get("cli_path"):
+            default_cli_path = opts["cli_path"]
+        else:
+            bundled_path = _get_bundled_cli_path()
+            if bundled_path:
+                default_cli_path = bundled_path
+            else:
+                raise RuntimeError(
+                    "Copilot CLI not found. The bundled CLI binary is not available. "
+                    "Ensure you installed a platform-specific wheel, or provide cli_path."
+                )
 
         # Default use_logged_in_user to False when github_token is provided
         github_token = opts.get("github_token")
@@ -140,7 +174,7 @@ class CopilotClient:
             use_logged_in_user = False if github_token else True
 
         self.options: CopilotClientOptions = {
-            "cli_path": opts.get("cli_path", default_cli_path),
+            "cli_path": default_cli_path,
             "cwd": opts.get("cwd", os.getcwd()),
             "port": opts.get("port", 0),
             "use_stdio": False if opts.get("cli_url") else opts.get("use_stdio", True),
@@ -1078,12 +1112,9 @@ class CopilotClient:
         """
         cli_path = self.options["cli_path"]
 
-        # Resolve the full path on Windows (handles .cmd/.bat files)
-        # On Windows, subprocess.Popen doesn't use PATHEXT to resolve extensions,
-        # so we need to use shutil.which() to find the actual executable
-        resolved_path = shutil.which(cli_path)
-        if resolved_path:
-            cli_path = resolved_path
+        # Verify CLI exists
+        if not os.path.exists(cli_path):
+            raise RuntimeError(f"Copilot CLI not found at {cli_path}")
 
         args = ["--headless", "--log-level", self.options["log_level"]]
 

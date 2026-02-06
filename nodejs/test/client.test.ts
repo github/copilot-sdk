@@ -1,13 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it, onTestFinished } from "vitest";
 import { CopilotClient } from "../src/index.js";
-import { CLI_PATH } from "./e2e/harness/sdkTestContext.js";
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.ts instead
 
 describe("CopilotClient", () => {
     it("returns a standardized failure result when a tool is not registered", async () => {
-        const client = new CopilotClient({ cliPath: CLI_PATH });
+        const client = new CopilotClient();
         await client.start();
         onTestFinished(() => client.forceStop());
 

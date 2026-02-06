@@ -1,7 +1,7 @@
 import { describe, expect, it, onTestFinished } from "vitest";
 import { ParsedHttpExchange } from "../../../test/harness/replayingCapiProxy.js";
 import { CopilotClient } from "../../src/index.js";
-import { CLI_PATH, createSdkTestContext } from "./harness/sdkTestContext.js";
+import { createSdkTestContext } from "./harness/sdkTestContext.js";
 import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
 
 describe("Sessions", async () => {
@@ -157,7 +157,6 @@ describe("Sessions", async () => {
 
         // Resume using a new client
         const newClient = new CopilotClient({
-            cliPath: CLI_PATH,
             env,
             githubToken: process.env.CI === "true" ? "fake-token-for-e2e-tests" : undefined,
         });

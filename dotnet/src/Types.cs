@@ -24,6 +24,9 @@ public enum ConnectionState
 
 public class CopilotClientOptions
 {
+    /// <summary>
+    /// Path to the Copilot CLI executable. If not specified, uses the bundled CLI from the SDK.
+    /// </summary>
     public string? CliPath { get; set; }
     public string[]? CliArgs { get; set; }
     public string? Cwd { get; set; }

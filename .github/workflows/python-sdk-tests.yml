@@ -10,7 +10,6 @@ on:
       - 'test/**'
       - 'nodejs/package.json'
       - '.github/workflows/python-sdk-tests.yml'
-      - '.github/actions/setup-copilot/**'
       - '!**/*.md'
       - '!**/LICENSE*'
       - '!**/.gitignore'
@@ -42,11 +41,14 @@ jobs:
         working-directory: ./python
     steps:
       - uses: actions/checkout@v6.0.2
-      - uses: ./.github/actions/setup-copilot
-        id: setup-copilot
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: "./nodejs/package-lock.json"
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
@@ -55,6 +57,10 @@ jobs:
 
       - name: Install Python dev dependencies
         run: uv sync --locked --all-extras --dev
+
+      - name: Install Node.js dependencies (for CLI in tests)
+        working-directory: ./nodejs
+        run: npm ci --ignore-scripts
 
       - name: Run ruff format check
         run: uv run ruff format --check .
@@ -76,5 +82,4 @@ jobs:
       - name: Run Python SDK tests
         env:
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
-          COPILOT_CLI_PATH: ${{ steps.setup-copilot.outputs.cli-path }}
         run: uv run pytest -v -s
