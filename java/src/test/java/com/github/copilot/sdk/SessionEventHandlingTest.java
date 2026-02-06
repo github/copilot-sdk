@@ -9,6 +9,10 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.io.Closeable;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
@@ -225,6 +229,150 @@ public class SessionEventHandlingTest {
             dispatchEvent(createAssistantMessageEvent("Test"));
             dispatchEvent(createSessionIdleEvent());
         });
+    }
+
+    @Test
+    void testDuplicateTypedHandlersBothReceiveEvent() {
+        var count1 = new AtomicInteger();
+        var count2 = new AtomicInteger();
+
+        session.on(AssistantMessageEvent.class, msg -> count1.incrementAndGet());
+        session.on(AssistantMessageEvent.class, msg -> count2.incrementAndGet());
+
+        dispatchEvent(createAssistantMessageEvent("hello"));
+
+        assertEquals(1, count1.get(), "First typed handler should be called");
+        assertEquals(1, count2.get(), "Second typed handler should be called");
+    }
+
+    @Test
+    void testDuplicateGenericHandlersBothFire() {
+        var events1 = new ArrayList<String>();
+        var events2 = new ArrayList<String>();
+
+        session.on(event -> events1.add(event.getType()));
+        session.on(event -> events2.add(event.getType()));
+
+        dispatchEvent(createAssistantMessageEvent("test"));
+
+        assertEquals(1, events1.size(), "First generic handler should receive event");
+        assertEquals(1, events2.size(), "Second generic handler should receive event");
+    }
+
+    @Test
+    void testUnsubscribeOneKeepsOther() {
+        var count1 = new AtomicInteger();
+        var count2 = new AtomicInteger();
+
+        var sub1 = session.on(AssistantMessageEvent.class, msg -> count1.incrementAndGet());
+        session.on(AssistantMessageEvent.class, msg -> count2.incrementAndGet());
+
+        dispatchEvent(createAssistantMessageEvent("before"));
+        assertEquals(1, count1.get());
+        assertEquals(1, count2.get());
+
+        // Unsubscribe first handler
+        try {
+            sub1.close();
+        } catch (Exception e) {
+            fail("Unsubscribe should not throw: " + e.getMessage());
+        }
+
+        dispatchEvent(createAssistantMessageEvent("after"));
+        assertEquals(1, count1.get(), "Unsubscribed handler should not be called again");
+        assertEquals(2, count2.get(), "Remaining handler should still be called");
+    }
+
+    @Test
+    void testAllHandlersInvoked() {
+        var called = new ArrayList<String>();
+
+        session.on(AssistantMessageEvent.class, msg -> called.add("first"));
+        session.on(AssistantMessageEvent.class, msg -> called.add("second"));
+        session.on(AssistantMessageEvent.class, msg -> called.add("third"));
+
+        dispatchEvent(createAssistantMessageEvent("test"));
+
+        assertEquals(3, called.size(), "All three handlers should be invoked");
+        assertTrue(called.containsAll(List.of("first", "second", "third")), "All handler labels should be present");
+    }
+
+    @Test
+    void testHandlersRunOnDispatchThread() throws Exception {
+        var handlerThreadName = new AtomicReference<String>();
+        var latch = new CountDownLatch(1);
+
+        session.on(AssistantMessageEvent.class, msg -> {
+            handlerThreadName.set(Thread.currentThread().getName());
+            latch.countDown();
+        });
+
+        // Dispatch from a named thread to simulate the jsonrpc-reader
+        var t = new Thread(() -> dispatchEvent(createAssistantMessageEvent("async")), "jsonrpc-reader-mock");
+        t.start();
+        assertTrue(latch.await(5, TimeUnit.SECONDS), "Handler should be invoked within timeout");
+        t.join(5000);
+
+        assertEquals("jsonrpc-reader-mock", handlerThreadName.get(),
+                "Handler should run on the dispatch thread, not a different one");
+    }
+
+    @Test
+    void testHandlersRunOffMainThread() throws Exception {
+        var mainThreadName = Thread.currentThread().getName();
+        var handlerThreadName = new AtomicReference<String>();
+        var latch = new CountDownLatch(1);
+
+        session.on(AssistantMessageEvent.class, msg -> {
+            handlerThreadName.set(Thread.currentThread().getName());
+            latch.countDown();
+        });
+
+        // Dispatch from a background thread (simulates jsonrpc-reader)
+        new Thread(() -> dispatchEvent(createAssistantMessageEvent("bg")), "background-dispatcher").start();
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS), "Handler should be invoked within timeout");
+        assertNotEquals(mainThreadName, handlerThreadName.get(), "Handler should NOT run on the main/test thread");
+        assertEquals("background-dispatcher", handlerThreadName.get(),
+                "Handler should run on the background dispatch thread");
+    }
+
+    @Test
+    void testConcurrentDispatchFromMultipleThreads() throws Exception {
+        var totalEvents = 100;
+        var receivedCount = new AtomicInteger();
+        var threadNames = ConcurrentHashMap.<String>newKeySet();
+        var latch = new CountDownLatch(totalEvents);
+
+        session.on(AssistantMessageEvent.class, msg -> {
+            receivedCount.incrementAndGet();
+            threadNames.add(Thread.currentThread().getName());
+            latch.countDown();
+        });
+
+        // Fire events from 10 concurrent threads, 10 events each
+        var threads = new ArrayList<Thread>();
+        for (int i = 0; i < 10; i++) {
+            var threadIdx = i;
+            var t = new Thread(() -> {
+                for (int j = 0; j < 10; j++) {
+                    dispatchEvent(createAssistantMessageEvent("msg-" + threadIdx + "-" + j));
+                }
+            }, "dispatcher-" + i);
+            threads.add(t);
+        }
+
+        for (var t : threads) {
+            t.start();
+        }
+
+        assertTrue(latch.await(10, TimeUnit.SECONDS), "All events should be delivered within timeout");
+        for (var t : threads) {
+            t.join(5000);
+        }
+
+        assertEquals(totalEvents, receivedCount.get(), "All " + totalEvents + " events should be delivered");
+        assertTrue(threadNames.size() > 1, "Events should have been dispatched from multiple threads");
     }
 
     // Helper methods to dispatch events using reflection
