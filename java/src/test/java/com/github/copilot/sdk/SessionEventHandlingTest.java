@@ -642,7 +642,7 @@ public class SessionEventHandlingTest {
     }
 
     @Test
-    void testSwitchPolicyDynamically() throws Exception {
+    void testSwitchPolicyDynamically() {
         var handler1Called = new AtomicInteger(0);
         var handler2Called = new AtomicInteger(0);
 

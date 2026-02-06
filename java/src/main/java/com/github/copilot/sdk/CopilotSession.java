@@ -227,6 +227,9 @@ public final class CopilotSession implements AutoCloseable {
      * @since 1.0.8
      */
     public void setEventErrorPolicy(EventErrorPolicy policy) {
+        if (policy == null) {
+            throw new NullPointerException("policy must not be null");
+        }
         this.eventErrorPolicy = policy;
     }
 
