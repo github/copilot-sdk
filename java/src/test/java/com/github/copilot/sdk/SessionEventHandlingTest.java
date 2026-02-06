@@ -382,7 +382,8 @@ public class SessionEventHandlingTest {
 
     @Test
     void testDefaultErrorHandlerContinuesSilently() {
-        // Without a custom error handler, exceptions should be caught silently (no crash, no logging)
+        // Without a custom error handler, exceptions should be caught silently (no
+        // crash, no logging)
         var received = new ArrayList<String>();
 
         // First handler throws
@@ -475,9 +476,11 @@ public class SessionEventHandlingTest {
             });
 
             assertDoesNotThrow(() -> dispatchEvent(createAssistantMessageEvent("Test")));
-            // Only one handler should have executed (dispatch stopped when error handler threw)
+            // Only one handler should have executed (dispatch stopped when error handler
+            // threw)
             int totalCalls = handler1Called.get() + handler2Called.get();
-            assertEquals(1, totalCalls, "Only one handler should have been called (dispatch stopped when error handler threw)");
+            assertEquals(1, totalCalls,
+                    "Only one handler should have been called (dispatch stopped when error handler threw)");
         } finally {
             sessionLogger.setLevel(originalLevel);
         }

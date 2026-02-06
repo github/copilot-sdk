@@ -37,20 +37,20 @@ import com.github.copilot.sdk.events.AbstractSessionEvent;
  * <pre>{@code
  * // Continue on error (log and keep dispatching)
  * session.setEventErrorHandler((event, exception) -> {
- *     logger.error("Handler failed: {}", exception.getMessage(), exception);
- *     return true; // keep dispatching
+ * 	logger.error("Handler failed: {}", exception.getMessage(), exception);
+ * 	return true; // keep dispatching
  * });
  *
  * // Short-circuit on error (stop at first failure)
  * session.setEventErrorHandler((event, exception) -> {
- *     logger.error("Handler failed, stopping: {}", exception.getMessage(), exception);
- *     return false; // stop dispatching
+ * 	logger.error("Handler failed, stopping: {}", exception.getMessage(), exception);
+ * 	return false; // stop dispatching
  * });
  *
  * // Selective: short-circuit only for critical events
  * session.setEventErrorHandler((event, exception) -> {
- *     logger.error("Handler failed: {}", exception.getMessage(), exception);
- *     return !(event instanceof SessionErrorEvent); // stop only for error events
+ * 	logger.error("Handler failed: {}", exception.getMessage(), exception);
+ * 	return !(event instanceof SessionErrorEvent); // stop only for error events
  * });
  * }</pre>
  *

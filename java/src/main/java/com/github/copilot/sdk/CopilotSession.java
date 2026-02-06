@@ -163,8 +163,8 @@ public final class CopilotSession implements AutoCloseable {
      * <ul>
      * <li>Return {@code true} to continue dispatching (default behavior for
      * independent listeners)</li>
-     * <li>Return {@code false} to stop dispatching (short-circuit for validation
-     * or critical errors)</li>
+     * <li>Return {@code false} to stop dispatching (short-circuit for validation or
+     * critical errors)</li>
      * </ul>
      *
      * <p>
