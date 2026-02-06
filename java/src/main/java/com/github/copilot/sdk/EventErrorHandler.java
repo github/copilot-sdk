@@ -16,49 +16,20 @@ import com.github.copilot.sdk.events.AbstractSessionEvent;
  * being dispatched and the exception that was thrown.
  *
  * <p>
- * The handler's return value controls whether event dispatch continues to
- * remaining handlers:
- * <ul>
- * <li>Return {@code true} to continue dispatching to remaining handlers
- * (default behavior for independent listeners)</li>
- * <li>Return {@code false} to stop dispatching (short-circuit behavior for
- * validation or critical errors)</li>
- * </ul>
- *
- * <p>
- * When no error handler is set, exceptions are silently caught and dispatch
- * continues to remaining handlers. This makes the SDK non-intrusive by default.
- * Applications should set an error handler to log, track, or respond to handler
- * failures.
- *
- * <p>
- * Example configurations:
+ * The default behavior logs errors at {@link java.util.logging.Level#SEVERE}.
+ * You can override this to integrate with your own logging, metrics, or
+ * error-reporting systems:
  *
  * <pre>{@code
- * // Continue on error (log and keep dispatching)
  * session.setEventErrorHandler((event, exception) -> {
- * 	logger.error("Handler failed: {}", exception.getMessage(), exception);
- * 	return true; // keep dispatching
- * });
- *
- * // Short-circuit on error (stop at first failure)
- * session.setEventErrorHandler((event, exception) -> {
- * 	logger.error("Handler failed, stopping: {}", exception.getMessage(), exception);
- * 	return false; // stop dispatching
- * });
- *
- * // Selective: short-circuit only for critical events
- * session.setEventErrorHandler((event, exception) -> {
- * 	logger.error("Handler failed: {}", exception.getMessage(), exception);
- * 	return !(event instanceof SessionErrorEvent); // stop only for error events
+ * 	metrics.increment("handler.errors");
+ * 	logger.error("Handler failed on {}: {}", event.getType(), exception.getMessage());
  * });
  * }</pre>
  *
  * <p>
- * If the error handler itself throws an exception, that exception is caught,
- * logged at {@link java.util.logging.Level#SEVERE}, and dispatch is stopped to
- * prevent cascading failures. When the error handler throws, its return value
- * (if it would have been computed) is ignored.
+ * If the error handler itself throws an exception, that exception is silently
+ * caught and logged to prevent cascading failures.
  *
  * @see CopilotSession#setEventErrorHandler(EventErrorHandler)
  * @since 1.0.8
@@ -73,8 +44,6 @@ public interface EventErrorHandler {
      *            the event that was being dispatched when the error occurred
      * @param exception
      *            the exception thrown by the event handler
-     * @return {@code true} to continue dispatching to remaining handlers,
-     *         {@code false} to stop dispatching (the exception is not rethrown)
      */
-    boolean handleError(AbstractSessionEvent event, Exception exception);
+    void handleError(AbstractSessionEvent event, Exception exception);
 }

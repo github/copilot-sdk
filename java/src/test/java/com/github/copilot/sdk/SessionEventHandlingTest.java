@@ -381,26 +381,21 @@ public class SessionEventHandlingTest {
     // ====================================================================
 
     @Test
-    void testDefaultErrorHandlerContinuesSilently() {
-        // Without a custom error handler, exceptions should be caught silently (no
-        // crash, no logging)
-        var received = new ArrayList<String>();
+    void testDefaultErrorHandlerLogsException() {
+        // Without a custom error handler, exceptions should be logged (no crash)
+        Logger sessionLogger = Logger.getLogger(CopilotSession.class.getName());
+        Level originalLevel = sessionLogger.getLevel();
+        sessionLogger.setLevel(Level.OFF);
 
-        // First handler throws
-        session.on(AssistantMessageEvent.class, msg -> {
-            throw new RuntimeException("boom");
-        });
+        try {
+            session.on(AssistantMessageEvent.class, msg -> {
+                throw new RuntimeException("boom");
+            });
 
-        // Second handler should still execute (silent continuation)
-        session.on(AssistantMessageEvent.class, msg -> {
-            received.add(msg.getData().getContent());
-        });
-
-        assertDoesNotThrow(() -> dispatchEvent(createAssistantMessageEvent("Test")));
-
-        // Second handler should have received the event
-        assertEquals(1, received.size());
-        assertEquals("Test", received.get(0));
+            assertDoesNotThrow(() -> dispatchEvent(createAssistantMessageEvent("Test")));
+        } finally {
+            sessionLogger.setLevel(originalLevel);
+        }
     }
 
     @Test
@@ -411,7 +406,6 @@ public class SessionEventHandlingTest {
         session.setEventErrorHandler((event, exception) -> {
             capturedEvents.add(event);
             capturedExceptions.add(exception);
-            return true; // continue dispatching
         });
 
         var thrownException = new RuntimeException("test error");
@@ -434,7 +428,6 @@ public class SessionEventHandlingTest {
 
         session.setEventErrorHandler((event, exception) -> {
             errorCount.incrementAndGet();
-            return true; // continue dispatching
         });
 
         session.on(AssistantMessageEvent.class, msg -> {
@@ -451,9 +444,8 @@ public class SessionEventHandlingTest {
     }
 
     @Test
-    void testErrorHandlerItselfThrowingStopsDispatch() {
-        var handler1Called = new AtomicInteger(0);
-        var handler2Called = new AtomicInteger(0);
+    void testErrorHandlerItselfThrowingDoesNotBreakDispatch() {
+        var received = new ArrayList<String>();
 
         Logger sessionLogger = Logger.getLogger(CopilotSession.class.getName());
         Level originalLevel = sessionLogger.getLevel();
@@ -464,23 +456,19 @@ public class SessionEventHandlingTest {
                 throw new RuntimeException("error handler also broke");
             });
 
-            // Two handlers that throw
+            // First handler throws
             session.on(AssistantMessageEvent.class, msg -> {
-                handler1Called.incrementAndGet();
                 throw new RuntimeException("handler error");
             });
 
+            // Second handler should still execute
             session.on(AssistantMessageEvent.class, msg -> {
-                handler2Called.incrementAndGet();
-                throw new RuntimeException("handler error");
+                received.add(msg.getData().getContent());
             });
 
-            assertDoesNotThrow(() -> dispatchEvent(createAssistantMessageEvent("Test")));
-            // Only one handler should have executed (dispatch stopped when error handler
-            // threw)
-            int totalCalls = handler1Called.get() + handler2Called.get();
-            assertEquals(1, totalCalls,
-                    "Only one handler should have been called (dispatch stopped when error handler threw)");
+            assertDoesNotThrow(() -> dispatchEvent(createAssistantMessageEvent("Still works")));
+            assertEquals(1, received.size());
+            assertEquals("Still works", received.get(0));
         } finally {
             sessionLogger.setLevel(originalLevel);
         }
@@ -493,7 +481,6 @@ public class SessionEventHandlingTest {
         // Set custom handler
         session.setEventErrorHandler((event, exception) -> {
             errorCount.incrementAndGet();
-            return true; // continue
         });
 
         session.on(AssistantMessageEvent.class, msg -> {
@@ -503,22 +490,22 @@ public class SessionEventHandlingTest {
         dispatchEvent(createAssistantMessageEvent("Test1"));
         assertEquals(1, errorCount.get());
 
-        // Reset to null (restore default silent continuation)
+        // Reset to null (restore default logging)
         session.setEventErrorHandler(null);
 
-        // With no handler set, exceptions are caught silently (no logging)
-        // Second handler should still execute
-        var received = new ArrayList<String>();
-        session.on(AssistantMessageEvent.class, msg -> {
-            received.add(msg.getData().getContent());
-        });
+        // Suppress default logging for the next dispatch
+        Logger sessionLogger = Logger.getLogger(CopilotSession.class.getName());
+        Level originalLevel = sessionLogger.getLevel();
+        sessionLogger.setLevel(Level.OFF);
 
-        dispatchEvent(createAssistantMessageEvent("Test2"));
+        try {
+            dispatchEvent(createAssistantMessageEvent("Test2"));
+        } finally {
+            sessionLogger.setLevel(originalLevel);
+        }
 
         // Custom handler should NOT have been called again
         assertEquals(1, errorCount.get());
-        // Second handler should have executed (silent continuation)
-        assertEquals(1, received.size());
     }
 
     @Test
@@ -527,7 +514,6 @@ public class SessionEventHandlingTest {
 
         session.setEventErrorHandler((event, exception) -> {
             capturedEvents.add(event);
-            return true; // continue
         });
 
         session.on(event -> {
@@ -543,266 +529,6 @@ public class SessionEventHandlingTest {
         assertEquals(2, capturedEvents.size());
         assertInstanceOf(AssistantMessageEvent.class, capturedEvents.get(0));
         assertInstanceOf(SessionIdleEvent.class, capturedEvents.get(1));
-    }
-
-    // ====================================================================
-    // Error propagation control tests (return true/false)
-    // ====================================================================
-
-    @Test
-    void testErrorHandlerReturningTrueContinuesDispatching() {
-        var handler1Called = new AtomicInteger(0);
-        var handler2Called = new AtomicInteger(0);
-        var handler3Called = new AtomicInteger(0);
-
-        session.setEventErrorHandler((event, exception) -> {
-            return true; // continue dispatching
-        });
-
-        // First handler throws
-        session.on(AssistantMessageEvent.class, msg -> {
-            handler1Called.incrementAndGet();
-            throw new RuntimeException("error");
-        });
-
-        // Second handler should execute
-        session.on(AssistantMessageEvent.class, msg -> {
-            handler2Called.incrementAndGet();
-        });
-
-        // Third handler should also execute
-        session.on(AssistantMessageEvent.class, msg -> {
-            handler3Called.incrementAndGet();
-        });
-
-        dispatchEvent(createAssistantMessageEvent("Test"));
-
-        // All handlers should have been called
-        assertEquals(1, handler1Called.get());
-        assertEquals(1, handler2Called.get());
-        assertEquals(1, handler3Called.get());
-    }
-
-    @Test
-    void testErrorHandlerReturningFalseStopsDispatching() {
-        var firstThrowingHandlerCalled = new AtomicInteger(0);
-        var secondThrowingHandlerCalled = new AtomicInteger(0);
-        var errorHandlerCalls = new AtomicInteger(0);
-
-        session.setEventErrorHandler((event, exception) -> {
-            errorHandlerCalls.incrementAndGet();
-            return false; // stop dispatching
-        });
-
-        // Two handlers that throw
-        session.on(AssistantMessageEvent.class, msg -> {
-            firstThrowingHandlerCalled.incrementAndGet();
-            throw new RuntimeException("error 1");
-        });
-
-        session.on(AssistantMessageEvent.class, msg -> {
-            secondThrowingHandlerCalled.incrementAndGet();
-            throw new RuntimeException("error 2");
-        });
-
-        dispatchEvent(createAssistantMessageEvent("Test"));
-
-        // Error handler should be called only once (stopped after first error)
-        assertEquals(1, errorHandlerCalls.get());
-        // At least one handler should have been called
-        int totalCalls = firstThrowingHandlerCalled.get() + secondThrowingHandlerCalled.get();
-        assertEquals(1, totalCalls, "Only one handler should have been called (dispatch stopped after first error)");
-    }
-
-    @Test
-    void testErrorHandlerSelectiveShortCircuit() {
-        var handler1Called = new AtomicInteger(0);
-        var handler2Called = new AtomicInteger(0);
-        var errorHandlerCalls = new AtomicInteger(0);
-
-        // Selective: short-circuit only for SessionIdleEvent
-        session.setEventErrorHandler((event, exception) -> {
-            errorHandlerCalls.incrementAndGet();
-            return !(event instanceof SessionIdleEvent); // stop only for idle events
-        });
-
-        // Two handlers that throw
-        session.on(event -> {
-            handler1Called.incrementAndGet();
-            throw new RuntimeException("error");
-        });
-        session.on(event -> {
-            handler2Called.incrementAndGet();
-            throw new RuntimeException("error");
-        });
-
-        // Dispatch AssistantMessageEvent - should continue
-        dispatchEvent(createAssistantMessageEvent("msg"));
-
-        // Both handlers should be called for AssistantMessageEvent (continue = true)
-        assertEquals(2, errorHandlerCalls.get(), "Error handler should be called twice for AssistantMessageEvent");
-        assertEquals(1, handler1Called.get());
-        assertEquals(1, handler2Called.get());
-
-        handler1Called.set(0);
-        handler2Called.set(0);
-
-        // Dispatch SessionIdleEvent - should stop
-        dispatchEvent(createSessionIdleEvent());
-
-        // Only one handler should throw for SessionIdleEvent (stopped after first)
-        assertEquals(3, errorHandlerCalls.get(), "Error handler should be called one more time for SessionIdleEvent");
-        int totalCalls = handler1Called.get() + handler2Called.get();
-        assertEquals(1, totalCalls, "Only one handler should have been called for SessionIdleEvent (dispatch stopped)");
-    }
-
-    @Test
-    void testMultipleErrorsWithContinueTrue() {
-        var errorHandlerCalls = new AtomicInteger(0);
-        var successfulHandlerCalls = new AtomicInteger(0);
-
-        session.setEventErrorHandler((event, exception) -> {
-            errorHandlerCalls.incrementAndGet();
-            return true; // continue
-        });
-
-        // Multiple handlers that throw
-        session.on(AssistantMessageEvent.class, msg -> {
-            throw new RuntimeException("error 1");
-        });
-        session.on(AssistantMessageEvent.class, msg -> {
-            throw new RuntimeException("error 2");
-        });
-        session.on(AssistantMessageEvent.class, msg -> {
-            successfulHandlerCalls.incrementAndGet();
-        });
-        session.on(AssistantMessageEvent.class, msg -> {
-            throw new RuntimeException("error 3");
-        });
-
-        dispatchEvent(createAssistantMessageEvent("Test"));
-
-        // Error handler should be called 3 times (for 3 exceptions)
-        assertEquals(3, errorHandlerCalls.get());
-        // Successful handler should be called once
-        assertEquals(1, successfulHandlerCalls.get());
-    }
-
-    @Test
-    void testMultipleErrorsWithContinueFalse() {
-        var errorHandlerCalls = new AtomicInteger(0);
-        var successfulHandlerCalls = new AtomicInteger(0);
-
-        session.setEventErrorHandler((event, exception) -> {
-            errorHandlerCalls.incrementAndGet();
-            return false; // stop
-        });
-
-        // Multiple handlers that throw
-        session.on(AssistantMessageEvent.class, msg -> {
-            throw new RuntimeException("error 1");
-        });
-        session.on(AssistantMessageEvent.class, msg -> {
-            throw new RuntimeException("error 2");
-        });
-        session.on(AssistantMessageEvent.class, msg -> {
-            successfulHandlerCalls.incrementAndGet();
-        });
-
-        dispatchEvent(createAssistantMessageEvent("Test"));
-
-        // Error handler should be called only once (stopped after first error)
-        assertEquals(1, errorHandlerCalls.get());
-        // Successful handler should never be called
-        assertEquals(0, successfulHandlerCalls.get());
-    }
-
-    @Test
-    void testNoErrorHandlerSetContinuesSilently() {
-        var throwingHandlerCalled = new AtomicInteger(0);
-        var normalHandlerCalled = new AtomicInteger(0);
-
-        // No error handler set
-        session.setEventErrorHandler(null);
-
-        // First handler throws
-        session.on(AssistantMessageEvent.class, msg -> {
-            throwingHandlerCalled.incrementAndGet();
-            throw new RuntimeException("error");
-        });
-
-        // Second handler should execute (silent continuation)
-        session.on(AssistantMessageEvent.class, msg -> {
-            normalHandlerCalled.incrementAndGet();
-        });
-
-        dispatchEvent(createAssistantMessageEvent("Test"));
-
-        // Both handlers should have been called
-        assertEquals(1, throwingHandlerCalled.get());
-        assertEquals(1, normalHandlerCalled.get());
-    }
-
-    @Test
-    void testErrorHandlerCanInspectExceptionToDecide() {
-        var illegalStateHandlerCalled = new AtomicInteger(0);
-        var runtimeHandlerCalled = new AtomicInteger(0);
-        var errorHandlerCalls = new AtomicInteger(0);
-
-        // Continue on IllegalStateException, stop on RuntimeException
-        session.setEventErrorHandler((event, exception) -> {
-            errorHandlerCalls.incrementAndGet();
-            return exception instanceof IllegalStateException; // continue only for IllegalStateException
-        });
-
-        // Two handlers that throw IllegalStateException
-        session.on(AssistantMessageEvent.class, msg -> {
-            illegalStateHandlerCalled.incrementAndGet();
-            throw new IllegalStateException("state error");
-        });
-
-        session.on(AssistantMessageEvent.class, msg -> {
-            illegalStateHandlerCalled.incrementAndGet();
-            throw new IllegalStateException("state error");
-        });
-
-        dispatchEvent(createAssistantMessageEvent("Test1"));
-
-        // Both handlers should have been called (continued on IllegalStateException)
-        assertEquals(2, illegalStateHandlerCalled.get());
-        assertEquals(2, errorHandlerCalls.get());
-
-        // Create a new session for the second part
-        try {
-            session = createTestSession();
-        } catch (Exception e) {
-            fail("Failed to create test session: " + e.getMessage());
-        }
-
-        errorHandlerCalls.set(0);
-
-        // Set same error handler
-        session.setEventErrorHandler((event, exception) -> {
-            errorHandlerCalls.incrementAndGet();
-            return exception instanceof IllegalStateException; // continue only for IllegalStateException
-        });
-
-        // Two handlers that throw RuntimeException
-        session.on(AssistantMessageEvent.class, msg -> {
-            runtimeHandlerCalled.incrementAndGet();
-            throw new RuntimeException("runtime error");
-        });
-
-        session.on(AssistantMessageEvent.class, msg -> {
-            runtimeHandlerCalled.incrementAndGet();
-            throw new RuntimeException("runtime error");
-        });
-
-        dispatchEvent(createAssistantMessageEvent("Test2"));
-
-        // Only one handler should have been called (stopped on RuntimeException)
-        assertEquals(1, runtimeHandlerCalled.get());
-        assertEquals(1, errorHandlerCalls.get());
     }
 
     // ====================================================================
