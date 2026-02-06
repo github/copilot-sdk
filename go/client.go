@@ -143,6 +143,9 @@ func NewClient(options *ClientOptions) *Client {
 		if options.CLIPath != "" {
 			opts.CLIPath = options.CLIPath
 		}
+		if options.CLIArgs != nil {
+			opts.CLIArgs = options.CLIArgs
+		}
 		if options.Cwd != "" {
 			opts.Cwd = options.Cwd
 		}
@@ -994,7 +997,11 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 // This spawns the CLI server as a subprocess using the configured transport
 // mode (stdio or TCP).
 func (c *Client) startCLIServer(ctx context.Context) error {
-	args := []string{"--headless", "--no-auto-update", "--log-level", c.options.LogLevel}
+	// Start with user-provided CLI args (inserted before SDK-managed args)
+	args := append([]string{}, c.options.CLIArgs...)
+	
+	// Add SDK-managed args
+	args = append(args, "--headless", "--no-auto-update", "--log-level", c.options.LogLevel)
 
 	// Choose transport mode
 	if c.useStdio {
