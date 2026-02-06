@@ -467,6 +467,20 @@ export class CopilotClient {
             }
         }
 
+        // Validate model if specified
+        if (config.model) {
+            // listModels() caches results, so this has minimal overhead
+            const availableModels = await this.listModels();
+            const modelLower = config.model.toLowerCase();
+
+            if (!availableModels.some((m) => m.id.toLowerCase() === modelLower)) {
+                const validIds = availableModels.map((m) => m.id);
+                throw new Error(
+                    `Invalid model '${config.model}'. Available models: ${validIds.join(", ")}`
+                );
+            }
+        }
+
         const response = await this.connection!.sendRequest("session.create", {
             model: config.model,
             sessionId: config.sessionId,
