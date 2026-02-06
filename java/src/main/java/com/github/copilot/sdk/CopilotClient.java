@@ -79,7 +79,7 @@ import com.github.copilot.sdk.json.ToolResultObject;
  *
  * @since 1.0.0
  */
-public class CopilotClient implements AutoCloseable {
+public final class CopilotClient implements AutoCloseable {
 
     private static final Logger LOG = Logger.getLogger(CopilotClient.class.getName());
     private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();
