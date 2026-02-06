@@ -262,7 +262,7 @@ Use the [Foundry Local SDK](https://github.com/microsoft/Foundry-Local#-integrat
 // Bootstrap: npm install foundry-local-sdk
 // import { FoundryLocalManager } from "foundry-local-sdk";
 // const manager = new FoundryLocalManager();
-// const modelInfo = await manager.init("phi-3.5-mini");
+// const modelInfo = await manager.init("gpt-oss-20b");
 
 provider: {
     type: "openai",
@@ -271,7 +271,7 @@ provider: {
 }
 ```
 
-> **Note:** Foundry Local must be [installed separately](https://github.com/microsoft/Foundry-Local#installing). Run `foundry model run phi-3.5-mini` to download and start a model.
+> **Note:** Foundry Local must be [installed separately](https://github.com/microsoft/Foundry-Local#installing). Run `foundry model run gpt-oss-20b` to download and start a model.
 
 ### Anthropic
 
@@ -400,7 +400,7 @@ foundry --version
 foundry model ls
 
 # Start a model (downloads if not cached)
-foundry model run phi-3.5-mini
+foundry model run gpt-oss-20b
 
 # Check the service endpoint
 curl http://localhost:5272/v1/models
