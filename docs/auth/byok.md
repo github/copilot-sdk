@@ -262,7 +262,7 @@ Use the [Foundry Local SDK](https://github.com/microsoft/Foundry-Local#-integrat
 // Bootstrap: npm install foundry-local-sdk
 // import { FoundryLocalManager } from "foundry-local-sdk";
 // const manager = new FoundryLocalManager();
-// const modelInfo = await manager.init("gpt-oss-20b");
+// const modelInfo = await manager.init("phi-4-mini");
 
 provider: {
     type: "openai",
@@ -272,7 +272,7 @@ provider: {
 }
 ```
 
-> **Note:** Foundry Local must be [installed separately](https://github.com/microsoft/Foundry-Local#installing). Run `foundry model run gpt-oss-20b` to download and start a model.
+> **Note:** Foundry Local must be [installed separately](https://github.com/microsoft/Foundry-Local#installing). Run `foundry model run phi-4-mini` to download and start a model.
 
 For a complete walkthrough including tool calling, streaming, and multi-turn conversations, see the [Foundry Local Copilot SDK integration guide](https://github.com/microsoft/Foundry-Local/blob/main/docs/copilot-sdk-integration.md) and the [working Node.js sample](https://github.com/microsoft/Foundry-Local/tree/main/samples/js/copilot-sdk-foundry-local).
 
@@ -403,7 +403,7 @@ foundry --version
 foundry model ls
 
 # Start a model (downloads if not cached)
-foundry model run gpt-oss-20b
+foundry model run phi-4-mini
 
 # Check the service endpoint
 curl http://localhost:5272/v1/models
