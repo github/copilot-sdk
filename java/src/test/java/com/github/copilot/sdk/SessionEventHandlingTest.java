@@ -376,6 +376,165 @@ public class SessionEventHandlingTest {
     }
 
     // Helper methods to dispatch events using reflection
+    // ====================================================================
+    // EventErrorHandler tests
+    // ====================================================================
+
+    @Test
+    void testDefaultErrorHandlerLogsException() {
+        // Without a custom error handler, exceptions should be logged (no crash)
+        Logger sessionLogger = Logger.getLogger(CopilotSession.class.getName());
+        Level originalLevel = sessionLogger.getLevel();
+        sessionLogger.setLevel(Level.OFF);
+
+        try {
+            session.on(AssistantMessageEvent.class, msg -> {
+                throw new RuntimeException("boom");
+            });
+
+            assertDoesNotThrow(() -> dispatchEvent(createAssistantMessageEvent("Test")));
+        } finally {
+            sessionLogger.setLevel(originalLevel);
+        }
+    }
+
+    @Test
+    void testCustomEventErrorHandlerReceivesEventAndException() {
+        var capturedEvents = new ArrayList<AbstractSessionEvent>();
+        var capturedExceptions = new ArrayList<Exception>();
+
+        session.setEventErrorHandler((event, exception) -> {
+            capturedEvents.add(event);
+            capturedExceptions.add(exception);
+        });
+
+        var thrownException = new RuntimeException("test error");
+        session.on(AssistantMessageEvent.class, msg -> {
+            throw thrownException;
+        });
+
+        var event = createAssistantMessageEvent("Hello");
+        dispatchEvent(event);
+
+        assertEquals(1, capturedEvents.size());
+        assertSame(event, capturedEvents.get(0));
+        assertEquals(1, capturedExceptions.size());
+        assertSame(thrownException, capturedExceptions.get(0));
+    }
+
+    @Test
+    void testCustomErrorHandlerReplacesDefaultLogging() {
+        var errorCount = new AtomicInteger(0);
+
+        session.setEventErrorHandler((event, exception) -> {
+            errorCount.incrementAndGet();
+        });
+
+        session.on(AssistantMessageEvent.class, msg -> {
+            throw new RuntimeException("error 1");
+        });
+        session.on(AssistantMessageEvent.class, msg -> {
+            throw new RuntimeException("error 2");
+        });
+
+        dispatchEvent(createAssistantMessageEvent("Test"));
+
+        // Both handler errors should be reported to the custom error handler
+        assertEquals(2, errorCount.get());
+    }
+
+    @Test
+    void testErrorHandlerItselfThrowingDoesNotBreakDispatch() {
+        var received = new ArrayList<String>();
+
+        Logger sessionLogger = Logger.getLogger(CopilotSession.class.getName());
+        Level originalLevel = sessionLogger.getLevel();
+        sessionLogger.setLevel(Level.OFF);
+
+        try {
+            session.setEventErrorHandler((event, exception) -> {
+                throw new RuntimeException("error handler also broke");
+            });
+
+            // First handler throws
+            session.on(AssistantMessageEvent.class, msg -> {
+                throw new RuntimeException("handler error");
+            });
+
+            // Second handler should still execute
+            session.on(AssistantMessageEvent.class, msg -> {
+                received.add(msg.getData().getContent());
+            });
+
+            assertDoesNotThrow(() -> dispatchEvent(createAssistantMessageEvent("Still works")));
+            assertEquals(1, received.size());
+            assertEquals("Still works", received.get(0));
+        } finally {
+            sessionLogger.setLevel(originalLevel);
+        }
+    }
+
+    @Test
+    void testSetEventErrorHandlerToNullRestoresDefaultBehavior() {
+        var errorCount = new AtomicInteger(0);
+
+        // Set custom handler
+        session.setEventErrorHandler((event, exception) -> {
+            errorCount.incrementAndGet();
+        });
+
+        session.on(AssistantMessageEvent.class, msg -> {
+            throw new RuntimeException("error");
+        });
+
+        dispatchEvent(createAssistantMessageEvent("Test1"));
+        assertEquals(1, errorCount.get());
+
+        // Reset to null (restore default logging)
+        session.setEventErrorHandler(null);
+
+        // Suppress default logging for the next dispatch
+        Logger sessionLogger = Logger.getLogger(CopilotSession.class.getName());
+        Level originalLevel = sessionLogger.getLevel();
+        sessionLogger.setLevel(Level.OFF);
+
+        try {
+            dispatchEvent(createAssistantMessageEvent("Test2"));
+        } finally {
+            sessionLogger.setLevel(originalLevel);
+        }
+
+        // Custom handler should NOT have been called again
+        assertEquals(1, errorCount.get());
+    }
+
+    @Test
+    void testErrorHandlerReceivesCorrectEventType() {
+        var capturedEvents = new ArrayList<AbstractSessionEvent>();
+
+        session.setEventErrorHandler((event, exception) -> {
+            capturedEvents.add(event);
+        });
+
+        session.on(event -> {
+            throw new RuntimeException("always fails");
+        });
+
+        var msgEvent = createAssistantMessageEvent("msg");
+        var idleEvent = createSessionIdleEvent();
+
+        dispatchEvent(msgEvent);
+        dispatchEvent(idleEvent);
+
+        assertEquals(2, capturedEvents.size());
+        assertInstanceOf(AssistantMessageEvent.class, capturedEvents.get(0));
+        assertInstanceOf(SessionIdleEvent.class, capturedEvents.get(1));
+    }
+
+    // ====================================================================
+    // Helper methods
+    // ====================================================================
+
     private void dispatchEvent(AbstractSessionEvent event) {
         try {
             Method dispatchMethod = CopilotSession.class.getDeclaredMethod("dispatchEvent", AbstractSessionEvent.class);

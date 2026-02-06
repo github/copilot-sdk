@@ -95,6 +95,7 @@ public final class CopilotSession implements AutoCloseable {
     private final AtomicReference<PermissionHandler> permissionHandler = new AtomicReference<>();
     private final AtomicReference<UserInputHandler> userInputHandler = new AtomicReference<>();
     private final AtomicReference<SessionHooks> hooksHandler = new AtomicReference<>();
+    private volatile EventErrorHandler eventErrorHandler;
 
     /**
      * Creates a new session with the given ID and RPC client.
@@ -150,6 +151,38 @@ public final class CopilotSession implements AutoCloseable {
      */
     public String getWorkspacePath() {
         return workspacePath;
+    }
+
+    /**
+     * Sets a custom error handler for exceptions thrown by event handlers.
+     * <p>
+     * When an event handler registered via {@link #on(Consumer)} or
+     * {@link #on(Class, Consumer)} throws an exception during event dispatch, the
+     * error handler is invoked instead of the default behavior (logging at
+     * {@link Level#SEVERE}).
+     *
+     * <p>
+     * If the error handler itself throws an exception, that exception is silently
+     * caught and logged to prevent cascading failures.
+     *
+     * <p>
+     * <b>Example:</b>
+     *
+     * <pre>{@code
+     * session.setEventErrorHandler((event, exception) -> {
+     * 	metrics.increment("handler.errors");
+     * 	logger.error("Handler failed on {}: {}", event.getType(), exception.getMessage());
+     * });
+     * }</pre>
+     *
+     * @param handler
+     *            the error handler, or {@code null} to restore default logging
+     *            behavior
+     * @see EventErrorHandler
+     * @since 1.0.8
+     */
+    public void setEventErrorHandler(EventErrorHandler handler) {
+        this.eventErrorHandler = handler;
     }
 
     /**
@@ -377,18 +410,31 @@ public final class CopilotSession implements AutoCloseable {
      * <p>
      * This is called internally when events are received from the server. Each
      * handler is invoked in its own try/catch block so that an exception thrown by
-     * one handler does not prevent subsequent handlers from executing. Exceptions
-     * are logged at {@link Level#SEVERE}.
+     * one handler does not prevent subsequent handlers from executing.
+     * <p>
+     * If a custom {@link EventErrorHandler} has been set via
+     * {@link #setEventErrorHandler(EventErrorHandler)}, it is called with the event
+     * and exception. Otherwise, exceptions are logged at {@link Level#SEVERE}.
      *
      * @param event
      *            the event to dispatch
+     * @see #setEventErrorHandler(EventErrorHandler)
      */
     void dispatchEvent(AbstractSessionEvent event) {
         for (Consumer<AbstractSessionEvent> handler : eventHandlers) {
             try {
                 handler.accept(event);
             } catch (Exception e) {
-                LOG.log(Level.SEVERE, "Error in event handler", e);
+                EventErrorHandler errorHandler = this.eventErrorHandler;
+                if (errorHandler != null) {
+                    try {
+                        errorHandler.handleError(event, e);
+                    } catch (Exception errorHandlerException) {
+                        LOG.log(Level.SEVERE, "Error in event error handler", errorHandlerException);
+                    }
+                } else {
+                    LOG.log(Level.SEVERE, "Error in event handler", e);
+                }
             }
         }
     }
