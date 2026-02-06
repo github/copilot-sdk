@@ -134,11 +134,16 @@ func TestPermissions(t *testing.T) {
 			t.Fatalf("Failed to write test file: %v", err)
 		}
 
-		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
+		_, err = session.Send(t.Context(), copilot.MessageOptions{
 			Prompt: "Edit protected.txt and replace 'protected' with 'hacked'.",
 		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		_, err = testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get final message: %v", err)
 		}
 
 		// Verify the file was NOT modified
@@ -160,13 +165,14 @@ func TestPermissions(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		message, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 2+2?"})
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 2+2?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message == nil {
-			t.Fatal("Expected a message, got nil")
+		message, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get final message: %v", err)
 		}
 
 		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "4") {

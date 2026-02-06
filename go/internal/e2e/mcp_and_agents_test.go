@@ -37,15 +37,16 @@ func TestMCPServers(t *testing.T) {
 		}
 
 		// Simple interaction to verify session works
-		message, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+		_, err = session.Send(t.Context(), copilot.MessageOptions{
 			Prompt: "What is 2+2?",
 		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message == nil {
-			t.Fatal("Expected a message, got nil")
+		message, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get final message: %v", err)
 		}
 
 		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "4") {
@@ -94,10 +95,6 @@ func TestMCPServers(t *testing.T) {
 		message, err := session2.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 3+3?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		if message == nil {
-			t.Fatalf("Expected a message, got nil")
 		}
 
 		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "6") {
@@ -171,15 +168,16 @@ func TestCustomAgents(t *testing.T) {
 		}
 
 		// Simple interaction to verify session works
-		message, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+		_, err = session.Send(t.Context(), copilot.MessageOptions{
 			Prompt: "What is 5+5?",
 		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message == nil {
-			t.Fatal("Expected a message, got nil")
+		message, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get final message: %v", err)
 		}
 
 		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "10") {
@@ -228,10 +226,6 @@ func TestCustomAgents(t *testing.T) {
 		message, err := session2.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 6+6?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		if message == nil {
-			t.Fatalf("Expected a message, got nil")
 		}
 
 		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "12") {
@@ -379,15 +373,16 @@ func TestCombinedConfiguration(t *testing.T) {
 			t.Error("Expected non-empty session ID")
 		}
 
-		message, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+		_, err = session.Send(t.Context(), copilot.MessageOptions{
 			Prompt: "What is 7+7?",
 		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message == nil {
-			t.Fatalf("Expected a message, got nil")
+		message, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get final message: %v", err)
 		}
 
 		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "14") {

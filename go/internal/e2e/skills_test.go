@@ -71,10 +71,6 @@ func TestSkills(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message == nil {
-			t.Fatalf("Expected a message, got nil")
-		}
-
 		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, skillMarker) {
 			t.Errorf("Expected message to contain skill marker '%s', got: %v", skillMarker, message.Data.Content)
 		}
@@ -103,10 +99,6 @@ func TestSkills(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message == nil {
-			t.Fatalf("Expected a message, got nil")
-		}
-
 		if message.Data.Content != nil && strings.Contains(*message.Data.Content, skillMarker) {
 			t.Errorf("Expected message to NOT contain skill marker '%s' when disabled, got: %v", skillMarker, *message.Data.Content)
 		}
@@ -133,10 +125,6 @@ func TestSkills(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message1 == nil {
-			t.Fatalf("Expected a message, got nil")
-		}
-
 		if message1.Data.Content != nil && strings.Contains(*message1.Data.Content, skillMarker) {
 			t.Errorf("Expected message to NOT contain skill marker before skill was added, got: %v", *message1.Data.Content)
 		}
@@ -157,10 +145,6 @@ func TestSkills(t *testing.T) {
 		message2, err := session2.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Say hello again using the test skill."})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		if message2 == nil {
-			t.Fatalf("Expected a message, got nil")
 		}
 
 		if message2.Data.Content == nil || !strings.Contains(*message2.Data.Content, skillMarker) {
