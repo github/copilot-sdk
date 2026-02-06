@@ -7,6 +7,7 @@ package com.github.copilot.sdk.events;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -98,7 +99,7 @@ public final class ToolExecutionCompleteEvent extends AbstractSessionEvent {
         }
 
         public Map<String, Object> getToolTelemetry() {
-            return toolTelemetry;
+            return toolTelemetry == null ? null : Collections.unmodifiableMap(toolTelemetry);
         }
 
         public void setToolTelemetry(Map<String, Object> toolTelemetry) {

@@ -7,6 +7,7 @@ package com.github.copilot.sdk.events;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -65,7 +66,7 @@ public final class UserMessageEvent extends AbstractSessionEvent {
         }
 
         public List<Attachment> getAttachments() {
-            return attachments;
+            return attachments == null ? null : Collections.unmodifiableList(attachments);
         }
 
         public void setAttachments(List<Attachment> attachments) {

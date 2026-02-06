@@ -60,7 +60,7 @@ public final class SubagentSelectedEvent extends AbstractSessionEvent {
         }
 
         public String[] getTools() {
-            return tools;
+            return tools == null ? null : tools.clone();
         }
 
         public void setTools(String[] tools) {

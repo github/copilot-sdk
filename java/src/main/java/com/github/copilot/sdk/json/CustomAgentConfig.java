@@ -4,6 +4,7 @@
 
 package com.github.copilot.sdk.json;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -128,7 +129,7 @@ public class CustomAgentConfig {
      * @return the list of tool identifiers
      */
     public List<String> getTools() {
-        return tools;
+        return tools == null ? null : Collections.unmodifiableList(tools);
     }
 
     /**
@@ -175,7 +176,7 @@ public class CustomAgentConfig {
      * @return the MCP servers map
      */
     public Map<String, Object> getMcpServers() {
-        return mcpServers;
+        return mcpServers == null ? null : Collections.unmodifiableMap(mcpServers);
     }
 
     /**
