@@ -27,6 +27,20 @@ describe("CopilotClient", () => {
         });
     });
 
+    it("throws error when creating session with invalid model", async () => {
+        const client = new CopilotClient({ cliPath: CLI_PATH });
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const error = await client
+            .createSession({ model: "INVALID_MODEL_THAT_DOES_NOT_EXIST" })
+            .catch((e) => e);
+
+        expect(error).toBeInstanceOf(Error);
+        expect(error.message).toContain("Invalid model");
+        expect(error.message).toContain("INVALID_MODEL_THAT_DOES_NOT_EXIST");
+    });
+
     describe("URL parsing", () => {
         it("should parse port-only URL format", () => {
             const client = new CopilotClient({

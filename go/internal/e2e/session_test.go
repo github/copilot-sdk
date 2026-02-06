@@ -18,7 +18,7 @@ func TestSession(t *testing.T) {
 	t.Run("should create and destroy sessions", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{Model: "fake-test-model"})
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{Model: "claude-sonnet-4.5"})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
@@ -41,8 +41,8 @@ func TestSession(t *testing.T) {
 			t.Errorf("Expected session.start sessionId to match")
 		}
 
-		if messages[0].Data.SelectedModel == nil || *messages[0].Data.SelectedModel != "fake-test-model" {
-			t.Errorf("Expected selectedModel to be 'fake-test-model', got %v", messages[0].Data.SelectedModel)
+		if messages[0].Data.SelectedModel == nil || *messages[0].Data.SelectedModel != "claude-sonnet-4.5" {
+			t.Errorf("Expected selectedModel to be 'claude-sonnet-4.5', got %v", messages[0].Data.SelectedModel)
 		}
 
 		if err := session.Destroy(); err != nil {

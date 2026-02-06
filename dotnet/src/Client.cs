@@ -322,6 +322,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
     /// <returns>A task that resolves to provide the <see cref="CopilotSession"/>.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the client is not connected and AutoStart is disabled, or when a session with the same ID already exists.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="config"/> contains an invalid model name.</exception>
     /// <remarks>
     /// Sessions maintain conversation state, handle events, and manage tool execution.
     /// If the client is not connected and <see cref="CopilotClientOptions.AutoStart"/> is enabled (default),
@@ -343,6 +344,19 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     public async Task<CopilotSession> CreateSessionAsync(SessionConfig? config = null, CancellationToken cancellationToken = default)
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
+
+        if (!string.IsNullOrEmpty(config?.Model))
+        {
+            // ListModelsAsync caches results after the first call, so this validation has minimal overhead
+            var availableModels = await ListModelsAsync(cancellationToken).ConfigureAwait(false);
+
+            if (!availableModels.Any(m => string.Equals(m.Id, config.Model, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new ArgumentException(
+                    $"Invalid model '{config.Model}'. Available models: {string.Join(", ", availableModels.Select(m => m.Id))}",
+                    nameof(config));
+            }
+        }
 
         var hasHooks = config?.Hooks != null && (
             config.Hooks.OnPreToolUse != null ||

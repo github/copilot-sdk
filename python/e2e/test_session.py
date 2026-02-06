@@ -14,14 +14,14 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 class TestSessions:
     async def test_should_create_and_destroy_sessions(self, ctx: E2ETestContext):
-        session = await ctx.client.create_session({"model": "fake-test-model"})
+        session = await ctx.client.create_session({"model": "claude-sonnet-4.5"})
         assert session.session_id
 
         messages = await session.get_messages()
         assert len(messages) > 0
         assert messages[0].type.value == "session.start"
         assert messages[0].data.session_id == session.session_id
-        assert messages[0].data.selected_model == "fake-test-model"
+        assert messages[0].data.selected_model == "claude-sonnet-4.5"
 
         await session.destroy()
 
@@ -455,6 +455,13 @@ class TestSessions:
         # Verify the assistant response contains the expected answer
         assistant_message = await get_final_assistant_message(session)
         assert "300" in assistant_message.data.content
+
+    async def test_create_session_with_invalid_model_raises_value_error(self, ctx: E2ETestContext):
+        with pytest.raises(ValueError) as exc_info:
+            await ctx.client.create_session({"model": "INVALID_MODEL_THAT_DOES_NOT_EXIST"})
+
+        assert "Invalid model" in str(exc_info.value)
+        assert "INVALID_MODEL_THAT_DOES_NOT_EXIST" in str(exc_info.value)
 
     async def test_should_create_session_with_custom_config_dir(self, ctx: E2ETestContext):
         import os

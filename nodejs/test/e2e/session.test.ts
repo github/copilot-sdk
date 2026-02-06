@@ -8,13 +8,13 @@ describe("Sessions", async () => {
     const { copilotClient: client, openAiEndpoint, homeDir, env } = await createSdkTestContext();
 
     it("should create and destroy sessions", async () => {
-        const session = await client.createSession({ model: "fake-test-model" });
+        const session = await client.createSession({ model: "claude-sonnet-4.5" });
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
 
         expect(await session.getMessages()).toMatchObject([
             {
                 type: "session.start",
-                data: { sessionId: session.sessionId, selectedModel: "fake-test-model" },
+                data: { sessionId: session.sessionId, selectedModel: "claude-sonnet-4.5" },
             },
         ]);
 
