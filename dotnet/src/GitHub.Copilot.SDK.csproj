@@ -29,7 +29,7 @@
     </ItemGroup>
 
     <!-- Generate version props file at build time (gitignored) -->
-    <Target Name="_GenerateVersionProps" BeforeTargets="BeforeBuild">
+    <Target Name="_GenerateVersionProps" BeforeTargets="BeforeBuild;Pack">
         <Exec Command="node -e &quot;console.log(require('./nodejs/package-lock.json').packages['node_modules/@github/copilot'].version)&quot;" WorkingDirectory="$(MSBuildThisFileDirectory)../.." ConsoleToMSBuild="true" StandardOutputImportance="low">
             <Output TaskParameter="ConsoleOutput" PropertyName="CopilotCliVersion" />
         </Exec>
@@ -44,12 +44,16 @@
             </_VersionPropsContent>
         </PropertyGroup>
         <WriteLinesToFile File="$(MSBuildThisFileDirectory)build\GitHub.Copilot.SDK.props" Lines="$(_VersionPropsContent)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+        <!-- Explicitly add props file to package content after generation -->
+        <ItemGroup>
+            <None Include="build\GitHub.Copilot.SDK.props" Pack="true" PackagePath="build\" />
+        </ItemGroup>
     </Target>
 
-    <!-- Include .targets and .props files in package -->
+    <!-- Include .targets file in package (props is added dynamically by _GenerateVersionProps) -->
     <!-- Also import the .targets for local dev (same logic consumers get) -->
     <ItemGroup>
-        <None Include="build\GitHub.Copilot.SDK.*" Pack="true" PackagePath="build\" CopyToOutputDirectory="Never" />
+        <None Include="build\GitHub.Copilot.SDK.targets" Pack="true" PackagePath="build\" CopyToOutputDirectory="Never" />
     </ItemGroup>
     <Import Project="build\GitHub.Copilot.SDK.targets" />
 
