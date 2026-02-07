@@ -55,6 +55,7 @@ final class CliServerManager {
         }
 
         args.add("--server");
+        args.add("--no-auto-update");
         args.add("--log-level");
         args.add(options.getLogLevel());
 
