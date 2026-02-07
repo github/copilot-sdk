@@ -1270,6 +1270,18 @@ await using var session = await client.CreateSessionAsync();
 
 ---
 
+## Troubleshooting Connection Issues
+
+If you encounter errors like "The JSON-RPC connection with the remote party was lost before the request could complete", see our [Troubleshooting Connection Errors guide](./troubleshooting-connection-errors.md) for detailed diagnostics and solutions.
+
+Common issues include:
+- CLI not installed or not in PATH
+- Not authenticated with GitHub (`copilot auth login`)
+- Version incompatibility between SDK and CLI
+- Process permissions or antivirus interference
+
+---
+
 ## Learn More
 
 - [Authentication Guide](./auth/index.md) - GitHub OAuth, environment variables, and BYOK
