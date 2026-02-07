@@ -85,9 +85,11 @@ public class CopilotSessionTest {
                 fail("Expected exception for closed session");
             } catch (Exception e) {
                 // After our changes, we now get IllegalStateException directly
-                assertTrue(e.getMessage().toLowerCase().contains("closed")
-                        || (e.getCause() != null
-                                && e.getCause().getMessage().toLowerCase().contains("not found")));
+                String message = e.getMessage();
+                String causeMessage = e.getCause() != null ? e.getCause().getMessage() : null;
+                boolean matchesClosed = message != null && message.toLowerCase().contains("closed");
+                boolean matchesNotFound = causeMessage != null && causeMessage.toLowerCase().contains("not found");
+                assertTrue(matchesClosed || matchesNotFound);
             }
         }
     }
