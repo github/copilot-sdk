@@ -15,8 +15,8 @@ export type SessionEvent = GeneratedSessionEvent;
  */
 export interface CopilotClientOptions {
     /**
-     * Path to the Copilot CLI executable
-     * @default "copilot" (searches PATH)
+     * Path to the CLI executable or JavaScript entry point.
+     * If not specified, uses the bundled CLI from the @github/copilot package.
      */
     cliPath?: string;
 
@@ -74,6 +74,21 @@ export interface CopilotClientOptions {
      * Environment variables to pass to the CLI process. If not set, inherits process.env.
      */
     env?: Record<string, string | undefined>;
+
+    /**
+     * GitHub token to use for authentication.
+     * When provided, the token is passed to the CLI server via environment variable.
+     * This takes priority over other authentication methods.
+     */
+    githubToken?: string;
+
+    /**
+     * Whether to use the logged-in user for authentication.
+     * When true, the CLI server will attempt to use stored OAuth tokens or gh CLI auth.
+     * When false, only explicit tokens (githubToken or environment variables) are used.
+     * @default true (but defaults to false when githubToken is provided)
+     */
+    useLoggedInUser?: boolean;
 }
 
 /**
@@ -216,6 +231,255 @@ export type PermissionHandler = (
 ) => Promise<PermissionRequestResult> | PermissionRequestResult;
 
 // ============================================================================
+// User Input Request Types
+// ============================================================================
+
+/**
+ * Request for user input from the agent (enables ask_user tool)
+ */
+export interface UserInputRequest {
+    /**
+     * The question to ask the user
+     */
+    question: string;
+
+    /**
+     * Optional choices for multiple choice questions
+     */
+    choices?: string[];
+
+    /**
+     * Whether to allow freeform text input in addition to choices
+     * @default true
+     */
+    allowFreeform?: boolean;
+}
+
+/**
+ * Response to a user input request
+ */
+export interface UserInputResponse {
+    /**
+     * The user's answer
+     */
+    answer: string;
+
+    /**
+     * Whether the answer was freeform (not from choices)
+     */
+    wasFreeform: boolean;
+}
+
+/**
+ * Handler for user input requests from the agent
+ */
+export type UserInputHandler = (
+    request: UserInputRequest,
+    invocation: { sessionId: string }
+) => Promise<UserInputResponse> | UserInputResponse;
+
+// ============================================================================
+// Hook Types
+// ============================================================================
+
+/**
+ * Base interface for all hook inputs
+ */
+export interface BaseHookInput {
+    timestamp: number;
+    cwd: string;
+}
+
+/**
+ * Input for pre-tool-use hook
+ */
+export interface PreToolUseHookInput extends BaseHookInput {
+    toolName: string;
+    toolArgs: unknown;
+}
+
+/**
+ * Output for pre-tool-use hook
+ */
+export interface PreToolUseHookOutput {
+    permissionDecision?: "allow" | "deny" | "ask";
+    permissionDecisionReason?: string;
+    modifiedArgs?: unknown;
+    additionalContext?: string;
+    suppressOutput?: boolean;
+}
+
+/**
+ * Handler for pre-tool-use hook
+ */
+export type PreToolUseHandler = (
+    input: PreToolUseHookInput,
+    invocation: { sessionId: string }
+) => Promise<PreToolUseHookOutput | void> | PreToolUseHookOutput | void;
+
+/**
+ * Input for post-tool-use hook
+ */
+export interface PostToolUseHookInput extends BaseHookInput {
+    toolName: string;
+    toolArgs: unknown;
+    toolResult: ToolResultObject;
+}
+
+/**
+ * Output for post-tool-use hook
+ */
+export interface PostToolUseHookOutput {
+    modifiedResult?: ToolResultObject;
+    additionalContext?: string;
+    suppressOutput?: boolean;
+}
+
+/**
+ * Handler for post-tool-use hook
+ */
+export type PostToolUseHandler = (
+    input: PostToolUseHookInput,
+    invocation: { sessionId: string }
+) => Promise<PostToolUseHookOutput | void> | PostToolUseHookOutput | void;
+
+/**
+ * Input for user-prompt-submitted hook
+ */
+export interface UserPromptSubmittedHookInput extends BaseHookInput {
+    prompt: string;
+}
+
+/**
+ * Output for user-prompt-submitted hook
+ */
+export interface UserPromptSubmittedHookOutput {
+    modifiedPrompt?: string;
+    additionalContext?: string;
+    suppressOutput?: boolean;
+}
+
+/**
+ * Handler for user-prompt-submitted hook
+ */
+export type UserPromptSubmittedHandler = (
+    input: UserPromptSubmittedHookInput,
+    invocation: { sessionId: string }
+) => Promise<UserPromptSubmittedHookOutput | void> | UserPromptSubmittedHookOutput | void;
+
+/**
+ * Input for session-start hook
+ */
+export interface SessionStartHookInput extends BaseHookInput {
+    source: "startup" | "resume" | "new";
+    initialPrompt?: string;
+}
+
+/**
+ * Output for session-start hook
+ */
+export interface SessionStartHookOutput {
+    additionalContext?: string;
+    modifiedConfig?: Record<string, unknown>;
+}
+
+/**
+ * Handler for session-start hook
+ */
+export type SessionStartHandler = (
+    input: SessionStartHookInput,
+    invocation: { sessionId: string }
+) => Promise<SessionStartHookOutput | void> | SessionStartHookOutput | void;
+
+/**
+ * Input for session-end hook
+ */
+export interface SessionEndHookInput extends BaseHookInput {
+    reason: "complete" | "error" | "abort" | "timeout" | "user_exit";
+    finalMessage?: string;
+    error?: string;
+}
+
+/**
+ * Output for session-end hook
+ */
+export interface SessionEndHookOutput {
+    suppressOutput?: boolean;
+    cleanupActions?: string[];
+    sessionSummary?: string;
+}
+
+/**
+ * Handler for session-end hook
+ */
+export type SessionEndHandler = (
+    input: SessionEndHookInput,
+    invocation: { sessionId: string }
+) => Promise<SessionEndHookOutput | void> | SessionEndHookOutput | void;
+
+/**
+ * Input for error-occurred hook
+ */
+export interface ErrorOccurredHookInput extends BaseHookInput {
+    error: string;
+    errorContext: "model_call" | "tool_execution" | "system" | "user_input";
+    recoverable: boolean;
+}
+
+/**
+ * Output for error-occurred hook
+ */
+export interface ErrorOccurredHookOutput {
+    suppressOutput?: boolean;
+    errorHandling?: "retry" | "skip" | "abort";
+    retryCount?: number;
+    userNotification?: string;
+}
+
+/**
+ * Handler for error-occurred hook
+ */
+export type ErrorOccurredHandler = (
+    input: ErrorOccurredHookInput,
+    invocation: { sessionId: string }
+) => Promise<ErrorOccurredHookOutput | void> | ErrorOccurredHookOutput | void;
+
+/**
+ * Configuration for session hooks
+ */
+export interface SessionHooks {
+    /**
+     * Called before a tool is executed
+     */
+    onPreToolUse?: PreToolUseHandler;
+
+    /**
+     * Called after a tool is executed
+     */
+    onPostToolUse?: PostToolUseHandler;
+
+    /**
+     * Called when the user submits a prompt
+     */
+    onUserPromptSubmitted?: UserPromptSubmittedHandler;
+
+    /**
+     * Called when a session starts
+     */
+    onSessionStart?: SessionStartHandler;
+
+    /**
+     * Called when a session ends
+     */
+    onSessionEnd?: SessionEndHandler;
+
+    /**
+     * Called when an error occurs
+     */
+    onErrorOccurred?: ErrorOccurredHandler;
+}
+
+// ============================================================================
 // MCP Server Configuration Types
 // ============================================================================
 
@@ -339,6 +603,11 @@ export interface InfiniteSessionConfig {
     bufferExhaustionThreshold?: number;
 }
 
+/**
+ * Valid reasoning effort levels for models that support it.
+ */
+export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
+
 export interface SessionConfig {
     /**
      * Optional custom session ID
@@ -350,6 +619,13 @@ export interface SessionConfig {
      * Model to use for this session
      */
     model?: string;
+
+    /**
+     * Reasoning effort level for models that support it.
+     * Only valid for models where capabilities.supports.reasoningEffort is true.
+     * Use client.listModels() to check supported values for each model.
+     */
+    reasoningEffort?: ReasoningEffort;
 
     /**
      * Override the default configuration directory location.
@@ -392,6 +668,25 @@ export interface SessionConfig {
      * When provided, the server will call this handler to request permission for operations.
      */
     onPermissionRequest?: PermissionHandler;
+
+    /**
+     * Handler for user input requests from the agent.
+     * When provided, enables the ask_user tool allowing the agent to ask questions.
+     */
+    onUserInputRequest?: UserInputHandler;
+
+    /**
+     * Hook handlers for intercepting session lifecycle events.
+     * When provided, enables hooks callback allowing custom logic at various points.
+     */
+    hooks?: SessionHooks;
+
+    /**
+     * Working directory for the session.
+     * Tool operations will be relative to this directory.
+     */
+    workingDirectory?: string;
+
     /*
      * Enable streaming of assistant message and reasoning chunks.
      * When true, ephemeral assistant.message_delta and assistant.reasoning_delta
@@ -435,15 +730,32 @@ export interface SessionConfig {
  */
 export type ResumeSessionConfig = Pick<
     SessionConfig,
+    | "model"
     | "tools"
+    | "systemMessage"
+    | "availableTools"
+    | "excludedTools"
     | "provider"
     | "streaming"
+    | "reasoningEffort"
     | "onPermissionRequest"
+    | "onUserInputRequest"
+    | "hooks"
+    | "workingDirectory"
+    | "configDir"
     | "mcpServers"
     | "customAgents"
     | "skillDirectories"
     | "disabledSkills"
->;
+    | "infiniteSessions"
+> & {
+    /**
+     * When true, skips emitting the session.resume event.
+     * Useful for reconnecting to a session without triggering resume-related side effects.
+     * @default false
+     */
+    disableResume?: boolean;
+};
 
 /**
  * Configuration for a custom API provider.
@@ -497,13 +809,30 @@ export interface MessageOptions {
     prompt: string;
 
     /**
-     * File or directory attachments
+     * File, directory, or selection attachments
      */
-    attachments?: Array<{
-        type: "file" | "directory";
-        path: string;
-        displayName?: string;
-    }>;
+    attachments?: Array<
+        | {
+              type: "file";
+              path: string;
+              displayName?: string;
+          }
+        | {
+              type: "directory";
+              path: string;
+              displayName?: string;
+          }
+        | {
+              type: "selection";
+              filePath: string;
+              displayName: string;
+              selection?: {
+                  start: { line: number; character: number };
+                  end: { line: number; character: number };
+              };
+              text?: string;
+          }
+    >;
 
     /**
      * Message delivery mode
@@ -514,7 +843,24 @@ export interface MessageOptions {
 }
 
 /**
- * Event handler callback type
+ * All possible event type strings from SessionEvent
+ */
+export type SessionEventType = SessionEvent["type"];
+
+/**
+ * Extract the specific event payload for a given event type
+ */
+export type SessionEventPayload<T extends SessionEventType> = Extract<SessionEvent, { type: T }>;
+
+/**
+ * Event handler for a specific event type
+ */
+export type TypedSessionEventHandler<T extends SessionEventType> = (
+    event: SessionEventPayload<T>
+) => void;
+
+/**
+ * Event handler callback type (for all events)
  */
 export type SessionEventHandler = (event: SessionEvent) => void;
 
@@ -566,6 +912,8 @@ export interface GetAuthStatusResponse {
 export interface ModelCapabilities {
     supports: {
         vision: boolean;
+        /** Whether this model supports reasoning effort configuration */
+        reasoningEffort: boolean;
     };
     limits: {
         max_prompt_tokens?: number;
@@ -607,4 +955,61 @@ export interface ModelInfo {
     policy?: ModelPolicy;
     /** Billing information */
     billing?: ModelBilling;
+    /** Supported reasoning effort levels (only present if model supports reasoning effort) */
+    supportedReasoningEfforts?: ReasoningEffort[];
+    /** Default reasoning effort level (only present if model supports reasoning effort) */
+    defaultReasoningEffort?: ReasoningEffort;
+}
+
+// ============================================================================
+// Session Lifecycle Types (for TUI+server mode)
+// ============================================================================
+
+/**
+ * Types of session lifecycle events
+ */
+export type SessionLifecycleEventType =
+    | "session.created"
+    | "session.deleted"
+    | "session.updated"
+    | "session.foreground"
+    | "session.background";
+
+/**
+ * Session lifecycle event notification
+ * Sent when sessions are created, deleted, updated, or change foreground/background state
+ */
+export interface SessionLifecycleEvent {
+    /** Type of lifecycle event */
+    type: SessionLifecycleEventType;
+    /** ID of the session this event relates to */
+    sessionId: string;
+    /** Session metadata (not included for deleted sessions) */
+    metadata?: {
+        startTime: string;
+        modifiedTime: string;
+        summary?: string;
+    };
+}
+
+/**
+ * Handler for session lifecycle events
+ */
+export type SessionLifecycleHandler = (event: SessionLifecycleEvent) => void;
+
+/**
+ * Typed handler for specific session lifecycle event types
+ */
+export type TypedSessionLifecycleHandler<K extends SessionLifecycleEventType> = (
+    event: SessionLifecycleEvent & { type: K }
+) => void;
+
+/**
+ * Information about the foreground session in TUI+server mode
+ */
+export interface ForegroundSessionInfo {
+    /** ID of the foreground session, or undefined if none */
+    sessionId?: string;
+    /** Workspace path of the foreground session */
+    workspacePath?: string;
 }

@@ -16,25 +16,18 @@ from copilot import CopilotClient
 from .proxy import CapiProxy
 
 
-def get_cli_path() -> str:
-    """Get CLI path from environment or try to find it. Raises if not found."""
-    # Check environment variable first
-    cli_path = os.environ.get("COPILOT_CLI_PATH")
-    if cli_path and os.path.exists(cli_path):
-        return cli_path
-
+def get_cli_path_for_tests() -> str:
+    """Get CLI path for E2E tests. Uses node_modules CLI during development."""
     # Look for CLI in sibling nodejs directory's node_modules
-    base_path = Path(__file__).parents[3]  # equivalent to: path.parent.parent.parent.parent
+    base_path = Path(__file__).parents[3]
     full_path = base_path / "nodejs" / "node_modules" / "@github" / "copilot" / "index.js"
     if full_path.exists():
         return str(full_path.resolve())
 
-    raise RuntimeError(
-        "CLI not found. Set COPILOT_CLI_PATH or run 'npm install' in the nodejs directory."
-    )
+    raise RuntimeError("CLI not found for tests. Run 'npm install' in the nodejs directory.")
 
 
-CLI_PATH = get_cli_path()
+CLI_PATH = get_cli_path_for_tests()
 SNAPSHOTS_DIR = Path(__file__).parents[3] / "test" / "snapshots"
 
 
@@ -51,12 +44,7 @@ class E2ETestContext:
 
     async def setup(self):
         """Set up the test context with a shared client."""
-        cli_path = get_cli_path()
-        if not cli_path or not os.path.exists(cli_path):
-            raise RuntimeError(
-                f"CLI not found at {cli_path}. Run 'npm install' in the nodejs directory first."
-            )
-        self.cli_path = cli_path
+        self.cli_path = get_cli_path_for_tests()
 
         self.home_dir = tempfile.mkdtemp(prefix="copilot-test-config-")
         self.work_dir = tempfile.mkdtemp(prefix="copilot-test-work-")
@@ -65,11 +53,14 @@ class E2ETestContext:
         self.proxy_url = await self._proxy.start()
 
         # Create the shared client (like Node.js/Go do)
+        # Use fake token in CI to allow cached responses without real auth
+        github_token = "fake-token-for-e2e-tests" if os.environ.get("CI") == "true" else None
         self._client = CopilotClient(
             {
                 "cli_path": self.cli_path,
                 "cwd": self.work_dir,
                 "env": self.get_env(),
+                "github_token": github_token,
             }
         )
 
@@ -109,16 +100,18 @@ class E2ETestContext:
             await self._proxy.configure(abs_snapshot_path, self.work_dir)
 
         # Clear temp directories between tests (but leave them in place)
+        # Use ignore_errors=True to handle race conditions where files may still
+        # be written by background processes during cleanup
         for item in Path(self.home_dir).iterdir():
             if item.is_dir():
-                shutil.rmtree(item)
+                shutil.rmtree(item, ignore_errors=True)
             else:
-                item.unlink()
+                item.unlink(missing_ok=True)
         for item in Path(self.work_dir).iterdir():
             if item.is_dir():
-                shutil.rmtree(item)
+                shutil.rmtree(item, ignore_errors=True)
             else:
-                item.unlink()
+                item.unlink(missing_ok=True)
 
     def get_env(self) -> dict:
         """Return environment variables configured for isolated testing."""

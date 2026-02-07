@@ -95,6 +95,50 @@ await client.stop()
 - `log_level` (str): Log level (default: "info")
 - `auto_start` (bool): Auto-start server on first use (default: True)
 - `auto_restart` (bool): Auto-restart on crash (default: True)
+- `github_token` (str): GitHub token for authentication. When provided, takes priority over other auth methods.
+- `use_logged_in_user` (bool): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided). Cannot be used with `cli_url`.
+
+**SessionConfig Options (for `create_session`):**
+
+- `model` (str): Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
+- `reasoning_effort` (str): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh"). Use `list_models()` to check which models support this option.
+- `session_id` (str): Custom session ID
+- `tools` (list): Custom tools exposed to the CLI
+- `system_message` (dict): System message configuration
+- `streaming` (bool): Enable streaming delta events
+- `provider` (dict): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
+- `infinite_sessions` (dict): Automatic context compaction configuration
+- `on_user_input_request` (callable): Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
+- `hooks` (dict): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
+
+**Session Lifecycle Methods:**
+
+```python
+# Get the session currently displayed in TUI (TUI+server mode only)
+session_id = await client.get_foreground_session_id()
+
+# Request TUI to display a specific session (TUI+server mode only)
+await client.set_foreground_session_id("session-123")
+
+# Subscribe to all lifecycle events
+def on_lifecycle(event):
+    print(f"{event.type}: {event.sessionId}")
+
+unsubscribe = client.on(on_lifecycle)
+
+# Subscribe to specific event type
+unsubscribe = client.on("session.foreground", lambda e: print(f"Foreground: {e.sessionId}"))
+
+# Later, to stop receiving events:
+unsubscribe()
+```
+
+**Lifecycle Event Types:**
+- `session.created` - A new session was created
+- `session.deleted` - A session was deleted
+- `session.updated` - A session was updated
+- `session.foreground` - A session became the foreground session in TUI
+- `session.background` - A session is no longer the foreground session
 
 ### Tools
 
@@ -272,6 +316,161 @@ When enabled, sessions emit compaction events:
 
 - `session.compaction_start` - Background compaction started
 - `session.compaction_complete` - Compaction finished (includes token counts)
+
+## Custom Providers
+
+The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own Key), including local providers like Ollama. When using a custom provider, you must specify the `model` explicitly.
+
+**ProviderConfig fields:**
+
+- `type` (str): Provider type - `"openai"`, `"azure"`, or `"anthropic"` (default: `"openai"`)
+- `base_url` (str): API endpoint URL (required)
+- `api_key` (str): API key (optional for local providers like Ollama)
+- `bearer_token` (str): Bearer token for authentication (takes precedence over `api_key`)
+- `wire_api` (str): API format for OpenAI/Azure - `"completions"` or `"responses"` (default: `"completions"`)
+- `azure` (dict): Azure-specific options with `api_version` (default: `"2024-10-21"`)
+
+**Example with Ollama:**
+
+```python
+session = await client.create_session({
+    "model": "deepseek-coder-v2:16b",  # Required when using custom provider
+    "provider": {
+        "type": "openai",
+        "base_url": "http://localhost:11434/v1",  # Ollama endpoint
+        # api_key not required for Ollama
+    },
+})
+
+await session.send({"prompt": "Hello!"})
+```
+
+**Example with custom OpenAI-compatible API:**
+
+```python
+import os
+
+session = await client.create_session({
+    "model": "gpt-4",
+    "provider": {
+        "type": "openai",
+        "base_url": "https://my-api.example.com/v1",
+        "api_key": os.environ["MY_API_KEY"],
+    },
+})
+```
+
+**Example with Azure OpenAI:**
+
+```python
+import os
+
+session = await client.create_session({
+    "model": "gpt-4",
+    "provider": {
+        "type": "azure",  # Must be "azure" for Azure endpoints, NOT "openai"
+        "base_url": "https://my-resource.openai.azure.com",  # Just the host, no path
+        "api_key": os.environ["AZURE_OPENAI_KEY"],
+        "azure": {
+            "api_version": "2024-10-21",
+        },
+    },
+})
+```
+
+> **Important notes:**
+> - When using a custom provider, the `model` parameter is **required**. The SDK will throw an error if no model is specified.
+> - For Azure OpenAI endpoints (`*.openai.azure.com`), you **must** use `type: "azure"`, not `type: "openai"`.
+> - The `base_url` should be just the host (e.g., `https://my-resource.openai.azure.com`). Do **not** include `/openai/v1` in the URL - the SDK handles path construction automatically.
+
+## User Input Requests
+
+Enable the agent to ask questions to the user using the `ask_user` tool by providing an `on_user_input_request` handler:
+
+```python
+async def handle_user_input(request, invocation):
+    # request["question"] - The question to ask
+    # request.get("choices") - Optional list of choices for multiple choice
+    # request.get("allowFreeform", True) - Whether freeform input is allowed
+    
+    print(f"Agent asks: {request['question']}")
+    if request.get("choices"):
+        print(f"Choices: {', '.join(request['choices'])}")
+    
+    # Return the user's response
+    return {
+        "answer": "User's answer here",
+        "wasFreeform": True,  # Whether the answer was freeform (not from choices)
+    }
+
+session = await client.create_session({
+    "model": "gpt-5",
+    "on_user_input_request": handle_user_input,
+})
+```
+
+## Session Hooks
+
+Hook into session lifecycle events by providing handlers in the `hooks` configuration:
+
+```python
+async def on_pre_tool_use(input, invocation):
+    print(f"About to run tool: {input['toolName']}")
+    # Return permission decision and optionally modify args
+    return {
+        "permissionDecision": "allow",  # "allow", "deny", or "ask"
+        "modifiedArgs": input.get("toolArgs"),  # Optionally modify tool arguments
+        "additionalContext": "Extra context for the model",
+    }
+
+async def on_post_tool_use(input, invocation):
+    print(f"Tool {input['toolName']} completed")
+    return {
+        "additionalContext": "Post-execution notes",
+    }
+
+async def on_user_prompt_submitted(input, invocation):
+    print(f"User prompt: {input['prompt']}")
+    return {
+        "modifiedPrompt": input["prompt"],  # Optionally modify the prompt
+    }
+
+async def on_session_start(input, invocation):
+    print(f"Session started from: {input['source']}")  # "startup", "resume", "new"
+    return {
+        "additionalContext": "Session initialization context",
+    }
+
+async def on_session_end(input, invocation):
+    print(f"Session ended: {input['reason']}")
+
+async def on_error_occurred(input, invocation):
+    print(f"Error in {input['errorContext']}: {input['error']}")
+    return {
+        "errorHandling": "retry",  # "retry", "skip", or "abort"
+    }
+
+session = await client.create_session({
+    "model": "gpt-5",
+    "hooks": {
+        "on_pre_tool_use": on_pre_tool_use,
+        "on_post_tool_use": on_post_tool_use,
+        "on_user_prompt_submitted": on_user_prompt_submitted,
+        "on_session_start": on_session_start,
+        "on_session_end": on_session_end,
+        "on_error_occurred": on_error_occurred,
+    },
+})
+```
+
+**Available hooks:**
+
+- `on_pre_tool_use` - Intercept tool calls before execution. Can allow/deny or modify arguments.
+- `on_post_tool_use` - Process tool results after execution. Can modify results or add context.
+- `on_user_prompt_submitted` - Intercept user prompts. Can modify the prompt before processing.
+- `on_session_start` - Run logic when a session starts or resumes.
+- `on_session_end` - Cleanup or logging when session ends.
+- `on_error_occurred` - Handle errors with retry/skip/abort strategies.
 
 ## Requirements
 

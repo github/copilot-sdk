@@ -1,5 +1,9 @@
 name: "Setup Copilot"
 description: "Setup Copilot based on the project's package.json file."
+outputs:
+  cli-path:
+    description: "Path to the Copilot CLI"
+    value: ${{ steps.cli-path.outputs.path }}
 runs:
   using: "composite"
   steps:

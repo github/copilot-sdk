@@ -2,10 +2,13 @@
 package copilot
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
 )
 
 type sessionHandler struct {
@@ -48,7 +51,7 @@ type Session struct {
 	// SessionID is the unique identifier for this session.
 	SessionID         string
 	workspacePath     string
-	client            *JSONRPCClient
+	client            *jsonrpc2.Client
 	handlers          []sessionHandler
 	nextHandlerID     uint64
 	handlerMutex      sync.RWMutex
@@ -56,6 +59,10 @@ type Session struct {
 	toolHandlersM     sync.RWMutex
 	permissionHandler PermissionHandler
 	permissionMux     sync.RWMutex
+	userInputHandler  UserInputHandler
+	userInputMux      sync.RWMutex
+	hooks             *SessionHooks
+	hooksMux          sync.RWMutex
 }
 
 // WorkspacePath returns the path to the session workspace directory when infinite
@@ -65,11 +72,8 @@ func (s *Session) WorkspacePath() string {
 	return s.workspacePath
 }
 
-// NewSession creates a new session wrapper with the given session ID and client.
-//
-// Note: This function is primarily for internal use. Use [Client.CreateSession]
-// to create sessions with proper initialization.
-func NewSession(sessionID string, client *JSONRPCClient, workspacePath string) *Session {
+// newSession creates a new session wrapper with the given session ID and client.
+func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string) *Session {
 	return &Session{
 		SessionID:     sessionID,
 		workspacePath: workspacePath,
@@ -92,7 +96,7 @@ func NewSession(sessionID string, client *JSONRPCClient, workspacePath string) *
 //
 // Example:
 //
-//	messageID, err := session.Send(copilot.MessageOptions{
+//	messageID, err := session.Send(context.Background(), copilot.MessageOptions{
 //	    Prompt: "Explain this code",
 //	    Attachments: []copilot.Attachment{
 //	        {Type: "file", Path: "./main.go"},
@@ -101,30 +105,24 @@ func NewSession(sessionID string, client *JSONRPCClient, workspacePath string) *
 //	if err != nil {
 //	    log.Printf("Failed to send message: %v", err)
 //	}
-func (s *Session) Send(options MessageOptions) (string, error) {
-	params := map[string]interface{}{
-		"sessionId": s.SessionID,
-		"prompt":    options.Prompt,
+func (s *Session) Send(ctx context.Context, options MessageOptions) (string, error) {
+	req := sessionSendRequest{
+		SessionID:   s.SessionID,
+		Prompt:      options.Prompt,
+		Attachments: options.Attachments,
+		Mode:        options.Mode,
 	}
 
-	if options.Attachments != nil {
-		params["attachments"] = options.Attachments
-	}
-	if options.Mode != "" {
-		params["mode"] = options.Mode
-	}
-
-	result, err := s.client.Request("session.send", params)
+	result, err := s.client.Request("session.send", req)
 	if err != nil {
 		return "", fmt.Errorf("failed to send message: %w", err)
 	}
 
-	messageID, ok := result["messageId"].(string)
-	if !ok {
-		return "", fmt.Errorf("invalid response: missing messageId")
+	var response sessionSendResponse
+	if err := json.Unmarshal(result, &response); err != nil {
+		return "", fmt.Errorf("failed to unmarshal send response: %w", err)
 	}
-
-	return messageID, nil
+	return response.MessageID, nil
 }
 
 // SendAndWait sends a message to this session and waits until the session becomes idle.
@@ -145,18 +143,20 @@ func (s *Session) Send(options MessageOptions) (string, error) {
 //
 // Example:
 //
-//	response, err := session.SendAndWait(copilot.MessageOptions{
+//	response, err := session.SendAndWait(context.Background(), copilot.MessageOptions{
 //	    Prompt: "What is 2+2?",
-//	}, 0) // Use default 60s timeout
+//	}) // Use default 60s timeout
 //	if err != nil {
 //	    log.Printf("Failed: %v", err)
 //	}
 //	if response != nil {
 //	    fmt.Println(*response.Data.Content)
 //	}
-func (s *Session) SendAndWait(options MessageOptions, timeout time.Duration) (*SessionEvent, error) {
-	if timeout == 0 {
-		timeout = 60 * time.Second
+func (s *Session) SendAndWait(ctx context.Context, options MessageOptions) (*SessionEvent, error) {
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 60*time.Second)
+		defer cancel()
 	}
 
 	idleCh := make(chan struct{}, 1)
@@ -189,7 +189,7 @@ func (s *Session) SendAndWait(options MessageOptions, timeout time.Duration) (*S
 	})
 	defer unsubscribe()
 
-	_, err := s.Send(options)
+	_, err := s.Send(ctx, options)
 	if err != nil {
 		return nil, err
 	}
@@ -202,8 +202,8 @@ func (s *Session) SendAndWait(options MessageOptions, timeout time.Duration) (*S
 		return result, nil
 	case err := <-errCh:
 		return nil, err
-	case <-time.After(timeout):
-		return nil, fmt.Errorf("timeout after %v waiting for session.idle", timeout)
+	case <-ctx.Done(): // TODO: remove once session.Send honors the context
+		return nil, fmt.Errorf("waiting for session.idle: %w", ctx.Err())
 	}
 }
 
@@ -300,7 +300,7 @@ func (s *Session) getPermissionHandler() PermissionHandler {
 
 // handlePermissionRequest handles a permission request from the Copilot CLI.
 // This is an internal method called by the SDK when the CLI requests permission.
-func (s *Session) handlePermissionRequest(requestData map[string]interface{}) (PermissionRequestResult, error) {
+func (s *Session) handlePermissionRequest(request PermissionRequest) (PermissionRequestResult, error) {
 	handler := s.getPermissionHandler()
 
 	if handler == nil {
@@ -309,21 +309,143 @@ func (s *Session) handlePermissionRequest(requestData map[string]interface{}) (P
 		}, nil
 	}
 
-	// Convert map to PermissionRequest struct
-	kind, _ := requestData["kind"].(string)
-	toolCallID, _ := requestData["toolCallId"].(string)
-
-	request := PermissionRequest{
-		Kind:       kind,
-		ToolCallID: toolCallID,
-		Extra:      requestData,
-	}
-
 	invocation := PermissionInvocation{
 		SessionID: s.SessionID,
 	}
 
 	return handler(request, invocation)
+}
+
+// registerUserInputHandler registers a user input handler for this session.
+//
+// When the assistant needs to ask the user a question (e.g., via ask_user tool),
+// this handler is called to get the user's response.
+//
+// This method is internal and typically called when creating a session.
+func (s *Session) registerUserInputHandler(handler UserInputHandler) {
+	s.userInputMux.Lock()
+	defer s.userInputMux.Unlock()
+	s.userInputHandler = handler
+}
+
+// getUserInputHandler returns the currently registered user input handler, or nil.
+func (s *Session) getUserInputHandler() UserInputHandler {
+	s.userInputMux.RLock()
+	defer s.userInputMux.RUnlock()
+	return s.userInputHandler
+}
+
+// handleUserInputRequest handles a user input request from the Copilot CLI.
+// This is an internal method called by the SDK when the CLI requests user input.
+func (s *Session) handleUserInputRequest(request UserInputRequest) (UserInputResponse, error) {
+	handler := s.getUserInputHandler()
+
+	if handler == nil {
+		return UserInputResponse{}, fmt.Errorf("no user input handler registered")
+	}
+
+	invocation := UserInputInvocation{
+		SessionID: s.SessionID,
+	}
+
+	return handler(request, invocation)
+}
+
+// registerHooks registers hook handlers for this session.
+//
+// Hooks are called at various points during session execution to allow
+// customization and observation of the session lifecycle.
+//
+// This method is internal and typically called when creating a session.
+func (s *Session) registerHooks(hooks *SessionHooks) {
+	s.hooksMux.Lock()
+	defer s.hooksMux.Unlock()
+	s.hooks = hooks
+}
+
+// getHooks returns the currently registered hooks, or nil.
+func (s *Session) getHooks() *SessionHooks {
+	s.hooksMux.RLock()
+	defer s.hooksMux.RUnlock()
+	return s.hooks
+}
+
+// handleHooksInvoke handles a hook invocation from the Copilot CLI.
+// This is an internal method called by the SDK when the CLI invokes a hook.
+func (s *Session) handleHooksInvoke(hookType string, rawInput json.RawMessage) (any, error) {
+	hooks := s.getHooks()
+
+	if hooks == nil {
+		return nil, nil
+	}
+
+	invocation := HookInvocation{
+		SessionID: s.SessionID,
+	}
+
+	switch hookType {
+	case "preToolUse":
+		if hooks.OnPreToolUse == nil {
+			return nil, nil
+		}
+		var input PreToolUseHookInput
+		if err := json.Unmarshal(rawInput, &input); err != nil {
+			return nil, fmt.Errorf("invalid hook input: %w", err)
+		}
+		return hooks.OnPreToolUse(input, invocation)
+
+	case "postToolUse":
+		if hooks.OnPostToolUse == nil {
+			return nil, nil
+		}
+		var input PostToolUseHookInput
+		if err := json.Unmarshal(rawInput, &input); err != nil {
+			return nil, fmt.Errorf("invalid hook input: %w", err)
+		}
+		return hooks.OnPostToolUse(input, invocation)
+
+	case "userPromptSubmitted":
+		if hooks.OnUserPromptSubmitted == nil {
+			return nil, nil
+		}
+		var input UserPromptSubmittedHookInput
+		if err := json.Unmarshal(rawInput, &input); err != nil {
+			return nil, fmt.Errorf("invalid hook input: %w", err)
+		}
+		return hooks.OnUserPromptSubmitted(input, invocation)
+
+	case "sessionStart":
+		if hooks.OnSessionStart == nil {
+			return nil, nil
+		}
+		var input SessionStartHookInput
+		if err := json.Unmarshal(rawInput, &input); err != nil {
+			return nil, fmt.Errorf("invalid hook input: %w", err)
+		}
+		return hooks.OnSessionStart(input, invocation)
+
+	case "sessionEnd":
+		if hooks.OnSessionEnd == nil {
+			return nil, nil
+		}
+		var input SessionEndHookInput
+		if err := json.Unmarshal(rawInput, &input); err != nil {
+			return nil, fmt.Errorf("invalid hook input: %w", err)
+		}
+		return hooks.OnSessionEnd(input, invocation)
+
+	case "errorOccurred":
+		if hooks.OnErrorOccurred == nil {
+			return nil, nil
+		}
+		var input ErrorOccurredHookInput
+		if err := json.Unmarshal(rawInput, &input); err != nil {
+			return nil, fmt.Errorf("invalid hook input: %w", err)
+		}
+		return hooks.OnErrorOccurred(input, invocation)
+	default:
+		return nil, fmt.Errorf("unknown hook type: %s", hookType)
+	}
 }
 
 // dispatchEvent dispatches an event to all registered handlers.
@@ -360,7 +482,7 @@ func (s *Session) dispatchEvent(event SessionEvent) {
 //
 // Example:
 //
-//	events, err := session.GetMessages()
+//	events, err := session.GetMessages(context.Background())
 //	if err != nil {
 //	    log.Printf("Failed to get messages: %v", err)
 //	    return
@@ -370,39 +492,18 @@ func (s *Session) dispatchEvent(event SessionEvent) {
 //	        fmt.Println("Assistant:", event.Data.Content)
 //	    }
 //	}
-func (s *Session) GetMessages() ([]SessionEvent, error) {
-	params := map[string]interface{}{
-		"sessionId": s.SessionID,
-	}
+func (s *Session) GetMessages(ctx context.Context) ([]SessionEvent, error) {
 
-	result, err := s.client.Request("session.getMessages", params)
+	result, err := s.client.Request("session.getMessages", sessionGetMessagesRequest{SessionID: s.SessionID})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get messages: %w", err)
 	}
 
-	eventsRaw, ok := result["events"].([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("invalid response: missing events")
+	var response sessionGetMessagesResponse
+	if err := json.Unmarshal(result, &response); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal get messages response: %w", err)
 	}
-
-	// Convert to SessionEvent structs
-	events := make([]SessionEvent, 0, len(eventsRaw))
-	for _, eventRaw := range eventsRaw {
-		// Marshal back to JSON and unmarshal into typed struct
-		eventJSON, err := json.Marshal(eventRaw)
-		if err != nil {
-			continue
-		}
-
-		event, err := UnmarshalSessionEvent(eventJSON)
-		if err != nil {
-			continue
-		}
-
-		events = append(events, event)
-	}
-
-	return events, nil
+	return response.Events, nil
 }
 
 // Destroy destroys this session and releases all associated resources.
@@ -420,11 +521,7 @@ func (s *Session) GetMessages() ([]SessionEvent, error) {
 //	    log.Printf("Failed to destroy session: %v", err)
 //	}
 func (s *Session) Destroy() error {
-	params := map[string]interface{}{
-		"sessionId": s.SessionID,
-	}
-
-	_, err := s.client.Request("session.destroy", params)
+	_, err := s.client.Request("session.destroy", sessionDestroyRequest{SessionID: s.SessionID})
 	if err != nil {
 		return fmt.Errorf("failed to destroy session: %w", err)
 	}
@@ -456,22 +553,18 @@ func (s *Session) Destroy() error {
 //
 //	// Start a long-running request in a goroutine
 //	go func() {
-//	    session.Send(copilot.MessageOptions{
+//	    session.Send(context.Background(), copilot.MessageOptions{
 //	        Prompt: "Write a very long story...",
 //	    })
 //	}()
 //
 //	// Abort after 5 seconds
 //	time.Sleep(5 * time.Second)
-//	if err := session.Abort(); err != nil {
+//	if err := session.Abort(context.Background()); err != nil {
 //	    log.Printf("Failed to abort: %v", err)
 //	}
-func (s *Session) Abort() error {
-	params := map[string]interface{}{
-		"sessionId": s.SessionID,
-	}
-
-	_, err := s.client.Request("session.abort", params)
+func (s *Session) Abort(ctx context.Context) error {
+	_, err := s.client.Request("session.abort", sessionAbortRequest{SessionID: s.SessionID})
 	if err != nil {
 		return fmt.Errorf("failed to abort session: %w", err)
 	}

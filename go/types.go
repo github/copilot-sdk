@@ -1,5 +1,7 @@
 package copilot
 
+import "encoding/json"
+
 // ConnectionState represents the client connection state
 type ConnectionState string
 
@@ -18,8 +20,9 @@ type ClientOptions struct {
 	Cwd string
 	// Port for TCP transport (default: 0 = random port)
 	Port int
-	// UseStdio enables stdio transport instead of TCP (default: true)
-	UseStdio bool
+	// UseStdio controls whether to use stdio transport instead of TCP.
+	// Default: nil (use default = true, i.e. stdio). Use Bool(false) to explicitly select TCP.
+	UseStdio *bool
 	// CLIUrl is the URL of an existing Copilot CLI server to connect to over TCP
 	// Format: "host:port", "http://host:port", or just "port" (defaults to localhost)
 	// Examples: "localhost:8080", "http://127.0.0.1:9000", "8080"
@@ -33,8 +36,22 @@ type ClientOptions struct {
 	// AutoRestart automatically restarts the CLI server if it crashes (default: true).
 	// Use Bool(false) to disable.
 	AutoRestart *bool
-	// Env is the environment variables for the CLI process (default: inherits from current process)
+	// Env is the environment variables for the CLI process (default: inherits from current process).
+	// Each entry is of the form "key=value".
+	// If Env is nil, the new process uses the current process's environment.
+	// If Env contains duplicate environment keys, only the last value in the
+	// slice for each duplicate key is used.
 	Env []string
+	// GithubToken is the GitHub token to use for authentication.
+	// When provided, the token is passed to the CLI server via environment variable.
+	// This takes priority over other authentication methods.
+	GithubToken string
+	// UseLoggedInUser controls whether to use the logged-in user for authentication.
+	// When true, the CLI server will attempt to use stored OAuth tokens or gh CLI auth.
+	// When false, only explicit tokens (GithubToken or environment variables) are used.
+	// Default: true (but defaults to false when GithubToken is provided).
+	// Use Bool(false) to explicitly disable.
+	UseLoggedInUser *bool
 }
 
 // Bool returns a pointer to the given bool value.
@@ -76,15 +93,15 @@ type SystemMessageConfig struct {
 
 // PermissionRequest represents a permission request from the server
 type PermissionRequest struct {
-	Kind       string                 `json:"kind"`
-	ToolCallID string                 `json:"toolCallId,omitempty"`
-	Extra      map[string]interface{} `json:"-"` // Additional fields vary by kind
+	Kind       string         `json:"kind"`
+	ToolCallID string         `json:"toolCallId,omitempty"`
+	Extra      map[string]any `json:"-"` // Additional fields vary by kind
 }
 
 // PermissionRequestResult represents the result of a permission request
 type PermissionRequestResult struct {
-	Kind  string        `json:"kind"`
-	Rules []interface{} `json:"rules,omitempty"`
+	Kind  string `json:"kind"`
+	Rules []any  `json:"rules,omitempty"`
 }
 
 // PermissionHandler executes a permission request
@@ -94,6 +111,155 @@ type PermissionHandler func(request PermissionRequest, invocation PermissionInvo
 // PermissionInvocation provides context about a permission request
 type PermissionInvocation struct {
 	SessionID string
+}
+
+// UserInputRequest represents a request for user input from the agent
+type UserInputRequest struct {
+	Question      string
+	Choices       []string
+	AllowFreeform *bool
+}
+
+// UserInputResponse represents the user's response to an input request
+type UserInputResponse struct {
+	Answer      string
+	WasFreeform bool
+}
+
+// UserInputHandler handles user input requests from the agent
+// The handler should return a UserInputResponse. Returning an error fails the request.
+type UserInputHandler func(request UserInputRequest, invocation UserInputInvocation) (UserInputResponse, error)
+
+// UserInputInvocation provides context about a user input request
+type UserInputInvocation struct {
+	SessionID string
+}
+
+// PreToolUseHookInput is the input for a pre-tool-use hook
+type PreToolUseHookInput struct {
+	Timestamp int64  `json:"timestamp"`
+	Cwd       string `json:"cwd"`
+	ToolName  string `json:"toolName"`
+	ToolArgs  any    `json:"toolArgs"`
+}
+
+// PreToolUseHookOutput is the output for a pre-tool-use hook
+type PreToolUseHookOutput struct {
+	PermissionDecision       string `json:"permissionDecision,omitempty"` // "allow", "deny", "ask"
+	PermissionDecisionReason string `json:"permissionDecisionReason,omitempty"`
+	ModifiedArgs             any    `json:"modifiedArgs,omitempty"`
+	AdditionalContext        string `json:"additionalContext,omitempty"`
+	SuppressOutput           bool   `json:"suppressOutput,omitempty"`
+}
+
+// PreToolUseHandler handles pre-tool-use hook invocations
+type PreToolUseHandler func(input PreToolUseHookInput, invocation HookInvocation) (*PreToolUseHookOutput, error)
+
+// PostToolUseHookInput is the input for a post-tool-use hook
+type PostToolUseHookInput struct {
+	Timestamp  int64  `json:"timestamp"`
+	Cwd        string `json:"cwd"`
+	ToolName   string `json:"toolName"`
+	ToolArgs   any    `json:"toolArgs"`
+	ToolResult any    `json:"toolResult"`
+}
+
+// PostToolUseHookOutput is the output for a post-tool-use hook
+type PostToolUseHookOutput struct {
+	ModifiedResult    any    `json:"modifiedResult,omitempty"`
+	AdditionalContext string `json:"additionalContext,omitempty"`
+	SuppressOutput    bool   `json:"suppressOutput,omitempty"`
+}
+
+// PostToolUseHandler handles post-tool-use hook invocations
+type PostToolUseHandler func(input PostToolUseHookInput, invocation HookInvocation) (*PostToolUseHookOutput, error)
+
+// UserPromptSubmittedHookInput is the input for a user-prompt-submitted hook
+type UserPromptSubmittedHookInput struct {
+	Timestamp int64  `json:"timestamp"`
+	Cwd       string `json:"cwd"`
+	Prompt    string `json:"prompt"`
+}
+
+// UserPromptSubmittedHookOutput is the output for a user-prompt-submitted hook
+type UserPromptSubmittedHookOutput struct {
+	ModifiedPrompt    string `json:"modifiedPrompt,omitempty"`
+	AdditionalContext string `json:"additionalContext,omitempty"`
+	SuppressOutput    bool   `json:"suppressOutput,omitempty"`
+}
+
+// UserPromptSubmittedHandler handles user-prompt-submitted hook invocations
+type UserPromptSubmittedHandler func(input UserPromptSubmittedHookInput, invocation HookInvocation) (*UserPromptSubmittedHookOutput, error)
+
+// SessionStartHookInput is the input for a session-start hook
+type SessionStartHookInput struct {
+	Timestamp     int64  `json:"timestamp"`
+	Cwd           string `json:"cwd"`
+	Source        string `json:"source"` // "startup", "resume", "new"
+	InitialPrompt string `json:"initialPrompt,omitempty"`
+}
+
+// SessionStartHookOutput is the output for a session-start hook
+type SessionStartHookOutput struct {
+	AdditionalContext string         `json:"additionalContext,omitempty"`
+	ModifiedConfig    map[string]any `json:"modifiedConfig,omitempty"`
+}
+
+// SessionStartHandler handles session-start hook invocations
+type SessionStartHandler func(input SessionStartHookInput, invocation HookInvocation) (*SessionStartHookOutput, error)
+
+// SessionEndHookInput is the input for a session-end hook
+type SessionEndHookInput struct {
+	Timestamp    int64  `json:"timestamp"`
+	Cwd          string `json:"cwd"`
+	Reason       string `json:"reason"` // "complete", "error", "abort", "timeout", "user_exit"
+	FinalMessage string `json:"finalMessage,omitempty"`
+	Error        string `json:"error,omitempty"`
+}
+
+// SessionEndHookOutput is the output for a session-end hook
+type SessionEndHookOutput struct {
+	SuppressOutput bool     `json:"suppressOutput,omitempty"`
+	CleanupActions []string `json:"cleanupActions,omitempty"`
+	SessionSummary string   `json:"sessionSummary,omitempty"`
+}
+
+// SessionEndHandler handles session-end hook invocations
+type SessionEndHandler func(input SessionEndHookInput, invocation HookInvocation) (*SessionEndHookOutput, error)
+
+// ErrorOccurredHookInput is the input for an error-occurred hook
+type ErrorOccurredHookInput struct {
+	Timestamp    int64  `json:"timestamp"`
+	Cwd          string `json:"cwd"`
+	Error        string `json:"error"`
+	ErrorContext string `json:"errorContext"` // "model_call", "tool_execution", "system", "user_input"
+	Recoverable  bool   `json:"recoverable"`
+}
+
+// ErrorOccurredHookOutput is the output for an error-occurred hook
+type ErrorOccurredHookOutput struct {
+	SuppressOutput   bool   `json:"suppressOutput,omitempty"`
+	ErrorHandling    string `json:"errorHandling,omitempty"` // "retry", "skip", "abort"
+	RetryCount       int    `json:"retryCount,omitempty"`
+	UserNotification string `json:"userNotification,omitempty"`
+}
+
+// ErrorOccurredHandler handles error-occurred hook invocations
+type ErrorOccurredHandler func(input ErrorOccurredHookInput, invocation HookInvocation) (*ErrorOccurredHookOutput, error)
+
+// HookInvocation provides context about a hook invocation
+type HookInvocation struct {
+	SessionID string
+}
+
+// SessionHooks configures hook handlers for a session
+type SessionHooks struct {
+	OnPreToolUse          PreToolUseHandler
+	OnPostToolUse         PostToolUseHandler
+	OnUserPromptSubmitted UserPromptSubmittedHandler
+	OnSessionStart        SessionStartHandler
+	OnSessionEnd          SessionEndHandler
+	OnErrorOccurred       ErrorOccurredHandler
 }
 
 // MCPLocalServerConfig configures a local/stdio MCP server
@@ -117,8 +283,8 @@ type MCPRemoteServerConfig struct {
 }
 
 // MCPServerConfig can be either MCPLocalServerConfig or MCPRemoteServerConfig
-// Use a map[string]interface{} for flexibility, or create separate configs
-type MCPServerConfig map[string]interface{}
+// Use a map[string]any for flexibility, or create separate configs
+type MCPServerConfig map[string]any
 
 // CustomAgentConfig configures a custom agent
 type CustomAgentConfig struct {
@@ -143,13 +309,13 @@ type CustomAgentConfig struct {
 // limits through background compaction and persist state to a workspace directory.
 type InfiniteSessionConfig struct {
 	// Enabled controls whether infinite sessions are enabled (default: true)
-	Enabled *bool
+	Enabled *bool `json:"enabled,omitempty"`
 	// BackgroundCompactionThreshold is the context utilization (0.0-1.0) at which
 	// background compaction starts. Default: 0.80
-	BackgroundCompactionThreshold *float64
+	BackgroundCompactionThreshold *float64 `json:"backgroundCompactionThreshold,omitempty"`
 	// BufferExhaustionThreshold is the context utilization (0.0-1.0) at which
 	// the session blocks until compaction completes. Default: 0.95
-	BufferExhaustionThreshold *float64
+	BufferExhaustionThreshold *float64 `json:"bufferExhaustionThreshold,omitempty"`
 }
 
 // SessionConfig configures a new session
@@ -158,6 +324,10 @@ type SessionConfig struct {
 	SessionID string
 	// Model to use for this session
 	Model string
+	// ReasoningEffort level for models that support it.
+	// Valid values: "low", "medium", "high", "xhigh"
+	// Only applies to models where capabilities.supports.reasoningEffort is true.
+	ReasoningEffort string
 	// ConfigDir overrides the default configuration directory location.
 	// When specified, the session will use this directory for storing config and state.
 	ConfigDir string
@@ -173,6 +343,13 @@ type SessionConfig struct {
 	ExcludedTools []string
 	// OnPermissionRequest is a handler for permission requests from the server
 	OnPermissionRequest PermissionHandler
+	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
+	OnUserInputRequest UserInputHandler
+	// Hooks configures hook handlers for session lifecycle events
+	Hooks *SessionHooks
+	// WorkingDirectory is the working directory for the session.
+	// Tool operations will be relative to this directory.
+	WorkingDirectory string
 	// Streaming enables streaming of assistant message and reasoning chunks.
 	// When true, assistant.message_delta and assistant.reasoning_delta events
 	// with deltaContent are sent as the response is generated.
@@ -194,10 +371,10 @@ type SessionConfig struct {
 
 // Tool describes a caller-implemented tool that can be invoked by Copilot
 type Tool struct {
-	Name        string
-	Description string // optional
-	Parameters  map[string]interface{}
-	Handler     ToolHandler
+	Name        string         `json:"name"`
+	Description string         `json:"description,omitempty"`
+	Parameters  map[string]any `json:"parameters,omitempty"`
+	Handler     ToolHandler    `json:"-"`
 }
 
 // ToolInvocation describes a tool call initiated by Copilot
@@ -205,7 +382,7 @@ type ToolInvocation struct {
 	SessionID  string
 	ToolCallID string
 	ToolName   string
-	Arguments  interface{}
+	Arguments  any
 }
 
 // ToolHandler executes a tool invocation.
@@ -214,22 +391,44 @@ type ToolHandler func(invocation ToolInvocation) (ToolResult, error)
 
 // ToolResult represents the result of a tool invocation.
 type ToolResult struct {
-	TextResultForLLM    string                 `json:"textResultForLlm"`
-	BinaryResultsForLLM []ToolBinaryResult     `json:"binaryResultsForLlm,omitempty"`
-	ResultType          string                 `json:"resultType"`
-	Error               string                 `json:"error,omitempty"`
-	SessionLog          string                 `json:"sessionLog,omitempty"`
-	ToolTelemetry       map[string]interface{} `json:"toolTelemetry,omitempty"`
+	TextResultForLLM    string             `json:"textResultForLlm"`
+	BinaryResultsForLLM []ToolBinaryResult `json:"binaryResultsForLlm,omitempty"`
+	ResultType          string             `json:"resultType"`
+	Error               string             `json:"error,omitempty"`
+	SessionLog          string             `json:"sessionLog,omitempty"`
+	ToolTelemetry       map[string]any     `json:"toolTelemetry,omitempty"`
 }
 
 // ResumeSessionConfig configures options when resuming a session
 type ResumeSessionConfig struct {
+	// Model to use for this session. Can change the model when resuming.
+	Model string
 	// Tools exposes caller-implemented tools to the CLI
 	Tools []Tool
+	// SystemMessage configures system message customization
+	SystemMessage *SystemMessageConfig
+	// AvailableTools is a list of tool names to allow. When specified, only these tools will be available.
+	// Takes precedence over ExcludedTools.
+	AvailableTools []string
+	// ExcludedTools is a list of tool names to disable. All other tools remain available.
+	// Ignored if AvailableTools is specified.
+	ExcludedTools []string
 	// Provider configures a custom model provider
 	Provider *ProviderConfig
+	// ReasoningEffort level for models that support it.
+	// Valid values: "low", "medium", "high", "xhigh"
+	ReasoningEffort string
 	// OnPermissionRequest is a handler for permission requests from the server
 	OnPermissionRequest PermissionHandler
+	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
+	OnUserInputRequest UserInputHandler
+	// Hooks configures hook handlers for session lifecycle events
+	Hooks *SessionHooks
+	// WorkingDirectory is the working directory for the session.
+	// Tool operations will be relative to this directory.
+	WorkingDirectory string
+	// ConfigDir overrides the default configuration directory location.
+	ConfigDir string
 	// Streaming enables streaming of assistant message and reasoning chunks.
 	// When true, assistant.message_delta and assistant.reasoning_delta events
 	// with deltaContent are sent as the response is generated.
@@ -242,6 +441,11 @@ type ResumeSessionConfig struct {
 	SkillDirectories []string
 	// DisabledSkills is a list of skill names to disable
 	DisabledSkills []string
+	// InfiniteSessions configures infinite sessions for persistent workspaces and automatic compaction.
+	InfiniteSessions *InfiniteSessionConfig
+	// DisableResume, when true, skips emitting the session.resume event.
+	// Useful for reconnecting to a session without triggering resume-related side effects.
+	DisableResume bool
 }
 
 // ProviderConfig configures a custom model provider
@@ -289,43 +493,6 @@ type MessageOptions struct {
 // SessionEventHandler is a callback for session events
 type SessionEventHandler func(event SessionEvent)
 
-// PingResponse is the response from a ping request
-type PingResponse struct {
-	Message         string `json:"message"`
-	Timestamp       int64  `json:"timestamp"`
-	ProtocolVersion *int   `json:"protocolVersion,omitempty"`
-}
-
-// SessionCreateResponse is the response from session.create
-type SessionCreateResponse struct {
-	SessionID string `json:"sessionId"`
-}
-
-// SessionSendResponse is the response from session.send
-type SessionSendResponse struct {
-	MessageID string `json:"messageId"`
-}
-
-// SessionGetMessagesResponse is the response from session.getMessages
-type SessionGetMessagesResponse struct {
-	Events []SessionEvent `json:"events"`
-}
-
-// GetStatusResponse is the response from status.get
-type GetStatusResponse struct {
-	Version         string `json:"version"`
-	ProtocolVersion int    `json:"protocolVersion"`
-}
-
-// GetAuthStatusResponse is the response from auth.getStatus
-type GetAuthStatusResponse struct {
-	IsAuthenticated bool    `json:"isAuthenticated"`
-	AuthType        *string `json:"authType,omitempty"`
-	Host            *string `json:"host,omitempty"`
-	Login           *string `json:"login,omitempty"`
-	StatusMessage   *string `json:"statusMessage,omitempty"`
-}
-
 // ModelVisionLimits contains vision-specific limits
 type ModelVisionLimits struct {
 	SupportedMediaTypes []string `json:"supported_media_types"`
@@ -342,7 +509,8 @@ type ModelLimits struct {
 
 // ModelSupports contains model support flags
 type ModelSupports struct {
-	Vision bool `json:"vision"`
+	Vision          bool `json:"vision"`
+	ReasoningEffort bool `json:"reasoningEffort"`
 }
 
 // ModelCapabilities contains model capabilities and limits
@@ -364,14 +532,270 @@ type ModelBilling struct {
 
 // ModelInfo contains information about an available model
 type ModelInfo struct {
-	ID           string            `json:"id"`
-	Name         string            `json:"name"`
-	Capabilities ModelCapabilities `json:"capabilities"`
-	Policy       *ModelPolicy      `json:"policy,omitempty"`
-	Billing      *ModelBilling     `json:"billing,omitempty"`
+	ID                        string            `json:"id"`
+	Name                      string            `json:"name"`
+	Capabilities              ModelCapabilities `json:"capabilities"`
+	Policy                    *ModelPolicy      `json:"policy,omitempty"`
+	Billing                   *ModelBilling     `json:"billing,omitempty"`
+	SupportedReasoningEfforts []string          `json:"supportedReasoningEfforts,omitempty"`
+	DefaultReasoningEffort    string            `json:"defaultReasoningEffort,omitempty"`
 }
 
-// GetModelsResponse is the response from models.list
-type GetModelsResponse struct {
+// SessionMetadata contains metadata about a session
+type SessionMetadata struct {
+	SessionID    string  `json:"sessionId"`
+	StartTime    string  `json:"startTime"`
+	ModifiedTime string  `json:"modifiedTime"`
+	Summary      *string `json:"summary,omitempty"`
+	IsRemote     bool    `json:"isRemote"`
+}
+
+// SessionLifecycleEventType represents the type of session lifecycle event
+type SessionLifecycleEventType string
+
+const (
+	SessionLifecycleCreated    SessionLifecycleEventType = "session.created"
+	SessionLifecycleDeleted    SessionLifecycleEventType = "session.deleted"
+	SessionLifecycleUpdated    SessionLifecycleEventType = "session.updated"
+	SessionLifecycleForeground SessionLifecycleEventType = "session.foreground"
+	SessionLifecycleBackground SessionLifecycleEventType = "session.background"
+)
+
+// SessionLifecycleEvent represents a session lifecycle notification
+type SessionLifecycleEvent struct {
+	Type      SessionLifecycleEventType      `json:"type"`
+	SessionID string                         `json:"sessionId"`
+	Metadata  *SessionLifecycleEventMetadata `json:"metadata,omitempty"`
+}
+
+// SessionLifecycleEventMetadata contains optional metadata for lifecycle events
+type SessionLifecycleEventMetadata struct {
+	StartTime    string  `json:"startTime"`
+	ModifiedTime string  `json:"modifiedTime"`
+	Summary      *string `json:"summary,omitempty"`
+}
+
+// SessionLifecycleHandler is a callback for session lifecycle events
+type SessionLifecycleHandler func(event SessionLifecycleEvent)
+
+// permissionRequestRequest represents the request data for a permission request
+type permissionRequestRequest struct {
+	SessionID string            `json:"sessionId"`
+	Request   PermissionRequest `json:"permissionRequest"`
+}
+
+// permissionRequestResponse represents the response to a permission request
+type permissionRequestResponse struct {
+	Result PermissionRequestResult `json:"result"`
+}
+
+// createSessionRequest is the request for session.create
+type createSessionRequest struct {
+	Model             string                     `json:"model,omitempty"`
+	SessionID         string                     `json:"sessionId,omitempty"`
+	ReasoningEffort   string                     `json:"reasoningEffort,omitempty"`
+	Tools             []Tool                     `json:"tools,omitempty"`
+	SystemMessage     *SystemMessageConfig       `json:"systemMessage,omitempty"`
+	AvailableTools    []string                   `json:"availableTools,omitempty"`
+	ExcludedTools     []string                   `json:"excludedTools,omitempty"`
+	Provider          *ProviderConfig            `json:"provider,omitempty"`
+	RequestPermission *bool                      `json:"requestPermission,omitempty"`
+	RequestUserInput  *bool                      `json:"requestUserInput,omitempty"`
+	Hooks             *bool                      `json:"hooks,omitempty"`
+	WorkingDirectory  string                     `json:"workingDirectory,omitempty"`
+	Streaming         *bool                      `json:"streaming,omitempty"`
+	MCPServers        map[string]MCPServerConfig `json:"mcpServers,omitempty"`
+	CustomAgents      []CustomAgentConfig        `json:"customAgents,omitempty"`
+	ConfigDir         string                     `json:"configDir,omitempty"`
+	SkillDirectories  []string                   `json:"skillDirectories,omitempty"`
+	DisabledSkills    []string                   `json:"disabledSkills,omitempty"`
+	InfiniteSessions  *InfiniteSessionConfig     `json:"infiniteSessions,omitempty"`
+}
+
+// createSessionResponse is the response from session.create
+type createSessionResponse struct {
+	SessionID     string `json:"sessionId"`
+	WorkspacePath string `json:"workspacePath"`
+}
+
+// resumeSessionRequest is the request for session.resume
+type resumeSessionRequest struct {
+	SessionID         string                     `json:"sessionId"`
+	Model             string                     `json:"model,omitempty"`
+	ReasoningEffort   string                     `json:"reasoningEffort,omitempty"`
+	Tools             []Tool                     `json:"tools,omitempty"`
+	SystemMessage     *SystemMessageConfig       `json:"systemMessage,omitempty"`
+	AvailableTools    []string                   `json:"availableTools,omitempty"`
+	ExcludedTools     []string                   `json:"excludedTools,omitempty"`
+	Provider          *ProviderConfig            `json:"provider,omitempty"`
+	RequestPermission *bool                      `json:"requestPermission,omitempty"`
+	RequestUserInput  *bool                      `json:"requestUserInput,omitempty"`
+	Hooks             *bool                      `json:"hooks,omitempty"`
+	WorkingDirectory  string                     `json:"workingDirectory,omitempty"`
+	ConfigDir         string                     `json:"configDir,omitempty"`
+	DisableResume     *bool                      `json:"disableResume,omitempty"`
+	Streaming         *bool                      `json:"streaming,omitempty"`
+	MCPServers        map[string]MCPServerConfig `json:"mcpServers,omitempty"`
+	CustomAgents      []CustomAgentConfig        `json:"customAgents,omitempty"`
+	SkillDirectories  []string                   `json:"skillDirectories,omitempty"`
+	DisabledSkills    []string                   `json:"disabledSkills,omitempty"`
+	InfiniteSessions  *InfiniteSessionConfig     `json:"infiniteSessions,omitempty"`
+}
+
+// resumeSessionResponse is the response from session.resume
+type resumeSessionResponse struct {
+	SessionID     string `json:"sessionId"`
+	WorkspacePath string `json:"workspacePath"`
+}
+
+type hooksInvokeRequest struct {
+	SessionID string          `json:"sessionId"`
+	Type      string          `json:"hookType"`
+	Input     json.RawMessage `json:"input"`
+}
+
+// listSessionsRequest is the request for session.list
+type listSessionsRequest struct{}
+
+// listSessionsResponse is the response from session.list
+type listSessionsResponse struct {
+	Sessions []SessionMetadata `json:"sessions"`
+}
+
+// deleteSessionRequest is the request for session.delete
+type deleteSessionRequest struct {
+	SessionID string `json:"sessionId"`
+}
+
+// deleteSessionResponse is the response from session.delete
+type deleteSessionResponse struct {
+	Success bool    `json:"success"`
+	Error   *string `json:"error,omitempty"`
+}
+
+// getForegroundSessionRequest is the request for session.getForeground
+type getForegroundSessionRequest struct{}
+
+// getForegroundSessionResponse is the response from session.getForeground
+type getForegroundSessionResponse struct {
+	SessionID     *string `json:"sessionId,omitempty"`
+	WorkspacePath *string `json:"workspacePath,omitempty"`
+}
+
+// setForegroundSessionRequest is the request for session.setForeground
+type setForegroundSessionRequest struct {
+	SessionID string `json:"sessionId"`
+}
+
+// setForegroundSessionResponse is the response from session.setForeground
+type setForegroundSessionResponse struct {
+	Success bool    `json:"success"`
+	Error   *string `json:"error,omitempty"`
+}
+
+type pingRequest struct {
+	Message string `json:"message,omitempty"`
+}
+
+// PingResponse is the response from a ping request
+type PingResponse struct {
+	Message         string `json:"message"`
+	Timestamp       int64  `json:"timestamp"`
+	ProtocolVersion *int   `json:"protocolVersion,omitempty"`
+}
+
+// getStatusRequest is the request for status.get
+type getStatusRequest struct{}
+
+// GetStatusResponse is the response from status.get
+type GetStatusResponse struct {
+	Version         string `json:"version"`
+	ProtocolVersion int    `json:"protocolVersion"`
+}
+
+// getAuthStatusRequest is the request for auth.getStatus
+type getAuthStatusRequest struct{}
+
+// GetAuthStatusResponse is the response from auth.getStatus
+type GetAuthStatusResponse struct {
+	IsAuthenticated bool    `json:"isAuthenticated"`
+	AuthType        *string `json:"authType,omitempty"`
+	Host            *string `json:"host,omitempty"`
+	Login           *string `json:"login,omitempty"`
+	StatusMessage   *string `json:"statusMessage,omitempty"`
+}
+
+// listModelsRequest is the request for models.list
+type listModelsRequest struct{}
+
+// listModelsResponse is the response from models.list
+type listModelsResponse struct {
 	Models []ModelInfo `json:"models"`
+}
+
+// sessionGetMessagesRequest is the request for session.getMessages
+type sessionGetMessagesRequest struct {
+	SessionID string `json:"sessionId"`
+}
+
+// sessionGetMessagesResponse is the response from session.getMessages
+type sessionGetMessagesResponse struct {
+	Events []SessionEvent `json:"events"`
+}
+
+// sessionDestroyRequest is the request for session.destroy
+type sessionDestroyRequest struct {
+	SessionID string `json:"sessionId"`
+}
+
+// sessionAbortRequest is the request for session.abort
+type sessionAbortRequest struct {
+	SessionID string `json:"sessionId"`
+}
+
+type sessionSendRequest struct {
+	SessionID   string       `json:"sessionId"`
+	Prompt      string       `json:"prompt"`
+	Attachments []Attachment `json:"attachments,omitempty"`
+	Mode        string       `json:"mode,omitempty"`
+}
+
+// sessionSendResponse is the response from session.send
+type sessionSendResponse struct {
+	MessageID string `json:"messageId"`
+}
+
+// sessionEventRequest is the request for session event notifications
+type sessionEventRequest struct {
+	SessionID string       `json:"sessionId"`
+	Event     SessionEvent `json:"event"`
+}
+
+// toolCallRequest represents a tool call request from the server
+// to the client for execution.
+type toolCallRequest struct {
+	SessionID  string `json:"sessionId"`
+	ToolCallID string `json:"toolCallId"`
+	ToolName   string `json:"toolName"`
+	Arguments  any    `json:"arguments"`
+}
+
+// toolCallResponse represents the response to a tool call request
+// from the client back to the server.
+type toolCallResponse struct {
+	Result ToolResult `json:"result"`
+}
+
+// userInputRequest represents a request for user input from the agent
+type userInputRequest struct {
+	SessionID     string   `json:"sessionId"`
+	Question      string   `json:"question"`
+	Choices       []string `json:"choices,omitempty"`
+	AllowFreeform *bool    `json:"allowFreeform,omitempty"`
+}
+
+// userInputResponse represents the user's response to an input request
+type userInputResponse struct {
+	Answer      string `json:"answer"`
+	WasFreeform bool   `json:"wasFreeform"`
 }

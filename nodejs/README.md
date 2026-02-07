@@ -24,14 +24,13 @@ const session = await client.createSession({
     model: "gpt-5",
 });
 
-// Wait for response using session.idle event
+// Wait for response using typed event handlers
 const done = new Promise<void>((resolve) => {
-    session.on((event) => {
-        if (event.type === "assistant.message") {
-            console.log(event.data.content);
-        } else if (event.type === "session.idle") {
-            resolve();
-        }
+    session.on("assistant.message", (event) => {
+        console.log(event.data.content);
+    });
+    session.on("session.idle", () => {
+        resolve();
     });
 });
 
@@ -64,6 +63,8 @@ new CopilotClient(options?: CopilotClientOptions)
 - `logLevel?: string` - Log level (default: "info")
 - `autoStart?: boolean` - Auto-start server (default: true)
 - `autoRestart?: boolean` - Auto-restart on crash (default: true)
+- `githubToken?: string` - GitHub token for authentication. When provided, takes priority over other auth methods.
+- `useLoggedInUser?: boolean` - Whether to use logged-in user for authentication (default: true, but false when `githubToken` is provided). Cannot be used with `cliUrl`.
 
 #### Methods
 
@@ -85,11 +86,15 @@ Create a new conversation session.
 
 **Config:**
 
-- `sessionId?: string` - Custom session ID
-- `model?: string` - Model to use ("gpt-5", "claude-sonnet-4.5", etc.)
+- `sessionId?: string` - Custom session ID.
+- `model?: string` - Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
+- `reasoningEffort?: "low" | "medium" | "high" | "xhigh"` - Reasoning effort level for models that support it. Use `listModels()` to check which models support this option.
 - `tools?: Tool[]` - Custom tools exposed to the CLI
 - `systemMessage?: SystemMessageConfig` - System message customization (see below)
 - `infiniteSessions?: InfiniteSessionConfig` - Configure automatic context compaction (see below)
+- `provider?: ProviderConfig` - Custom API provider configuration (BYOK - Bring Your Own Key). See [Custom Providers](#custom-providers) section.
+- `onUserInputRequest?: UserInputHandler` - Handler for user input requests from the agent. Enables the `ask_user` tool. See [User Input Requests](#user-input-requests) section.
+- `hooks?: SessionHooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
 ##### `resumeSession(sessionId: string, config?: ResumeSessionConfig): Promise<CopilotSession>`
 
@@ -110,6 +115,41 @@ List all available sessions.
 ##### `deleteSession(sessionId: string): Promise<void>`
 
 Delete a session and its data from disk.
+
+##### `getForegroundSessionId(): Promise<string | undefined>`
+
+Get the ID of the session currently displayed in the TUI. Only available when connecting to a server running in TUI+server mode (`--ui-server`).
+
+##### `setForegroundSessionId(sessionId: string): Promise<void>`
+
+Request the TUI to switch to displaying the specified session. Only available in TUI+server mode.
+
+##### `on(eventType: SessionLifecycleEventType, handler): () => void`
+
+Subscribe to a specific session lifecycle event type. Returns an unsubscribe function.
+
+```typescript
+const unsubscribe = client.on("session.foreground", (event) => {
+    console.log(`Session ${event.sessionId} is now in foreground`);
+});
+```
+
+##### `on(handler: SessionLifecycleHandler): () => void`
+
+Subscribe to all session lifecycle events. Returns an unsubscribe function.
+
+```typescript
+const unsubscribe = client.on((event) => {
+    console.log(`${event.type}: ${event.sessionId}`);
+});
+```
+
+**Lifecycle Event Types:**
+- `session.created` - A new session was created
+- `session.deleted` - A session was deleted
+- `session.updated` - A session was updated (e.g., new messages)
+- `session.foreground` - A session became the foreground session in TUI
+- `session.background` - A session is no longer the foreground session
 
 ---
 
@@ -154,13 +194,34 @@ Send a message and wait until the session becomes idle.
 
 Returns the final assistant message event, or undefined if none was received.
 
+##### `on(eventType: string, handler: TypedSessionEventHandler): () => void`
+
+Subscribe to a specific event type. The handler receives properly typed events.
+
+```typescript
+// Listen for specific event types with full type inference
+session.on("assistant.message", (event) => {
+    console.log(event.data.content); // TypeScript knows about event.data.content
+});
+
+session.on("session.idle", () => {
+    console.log("Session is idle");
+});
+
+// Listen to streaming events
+session.on("assistant.message_delta", (event) => {
+    process.stdout.write(event.data.deltaContent);
+});
+```
+
 ##### `on(handler: SessionEventHandler): () => void`
 
-Subscribe to session events. Returns an unsubscribe function.
+Subscribe to all session events. Returns an unsubscribe function.
 
 ```typescript
 const unsubscribe = session.on((event) => {
-    console.log(event);
+    // Handle any event type
+    console.log(event.type, event);
 });
 
 // Later...
@@ -189,7 +250,7 @@ Sessions emit various events during processing:
 - `assistant.message` - Assistant response
 - `assistant.message_delta` - Streaming response chunk
 - `tool.execution_start` - Tool execution started
-- `tool.execution_end` - Tool execution completed
+- `tool.execution_complete` - Tool execution completed
 - And more...
 
 See `SessionEvent` type in the source for full details.
@@ -226,27 +287,33 @@ const session = await client.createSession({
     streaming: true,
 });
 
-// Wait for completion using session.idle event
+// Wait for completion using typed event handlers
 const done = new Promise<void>((resolve) => {
-    session.on((event) => {
-        if (event.type === "assistant.message_delta") {
-            // Streaming message chunk - print incrementally
-            process.stdout.write(event.data.deltaContent);
-        } else if (event.type === "assistant.reasoning_delta") {
-            // Streaming reasoning chunk (if model supports reasoning)
-            process.stdout.write(event.data.deltaContent);
-        } else if (event.type === "assistant.message") {
-            // Final message - complete content
-            console.log("\n--- Final message ---");
-            console.log(event.data.content);
-        } else if (event.type === "assistant.reasoning") {
-            // Final reasoning content (if model supports reasoning)
-            console.log("--- Reasoning ---");
-            console.log(event.data.content);
-        } else if (event.type === "session.idle") {
-            // Session finished processing
-            resolve();
-        }
+    session.on("assistant.message_delta", (event) => {
+        // Streaming message chunk - print incrementally
+        process.stdout.write(event.data.deltaContent);
+    });
+
+    session.on("assistant.reasoning_delta", (event) => {
+        // Streaming reasoning chunk (if model supports reasoning)
+        process.stdout.write(event.data.deltaContent);
+    });
+
+    session.on("assistant.message", (event) => {
+        // Final message - complete content
+        console.log("\n--- Final message ---");
+        console.log(event.data.content);
+    });
+
+    session.on("assistant.reasoning", (event) => {
+        // Final reasoning content (if model supports reasoning)
+        console.log("--- Reasoning ---");
+        console.log(event.data.content);
+    });
+
+    session.on("session.idle", () => {
+        // Session finished processing
+        resolve();
     });
 });
 
@@ -406,6 +473,163 @@ await session.send({
     ],
 });
 ```
+
+### Custom Providers
+
+The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own Key), including local providers like Ollama. When using a custom provider, you must specify the `model` explicitly.
+
+**ProviderConfig:**
+
+- `type?: "openai" | "azure" | "anthropic"` - Provider type (default: "openai")
+- `baseUrl: string` - API endpoint URL (required)
+- `apiKey?: string` - API key (optional for local providers like Ollama)
+- `bearerToken?: string` - Bearer token for authentication (takes precedence over apiKey)
+- `wireApi?: "completions" | "responses"` - API format for OpenAI/Azure (default: "completions")
+- `azure?.apiVersion?: string` - Azure API version (default: "2024-10-21")
+
+**Example with Ollama:**
+
+```typescript
+const session = await client.createSession({
+    model: "deepseek-coder-v2:16b", // Required when using custom provider
+    provider: {
+        type: "openai",
+        baseUrl: "http://localhost:11434/v1", // Ollama endpoint
+        // apiKey not required for Ollama
+    },
+});
+
+await session.sendAndWait({ prompt: "Hello!" });
+```
+
+**Example with custom OpenAI-compatible API:**
+
+```typescript
+const session = await client.createSession({
+    model: "gpt-4",
+    provider: {
+        type: "openai",
+        baseUrl: "https://my-api.example.com/v1",
+        apiKey: process.env.MY_API_KEY,
+    },
+});
+```
+
+**Example with Azure OpenAI:**
+
+```typescript
+const session = await client.createSession({
+    model: "gpt-4",
+    provider: {
+        type: "azure",  // Must be "azure" for Azure endpoints, NOT "openai"
+        baseUrl: "https://my-resource.openai.azure.com",  // Just the host, no path
+        apiKey: process.env.AZURE_OPENAI_KEY,
+        azure: {
+            apiVersion: "2024-10-21",
+        },
+    },
+});
+```
+
+> **Important notes:**
+> - When using a custom provider, the `model` parameter is **required**. The SDK will throw an error if no model is specified.
+> - For Azure OpenAI endpoints (`*.openai.azure.com`), you **must** use `type: "azure"`, not `type: "openai"`.
+> - The `baseUrl` should be just the host (e.g., `https://my-resource.openai.azure.com`). Do **not** include `/openai/v1` in the URL - the SDK handles path construction automatically.
+
+## User Input Requests
+
+Enable the agent to ask questions to the user using the `ask_user` tool by providing an `onUserInputRequest` handler:
+
+```typescript
+const session = await client.createSession({
+    model: "gpt-5",
+    onUserInputRequest: async (request, invocation) => {
+        // request.question - The question to ask
+        // request.choices - Optional array of choices for multiple choice
+        // request.allowFreeform - Whether freeform input is allowed (default: true)
+
+        console.log(`Agent asks: ${request.question}`);
+        if (request.choices) {
+            console.log(`Choices: ${request.choices.join(", ")}`);
+        }
+
+        // Return the user's response
+        return {
+            answer: "User's answer here",
+            wasFreeform: true, // Whether the answer was freeform (not from choices)
+        };
+    },
+});
+```
+
+## Session Hooks
+
+Hook into session lifecycle events by providing handlers in the `hooks` configuration:
+
+```typescript
+const session = await client.createSession({
+    model: "gpt-5",
+    hooks: {
+        // Called before each tool execution
+        onPreToolUse: async (input, invocation) => {
+            console.log(`About to run tool: ${input.toolName}`);
+            // Return permission decision and optionally modify args
+            return {
+                permissionDecision: "allow", // "allow", "deny", or "ask"
+                modifiedArgs: input.toolArgs, // Optionally modify tool arguments
+                additionalContext: "Extra context for the model",
+            };
+        },
+
+        // Called after each tool execution
+        onPostToolUse: async (input, invocation) => {
+            console.log(`Tool ${input.toolName} completed`);
+            // Optionally modify the result or add context
+            return {
+                additionalContext: "Post-execution notes",
+            };
+        },
+
+        // Called when user submits a prompt
+        onUserPromptSubmitted: async (input, invocation) => {
+            console.log(`User prompt: ${input.prompt}`);
+            return {
+                modifiedPrompt: input.prompt, // Optionally modify the prompt
+            };
+        },
+
+        // Called when session starts
+        onSessionStart: async (input, invocation) => {
+            console.log(`Session started from: ${input.source}`); // "startup", "resume", "new"
+            return {
+                additionalContext: "Session initialization context",
+            };
+        },
+
+        // Called when session ends
+        onSessionEnd: async (input, invocation) => {
+            console.log(`Session ended: ${input.reason}`);
+        },
+
+        // Called when an error occurs
+        onErrorOccurred: async (input, invocation) => {
+            console.error(`Error in ${input.errorContext}: ${input.error}`);
+            return {
+                errorHandling: "retry", // "retry", "skip", or "abort"
+            };
+        },
+    },
+});
+```
+
+**Available hooks:**
+
+- `onPreToolUse` - Intercept tool calls before execution. Can allow/deny or modify arguments.
+- `onPostToolUse` - Process tool results after execution. Can modify results or add context.
+- `onUserPromptSubmitted` - Intercept user prompts. Can modify the prompt before processing.
+- `onSessionStart` - Run logic when a session starts or resumes.
+- `onSessionEnd` - Cleanup or logging when session ends.
+- `onErrorOccurred` - Handle errors with retry/skip/abort strategies.
 
 ## Error Handling
 

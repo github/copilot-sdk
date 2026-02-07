@@ -346,6 +346,166 @@ function generateNestedClass(
 }
 
 /**
+ * Find a discriminator property shared by all variants in an anyOf.
+ * Returns the property name and the mapping of const values to variant schemas.
+ */
+function findDiscriminator(variants: JSONSchema7[]): { property: string; mapping: Map<string, JSONSchema7> } | null {
+    if (variants.length === 0) return null;
+
+    // Look for a property with a const value in all variants
+    const firstVariant = variants[0];
+    if (!firstVariant.properties) return null;
+
+    for (const [propName, propSchema] of Object.entries(firstVariant.properties)) {
+        if (typeof propSchema !== "object") continue;
+        const schema = propSchema as JSONSchema7;
+        if (schema.const === undefined) continue;
+
+        // Check if all variants have this property with a const value
+        const mapping = new Map<string, JSONSchema7>();
+        let isValidDiscriminator = true;
+
+        for (const variant of variants) {
+            if (!variant.properties) {
+                isValidDiscriminator = false;
+                break;
+            }
+            const variantProp = variant.properties[propName];
+            if (typeof variantProp !== "object") {
+                isValidDiscriminator = false;
+                break;
+            }
+            const variantSchema = variantProp as JSONSchema7;
+            if (variantSchema.const === undefined) {
+                isValidDiscriminator = false;
+                break;
+            }
+            mapping.set(String(variantSchema.const), variant);
+        }
+
+        if (isValidDiscriminator && mapping.size === variants.length) {
+            return { property: propName, mapping };
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Generate a polymorphic base class and derived classes for a discriminated union.
+ */
+function generatePolymorphicClasses(
+    baseClassName: string,
+    discriminatorProperty: string,
+    variants: JSONSchema7[],
+    knownTypes: Map<string, string>,
+    nestedClasses: Map<string, string>,
+    enumOutput: string[]
+): string {
+    const lines: string[] = [];
+    const discriminatorInfo = findDiscriminator(variants)!;
+
+    // Generate base class with JsonPolymorphic attribute
+    lines.push(`[JsonPolymorphic(`);
+    lines.push(`    TypeDiscriminatorPropertyName = "${discriminatorProperty}",`);
+    lines.push(`    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]`);
+
+    // Add JsonDerivedType attributes for each variant
+    for (const [constValue] of discriminatorInfo.mapping) {
+        const derivedClassName = `${baseClassName}${toPascalCase(constValue)}`;
+        lines.push(`[JsonDerivedType(typeof(${derivedClassName}), "${constValue}")]`);
+    }
+
+    lines.push(`public partial class ${baseClassName}`);
+    lines.push(`{`);
+    lines.push(`    [JsonPropertyName("${discriminatorProperty}")]`);
+    lines.push(`    public virtual string ${toPascalCase(discriminatorProperty)} { get; set; } = string.Empty;`);
+    lines.push(`}`);
+    lines.push("");
+
+    // Generate derived classes
+    for (const [constValue, variant] of discriminatorInfo.mapping) {
+        const derivedClassName = `${baseClassName}${toPascalCase(constValue)}`;
+        const derivedCode = generateDerivedClass(
+            derivedClassName,
+            baseClassName,
+            discriminatorProperty,
+            constValue,
+            variant,
+            knownTypes,
+            nestedClasses,
+            enumOutput
+        );
+        nestedClasses.set(derivedClassName, derivedCode);
+    }
+
+    return lines.join("\n");
+}
+
+/**
+ * Generate a derived class for a discriminated union variant.
+ */
+function generateDerivedClass(
+    className: string,
+    baseClassName: string,
+    discriminatorProperty: string,
+    discriminatorValue: string,
+    schema: JSONSchema7,
+    knownTypes: Map<string, string>,
+    nestedClasses: Map<string, string>,
+    enumOutput: string[]
+): string {
+    const lines: string[] = [];
+    const required = new Set(schema.required || []);
+
+    lines.push(`public partial class ${className} : ${baseClassName}`);
+    lines.push(`{`);
+
+    // Override the discriminator property
+    lines.push(`    [JsonIgnore]`);
+    lines.push(`    public override string ${toPascalCase(discriminatorProperty)} => "${discriminatorValue}";`);
+    lines.push("");
+
+    if (schema.properties) {
+        for (const [propName, propSchema] of Object.entries(schema.properties)) {
+            if (typeof propSchema !== "object") continue;
+            // Skip the discriminator property (already in base class)
+            if (propName === discriminatorProperty) continue;
+
+            const isRequired = required.has(propName);
+            const csharpName = toPascalCase(propName);
+            const csharpType = resolvePropertyType(
+                propSchema as JSONSchema7,
+                className,
+                csharpName,
+                isRequired,
+                knownTypes,
+                nestedClasses,
+                enumOutput
+            );
+
+            if (!isRequired) {
+                lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
+            }
+            lines.push(`    [JsonPropertyName("${propName}")]`);
+
+            const isNullableType = csharpType.endsWith("?");
+            const requiredModifier = isRequired && !isNullableType ? "required " : "";
+            lines.push(`    public ${requiredModifier}${csharpType} ${csharpName} { get; set; }`);
+            lines.push("");
+        }
+    }
+
+    // Remove trailing empty line
+    if (lines[lines.length - 1] === "") {
+        lines.pop();
+    }
+
+    lines.push(`}`);
+    return lines.join("\n");
+}
+
+/**
  * Resolve the C# type for a property, generating nested classes as needed.
  * Handles objects and arrays of objects.
  */
@@ -410,6 +570,26 @@ function resolvePropertyType(
     // Handle array of objects
     if (propSchema.type === "array" && propSchema.items) {
         const items = propSchema.items as JSONSchema7;
+
+        // Array of discriminated union (anyOf with shared discriminator)
+        if (items.anyOf && Array.isArray(items.anyOf)) {
+            const variants = items.anyOf.filter((v): v is JSONSchema7 => typeof v === "object");
+            const discriminatorInfo = findDiscriminator(variants);
+            
+            if (discriminatorInfo) {
+                const baseClassName = `${parentClassName}${propName}Item`;
+                const polymorphicCode = generatePolymorphicClasses(
+                    baseClassName,
+                    discriminatorInfo.property,
+                    variants,
+                    knownTypes,
+                    nestedClasses,
+                    enumOutput
+                );
+                nestedClasses.set(baseClassName, polymorphicCode);
+                return isRequired ? `${baseClassName}[]` : `${baseClassName}[]?`;
+            }
+        }
 
         // Array of objects with properties
         if (items.type === "object" && items.properties) {

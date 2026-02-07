@@ -1,5 +1,7 @@
 """E2E Session Tests"""
 
+import os
+
 import pytest
 
 from copilot import CopilotClient
@@ -158,8 +160,14 @@ class TestSessions:
         assert "2" in answer.data.content
 
         # Resume using a new client
+        github_token = "fake-token-for-e2e-tests" if os.environ.get("CI") == "true" else None
         new_client = CopilotClient(
-            {"cli_path": ctx.cli_path, "cwd": ctx.work_dir, "env": ctx.get_env()}
+            {
+                "cli_path": ctx.cli_path,
+                "cwd": ctx.work_dir,
+                "env": ctx.get_env(),
+                "github_token": github_token,
+            }
         )
 
         try:
@@ -196,21 +204,21 @@ class TestSessions:
         sessions = await ctx.client.list_sessions()
         assert isinstance(sessions, list)
 
-        session_ids = [s["sessionId"] for s in sessions]
+        session_ids = [s.sessionId for s in sessions]
         assert session1.session_id in session_ids
         assert session2.session_id in session_ids
 
         # Verify session metadata structure
         for session_data in sessions:
-            assert "sessionId" in session_data
-            assert "startTime" in session_data
-            assert "modifiedTime" in session_data
-            assert "isRemote" in session_data
+            assert hasattr(session_data, "sessionId")
+            assert hasattr(session_data, "startTime")
+            assert hasattr(session_data, "modifiedTime")
+            assert hasattr(session_data, "isRemote")
             # summary is optional
-            assert isinstance(session_data["sessionId"], str)
-            assert isinstance(session_data["startTime"], str)
-            assert isinstance(session_data["modifiedTime"], str)
-            assert isinstance(session_data["isRemote"], bool)
+            assert isinstance(session_data.sessionId, str)
+            assert isinstance(session_data.startTime, str)
+            assert isinstance(session_data.modifiedTime, str)
+            assert isinstance(session_data.isRemote, bool)
 
     async def test_should_delete_session(self, ctx: E2ETestContext):
         import asyncio
@@ -225,7 +233,7 @@ class TestSessions:
 
         # Verify session exists in the list
         sessions = await ctx.client.list_sessions()
-        session_ids = [s["sessionId"] for s in sessions]
+        session_ids = [s.sessionId for s in sessions]
         assert session_id in session_ids
 
         # Delete the session
@@ -233,7 +241,7 @@ class TestSessions:
 
         # Verify session no longer exists in the list
         sessions_after = await ctx.client.list_sessions()
-        session_ids_after = [s["sessionId"] for s in sessions_after]
+        session_ids_after = [s.sessionId for s in sessions_after]
         assert session_id not in session_ids_after
 
         # Verify we cannot resume the deleted session
@@ -330,7 +338,12 @@ class TestSessions:
 
         # Send a message that will trigger a long-running shell command
         await session.send(
-            {"prompt": "run the shell command 'sleep 100' (works on bash and PowerShell)"}
+            {
+                "prompt": (
+                    "run the shell command 'sleep 100' "
+                    "(note this works on both bash and PowerShell)"
+                )
+            }
         )
 
         # Wait for the tool to start executing

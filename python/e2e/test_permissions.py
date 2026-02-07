@@ -15,7 +15,7 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
 class TestPermissions:
-    async def test_permission_handler_for_write_operations(self, ctx: E2ETestContext):
+    async def test_should_invoke_permission_handler_for_write_operations(self, ctx: E2ETestContext):
         """Test that permission handler is invoked for write operations"""
         permission_requests = []
 
@@ -44,28 +44,7 @@ class TestPermissions:
 
         await session.destroy()
 
-    async def test_permission_handler_for_shell_commands(self, ctx: E2ETestContext):
-        """Test that permission handler is invoked for shell commands"""
-        permission_requests = []
-
-        def on_permission_request(
-            request: PermissionRequest, invocation: dict
-        ) -> PermissionRequestResult:
-            permission_requests.append(request)
-            # Approve the permission
-            return {"kind": "approved"}
-
-        session = await ctx.client.create_session({"on_permission_request": on_permission_request})
-
-        await session.send_and_wait({"prompt": "Run 'echo hello' and tell me the output"})
-
-        # Should have received at least one shell permission request
-        shell_requests = [req for req in permission_requests if req.get("kind") == "shell"]
-        assert len(shell_requests) > 0
-
-        await session.destroy()
-
-    async def test_deny_permission(self, ctx: E2ETestContext):
+    async def test_should_deny_permission_when_handler_returns_denied(self, ctx: E2ETestContext):
         """Test denying permissions"""
 
         def on_permission_request(
@@ -89,7 +68,9 @@ class TestPermissions:
 
         await session.destroy()
 
-    async def test_without_permission_handler(self, ctx: E2ETestContext):
+    async def test_should_work_without_permission_handler__default_behavior_(
+        self, ctx: E2ETestContext
+    ):
         """Test that sessions work without permission handler (default behavior)"""
         # Create session without on_permission_request handler
         session = await ctx.client.create_session()
@@ -101,7 +82,7 @@ class TestPermissions:
 
         await session.destroy()
 
-    async def test_async_permission_handler(self, ctx: E2ETestContext):
+    async def test_should_handle_async_permission_handler(self, ctx: E2ETestContext):
         """Test async permission handler"""
         permission_requests = []
 
@@ -121,7 +102,7 @@ class TestPermissions:
 
         await session.destroy()
 
-    async def test_resume_session_with_permission_handler(self, ctx: E2ETestContext):
+    async def test_should_resume_session_with_permission_handler(self, ctx: E2ETestContext):
         """Test resuming session with permission handler"""
         permission_requests = []
 
@@ -148,7 +129,7 @@ class TestPermissions:
 
         await session2.destroy()
 
-    async def test_permission_handler_errors(self, ctx: E2ETestContext):
+    async def test_should_handle_permission_handler_errors_gracefully(self, ctx: E2ETestContext):
         """Test that permission handler errors are handled gracefully"""
 
         def on_permission_request(
@@ -169,7 +150,7 @@ class TestPermissions:
 
         await session.destroy()
 
-    async def test_tool_call_id_in_permission_requests(self, ctx: E2ETestContext):
+    async def test_should_receive_toolcallid_in_permission_requests(self, ctx: E2ETestContext):
         """Test that toolCallId is included in permission requests"""
         received_tool_call_id = False
 

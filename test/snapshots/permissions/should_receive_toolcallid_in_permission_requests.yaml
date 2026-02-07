@@ -46,4 +46,4 @@ conversations:
           test
           <exited with exit code 0>
       - role: assistant
-        content: The command executed successfully and output "test".
+        content: Command executed successfully, output is "test".

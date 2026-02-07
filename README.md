@@ -2,6 +2,10 @@
 
 ![GitHub Copilot SDK](./assets/RepoHeader_01.png)
 
+[![NPM Downloads](https://img.shields.io/npm/dm/%40github%2Fcopilot-sdk?label=npm)](https://www.npmjs.com/package/@github/copilot-sdk)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/github-copilot-sdk?label=PyPI)](https://pypi.org/project/github-copilot-sdk/)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/GitHub.Copilot.SDK?label=NuGet)](https://www.nuget.org/packages/GitHub.Copilot.SDK)
+
 Agents for every app.
 
 Embed Copilot's agentic workflows in your application—now available in Technical preview as a programmable SDK for Python, TypeScript, Go, and .NET.
@@ -12,10 +16,10 @@ The GitHub Copilot SDK exposes the same engine behind Copilot CLI: a production-
 
 | SDK                      | Location                                          | Installation                              |
 | ------------------------ | ------------------------------------------------- | ----------------------------------------- |
-| **Node.js / TypeScript** | [`cookbook/nodejs/`](./cookbook/nodejs/README.md) | `npm install @github/copilot-sdk`         |
-| **Python**               | [`cookbook/python/`](./cookbook/python/README.md) | `pip install github-copilot-sdk`          |
-| **Go**                   | [`cookbook/go/`](./cookbook/go/README.md)         | `go get github.com/github/copilot-sdk/go` |
-| **.NET**                 | [`cookbook/dotnet/`](./cookbook/dotnet/README.md) | `dotnet add package GitHub.Copilot.SDK`   |
+| **Node.js / TypeScript** | [`cookbook/nodejs/`](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/nodejs/README.md) | `npm install @github/copilot-sdk`         |
+| **Python**               | [`cookbook/python/`](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/python/README.md) | `pip install github-copilot-sdk`          |
+| **Go**                   | [`cookbook/go/`](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/go/README.md)         | `go get github.com/github/copilot-sdk/go` |
+| **.NET**                 | [`cookbook/dotnet/`](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/dotnet/README.md) | `dotnet add package GitHub.Copilot.SDK`   |
 
 See the individual SDK READMEs for installation, usage examples, and API reference.
 
@@ -51,7 +55,7 @@ The SDK manages the CLI process lifecycle automatically. You can also connect to
 
 ### Do I need a GitHub Copilot subscription to use the SDK?
 
-Yes, a GitHub Copilot subscription is required to use the GitHub Copilot SDK. Refer to the [GitHub Copilot pricing page](https://github.com/features/copilot#pricing). You can use the free tier of the Copilot CLI, which includes limited usage.
+Yes, a GitHub Copilot subscription is required to use the GitHub Copilot SDK, **unless you are using BYOK (Bring Your Own Key)**. With BYOK, you can use the SDK without GitHub authentication by configuring your own API keys from supported LLM providers. For standard usage (non-BYOK), refer to the [GitHub Copilot pricing page](https://github.com/features/copilot#pricing), which includes a free tier with limited usage.
 
 ### How does billing work for SDK usage?
 
@@ -59,7 +63,19 @@ Billing for the GitHub Copilot SDK is based on the same model as the Copilot CLI
 
 ### Does it support BYOK (Bring Your Own Key)?
 
-Yes, the GitHub Copilot SDK supports BYOK. You can configure the SDK to use your own encryption keys for data security. Refer to the individual SDK documentation for instructions on setting up BYOK.
+Yes, the GitHub Copilot SDK supports BYOK (Bring Your Own Key). You can configure the SDK to use your own API keys from supported LLM providers (e.g. OpenAI, Azure AI Foundry, Anthropic) to access models through those providers. See the **[BYOK documentation](./docs/auth/byok.md)** for setup instructions and examples.
+
+**Note:** BYOK uses key-based authentication only. Microsoft Entra ID (Azure AD), managed identities, and third-party identity providers are not supported.
+
+### What authentication methods are supported?
+
+The SDK supports multiple authentication methods:
+- **GitHub signed-in user** - Uses stored OAuth credentials from `copilot` CLI login
+- **OAuth GitHub App** - Pass user tokens from your GitHub OAuth app
+- **Environment variables** - `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_TOKEN`
+- **BYOK** - Use your own API keys (no GitHub auth required)
+
+See the **[Authentication documentation](./docs/auth/index.md)** for details on each method.
 
 ### Do I need to install the Copilot CLI separately?
 
@@ -92,8 +108,25 @@ Please use the [GitHub Issues](https://github.com/github/copilot-sdk/issues) pag
 ## Quick Links
 
 - **[Getting Started](./docs/getting-started.md)** – Tutorial to get up and running
-- **[Cookbook](./cookbook/README.md)** – Practical recipes for common tasks across all languages
-- **[Samples](./samples/README.md)** – Video walkthroughs and sample projects
+- **[Authentication](./docs/auth/index.md)** – GitHub OAuth, BYOK, and more
+- **[Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk)** – Practical recipes for common tasks across all languages
+- **[More Resources](https://github.com/github/awesome-copilot/blob/main/collections/copilot-sdk.md)** – Additional examples, tutorials, and community resources
+
+## Unofficial, Community-maintained SDKs
+
+⚠️ Disclaimer: These are unofficial, community-driven SDKs and they are not supported by GitHub. Use at your own risk.
+
+| SDK           | Location                                           |
+| --------------| -------------------------------------------------- |
+| **Java**      | [copilot-community-sdk/copilot-sdk-java][sdk-java] |
+| **Rust**      | [copilot-community-sdk/copilot-sdk-rust][sdk-rust] |
+| **C++**       | [0xeb/copilot-sdk-cpp][sdk-cpp]                    |
+| **Clojure**   | [krukow/copilot-sdk-clojure][sdk-clojure]          |
+
+[sdk-java]: https://github.com/copilot-community-sdk/copilot-sdk-java
+[sdk-rust]: https://github.com/copilot-community-sdk/copilot-sdk-rust
+[sdk-cpp]: https://github.com/0xeb/copilot-sdk-cpp
+[sdk-clojure]: https://github.com/krukow/copilot-sdk-clojure
 
 ## Contributing
 
