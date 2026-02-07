@@ -64,6 +64,12 @@ public final class SessionCompactionCompleteEvent extends AbstractSessionEvent {
         @JsonProperty("checkpointPath")
         private String checkpointPath;
 
+        @JsonProperty("compactionTokensUsed")
+        private CompactionTokensUsed compactionTokensUsed;
+
+        @JsonProperty("requestId")
+        private String requestId;
+
         public boolean isSuccess() {
             return success;
         }
@@ -142,6 +148,62 @@ public final class SessionCompactionCompleteEvent extends AbstractSessionEvent {
 
         public void setCheckpointPath(String checkpointPath) {
             this.checkpointPath = checkpointPath;
+        }
+
+        public CompactionTokensUsed getCompactionTokensUsed() {
+            return compactionTokensUsed;
+        }
+
+        public void setCompactionTokensUsed(CompactionTokensUsed compactionTokensUsed) {
+            this.compactionTokensUsed = compactionTokensUsed;
+        }
+
+        public String getRequestId() {
+            return requestId;
+        }
+
+        public void setRequestId(String requestId) {
+            this.requestId = requestId;
+        }
+    }
+
+    /**
+     * Token usage information for the compaction operation.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class CompactionTokensUsed {
+
+        @JsonProperty("input")
+        private double input;
+
+        @JsonProperty("output")
+        private double output;
+
+        @JsonProperty("cachedInput")
+        private double cachedInput;
+
+        public double getInput() {
+            return input;
+        }
+
+        public void setInput(double input) {
+            this.input = input;
+        }
+
+        public double getOutput() {
+            return output;
+        }
+
+        public void setOutput(double output) {
+            this.output = output;
+        }
+
+        public double getCachedInput() {
+            return cachedInput;
+        }
+
+        public void setCachedInput(double cachedInput) {
+            this.cachedInput = cachedInput;
         }
     }
 }
