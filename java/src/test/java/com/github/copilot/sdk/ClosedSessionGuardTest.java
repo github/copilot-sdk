@@ -5,7 +5,9 @@
 package com.github.copilot.sdk;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -55,7 +57,7 @@ public class ClosedSessionGuardTest {
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
                 session.send("test message");
             });
-            assert thrown.getMessage().contains("closed");
+            assertTrue(thrown.getMessage().contains("closed"), "Exception message should mention session is closed");
         }
     }
 
@@ -74,7 +76,7 @@ public class ClosedSessionGuardTest {
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
                 session.send(new MessageOptions().setPrompt("test message"));
             });
-            assert thrown.getMessage().contains("closed");
+            assertTrue(thrown.getMessage().contains("closed"), "Exception message should mention session is closed");
         }
     }
 
@@ -93,7 +95,7 @@ public class ClosedSessionGuardTest {
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
                 session.sendAndWait("test message");
             });
-            assert thrown.getMessage().contains("closed");
+            assertTrue(thrown.getMessage().contains("closed"), "Exception message should mention session is closed");
         }
     }
 
@@ -112,7 +114,7 @@ public class ClosedSessionGuardTest {
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
                 session.sendAndWait(new MessageOptions().setPrompt("test message"));
             });
-            assert thrown.getMessage().contains("closed");
+            assertTrue(thrown.getMessage().contains("closed"), "Exception message should mention session is closed");
         }
     }
 
@@ -131,7 +133,7 @@ public class ClosedSessionGuardTest {
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
                 session.sendAndWait(new MessageOptions().setPrompt("test message"), 5000);
             });
-            assert thrown.getMessage().contains("closed");
+            assertTrue(thrown.getMessage().contains("closed"), "Exception message should mention session is closed");
         }
     }
 
@@ -152,7 +154,7 @@ public class ClosedSessionGuardTest {
                     // Handler should never be registered
                 });
             });
-            assert thrown.getMessage().contains("closed");
+            assertTrue(thrown.getMessage().contains("closed"), "Exception message should mention session is closed");
         }
     }
 
@@ -173,7 +175,7 @@ public class ClosedSessionGuardTest {
                     // Handler should never be registered
                 });
             });
-            assert thrown.getMessage().contains("closed");
+            assertTrue(thrown.getMessage().contains("closed"), "Exception message should mention session is closed");
         }
     }
 
@@ -192,7 +194,7 @@ public class ClosedSessionGuardTest {
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
                 session.getMessages();
             });
-            assert thrown.getMessage().contains("closed");
+            assertTrue(thrown.getMessage().contains("closed"), "Exception message should mention session is closed");
         }
     }
 
@@ -211,7 +213,7 @@ public class ClosedSessionGuardTest {
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
                 session.abort();
             });
-            assert thrown.getMessage().contains("closed");
+            assertTrue(thrown.getMessage().contains("closed"), "Exception message should mention session is closed");
         }
     }
 
@@ -232,7 +234,7 @@ public class ClosedSessionGuardTest {
                     // Handler should never be set
                 });
             });
-            assert thrown.getMessage().contains("closed");
+            assertTrue(thrown.getMessage().contains("closed"), "Exception message should mention session is closed");
         }
     }
 
@@ -251,7 +253,7 @@ public class ClosedSessionGuardTest {
             IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> {
                 session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS_AND_LOG_ERRORS);
             });
-            assert thrown.getMessage().contains("closed");
+            assertTrue(thrown.getMessage().contains("closed"), "Exception message should mention session is closed");
         }
     }
 
@@ -269,7 +271,7 @@ public class ClosedSessionGuardTest {
             session.close();
 
             String sessionIdAfterClose = session.getSessionId();
-            assert sessionIdBeforeClose.equals(sessionIdAfterClose);
+            assertEquals(sessionIdBeforeClose, sessionIdAfterClose, "Session ID should remain accessible after close");
         }
     }
 
@@ -287,7 +289,7 @@ public class ClosedSessionGuardTest {
             session.close();
 
             String pathAfterClose = session.getWorkspacePath();
-            assert pathBeforeClose == pathAfterClose; // Both should be null or same value
+            assertEquals(pathBeforeClose, pathAfterClose, "Workspace path should remain accessible after close");
         }
     }
 
