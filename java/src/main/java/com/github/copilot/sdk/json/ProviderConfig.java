@@ -159,6 +159,11 @@ public class ProviderConfig {
      * Sets a bearer token for authentication.
      * <p>
      * This is an alternative to API key authentication.
+     * <p>
+     * <strong>Note:</strong> The bearer token is a <strong>static token
+     * string</strong>. The SDK does not refresh this token automatically. If your
+     * token expires, requests will fail and you'll need to create a new session
+     * with a fresh token.
      *
      * @param bearerToken
      *            the bearer token
