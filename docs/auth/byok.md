@@ -10,6 +10,7 @@ BYOK allows you to use the Copilot SDK with your own API keys from model provide
 | Azure OpenAI / Azure AI Foundry | `"azure"` | Azure-hosted models |
 | Anthropic | `"anthropic"` | Claude models |
 | Ollama | `"openai"` | Local models via OpenAI-compatible API |
+| Foundry Local | `"openai"` | On-device inference via Microsoft's OpenAI-compatible local server |
 | Other OpenAI-compatible | `"openai"` | vLLM, LiteLLM, etc. |
 
 ## Quick Start: Azure AI Foundry
@@ -250,6 +251,31 @@ provider: {
 }
 ```
 
+### Foundry Local (On-Device)
+
+[Foundry Local](https://github.com/microsoft/Foundry-Local) runs AI models on-device without requiring an Azure subscription. It exposes an OpenAI-compatible API at `http://localhost:5272/v1`.
+
+Use the [Foundry Local SDK](https://github.com/microsoft/Foundry-Local#-integrate-with-your-applications-using-the-sdk) to bootstrap the service and model, then point the Copilot SDK at the local endpoint:
+
+<!-- docs-validate: skip -->
+```typescript
+// Bootstrap: npm install foundry-local-sdk
+// import { FoundryLocalManager } from "foundry-local-sdk";
+// const manager = new FoundryLocalManager();
+// const modelInfo = await manager.init("phi-4-mini");
+
+provider: {
+    type: "openai",
+    baseUrl: manager.endpoint,            // e.g., "http://localhost:5272/v1"
+    apiKey: manager.apiKey,               // Provided by Foundry Local SDK
+    wireApi: "completions",               // Foundry Local uses Chat Completions API
+}
+```
+
+> **Note:** Foundry Local must be [installed separately](https://github.com/microsoft/Foundry-Local#installing). Run `foundry model run phi-4-mini` to download and start a model.
+
+For a complete walkthrough including tool calling, streaming, and multi-turn conversations, see the [Foundry Local Copilot SDK integration guide](https://github.com/microsoft/Foundry-Local/blob/main/docs/copilot-sdk-integration.md) and the [working Node.js sample](https://github.com/microsoft/Foundry-Local/tree/main/samples/js/copilot-sdk-foundry-local).
+
 ### Anthropic
 
 ```typescript
@@ -305,6 +331,7 @@ Some Copilot features may behave differently with BYOK:
 |----------|-------------|
 | Azure AI Foundry | No Entra ID auth; must use API keys |
 | Ollama | No API key; local only; model support varies |
+| Foundry Local | Local only; requires [Foundry Local installed](https://github.com/microsoft/Foundry-Local#installing); model catalog limited to Foundry Local models; REST API is in preview |
 | OpenAI | Subject to OpenAI rate limits and quotas |
 
 ## Troubleshooting
@@ -367,6 +394,28 @@ curl http://localhost:11434/v1/models
 # Start Ollama if not running
 ollama serve
 ```
+
+### Connection Refused (Foundry Local)
+
+Ensure Foundry Local is installed and the service is running:
+
+```bash
+# Check if Foundry Local is installed
+foundry --version
+
+# List available models
+foundry model ls
+
+# Start a model (downloads if not cached)
+foundry model run phi-4-mini
+
+# Check the service endpoint
+curl http://localhost:5272/v1/models
+```
+
+If not installed:
+- **Windows**: `winget install Microsoft.FoundryLocal`
+- **macOS**: `brew install microsoft/foundrylocal/foundrylocal`
 
 ### Authentication Failed
 
