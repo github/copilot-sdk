@@ -109,6 +109,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 **ClientOptions:**
 
 - `CLIPath` (string): Path to CLI executable (default: "copilot" or `COPILOT_CLI_PATH` env var)
+- `CLIArgs` ([]string): Extra arguments to pass to the CLI executable (inserted before SDK-managed args)
 - `CLIUrl` (string): URL of existing CLI server (e.g., `"localhost:8080"`, `"http://127.0.0.1:9000"`, or just `"8080"`). When provided, the client will not spawn a CLI process.
 - `Cwd` (string): Working directory for CLI process
 - `Port` (int): Server port for TCP mode (default: 0 for random)

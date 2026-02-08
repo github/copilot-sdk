@@ -147,3 +147,26 @@ class TestAuthOptions:
             CopilotClient(
                 {"cli_url": "localhost:8080", "use_logged_in_user": False, "log_level": "error"}
             )
+
+
+class TestCliArgs:
+    def test_default_cli_args_empty_list(self):
+        client = CopilotClient({"cli_path": CLI_PATH, "log_level": "error"})
+        assert client.options.get("cli_args") == []
+
+    def test_accepts_cli_args(self):
+        cli_args = ["--custom-flag", "--another-arg", "value"]
+        client = CopilotClient(
+            {"cli_path": CLI_PATH, "cli_args": cli_args, "log_level": "error"}
+        )
+        assert client.options.get("cli_args") == cli_args
+
+    def test_cli_args_list_is_separate_copy(self):
+        cli_args = ["--custom-flag"]
+        client = CopilotClient(
+            {"cli_path": CLI_PATH, "cli_args": cli_args, "log_level": "error"}
+        )
+        # Modifying the original list should not affect the client's copy
+        cli_args.append("--another-flag")
+        assert client.options.get("cli_args") == ["--custom-flag"]
+
