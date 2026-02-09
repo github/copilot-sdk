@@ -42,6 +42,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/github/copilot-sdk/go/internal/embeddedcli"
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
 )
 
@@ -182,6 +183,9 @@ func NewClient(options *ClientOptions) *Client {
 	// Check environment variable for CLI path
 	if cliPath := os.Getenv("COPILOT_CLI_PATH"); cliPath != "" {
 		opts.CLIPath = cliPath
+	} else if embeddedPath := embeddedcli.Path(); embeddedPath != "" && opts.CLIPath == "copilot" {
+		// Use the unpacked embedded CLI if available and no custom path was set
+		opts.CLIPath = embeddedPath
 	}
 
 	client.options = opts
