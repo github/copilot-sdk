@@ -384,7 +384,9 @@ func downloadCLIBinary(npmPlatform, binaryName, cliVersion, destDir string) (str
 		tarballFile.Close()
 		return "", fmt.Errorf("failed to save tarball: %w", err)
 	}
-	tarballFile.Close()
+	if err := tarballFile.Close(); err != nil {
+		return "", fmt.Errorf("failed to close tarball file: %w", err)
+	}
 
 	// Extract only the CLI binary to avoid unpacking the full package tree.
 	binaryPath := filepath.Join(destDir, binaryName)
@@ -525,7 +527,9 @@ func extractFileFromTarball(tarballPath, destDir, targetPath, outputName string)
 				outFile.Close()
 				return fmt.Errorf("failed to extract binary: %w", err)
 			}
-			outFile.Close()
+			if err := outFile.Close(); err != nil {
+				return fmt.Errorf("failed to close output file: %w", err)
+			}
 			return nil
 		}
 	}
