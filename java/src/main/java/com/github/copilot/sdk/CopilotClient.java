@@ -90,10 +90,15 @@ public final class CopilotClient implements AutoCloseable {
     public CopilotClient(CopilotClientOptions options) {
         this.options = options != null ? options : new CopilotClientOptions();
 
-        // Validate mutually exclusive options
+        // When cliUrl is set, auto-correct useStdio since we're connecting via TCP
+        if (this.options.getCliUrl() != null && !this.options.getCliUrl().isEmpty()) {
+            this.options.setUseStdio(false);
+        }
+
+        // Validate mutually exclusive options: cliUrl and cliPath cannot both be set
         if (this.options.getCliUrl() != null && !this.options.getCliUrl().isEmpty()
-                && (this.options.isUseStdio() || this.options.getCliPath() != null)) {
-            throw new IllegalArgumentException("CliUrl is mutually exclusive with UseStdio and CliPath");
+                && this.options.getCliPath() != null) {
+            throw new IllegalArgumentException("CliUrl is mutually exclusive with CliPath");
         }
 
         // Validate auth options with external server

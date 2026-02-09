@@ -127,17 +127,15 @@ final class CliServerManager {
      *             if connection fails
      */
     JsonRpcClient connectToServer(Process process, String tcpHost, Integer tcpPort) throws IOException {
-        if (options.isUseStdio()) {
-            if (process == null) {
-                throw new IllegalStateException("CLI process not started");
-            }
-            return JsonRpcClient.fromProcess(process);
-        } else {
-            if (tcpHost == null || tcpPort == null) {
-                throw new IllegalStateException("Cannot connect because TCP host or port are not available");
-            }
+        if (tcpHost != null && tcpPort != null) {
+            // TCP mode: external server or child process with explicit port
             Socket socket = new Socket(tcpHost, tcpPort);
             return JsonRpcClient.fromSocket(socket);
+        } else if (process != null) {
+            // Stdio mode: child process
+            return JsonRpcClient.fromProcess(process);
+        } else {
+            throw new IllegalStateException("Cannot connect: no process for stdio and no host:port for TCP");
         }
     }
 

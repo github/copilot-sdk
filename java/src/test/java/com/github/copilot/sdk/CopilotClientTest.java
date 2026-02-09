@@ -96,16 +96,29 @@ public class CopilotClientTest {
     }
 
     @Test
-    void testCliUrlMutualExclusion() {
+    void testCliUrlAutoCorrectsUseStdio() {
         var options = new CopilotClientOptions().setCliUrl("localhost:3000").setUseStdio(true);
 
-        assertThrows(IllegalArgumentException.class, () -> new CopilotClient(options));
+        // Should NOT throw - useStdio is auto-corrected to false when cliUrl is set
+        var client = new CopilotClient(options);
+        assertFalse(options.isUseStdio(), "useStdio should be auto-corrected to false when cliUrl is set");
+        client.close();
+    }
+
+    @Test
+    void testCliUrlOnlyConstruction() {
+        var options = new CopilotClientOptions().setCliUrl("localhost:4321");
+
+        // Should work without explicitly setting useStdio to false
+        var client = new CopilotClient(options);
+        assertEquals(ConnectionState.DISCONNECTED, client.getState());
+        assertFalse(options.isUseStdio(), "useStdio should be auto-corrected to false when cliUrl is set");
+        client.close();
     }
 
     @Test
     void testCliUrlMutualExclusionWithCliPath() {
-        var options = new CopilotClientOptions().setCliUrl("localhost:3000").setCliPath("/path/to/cli")
-                .setUseStdio(false);
+        var options = new CopilotClientOptions().setCliUrl("localhost:3000").setCliPath("/path/to/cli");
 
         assertThrows(IllegalArgumentException.class, () -> new CopilotClient(options));
     }
@@ -194,16 +207,14 @@ public class CopilotClientTest {
 
     @Test
     void testGithubTokenWithCliUrlThrows() {
-        var options = new CopilotClientOptions().setCliUrl("localhost:8080").setGithubToken("gho_test_token")
-                .setUseStdio(false);
+        var options = new CopilotClientOptions().setCliUrl("localhost:8080").setGithubToken("gho_test_token");
 
         assertThrows(IllegalArgumentException.class, () -> new CopilotClient(options));
     }
 
     @Test
     void testUseLoggedInUserWithCliUrlThrows() {
-        var options = new CopilotClientOptions().setCliUrl("localhost:8080").setUseLoggedInUser(false)
-                .setUseStdio(false);
+        var options = new CopilotClientOptions().setCliUrl("localhost:8080").setUseLoggedInUser(false);
 
         assertThrows(IllegalArgumentException.class, () -> new CopilotClient(options));
     }
