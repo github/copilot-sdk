@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-@edu.umd.cs.findbugs.annotations.SuppressFBWarnings(value = "EI_EXPOSE_REP2", justification = "DTOs for JSON deserialization - low risk")
 /**
  * Event types emitted during Copilot session processing.
  *
@@ -88,4 +87,5 @@
  * @see com.github.copilot.sdk.CopilotSession#on(java.util.function.Consumer)
  * @see com.github.copilot.sdk.events.AbstractSessionEvent
  */
+@edu.umd.cs.findbugs.annotations.SuppressFBWarnings(value = "EI_EXPOSE_REP2", justification = "DTOs for JSON deserialization - low risk")
 package com.github.copilot.sdk.events;
