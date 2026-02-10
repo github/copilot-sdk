@@ -48,7 +48,7 @@ import com.github.copilot.sdk.json.SessionMetadata;
  * 	var session = client.createSession(new SessionConfig().setModel("gpt-5")).get();
  *
  * 	session.on(AssistantMessageEvent.class, msg -> {
- * 		System.out.println(msg.getData().getContent());
+ * 		System.out.println(msg.getData().content());
  * 	});
  *
  * 	session.send(new MessageOptions().setPrompt("Hello!")).get();

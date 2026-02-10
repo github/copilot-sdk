@@ -32,39 +32,7 @@ public final class ToolUserRequestedEvent extends AbstractSessionEvent {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class ToolUserRequestedData {
-
-        @JsonProperty("toolCallId")
-        private String toolCallId;
-
-        @JsonProperty("toolName")
-        private String toolName;
-
-        @JsonProperty("arguments")
-        private Object arguments;
-
-        public String getToolCallId() {
-            return toolCallId;
-        }
-
-        public void setToolCallId(String toolCallId) {
-            this.toolCallId = toolCallId;
-        }
-
-        public String getToolName() {
-            return toolName;
-        }
-
-        public void setToolName(String toolName) {
-            this.toolName = toolName;
-        }
-
-        public Object getArguments() {
-            return arguments;
-        }
-
-        public void setArguments(Object arguments) {
-            this.arguments = arguments;
-        }
+    public record ToolUserRequestedData(@JsonProperty("toolCallId") String toolCallId,
+            @JsonProperty("toolName") String toolName, @JsonProperty("arguments") Object arguments) {
     }
 }

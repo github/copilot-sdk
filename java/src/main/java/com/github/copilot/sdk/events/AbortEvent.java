@@ -32,17 +32,6 @@ public final class AbortEvent extends AbstractSessionEvent {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class AbortData {
-
-        @JsonProperty("reason")
-        private String reason;
-
-        public String getReason() {
-            return reason;
-        }
-
-        public void setReason(String reason) {
-            this.reason = reason;
-        }
+    public record AbortData(@JsonProperty("reason") String reason) {
     }
 }

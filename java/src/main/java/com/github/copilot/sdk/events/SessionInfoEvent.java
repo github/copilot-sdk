@@ -32,28 +32,6 @@ public final class SessionInfoEvent extends AbstractSessionEvent {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class SessionInfoData {
-
-        @JsonProperty("infoType")
-        private String infoType;
-
-        @JsonProperty("message")
-        private String message;
-
-        public String getInfoType() {
-            return infoType;
-        }
-
-        public void setInfoType(String infoType) {
-            this.infoType = infoType;
-        }
-
-        public String getMessage() {
-            return message;
-        }
-
-        public void setMessage(String message) {
-            this.message = message;
-        }
+    public record SessionInfoData(@JsonProperty("infoType") String infoType, @JsonProperty("message") String message) {
     }
 }

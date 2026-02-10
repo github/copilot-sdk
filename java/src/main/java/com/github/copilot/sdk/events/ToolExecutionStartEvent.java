@@ -32,72 +32,9 @@ public final class ToolExecutionStartEvent extends AbstractSessionEvent {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class ToolExecutionStartData {
-
-        @JsonProperty("toolCallId")
-        private String toolCallId;
-
-        @JsonProperty("toolName")
-        private String toolName;
-
-        @JsonProperty("arguments")
-        private Object arguments;
-
-        @JsonProperty("mcpServerName")
-        private String mcpServerName;
-
-        @JsonProperty("mcpToolName")
-        private String mcpToolName;
-
-        @JsonProperty("parentToolCallId")
-        private String parentToolCallId;
-
-        public String getToolCallId() {
-            return toolCallId;
-        }
-
-        public void setToolCallId(String toolCallId) {
-            this.toolCallId = toolCallId;
-        }
-
-        public String getToolName() {
-            return toolName;
-        }
-
-        public void setToolName(String toolName) {
-            this.toolName = toolName;
-        }
-
-        public Object getArguments() {
-            return arguments;
-        }
-
-        public void setArguments(Object arguments) {
-            this.arguments = arguments;
-        }
-
-        public String getMcpServerName() {
-            return mcpServerName;
-        }
-
-        public void setMcpServerName(String mcpServerName) {
-            this.mcpServerName = mcpServerName;
-        }
-
-        public String getMcpToolName() {
-            return mcpToolName;
-        }
-
-        public void setMcpToolName(String mcpToolName) {
-            this.mcpToolName = mcpToolName;
-        }
-
-        public String getParentToolCallId() {
-            return parentToolCallId;
-        }
-
-        public void setParentToolCallId(String parentToolCallId) {
-            this.parentToolCallId = parentToolCallId;
-        }
+    public record ToolExecutionStartData(@JsonProperty("toolCallId") String toolCallId,
+            @JsonProperty("toolName") String toolName, @JsonProperty("arguments") Object arguments,
+            @JsonProperty("mcpServerName") String mcpServerName, @JsonProperty("mcpToolName") String mcpToolName,
+            @JsonProperty("parentToolCallId") String parentToolCallId) {
     }
 }

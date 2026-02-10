@@ -110,16 +110,16 @@ public class CopilotSessionTest {
                     .get(90, TimeUnit.SECONDS);
 
             assertNotNull(response1);
-            assertTrue(response1.getData().getContent().contains("2"),
-                    "Response should contain 2: " + response1.getData().getContent());
+            assertTrue(response1.getData().content().contains("2"),
+                    "Response should contain 2: " + response1.getData().content());
 
             AssistantMessageEvent response2 = session
                     .sendAndWait(new MessageOptions().setPrompt("Now if you double that, what do you get?"), 60000)
                     .get(90, TimeUnit.SECONDS);
 
             assertNotNull(response2);
-            assertTrue(response2.getData().getContent().contains("4"),
-                    "Response should contain 4: " + response2.getData().getContent());
+            assertTrue(response2.getData().content().contains("4"),
+                    "Response should contain 4: " + response2.getData().content());
 
             session.close();
         }
@@ -162,8 +162,8 @@ public class CopilotSessionTest {
                     .map(e -> (AssistantMessageEvent) e).findFirst().orElse(null);
 
             assertNotNull(assistantMsg);
-            assertTrue(assistantMsg.getData().getContent().contains("300"),
-                    "Response should contain 300: " + assistantMsg.getData().getContent());
+            assertTrue(assistantMsg.getData().content().contains("300"),
+                    "Response should contain 300: " + assistantMsg.getData().content());
 
             session.close();
         }
@@ -207,8 +207,8 @@ public class CopilotSessionTest {
             assertTrue(events.contains("session.idle"));
             assertTrue(events.contains("assistant.message"));
             assertNotNull(lastMessage.get());
-            assertTrue(lastMessage.get().getData().getContent().contains("done"),
-                    "Response should contain done: " + lastMessage.get().getData().getContent());
+            assertTrue(lastMessage.get().getData().content().contains("done"),
+                    "Response should contain done: " + lastMessage.get().getData().content());
 
             session.close();
         }
@@ -236,8 +236,8 @@ public class CopilotSessionTest {
 
             assertNotNull(response);
             assertEquals("assistant.message", response.getType());
-            assertTrue(response.getData().getContent().contains("4"),
-                    "Response should contain 4: " + response.getData().getContent());
+            assertTrue(response.getData().content().contains("4"),
+                    "Response should contain 4: " + response.getData().content());
             assertTrue(events.contains("session.idle"));
             assertTrue(events.contains("assistant.message"));
 
@@ -262,8 +262,8 @@ public class CopilotSessionTest {
             AssistantMessageEvent answer = session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60,
                     TimeUnit.SECONDS);
             assertNotNull(answer);
-            assertTrue(answer.getData().getContent().contains("2"),
-                    "Response should contain 2: " + answer.getData().getContent());
+            assertTrue(answer.getData().content().contains("2"),
+                    "Response should contain 2: " + answer.getData().content());
 
             // Resume using the same client
             CopilotSession session2 = client.resumeSession(sessionId).get();
@@ -273,7 +273,7 @@ public class CopilotSessionTest {
             // Verify resumed session has the previous messages
             List<AbstractSessionEvent> messages = session2.getMessages().get(60, TimeUnit.SECONDS);
             boolean hasAssistantMessage = messages.stream().filter(m -> m instanceof AssistantMessageEvent)
-                    .map(m -> (AssistantMessageEvent) m).anyMatch(m -> m.getData().getContent().contains("2"));
+                    .map(m -> (AssistantMessageEvent) m).anyMatch(m -> m.getData().content().contains("2"));
             assertTrue(hasAssistantMessage, "Should find previous assistant message containing 2");
 
             session2.close();
@@ -299,8 +299,8 @@ public class CopilotSessionTest {
             AssistantMessageEvent answer = session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60,
                     TimeUnit.SECONDS);
             assertNotNull(answer);
-            assertTrue(answer.getData().getContent().contains("2"),
-                    "Response should contain 2: " + answer.getData().getContent());
+            assertTrue(answer.getData().content().contains("2"),
+                    "Response should contain 2: " + answer.getData().content());
 
             // Resume using a new client (keeping client1 alive)
             try (CopilotClient client2 = ctx.createClient()) {
@@ -343,10 +343,10 @@ public class CopilotSessionTest {
                     .sendAndWait(new MessageOptions().setPrompt("What is your full name?")).get(60, TimeUnit.SECONDS);
 
             assertNotNull(response);
-            assertTrue(response.getData().getContent().contains("GitHub"),
-                    "Response should contain GitHub: " + response.getData().getContent());
-            assertTrue(response.getData().getContent().contains("Have a nice day!"),
-                    "Response should end with 'Have a nice day!': " + response.getData().getContent());
+            assertTrue(response.getData().content().contains("GitHub"),
+                    "Response should contain GitHub: " + response.getData().content());
+            assertTrue(response.getData().content().contains("Have a nice day!"),
+                    "Response should end with 'Have a nice day!': " + response.getData().content());
             session.close();
         }
     }
@@ -374,8 +374,8 @@ public class CopilotSessionTest {
                     .sendAndWait(new MessageOptions().setPrompt("What is your full name?")).get(60, TimeUnit.SECONDS);
 
             assertNotNull(response);
-            assertTrue(response.getData().getContent().contains("Testy McTestface"),
-                    "Response should contain 'Testy McTestface': " + response.getData().getContent());
+            assertTrue(response.getData().content().contains("Testy McTestface"),
+                    "Response should contain 'Testy McTestface': " + response.getData().content());
             session.close();
         }
     }
@@ -467,8 +467,8 @@ public class CopilotSessionTest {
             AssistantMessageEvent answer = session.sendAndWait(new MessageOptions().setPrompt("What is 2+2?")).get(60,
                     TimeUnit.SECONDS);
             assertNotNull(answer);
-            assertTrue(answer.getData().getContent().contains("4"),
-                    "Response should contain 4: " + answer.getData().getContent());
+            assertTrue(answer.getData().content().contains("4"),
+                    "Response should contain 4: " + answer.getData().content());
 
             session.close();
         }
@@ -518,8 +518,8 @@ public class CopilotSessionTest {
                     TimeUnit.SECONDS);
 
             assertNotNull(response);
-            assertTrue(response.getData().getContent().contains("2"),
-                    "Response should contain 2: " + response.getData().getContent());
+            assertTrue(response.getData().content().contains("2"),
+                    "Response should contain 2: " + response.getData().content());
             session.close();
         }
     }
@@ -567,8 +567,8 @@ public class CopilotSessionTest {
                     TimeUnit.SECONDS);
 
             assertNotNull(response);
-            assertTrue(response.getData().getContent().contains("2"),
-                    "Response should contain 2: " + response.getData().getContent());
+            assertTrue(response.getData().content().contains("2"),
+                    "Response should contain 2: " + response.getData().content());
 
             session.close();
         }
@@ -727,8 +727,8 @@ public class CopilotSessionTest {
                     .get(60, TimeUnit.SECONDS);
 
             assertNotNull(response);
-            assertTrue(response.getData().getContent().contains("54321"),
-                    "Response should contain 54321: " + response.getData().getContent());
+            assertTrue(response.getData().content().contains("54321"),
+                    "Response should contain 54321: " + response.getData().content());
 
             session.close();
         }
@@ -755,8 +755,8 @@ public class CopilotSessionTest {
                     TimeUnit.SECONDS);
 
             assertNotNull(response);
-            assertTrue(response.getData().getContent().contains("2"),
-                    "Response should contain 2: " + response.getData().getContent());
+            assertTrue(response.getData().content().contains("2"),
+                    "Response should contain 2: " + response.getData().content());
 
             session.close();
         }

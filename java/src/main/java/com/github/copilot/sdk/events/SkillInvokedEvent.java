@@ -39,50 +39,7 @@ public final class SkillInvokedEvent extends AbstractSessionEvent {
      * Data for the skill invoked event.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class SkillInvokedData {
-
-        @JsonProperty("name")
-        private String name;
-
-        @JsonProperty("path")
-        private String path;
-
-        @JsonProperty("content")
-        private String content;
-
-        @JsonProperty("allowedTools")
-        private List<String> allowedTools;
-
-        public String getName() {
-            return name;
-        }
-
-        public void setName(String name) {
-            this.name = name;
-        }
-
-        public String getPath() {
-            return path;
-        }
-
-        public void setPath(String path) {
-            this.path = path;
-        }
-
-        public String getContent() {
-            return content;
-        }
-
-        public void setContent(String content) {
-            this.content = content;
-        }
-
-        public List<String> getAllowedTools() {
-            return allowedTools;
-        }
-
-        public void setAllowedTools(List<String> allowedTools) {
-            this.allowedTools = allowedTools;
-        }
+    public record SkillInvokedData(@JsonProperty("name") String name, @JsonProperty("path") String path,
+            @JsonProperty("content") String content, @JsonProperty("allowedTools") List<String> allowedTools) {
     }
 }

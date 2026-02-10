@@ -32,39 +32,13 @@ public final class SubagentSelectedEvent extends AbstractSessionEvent {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class SubagentSelectedData {
+    public record SubagentSelectedData(@JsonProperty("agentName") String agentName,
+            @JsonProperty("agentDisplayName") String agentDisplayName, @JsonProperty("tools") String[] tools) {
 
-        @JsonProperty("agentName")
-        private String agentName;
-
-        @JsonProperty("agentDisplayName")
-        private String agentDisplayName;
-
-        @JsonProperty("tools")
-        private String[] tools;
-
-        public String getAgentName() {
-            return agentName;
-        }
-
-        public void setAgentName(String agentName) {
-            this.agentName = agentName;
-        }
-
-        public String getAgentDisplayName() {
-            return agentDisplayName;
-        }
-
-        public void setAgentDisplayName(String agentDisplayName) {
-            this.agentDisplayName = agentDisplayName;
-        }
-
-        public String[] getTools() {
+        /** Returns a defensive copy of the tools array. */
+        @Override
+        public String[] tools() {
             return tools == null ? null : tools.clone();
-        }
-
-        public void setTools(String[] tools) {
-            this.tools = tools;
         }
     }
 }

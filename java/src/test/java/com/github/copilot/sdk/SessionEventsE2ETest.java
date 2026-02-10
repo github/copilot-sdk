@@ -150,7 +150,7 @@ public class SessionEventsE2ETest {
             assertFalse(toolCompletes.isEmpty(), "Should receive tool.execution_complete event");
 
             // Verify tool execution completed successfully
-            assertTrue(toolCompletes.stream().anyMatch(e -> e.getData().isSuccess()),
+            assertTrue(toolCompletes.stream().anyMatch(e -> e.getData().success()),
                     "At least one tool execution should be successful");
         }
     }

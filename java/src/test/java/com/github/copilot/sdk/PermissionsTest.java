@@ -141,8 +141,8 @@ public class PermissionsTest {
                     TimeUnit.SECONDS);
 
             assertNotNull(response);
-            assertTrue(response.getData().getContent().contains("4"),
-                    "Response should contain 4: " + response.getData().getContent());
+            assertTrue(response.getData().content().contains("4"),
+                    "Response should contain 4: " + response.getData().content());
 
             session.close();
         }
@@ -279,7 +279,7 @@ public class PermissionsTest {
 
             // Should handle the error and deny permission
             assertNotNull(response);
-            String content = response.getData().getContent().toLowerCase();
+            String content = response.getData().content().toLowerCase();
             assertTrue(content.contains("fail") || content.contains("cannot") || content.contains("unable")
                     || content.contains("permission"), "Response should indicate failure: " + content);
 

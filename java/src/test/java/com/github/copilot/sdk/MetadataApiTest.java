@@ -102,8 +102,8 @@ public class MetadataApiTest {
         ToolExecutionProgressEvent progressEvent = (ToolExecutionProgressEvent) event;
         assertEquals("tool.execution_progress", progressEvent.getType());
         assertNotNull(progressEvent.getData());
-        assertEquals("call-123", progressEvent.getData().getToolCallId());
-        assertEquals("Processing file 1 of 10...", progressEvent.getData().getProgressMessage());
+        assertEquals("call-123", progressEvent.getData().toolCallId());
+        assertEquals("Processing file 1 of 10...", progressEvent.getData().progressMessage());
     }
 
     @Test

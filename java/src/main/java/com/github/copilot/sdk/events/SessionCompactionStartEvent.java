@@ -32,7 +32,6 @@ public final class SessionCompactionStartEvent extends AbstractSessionEvent {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class SessionCompactionStartData {
-        // Empty data
+    public record SessionCompactionStartData() {
     }
 }

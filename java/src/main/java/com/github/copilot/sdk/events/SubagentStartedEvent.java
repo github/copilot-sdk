@@ -32,50 +32,8 @@ public final class SubagentStartedEvent extends AbstractSessionEvent {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class SubagentStartedData {
-
-        @JsonProperty("toolCallId")
-        private String toolCallId;
-
-        @JsonProperty("agentName")
-        private String agentName;
-
-        @JsonProperty("agentDisplayName")
-        private String agentDisplayName;
-
-        @JsonProperty("agentDescription")
-        private String agentDescription;
-
-        public String getToolCallId() {
-            return toolCallId;
-        }
-
-        public void setToolCallId(String toolCallId) {
-            this.toolCallId = toolCallId;
-        }
-
-        public String getAgentName() {
-            return agentName;
-        }
-
-        public void setAgentName(String agentName) {
-            this.agentName = agentName;
-        }
-
-        public String getAgentDisplayName() {
-            return agentDisplayName;
-        }
-
-        public void setAgentDisplayName(String agentDisplayName) {
-            this.agentDisplayName = agentDisplayName;
-        }
-
-        public String getAgentDescription() {
-            return agentDescription;
-        }
-
-        public void setAgentDescription(String agentDescription) {
-            this.agentDescription = agentDescription;
-        }
+    public record SubagentStartedData(@JsonProperty("toolCallId") String toolCallId,
+            @JsonProperty("agentName") String agentName, @JsonProperty("agentDisplayName") String agentDisplayName,
+            @JsonProperty("agentDescription") String agentDescription) {
     }
 }

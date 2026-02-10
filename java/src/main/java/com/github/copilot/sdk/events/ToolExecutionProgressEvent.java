@@ -31,36 +31,12 @@ public final class ToolExecutionProgressEvent extends AbstractSessionEvent {
         return data;
     }
 
-    public ToolExecutionProgressEvent setData(ToolExecutionProgressData data) {
+    public void setData(ToolExecutionProgressData data) {
         this.data = data;
-        return this;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class ToolExecutionProgressData {
-
-        @JsonProperty("toolCallId")
-        private String toolCallId;
-
-        @JsonProperty("progressMessage")
-        private String progressMessage;
-
-        public String getToolCallId() {
-            return toolCallId;
-        }
-
-        public ToolExecutionProgressData setToolCallId(String toolCallId) {
-            this.toolCallId = toolCallId;
-            return this;
-        }
-
-        public String getProgressMessage() {
-            return progressMessage;
-        }
-
-        public ToolExecutionProgressData setProgressMessage(String progressMessage) {
-            this.progressMessage = progressMessage;
-            return this;
-        }
+    public record ToolExecutionProgressData(@JsonProperty("toolCallId") String toolCallId,
+            @JsonProperty("progressMessage") String progressMessage) {
     }
 }

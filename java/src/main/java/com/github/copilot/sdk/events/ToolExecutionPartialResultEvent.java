@@ -32,28 +32,7 @@ public final class ToolExecutionPartialResultEvent extends AbstractSessionEvent 
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class ToolExecutionPartialResultData {
-
-        @JsonProperty("toolCallId")
-        private String toolCallId;
-
-        @JsonProperty("partialOutput")
-        private String partialOutput;
-
-        public String getToolCallId() {
-            return toolCallId;
-        }
-
-        public void setToolCallId(String toolCallId) {
-            this.toolCallId = toolCallId;
-        }
-
-        public String getPartialOutput() {
-            return partialOutput;
-        }
-
-        public void setPartialOutput(String partialOutput) {
-            this.partialOutput = partialOutput;
-        }
+    public record ToolExecutionPartialResultData(@JsonProperty("toolCallId") String toolCallId,
+            @JsonProperty("partialOutput") String partialOutput) {
     }
 }

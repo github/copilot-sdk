@@ -32,17 +32,6 @@ public final class AssistantTurnStartEvent extends AbstractSessionEvent {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class AssistantTurnStartData {
-
-        @JsonProperty("turnId")
-        private String turnId;
-
-        public String getTurnId() {
-            return turnId;
-        }
-
-        public void setTurnId(String turnId) {
-            this.turnId = turnId;
-        }
+    public record AssistantTurnStartData(@JsonProperty("turnId") String turnId) {
     }
 }

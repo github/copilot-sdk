@@ -63,7 +63,7 @@ import com.github.copilot.sdk.json.UserPromptSubmittedHookInput;
  *
  * // Register type-safe event handlers
  * session.on(AssistantMessageEvent.class, msg -> {
- * 	System.out.println(msg.getData().getContent());
+ * 	System.out.println(msg.getData().content());
  * });
  * session.on(SessionIdleEvent.class, idle -> {
  * 	System.out.println("Session is idle");
@@ -338,7 +338,7 @@ public final class CopilotSession implements AutoCloseable {
             } else if (evt instanceof SessionIdleEvent) {
                 future.complete(lastAssistantMessage.get());
             } else if (evt instanceof SessionErrorEvent errorEvent) {
-                String message = errorEvent.getData() != null ? errorEvent.getData().getMessage() : "session error";
+                String message = errorEvent.getData() != null ? errorEvent.getData().message() : "session error";
                 future.completeExceptionally(new RuntimeException("Session error: " + message));
             }
         };
@@ -453,7 +453,7 @@ public final class CopilotSession implements AutoCloseable {
      * <pre>{@code
      * // Handle assistant messages
      * session.on(AssistantMessageEvent.class, msg -> {
-     * 	System.out.println(msg.getData().getContent());
+     * 	System.out.println(msg.getData().content());
      * });
      *
      * // Handle session idle
@@ -463,7 +463,7 @@ public final class CopilotSession implements AutoCloseable {
      *
      * // Handle streaming deltas
      * session.on(AssistantMessageDeltaEvent.class, delta -> {
-     * 	System.out.print(delta.getData().getDeltaContent());
+     * 	System.out.print(delta.getData().deltaContent());
      * });
      * }</pre>
      *

@@ -32,7 +32,6 @@ public final class PendingMessagesModifiedEvent extends AbstractSessionEvent {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class PendingMessagesModifiedData {
-        // Empty data
+    public record PendingMessagesModifiedData() {
     }
 }

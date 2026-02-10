@@ -32,39 +32,8 @@ public final class SessionUsageInfoEvent extends AbstractSessionEvent {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class SessionUsageInfoData {
-
-        @JsonProperty("tokenLimit")
-        private double tokenLimit;
-
-        @JsonProperty("currentTokens")
-        private double currentTokens;
-
-        @JsonProperty("messagesLength")
-        private double messagesLength;
-
-        public double getTokenLimit() {
-            return tokenLimit;
-        }
-
-        public void setTokenLimit(double tokenLimit) {
-            this.tokenLimit = tokenLimit;
-        }
-
-        public double getCurrentTokens() {
-            return currentTokens;
-        }
-
-        public void setCurrentTokens(double currentTokens) {
-            this.currentTokens = currentTokens;
-        }
-
-        public double getMessagesLength() {
-            return messagesLength;
-        }
-
-        public void setMessagesLength(double messagesLength) {
-            this.messagesLength = messagesLength;
-        }
+    public record SessionUsageInfoData(@JsonProperty("tokenLimit") double tokenLimit,
+            @JsonProperty("currentTokens") double currentTokens,
+            @JsonProperty("messagesLength") double messagesLength) {
     }
 }

@@ -34,39 +34,7 @@ public final class SystemMessageEvent extends AbstractSessionEvent {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class SystemMessageData {
-
-        @JsonProperty("content")
-        private String content;
-
-        @JsonProperty("type")
-        private String type;
-
-        @JsonProperty("metadata")
-        private Map<String, Object> metadata;
-
-        public String getContent() {
-            return content;
-        }
-
-        public void setContent(String content) {
-            this.content = content;
-        }
-
-        public String getType() {
-            return type;
-        }
-
-        public void setType(String type) {
-            this.type = type;
-        }
-
-        public Map<String, Object> getMetadata() {
-            return metadata;
-        }
-
-        public void setMetadata(Map<String, Object> metadata) {
-            this.metadata = metadata;
-        }
+    public record SystemMessageData(@JsonProperty("content") String content, @JsonProperty("type") String type,
+            @JsonProperty("metadata") Map<String, Object> metadata) {
     }
 }

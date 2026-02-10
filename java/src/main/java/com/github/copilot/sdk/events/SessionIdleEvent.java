@@ -32,7 +32,6 @@ public final class SessionIdleEvent extends AbstractSessionEvent {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class SessionIdleData {
-        // Empty data
+    public record SessionIdleData() {
     }
 }

@@ -32,61 +32,8 @@ public final class SessionErrorEvent extends AbstractSessionEvent {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class SessionErrorData {
-
-        @JsonProperty("errorType")
-        private String errorType;
-
-        @JsonProperty("message")
-        private String message;
-
-        @JsonProperty("stack")
-        private String stack;
-
-        @JsonProperty("statusCode")
-        private Double statusCode;
-
-        @JsonProperty("providerCallId")
-        private String providerCallId;
-
-        public String getErrorType() {
-            return errorType;
-        }
-
-        public void setErrorType(String errorType) {
-            this.errorType = errorType;
-        }
-
-        public String getMessage() {
-            return message;
-        }
-
-        public void setMessage(String message) {
-            this.message = message;
-        }
-
-        public String getStack() {
-            return stack;
-        }
-
-        public void setStack(String stack) {
-            this.stack = stack;
-        }
-
-        public Double getStatusCode() {
-            return statusCode;
-        }
-
-        public void setStatusCode(Double statusCode) {
-            this.statusCode = statusCode;
-        }
-
-        public String getProviderCallId() {
-            return providerCallId;
-        }
-
-        public void setProviderCallId(String providerCallId) {
-            this.providerCallId = providerCallId;
-        }
+    public record SessionErrorData(@JsonProperty("errorType") String errorType, @JsonProperty("message") String message,
+            @JsonProperty("stack") String stack, @JsonProperty("statusCode") Double statusCode,
+            @JsonProperty("providerCallId") String providerCallId) {
     }
 }

@@ -32,28 +32,7 @@ public final class SubagentCompletedEvent extends AbstractSessionEvent {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class SubagentCompletedData {
-
-        @JsonProperty("toolCallId")
-        private String toolCallId;
-
-        @JsonProperty("agentName")
-        private String agentName;
-
-        public String getToolCallId() {
-            return toolCallId;
-        }
-
-        public void setToolCallId(String toolCallId) {
-            this.toolCallId = toolCallId;
-        }
-
-        public String getAgentName() {
-            return agentName;
-        }
-
-        public void setAgentName(String agentName) {
-            this.agentName = agentName;
-        }
+    public record SubagentCompletedData(@JsonProperty("toolCallId") String toolCallId,
+            @JsonProperty("agentName") String agentName) {
     }
 }

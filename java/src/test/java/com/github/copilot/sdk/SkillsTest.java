@@ -118,8 +118,8 @@ public class SkillsTest {
                     .get(60, TimeUnit.SECONDS);
 
             assertNotNull(response);
-            assertTrue(response.getData().getContent().contains(SKILL_MARKER),
-                    "Response should contain skill marker '" + SKILL_MARKER + "': " + response.getData().getContent());
+            assertTrue(response.getData().content().contains(SKILL_MARKER),
+                    "Response should contain skill marker '" + SKILL_MARKER + "': " + response.getData().content());
 
             session.close();
         }
@@ -150,9 +150,8 @@ public class SkillsTest {
                     .get(60, TimeUnit.SECONDS);
 
             assertNotNull(response);
-            assertFalse(response.getData().getContent().contains(SKILL_MARKER),
-                    "Response should NOT contain skill marker when skill is disabled: "
-                            + response.getData().getContent());
+            assertFalse(response.getData().content().contains(SKILL_MARKER),
+                    "Response should NOT contain skill marker when skill is disabled: " + response.getData().content());
 
             session.close();
         }
