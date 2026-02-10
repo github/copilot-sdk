@@ -6,6 +6,7 @@ package com.github.copilot.sdk;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
@@ -282,11 +283,7 @@ final class RpcHandlerDispatcher {
 
                 session.handleHooksInvoke(hookType, input).thenAccept(output -> {
                     try {
-                        if (output != null) {
-                            rpc.sendResponse(Long.parseLong(requestId), Map.of("output", output));
-                        } else {
-                            rpc.sendResponse(Long.parseLong(requestId), Map.of("output", (Object) null));
-                        }
+                        rpc.sendResponse(Long.parseLong(requestId), Collections.singletonMap("output", output));
                     } catch (IOException e) {
                         LOG.log(Level.SEVERE, "Error sending hooks response", e);
                     }

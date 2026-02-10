@@ -461,10 +461,8 @@ class RpcHandlerDispatcherTest {
         invokeHandler("hooks.invoke", "31", params);
 
         JsonNode response = readResponse();
-        // Null output triggers NPE in Map.of() → falls to .exceptionally() → error
-        // response
-        assertNotNull(response.get("error"));
-        assertEquals(-32603, response.get("error").get("code").asInt());
+        JsonNode output = response.get("result").get("output");
+        assertTrue(output == null || output.isNull(), "Output should be null when no hook handler is set");
     }
 
     @Test
@@ -522,9 +520,7 @@ class RpcHandlerDispatcherTest {
         invokeHandler("hooks.invoke", "34", params);
 
         JsonNode response = readResponse();
-        // Null output triggers NPE in Map.of() → falls to .exceptionally() → error
-        // response
-        assertNotNull(response.get("error"));
-        assertEquals(-32603, response.get("error").get("code").asInt());
+        JsonNode output = response.get("result").get("output");
+        assertTrue(output == null || output.isNull(), "Output should be null when no hooks registered");
     }
 }
