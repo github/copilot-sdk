@@ -110,10 +110,10 @@ public class CompactionTest {
                     .sendAndWait(new MessageOptions().setPrompt("What was the story about?")).get(60, TimeUnit.SECONDS);
 
             assertNotNull(answer);
-            assertNotNull(answer.getData().getContent());
+            assertNotNull(answer.getData().content());
             // Should remember it was about a dragon (context preserved via summary)
-            assertTrue(answer.getData().getContent().toLowerCase().contains("dragon"),
-                    "Should remember the story was about a dragon: " + answer.getData().getContent());
+            assertTrue(answer.getData().content().toLowerCase().contains("dragon"),
+                    "Should remember the story was about a dragon: " + answer.getData().content());
 
             session.close();
         }

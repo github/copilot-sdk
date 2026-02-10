@@ -73,9 +73,9 @@
  * 		System.out.print(delta.getData().deltaContent());
  * 	} else if (evt instanceof AssistantMessageEvent msg) {
  * 		// Complete response
- * 		System.out.println("\nFinal: " + msg.getData().getContent());
+ * 		System.out.println("\nFinal: " + msg.getData().content());
  * 	} else if (evt instanceof ToolExecutionStartEvent tool) {
- * 		System.out.println("Executing tool: " + tool.getData().getName());
+ * 		System.out.println("Executing tool: " + tool.getData().toolName());
  * 	} else if (evt instanceof SessionIdleEvent) {
  * 		System.out.println("Session is idle");
  * 	} else if (evt instanceof SessionErrorEvent err) {

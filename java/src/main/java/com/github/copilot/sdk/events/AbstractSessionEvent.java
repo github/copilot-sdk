@@ -37,7 +37,7 @@ import java.util.UUID;
  * <pre>{@code
  * session.on(event -> {
  * 	if (event instanceof AssistantMessageEvent msg) {
- * 		System.out.println("Assistant: " + msg.getData().getContent());
+ * 		System.out.println("Assistant: " + msg.getData().content());
  * 	} else if (event instanceof SessionIdleEvent) {
  * 		System.out.println("Session is idle");
  * 	}

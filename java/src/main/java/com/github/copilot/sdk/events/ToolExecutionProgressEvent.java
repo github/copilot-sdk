@@ -31,9 +31,8 @@ public final class ToolExecutionProgressEvent extends AbstractSessionEvent {
         return data;
     }
 
-    public ToolExecutionProgressEvent setData(ToolExecutionProgressData data) {
+    public void setData(ToolExecutionProgressData data) {
         this.data = data;
-        return this;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

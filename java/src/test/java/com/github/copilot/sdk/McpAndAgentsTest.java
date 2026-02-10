@@ -80,8 +80,8 @@ public class McpAndAgentsTest {
                     TimeUnit.SECONDS);
 
             assertNotNull(response);
-            assertTrue(response.getData().getContent().contains("4"),
-                    "Response should contain 4: " + response.getData().getContent());
+            assertTrue(response.getData().content().contains("4"),
+                    "Response should contain 4: " + response.getData().content());
 
             session.close();
         }
@@ -116,8 +116,8 @@ public class McpAndAgentsTest {
                     .get(60, TimeUnit.SECONDS);
 
             assertNotNull(response);
-            assertTrue(response.getData().getContent().contains("6"),
-                    "Response should contain 6: " + response.getData().getContent());
+            assertTrue(response.getData().content().contains("6"),
+                    "Response should contain 6: " + response.getData().content());
 
             session2.close();
         }
@@ -173,8 +173,8 @@ public class McpAndAgentsTest {
                     TimeUnit.SECONDS);
 
             assertNotNull(response);
-            assertTrue(response.getData().getContent().contains("10"),
-                    "Response should contain 10: " + response.getData().getContent());
+            assertTrue(response.getData().content().contains("10"),
+                    "Response should contain 10: " + response.getData().content());
 
             session.close();
         }
@@ -210,8 +210,8 @@ public class McpAndAgentsTest {
                     .get(60, TimeUnit.SECONDS);
 
             assertNotNull(response);
-            assertTrue(response.getData().getContent().contains("12"),
-                    "Response should contain 12: " + response.getData().getContent());
+            assertTrue(response.getData().content().contains("12"),
+                    "Response should contain 12: " + response.getData().content());
 
             session2.close();
         }
@@ -321,8 +321,8 @@ public class McpAndAgentsTest {
                     TimeUnit.SECONDS);
 
             assertNotNull(response);
-            assertTrue(response.getData().getContent().contains("14"),
-                    "Response should contain 14: " + response.getData().getContent());
+            assertTrue(response.getData().content().contains("14"),
+                    "Response should contain 14: " + response.getData().content());
 
             session.close();
         }

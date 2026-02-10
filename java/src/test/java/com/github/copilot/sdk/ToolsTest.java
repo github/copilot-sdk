@@ -70,8 +70,8 @@ public class ToolsTest {
                     .get(60, TimeUnit.SECONDS);
 
             assertNotNull(response);
-            assertTrue(response.getData().getContent().contains("ELIZA"),
-                    "Response should contain ELIZA: " + response.getData().getContent());
+            assertTrue(response.getData().content().contains("ELIZA"),
+                    "Response should contain ELIZA: " + response.getData().content());
 
             session.close();
         }
@@ -112,8 +112,8 @@ public class ToolsTest {
                     .get(60, TimeUnit.SECONDS);
 
             assertNotNull(response);
-            assertTrue(response.getData().getContent().contains("HELLO"),
-                    "Response should contain HELLO: " + response.getData().getContent());
+            assertTrue(response.getData().content().contains("HELLO"),
+                    "Response should contain HELLO: " + response.getData().content());
 
             session.close();
         }
@@ -150,7 +150,7 @@ public class ToolsTest {
 
             assertNotNull(response);
             // The error message should NOT be exposed to the assistant
-            String content = response.getData().getContent().toLowerCase();
+            String content = response.getData().content().toLowerCase();
             assertFalse(content.contains("melbourne"), "Error details should not be exposed in response: " + content);
             assertTrue(content.contains("unknown") || content.contains("unable") || content.contains("cannot"),
                     "Response should indicate inability to get location: " + content);
@@ -211,7 +211,7 @@ public class ToolsTest {
                     .get(60, TimeUnit.SECONDS);
 
             assertNotNull(response);
-            String content = response.getData().getContent();
+            String content = response.getData().content();
             assertTrue(content.contains("Passos"), "Response should contain Passos: " + content);
             assertTrue(content.contains("San Lorenzo"), "Response should contain San Lorenzo: " + content);
 

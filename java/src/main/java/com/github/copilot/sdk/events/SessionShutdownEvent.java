@@ -41,135 +41,23 @@ public final class SessionShutdownEvent extends AbstractSessionEvent {
      * Data for the session shutdown event.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class SessionShutdownData {
-
-        @JsonProperty("shutdownType")
-        private ShutdownType shutdownType;
-
-        @JsonProperty("errorReason")
-        private String errorReason;
-
-        @JsonProperty("totalPremiumRequests")
-        private double totalPremiumRequests;
-
-        @JsonProperty("totalApiDurationMs")
-        private double totalApiDurationMs;
-
-        @JsonProperty("sessionStartTime")
-        private double sessionStartTime;
-
-        @JsonProperty("codeChanges")
-        private CodeChanges codeChanges;
-
-        @JsonProperty("modelMetrics")
-        private Map<String, Object> modelMetrics;
-
-        @JsonProperty("currentModel")
-        private String currentModel;
-
-        public ShutdownType getShutdownType() {
-            return shutdownType;
-        }
-
-        public void setShutdownType(ShutdownType shutdownType) {
-            this.shutdownType = shutdownType;
-        }
-
-        public String getErrorReason() {
-            return errorReason;
-        }
-
-        public void setErrorReason(String errorReason) {
-            this.errorReason = errorReason;
-        }
-
-        public double getTotalPremiumRequests() {
-            return totalPremiumRequests;
-        }
-
-        public void setTotalPremiumRequests(double totalPremiumRequests) {
-            this.totalPremiumRequests = totalPremiumRequests;
-        }
-
-        public double getTotalApiDurationMs() {
-            return totalApiDurationMs;
-        }
-
-        public void setTotalApiDurationMs(double totalApiDurationMs) {
-            this.totalApiDurationMs = totalApiDurationMs;
-        }
-
-        public double getSessionStartTime() {
-            return sessionStartTime;
-        }
-
-        public void setSessionStartTime(double sessionStartTime) {
-            this.sessionStartTime = sessionStartTime;
-        }
-
-        public CodeChanges getCodeChanges() {
-            return codeChanges;
-        }
-
-        public void setCodeChanges(CodeChanges codeChanges) {
-            this.codeChanges = codeChanges;
-        }
-
-        public Map<String, Object> getModelMetrics() {
-            return modelMetrics;
-        }
-
-        public void setModelMetrics(Map<String, Object> modelMetrics) {
-            this.modelMetrics = modelMetrics;
-        }
-
-        public String getCurrentModel() {
-            return currentModel;
-        }
-
-        public void setCurrentModel(String currentModel) {
-            this.currentModel = currentModel;
-        }
+    public record SessionShutdownData(@JsonProperty("shutdownType") ShutdownType shutdownType,
+            @JsonProperty("errorReason") String errorReason,
+            @JsonProperty("totalPremiumRequests") double totalPremiumRequests,
+            @JsonProperty("totalApiDurationMs") double totalApiDurationMs,
+            @JsonProperty("sessionStartTime") double sessionStartTime,
+            @JsonProperty("codeChanges") CodeChanges codeChanges,
+            @JsonProperty("modelMetrics") Map<String, Object> modelMetrics,
+            @JsonProperty("currentModel") String currentModel) {
     }
 
     /**
      * Code changes made during the session.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class CodeChanges {
-
-        @JsonProperty("linesAdded")
-        private double linesAdded;
-
-        @JsonProperty("linesRemoved")
-        private double linesRemoved;
-
-        @JsonProperty("filesModified")
-        private List<String> filesModified;
-
-        public double getLinesAdded() {
-            return linesAdded;
-        }
-
-        public void setLinesAdded(double linesAdded) {
-            this.linesAdded = linesAdded;
-        }
-
-        public double getLinesRemoved() {
-            return linesRemoved;
-        }
-
-        public void setLinesRemoved(double linesRemoved) {
-            this.linesRemoved = linesRemoved;
-        }
-
-        public List<String> getFilesModified() {
-            return filesModified;
-        }
-
-        public void setFilesModified(List<String> filesModified) {
-            this.filesModified = filesModified;
-        }
+    public record CodeChanges(@JsonProperty("linesAdded") double linesAdded,
+            @JsonProperty("linesRemoved") double linesRemoved,
+            @JsonProperty("filesModified") List<String> filesModified) {
     }
 
     /**

@@ -149,7 +149,7 @@ public class ErrorHandlingTest {
             assertNotNull(response, "Should receive a response despite handler error");
 
             // The response should indicate failure/inability
-            String content = response.getData().getContent().toLowerCase();
+            String content = response.getData().content().toLowerCase();
             assertTrue(
                     content.contains("fail") || content.contains("cannot") || content.contains("unable")
                             || content.contains("permission") || content.contains("denied"),

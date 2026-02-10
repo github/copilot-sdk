@@ -63,7 +63,7 @@ import com.github.copilot.sdk.json.UserPromptSubmittedHookInput;
  *
  * // Register type-safe event handlers
  * session.on(AssistantMessageEvent.class, msg -> {
- * 	System.out.println(msg.getData().getContent());
+ * 	System.out.println(msg.getData().content());
  * });
  * session.on(SessionIdleEvent.class, idle -> {
  * 	System.out.println("Session is idle");
@@ -453,7 +453,7 @@ public final class CopilotSession implements AutoCloseable {
      * <pre>{@code
      * // Handle assistant messages
      * session.on(AssistantMessageEvent.class, msg -> {
-     * 	System.out.println(msg.getData().getContent());
+     * 	System.out.println(msg.getData().content());
      * });
      *
      * // Handle session idle

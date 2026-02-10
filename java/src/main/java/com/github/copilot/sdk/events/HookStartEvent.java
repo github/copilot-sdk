@@ -32,39 +32,7 @@ public final class HookStartEvent extends AbstractSessionEvent {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class HookStartData {
-
-        @JsonProperty("hookInvocationId")
-        private String hookInvocationId;
-
-        @JsonProperty("hookType")
-        private String hookType;
-
-        @JsonProperty("input")
-        private Object input;
-
-        public String getHookInvocationId() {
-            return hookInvocationId;
-        }
-
-        public void setHookInvocationId(String hookInvocationId) {
-            this.hookInvocationId = hookInvocationId;
-        }
-
-        public String getHookType() {
-            return hookType;
-        }
-
-        public void setHookType(String hookType) {
-            this.hookType = hookType;
-        }
-
-        public Object getInput() {
-            return input;
-        }
-
-        public void setInput(Object input) {
-            this.input = input;
-        }
+    public record HookStartData(@JsonProperty("hookInvocationId") String hookInvocationId,
+            @JsonProperty("hookType") String hookType, @JsonProperty("input") Object input) {
     }
 }

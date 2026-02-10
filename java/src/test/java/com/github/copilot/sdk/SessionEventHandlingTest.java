@@ -81,8 +81,8 @@ public class SessionEventHandlingTest {
 
         // Should only have the two assistant messages
         assertEquals(2, receivedMessages.size());
-        assertEquals("First message", receivedMessages.get(0).getData().getContent());
-        assertEquals("Second message", receivedMessages.get(1).getData().getContent());
+        assertEquals("First message", receivedMessages.get(0).getData().content());
+        assertEquals("Second message", receivedMessages.get(1).getData().content());
     }
 
     @Test
@@ -154,7 +154,7 @@ public class SessionEventHandlingTest {
         session.on(event -> allEvents.add(event.getType()));
 
         // Typed handler captures only messages
-        session.on(AssistantMessageEvent.class, msg -> messageEvents.add(msg.getData().getContent()));
+        session.on(AssistantMessageEvent.class, msg -> messageEvents.add(msg.getData().content()));
 
         dispatchEvent(createSessionStartEvent());
         dispatchEvent(createAssistantMessageEvent("Hello"));
@@ -171,7 +171,7 @@ public class SessionEventHandlingTest {
         var capturedSessionId = new AtomicReference<String>();
 
         session.on(AssistantMessageEvent.class, msg -> {
-            capturedContent.set(msg.getData().getContent());
+            capturedContent.set(msg.getData().content());
         });
 
         session.on(SessionStartEvent.class, start -> {
@@ -210,7 +210,7 @@ public class SessionEventHandlingTest {
 
             // Second handler should still receive events
             session.on(AssistantMessageEvent.class, msg -> {
-                handler2Events.add(msg.getData().getContent());
+                handler2Events.add(msg.getData().content());
             });
 
             // This should not throw - exceptions are caught
@@ -850,16 +850,19 @@ public class SessionEventHandlingTest {
 
     // Factory methods for creating test events
     private SessionStartEvent createSessionStartEvent() {
+        return createSessionStartEvent("test-session");
+    }
+
+    private SessionStartEvent createSessionStartEvent(String sessionId) {
         var event = new SessionStartEvent();
-        var data = new SessionStartEvent.SessionStartData("test-session", 0, null, null, null, null);
+        var data = new SessionStartEvent.SessionStartData(sessionId, 0, null, null, null, null);
         event.setData(data);
         return event;
     }
 
     private AssistantMessageEvent createAssistantMessageEvent(String content) {
         var event = new AssistantMessageEvent();
-        var data = new AssistantMessageEvent.AssistantMessageData();
-        data.setContent(content);
+        var data = new AssistantMessageEvent.AssistantMessageData(null, content, null, null, null, null, null);
         event.setData(data);
         return event;
     }
