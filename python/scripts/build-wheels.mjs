@@ -240,7 +240,6 @@ async function repackWheelWithPlatform(srcWheel, destWheel, platformTag) {
 import sys
 import zipfile
 import tempfile
-import os
 from pathlib import Path
 
 src_wheel = Path(sys.argv[1])
