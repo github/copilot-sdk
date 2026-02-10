@@ -103,7 +103,7 @@ public class CompactionTest {
                     .map(e -> (SessionCompactionCompleteEvent) e).reduce((first, second) -> second).orElse(null);
 
             assertNotNull(lastCompactionComplete);
-            assertTrue(lastCompactionComplete.getData().isSuccess(), "Compaction should have succeeded");
+            assertTrue(lastCompactionComplete.getData().success(), "Compaction should have succeeded");
 
             // Verify the session still works after compaction
             AssistantMessageEvent answer = session

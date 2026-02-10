@@ -175,11 +175,11 @@ public class SessionEventHandlingTest {
         });
 
         session.on(SessionStartEvent.class, start -> {
-            capturedSessionId.set(start.getData().getSessionId());
+            capturedSessionId.set(start.getData().sessionId());
         });
 
         SessionStartEvent startEvent = createSessionStartEvent();
-        startEvent.getData().setSessionId("my-session-123");
+        startEvent.setData(new SessionStartEvent.SessionStartData("my-session-123", 0, null, null, null, null));
         dispatchEvent(startEvent);
 
         AssistantMessageEvent msgEvent = createAssistantMessageEvent("Test content");
@@ -851,8 +851,7 @@ public class SessionEventHandlingTest {
     // Factory methods for creating test events
     private SessionStartEvent createSessionStartEvent() {
         var event = new SessionStartEvent();
-        var data = new SessionStartEvent.SessionStartData();
-        data.setSessionId("test-session");
+        var data = new SessionStartEvent.SessionStartData("test-session", 0, null, null, null, null);
         event.setData(data);
         return event;
     }

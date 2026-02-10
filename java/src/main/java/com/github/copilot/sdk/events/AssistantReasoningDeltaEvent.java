@@ -32,28 +32,7 @@ public final class AssistantReasoningDeltaEvent extends AbstractSessionEvent {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class AssistantReasoningDeltaData {
-
-        @JsonProperty("reasoningId")
-        private String reasoningId;
-
-        @JsonProperty("deltaContent")
-        private String deltaContent;
-
-        public String getReasoningId() {
-            return reasoningId;
-        }
-
-        public void setReasoningId(String reasoningId) {
-            this.reasoningId = reasoningId;
-        }
-
-        public String getDeltaContent() {
-            return deltaContent;
-        }
-
-        public void setDeltaContent(String deltaContent) {
-            this.deltaContent = deltaContent;
-        }
+    public record AssistantReasoningDeltaData(@JsonProperty("reasoningId") String reasoningId,
+            @JsonProperty("deltaContent") String deltaContent) {
     }
 }

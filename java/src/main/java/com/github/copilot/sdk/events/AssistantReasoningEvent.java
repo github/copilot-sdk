@@ -32,28 +32,7 @@ public final class AssistantReasoningEvent extends AbstractSessionEvent {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class AssistantReasoningData {
-
-        @JsonProperty("reasoningId")
-        private String reasoningId;
-
-        @JsonProperty("content")
-        private String content;
-
-        public String getReasoningId() {
-            return reasoningId;
-        }
-
-        public void setReasoningId(String reasoningId) {
-            this.reasoningId = reasoningId;
-        }
-
-        public String getContent() {
-            return content;
-        }
-
-        public void setContent(String content) {
-            this.content = content;
-        }
+    public record AssistantReasoningData(@JsonProperty("reasoningId") String reasoningId,
+            @JsonProperty("content") String content) {
     }
 }

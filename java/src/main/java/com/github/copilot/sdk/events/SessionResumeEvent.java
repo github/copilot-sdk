@@ -34,28 +34,7 @@ public final class SessionResumeEvent extends AbstractSessionEvent {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class SessionResumeData {
-
-        @JsonProperty("resumeTime")
-        private OffsetDateTime resumeTime;
-
-        @JsonProperty("eventCount")
-        private double eventCount;
-
-        public OffsetDateTime getResumeTime() {
-            return resumeTime;
-        }
-
-        public void setResumeTime(OffsetDateTime resumeTime) {
-            this.resumeTime = resumeTime;
-        }
-
-        public double getEventCount() {
-            return eventCount;
-        }
-
-        public void setEventCount(double eventCount) {
-            this.eventCount = eventCount;
-        }
+    public record SessionResumeData(@JsonProperty("resumeTime") OffsetDateTime resumeTime,
+            @JsonProperty("eventCount") double eventCount) {
     }
 }

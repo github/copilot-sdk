@@ -32,17 +32,6 @@ public final class AssistantIntentEvent extends AbstractSessionEvent {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class AssistantIntentData {
-
-        @JsonProperty("intent")
-        private String intent;
-
-        public String getIntent() {
-            return intent;
-        }
-
-        public void setIntent(String intent) {
-            this.intent = intent;
-        }
+    public record AssistantIntentData(@JsonProperty("intent") String intent) {
     }
 }

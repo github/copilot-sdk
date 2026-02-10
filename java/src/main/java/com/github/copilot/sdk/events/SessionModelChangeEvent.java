@@ -32,28 +32,7 @@ public final class SessionModelChangeEvent extends AbstractSessionEvent {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class SessionModelChangeData {
-
-        @JsonProperty("previousModel")
-        private String previousModel;
-
-        @JsonProperty("newModel")
-        private String newModel;
-
-        public String getPreviousModel() {
-            return previousModel;
-        }
-
-        public void setPreviousModel(String previousModel) {
-            this.previousModel = previousModel;
-        }
-
-        public String getNewModel() {
-            return newModel;
-        }
-
-        public void setNewModel(String newModel) {
-            this.newModel = newModel;
-        }
+    public record SessionModelChangeData(@JsonProperty("previousModel") String previousModel,
+            @JsonProperty("newModel") String newModel) {
     }
 }

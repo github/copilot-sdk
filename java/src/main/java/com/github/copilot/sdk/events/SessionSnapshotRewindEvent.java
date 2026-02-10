@@ -34,28 +34,7 @@ public final class SessionSnapshotRewindEvent extends AbstractSessionEvent {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class SessionSnapshotRewindData {
-
-        @JsonProperty("upToEventId")
-        private String upToEventId;
-
-        @JsonProperty("eventsRemoved")
-        private int eventsRemoved;
-
-        public String getUpToEventId() {
-            return upToEventId;
-        }
-
-        public void setUpToEventId(String upToEventId) {
-            this.upToEventId = upToEventId;
-        }
-
-        public int getEventsRemoved() {
-            return eventsRemoved;
-        }
-
-        public void setEventsRemoved(int eventsRemoved) {
-            this.eventsRemoved = eventsRemoved;
-        }
+    public record SessionSnapshotRewindData(@JsonProperty("upToEventId") String upToEventId,
+            @JsonProperty("eventsRemoved") int eventsRemoved) {
     }
 }

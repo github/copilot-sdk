@@ -32,39 +32,7 @@ public final class SubagentFailedEvent extends AbstractSessionEvent {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class SubagentFailedData {
-
-        @JsonProperty("toolCallId")
-        private String toolCallId;
-
-        @JsonProperty("agentName")
-        private String agentName;
-
-        @JsonProperty("error")
-        private String error;
-
-        public String getToolCallId() {
-            return toolCallId;
-        }
-
-        public void setToolCallId(String toolCallId) {
-            this.toolCallId = toolCallId;
-        }
-
-        public String getAgentName() {
-            return agentName;
-        }
-
-        public void setAgentName(String agentName) {
-            this.agentName = agentName;
-        }
-
-        public String getError() {
-            return error;
-        }
-
-        public void setError(String error) {
-            this.error = error;
-        }
+    public record SubagentFailedData(@JsonProperty("toolCallId") String toolCallId,
+            @JsonProperty("agentName") String agentName, @JsonProperty("error") String error) {
     }
 }

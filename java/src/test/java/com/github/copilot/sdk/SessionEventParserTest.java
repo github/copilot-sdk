@@ -59,7 +59,7 @@ public class SessionEventParserTest {
         assertEquals("session.start", event.getType());
 
         var startEvent = (SessionStartEvent) event;
-        assertEquals("sess-123", startEvent.getData().getSessionId());
+        assertEquals("sess-123", startEvent.getData().sessionId());
     }
 
     @Test
@@ -98,9 +98,9 @@ public class SessionEventParserTest {
         assertEquals("session.error", event.getType());
 
         var errorEvent = (SessionErrorEvent) event;
-        assertEquals("RateLimitError", errorEvent.getData().getErrorType());
-        assertEquals("Rate limit exceeded", errorEvent.getData().getMessage());
-        assertNotNull(errorEvent.getData().getStack());
+        assertEquals("RateLimitError", errorEvent.getData().errorType());
+        assertEquals("Rate limit exceeded", errorEvent.getData().message());
+        assertNotNull(errorEvent.getData().stack());
     }
 
     @Test
@@ -136,8 +136,8 @@ public class SessionEventParserTest {
         assertEquals("session.info", event.getType());
 
         var infoEvent = (SessionInfoEvent) event;
-        assertEquals("status", infoEvent.getData().getInfoType());
-        assertEquals("Processing request", infoEvent.getData().getMessage());
+        assertEquals("status", infoEvent.getData().infoType());
+        assertEquals("Processing request", infoEvent.getData().message());
     }
 
     @Test
@@ -316,7 +316,7 @@ public class SessionEventParserTest {
         assertEquals("assistant.turn_start", event.getType());
 
         var turnEvent = (AssistantTurnStartEvent) event;
-        assertEquals("turn-123", turnEvent.getData().getTurnId());
+        assertEquals("turn-123", turnEvent.getData().turnId());
     }
 
     @Test
@@ -354,8 +354,8 @@ public class SessionEventParserTest {
         assertEquals("assistant.reasoning", event.getType());
 
         var reasoningEvent = (AssistantReasoningEvent) event;
-        assertEquals("reason-123", reasoningEvent.getData().getReasoningId());
-        assertEquals("Analyzing the code structure...", reasoningEvent.getData().getContent());
+        assertEquals("reason-123", reasoningEvent.getData().reasoningId());
+        assertEquals("Analyzing the code structure...", reasoningEvent.getData().content());
     }
 
     @Test
@@ -576,8 +576,8 @@ public class SessionEventParserTest {
         assertEquals("subagent.started", event.getType());
 
         var startedEvent = (SubagentStartedEvent) event;
-        assertEquals("code-review", startedEvent.getData().getAgentName());
-        assertEquals("Code Review Agent", startedEvent.getData().getAgentDisplayName());
+        assertEquals("code-review", startedEvent.getData().agentName());
+        assertEquals("Code Review Agent", startedEvent.getData().agentDisplayName());
     }
 
     @Test
@@ -1016,12 +1016,12 @@ public class SessionEventParserTest {
         var event = (SessionStartEvent) parseJson(json);
         assertNotNull(event);
         var data = event.getData();
-        assertEquals("sess-full", data.getSessionId());
-        assertEquals(2.0, data.getVersion());
-        assertEquals("copilot-cli", data.getProducer());
-        assertEquals("1.2.3", data.getCopilotVersion());
-        assertNotNull(data.getStartTime());
-        assertEquals("gpt-4-turbo", data.getSelectedModel());
+        assertEquals("sess-full", data.sessionId());
+        assertEquals(2.0, data.version());
+        assertEquals("copilot-cli", data.producer());
+        assertEquals("1.2.3", data.copilotVersion());
+        assertNotNull(data.startTime());
+        assertEquals("gpt-4-turbo", data.selectedModel());
     }
 
     @Test
@@ -1039,8 +1039,8 @@ public class SessionEventParserTest {
         var event = (SessionResumeEvent) parseJson(json);
         assertNotNull(event);
         var data = event.getData();
-        assertNotNull(data.getResumeTime());
-        assertEquals(42.0, data.getEventCount());
+        assertNotNull(data.resumeTime());
+        assertEquals(42.0, data.eventCount());
     }
 
     @Test
@@ -1061,11 +1061,11 @@ public class SessionEventParserTest {
         var event = (SessionErrorEvent) parseJson(json);
         assertNotNull(event);
         var data = event.getData();
-        assertEquals("InternalError", data.getErrorType());
-        assertEquals("Something went wrong", data.getMessage());
-        assertEquals("at line 42", data.getStack());
-        assertEquals(500, data.getStatusCode());
-        assertEquals("prov-err-1", data.getProviderCallId());
+        assertEquals("InternalError", data.errorType());
+        assertEquals("Something went wrong", data.message());
+        assertEquals("at line 42", data.stack());
+        assertEquals(500, data.statusCode());
+        assertEquals("prov-err-1", data.providerCallId());
     }
 
     @Test
@@ -1082,8 +1082,8 @@ public class SessionEventParserTest {
 
         var event = (SessionModelChangeEvent) parseJson(json);
         assertNotNull(event);
-        assertEquals("gpt-4", event.getData().getPreviousModel());
-        assertEquals("gpt-4o", event.getData().getNewModel());
+        assertEquals("gpt-4", event.getData().previousModel());
+        assertEquals("gpt-4o", event.getData().newModel());
     }
 
     @Test
@@ -1109,15 +1109,15 @@ public class SessionEventParserTest {
         var event = (SessionHandoffEvent) parseJson(json);
         assertNotNull(event);
         var data = event.getData();
-        assertNotNull(data.getHandoffTime());
-        assertEquals("cli", data.getSourceType());
-        assertEquals("additional context", data.getContext());
-        assertEquals("handoff summary", data.getSummary());
-        assertEquals("remote-sess-1", data.getRemoteSessionId());
-        assertNotNull(data.getRepository());
-        assertEquals("my-org", data.getRepository().getOwner());
-        assertEquals("my-repo", data.getRepository().getName());
-        assertEquals("main", data.getRepository().getBranch());
+        assertNotNull(data.handoffTime());
+        assertEquals("cli", data.sourceType());
+        assertEquals("additional context", data.context());
+        assertEquals("handoff summary", data.summary());
+        assertEquals("remote-sess-1", data.remoteSessionId());
+        assertNotNull(data.repository());
+        assertEquals("my-org", data.repository().owner());
+        assertEquals("my-repo", data.repository().name());
+        assertEquals("main", data.repository().branch());
     }
 
     @Test
@@ -1141,14 +1141,14 @@ public class SessionEventParserTest {
         var event = (SessionTruncationEvent) parseJson(json);
         assertNotNull(event);
         var data = event.getData();
-        assertEquals(128000.0, data.getTokenLimit());
-        assertEquals(150000.0, data.getPreTruncationTokensInMessages());
-        assertEquals(100.0, data.getPreTruncationMessagesLength());
-        assertEquals(120000.0, data.getPostTruncationTokensInMessages());
-        assertEquals(80.0, data.getPostTruncationMessagesLength());
-        assertEquals(30000.0, data.getTokensRemovedDuringTruncation());
-        assertEquals(20.0, data.getMessagesRemovedDuringTruncation());
-        assertEquals("system", data.getPerformedBy());
+        assertEquals(128000.0, data.tokenLimit());
+        assertEquals(150000.0, data.preTruncationTokensInMessages());
+        assertEquals(100.0, data.preTruncationMessagesLength());
+        assertEquals(120000.0, data.postTruncationTokensInMessages());
+        assertEquals(80.0, data.postTruncationMessagesLength());
+        assertEquals(30000.0, data.tokensRemovedDuringTruncation());
+        assertEquals(20.0, data.messagesRemovedDuringTruncation());
+        assertEquals("system", data.performedBy());
     }
 
     @Test
@@ -1167,9 +1167,9 @@ public class SessionEventParserTest {
         var event = (SessionUsageInfoEvent) parseJson(json);
         assertNotNull(event);
         var data = event.getData();
-        assertEquals(128000.0, data.getTokenLimit());
-        assertEquals(50000.0, data.getCurrentTokens());
-        assertEquals(25.0, data.getMessagesLength());
+        assertEquals(128000.0, data.tokenLimit());
+        assertEquals(50000.0, data.currentTokens());
+        assertEquals(25.0, data.messagesLength());
     }
 
     @Test
@@ -1201,23 +1201,23 @@ public class SessionEventParserTest {
         var event = (SessionCompactionCompleteEvent) parseJson(json);
         assertNotNull(event);
         var data = event.getData();
-        assertTrue(data.isSuccess());
-        assertNull(data.getError());
-        assertEquals(150000.0, data.getPreCompactionTokens());
-        assertEquals(60000.0, data.getPostCompactionTokens());
-        assertEquals(100.0, data.getPreCompactionMessagesLength());
-        assertEquals(50.0, data.getMessagesRemoved());
-        assertEquals(90000.0, data.getTokensRemoved());
-        assertEquals("Compacted conversation", data.getSummaryContent());
-        assertEquals(3.0, data.getCheckpointNumber());
-        assertEquals("/checkpoints/3", data.getCheckpointPath());
-        assertEquals("req-compact-1", data.getRequestId());
+        assertTrue(data.success());
+        assertNull(data.error());
+        assertEquals(150000.0, data.preCompactionTokens());
+        assertEquals(60000.0, data.postCompactionTokens());
+        assertEquals(100.0, data.preCompactionMessagesLength());
+        assertEquals(50.0, data.messagesRemoved());
+        assertEquals(90000.0, data.tokensRemoved());
+        assertEquals("Compacted conversation", data.summaryContent());
+        assertEquals(3.0, data.checkpointNumber());
+        assertEquals("/checkpoints/3", data.checkpointPath());
+        assertEquals("req-compact-1", data.requestId());
 
-        var tokens = data.getCompactionTokensUsed();
+        var tokens = data.compactionTokensUsed();
         assertNotNull(tokens);
-        assertEquals(1000.0, tokens.getInput());
-        assertEquals(500.0, tokens.getOutput());
-        assertEquals(200.0, tokens.getCachedInput());
+        assertEquals(1000.0, tokens.input());
+        assertEquals(500.0, tokens.output());
+        assertEquals(200.0, tokens.cachedInput());
     }
 
     @Test
@@ -1332,10 +1332,10 @@ public class SessionEventParserTest {
         var event = (AssistantMessageDeltaEvent) parseJson(json);
         assertNotNull(event);
         var data = event.getData();
-        assertEquals("msg-delta-1", data.getMessageId());
-        assertEquals("partial text", data.getDeltaContent());
-        assertEquals(4096.0, data.getTotalResponseSizeBytes());
-        assertEquals("ptc-1", data.getParentToolCallId());
+        assertEquals("msg-delta-1", data.messageId());
+        assertEquals("partial text", data.deltaContent());
+        assertEquals(4096.0, data.totalResponseSizeBytes());
+        assertEquals("ptc-1", data.parentToolCallId());
     }
 
     @Test
@@ -1395,8 +1395,8 @@ public class SessionEventParserTest {
 
         var event = (AssistantReasoningDeltaEvent) parseJson(json);
         assertNotNull(event);
-        assertEquals("r-delta-1", event.getData().getReasoningId());
-        assertEquals("thinking about...", event.getData().getDeltaContent());
+        assertEquals("r-delta-1", event.getData().reasoningId());
+        assertEquals("thinking about...", event.getData().deltaContent());
     }
 
     @Test
@@ -1412,7 +1412,7 @@ public class SessionEventParserTest {
 
         var event = (AssistantIntentEvent) parseJson(json);
         assertNotNull(event);
-        assertEquals("refactor_code", event.getData().getIntent());
+        assertEquals("refactor_code", event.getData().intent());
     }
 
     @Test
@@ -1428,7 +1428,7 @@ public class SessionEventParserTest {
 
         var event = (AssistantTurnEndEvent) parseJson(json);
         assertNotNull(event);
-        assertEquals("turn-end-1", event.getData().getTurnId());
+        assertEquals("turn-end-1", event.getData().turnId());
     }
 
     // =========================================================================
@@ -1540,8 +1540,8 @@ public class SessionEventParserTest {
 
         var event = (ToolExecutionPartialResultEvent) parseJson(json);
         assertNotNull(event);
-        assertEquals("tc-partial-1", event.getData().getToolCallId());
-        assertEquals("partial output data", event.getData().getPartialOutput());
+        assertEquals("tc-partial-1", event.getData().toolCallId());
+        assertEquals("partial output data", event.getData().partialOutput());
     }
 
     @Test
@@ -1558,8 +1558,8 @@ public class SessionEventParserTest {
 
         var event = (ToolExecutionProgressEvent) parseJson(json);
         assertNotNull(event);
-        assertEquals("tc-prog-1", event.getData().getToolCallId());
-        assertEquals("50% done", event.getData().getProgressMessage());
+        assertEquals("tc-prog-1", event.getData().toolCallId());
+        assertEquals("50% done", event.getData().progressMessage());
     }
 
     @Test
@@ -1676,10 +1676,10 @@ public class SessionEventParserTest {
         var event = (SubagentStartedEvent) parseJson(json);
         assertNotNull(event);
         var data = event.getData();
-        assertEquals("tc-sub-1", data.getToolCallId());
-        assertEquals("test-agent", data.getAgentName());
-        assertEquals("Test Agent", data.getAgentDisplayName());
-        assertEquals("A test subagent", data.getAgentDescription());
+        assertEquals("tc-sub-1", data.toolCallId());
+        assertEquals("test-agent", data.agentName());
+        assertEquals("Test Agent", data.agentDisplayName());
+        assertEquals("A test subagent", data.agentDescription());
     }
 
     @Test
@@ -1696,8 +1696,8 @@ public class SessionEventParserTest {
 
         var event = (SubagentCompletedEvent) parseJson(json);
         assertNotNull(event);
-        assertEquals("tc-sub-2", event.getData().getToolCallId());
-        assertEquals("reviewer", event.getData().getAgentName());
+        assertEquals("tc-sub-2", event.getData().toolCallId());
+        assertEquals("reviewer", event.getData().agentName());
     }
 
     @Test
@@ -1715,9 +1715,9 @@ public class SessionEventParserTest {
 
         var event = (SubagentFailedEvent) parseJson(json);
         assertNotNull(event);
-        assertEquals("tc-sub-3", event.getData().getToolCallId());
-        assertEquals("broken-agent", event.getData().getAgentName());
-        assertEquals("Connection timeout", event.getData().getError());
+        assertEquals("tc-sub-3", event.getData().toolCallId());
+        assertEquals("broken-agent", event.getData().agentName());
+        assertEquals("Connection timeout", event.getData().error());
     }
 
     @Test
@@ -1835,7 +1835,7 @@ public class SessionEventParserTest {
 
         var event = (AbortEvent) parseJson(json);
         assertNotNull(event);
-        assertEquals("user_cancelled", event.getData().getReason());
+        assertEquals("user_cancelled", event.getData().reason());
     }
 
     @Test
@@ -1877,8 +1877,8 @@ public class SessionEventParserTest {
 
         var event = (SessionInfoEvent) parseJson(json);
         assertNotNull(event);
-        assertEquals("model_selection", event.getData().getInfoType());
-        assertEquals("Using gpt-4-turbo for this task", event.getData().getMessage());
+        assertEquals("model_selection", event.getData().infoType());
+        assertEquals("Using gpt-4-turbo for this task", event.getData().message());
     }
 
     // =========================================================================

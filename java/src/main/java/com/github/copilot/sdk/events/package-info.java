@@ -70,7 +70,7 @@
  * session.on(evt -> {
  * 	if (evt instanceof AssistantMessageDeltaEvent delta) {
  * 		// Streaming response - print incrementally
- * 		System.out.print(delta.getData().getDeltaContent());
+ * 		System.out.print(delta.getData().deltaContent());
  * 	} else if (evt instanceof AssistantMessageEvent msg) {
  * 		// Complete response
  * 		System.out.println("\nFinal: " + msg.getData().getContent());
@@ -79,7 +79,7 @@
  * 	} else if (evt instanceof SessionIdleEvent) {
  * 		System.out.println("Session is idle");
  * 	} else if (evt instanceof SessionErrorEvent err) {
- * 		System.err.println("Error: " + err.getData().getMessage());
+ * 		System.err.println("Error: " + err.getData().message());
  * 	}
  * });
  * }</pre>
