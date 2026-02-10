@@ -167,11 +167,12 @@ export class CopilotSession {
             }
         });
 
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
         try {
             await this.send(options);
 
             const timeoutPromise = new Promise<never>((_, reject) => {
-                setTimeout(
+                timeoutId = setTimeout(
                     () =>
                         reject(
                             new Error(
@@ -185,6 +186,9 @@ export class CopilotSession {
 
             return lastAssistantMessage;
         } finally {
+            if (timeoutId !== undefined) {
+                clearTimeout(timeoutId);
+            }
             unsubscribe();
         }
     }

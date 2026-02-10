@@ -17,9 +17,11 @@ import inspect
 import os
 import re
 import subprocess
+import sys
 import threading
 from dataclasses import asdict, is_dataclass
-from typing import Any, Optional
+from pathlib import Path
+from typing import Any, Callable, Optional, cast
 
 from .generated.session_events import session_event_from_dict
 from .jsonrpc import JsonRpcClient
@@ -36,6 +38,9 @@ from .types import (
     ProviderConfig,
     ResumeSessionConfig,
     SessionConfig,
+    SessionLifecycleEvent,
+    SessionLifecycleEventType,
+    SessionLifecycleHandler,
     SessionListFilter,
     SessionMetadata,
     StopError,
@@ -43,6 +48,26 @@ from .types import (
     ToolInvocation,
     ToolResult,
 )
+
+
+def _get_bundled_cli_path() -> Optional[str]:
+    """Get the path to the bundled CLI binary, if available."""
+    # The binary is bundled in copilot/bin/ within the package
+    bin_dir = Path(__file__).parent / "bin"
+    if not bin_dir.exists():
+        return None
+
+    # Determine binary name based on platform
+    if sys.platform == "win32":
+        binary_name = "copilot.exe"
+    else:
+        binary_name = "copilot"
+
+    binary_path = bin_dir / binary_name
+    if binary_path.exists():
+        return str(binary_path)
+
+    return None
 
 
 class CopilotClient:
@@ -127,8 +152,21 @@ class CopilotClient:
         else:
             self._actual_port = None
 
-        # Check environment variable for CLI path
-        default_cli_path = os.environ.get("COPILOT_CLI_PATH", "copilot")
+        # Determine CLI path: explicit option > bundled binary
+        # Not needed when connecting to external server via cli_url
+        if opts.get("cli_url"):
+            default_cli_path = ""  # Not used for external server
+        elif opts.get("cli_path"):
+            default_cli_path = opts["cli_path"]
+        else:
+            bundled_path = _get_bundled_cli_path()
+            if bundled_path:
+                default_cli_path = bundled_path
+            else:
+                raise RuntimeError(
+                    "Copilot CLI not found. The bundled CLI binary is not available. "
+                    "Ensure you installed a platform-specific wheel, or provide cli_path."
+                )
 
         # Default use_logged_in_user to False when github_token is provided
         github_token = opts.get("github_token")
@@ -137,7 +175,7 @@ class CopilotClient:
             use_logged_in_user = False if github_token else True
 
         self.options: CopilotClientOptions = {
-            "cli_path": opts.get("cli_path", default_cli_path),
+            "cli_path": default_cli_path,
             "cwd": opts.get("cwd", os.getcwd()),
             "port": opts.get("port", 0),
             "use_stdio": False if opts.get("cli_url") else opts.get("use_stdio", True),
@@ -158,6 +196,13 @@ class CopilotClient:
         self._state: ConnectionState = "disconnected"
         self._sessions: dict[str, CopilotSession] = {}
         self._sessions_lock = threading.Lock()
+        self._models_cache: Optional[list[ModelInfo]] = None
+        self._models_cache_lock = asyncio.Lock()
+        self._lifecycle_handlers: list[SessionLifecycleHandler] = []
+        self._typed_lifecycle_handlers: dict[
+            SessionLifecycleEventType, list[SessionLifecycleHandler]
+        ] = {}
+        self._lifecycle_handlers_lock = threading.Lock()
 
     def _parse_cli_url(self, url: str) -> tuple[str, int]:
         """
@@ -282,6 +327,10 @@ class CopilotClient:
             await self._client.stop()
             self._client = None
 
+        # Clear models cache
+        async with self._models_cache_lock:
+            self._models_cache = None
+
         # Kill CLI process
         # Kill CLI process (only if we spawned it)
         if self._process and not self._is_external_server:
@@ -325,6 +374,10 @@ class CopilotClient:
             except Exception:
                 pass  # Ignore errors during force stop
             self._client = None
+
+        # Clear models cache
+        async with self._models_cache_lock:
+            self._models_cache = None
 
         # Kill CLI process immediately
         if self._process and not self._is_external_server:
@@ -388,6 +441,8 @@ class CopilotClient:
             payload["model"] = cfg["model"]
         if cfg.get("session_id"):
             payload["sessionId"] = cfg["session_id"]
+        if cfg.get("reasoning_effort"):
+            payload["reasoningEffort"] = cfg["reasoning_effort"]
         if tool_defs:
             payload["tools"] = tool_defs
 
@@ -546,8 +601,30 @@ class CopilotClient:
                 tool_defs.append(definition)
 
         payload: dict[str, Any] = {"sessionId": session_id}
+
+        # Add model if provided
+        model = cfg.get("model")
+        if model:
+            payload["model"] = model
+
+        if cfg.get("reasoning_effort"):
+            payload["reasoningEffort"] = cfg["reasoning_effort"]
         if tool_defs:
             payload["tools"] = tool_defs
+
+        # Add system message configuration if provided
+        system_message = cfg.get("system_message")
+        if system_message:
+            payload["systemMessage"] = system_message
+
+        # Add available/excluded tools if provided
+        available_tools = cfg.get("available_tools")
+        if available_tools:
+            payload["availableTools"] = available_tools
+
+        excluded_tools = cfg.get("excluded_tools")
+        if excluded_tools:
+            payload["excludedTools"] = excluded_tools
 
         provider = cfg.get("provider")
         if provider:
@@ -578,6 +655,11 @@ class CopilotClient:
         if working_directory:
             payload["workingDirectory"] = working_directory
 
+        # Add config directory if provided
+        config_dir = cfg.get("config_dir")
+        if config_dir:
+            payload["configDir"] = config_dir
+
         # Add disable resume flag if provided
         disable_resume = cfg.get("disable_resume")
         if disable_resume:
@@ -604,6 +686,22 @@ class CopilotClient:
         disabled_skills = cfg.get("disabled_skills")
         if disabled_skills:
             payload["disabledSkills"] = disabled_skills
+
+        # Add infinite sessions configuration if provided
+        infinite_sessions = cfg.get("infinite_sessions")
+        if infinite_sessions:
+            wire_config: dict[str, Any] = {}
+            if "enabled" in infinite_sessions:
+                wire_config["enabled"] = infinite_sessions["enabled"]
+            if "background_compaction_threshold" in infinite_sessions:
+                wire_config["backgroundCompactionThreshold"] = infinite_sessions[
+                    "background_compaction_threshold"
+                ]
+            if "buffer_exhaustion_threshold" in infinite_sessions:
+                wire_config["bufferExhaustionThreshold"] = infinite_sessions[
+                    "buffer_exhaustion_threshold"
+                ]
+            payload["infiniteSessions"] = wire_config
 
         if not self._client:
             raise RuntimeError("Client not connected")
@@ -706,6 +804,9 @@ class CopilotClient:
         """
         List available models with their metadata.
 
+        Results are cached after the first successful call to avoid rate limiting.
+        The cache is cleared when the client disconnects.
+
         Returns:
             A list of ModelInfo objects with model details.
 
@@ -721,9 +822,21 @@ class CopilotClient:
         if not self._client:
             raise RuntimeError("Client not connected")
 
-        response = await self._client.request("models.list", {})
-        models_data = response.get("models", [])
-        return [ModelInfo.from_dict(model) for model in models_data]
+        # Use asyncio lock to prevent race condition with concurrent calls
+        async with self._models_cache_lock:
+            # Check cache (already inside lock)
+            if self._models_cache is not None:
+                return list(self._models_cache)  # Return a copy to prevent cache mutation
+
+            # Cache miss - fetch from backend while holding lock
+            response = await self._client.request("models.list", {})
+            models_data = response.get("models", [])
+            models = [ModelInfo.from_dict(model) for model in models_data]
+
+            # Update cache before releasing lock
+            self._models_cache = models
+
+            return list(models)  # Return a copy to prevent cache mutation
 
     async def list_sessions(
         self, filter: "SessionListFilter | None" = None
@@ -792,6 +905,139 @@ class CopilotClient:
         with self._sessions_lock:
             if session_id in self._sessions:
                 del self._sessions[session_id]
+
+    async def get_foreground_session_id(self) -> Optional[str]:
+        """
+        Get the ID of the session currently displayed in the TUI.
+
+        This is only available when connecting to a server running in TUI+server mode
+        (--ui-server).
+
+        Returns:
+            The session ID, or None if no foreground session is set.
+
+        Raises:
+            RuntimeError: If the client is not connected.
+
+        Example:
+            >>> session_id = await client.get_foreground_session_id()
+            >>> if session_id:
+            ...     print(f"TUI is displaying session: {session_id}")
+        """
+        if not self._client:
+            raise RuntimeError("Client not connected")
+
+        response = await self._client.request("session.getForeground", {})
+        return response.get("sessionId")
+
+    async def set_foreground_session_id(self, session_id: str) -> None:
+        """
+        Request the TUI to switch to displaying the specified session.
+
+        This is only available when connecting to a server running in TUI+server mode
+        (--ui-server).
+
+        Args:
+            session_id: The ID of the session to display in the TUI.
+
+        Raises:
+            RuntimeError: If the client is not connected or the operation fails.
+
+        Example:
+            >>> await client.set_foreground_session_id("session-123")
+        """
+        if not self._client:
+            raise RuntimeError("Client not connected")
+
+        response = await self._client.request("session.setForeground", {"sessionId": session_id})
+
+        success = response.get("success", False)
+        if not success:
+            error = response.get("error", "Unknown error")
+            raise RuntimeError(f"Failed to set foreground session: {error}")
+
+    def on(
+        self,
+        event_type_or_handler: SessionLifecycleEventType | SessionLifecycleHandler,
+        handler: Optional[SessionLifecycleHandler] = None,
+    ) -> Callable[[], None]:
+        """
+        Subscribe to session lifecycle events.
+
+        Lifecycle events are emitted when sessions are created, deleted, updated,
+        or change foreground/background state (in TUI+server mode).
+
+        Can be called in two ways:
+        - on(handler): Subscribe to all lifecycle events
+        - on(event_type, handler): Subscribe to a specific event type
+
+        Args:
+            event_type_or_handler: Either a specific event type to listen for,
+                or a handler function for all events.
+            handler: Handler function when subscribing to a specific event type.
+
+        Returns:
+            A function that, when called, unsubscribes the handler.
+
+        Example:
+            >>> # Subscribe to specific event type
+            >>> unsubscribe = client.on("session.foreground", lambda e: print(e.sessionId))
+            >>>
+            >>> # Subscribe to all events
+            >>> unsubscribe = client.on(lambda e: print(f"{e.type}: {e.sessionId}"))
+            >>>
+            >>> # Later, to stop receiving events:
+            >>> unsubscribe()
+        """
+        with self._lifecycle_handlers_lock:
+            if callable(event_type_or_handler) and handler is None:
+                # Wildcard subscription: on(handler)
+                wildcard_handler = event_type_or_handler
+                self._lifecycle_handlers.append(wildcard_handler)
+
+                def unsubscribe_wildcard() -> None:
+                    with self._lifecycle_handlers_lock:
+                        if wildcard_handler in self._lifecycle_handlers:
+                            self._lifecycle_handlers.remove(wildcard_handler)
+
+                return unsubscribe_wildcard
+            elif isinstance(event_type_or_handler, str) and handler is not None:
+                # Typed subscription: on(event_type, handler)
+                event_type = cast(SessionLifecycleEventType, event_type_or_handler)
+                if event_type not in self._typed_lifecycle_handlers:
+                    self._typed_lifecycle_handlers[event_type] = []
+                self._typed_lifecycle_handlers[event_type].append(handler)
+
+                def unsubscribe_typed() -> None:
+                    with self._lifecycle_handlers_lock:
+                        handlers = self._typed_lifecycle_handlers.get(event_type, [])
+                        if handler in handlers:
+                            handlers.remove(handler)
+
+                return unsubscribe_typed
+            else:
+                raise ValueError("Invalid arguments: use on(handler) or on(event_type, handler)")
+
+    def _dispatch_lifecycle_event(self, event: SessionLifecycleEvent) -> None:
+        """Dispatch a lifecycle event to all registered handlers."""
+        with self._lifecycle_handlers_lock:
+            # Copy handlers to avoid holding lock during callbacks
+            typed_handlers = list(self._typed_lifecycle_handlers.get(event.type, []))
+            wildcard_handlers = list(self._lifecycle_handlers)
+
+        # Dispatch to typed handlers
+        for handler in typed_handlers:
+            try:
+                handler(event)
+            except Exception:
+                pass  # Ignore handler errors
+
+        # Dispatch to wildcard handlers
+        for handler in wildcard_handlers:
+            try:
+                handler(event)
+            except Exception:
+                pass  # Ignore handler errors
 
     async def _verify_protocol_version(self) -> None:
         """Verify that the server's protocol version matches the SDK's expected version."""
@@ -879,7 +1125,12 @@ class CopilotClient:
             RuntimeError: If the server fails to start or times out.
         """
         cli_path = self.options["cli_path"]
-        args = ["--server", "--log-level", self.options["log_level"]]
+
+        # Verify CLI exists
+        if not os.path.exists(cli_path):
+            raise RuntimeError(f"Copilot CLI not found at {cli_path}")
+
+        args = ["--headless", "--no-auto-update", "--log-level", self.options["log_level"]]
 
         # Add auth-related flags
         if self.options.get("github_token"):
@@ -998,6 +1249,10 @@ class CopilotClient:
                     session = self._sessions.get(session_id)
                 if session:
                     session._dispatch_event(event)
+            elif method == "session.lifecycle":
+                # Handle session lifecycle events
+                lifecycle_event = SessionLifecycleEvent.from_dict(params)
+                self._dispatch_lifecycle_event(lifecycle_event)
 
         self._client.set_notification_handler(handle_notification)
         self._client.set_request_handler("tool.call", self._handle_tool_call_request)
@@ -1074,6 +1329,10 @@ class CopilotClient:
                 session = self._sessions.get(session_id)
                 if session:
                     session._dispatch_event(event)
+            elif method == "session.lifecycle":
+                # Handle session lifecycle events
+                lifecycle_event = SessionLifecycleEvent.from_dict(params)
+                self._dispatch_lifecycle_event(lifecycle_event)
 
         self._client.set_notification_handler(handle_notification)
         self._client.set_request_handler("tool.call", self._handle_tool_call_request)

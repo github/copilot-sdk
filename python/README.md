@@ -101,6 +101,7 @@ await client.stop()
 **SessionConfig Options (for `create_session`):**
 
 - `model` (str): Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
+- `reasoning_effort` (str): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh"). Use `list_models()` to check which models support this option.
 - `session_id` (str): Custom session ID
 - `tools` (list): Custom tools exposed to the CLI
 - `system_message` (dict): System message configuration
@@ -109,6 +110,35 @@ await client.stop()
 - `infinite_sessions` (dict): Automatic context compaction configuration
 - `on_user_input_request` (callable): Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
 - `hooks` (dict): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
+
+**Session Lifecycle Methods:**
+
+```python
+# Get the session currently displayed in TUI (TUI+server mode only)
+session_id = await client.get_foreground_session_id()
+
+# Request TUI to display a specific session (TUI+server mode only)
+await client.set_foreground_session_id("session-123")
+
+# Subscribe to all lifecycle events
+def on_lifecycle(event):
+    print(f"{event.type}: {event.sessionId}")
+
+unsubscribe = client.on(on_lifecycle)
+
+# Subscribe to specific event type
+unsubscribe = client.on("session.foreground", lambda e: print(f"Foreground: {e.sessionId}"))
+
+# Later, to stop receiving events:
+unsubscribe()
+```
+
+**Lifecycle Event Types:**
+- `session.created` - A new session was created
+- `session.deleted` - A session was deleted
+- `session.updated` - A session was updated
+- `session.foreground` - A session became the foreground session in TUI
+- `session.background` - A session is no longer the foreground session
 
 ### Tools
 

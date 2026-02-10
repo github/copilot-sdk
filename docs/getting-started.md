@@ -162,6 +162,7 @@ Create `main.go`:
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -170,18 +171,19 @@ import (
 )
 
 func main() {
+	ctx := context.Background()
 	client := copilot.NewClient(nil)
-	if err := client.Start(); err != nil {
+	if err := client.Start(ctx); err != nil {
 		log.Fatal(err)
 	}
 	defer client.Stop()
 
-	session, err := client.CreateSession(&copilot.SessionConfig{Model: "gpt-4.1"})
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{Model: "gpt-4.1"})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	response, err := session.SendAndWait(copilot.MessageOptions{Prompt: "What is 2 + 2?"}, 0)
+	response, err := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "What is 2 + 2?"})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -312,6 +314,7 @@ Update `main.go`:
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -320,13 +323,14 @@ import (
 )
 
 func main() {
+	ctx := context.Background()
 	client := copilot.NewClient(nil)
-	if err := client.Start(); err != nil {
+	if err := client.Start(ctx); err != nil {
 		log.Fatal(err)
 	}
 	defer client.Stop()
 
-	session, err := client.CreateSession(&copilot.SessionConfig{
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		Model:     "gpt-4.1",
 		Streaming: true,
 	})
@@ -344,7 +348,7 @@ func main() {
 		}
 	})
 
-	_, err = session.SendAndWait(copilot.MessageOptions{Prompt: "Tell me a short joke"}, 0)
+	_, err = session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Tell me a short joke"})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -389,6 +393,112 @@ await session.SendAndWaitAsync(new MessageOptions { Prompt = "Tell me a short jo
 
 Run the code again. You'll see the response appear word by word.
 
+### Event Subscription Methods
+
+The SDK provides methods for subscribing to session events:
+
+| Method | Description |
+|--------|-------------|
+| `on(handler)` | Subscribe to all events; returns unsubscribe function |
+| `on(eventType, handler)` | Subscribe to specific event type (Node.js/TypeScript only); returns unsubscribe function |
+
+<details open>
+<summary><strong>Node.js / TypeScript</strong></summary>
+
+```typescript
+// Subscribe to all events
+const unsubscribeAll = session.on((event) => {
+    console.log("Event:", event.type);
+});
+
+// Subscribe to specific event type
+const unsubscribeIdle = session.on("session.idle", (event) => {
+    console.log("Session is idle");
+});
+
+// Later, to unsubscribe:
+unsubscribeAll();
+unsubscribeIdle();
+```
+
+</details>
+
+<details>
+<summary><strong>Python</strong></summary>
+
+<!-- docs-validate: skip -->
+```python
+# Subscribe to all events
+unsubscribe = session.on(lambda event: print(f"Event: {event.type}"))
+
+# Filter by event type in your handler
+def handle_event(event):
+    if event.type == SessionEventType.SESSION_IDLE:
+        print("Session is idle")
+    elif event.type == SessionEventType.ASSISTANT_MESSAGE:
+        print(f"Message: {event.data.content}")
+
+unsubscribe = session.on(handle_event)
+
+# Later, to unsubscribe:
+unsubscribe()
+```
+
+</details>
+
+<details>
+<summary><strong>Go</strong></summary>
+
+<!-- docs-validate: skip -->
+```go
+// Subscribe to all events
+unsubscribe := session.On(func(event copilot.SessionEvent) {
+    fmt.Println("Event:", event.Type)
+})
+
+// Filter by event type in your handler
+session.On(func(event copilot.SessionEvent) {
+    if event.Type == "session.idle" {
+        fmt.Println("Session is idle")
+    } else if event.Type == "assistant.message" {
+        fmt.Println("Message:", *event.Data.Content)
+    }
+})
+
+// Later, to unsubscribe:
+unsubscribe()
+```
+
+</details>
+
+<details>
+<summary><strong>.NET</strong></summary>
+
+<!-- docs-validate: skip -->
+```csharp
+// Subscribe to all events
+var unsubscribe = session.On(ev => Console.WriteLine($"Event: {ev.Type}"));
+
+// Filter by event type using pattern matching
+session.On(ev =>
+{
+    switch (ev)
+    {
+        case SessionIdleEvent:
+            Console.WriteLine("Session is idle");
+            break;
+        case AssistantMessageEvent msg:
+            Console.WriteLine($"Message: {msg.Data.Content}");
+            break;
+    }
+});
+
+// Later, to unsubscribe:
+unsubscribe.Dispose();
+```
+
+</details>
+
 ## Step 4: Add a Custom Tool
 
 Now for the powerful part. Let's give Copilot the ability to call your code by defining a custom tool. We'll create a simple weather lookup tool.
@@ -430,6 +540,10 @@ const session = await client.createSession({
 
 session.on("assistant.message_delta", (event) => {
     process.stdout.write(event.data.deltaContent);
+});
+
+session.on("session.idle", () => {
+    console.log(); // New line when done
 });
 
 await session.sendAndWait({
@@ -509,6 +623,7 @@ Update `main.go`:
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
@@ -530,6 +645,8 @@ type WeatherResult struct {
 }
 
 func main() {
+	ctx := context.Background()
+
 	// Define a tool that Copilot can call
 	getWeather := copilot.DefineTool(
 		"get_weather",
@@ -548,12 +665,12 @@ func main() {
 	)
 
 	client := copilot.NewClient(nil)
-	if err := client.Start(); err != nil {
+	if err := client.Start(ctx); err != nil {
 		log.Fatal(err)
 	}
 	defer client.Stop()
 
-	session, err := client.CreateSession(&copilot.SessionConfig{
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		Model:     "gpt-4.1",
 		Streaming: true,
 		Tools:     []copilot.Tool{getWeather},
@@ -571,9 +688,9 @@ func main() {
 		}
 	})
 
-	_, err = session.SendAndWait(copilot.MessageOptions{
+	_, err = session.SendAndWait(ctx, copilot.MessageOptions{
 		Prompt: "What's the weather like in Seattle and Tokyo?",
-	}, 0)
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -783,6 +900,116 @@ python weather_assistant.py
 </details>
 
 <details>
+<summary><strong>Go</strong></summary>
+
+Create `weather-assistant.go`:
+
+```go
+package main
+
+import (
+	"bufio"
+	"context"
+	"fmt"
+	"log"
+	"math/rand"
+	"os"
+	"strings"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+type WeatherParams struct {
+	City string `json:"city" jsonschema:"The city name"`
+}
+
+type WeatherResult struct {
+	City        string `json:"city"`
+	Temperature string `json:"temperature"`
+	Condition   string `json:"condition"`
+}
+
+func main() {
+	ctx := context.Background()
+
+	getWeather := copilot.DefineTool(
+		"get_weather",
+		"Get the current weather for a city",
+		func(params WeatherParams, inv copilot.ToolInvocation) (WeatherResult, error) {
+			conditions := []string{"sunny", "cloudy", "rainy", "partly cloudy"}
+			temp := rand.Intn(30) + 50
+			condition := conditions[rand.Intn(len(conditions))]
+			return WeatherResult{
+				City:        params.City,
+				Temperature: fmt.Sprintf("%d°F", temp),
+				Condition:   condition,
+			}, nil
+		},
+	)
+
+	client := copilot.NewClient(nil)
+	if err := client.Start(ctx); err != nil {
+		log.Fatal(err)
+	}
+	defer client.Stop()
+
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+		Model:     "gpt-4.1",
+		Streaming: true,
+		Tools:     []copilot.Tool{getWeather},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	session.On(func(event copilot.SessionEvent) {
+		if event.Type == "assistant.message_delta" {
+			if event.Data.DeltaContent != nil {
+				fmt.Print(*event.Data.DeltaContent)
+			}
+		}
+		if event.Type == "session.idle" {
+			fmt.Println()
+		}
+	})
+
+	fmt.Println("🌤️  Weather Assistant (type 'exit' to quit)")
+	fmt.Println("   Try: 'What's the weather in Paris?' or 'Compare weather in NYC and LA'\n")
+
+	scanner := bufio.NewScanner(os.Stdin)
+	for {
+		fmt.Print("You: ")
+		if !scanner.Scan() {
+			break
+		}
+		input := scanner.Text()
+		if strings.ToLower(input) == "exit" {
+			break
+		}
+
+		fmt.Print("Assistant: ")
+		_, err = session.SendAndWait(ctx, copilot.MessageOptions{Prompt: input})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			break
+		}
+		fmt.Println()
+	}
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "Input error: %v\n", err)
+	}
+}
+```
+
+Run with:
+
+```bash
+go run weather-assistant.go
+```
+
+</details>
+
+<details>
 <summary><strong>.NET</strong></summary>
 
 Create a new console project and update `Program.cs`:
@@ -909,7 +1136,7 @@ const session = await client.createSession({
 });
 ```
 
-📖 **[Full MCP documentation →](./mcp.md)** - Learn about local vs remote servers, all configuration options, and troubleshooting.
+📖 **[Full MCP documentation →](./mcp/overview.md)** - Learn about local vs remote servers, all configuration options, and troubleshooting.
 
 ### Create Custom Agents
 
@@ -950,10 +1177,10 @@ By default, the SDK automatically manages the Copilot CLI process lifecycle, sta
 
 ### Running the CLI in Server Mode
 
-Start the CLI in server mode using the `--server` flag and optionally specify a port:
+Start the CLI in server mode using the `--headless` flag and optionally specify a port:
 
 ```bash
-copilot --server --port 4321
+copilot --headless --port 4321
 ```
 
 If you don't specify a port, the CLI will choose a random available port.
@@ -1000,6 +1227,7 @@ session = await client.create_session()
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 import copilot "github.com/github/copilot-sdk/go"
 
@@ -1007,13 +1235,13 @@ client := copilot.NewClient(&copilot.ClientOptions{
     CLIUrl: "localhost:4321",
 })
 
-if err := client.Start(); err != nil {
+if err := client.Start(ctx); err != nil {
     log.Fatal(err)
 }
 defer client.Stop()
 
 // Use the client normally
-session, err := client.CreateSession()
+session, err := client.CreateSession(ctx, nil)
 // ...
 ```
 
@@ -1044,11 +1272,13 @@ await using var session = await client.CreateSessionAsync();
 
 ## Learn More
 
+- [Authentication Guide](./auth/index.md) - GitHub OAuth, environment variables, and BYOK
+- [BYOK (Bring Your Own Key)](./auth/byok.md) - Use your own API keys from Azure AI Foundry, OpenAI, etc.
 - [Node.js SDK Reference](../nodejs/README.md)
 - [Python SDK Reference](../python/README.md)
 - [Go SDK Reference](../go/README.md)
 - [.NET SDK Reference](../dotnet/README.md)
-- [Using MCP Servers](./mcp.md) - Integrate external tools via Model Context Protocol
+- [Using MCP Servers](./mcp) - Integrate external tools via Model Context Protocol
 - [GitHub MCP Server Documentation](https://github.com/github/github-mcp-server)
 - [MCP Servers Directory](https://github.com/modelcontextprotocol/servers) - Explore more MCP servers
 

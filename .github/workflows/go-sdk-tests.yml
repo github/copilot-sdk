@@ -1,6 +1,9 @@
 name: "Go SDK Tests"
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     paths:
       - 'go/**'
@@ -8,16 +11,15 @@ on:
       - 'nodejs/package.json'
       - '.github/workflows/go-sdk-tests.yml'
       - '.github/actions/setup-copilot/**'
-    paths-ignore:
-      - '**/*.md'
-      - '**/LICENSE*'
-      - '**/.gitignore'
-      - '**/.editorconfig'
-      - '**/*.png'
-      - '**/*.jpg'
-      - '**/*.jpeg'
-      - '**/*.gif'
-      - '**/*.svg'
+      - '!**/*.md'
+      - '!**/LICENSE*'
+      - '!**/.gitignore'
+      - '!**/.editorconfig'
+      - '!**/*.png'
+      - '!**/*.jpg'
+      - '!**/*.jpeg'
+      - '!**/*.gif'
+      - '!**/*.svg'
   workflow_dispatch:
   merge_group:
 
@@ -27,6 +29,8 @@ permissions:
 jobs:
   test:
     name: "Go SDK Tests"
+    env:
+      POWERSHELL_UPDATECHECK: Off
     strategy:
       fail-fast: false
       matrix:
@@ -42,7 +46,7 @@ jobs:
         id: setup-copilot
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.23"
+          go-version: "1.24"
 
       - name: Run go fmt
         if: runner.os == 'Linux'

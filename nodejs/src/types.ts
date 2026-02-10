@@ -15,8 +15,8 @@ export type SessionEvent = GeneratedSessionEvent;
  */
 export interface CopilotClientOptions {
     /**
-     * Path to the Copilot CLI executable
-     * @default "copilot" (searches PATH)
+     * Path to the CLI executable or JavaScript entry point.
+     * If not specified, uses the bundled CLI from the @github/copilot package.
      */
     cliPath?: string;
 
@@ -603,6 +603,11 @@ export interface InfiniteSessionConfig {
     bufferExhaustionThreshold?: number;
 }
 
+/**
+ * Valid reasoning effort levels for models that support it.
+ */
+export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
+
 export interface SessionConfig {
     /**
      * Optional custom session ID
@@ -614,6 +619,13 @@ export interface SessionConfig {
      * Model to use for this session
      */
     model?: string;
+
+    /**
+     * Reasoning effort level for models that support it.
+     * Only valid for models where capabilities.supports.reasoningEffort is true.
+     * Use client.listModels() to check supported values for each model.
+     */
+    reasoningEffort?: ReasoningEffort;
 
     /**
      * Override the default configuration directory location.
@@ -718,17 +730,24 @@ export interface SessionConfig {
  */
 export type ResumeSessionConfig = Pick<
     SessionConfig,
+    | "model"
     | "tools"
+    | "systemMessage"
+    | "availableTools"
+    | "excludedTools"
     | "provider"
     | "streaming"
+    | "reasoningEffort"
     | "onPermissionRequest"
     | "onUserInputRequest"
     | "hooks"
     | "workingDirectory"
+    | "configDir"
     | "mcpServers"
     | "customAgents"
     | "skillDirectories"
     | "disabledSkills"
+    | "infiniteSessions"
 > & {
     /**
      * When true, skips emitting the session.resume event.
@@ -790,13 +809,30 @@ export interface MessageOptions {
     prompt: string;
 
     /**
-     * File or directory attachments
+     * File, directory, or selection attachments
      */
-    attachments?: Array<{
-        type: "file" | "directory";
-        path: string;
-        displayName?: string;
-    }>;
+    attachments?: Array<
+        | {
+              type: "file";
+              path: string;
+              displayName?: string;
+          }
+        | {
+              type: "directory";
+              path: string;
+              displayName?: string;
+          }
+        | {
+              type: "selection";
+              filePath: string;
+              displayName: string;
+              selection?: {
+                  start: { line: number; character: number };
+                  end: { line: number; character: number };
+              };
+              text?: string;
+          }
+    >;
 
     /**
      * Message delivery mode
@@ -906,6 +942,8 @@ export interface GetAuthStatusResponse {
 export interface ModelCapabilities {
     supports: {
         vision: boolean;
+        /** Whether this model supports reasoning effort configuration */
+        reasoningEffort: boolean;
     };
     limits: {
         max_prompt_tokens?: number;
@@ -947,4 +985,61 @@ export interface ModelInfo {
     policy?: ModelPolicy;
     /** Billing information */
     billing?: ModelBilling;
+    /** Supported reasoning effort levels (only present if model supports reasoning effort) */
+    supportedReasoningEfforts?: ReasoningEffort[];
+    /** Default reasoning effort level (only present if model supports reasoning effort) */
+    defaultReasoningEffort?: ReasoningEffort;
+}
+
+// ============================================================================
+// Session Lifecycle Types (for TUI+server mode)
+// ============================================================================
+
+/**
+ * Types of session lifecycle events
+ */
+export type SessionLifecycleEventType =
+    | "session.created"
+    | "session.deleted"
+    | "session.updated"
+    | "session.foreground"
+    | "session.background";
+
+/**
+ * Session lifecycle event notification
+ * Sent when sessions are created, deleted, updated, or change foreground/background state
+ */
+export interface SessionLifecycleEvent {
+    /** Type of lifecycle event */
+    type: SessionLifecycleEventType;
+    /** ID of the session this event relates to */
+    sessionId: string;
+    /** Session metadata (not included for deleted sessions) */
+    metadata?: {
+        startTime: string;
+        modifiedTime: string;
+        summary?: string;
+    };
+}
+
+/**
+ * Handler for session lifecycle events
+ */
+export type SessionLifecycleHandler = (event: SessionLifecycleEvent) => void;
+
+/**
+ * Typed handler for specific session lifecycle event types
+ */
+export type TypedSessionLifecycleHandler<K extends SessionLifecycleEventType> = (
+    event: SessionLifecycleEvent & { type: K }
+) => void;
+
+/**
+ * Information about the foreground session in TUI+server mode
+ */
+export interface ForegroundSessionInfo {
+    /** ID of the foreground session, or undefined if none */
+    sessionId?: string;
+    /** Workspace path of the foreground session */
+    workspacePath?: string;
 }

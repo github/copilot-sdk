@@ -45,7 +45,7 @@ func createTypedHandler[T any, U any](handler func(T, ToolInvocation) (U, error)
 		var params T
 
 		// Convert arguments to typed struct via JSON round-trip
-		// Arguments is already map[string]interface{} from JSON-RPC parsing
+		// Arguments is already map[string]any from JSON-RPC parsing
 		jsonBytes, err := json.Marshal(inv.Arguments)
 		if err != nil {
 			return ToolResult{}, fmt.Errorf("failed to marshal arguments: %w", err)
@@ -101,7 +101,7 @@ func normalizeResult(result any) (ToolResult, error) {
 
 // generateSchemaForType generates a JSON schema map from a Go type using reflection.
 // Panics if schema generation fails, as this indicates a programming error.
-func generateSchemaForType(t reflect.Type) map[string]interface{} {
+func generateSchemaForType(t reflect.Type) map[string]any {
 	if t == nil {
 		return nil
 	}
@@ -117,13 +117,13 @@ func generateSchemaForType(t reflect.Type) map[string]interface{} {
 		panic(fmt.Sprintf("failed to generate schema for type %v: %v", t, err))
 	}
 
-	// Convert schema to map[string]interface{}
+	// Convert schema to map[string]any
 	schemaBytes, err := json.Marshal(schema)
 	if err != nil {
 		panic(fmt.Sprintf("failed to marshal schema for type %v: %v", t, err))
 	}
 
-	var schemaMap map[string]interface{}
+	var schemaMap map[string]any
 	if err := json.Unmarshal(schemaBytes, &schemaMap); err != nil {
 		panic(fmt.Sprintf("failed to unmarshal schema for type %v: %v", t, err))
 	}

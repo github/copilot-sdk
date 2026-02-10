@@ -1,0 +1,123 @@
+name: "Documentation Validation"
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'nodejs/src/**'
+      - 'python/copilot/**'
+      - 'go/**/*.go'
+      - 'dotnet/src/**'
+      - 'scripts/docs-validation/**'
+      - '.github/workflows/docs-validation.yml'
+  workflow_dispatch:
+  merge_group:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-typescript:
+    name: "Validate TypeScript"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: "npm"
+          cache-dependency-path: "nodejs/package-lock.json"
+
+      - name: Install SDK dependencies
+        working-directory: nodejs
+        run: npm ci --ignore-scripts
+
+      - name: Install validation dependencies
+        working-directory: scripts/docs-validation
+        run: npm ci
+
+      - name: Extract and validate TypeScript
+        working-directory: scripts/docs-validation
+        run: npm run extract && npm run validate:ts
+
+  validate-python:
+    name: "Validate Python"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install SDK dependencies
+        working-directory: python
+        run: uv sync
+
+      - name: Install mypy
+        run: pip install mypy
+
+      - name: Install validation dependencies
+        working-directory: scripts/docs-validation
+        run: npm ci
+
+      - name: Extract and validate Python
+        working-directory: scripts/docs-validation
+        run: npm run extract && npm run validate:py
+
+  validate-go:
+    name: "Validate Go"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.24"
+          cache-dependency-path: "go/go.sum"
+
+      - name: Install validation dependencies
+        working-directory: scripts/docs-validation
+        run: npm ci
+
+      - name: Extract and validate Go
+        working-directory: scripts/docs-validation
+        run: npm run extract && npm run validate:go
+
+  validate-csharp:
+    name: "Validate C#"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Install validation dependencies
+        working-directory: scripts/docs-validation
+        run: npm ci
+
+      - name: Restore SDK dependencies
+        working-directory: dotnet
+        run: dotnet restore
+
+      - name: Extract and validate C#
+        working-directory: scripts/docs-validation
+        run: npm run extract && npm run validate:cs

@@ -24,6 +24,9 @@ public enum ConnectionState
 
 public class CopilotClientOptions
 {
+    /// <summary>
+    /// Path to the Copilot CLI executable. If not specified, uses the bundled CLI from the SDK.
+    /// </summary>
     public string? CliPath { get; set; }
     public string[]? CliArgs { get; set; }
     public string? Cwd { get; set; }
@@ -693,6 +696,13 @@ public class SessionConfig
     public string? Model { get; set; }
 
     /// <summary>
+    /// Reasoning effort level for models that support it.
+    /// Valid values: "low", "medium", "high", "xhigh".
+    /// Only applies to models where capabilities.supports.reasoningEffort is true.
+    /// </summary>
+    public string? ReasoningEffort { get; set; }
+
+    /// <summary>
     /// Override the default configuration directory location.
     /// When specified, the session will use this directory for storing config and state.
     /// </summary>
@@ -763,8 +773,37 @@ public class SessionConfig
 
 public class ResumeSessionConfig
 {
+    /// <summary>
+    /// Model to use for this session. Can change the model when resuming.
+    /// </summary>
+    public string? Model { get; set; }
+
     public ICollection<AIFunction>? Tools { get; set; }
+
+    /// <summary>
+    /// System message configuration.
+    /// </summary>
+    public SystemMessageConfig? SystemMessage { get; set; }
+
+    /// <summary>
+    /// List of tool names to allow. When specified, only these tools will be available.
+    /// Takes precedence over ExcludedTools.
+    /// </summary>
+    public List<string>? AvailableTools { get; set; }
+
+    /// <summary>
+    /// List of tool names to disable. All other tools remain available.
+    /// Ignored if AvailableTools is specified.
+    /// </summary>
+    public List<string>? ExcludedTools { get; set; }
+
     public ProviderConfig? Provider { get; set; }
+
+    /// <summary>
+    /// Reasoning effort level for models that support it.
+    /// Valid values: "low", "medium", "high", "xhigh".
+    /// </summary>
+    public string? ReasoningEffort { get; set; }
 
     /// <summary>
     /// Handler for permission requests from the server.
@@ -787,6 +826,11 @@ public class ResumeSessionConfig
     /// Working directory for the session.
     /// </summary>
     public string? WorkingDirectory { get; set; }
+
+    /// <summary>
+    /// Override the default configuration directory location.
+    /// </summary>
+    public string? ConfigDir { get; set; }
 
     /// <summary>
     /// When true, the session.resume event is not emitted.
@@ -821,6 +865,11 @@ public class ResumeSessionConfig
     /// List of skill names to disable.
     /// </summary>
     public List<string>? DisabledSkills { get; set; }
+
+    /// <summary>
+    /// Infinite session configuration for persistent workspaces and automatic compaction.
+    /// </summary>
+    public InfiniteSessionConfig? InfiniteSessions { get; set; }
 }
 
 public class MessageOptions
@@ -962,6 +1011,12 @@ public class ModelSupports
 {
     [JsonPropertyName("vision")]
     public bool Vision { get; set; }
+
+    /// <summary>
+    /// Whether this model supports reasoning effort configuration.
+    /// </summary>
+    [JsonPropertyName("reasoningEffort")]
+    public bool ReasoningEffort { get; set; }
 }
 
 /// <summary>
@@ -1021,6 +1076,14 @@ public class ModelInfo
     /// <summary>Billing information</summary>
     [JsonPropertyName("billing")]
     public ModelBilling? Billing { get; set; }
+
+    /// <summary>Supported reasoning effort levels (only present if model supports reasoning effort)</summary>
+    [JsonPropertyName("supportedReasoningEfforts")]
+    public List<string>? SupportedReasoningEfforts { get; set; }
+
+    /// <summary>Default reasoning effort level (only present if model supports reasoning effort)</summary>
+    [JsonPropertyName("defaultReasoningEffort")]
+    public string? DefaultReasoningEffort { get; set; }
 }
 
 /// <summary>
@@ -1032,6 +1095,76 @@ public class GetModelsResponse
     public List<ModelInfo> Models { get; set; } = new();
 }
 
+// ============================================================================
+// Session Lifecycle Types (for TUI+server mode)
+// ============================================================================
+
+/// <summary>
+/// Types of session lifecycle events
+/// </summary>
+public static class SessionLifecycleEventTypes
+{
+    public const string Created = "session.created";
+    public const string Deleted = "session.deleted";
+    public const string Updated = "session.updated";
+    public const string Foreground = "session.foreground";
+    public const string Background = "session.background";
+}
+
+/// <summary>
+/// Metadata for session lifecycle events
+/// </summary>
+public class SessionLifecycleEventMetadata
+{
+    [JsonPropertyName("startTime")]
+    public string StartTime { get; set; } = string.Empty;
+
+    [JsonPropertyName("modifiedTime")]
+    public string ModifiedTime { get; set; } = string.Empty;
+
+    [JsonPropertyName("summary")]
+    public string? Summary { get; set; }
+}
+
+/// <summary>
+/// Session lifecycle event notification
+/// </summary>
+public class SessionLifecycleEvent
+{
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = string.Empty;
+
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    [JsonPropertyName("metadata")]
+    public SessionLifecycleEventMetadata? Metadata { get; set; }
+}
+
+/// <summary>
+/// Response from session.getForeground
+/// </summary>
+public class GetForegroundSessionResponse
+{
+    [JsonPropertyName("sessionId")]
+    public string? SessionId { get; set; }
+
+    [JsonPropertyName("workspacePath")]
+    public string? WorkspacePath { get; set; }
+}
+
+/// <summary>
+/// Response from session.setForeground
+/// </summary>
+public class SetForegroundSessionResponse
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+}
+
 [JsonSourceGenerationOptions(
     JsonSerializerDefaults.Web,
     AllowOutOfOrderMetadataProperties = true,
@@ -1040,6 +1173,7 @@ public class GetModelsResponse
 [JsonSerializable(typeof(AzureOptions))]
 [JsonSerializable(typeof(CustomAgentConfig))]
 [JsonSerializable(typeof(GetAuthStatusResponse))]
+[JsonSerializable(typeof(GetForegroundSessionResponse))]
 [JsonSerializable(typeof(GetModelsResponse))]
 [JsonSerializable(typeof(GetStatusResponse))]
 [JsonSerializable(typeof(McpLocalServerConfig))]
@@ -1058,8 +1192,11 @@ public class GetModelsResponse
 [JsonSerializable(typeof(PingResponse))]
 [JsonSerializable(typeof(ProviderConfig))]
 [JsonSerializable(typeof(SessionContext))]
+[JsonSerializable(typeof(SessionLifecycleEvent))]
+[JsonSerializable(typeof(SessionLifecycleEventMetadata))]
 [JsonSerializable(typeof(SessionListFilter))]
 [JsonSerializable(typeof(SessionMetadata))]
+[JsonSerializable(typeof(SetForegroundSessionResponse))]
 [JsonSerializable(typeof(SystemMessageConfig))]
 [JsonSerializable(typeof(ToolBinaryResult))]
 [JsonSerializable(typeof(ToolInvocation))]

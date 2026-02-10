@@ -12,7 +12,10 @@
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
+import { existsSync } from "node:fs";
 import { Socket } from "node:net";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
     createMessageConnection,
     MessageConnection,
@@ -24,12 +27,16 @@ import { CopilotSession } from "./session.js";
 import type {
     ConnectionState,
     CopilotClientOptions,
+    ForegroundSessionInfo,
     GetAuthStatusResponse,
     GetStatusResponse,
     ModelInfo,
     ResumeSessionConfig,
     SessionConfig,
     SessionEvent,
+    SessionLifecycleEvent,
+    SessionLifecycleEventType,
+    SessionLifecycleHandler,
     SessionListFilter,
     SessionMetadata,
     Tool,
@@ -38,6 +45,7 @@ import type {
     ToolHandler,
     ToolResult,
     ToolResultObject,
+    TypedSessionLifecycleHandler,
 } from "./types.js";
 
 /**
@@ -96,6 +104,20 @@ function toJsonSchema(parameters: Tool["parameters"]): Record<string, unknown> |
  * await client.stop();
  * ```
  */
+
+/**
+ * Gets the path to the bundled CLI from the @github/copilot package.
+ * Uses index.js directly rather than npm-loader.js (which spawns the native binary).
+ */
+function getBundledCliPath(): string {
+    // Find the actual location of the @github/copilot package by resolving its sdk export
+    const sdkUrl = import.meta.resolve("@github/copilot/sdk");
+    const sdkPath = fileURLToPath(sdkUrl);
+    // sdkPath is like .../node_modules/@github/copilot/sdk/index.js
+    // Go up two levels to get the package root, then append index.js
+    return join(dirname(dirname(sdkPath)), "index.js");
+}
+
 export class CopilotClient {
     private cliProcess: ChildProcess | null = null;
     private connection: MessageConnection | null = null;
@@ -113,6 +135,13 @@ export class CopilotClient {
     };
     private isExternalServer: boolean = false;
     private forceStopping: boolean = false;
+    private modelsCache: ModelInfo[] | null = null;
+    private modelsCacheLock: Promise<void> = Promise.resolve();
+    private sessionLifecycleHandlers: Set<SessionLifecycleHandler> = new Set();
+    private typedLifecycleHandlers: Map<
+        SessionLifecycleEventType,
+        Set<(event: SessionLifecycleEvent) => void>
+    > = new Map();
 
     /**
      * Creates a new CopilotClient instance.
@@ -157,7 +186,7 @@ export class CopilotClient {
         }
 
         this.options = {
-            cliPath: options.cliPath || "copilot",
+            cliPath: options.cliPath || getBundledCliPath(),
             cliArgs: options.cliArgs ?? [],
             cwd: options.cwd ?? process.cwd(),
             port: options.port || 0,
@@ -316,6 +345,9 @@ export class CopilotClient {
             this.connection = null;
         }
 
+        // Clear models cache
+        this.modelsCache = null;
+
         if (this.socket) {
             try {
                 this.socket.end();
@@ -390,6 +422,9 @@ export class CopilotClient {
             this.connection = null;
         }
 
+        // Clear models cache
+        this.modelsCache = null;
+
         if (this.socket) {
             try {
                 this.socket.destroy(); // destroy() is more forceful than end()
@@ -453,6 +488,7 @@ export class CopilotClient {
         const response = await this.connection!.sendRequest("session.create", {
             model: config.model,
             sessionId: config.sessionId,
+            reasoningEffort: config.reasoningEffort,
             tools: config.tools?.map((tool) => ({
                 name: tool.name,
                 description: tool.description,
@@ -532,6 +568,11 @@ export class CopilotClient {
 
         const response = await this.connection!.sendRequest("session.resume", {
             sessionId,
+            model: config.model,
+            reasoningEffort: config.reasoningEffort,
+            systemMessage: config.systemMessage,
+            availableTools: config.availableTools,
+            excludedTools: config.excludedTools,
             tools: config.tools?.map((tool) => ({
                 name: tool.name,
                 description: tool.description,
@@ -542,11 +583,13 @@ export class CopilotClient {
             requestUserInput: !!config.onUserInputRequest,
             hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
             workingDirectory: config.workingDirectory,
+            configDir: config.configDir,
             streaming: config.streaming,
             mcpServers: config.mcpServers,
             customAgents: config.customAgents,
             skillDirectories: config.skillDirectories,
             disabledSkills: config.disabledSkills,
+            infiniteSessions: config.infiniteSessions,
             disableResume: config.disableResume,
         });
 
@@ -639,7 +682,11 @@ export class CopilotClient {
     }
 
     /**
-     * List available models with their metadata
+     * List available models with their metadata.
+     *
+     * Results are cached after the first successful call to avoid rate limiting.
+     * The cache is cleared when the client disconnects.
+     *
      * @throws Error if not authenticated
      */
     async listModels(): Promise<ModelInfo[]> {
@@ -647,9 +694,32 @@ export class CopilotClient {
             throw new Error("Client not connected");
         }
 
-        const result = await this.connection.sendRequest("models.list", {});
-        const response = result as { models: ModelInfo[] };
-        return response.models;
+        // Use promise-based locking to prevent race condition with concurrent calls
+        await this.modelsCacheLock;
+
+        let resolveLock: () => void;
+        this.modelsCacheLock = new Promise((resolve) => {
+            resolveLock = resolve;
+        });
+
+        try {
+            // Check cache (already inside lock)
+            if (this.modelsCache !== null) {
+                return [...this.modelsCache]; // Return a copy to prevent cache mutation
+            }
+
+            // Cache miss - fetch from backend while holding lock
+            const result = await this.connection.sendRequest("models.list", {});
+            const response = result as { models: ModelInfo[] };
+            const models = response.models;
+
+            // Update cache before releasing lock
+            this.modelsCache = models;
+
+            return [...models]; // Return a copy to prevent cache mutation
+        } finally {
+            resolveLock!();
+        }
     }
 
     /**
@@ -783,13 +853,148 @@ export class CopilotClient {
     }
 
     /**
+     * Gets the foreground session ID in TUI+server mode.
+     *
+     * This returns the ID of the session currently displayed in the TUI.
+     * Only available when connecting to a server running in TUI+server mode (--ui-server).
+     *
+     * @returns A promise that resolves with the foreground session ID, or undefined if none
+     * @throws Error if the client is not connected
+     *
+     * @example
+     * ```typescript
+     * const sessionId = await client.getForegroundSessionId();
+     * if (sessionId) {
+     *   console.log(`TUI is displaying session: ${sessionId}`);
+     * }
+     * ```
+     */
+    async getForegroundSessionId(): Promise<string | undefined> {
+        if (!this.connection) {
+            throw new Error("Client not connected");
+        }
+
+        const response = await this.connection.sendRequest("session.getForeground", {});
+        return (response as ForegroundSessionInfo).sessionId;
+    }
+
+    /**
+     * Sets the foreground session in TUI+server mode.
+     *
+     * This requests the TUI to switch to displaying the specified session.
+     * Only available when connecting to a server running in TUI+server mode (--ui-server).
+     *
+     * @param sessionId - The ID of the session to display in the TUI
+     * @returns A promise that resolves when the session is switched
+     * @throws Error if the client is not connected or if the operation fails
+     *
+     * @example
+     * ```typescript
+     * // Switch the TUI to display a specific session
+     * await client.setForegroundSessionId("session-123");
+     * ```
+     */
+    async setForegroundSessionId(sessionId: string): Promise<void> {
+        if (!this.connection) {
+            throw new Error("Client not connected");
+        }
+
+        const response = await this.connection.sendRequest("session.setForeground", { sessionId });
+        const result = response as { success: boolean; error?: string };
+
+        if (!result.success) {
+            throw new Error(result.error || "Failed to set foreground session");
+        }
+    }
+
+    /**
+     * Subscribes to a specific session lifecycle event type.
+     *
+     * Lifecycle events are emitted when sessions are created, deleted, updated,
+     * or change foreground/background state (in TUI+server mode).
+     *
+     * @param eventType - The specific event type to listen for
+     * @param handler - A callback function that receives events of the specified type
+     * @returns A function that, when called, unsubscribes the handler
+     *
+     * @example
+     * ```typescript
+     * // Listen for when a session becomes foreground in TUI
+     * const unsubscribe = client.on("session.foreground", (event) => {
+     *   console.log(`Session ${event.sessionId} is now displayed in TUI`);
+     * });
+     *
+     * // Later, to stop receiving events:
+     * unsubscribe();
+     * ```
+     */
+    on<K extends SessionLifecycleEventType>(
+        eventType: K,
+        handler: TypedSessionLifecycleHandler<K>
+    ): () => void;
+
+    /**
+     * Subscribes to all session lifecycle events.
+     *
+     * @param handler - A callback function that receives all lifecycle events
+     * @returns A function that, when called, unsubscribes the handler
+     *
+     * @example
+     * ```typescript
+     * const unsubscribe = client.on((event) => {
+     *   switch (event.type) {
+     *     case "session.foreground":
+     *       console.log(`Session ${event.sessionId} is now in foreground`);
+     *       break;
+     *     case "session.created":
+     *       console.log(`New session created: ${event.sessionId}`);
+     *       break;
+     *   }
+     * });
+     *
+     * // Later, to stop receiving events:
+     * unsubscribe();
+     * ```
+     */
+    on(handler: SessionLifecycleHandler): () => void;
+
+    on<K extends SessionLifecycleEventType>(
+        eventTypeOrHandler: K | SessionLifecycleHandler,
+        handler?: TypedSessionLifecycleHandler<K>
+    ): () => void {
+        // Overload 1: on(eventType, handler) - typed event subscription
+        if (typeof eventTypeOrHandler === "string" && handler) {
+            const eventType = eventTypeOrHandler;
+            if (!this.typedLifecycleHandlers.has(eventType)) {
+                this.typedLifecycleHandlers.set(eventType, new Set());
+            }
+            const storedHandler = handler as (event: SessionLifecycleEvent) => void;
+            this.typedLifecycleHandlers.get(eventType)!.add(storedHandler);
+            return () => {
+                const handlers = this.typedLifecycleHandlers.get(eventType);
+                if (handlers) {
+                    handlers.delete(storedHandler);
+                }
+            };
+        }
+
+        // Overload 2: on(handler) - wildcard subscription
+        const wildcardHandler = eventTypeOrHandler as SessionLifecycleHandler;
+        this.sessionLifecycleHandlers.add(wildcardHandler);
+        return () => {
+            this.sessionLifecycleHandlers.delete(wildcardHandler);
+        };
+    }
+
+    /**
      * Start the CLI server process
      */
     private async startCLIServer(): Promise<void> {
         return new Promise((resolve, reject) => {
             const args = [
                 ...this.options.cliArgs,
-                "--server",
+                "--headless",
+                "--no-auto-update",
                 "--log-level",
                 this.options.logLevel,
             ];
@@ -818,34 +1023,33 @@ export class CopilotClient {
                 envWithoutNodeDebug.COPILOT_SDK_AUTH_TOKEN = this.options.githubToken;
             }
 
-            // If cliPath is a .js file, spawn it with node
-            // Note that we can't rely on the shebang as Windows doesn't support it
-            const isJsFile = this.options.cliPath.endsWith(".js");
-            const isAbsolutePath =
-                this.options.cliPath.startsWith("/") || /^[a-zA-Z]:/.test(this.options.cliPath);
-
-            let command: string;
-            let spawnArgs: string[];
-
-            if (isJsFile) {
-                command = "node";
-                spawnArgs = [this.options.cliPath, ...args];
-            } else if (process.platform === "win32" && !isAbsolutePath) {
-                // On Windows, spawn doesn't search PATHEXT, so use cmd /c to resolve the executable.
-                command = "cmd";
-                spawnArgs = ["/c", `${this.options.cliPath}`, ...args];
-            } else {
-                command = this.options.cliPath;
-                spawnArgs = args;
+            // Verify CLI exists before attempting to spawn
+            if (!existsSync(this.options.cliPath)) {
+                throw new Error(
+                    `Copilot CLI not found at ${this.options.cliPath}. Ensure @github/copilot is installed.`
+                );
             }
 
-            this.cliProcess = spawn(command, spawnArgs, {
-                stdio: this.options.useStdio
-                    ? ["pipe", "pipe", "pipe"]
-                    : ["ignore", "pipe", "pipe"],
-                cwd: this.options.cwd,
-                env: envWithoutNodeDebug,
-            });
+            const stdioConfig: ["pipe", "pipe", "pipe"] | ["ignore", "pipe", "pipe"] = this.options
+                .useStdio
+                ? ["pipe", "pipe", "pipe"]
+                : ["ignore", "pipe", "pipe"];
+
+            // For .js files, spawn node explicitly; for executables, spawn directly
+            const isJsFile = this.options.cliPath.endsWith(".js");
+            if (isJsFile) {
+                this.cliProcess = spawn(process.execPath, [this.options.cliPath, ...args], {
+                    stdio: stdioConfig,
+                    cwd: this.options.cwd,
+                    env: envWithoutNodeDebug,
+                });
+            } else {
+                this.cliProcess = spawn(this.options.cliPath, args, {
+                    stdio: stdioConfig,
+                    cwd: this.options.cwd,
+                    env: envWithoutNodeDebug,
+                });
+            }
 
             let stdout = "";
             let resolved = false;
@@ -977,6 +1181,10 @@ export class CopilotClient {
             this.handleSessionEventNotification(notification);
         });
 
+        this.connection.onNotification("session.lifecycle", (notification: unknown) => {
+            this.handleSessionLifecycleNotification(notification);
+        });
+
         this.connection.onRequest(
             "tool.call",
             async (params: ToolCallRequestPayload): Promise<ToolCallResponsePayload> =>
@@ -1036,6 +1244,42 @@ export class CopilotClient {
         const session = this.sessions.get((notification as { sessionId: string }).sessionId);
         if (session) {
             session._dispatchEvent((notification as { event: SessionEvent }).event);
+        }
+    }
+
+    private handleSessionLifecycleNotification(notification: unknown): void {
+        if (
+            typeof notification !== "object" ||
+            !notification ||
+            !("type" in notification) ||
+            typeof (notification as { type?: unknown }).type !== "string" ||
+            !("sessionId" in notification) ||
+            typeof (notification as { sessionId?: unknown }).sessionId !== "string"
+        ) {
+            return;
+        }
+
+        const event = notification as SessionLifecycleEvent;
+
+        // Dispatch to typed handlers for this specific event type
+        const typedHandlers = this.typedLifecycleHandlers.get(event.type);
+        if (typedHandlers) {
+            for (const handler of typedHandlers) {
+                try {
+                    handler(event);
+                } catch {
+                    // Ignore handler errors
+                }
+            }
+        }
+
+        // Dispatch to wildcard handlers
+        for (const handler of this.sessionLifecycleHandlers) {
+            try {
+                handler(event);
+            } catch {
+                // Ignore handler errors
+            }
         }
     }
 

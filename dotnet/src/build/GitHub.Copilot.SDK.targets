@@ -1,0 +1,84 @@
+<Project>
+  <!-- These targets run in consuming projects when they build -->
+  <!-- CopilotCliVersion is imported from GitHub.Copilot.SDK.props (generated at SDK build time, packaged alongside) -->
+  <Import Project="$(MSBuildThisFileDirectory)GitHub.Copilot.SDK.props" Condition="'$(CopilotCliVersion)' == '' And Exists('$(MSBuildThisFileDirectory)GitHub.Copilot.SDK.props')" />
+
+  <!-- Resolve RID: use explicit RuntimeIdentifier, or infer from current machine -->
+  <PropertyGroup>
+    <_CopilotRid Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</_CopilotRid>
+    <_CopilotRid Condition="'$(_CopilotRid)' == '' And $([MSBuild]::IsOSPlatform('Windows')) And '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'X64'">win-x64</_CopilotRid>
+    <_CopilotRid Condition="'$(_CopilotRid)' == '' And $([MSBuild]::IsOSPlatform('Windows')) And '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">win-arm64</_CopilotRid>
+    <_CopilotRid Condition="'$(_CopilotRid)' == '' And $([MSBuild]::IsOSPlatform('Linux')) And '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'X64'">linux-x64</_CopilotRid>
+    <_CopilotRid Condition="'$(_CopilotRid)' == '' And $([MSBuild]::IsOSPlatform('Linux')) And '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">linux-arm64</_CopilotRid>
+    <_CopilotRid Condition="'$(_CopilotRid)' == '' And $([MSBuild]::IsOSPlatform('OSX')) And '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'X64'">osx-x64</_CopilotRid>
+    <_CopilotRid Condition="'$(_CopilotRid)' == '' And $([MSBuild]::IsOSPlatform('OSX')) And '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">osx-arm64</_CopilotRid>
+  </PropertyGroup>
+
+  <!-- Map RID to platform name used in npm packages -->
+  <PropertyGroup>
+    <_CopilotPlatform Condition="'$(_CopilotRid)' == 'win-x64'">win32-x64</_CopilotPlatform>
+    <_CopilotPlatform Condition="'$(_CopilotRid)' == 'win-arm64'">win32-arm64</_CopilotPlatform>
+    <_CopilotPlatform Condition="'$(_CopilotRid)' == 'linux-x64'">linux-x64</_CopilotPlatform>
+    <_CopilotPlatform Condition="'$(_CopilotRid)' == 'linux-arm64'">linux-arm64</_CopilotPlatform>
+    <_CopilotPlatform Condition="'$(_CopilotRid)' == 'osx-x64'">darwin-x64</_CopilotPlatform>
+    <_CopilotPlatform Condition="'$(_CopilotRid)' == 'osx-arm64'">darwin-arm64</_CopilotPlatform>
+    <_CopilotBinary Condition="$(_CopilotRid.StartsWith('win-'))">copilot.exe</_CopilotBinary>
+    <_CopilotBinary Condition="'$(_CopilotBinary)' == ''">copilot</_CopilotBinary>
+  </PropertyGroup>
+
+  <!-- Download and extract CLI binary -->
+  <Target Name="_DownloadCopilotCli" BeforeTargets="BeforeBuild" Condition="'$(_CopilotPlatform)' != ''">
+    <Error Condition="'$(CopilotCliVersion)' == ''" Text="CopilotCliVersion is not set. The GitHub.Copilot.SDK.props file may be missing from the NuGet package." />
+
+    <!-- Compute paths using version (now available) -->
+    <PropertyGroup>
+      <_CopilotCacheDir>$(IntermediateOutputPath)copilot-cli\$(CopilotCliVersion)\$(_CopilotPlatform)</_CopilotCacheDir>
+      <_CopilotCliBinaryPath>$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
+      <_CopilotArchivePath>$(_CopilotCacheDir)\copilot.tgz</_CopilotArchivePath>
+      <_CopilotDownloadUrl>https://registry.npmjs.org/@github/copilot-$(_CopilotPlatform)/-/copilot-$(_CopilotPlatform)-$(CopilotCliVersion).tgz</_CopilotDownloadUrl>
+    </PropertyGroup>
+
+    <!-- Delete archive if binary missing (handles partial/corrupted downloads) -->
+    <Delete Files="$(_CopilotArchivePath)" Condition="!Exists('$(_CopilotCliBinaryPath)') And Exists('$(_CopilotArchivePath)')" />
+
+    <!-- Download if not cached -->
+    <MakeDir Directories="$(_CopilotCacheDir)" Condition="!Exists('$(_CopilotCliBinaryPath)')" />
+    <Message Importance="high" Text="Downloading Copilot CLI $(CopilotCliVersion) for $(_CopilotPlatform)..." Condition="!Exists('$(_CopilotCliBinaryPath)')" />
+    <DownloadFile SourceUrl="$(_CopilotDownloadUrl)" DestinationFolder="$(_CopilotCacheDir)" DestinationFileName="copilot.tgz"
+                  Condition="!Exists('$(_CopilotCliBinaryPath)')" />
+
+    <!-- Extract using tar (use Windows system tar explicitly to avoid Git bash tar issues) -->
+    <PropertyGroup>
+      <_TarCommand Condition="$([MSBuild]::IsOSPlatform('Windows'))">$(SystemRoot)\System32\tar.exe</_TarCommand>
+      <_TarCommand Condition="'$(_TarCommand)' == ''">tar</_TarCommand>
+    </PropertyGroup>
+    <Exec Command="&quot;$(_TarCommand)&quot; -xzf &quot;$(_CopilotArchivePath)&quot; --strip-components=1 -C &quot;$(_CopilotCacheDir)&quot;"
+          Condition="!Exists('$(_CopilotCliBinaryPath)')" />
+
+    <Error Condition="!Exists('$(_CopilotCliBinaryPath)')" Text="Failed to extract Copilot CLI binary to $(_CopilotCliBinaryPath)" />
+  </Target>
+
+  <!-- Copy CLI binary to output runtimes folder and register for transitive copy -->
+  <Target Name="_CopyCopilotCliToOutput" AfterTargets="Build" DependsOnTargets="_DownloadCopilotCli" Condition="'$(_CopilotPlatform)' != ''">
+    <PropertyGroup>
+      <_CopilotCacheDir>$(IntermediateOutputPath)copilot-cli\$(CopilotCliVersion)\$(_CopilotPlatform)</_CopilotCacheDir>
+      <_CopilotCliBinaryPath>$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
+      <_CopilotOutputDir>$(OutDir)runtimes\$(_CopilotRid)\native</_CopilotOutputDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(_CopilotOutputDir)" />
+    <Copy SourceFiles="$(_CopilotCliBinaryPath)" DestinationFolder="$(_CopilotOutputDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- Register CLI binary as content so it flows through project references -->
+  <Target Name="_RegisterCopilotCliForCopy" BeforeTargets="GetCopyToOutputDirectoryItems" DependsOnTargets="_DownloadCopilotCli" Condition="'$(_CopilotPlatform)' != ''">
+    <PropertyGroup>
+      <_CopilotCacheDir>$(IntermediateOutputPath)copilot-cli\$(CopilotCliVersion)\$(_CopilotPlatform)</_CopilotCacheDir>
+      <_CopilotCliBinaryPath>$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
+    </PropertyGroup>
+    <ItemGroup>
+      <ContentWithTargetPath Include="$(_CopilotCliBinaryPath)" 
+                             TargetPath="runtimes\$(_CopilotRid)\native\$(_CopilotBinary)"
+                             CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
+</Project>

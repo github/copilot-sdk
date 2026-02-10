@@ -93,6 +93,7 @@ Create a new conversation session.
 
 - `SessionId` - Custom session ID
 - `Model` - Model to use ("gpt-5", "claude-sonnet-4.5", etc.)
+- `ReasoningEffort` - Reasoning effort level for models that support it ("low", "medium", "high", "xhigh"). Use `ListModelsAsync()` to check which models support this option.
 - `Tools` - Custom tools exposed to the CLI
 - `SystemMessage` - System message customization
 - `AvailableTools` - List of tool names to allow
@@ -122,6 +123,43 @@ List all available sessions.
 ##### `DeleteSessionAsync(string sessionId): Task`
 
 Delete a session and its data from disk.
+
+##### `GetForegroundSessionIdAsync(): Task<string?>`
+
+Get the ID of the session currently displayed in the TUI. Only available when connecting to a server running in TUI+server mode (`--ui-server`).
+
+##### `SetForegroundSessionIdAsync(string sessionId): Task`
+
+Request the TUI to switch to displaying the specified session. Only available in TUI+server mode.
+
+##### `On(Action<SessionLifecycleEvent> handler): IDisposable`
+
+Subscribe to all session lifecycle events. Returns an `IDisposable` that unsubscribes when disposed.
+
+```csharp
+using var subscription = client.On(evt =>
+{
+    Console.WriteLine($"Session {evt.SessionId}: {evt.Type}");
+});
+```
+
+##### `On(string eventType, Action<SessionLifecycleEvent> handler): IDisposable`
+
+Subscribe to a specific lifecycle event type. Use `SessionLifecycleEventTypes` constants.
+
+```csharp
+using var subscription = client.On(SessionLifecycleEventTypes.Foreground, evt =>
+{
+    Console.WriteLine($"Session {evt.SessionId} is now in foreground");
+});
+```
+
+**Lifecycle Event Types:**
+- `SessionLifecycleEventTypes.Created` - A new session was created
+- `SessionLifecycleEventTypes.Deleted` - A session was deleted
+- `SessionLifecycleEventTypes.Updated` - A session was updated
+- `SessionLifecycleEventTypes.Foreground` - A session became the foreground session in TUI
+- `SessionLifecycleEventTypes.Background` - A session is no longer the foreground session
 
 ---
 
@@ -461,13 +499,13 @@ var session = await client.CreateSessionAsync(new SessionConfig
         // request.Question - The question to ask
         // request.Choices - Optional list of choices for multiple choice
         // request.AllowFreeform - Whether freeform input is allowed (default: true)
-        
+
         Console.WriteLine($"Agent asks: {request.Question}");
         if (request.Choices?.Count > 0)
         {
             Console.WriteLine($"Choices: {string.Join(", ", request.Choices)}");
         }
-        
+
         // Return the user's response
         return new UserInputResponse
         {
@@ -500,7 +538,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
                 AdditionalContext = "Extra context for the model"
             };
         },
-        
+
         // Called after each tool execution
         OnPostToolUse = async (input, invocation) =>
         {
@@ -510,7 +548,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
                 AdditionalContext = "Post-execution notes"
             };
         },
-        
+
         // Called when user submits a prompt
         OnUserPromptSubmitted = async (input, invocation) =>
         {
@@ -520,7 +558,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
                 ModifiedPrompt = input.Prompt // Optionally modify the prompt
             };
         },
-        
+
         // Called when session starts
         OnSessionStart = async (input, invocation) =>
         {
@@ -530,14 +568,14 @@ var session = await client.CreateSessionAsync(new SessionConfig
                 AdditionalContext = "Session initialization context"
             };
         },
-        
+
         // Called when session ends
         OnSessionEnd = async (input, invocation) =>
         {
             Console.WriteLine($"Session ended: {input.Reason}");
             return null;
         },
-        
+
         // Called when an error occurs
         OnErrorOccurred = async (input, invocation) =>
         {

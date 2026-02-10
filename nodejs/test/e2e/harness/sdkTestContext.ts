@@ -17,10 +17,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const SNAPSHOTS_DIR = resolve(__dirname, "../../../../test/snapshots");
 
-export const CLI_PATH =
-    process.env.COPILOT_CLI_PATH ||
-    resolve(__dirname, "../../../node_modules/@github/copilot/index.js");
-
 export async function createSdkTestContext({
     logLevel,
 }: { logLevel?: "error" | "none" | "warning" | "info" | "debug" | "all" } = {}) {
@@ -41,10 +37,11 @@ export async function createSdkTestContext({
     };
 
     const copilotClient = new CopilotClient({
-        cliPath: CLI_PATH,
         cwd: workDir,
         env,
         logLevel: logLevel || "error",
+        // Use fake token in CI to allow cached responses without real auth
+        githubToken: process.env.CI === "true" ? "fake-token-for-e2e-tests" : undefined,
     });
 
     const harness = { homeDir, workDir, openAiEndpoint, copilotClient, env };
@@ -93,7 +90,8 @@ function getTrafficCapturePath(testContext: TestContext): string {
         );
     }
 
-    const testFileName = basename(testFilePath, suffix);
+    // Convert to snake_case for cross-SDK snapshot compatibility
+    const testFileName = basename(testFilePath, suffix).replace(/-/g, "_");
     const taskNameAsFilename = testContext.task.name.replace(/[^a-z0-9]/gi, "_").toLowerCase();
     return join(SNAPSHOTS_DIR, testFileName, `${taskNameAsFilename}.yaml`);
 }

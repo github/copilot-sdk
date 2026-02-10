@@ -16,6 +16,8 @@ from .generated.session_events import SessionEvent
 # SessionEvent is now imported from generated types
 # It provides proper type discrimination for all event types
 
+# Valid reasoning effort levels for models that support it
+ReasoningEffort = Literal["low", "medium", "high", "xhigh"]
 
 # Connection state
 ConnectionState = Literal["disconnected", "connecting", "connected", "error"]
@@ -24,11 +26,46 @@ ConnectionState = Literal["disconnected", "connecting", "connected", "error"]
 LogLevel = Literal["none", "error", "warning", "info", "debug", "all"]
 
 
-# Attachment type
-class Attachment(TypedDict):
-    type: Literal["file", "directory"]
+# Selection range for text attachments
+class SelectionRange(TypedDict):
+    line: int
+    character: int
+
+
+class Selection(TypedDict):
+    start: SelectionRange
+    end: SelectionRange
+
+
+# Attachment types - discriminated union based on 'type' field
+class FileAttachment(TypedDict):
+    """File attachment."""
+
+    type: Literal["file"]
     path: str
     displayName: NotRequired[str]
+
+
+class DirectoryAttachment(TypedDict):
+    """Directory attachment."""
+
+    type: Literal["directory"]
+    path: str
+    displayName: NotRequired[str]
+
+
+class SelectionAttachment(TypedDict):
+    """Selection attachment with text from a file."""
+
+    type: Literal["selection"]
+    filePath: str
+    displayName: str
+    selection: NotRequired[Selection]
+    text: NotRequired[str]
+
+
+# Attachment type - union of all attachment types
+Attachment = Union[FileAttachment, DirectoryAttachment, SelectionAttachment]
 
 
 # Options for creating a CopilotClient
@@ -423,7 +460,10 @@ class SessionConfig(TypedDict, total=False):
     """Configuration for creating a session"""
 
     session_id: str  # Optional custom session ID
-    model: Literal["gpt-5", "claude-sonnet-4", "claude-sonnet-4.5", "claude-haiku-4.5"]
+    model: str  # Model to use for this session. Use client.list_models() to see available models.
+    # Reasoning effort level for models that support it.
+    # Only valid for models where capabilities.supports.reasoning_effort is True.
+    reasoning_effort: ReasoningEffort
     tools: list[Tool]
     system_message: SystemMessageConfig  # System message configuration
     # List of tool names to allow (takes precedence over excluded_tools)
@@ -487,8 +527,17 @@ class ProviderConfig(TypedDict, total=False):
 class ResumeSessionConfig(TypedDict, total=False):
     """Configuration for resuming a session"""
 
+    # Model to use for this session. Can change the model when resuming.
+    model: str
     tools: list[Tool]
+    system_message: SystemMessageConfig  # System message configuration
+    # List of tool names to allow (takes precedence over excluded_tools)
+    available_tools: list[str]
+    # List of tool names to disable (ignored if available_tools is set)
+    excluded_tools: list[str]
     provider: ProviderConfig
+    # Reasoning effort level for models that support it.
+    reasoning_effort: ReasoningEffort
     on_permission_request: PermissionHandler
     # Handler for user input requests from the agent (enables ask_user tool)
     on_user_input_request: UserInputHandler
@@ -496,6 +545,8 @@ class ResumeSessionConfig(TypedDict, total=False):
     hooks: SessionHooks
     # Working directory for the session. Tool operations will be relative to this directory.
     working_directory: str
+    # Override the default configuration directory location.
+    config_dir: str
     # Enable streaming of assistant message chunks
     streaming: bool
     # MCP server configurations for the session
@@ -506,6 +557,8 @@ class ResumeSessionConfig(TypedDict, total=False):
     skill_directories: list[str]
     # List of skill names to disable
     disabled_skills: list[str]
+    # Infinite session configuration for persistent workspaces and automatic compaction.
+    infinite_sessions: InfiniteSessionConfig
     # When True, skips emitting the session.resume event.
     # Useful for reconnecting to a session without triggering resume-related side effects.
     disable_resume: bool
@@ -716,6 +769,7 @@ class ModelSupports:
     """Model support flags"""
 
     vision: bool
+    reasoning_effort: bool = False  # Whether this model supports reasoning effort
 
     @staticmethod
     def from_dict(obj: Any) -> ModelSupports:
@@ -723,11 +777,13 @@ class ModelSupports:
         vision = obj.get("vision")
         if vision is None:
             raise ValueError("Missing required field 'vision' in ModelSupports")
-        return ModelSupports(vision=bool(vision))
+        reasoning_effort = obj.get("reasoningEffort", False)
+        return ModelSupports(vision=bool(vision), reasoning_effort=bool(reasoning_effort))
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["vision"] = self.vision
+        result["reasoningEffort"] = self.reasoning_effort
         return result
 
 
@@ -813,6 +869,10 @@ class ModelInfo:
     capabilities: ModelCapabilities  # Model capabilities and limits
     policy: ModelPolicy | None = None  # Policy state
     billing: ModelBilling | None = None  # Billing information
+    # Supported reasoning effort levels (only present if model supports reasoning effort)
+    supported_reasoning_efforts: list[str] | None = None
+    # Default reasoning effort level (only present if model supports reasoning effort)
+    default_reasoning_effort: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> ModelInfo:
@@ -830,8 +890,16 @@ class ModelInfo:
         policy = ModelPolicy.from_dict(policy_dict) if policy_dict else None
         billing_dict = obj.get("billing")
         billing = ModelBilling.from_dict(billing_dict) if billing_dict else None
+        supported_reasoning_efforts = obj.get("supportedReasoningEfforts")
+        default_reasoning_effort = obj.get("defaultReasoningEffort")
         return ModelInfo(
-            id=str(id), name=str(name), capabilities=capabilities, policy=policy, billing=billing
+            id=str(id),
+            name=str(name),
+            capabilities=capabilities,
+            policy=policy,
+            billing=billing,
+            supported_reasoning_efforts=supported_reasoning_efforts,
+            default_reasoning_effort=default_reasoning_effort,
         )
 
     def to_dict(self) -> dict:
@@ -843,6 +911,10 @@ class ModelInfo:
             result["policy"] = self.policy.to_dict()
         if self.billing is not None:
             result["billing"] = self.billing.to_dict()
+        if self.supported_reasoning_efforts is not None:
+            result["supportedReasoningEfforts"] = self.supported_reasoning_efforts
+        if self.default_reasoning_effort is not None:
+            result["defaultReasoningEffort"] = self.default_reasoning_effort
         return result
 
 
@@ -947,3 +1019,55 @@ class SessionMetadata:
         if self.context is not None:
             result["context"] = self.context.to_dict()
         return result
+
+
+# Session Lifecycle Types (for TUI+server mode)
+
+SessionLifecycleEventType = Literal[
+    "session.created",
+    "session.deleted",
+    "session.updated",
+    "session.foreground",
+    "session.background",
+]
+
+
+@dataclass
+class SessionLifecycleEventMetadata:
+    """Metadata for session lifecycle events."""
+
+    startTime: str
+    modifiedTime: str
+    summary: str | None = None
+
+    @staticmethod
+    def from_dict(data: dict) -> SessionLifecycleEventMetadata:
+        return SessionLifecycleEventMetadata(
+            startTime=data.get("startTime", ""),
+            modifiedTime=data.get("modifiedTime", ""),
+            summary=data.get("summary"),
+        )
+
+
+@dataclass
+class SessionLifecycleEvent:
+    """Session lifecycle event notification."""
+
+    type: SessionLifecycleEventType
+    sessionId: str
+    metadata: SessionLifecycleEventMetadata | None = None
+
+    @staticmethod
+    def from_dict(data: dict) -> SessionLifecycleEvent:
+        metadata = None
+        if "metadata" in data and data["metadata"]:
+            metadata = SessionLifecycleEventMetadata.from_dict(data["metadata"])
+        return SessionLifecycleEvent(
+            type=data.get("type", "session.updated"),
+            sessionId=data.get("sessionId", ""),
+            metadata=metadata,
+        )
+
+
+# Handler types for session lifecycle events
+SessionLifecycleHandler = Callable[[SessionLifecycleEvent], None]

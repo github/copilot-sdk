@@ -84,3 +84,36 @@ install:
 playground:
     @echo "=== Starting SDK Playground ==="
     @cd demos/playground && npm install && npm start
+
+# Validate documentation code examples
+validate-docs: validate-docs-extract validate-docs-check
+
+# Extract code blocks from documentation
+validate-docs-extract:
+    @echo "=== Extracting documentation code blocks ==="
+    @cd scripts/docs-validation && npm ci --silent && npm run extract
+
+# Validate all extracted code blocks
+validate-docs-check:
+    @echo "=== Validating documentation code blocks ==="
+    @cd scripts/docs-validation && npm run validate
+
+# Validate only TypeScript documentation examples
+validate-docs-ts:
+    @echo "=== Validating TypeScript documentation ==="
+    @cd scripts/docs-validation && npm run validate:ts
+
+# Validate only Python documentation examples
+validate-docs-py:
+    @echo "=== Validating Python documentation ==="
+    @cd scripts/docs-validation && npm run validate:py
+
+# Validate only Go documentation examples
+validate-docs-go:
+    @echo "=== Validating Go documentation ==="
+    @cd scripts/docs-validation && npm run validate:go
+
+# Validate only C# documentation examples
+validate-docs-cs:
+    @echo "=== Validating C# documentation ==="
+    @cd scripts/docs-validation && npm run validate:cs
