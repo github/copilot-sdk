@@ -43,7 +43,7 @@ public class CopilotClientOptions
         CliPath = other.CliPath;
         CliUrl = other.CliUrl;
         Cwd = other.Cwd;
-        Environment = other.Environment is not null ? new Dictionary<string, string>(other.Environment) : null;
+        Environment = other.Environment;
         GithubToken = other.GithubToken;
         Logger = other.Logger;
         LogLevel = other.LogLevel;
@@ -86,8 +86,10 @@ public class CopilotClientOptions
     /// Creates a shallow clone of this <see cref="CopilotClientOptions"/> instance.
     /// </summary>
     /// <remarks>
-    /// Collection properties are copied into new collections so that modifications
-    /// to the clone do not affect the original.
+    /// Mutable collection properties are copied into new collection instances so that modifications
+    /// to those collections on the clone do not affect the original.
+    /// Other reference-type properties (for example delegates and the logger) are not
+    /// deep-cloned; the original and the clone will share those objects.
     /// </remarks>
     public virtual CopilotClientOptions Clone() => new(this);
 }
@@ -749,7 +751,9 @@ public class SessionConfig
         ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
-        McpServers = other.McpServers is not null ? new Dictionary<string, object>(other.McpServers) : null;
+        McpServers = other.McpServers is not null
+            ? new Dictionary<string, object>(other.McpServers, other.McpServers.Comparer)
+            : null;
         Model = other.Model;
         OnPermissionRequest = other.OnPermissionRequest;
         OnUserInputRequest = other.OnUserInputRequest;
@@ -845,8 +849,11 @@ public class SessionConfig
     /// Creates a shallow clone of this <see cref="SessionConfig"/> instance.
     /// </summary>
     /// <remarks>
-    /// Collection properties are copied into new collections so that modifications
-    /// to the clone do not affect the original.
+    /// Mutable collection properties are copied into new collection instances so that modifications
+    /// to those collections on the clone do not affect the original.
+    /// Other reference-type properties (for example provider configuration, system messages,
+    /// hooks, infinite session configuration, and delegates) are not deep-cloned; the original
+    /// and the clone will share those nested objects, and changes to them may affect both.
     /// </remarks>
     public virtual SessionConfig Clone() => new(this);
 }
@@ -874,7 +881,9 @@ public class ResumeSessionConfig
         ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
-        McpServers = other.McpServers is not null ? new Dictionary<string, object>(other.McpServers) : null;
+        McpServers = other.McpServers is not null
+            ? new Dictionary<string, object>(other.McpServers, other.McpServers.Comparer)
+            : null;
         Model = other.Model;
         OnPermissionRequest = other.OnPermissionRequest;
         OnUserInputRequest = other.OnUserInputRequest;
@@ -989,8 +998,11 @@ public class ResumeSessionConfig
     /// Creates a shallow clone of this <see cref="ResumeSessionConfig"/> instance.
     /// </summary>
     /// <remarks>
-    /// Collection properties are copied into new collections so that modifications
-    /// to the clone do not affect the original.
+    /// Mutable collection properties are copied into new collection instances so that modifications
+    /// to those collections on the clone do not affect the original.
+    /// Other reference-type properties (for example provider configuration, system messages,
+    /// hooks, infinite session configuration, and delegates) are not deep-cloned; the original
+    /// and the clone will share those nested objects, and changes to them may affect both.
     /// </remarks>
     public virtual ResumeSessionConfig Clone() => new(this);
 }
@@ -1023,8 +1035,10 @@ public class MessageOptions
     /// Creates a shallow clone of this <see cref="MessageOptions"/> instance.
     /// </summary>
     /// <remarks>
-    /// Collection properties are copied into new collections so that modifications
-    /// to the clone do not affect the original.
+    /// Mutable collection properties are copied into new collection instances so that modifications
+    /// to those collections on the clone do not affect the original.
+    /// Other reference-type properties (for example attachment items) are not deep-cloned;
+    /// the original and the clone will share those nested objects.
     /// </remarks>
     public virtual MessageOptions Clone() => new(this);
 }
