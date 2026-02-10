@@ -3,11 +3,12 @@
 //
 // Usage:
 //
-//	go run github.com/github/copilot-sdk/go/cmd/bundler [--platform GOOS/GOARCH] [--output DIR] [--cli-version VERSION]
+//	go run github.com/github/copilot-sdk/go/cmd/bundler [--platform GOOS/GOARCH] [--output DIR] [--cli-version VERSION] [--check-only]
 //
 //	--platform: Target platform using Go conventions (linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64, windows/arm64). Defaults to current platform.
 //	--output: Output directory for embedded artifacts. Defaults to the current directory.
 //	--cli-version: CLI version to download. If not specified, automatically detects from the copilot-sdk version in go.mod.
+//	--check-only: Check that embedded CLI version matches the detected version from package-lock.json without downloading. Exits with error if versions don't match.
 package main
 
 import (
@@ -23,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 
@@ -58,6 +60,7 @@ func main() {
 	platform := flag.String("platform", runtime.GOOS+"/"+runtime.GOARCH, "Target platform as GOOS/GOARCH (e.g. linux/amd64, darwin/arm64), defaults to current platform")
 	output := flag.String("output", "", "Output directory for embedded artifacts. Defaults to the current directory")
 	cliVersion := flag.String("cli-version", "", "CLI version to download (auto-detected from go.mod if not specified)")
+	checkOnly := flag.Bool("check-only", false, "Check that embedded CLI version matches the detected version from go.mod without downloading or updating the embedded files. Exits with error if versions don't match.")
 	flag.Parse()
 
 	// Resolve version first so the default output name can include it.
@@ -71,6 +74,20 @@ func main() {
 	}
 
 	outputPath := filepath.Join(*output, defaultOutputFileName(version, goos, goarch, info.binaryName))
+
+	if *checkOnly {
+		fmt.Printf("Check only: detected CLI version %s from go.mod\n", version)
+		fmt.Printf("Check only: verifying embedded version for %s\n", *platform)
+
+		// Check if existing embedded version matches
+		if err := checkEmbeddedVersion(version, goos, goarch, *output); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Println("Check only: embedded version matches detected version")
+		return
+	}
 
 	fmt.Printf("Building bundle for %s (CLI version %s)\n", *platform, version)
 
@@ -613,5 +630,41 @@ func ensureZstdDependency() error {
 	if err != nil {
 		return fmt.Errorf("failed to add zstd dependency: %w\n%s", err, strings.TrimSpace(string(output)))
 	}
+	return nil
+}
+
+// checkEmbeddedVersion checks if an embedded CLI version exists and compares it with the detected version.
+func checkEmbeddedVersion(detectedVersion, goos, goarch, outputDir string) error {
+	// Look for the generated Go file for this platform
+	goFileName := fmt.Sprintf("zcopilot_%s_%s.go", goos, goarch)
+	goFilePath := filepath.Join(outputDir, goFileName)
+
+	data, err := os.ReadFile(goFilePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// No existing embedded version, nothing to check
+			return nil
+		}
+		return fmt.Errorf("failed to read existing Go file: %w", err)
+	}
+
+	// Extract version from the generated file
+	// Looking for: Version: "x.y.z",
+	re := regexp.MustCompile(`Version:\s*"([^"]+)"`)
+	matches := re.FindSubmatch(data)
+	if matches == nil {
+		// Can't parse version, skip check
+		return nil
+	}
+
+	embeddedVersion := string(matches[1])
+	fmt.Printf("Found existing embedded version: %s\n", embeddedVersion)
+
+	// Compare versions
+	if embeddedVersion != detectedVersion {
+		return fmt.Errorf("embedded version %s does not match detected version %s - update required", embeddedVersion, detectedVersion)
+	}
+
+	fmt.Printf("Embedded version is up to date (%s)\n", embeddedVersion)
 	return nil
 }
