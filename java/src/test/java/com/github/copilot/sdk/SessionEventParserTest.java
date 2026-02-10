@@ -1736,13 +1736,13 @@ public class SessionEventParserTest {
         var event = (SubagentSelectedEvent) parseJson(json);
         assertNotNull(event);
         var data = event.getData();
-        assertEquals("best-agent", data.getAgentName());
-        assertEquals("Best Agent", data.getAgentDisplayName());
-        assertNotNull(data.getTools());
-        assertEquals(3, data.getTools().length);
-        assertEquals("read", data.getTools()[0]);
-        assertEquals("write", data.getTools()[1]);
-        assertEquals("search", data.getTools()[2]);
+        assertEquals("best-agent", data.agentName());
+        assertEquals("Best Agent", data.agentDisplayName());
+        assertNotNull(data.tools());
+        assertEquals(3, data.tools().length);
+        assertEquals("read", data.tools()[0]);
+        assertEquals("write", data.tools()[1]);
+        assertEquals("search", data.tools()[2]);
     }
 
     // =========================================================================
