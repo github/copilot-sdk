@@ -22,7 +22,8 @@ describe("Sessions", async () => {
         await expect(() => session.getMessages()).rejects.toThrow(/Session not found/);
     });
 
-    it("should list sessions with context field", async () => {
+    // TODO: Enable once github/copilot-agent-runtime#3006 is merged
+    it.skip("should list sessions with context field", async () => {
         // Create a new session
         const session = await client.createSession();
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
