@@ -855,7 +855,7 @@ public class SessionEventHandlingTest {
 
     private SessionStartEvent createSessionStartEvent(String sessionId) {
         var event = new SessionStartEvent();
-        var data = new SessionStartEvent.SessionStartData("test-session", 0, null, null, null, null);
+        var data = new SessionStartEvent.SessionStartData(sessionId, 0, null, null, null, null);
         event.setData(data);
         return event;
     }
