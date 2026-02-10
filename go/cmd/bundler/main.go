@@ -529,7 +529,9 @@ func extractFileFromTarball(tarballPath, destDir, targetPath, outputName string)
 			}
 
 			if _, err := io.Copy(outFile, tarReader); err != nil {
-				outFile.Close()
+				if cerr := outFile.Close(); cerr != nil {
+					return fmt.Errorf("failed to extract binary (copy error: %v, close error: %v)", err, cerr)
+				}
 				return fmt.Errorf("failed to extract binary: %w", err)
 			}
 			if err := outFile.Close(); err != nil {
