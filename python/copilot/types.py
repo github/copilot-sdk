@@ -73,6 +73,7 @@ class CopilotClientOptions(TypedDict, total=False):
     """Options for creating a CopilotClient"""
 
     cli_path: str  # Path to the Copilot CLI executable (default: "copilot")
+    cli_args: list[str]  # Extra arguments to pass to the CLI executable (inserted before SDK-managed args)
     # Working directory for the CLI process (default: current process's cwd)
     cwd: str
     port: int  # Port for the CLI server (TCP mode only, default: 0)

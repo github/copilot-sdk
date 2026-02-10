@@ -175,6 +175,7 @@ class CopilotClient:
 
         self.options: CopilotClientOptions = {
             "cli_path": default_cli_path,
+            "cli_args": list(opts.get("cli_args", [])),
             "cwd": opts.get("cwd", os.getcwd()),
             "port": opts.get("port", 0),
             "use_stdio": False if opts.get("cli_url") else opts.get("use_stdio", True),
@@ -1116,7 +1117,11 @@ class CopilotClient:
         if not os.path.exists(cli_path):
             raise RuntimeError(f"Copilot CLI not found at {cli_path}")
 
-        args = ["--headless", "--no-auto-update", "--log-level", self.options["log_level"]]
+        # Start with user-provided CLI args (inserted before SDK-managed args)
+        args = list(self.options.get("cli_args", []))
+
+        # Add SDK-managed args
+        args.extend(["--headless", "--no-auto-update", "--log-level", self.options["log_level"]])
 
         # Add auth-related flags
         if self.options.get("github_token"):
