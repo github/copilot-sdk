@@ -406,7 +406,10 @@ func downloadCLIBinary(npmPlatform, binaryName, cliVersion, destDir string) (str
 		}
 	}
 
-	stat, _ := os.Stat(binaryPath)
+	stat, err := os.Stat(binaryPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to stat binary: %w", err)
+	}
 	sizeMB := float64(stat.Size()) / 1024 / 1024
 	fmt.Printf("Downloaded %s (%.1f MB)\n", binaryName, sizeMB)
 

@@ -5,7 +5,7 @@ import "os"
 // Acquire opens (or creates) the lock file at path and blocks until the lock is acquired.
 // It returns a release function to unlock and close the file.
 func Acquire(path string) (func() error, error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC, 0644)
+	f, err := os.OpenFile(path, os.O_CREATE, 0644)
 	if err != nil {
 		return nil, err
 	}

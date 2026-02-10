@@ -18,7 +18,7 @@ import (
 // Config defines the inputs used to install and locate the embedded Copilot CLI.
 //
 // Cli and CliHash are required. If Dir is empty, the CLI is installed into the
-// system temp directory. Version is used to suffix the installed binary name to
+// system cache directory. Version is used to suffix the installed binary name to
 // allow multiple versions to coexist. License, when provided, is written next
 // to the installed binary.
 type Config struct {
@@ -34,6 +34,9 @@ type Config struct {
 func Setup(cfg Config) {
 	if cfg.Cli == nil {
 		panic("Cli reader is required")
+	}
+	if len(cfg.CliHash) != sha256.Size {
+		panic(fmt.Sprintf("CliHash must be a SHA-256 hash (%d bytes), got %d bytes", sha256.Size, len(cfg.CliHash)))
 	}
 	setupMu.Lock()
 	defer setupMu.Unlock()
@@ -81,7 +84,12 @@ func install() (path string) {
 	}
 	installDir := config.Dir
 	if installDir == "" {
-		installDir = os.TempDir()
+		var err error
+		if installDir, err = os.UserCacheDir(); err != nil {
+			// Fall back to temp dir if UserCacheDir is unavailable
+			installDir = os.TempDir()
+		}
+		installDir = filepath.Join(installDir, "copilot-sdk")
 	}
 	path, err := installAt(installDir)
 	if err != nil {
@@ -130,6 +138,9 @@ func installAt(installDir string) (string, error) {
 	_, err = io.Copy(f, config.Cli)
 	if err1 := f.Close(); err1 != nil && err == nil {
 		err = err1
+	}
+	if closer, ok := config.Cli.(io.Closer); ok {
+		closer.Close()
 	}
 	if err != nil {
 		return "", fmt.Errorf("writing binary file: %w", err)

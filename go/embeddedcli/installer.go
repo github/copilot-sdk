@@ -5,7 +5,7 @@ import "github.com/github/copilot-sdk/go/internal/embeddedcli"
 // Config defines the inputs used to install and locate the embedded Copilot CLI.
 //
 // Cli and CliHash are required. If Dir is empty, the CLI is installed into the
-// system temp directory. Version is used to suffix the installed binary name to
+// system cache directory. Version is used to suffix the installed binary name to
 // allow multiple versions to coexist. License, when provided, is written next
 // to the installed binary.
 type Config = embeddedcli.Config

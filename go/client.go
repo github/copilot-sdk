@@ -103,7 +103,7 @@ type Client struct {
 //	})
 func NewClient(options *ClientOptions) *Client {
 	opts := ClientOptions{
-		CLIPath:  "copilot",
+		CLIPath:  "",
 		Cwd:      "",
 		Port:     0,
 		LogLevel: "info",
@@ -183,9 +183,6 @@ func NewClient(options *ClientOptions) *Client {
 	// Check environment variable for CLI path
 	if cliPath := os.Getenv("COPILOT_CLI_PATH"); cliPath != "" {
 		opts.CLIPath = cliPath
-	} else if embeddedPath := embeddedcli.Path(); embeddedPath != "" && opts.CLIPath == "copilot" {
-		// Use the unpacked embedded CLI if available and no custom path was set
-		opts.CLIPath = embeddedPath
 	}
 
 	client.options = opts
@@ -1317,6 +1314,15 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 // This spawns the CLI server as a subprocess using the configured transport
 // mode (stdio or TCP).
 func (c *Client) startCLIServer(ctx context.Context) error {
+	cliPath := c.options.CLIPath
+	if cliPath == "" {
+		// If no CLI path is provided, attempt to use the embedded CLI if available
+		cliPath = embeddedcli.Path()
+	}
+	if cliPath == "" {
+		// Default to "copilot" in PATH if no embedded CLI is available and no custom path is set
+		cliPath = "copilot"
+	}
 	args := []string{"--headless", "--no-auto-update", "--log-level", c.options.LogLevel}
 
 	// Choose transport mode
@@ -1343,10 +1349,10 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 
 	// If CLIPath is a .js file, run it with node
 	// Note we can't rely on the shebang as Windows doesn't support it
-	command := c.options.CLIPath
-	if strings.HasSuffix(c.options.CLIPath, ".js") {
+	command := cliPath
+	if strings.HasSuffix(cliPath, ".js") {
 		command = "node"
-		args = append([]string{c.options.CLIPath}, args...)
+		args = append([]string{cliPath}, args...)
 	}
 
 	c.process = exec.CommandContext(ctx, command, args...)
