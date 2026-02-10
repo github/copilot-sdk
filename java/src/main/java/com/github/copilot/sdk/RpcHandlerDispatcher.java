@@ -82,7 +82,7 @@ final class RpcHandlerDispatcher {
 
             CopilotSession session = sessions.get(sessionId);
             if (session != null && eventNode != null) {
-                AbstractSessionEvent event = SessionEventParser.parse(eventNode.toString());
+                AbstractSessionEvent event = SessionEventParser.parse(eventNode);
                 if (event != null) {
                     session.dispatchEvent(event);
                 }

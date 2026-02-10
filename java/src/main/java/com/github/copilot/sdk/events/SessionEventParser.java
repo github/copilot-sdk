@@ -89,36 +89,6 @@ public class SessionEventParser {
     }
 
     /**
-     * Parses a JSON string into the appropriate SessionEvent subclass.
-     *
-     * @param json
-     *            the JSON string representing an event
-     * @return the parsed event, or {@code null} if parsing fails or type is unknown
-     */
-    public static AbstractSessionEvent parse(String json) {
-        try {
-            JsonNode node = MAPPER.readTree(json);
-            String type = node.has("type") ? node.get("type").asText() : null;
-
-            if (type == null) {
-                LOG.warning("Missing 'type' field in event: " + json);
-                return null;
-            }
-
-            Class<? extends AbstractSessionEvent> eventClass = TYPE_MAP.get(type);
-            if (eventClass == null) {
-                LOG.fine("Unknown event type: " + type);
-                return null;
-            }
-
-            return MAPPER.treeToValue(node, eventClass);
-        } catch (Exception e) {
-            LOG.log(Level.SEVERE, "Failed to parse session event", e);
-            return null;
-        }
-    }
-
-    /**
      * Parses a JsonNode into the appropriate SessionEvent subclass.
      *
      * @param node

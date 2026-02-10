@@ -6,10 +6,14 @@ package com.github.copilot.sdk;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.junit.jupiter.api.Test;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.github.copilot.sdk.events.*;
 
@@ -22,12 +26,23 @@ import com.github.copilot.sdk.events.*;
  */
 public class SessionEventParserTest {
 
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    /**
+     * Helper to convert a JSON string to a JsonNode and parse via
+     * {@link SessionEventParser#parse(JsonNode)}.
+     */
+    private static AbstractSessionEvent parseJson(String json) throws Exception {
+        JsonNode node = MAPPER.readTree(json);
+        return SessionEventParser.parse(node);
+    }
+
     // =========================================================================
     // Session Events
     // =========================================================================
 
     @Test
-    void testParseSessionStartEvent() {
+    void testParseSessionStartEvent() throws Exception {
         String json = """
                 {
                     "type": "session.start",
@@ -38,7 +53,7 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(SessionStartEvent.class, event);
         assertEquals("session.start", event.getType());
@@ -48,7 +63,7 @@ public class SessionEventParserTest {
     }
 
     @Test
-    void testParseSessionResumeEvent() {
+    void testParseSessionResumeEvent() throws Exception {
         String json = """
                 {
                     "type": "session.resume",
@@ -58,14 +73,14 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(SessionResumeEvent.class, event);
         assertEquals("session.resume", event.getType());
     }
 
     @Test
-    void testParseSessionErrorEvent() {
+    void testParseSessionErrorEvent() throws Exception {
         String json = """
                 {
                     "type": "session.error",
@@ -77,7 +92,7 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(SessionErrorEvent.class, event);
         assertEquals("session.error", event.getType());
@@ -89,7 +104,7 @@ public class SessionEventParserTest {
     }
 
     @Test
-    void testParseSessionIdleEvent() {
+    void testParseSessionIdleEvent() throws Exception {
         String json = """
                 {
                     "type": "session.idle",
@@ -97,14 +112,14 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(SessionIdleEvent.class, event);
         assertEquals("session.idle", event.getType());
     }
 
     @Test
-    void testParseSessionInfoEvent() {
+    void testParseSessionInfoEvent() throws Exception {
         String json = """
                 {
                     "type": "session.info",
@@ -115,7 +130,7 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(SessionInfoEvent.class, event);
         assertEquals("session.info", event.getType());
@@ -126,7 +141,7 @@ public class SessionEventParserTest {
     }
 
     @Test
-    void testParseSessionModelChangeEvent() {
+    void testParseSessionModelChangeEvent() throws Exception {
         String json = """
                 {
                     "type": "session.model_change",
@@ -137,14 +152,14 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(SessionModelChangeEvent.class, event);
         assertEquals("session.model_change", event.getType());
     }
 
     @Test
-    void testParseSessionHandoffEvent() {
+    void testParseSessionHandoffEvent() throws Exception {
         String json = """
                 {
                     "type": "session.handoff",
@@ -154,14 +169,14 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(SessionHandoffEvent.class, event);
         assertEquals("session.handoff", event.getType());
     }
 
     @Test
-    void testParseSessionTruncationEvent() {
+    void testParseSessionTruncationEvent() throws Exception {
         String json = """
                 {
                     "type": "session.truncation",
@@ -171,14 +186,14 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(SessionTruncationEvent.class, event);
         assertEquals("session.truncation", event.getType());
     }
 
     @Test
-    void testParseSessionSnapshotRewindEvent() {
+    void testParseSessionSnapshotRewindEvent() throws Exception {
         String json = """
                 {
                     "type": "session.snapshot_rewind",
@@ -188,14 +203,14 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(SessionSnapshotRewindEvent.class, event);
         assertEquals("session.snapshot_rewind", event.getType());
     }
 
     @Test
-    void testParseSessionUsageInfoEvent() {
+    void testParseSessionUsageInfoEvent() throws Exception {
         String json = """
                 {
                     "type": "session.usage_info",
@@ -205,14 +220,14 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(SessionUsageInfoEvent.class, event);
         assertEquals("session.usage_info", event.getType());
     }
 
     @Test
-    void testParseSessionCompactionStartEvent() {
+    void testParseSessionCompactionStartEvent() throws Exception {
         String json = """
                 {
                     "type": "session.compaction_start",
@@ -220,14 +235,14 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(SessionCompactionStartEvent.class, event);
         assertEquals("session.compaction_start", event.getType());
     }
 
     @Test
-    void testParseSessionCompactionCompleteEvent() {
+    void testParseSessionCompactionCompleteEvent() throws Exception {
         String json = """
                 {
                     "type": "session.compaction_complete",
@@ -235,7 +250,7 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(SessionCompactionCompleteEvent.class, event);
         assertEquals("session.compaction_complete", event.getType());
@@ -246,7 +261,7 @@ public class SessionEventParserTest {
     // =========================================================================
 
     @Test
-    void testParseUserMessageEvent() {
+    void testParseUserMessageEvent() throws Exception {
         String json = """
                 {
                     "type": "user.message",
@@ -257,14 +272,14 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(UserMessageEvent.class, event);
         assertEquals("user.message", event.getType());
     }
 
     @Test
-    void testParsePendingMessagesModifiedEvent() {
+    void testParsePendingMessagesModifiedEvent() throws Exception {
         String json = """
                 {
                     "type": "pending_messages.modified",
@@ -274,7 +289,7 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(PendingMessagesModifiedEvent.class, event);
         assertEquals("pending_messages.modified", event.getType());
@@ -285,7 +300,7 @@ public class SessionEventParserTest {
     // =========================================================================
 
     @Test
-    void testParseAssistantTurnStartEvent() {
+    void testParseAssistantTurnStartEvent() throws Exception {
         String json = """
                 {
                     "type": "assistant.turn_start",
@@ -295,7 +310,7 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(AssistantTurnStartEvent.class, event);
         assertEquals("assistant.turn_start", event.getType());
@@ -305,7 +320,7 @@ public class SessionEventParserTest {
     }
 
     @Test
-    void testParseAssistantIntentEvent() {
+    void testParseAssistantIntentEvent() throws Exception {
         String json = """
                 {
                     "type": "assistant.intent",
@@ -315,14 +330,14 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(AssistantIntentEvent.class, event);
         assertEquals("assistant.intent", event.getType());
     }
 
     @Test
-    void testParseAssistantReasoningEvent() {
+    void testParseAssistantReasoningEvent() throws Exception {
         String json = """
                 {
                     "type": "assistant.reasoning",
@@ -333,7 +348,7 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(AssistantReasoningEvent.class, event);
         assertEquals("assistant.reasoning", event.getType());
@@ -344,7 +359,7 @@ public class SessionEventParserTest {
     }
 
     @Test
-    void testParseAssistantReasoningDeltaEvent() {
+    void testParseAssistantReasoningDeltaEvent() throws Exception {
         String json = """
                 {
                     "type": "assistant.reasoning_delta",
@@ -355,14 +370,14 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(AssistantReasoningDeltaEvent.class, event);
         assertEquals("assistant.reasoning_delta", event.getType());
     }
 
     @Test
-    void testParseAssistantMessageEvent() {
+    void testParseAssistantMessageEvent() throws Exception {
         String json = """
                 {
                     "type": "assistant.message",
@@ -373,7 +388,7 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(AssistantMessageEvent.class, event);
         assertEquals("assistant.message", event.getType());
@@ -383,7 +398,7 @@ public class SessionEventParserTest {
     }
 
     @Test
-    void testParseAssistantMessageDeltaEvent() {
+    void testParseAssistantMessageDeltaEvent() throws Exception {
         String json = """
                 {
                     "type": "assistant.message_delta",
@@ -394,14 +409,14 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(AssistantMessageDeltaEvent.class, event);
         assertEquals("assistant.message_delta", event.getType());
     }
 
     @Test
-    void testParseAssistantTurnEndEvent() {
+    void testParseAssistantTurnEndEvent() throws Exception {
         String json = """
                 {
                     "type": "assistant.turn_end",
@@ -411,14 +426,14 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(AssistantTurnEndEvent.class, event);
         assertEquals("assistant.turn_end", event.getType());
     }
 
     @Test
-    void testParseAssistantUsageEvent() {
+    void testParseAssistantUsageEvent() throws Exception {
         String json = """
                 {
                     "type": "assistant.usage",
@@ -430,7 +445,7 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(AssistantUsageEvent.class, event);
         assertEquals("assistant.usage", event.getType());
@@ -441,7 +456,7 @@ public class SessionEventParserTest {
     // =========================================================================
 
     @Test
-    void testParseToolUserRequestedEvent() {
+    void testParseToolUserRequestedEvent() throws Exception {
         String json = """
                 {
                     "type": "tool.user_requested",
@@ -452,14 +467,14 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(ToolUserRequestedEvent.class, event);
         assertEquals("tool.user_requested", event.getType());
     }
 
     @Test
-    void testParseToolExecutionStartEvent() {
+    void testParseToolExecutionStartEvent() throws Exception {
         String json = """
                 {
                     "type": "tool.execution_start",
@@ -470,14 +485,14 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(ToolExecutionStartEvent.class, event);
         assertEquals("tool.execution_start", event.getType());
     }
 
     @Test
-    void testParseToolExecutionPartialResultEvent() {
+    void testParseToolExecutionPartialResultEvent() throws Exception {
         String json = """
                 {
                     "type": "tool.execution_partial_result",
@@ -488,14 +503,14 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(ToolExecutionPartialResultEvent.class, event);
         assertEquals("tool.execution_partial_result", event.getType());
     }
 
     @Test
-    void testParseToolExecutionProgressEvent() {
+    void testParseToolExecutionProgressEvent() throws Exception {
         String json = """
                 {
                     "type": "tool.execution_progress",
@@ -506,14 +521,14 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(ToolExecutionProgressEvent.class, event);
         assertEquals("tool.execution_progress", event.getType());
     }
 
     @Test
-    void testParseToolExecutionCompleteEvent() {
+    void testParseToolExecutionCompleteEvent() throws Exception {
         String json = """
                 {
                     "type": "tool.execution_complete",
@@ -528,7 +543,7 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(ToolExecutionCompleteEvent.class, event);
         assertEquals("tool.execution_complete", event.getType());
@@ -542,7 +557,7 @@ public class SessionEventParserTest {
     // =========================================================================
 
     @Test
-    void testParseSubagentStartedEvent() {
+    void testParseSubagentStartedEvent() throws Exception {
         String json = """
                 {
                     "type": "subagent.started",
@@ -555,7 +570,7 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(SubagentStartedEvent.class, event);
         assertEquals("subagent.started", event.getType());
@@ -566,7 +581,7 @@ public class SessionEventParserTest {
     }
 
     @Test
-    void testParseSubagentCompletedEvent() {
+    void testParseSubagentCompletedEvent() throws Exception {
         String json = """
                 {
                     "type": "subagent.completed",
@@ -577,14 +592,14 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(SubagentCompletedEvent.class, event);
         assertEquals("subagent.completed", event.getType());
     }
 
     @Test
-    void testParseSubagentFailedEvent() {
+    void testParseSubagentFailedEvent() throws Exception {
         String json = """
                 {
                     "type": "subagent.failed",
@@ -595,14 +610,14 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(SubagentFailedEvent.class, event);
         assertEquals("subagent.failed", event.getType());
     }
 
     @Test
-    void testParseSubagentSelectedEvent() {
+    void testParseSubagentSelectedEvent() throws Exception {
         String json = """
                 {
                     "type": "subagent.selected",
@@ -612,7 +627,7 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(SubagentSelectedEvent.class, event);
         assertEquals("subagent.selected", event.getType());
@@ -623,7 +638,7 @@ public class SessionEventParserTest {
     // =========================================================================
 
     @Test
-    void testParseHookStartEvent() {
+    void testParseHookStartEvent() throws Exception {
         String json = """
                 {
                     "type": "hook.start",
@@ -635,7 +650,7 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(HookStartEvent.class, event);
         assertEquals("hook.start", event.getType());
@@ -646,7 +661,7 @@ public class SessionEventParserTest {
     }
 
     @Test
-    void testParseHookEndEvent() {
+    void testParseHookEndEvent() throws Exception {
         String json = """
                 {
                     "type": "hook.end",
@@ -657,7 +672,7 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(HookEndEvent.class, event);
         assertEquals("hook.end", event.getType());
@@ -668,7 +683,7 @@ public class SessionEventParserTest {
     // =========================================================================
 
     @Test
-    void testParseAbortEvent() {
+    void testParseAbortEvent() throws Exception {
         String json = """
                 {
                     "type": "abort",
@@ -678,14 +693,14 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(AbortEvent.class, event);
         assertEquals("abort", event.getType());
     }
 
     @Test
-    void testParseSystemMessageEvent() {
+    void testParseSystemMessageEvent() throws Exception {
         String json = """
                 {
                     "type": "system.message",
@@ -695,14 +710,14 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(SystemMessageEvent.class, event);
         assertEquals("system.message", event.getType());
     }
 
     @Test
-    void testParseSessionShutdownEvent() {
+    void testParseSessionShutdownEvent() throws Exception {
         String json = """
                 {
                     "type": "session.shutdown",
@@ -722,7 +737,7 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(SessionShutdownEvent.class, event);
         assertEquals("session.shutdown", event.getType());
@@ -736,7 +751,7 @@ public class SessionEventParserTest {
     }
 
     @Test
-    void testParseSkillInvokedEvent() {
+    void testParseSkillInvokedEvent() throws Exception {
         String json = """
                 {
                     "type": "skill.invoked",
@@ -749,7 +764,7 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event);
         assertInstanceOf(SkillInvokedEvent.class, event);
         assertEquals("skill.invoked", event.getType());
@@ -767,7 +782,7 @@ public class SessionEventParserTest {
     // =========================================================================
 
     @Test
-    void testParseUnknownEventType() {
+    void testParseUnknownEventType() throws Exception {
         // Unknown types log at FINE level, no need to suppress
         String json = """
                 {
@@ -776,12 +791,12 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNull(event, "Unknown event types should return null");
     }
 
     @Test
-    void testParseMissingTypeField() {
+    void testParseMissingTypeField() throws Exception {
         // Suppress logging for this test since missing type logs a WARNING
         Logger parserLogger = Logger.getLogger(SessionEventParser.class.getName());
         Level originalLevel = parserLogger.getLevel();
@@ -796,7 +811,7 @@ public class SessionEventParserTest {
                     }
                     """;
 
-            AbstractSessionEvent event = SessionEventParser.parse(json);
+            AbstractSessionEvent event = parseJson(json);
             assertNull(event, "Events without type field should return null");
         } finally {
             parserLogger.setLevel(originalLevel);
@@ -804,7 +819,7 @@ public class SessionEventParserTest {
     }
 
     @Test
-    void testParseEventWithUnknownFields() {
+    void testParseEventWithUnknownFields() throws Exception {
         // Should not fail when there are extra unknown fields
         String json = """
                 {
@@ -817,30 +832,13 @@ public class SessionEventParserTest {
                 }
                 """;
 
-        AbstractSessionEvent event = SessionEventParser.parse(json);
+        AbstractSessionEvent event = parseJson(json);
         assertNotNull(event, "Events with unknown fields should still parse");
         assertInstanceOf(SessionIdleEvent.class, event);
     }
 
     @Test
-    void testParseInvalidJson() {
-        // Suppress logging for this test since invalid JSON logs a SEVERE error
-        Logger parserLogger = Logger.getLogger(SessionEventParser.class.getName());
-        Level originalLevel = parserLogger.getLevel();
-        parserLogger.setLevel(Level.OFF);
-
-        try {
-            String json = "{ this is not valid json }";
-
-            AbstractSessionEvent event = SessionEventParser.parse(json);
-            assertNull(event, "Invalid JSON should return null");
-        } finally {
-            parserLogger.setLevel(originalLevel);
-        }
-    }
-
-    @Test
-    void testParseEmptyJson() {
+    void testParseEmptyJson() throws Exception {
         // Suppress logging for this test since empty JSON logs a WARNING
         Logger parserLogger = Logger.getLogger(SessionEventParser.class.getName());
         Level originalLevel = parserLogger.getLevel();
@@ -849,10 +847,1194 @@ public class SessionEventParserTest {
         try {
             String json = "{}";
 
-            AbstractSessionEvent event = SessionEventParser.parse(json);
+            AbstractSessionEvent event = parseJson(json);
             assertNull(event, "Empty JSON should return null due to missing type");
         } finally {
             parserLogger.setLevel(originalLevel);
         }
+    }
+
+    // =========================================================================
+    // All event types in one test
+    // =========================================================================
+
+    @Test
+    void testParseAllEventTypes() throws Exception {
+        String[] types = {"session.start", "session.resume", "session.error", "session.idle", "session.info",
+                "session.model_change", "session.handoff", "session.truncation", "session.snapshot_rewind",
+                "session.usage_info", "session.compaction_start", "session.compaction_complete", "user.message",
+                "pending_messages.modified", "assistant.turn_start", "assistant.intent", "assistant.reasoning",
+                "assistant.reasoning_delta", "assistant.message", "assistant.message_delta", "assistant.turn_end",
+                "assistant.usage", "abort", "tool.user_requested", "tool.execution_start",
+                "tool.execution_partial_result", "tool.execution_progress", "tool.execution_complete",
+                "subagent.started", "subagent.completed", "subagent.failed", "subagent.selected", "hook.start",
+                "hook.end", "system.message", "session.shutdown", "skill.invoked"};
+
+        for (String type : types) {
+            String json = """
+                    {
+                        "type": "%s",
+                        "data": {}
+                    }
+                    """.formatted(type);
+            AbstractSessionEvent event = parseJson(json);
+            assertNotNull(event, "Event type '%s' should parse".formatted(type));
+            assertEquals(type, event.getType(), "Parsed type should match for '%s'".formatted(type));
+        }
+    }
+
+    // =========================================================================
+    // AbstractSessionEvent base fields
+    // =========================================================================
+
+    @Test
+    void testParseBaseFieldsId() throws Exception {
+        String uuid = "550e8400-e29b-41d4-a716-446655440000";
+        String json = """
+                {
+                    "type": "session.idle",
+                    "id": "%s",
+                    "data": {}
+                }
+                """.formatted(uuid);
+
+        AbstractSessionEvent event = parseJson(json);
+        assertNotNull(event);
+        assertEquals(UUID.fromString(uuid), event.getId());
+    }
+
+    @Test
+    void testParseBaseFieldsParentId() throws Exception {
+        String parentUuid = "660e8400-e29b-41d4-a716-446655440001";
+        String json = """
+                {
+                    "type": "session.idle",
+                    "parentId": "%s",
+                    "data": {}
+                }
+                """.formatted(parentUuid);
+
+        AbstractSessionEvent event = parseJson(json);
+        assertNotNull(event);
+        assertEquals(UUID.fromString(parentUuid), event.getParentId());
+    }
+
+    @Test
+    void testParseBaseFieldsEphemeral() throws Exception {
+        String json = """
+                {
+                    "type": "session.idle",
+                    "ephemeral": true,
+                    "data": {}
+                }
+                """;
+
+        AbstractSessionEvent event = parseJson(json);
+        assertNotNull(event);
+        assertTrue(event.getEphemeral());
+    }
+
+    @Test
+    void testParseBaseFieldsTimestamp() throws Exception {
+        String json = """
+                {
+                    "type": "session.idle",
+                    "timestamp": "2025-01-15T10:30:00Z",
+                    "data": {}
+                }
+                """;
+
+        AbstractSessionEvent event = parseJson(json);
+        assertNotNull(event);
+        assertNotNull(event.getTimestamp());
+    }
+
+    @Test
+    void testParseBaseFieldsAllTogether() throws Exception {
+        String uuid = "550e8400-e29b-41d4-a716-446655440000";
+        String parentUuid = "660e8400-e29b-41d4-a716-446655440001";
+        String json = """
+                {
+                    "type": "assistant.message",
+                    "id": "%s",
+                    "parentId": "%s",
+                    "ephemeral": false,
+                    "timestamp": "2025-06-15T12:00:00+02:00",
+                    "data": {
+                        "content": "Hello"
+                    }
+                }
+                """.formatted(uuid, parentUuid);
+
+        AbstractSessionEvent event = parseJson(json);
+        assertNotNull(event);
+        assertEquals(UUID.fromString(uuid), event.getId());
+        assertEquals(UUID.fromString(parentUuid), event.getParentId());
+        assertFalse(event.getEphemeral());
+        assertNotNull(event.getTimestamp());
+        assertInstanceOf(AssistantMessageEvent.class, event);
+        assertEquals("Hello", ((AssistantMessageEvent) event).getData().getContent());
+    }
+
+    @Test
+    void testParseBaseFieldsNullWhenAbsent() throws Exception {
+        String json = """
+                {
+                    "type": "session.idle",
+                    "data": {}
+                }
+                """;
+
+        AbstractSessionEvent event = parseJson(json);
+        assertNotNull(event);
+        assertNull(event.getId());
+        assertNull(event.getParentId());
+        assertNull(event.getEphemeral());
+        assertNull(event.getTimestamp());
+    }
+
+    // =========================================================================
+    // Rich data field assertions
+    // =========================================================================
+
+    @Test
+    void testSessionStartEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "session.start",
+                    "data": {
+                        "sessionId": "sess-full",
+                        "version": 2.0,
+                        "producer": "copilot-cli",
+                        "copilotVersion": "1.2.3",
+                        "startTime": "2025-03-01T08:00:00Z",
+                        "selectedModel": "gpt-4-turbo"
+                    }
+                }
+                """;
+
+        var event = (SessionStartEvent) parseJson(json);
+        assertNotNull(event);
+        var data = event.getData();
+        assertEquals("sess-full", data.getSessionId());
+        assertEquals(2.0, data.getVersion());
+        assertEquals("copilot-cli", data.getProducer());
+        assertEquals("1.2.3", data.getCopilotVersion());
+        assertNotNull(data.getStartTime());
+        assertEquals("gpt-4-turbo", data.getSelectedModel());
+    }
+
+    @Test
+    void testSessionResumeEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "session.resume",
+                    "data": {
+                        "resumeTime": "2025-04-10T09:30:00Z",
+                        "eventCount": 42
+                    }
+                }
+                """;
+
+        var event = (SessionResumeEvent) parseJson(json);
+        assertNotNull(event);
+        var data = event.getData();
+        assertNotNull(data.getResumeTime());
+        assertEquals(42.0, data.getEventCount());
+    }
+
+    @Test
+    void testSessionErrorEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "session.error",
+                    "data": {
+                        "errorType": "InternalError",
+                        "message": "Something went wrong",
+                        "stack": "at line 42",
+                        "statusCode": 500,
+                        "providerCallId": "prov-err-1"
+                    }
+                }
+                """;
+
+        var event = (SessionErrorEvent) parseJson(json);
+        assertNotNull(event);
+        var data = event.getData();
+        assertEquals("InternalError", data.getErrorType());
+        assertEquals("Something went wrong", data.getMessage());
+        assertEquals("at line 42", data.getStack());
+        assertEquals(500, data.getStatusCode());
+        assertEquals("prov-err-1", data.getProviderCallId());
+    }
+
+    @Test
+    void testSessionModelChangeEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "session.model_change",
+                    "data": {
+                        "previousModel": "gpt-4",
+                        "newModel": "gpt-4o"
+                    }
+                }
+                """;
+
+        var event = (SessionModelChangeEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals("gpt-4", event.getData().getPreviousModel());
+        assertEquals("gpt-4o", event.getData().getNewModel());
+    }
+
+    @Test
+    void testSessionHandoffEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "session.handoff",
+                    "data": {
+                        "handoffTime": "2025-05-01T10:00:00Z",
+                        "sourceType": "cli",
+                        "repository": {
+                            "owner": "my-org",
+                            "name": "my-repo",
+                            "branch": "main"
+                        },
+                        "context": "additional context",
+                        "summary": "handoff summary",
+                        "remoteSessionId": "remote-sess-1"
+                    }
+                }
+                """;
+
+        var event = (SessionHandoffEvent) parseJson(json);
+        assertNotNull(event);
+        var data = event.getData();
+        assertNotNull(data.getHandoffTime());
+        assertEquals("cli", data.getSourceType());
+        assertEquals("additional context", data.getContext());
+        assertEquals("handoff summary", data.getSummary());
+        assertEquals("remote-sess-1", data.getRemoteSessionId());
+        assertNotNull(data.getRepository());
+        assertEquals("my-org", data.getRepository().getOwner());
+        assertEquals("my-repo", data.getRepository().getName());
+        assertEquals("main", data.getRepository().getBranch());
+    }
+
+    @Test
+    void testSessionTruncationEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "session.truncation",
+                    "data": {
+                        "tokenLimit": 128000,
+                        "preTruncationTokensInMessages": 150000,
+                        "preTruncationMessagesLength": 100,
+                        "postTruncationTokensInMessages": 120000,
+                        "postTruncationMessagesLength": 80,
+                        "tokensRemovedDuringTruncation": 30000,
+                        "messagesRemovedDuringTruncation": 20,
+                        "performedBy": "system"
+                    }
+                }
+                """;
+
+        var event = (SessionTruncationEvent) parseJson(json);
+        assertNotNull(event);
+        var data = event.getData();
+        assertEquals(128000.0, data.getTokenLimit());
+        assertEquals(150000.0, data.getPreTruncationTokensInMessages());
+        assertEquals(100.0, data.getPreTruncationMessagesLength());
+        assertEquals(120000.0, data.getPostTruncationTokensInMessages());
+        assertEquals(80.0, data.getPostTruncationMessagesLength());
+        assertEquals(30000.0, data.getTokensRemovedDuringTruncation());
+        assertEquals(20.0, data.getMessagesRemovedDuringTruncation());
+        assertEquals("system", data.getPerformedBy());
+    }
+
+    @Test
+    void testSessionUsageInfoEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "session.usage_info",
+                    "data": {
+                        "tokenLimit": 128000,
+                        "currentTokens": 50000,
+                        "messagesLength": 25
+                    }
+                }
+                """;
+
+        var event = (SessionUsageInfoEvent) parseJson(json);
+        assertNotNull(event);
+        var data = event.getData();
+        assertEquals(128000.0, data.getTokenLimit());
+        assertEquals(50000.0, data.getCurrentTokens());
+        assertEquals(25.0, data.getMessagesLength());
+    }
+
+    @Test
+    void testSessionCompactionCompleteEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "session.compaction_complete",
+                    "data": {
+                        "success": true,
+                        "error": null,
+                        "preCompactionTokens": 150000.0,
+                        "postCompactionTokens": 60000.0,
+                        "preCompactionMessagesLength": 100.0,
+                        "messagesRemoved": 50.0,
+                        "tokensRemoved": 90000.0,
+                        "summaryContent": "Compacted conversation",
+                        "checkpointNumber": 3.0,
+                        "checkpointPath": "/checkpoints/3",
+                        "compactionTokensUsed": {
+                            "input": 1000,
+                            "output": 500,
+                            "cachedInput": 200
+                        },
+                        "requestId": "req-compact-1"
+                    }
+                }
+                """;
+
+        var event = (SessionCompactionCompleteEvent) parseJson(json);
+        assertNotNull(event);
+        var data = event.getData();
+        assertTrue(data.isSuccess());
+        assertNull(data.getError());
+        assertEquals(150000.0, data.getPreCompactionTokens());
+        assertEquals(60000.0, data.getPostCompactionTokens());
+        assertEquals(100.0, data.getPreCompactionMessagesLength());
+        assertEquals(50.0, data.getMessagesRemoved());
+        assertEquals(90000.0, data.getTokensRemoved());
+        assertEquals("Compacted conversation", data.getSummaryContent());
+        assertEquals(3.0, data.getCheckpointNumber());
+        assertEquals("/checkpoints/3", data.getCheckpointPath());
+        assertEquals("req-compact-1", data.getRequestId());
+
+        var tokens = data.getCompactionTokensUsed();
+        assertNotNull(tokens);
+        assertEquals(1000.0, tokens.getInput());
+        assertEquals(500.0, tokens.getOutput());
+        assertEquals(200.0, tokens.getCachedInput());
+    }
+
+    @Test
+    void testSessionShutdownEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "session.shutdown",
+                    "data": {
+                        "shutdownType": "error",
+                        "errorReason": "OOM",
+                        "totalPremiumRequests": 10,
+                        "totalApiDurationMs": 5000.5,
+                        "sessionStartTime": 1700000000000,
+                        "codeChanges": {
+                            "linesAdded": 50,
+                            "linesRemoved": 20,
+                            "filesModified": ["a.java", "b.java", "c.java"]
+                        },
+                        "modelMetrics": {
+                            "avgLatency": 200
+                        },
+                        "currentModel": "gpt-4-turbo"
+                    }
+                }
+                """;
+
+        var event = (SessionShutdownEvent) parseJson(json);
+        assertNotNull(event);
+        var data = event.getData();
+        assertEquals(SessionShutdownEvent.ShutdownType.ERROR, data.getShutdownType());
+        assertEquals("OOM", data.getErrorReason());
+        assertEquals(10.0, data.getTotalPremiumRequests());
+        assertEquals(5000.5, data.getTotalApiDurationMs());
+        assertEquals(1700000000000.0, data.getSessionStartTime());
+        assertEquals("gpt-4-turbo", data.getCurrentModel());
+        assertNotNull(data.getModelMetrics());
+
+        var changes = data.getCodeChanges();
+        assertNotNull(changes);
+        assertEquals(50.0, changes.getLinesAdded());
+        assertEquals(20.0, changes.getLinesRemoved());
+        assertNotNull(changes.getFilesModified());
+        assertEquals(3, changes.getFilesModified().size());
+        assertEquals("a.java", changes.getFilesModified().get(0));
+    }
+
+    // =========================================================================
+    // Assistant events - rich field assertions
+    // =========================================================================
+
+    @Test
+    void testAssistantMessageEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "assistant.message",
+                    "data": {
+                        "messageId": "msg-rich",
+                        "content": "Full response",
+                        "toolRequests": [
+                            {
+                                "toolCallId": "tc-1",
+                                "name": "read_file",
+                                "arguments": {"path": "/tmp/file.txt"}
+                            },
+                            {
+                                "toolCallId": "tc-2",
+                                "name": "write_file",
+                                "arguments": {"path": "/tmp/out.txt", "content": "hello"}
+                            }
+                        ],
+                        "parentToolCallId": "parent-tc",
+                        "reasoningOpaque": "opaque-data",
+                        "reasoningText": "My reasoning",
+                        "encryptedContent": "enc123"
+                    }
+                }
+                """;
+
+        var event = (AssistantMessageEvent) parseJson(json);
+        assertNotNull(event);
+        var data = event.getData();
+        assertEquals("msg-rich", data.getMessageId());
+        assertEquals("Full response", data.getContent());
+        assertEquals("parent-tc", data.getParentToolCallId());
+        assertEquals("opaque-data", data.getReasoningOpaque());
+        assertEquals("My reasoning", data.getReasoningText());
+        assertEquals("enc123", data.getEncryptedContent());
+
+        assertNotNull(data.getToolRequests());
+        assertEquals(2, data.getToolRequests().size());
+        assertEquals("tc-1", data.getToolRequests().get(0).getToolCallId());
+        assertEquals("read_file", data.getToolRequests().get(0).getName());
+        assertNotNull(data.getToolRequests().get(0).getArguments());
+        assertEquals("tc-2", data.getToolRequests().get(1).getToolCallId());
+        assertEquals("write_file", data.getToolRequests().get(1).getName());
+    }
+
+    @Test
+    void testAssistantMessageDeltaEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "assistant.message_delta",
+                    "data": {
+                        "messageId": "msg-delta-1",
+                        "deltaContent": "partial text",
+                        "totalResponseSizeBytes": 4096.0,
+                        "parentToolCallId": "ptc-1"
+                    }
+                }
+                """;
+
+        var event = (AssistantMessageDeltaEvent) parseJson(json);
+        assertNotNull(event);
+        var data = event.getData();
+        assertEquals("msg-delta-1", data.getMessageId());
+        assertEquals("partial text", data.getDeltaContent());
+        assertEquals(4096.0, data.getTotalResponseSizeBytes());
+        assertEquals("ptc-1", data.getParentToolCallId());
+    }
+
+    @Test
+    void testAssistantUsageEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "assistant.usage",
+                    "data": {
+                        "model": "gpt-4-turbo",
+                        "inputTokens": 500,
+                        "outputTokens": 200,
+                        "cacheReadTokens": 50,
+                        "cacheWriteTokens": 150,
+                        "cost": 0.05,
+                        "duration": 1234.5,
+                        "initiator": "user",
+                        "apiCallId": "api-1",
+                        "providerCallId": "prov-1",
+                        "parentToolCallId": "ptc-usage",
+                        "quotaSnapshots": {
+                            "premium": 100,
+                            "standard": 500
+                        }
+                    }
+                }
+                """;
+
+        var event = (AssistantUsageEvent) parseJson(json);
+        assertNotNull(event);
+        var data = event.getData();
+        assertEquals("gpt-4-turbo", data.getModel());
+        assertEquals(500.0, data.getInputTokens());
+        assertEquals(200.0, data.getOutputTokens());
+        assertEquals(50.0, data.getCacheReadTokens());
+        assertEquals(150.0, data.getCacheWriteTokens());
+        assertEquals(0.05, data.getCost());
+        assertEquals(1234.5, data.getDuration());
+        assertEquals("user", data.getInitiator());
+        assertEquals("api-1", data.getApiCallId());
+        assertEquals("prov-1", data.getProviderCallId());
+        assertEquals("ptc-usage", data.getParentToolCallId());
+        assertNotNull(data.getQuotaSnapshots());
+        assertEquals(2, data.getQuotaSnapshots().size());
+    }
+
+    @Test
+    void testAssistantReasoningDeltaEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "assistant.reasoning_delta",
+                    "data": {
+                        "reasoningId": "r-delta-1",
+                        "deltaContent": "thinking about..."
+                    }
+                }
+                """;
+
+        var event = (AssistantReasoningDeltaEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals("r-delta-1", event.getData().getReasoningId());
+        assertEquals("thinking about...", event.getData().getDeltaContent());
+    }
+
+    @Test
+    void testAssistantIntentEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "assistant.intent",
+                    "data": {
+                        "intent": "refactor_code"
+                    }
+                }
+                """;
+
+        var event = (AssistantIntentEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals("refactor_code", event.getData().getIntent());
+    }
+
+    @Test
+    void testAssistantTurnEndEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "assistant.turn_end",
+                    "data": {
+                        "turnId": "turn-end-1"
+                    }
+                }
+                """;
+
+        var event = (AssistantTurnEndEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals("turn-end-1", event.getData().getTurnId());
+    }
+
+    // =========================================================================
+    // Tool events - rich field assertions
+    // =========================================================================
+
+    @Test
+    void testToolExecutionStartEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "tool.execution_start",
+                    "data": {
+                        "toolCallId": "tc-start-1",
+                        "toolName": "mcp_read_file",
+                        "arguments": {"path": "/tmp/x.txt"},
+                        "mcpServerName": "filesystem",
+                        "mcpToolName": "read_file",
+                        "parentToolCallId": "ptc-exec"
+                    }
+                }
+                """;
+
+        var event = (ToolExecutionStartEvent) parseJson(json);
+        assertNotNull(event);
+        var data = event.getData();
+        assertEquals("tc-start-1", data.getToolCallId());
+        assertEquals("mcp_read_file", data.getToolName());
+        assertNotNull(data.getArguments());
+        assertEquals("filesystem", data.getMcpServerName());
+        assertEquals("read_file", data.getMcpToolName());
+        assertEquals("ptc-exec", data.getParentToolCallId());
+    }
+
+    @Test
+    void testToolExecutionCompleteEventWithError() throws Exception {
+        String json = """
+                {
+                    "type": "tool.execution_complete",
+                    "data": {
+                        "toolCallId": "tc-err-1",
+                        "success": false,
+                        "isUserRequested": true,
+                        "error": {
+                            "message": "File not found",
+                            "code": "ENOENT"
+                        },
+                        "toolTelemetry": {
+                            "duration": 50,
+                            "retries": 0
+                        },
+                        "parentToolCallId": "ptc-complete"
+                    }
+                }
+                """;
+
+        var event = (ToolExecutionCompleteEvent) parseJson(json);
+        assertNotNull(event);
+        var data = event.getData();
+        assertEquals("tc-err-1", data.getToolCallId());
+        assertFalse(data.isSuccess());
+        assertTrue(data.getIsUserRequested());
+        assertEquals("ptc-complete", data.getParentToolCallId());
+
+        assertNotNull(data.getError());
+        assertEquals("File not found", data.getError().getMessage());
+        assertEquals("ENOENT", data.getError().getCode());
+
+        assertNotNull(data.getToolTelemetry());
+        assertEquals(2, data.getToolTelemetry().size());
+    }
+
+    @Test
+    void testToolExecutionCompleteEventWithResult() throws Exception {
+        String json = """
+                {
+                    "type": "tool.execution_complete",
+                    "data": {
+                        "toolCallId": "tc-res-1",
+                        "success": true,
+                        "result": {
+                            "content": "file contents",
+                            "detailedContent": "full detailed contents"
+                        }
+                    }
+                }
+                """;
+
+        var event = (ToolExecutionCompleteEvent) parseJson(json);
+        assertNotNull(event);
+        var data = event.getData();
+        assertTrue(data.isSuccess());
+        assertNotNull(data.getResult());
+        assertEquals("file contents", data.getResult().getContent());
+        assertEquals("full detailed contents", data.getResult().getDetailedContent());
+        assertNull(data.getError());
+    }
+
+    @Test
+    void testToolExecutionPartialResultEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "tool.execution_partial_result",
+                    "data": {
+                        "toolCallId": "tc-partial-1",
+                        "partialOutput": "partial output data"
+                    }
+                }
+                """;
+
+        var event = (ToolExecutionPartialResultEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals("tc-partial-1", event.getData().getToolCallId());
+        assertEquals("partial output data", event.getData().getPartialOutput());
+    }
+
+    @Test
+    void testToolExecutionProgressEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "tool.execution_progress",
+                    "data": {
+                        "toolCallId": "tc-prog-1",
+                        "progressMessage": "50% done"
+                    }
+                }
+                """;
+
+        var event = (ToolExecutionProgressEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals("tc-prog-1", event.getData().getToolCallId());
+        assertEquals("50% done", event.getData().getProgressMessage());
+    }
+
+    @Test
+    void testToolUserRequestedEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "tool.user_requested",
+                    "data": {
+                        "toolCallId": "tc-ur-1",
+                        "toolName": "search_files",
+                        "arguments": {"query": "TODO"}
+                    }
+                }
+                """;
+
+        var event = (ToolUserRequestedEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals("tc-ur-1", event.getData().getToolCallId());
+        assertEquals("search_files", event.getData().getToolName());
+        assertNotNull(event.getData().getArguments());
+    }
+
+    // =========================================================================
+    // User events - rich field assertions
+    // =========================================================================
+
+    @Test
+    void testUserMessageEventAllFieldsWithAttachments() throws Exception {
+        String json = """
+                {
+                    "type": "user.message",
+                    "data": {
+                        "content": "Please review this file",
+                        "transformedContent": "Transformed: Please review this file",
+                        "source": "editor",
+                        "attachments": [
+                            {
+                                "type": "file",
+                                "path": "/src/Main.java",
+                                "filePath": "/full/src/Main.java",
+                                "displayName": "Main.java",
+                                "text": "public class Main {}",
+                                "selection": {
+                                    "start": { "line": 1, "character": 0 },
+                                    "end": { "line": 5, "character": 10 }
+                                }
+                            }
+                        ]
+                    }
+                }
+                """;
+
+        var event = (UserMessageEvent) parseJson(json);
+        assertNotNull(event);
+        var data = event.getData();
+        assertEquals("Please review this file", data.getContent());
+        assertEquals("Transformed: Please review this file", data.getTransformedContent());
+        assertEquals("editor", data.getSource());
+
+        assertNotNull(data.getAttachments());
+        assertEquals(1, data.getAttachments().size());
+
+        var att = data.getAttachments().get(0);
+        assertEquals("file", att.getType());
+        assertEquals("/src/Main.java", att.getPath());
+        assertEquals("/full/src/Main.java", att.getFilePath());
+        assertEquals("Main.java", att.getDisplayName());
+        assertEquals("public class Main {}", att.getText());
+
+        assertNotNull(att.getSelection());
+        assertNotNull(att.getSelection().getStart());
+        assertNotNull(att.getSelection().getEnd());
+        assertEquals(1, att.getSelection().getStart().getLine());
+        assertEquals(0, att.getSelection().getStart().getCharacter());
+        assertEquals(5, att.getSelection().getEnd().getLine());
+        assertEquals(10, att.getSelection().getEnd().getCharacter());
+    }
+
+    @Test
+    void testUserMessageEventNoAttachments() throws Exception {
+        String json = """
+                {
+                    "type": "user.message",
+                    "data": {
+                        "content": "Simple message"
+                    }
+                }
+                """;
+
+        var event = (UserMessageEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals("Simple message", event.getData().getContent());
+        assertNull(event.getData().getAttachments());
+    }
+
+    // =========================================================================
+    // Subagent events - rich field assertions
+    // =========================================================================
+
+    @Test
+    void testSubagentStartedEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "subagent.started",
+                    "data": {
+                        "toolCallId": "tc-sub-1",
+                        "agentName": "test-agent",
+                        "agentDisplayName": "Test Agent",
+                        "agentDescription": "A test subagent"
+                    }
+                }
+                """;
+
+        var event = (SubagentStartedEvent) parseJson(json);
+        assertNotNull(event);
+        var data = event.getData();
+        assertEquals("tc-sub-1", data.getToolCallId());
+        assertEquals("test-agent", data.getAgentName());
+        assertEquals("Test Agent", data.getAgentDisplayName());
+        assertEquals("A test subagent", data.getAgentDescription());
+    }
+
+    @Test
+    void testSubagentCompletedEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "subagent.completed",
+                    "data": {
+                        "toolCallId": "tc-sub-2",
+                        "agentName": "reviewer"
+                    }
+                }
+                """;
+
+        var event = (SubagentCompletedEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals("tc-sub-2", event.getData().getToolCallId());
+        assertEquals("reviewer", event.getData().getAgentName());
+    }
+
+    @Test
+    void testSubagentFailedEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "subagent.failed",
+                    "data": {
+                        "toolCallId": "tc-sub-3",
+                        "agentName": "broken-agent",
+                        "error": "Connection timeout"
+                    }
+                }
+                """;
+
+        var event = (SubagentFailedEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals("tc-sub-3", event.getData().getToolCallId());
+        assertEquals("broken-agent", event.getData().getAgentName());
+        assertEquals("Connection timeout", event.getData().getError());
+    }
+
+    @Test
+    void testSubagentSelectedEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "subagent.selected",
+                    "data": {
+                        "agentName": "best-agent",
+                        "agentDisplayName": "Best Agent",
+                        "tools": ["read", "write", "search"]
+                    }
+                }
+                """;
+
+        var event = (SubagentSelectedEvent) parseJson(json);
+        assertNotNull(event);
+        var data = event.getData();
+        assertEquals("best-agent", data.getAgentName());
+        assertEquals("Best Agent", data.getAgentDisplayName());
+        assertNotNull(data.getTools());
+        assertEquals(3, data.getTools().length);
+        assertEquals("read", data.getTools()[0]);
+        assertEquals("write", data.getTools()[1]);
+        assertEquals("search", data.getTools()[2]);
+    }
+
+    // =========================================================================
+    // Hook events - rich field assertions
+    // =========================================================================
+
+    @Test
+    void testHookStartEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "hook.start",
+                    "data": {
+                        "hookInvocationId": "hook-full-1",
+                        "hookType": "postToolUse",
+                        "input": {"toolName": "write_file", "result": "ok"}
+                    }
+                }
+                """;
+
+        var event = (HookStartEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals("hook-full-1", event.getData().getHookInvocationId());
+        assertEquals("postToolUse", event.getData().getHookType());
+        assertNotNull(event.getData().getInput());
+    }
+
+    @Test
+    void testHookEndEventWithError() throws Exception {
+        String json = """
+                {
+                    "type": "hook.end",
+                    "data": {
+                        "hookInvocationId": "hook-err-1",
+                        "hookType": "preToolUse",
+                        "output": null,
+                        "success": false,
+                        "error": {
+                            "message": "Hook validation failed",
+                            "stack": "at HookValidator.validate(line 10)"
+                        }
+                    }
+                }
+                """;
+
+        var event = (HookEndEvent) parseJson(json);
+        assertNotNull(event);
+        var data = event.getData();
+        assertEquals("hook-err-1", data.getHookInvocationId());
+        assertEquals("preToolUse", data.getHookType());
+        assertFalse(data.isSuccess());
+        assertNotNull(data.getError());
+        assertEquals("Hook validation failed", data.getError().getMessage());
+        assertEquals("at HookValidator.validate(line 10)", data.getError().getStack());
+    }
+
+    @Test
+    void testHookEndEventSuccess() throws Exception {
+        String json = """
+                {
+                    "type": "hook.end",
+                    "data": {
+                        "hookInvocationId": "hook-ok-1",
+                        "hookType": "preToolUse",
+                        "output": "approved",
+                        "success": true
+                    }
+                }
+                """;
+
+        var event = (HookEndEvent) parseJson(json);
+        assertNotNull(event);
+        assertTrue(event.getData().isSuccess());
+        assertNull(event.getData().getError());
+    }
+
+    // =========================================================================
+    // Other events - rich field assertions
+    // =========================================================================
+
+    @Test
+    void testAbortEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "abort",
+                    "data": {
+                        "reason": "user_cancelled"
+                    }
+                }
+                """;
+
+        var event = (AbortEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals("user_cancelled", event.getData().getReason());
+    }
+
+    @Test
+    void testSystemMessageEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "system.message",
+                    "data": {
+                        "content": "System notification",
+                        "type": "warning",
+                        "metadata": {
+                            "severity": "high",
+                            "source": "rate-limiter"
+                        }
+                    }
+                }
+                """;
+
+        var event = (SystemMessageEvent) parseJson(json);
+        assertNotNull(event);
+        var data = event.getData();
+        assertEquals("System notification", data.getContent());
+        assertEquals("warning", data.getType());
+        assertNotNull(data.getMetadata());
+        assertEquals(2, data.getMetadata().size());
+    }
+
+    @Test
+    void testSessionInfoEventAllFields() throws Exception {
+        String json = """
+                {
+                    "type": "session.info",
+                    "data": {
+                        "infoType": "model_selection",
+                        "message": "Using gpt-4-turbo for this task"
+                    }
+                }
+                """;
+
+        var event = (SessionInfoEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals("model_selection", event.getData().getInfoType());
+        assertEquals("Using gpt-4-turbo for this task", event.getData().getMessage());
+    }
+
+    // =========================================================================
+    // Null / missing data scenarios
+    // =========================================================================
+
+    @Test
+    void testParseEventWithNullData() throws Exception {
+        String json = """
+                {
+                    "type": "session.idle",
+                    "data": null
+                }
+                """;
+
+        AbstractSessionEvent event = parseJson(json);
+        assertNotNull(event);
+        assertInstanceOf(SessionIdleEvent.class, event);
+    }
+
+    @Test
+    void testParseEventWithMissingData() throws Exception {
+        String json = """
+                {
+                    "type": "session.idle"
+                }
+                """;
+
+        AbstractSessionEvent event = parseJson(json);
+        assertNotNull(event);
+        assertInstanceOf(SessionIdleEvent.class, event);
+    }
+
+    @Test
+    void testParseNullJsonNode() throws Exception {
+        Logger parserLogger = Logger.getLogger(SessionEventParser.class.getName());
+        Level originalLevel = parserLogger.getLevel();
+        parserLogger.setLevel(Level.OFF);
+
+        try {
+            AbstractSessionEvent event = SessionEventParser.parse((JsonNode) null);
+            assertNull(event, "Null JsonNode should return null");
+        } finally {
+            parserLogger.setLevel(originalLevel);
+        }
+    }
+
+    // =========================================================================
+    // Additional data assertion tests
+    // =========================================================================
+
+    @Test
+    void testParseJsonNodeAssistantMessageWithFields() throws Exception {
+        String json = """
+                {
+                    "type": "assistant.message",
+                    "id": "550e8400-e29b-41d4-a716-446655440000",
+                    "ephemeral": true,
+                    "data": {
+                        "messageId": "msg-jn-1",
+                        "content": "Hello from JsonNode",
+                        "toolRequests": [
+                            { "toolCallId": "tc-jn", "name": "grep", "arguments": {} }
+                        ]
+                    }
+                }
+                """;
+
+        var event = (AssistantMessageEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals(UUID.fromString("550e8400-e29b-41d4-a716-446655440000"), event.getId());
+        assertTrue(event.getEphemeral());
+        assertEquals("msg-jn-1", event.getData().getMessageId());
+        assertEquals("Hello from JsonNode", event.getData().getContent());
+        assertEquals(1, event.getData().getToolRequests().size());
+        assertEquals("tc-jn", event.getData().getToolRequests().get(0).getToolCallId());
+    }
+
+    @Test
+    void testParseJsonNodeToolExecutionCompleteWithNestedTypes() throws Exception {
+        String json = """
+                {
+                    "type": "tool.execution_complete",
+                    "data": {
+                        "toolCallId": "tc-jn-comp",
+                        "success": false,
+                        "error": {
+                            "message": "Permission denied",
+                            "code": "EPERM"
+                        }
+                    }
+                }
+                """;
+
+        var event = (ToolExecutionCompleteEvent) parseJson(json);
+        assertNotNull(event);
+        assertFalse(event.getData().isSuccess());
+        assertEquals("Permission denied", event.getData().getError().getMessage());
+        assertEquals("EPERM", event.getData().getError().getCode());
+    }
+
+    @Test
+    void testParseJsonNodeSessionShutdownWithCodeChanges() throws Exception {
+        String json = """
+                {
+                    "type": "session.shutdown",
+                    "data": {
+                        "shutdownType": "routine",
+                        "totalPremiumRequests": 3,
+                        "totalApiDurationMs": 999.9,
+                        "codeChanges": {
+                            "linesAdded": 100,
+                            "linesRemoved": 50,
+                            "filesModified": ["x.java"]
+                        },
+                        "currentModel": "claude-4"
+                    }
+                }
+                """;
+
+        var event = (SessionShutdownEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals(SessionShutdownEvent.ShutdownType.ROUTINE, event.getData().getShutdownType());
+        assertEquals(100.0, event.getData().getCodeChanges().getLinesAdded());
+        assertEquals(1, event.getData().getCodeChanges().getFilesModified().size());
+    }
+
+    @Test
+    void testParseJsonNodeUserMessageWithAttachment() throws Exception {
+        String json = """
+                {
+                    "type": "user.message",
+                    "data": {
+                        "content": "Check this",
+                        "attachments": [
+                            {
+                                "type": "code",
+                                "displayName": "snippet.py",
+                                "text": "print('hello')",
+                                "selection": {
+                                    "start": { "line": 0, "character": 0 },
+                                    "end": { "line": 0, "character": 14 }
+                                }
+                            }
+                        ]
+                    }
+                }
+                """;
+
+        var event = (UserMessageEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals(1, event.getData().getAttachments().size());
+        var att = event.getData().getAttachments().get(0);
+        assertEquals("code", att.getType());
+        assertEquals("snippet.py", att.getDisplayName());
+        assertEquals(0, att.getSelection().getStart().getLine());
+        assertEquals(14, att.getSelection().getEnd().getCharacter());
     }
 }

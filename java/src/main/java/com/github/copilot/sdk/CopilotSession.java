@@ -750,7 +750,7 @@ public final class CopilotSession implements AutoCloseable {
                     if (response.getEvents() != null) {
                         for (JsonNode eventNode : response.getEvents()) {
                             try {
-                                AbstractSessionEvent event = SessionEventParser.parse(eventNode.toString());
+                                AbstractSessionEvent event = SessionEventParser.parse(eventNode);
                                 if (event != null) {
                                     events.add(event);
                                 }

@@ -81,7 +81,7 @@ public class MetadataApiTest {
     // ===== ToolExecutionProgressEvent Tests =====
 
     @Test
-    void testToolExecutionProgressEventParsing() {
+    void testToolExecutionProgressEventParsing() throws Exception {
         String json = """
                 {
                     "type": "tool.execution_progress",
@@ -94,7 +94,7 @@ public class MetadataApiTest {
                 }
                 """;
 
-        var event = SessionEventParser.parse(json);
+        var event = SessionEventParser.parse(MAPPER.readTree(json));
 
         assertNotNull(event);
         assertInstanceOf(ToolExecutionProgressEvent.class, event);
