@@ -488,7 +488,9 @@ func extractFileFromTarballStream(r io.Reader, destDir, outputName string, mode 
 		return fmt.Errorf("failed to create output file: %w", err)
 	}
 	if _, err := io.Copy(outFile, r); err != nil {
-		outFile.Close()
+		if cerr := outFile.Close(); cerr != nil {
+			return fmt.Errorf("failed to extract license: copy error: %v; close error: %w", err, cerr)
+		}
 		return fmt.Errorf("failed to extract license: %w", err)
 	}
 	return outFile.Close()
