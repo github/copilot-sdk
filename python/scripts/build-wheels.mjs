@@ -240,6 +240,7 @@ async function repackWheelWithPlatform(srcWheel, destWheel, platformTag) {
 import sys
 import zipfile
 import tempfile
+import os
 from pathlib import Path
 
 src_wheel = Path(sys.argv[1])
@@ -252,6 +253,11 @@ with tempfile.TemporaryDirectory() as tmpdir:
     # Extract wheel
     with zipfile.ZipFile(src_wheel, 'r') as zf:
         zf.extractall(tmpdir)
+    
+    # Restore executable bit on the CLI binary (setuptools strips it)
+    for bin_path in (tmpdir / 'copilot' / 'bin').iterdir():
+        if bin_path.name in ('copilot', 'copilot.exe'):
+            bin_path.chmod(0o755)
     
     # Find and update WHEEL file
     wheel_info_dirs = list(tmpdir.glob('*.dist-info'))
