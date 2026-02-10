@@ -791,18 +791,24 @@ func (c *Client) ResumeSessionWithOptions(sessionID string, config *ResumeSessio
 // ListSessions returns metadata about all sessions known to the server.
 //
 // Returns a list of SessionMetadata for all available sessions, including their IDs,
-// timestamps, and optional summaries.
+// timestamps, optional summaries, and context information.
+//
+// An optional filter can be provided to filter sessions by cwd, git root, repository, or branch.
 //
 // Example:
 //
-//	sessions, err := client.ListSessions()
+//	sessions, err := client.ListSessions(nil)
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
 //	for _, session := range sessions {
 //	    fmt.Printf("Session: %s\n", session.SessionID)
 //	}
-func (c *Client) ListSessions() ([]SessionMetadata, error) {
+//
+// Example with filter:
+//
+//	sessions, err := client.ListSessions(&SessionListFilter{Repository: "owner/repo"})
+func (c *Client) ListSessions(filter *SessionListFilter) ([]SessionMetadata, error) {
 	if c.client == nil {
 		if c.autoStart {
 			if err := c.Start(); err != nil {
@@ -813,7 +819,11 @@ func (c *Client) ListSessions() ([]SessionMetadata, error) {
 		}
 	}
 
-	result, err := c.client.Request("session.list", map[string]interface{}{})
+	params := map[string]interface{}{}
+	if filter != nil {
+		params["filter"] = filter
+	}
+	result, err := c.client.Request("session.list", params)
 	if err != nil {
 		return nil, err
 	}

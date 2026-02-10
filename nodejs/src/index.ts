@@ -35,6 +35,7 @@ export type {
     SessionEventHandler,
     SessionEventPayload,
     SessionEventType,
+    SessionListFilter,
     SessionMetadata,
     SystemMessageAppendConfig,
     SystemMessageConfig,

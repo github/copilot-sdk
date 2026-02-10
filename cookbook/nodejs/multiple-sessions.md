@@ -63,6 +63,11 @@ console.log(session.sessionId); // "user-123-chat"
 const sessions = await client.listSessions();
 console.log(sessions);
 // [{ sessionId: "user-123-chat", ... }, ...]
+
+// Sessions include context (cwd, git info) from when they were created
+for (const s of sessions) {
+    console.log(`${s.sessionId} - ${s.context?.cwd ?? "unknown"}`);
+}
 ```
 
 ## Deleting sessions

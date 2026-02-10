@@ -552,13 +552,38 @@ type GetModelsResponse struct {
 	Models []ModelInfo `json:"models"`
 }
 
+// SessionContext contains working directory context for a session
+type SessionContext struct {
+	// Cwd is the working directory where the session was created
+	Cwd string `json:"cwd"`
+	// GitRoot is the git repository root (if in a git repo)
+	GitRoot string `json:"gitRoot,omitempty"`
+	// Repository is the GitHub repository in "owner/repo" format
+	Repository string `json:"repository,omitempty"`
+	// Branch is the current git branch
+	Branch string `json:"branch,omitempty"`
+}
+
+// SessionListFilter contains filter options for listing sessions
+type SessionListFilter struct {
+	// Cwd filters by exact working directory match
+	Cwd string `json:"cwd,omitempty"`
+	// GitRoot filters by git root
+	GitRoot string `json:"gitRoot,omitempty"`
+	// Repository filters by repository (owner/repo format)
+	Repository string `json:"repository,omitempty"`
+	// Branch filters by branch
+	Branch string `json:"branch,omitempty"`
+}
+
 // SessionMetadata contains metadata about a session
 type SessionMetadata struct {
-	SessionID    string  `json:"sessionId"`
-	StartTime    string  `json:"startTime"`
-	ModifiedTime string  `json:"modifiedTime"`
-	Summary      *string `json:"summary,omitempty"`
-	IsRemote     bool    `json:"isRemote"`
+	SessionID    string          `json:"sessionId"`
+	StartTime    string          `json:"startTime"`
+	ModifiedTime string          `json:"modifiedTime"`
+	Summary      *string         `json:"summary,omitempty"`
+	IsRemote     bool            `json:"isRemote"`
+	Context      *SessionContext `json:"context,omitempty"`
 }
 
 // ListSessionsResponse is the response from session.list

@@ -22,6 +22,31 @@ describe("Sessions", async () => {
         await expect(() => session.getMessages()).rejects.toThrow(/Session not found/);
     });
 
+    it("should list sessions with context field", async () => {
+        // Create a new session
+        const session = await client.createSession();
+        expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
+
+        // List sessions and find the one we just created
+        const sessions = await client.listSessions();
+        const ourSession = sessions.find((s) => s.sessionId === session.sessionId);
+
+        expect(ourSession).toBeDefined();
+        expect(ourSession?.context).toBeDefined();
+        // cwd should be set to some path
+        expect(ourSession?.context?.cwd).toMatch(/^(\/|[A-Za-z]:)/);
+        // gitRoot, repository, and branch are optional
+        if (ourSession?.context?.gitRoot) {
+            expect(typeof ourSession.context.gitRoot).toBe("string");
+        }
+        if (ourSession?.context?.repository) {
+            expect(typeof ourSession.context.repository).toBe("string");
+        }
+        if (ourSession?.context?.branch) {
+            expect(typeof ourSession.context.branch).toBe("string");
+        }
+    });
+
     it("should have stateful conversation", async () => {
         const session = await client.createSession();
         const assistantMessage = await session.sendAndWait({ prompt: "What is 1+1?" });

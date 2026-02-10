@@ -30,6 +30,7 @@ import type {
     ResumeSessionConfig,
     SessionConfig,
     SessionEvent,
+    SessionListFilter,
     SessionMetadata,
     Tool,
     ToolCallRequestPayload,
@@ -749,12 +750,12 @@ export class CopilotClient {
      * }
      * ```
      */
-    async listSessions(): Promise<SessionMetadata[]> {
+    async listSessions(filter?: SessionListFilter): Promise<SessionMetadata[]> {
         if (!this.connection) {
             throw new Error("Client not connected");
         }
 
-        const response = await this.connection.sendRequest("session.list", {});
+        const response = await this.connection.sendRequest("session.list", { filter });
         const { sessions } = response as {
             sessions: Array<{
                 sessionId: string;
@@ -762,6 +763,12 @@ export class CopilotClient {
                 modifiedTime: string;
                 summary?: string;
                 isRemote: boolean;
+                context?: {
+                    cwd: string;
+                    gitRoot?: string;
+                    repository?: string;
+                    branch?: string;
+                };
             }>;
         };
 
@@ -771,6 +778,7 @@ export class CopilotClient {
             modifiedTime: new Date(s.modifiedTime),
             summary: s.summary,
             isRemote: s.isRemote,
+            context: s.context,
         }));
     }
 

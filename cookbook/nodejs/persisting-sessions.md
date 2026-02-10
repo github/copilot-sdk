@@ -64,6 +64,16 @@ console.log(sessions);
 //   { sessionId: "user-123-conversation", ... },
 //   { sessionId: "user-456-conversation", ... },
 // ]
+
+// Each session includes context from when it was created
+for (const session of sessions) {
+    console.log(`Session: ${session.sessionId}`);
+    if (session.context) {
+        console.log(`  Directory: ${session.context.cwd}`);
+        console.log(`  Repository: ${session.context.repository}`);
+        console.log(`  Branch: ${session.context.branch}`);
+    }
+}
 ```
 
 ### Deleting a session permanently

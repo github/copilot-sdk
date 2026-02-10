@@ -779,7 +779,7 @@ func TestSession(t *testing.T) {
 		time.Sleep(200 * time.Millisecond)
 
 		// List sessions and verify they're included
-		sessions, err := client.ListSessions()
+		sessions, err := client.ListSessions(nil)
 		if err != nil {
 			t.Fatalf("Failed to list sessions: %v", err)
 		}
@@ -838,7 +838,7 @@ func TestSession(t *testing.T) {
 		time.Sleep(200 * time.Millisecond)
 
 		// Verify session exists in the list
-		sessions, err := client.ListSessions()
+		sessions, err := client.ListSessions(nil)
 		if err != nil {
 			t.Fatalf("Failed to list sessions: %v", err)
 		}
@@ -859,7 +859,7 @@ func TestSession(t *testing.T) {
 		}
 
 		// Verify session no longer exists in the list
-		sessionsAfter, err := client.ListSessions()
+		sessionsAfter, err := client.ListSessions(nil)
 		if err != nil {
 			t.Fatalf("Failed to list sessions after delete: %v", err)
 		}
