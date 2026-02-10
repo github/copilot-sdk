@@ -20,27 +20,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public final class ListSessionsResponse {
-
-    @JsonProperty("sessions")
-    private List<SessionMetadata> sessions;
-
-    /**
-     * Gets the list of sessions.
-     *
-     * @return the list of session metadata
-     */
-    public List<SessionMetadata> getSessions() {
-        return sessions;
-    }
-
-    /**
-     * Sets the list of sessions.
-     *
-     * @param sessions
-     *            the list of session metadata
-     */
-    public void setSessions(List<SessionMetadata> sessions) {
-        this.sessions = sessions;
-    }
+public record ListSessionsResponse(
+        /** The list of session metadata. */
+        @JsonProperty("sessions") List<SessionMetadata> sessions) {
 }

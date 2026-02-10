@@ -17,27 +17,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public final class SendMessageResponse {
-
-    @JsonProperty("messageId")
-    private String messageId;
-
-    /**
-     * Gets the message ID assigned by the server.
-     *
-     * @return the message ID
-     */
-    public String getMessageId() {
-        return messageId;
-    }
-
-    /**
-     * Sets the message ID.
-     *
-     * @param messageId
-     *            the message ID
-     */
-    public void setMessageId(String messageId) {
-        this.messageId = messageId;
-    }
+public record SendMessageResponse(
+        /** The message ID assigned by the server. */
+        @JsonProperty("messageId") String messageId) {
 }

@@ -135,8 +135,8 @@ public class CopilotClientTest {
             assertEquals(ConnectionState.CONNECTED, client.getState());
 
             PingResponse pong = client.ping("test message").get();
-            assertEquals("pong: test message", pong.getMessage());
-            assertTrue(pong.getTimestamp() >= 0);
+            assertEquals("pong: test message", pong.message());
+            assertTrue(pong.timestamp() >= 0);
 
             client.stop().get();
             assertEquals(ConnectionState.DISCONNECTED, client.getState());
@@ -155,7 +155,7 @@ public class CopilotClientTest {
             assertEquals(ConnectionState.CONNECTED, client.getState());
 
             PingResponse pong = client.ping("test message").get();
-            assertEquals("pong: test message", pong.getMessage());
+            assertEquals("pong: test message", pong.message());
 
             client.stop().get();
         }

@@ -12,16 +12,5 @@ import com.fasterxml.jackson.databind.JsonNode;
  * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public final class GetMessagesResponse {
-
-    @JsonProperty("events")
-    private List<JsonNode> events;
-
-    public List<JsonNode> getEvents() {
-        return events;
-    }
-
-    public void setEvents(List<JsonNode> events) {
-        this.events = events;
-    }
+public record GetMessagesResponse(@JsonProperty("events") List<JsonNode> events) {
 }

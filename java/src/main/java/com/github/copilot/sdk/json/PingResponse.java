@@ -17,74 +17,14 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class PingResponse {
-
-    @JsonProperty("message")
-    private String message;
-
-    @JsonProperty("timestamp")
-    private long timestamp;
-
-    @JsonProperty("protocolVersion")
-    private Integer protocolVersion;
-
-    /**
-     * Gets the echo message from the server.
-     *
-     * @return the message echoed back by the server
-     */
-    public String getMessage() {
-        return message;
-    }
-
-    /**
-     * Sets the message.
-     *
-     * @param message
-     *            the message
-     */
-    public void setMessage(String message) {
-        this.message = message;
-    }
-
-    /**
-     * Gets the server timestamp.
-     *
-     * @return the timestamp in milliseconds since epoch
-     */
-    public long getTimestamp() {
-        return timestamp;
-    }
-
-    /**
-     * Sets the timestamp.
-     *
-     * @param timestamp
-     *            the timestamp
-     */
-    public void setTimestamp(long timestamp) {
-        this.timestamp = timestamp;
-    }
-
-    /**
-     * Gets the SDK protocol version supported by the server.
-     * <p>
-     * The SDK validates that this version matches the expected version to ensure
-     * compatibility.
-     *
-     * @return the protocol version, or {@code null} if not reported
-     */
-    public Integer getProtocolVersion() {
-        return protocolVersion;
-    }
-
-    /**
-     * Sets the protocol version.
-     *
-     * @param protocolVersion
-     *            the protocol version
-     */
-    public void setProtocolVersion(Integer protocolVersion) {
-        this.protocolVersion = protocolVersion;
-    }
+public record PingResponse(
+        /** The echo message from the server. */
+        @JsonProperty("message") String message,
+        /** The server timestamp in milliseconds since epoch. */
+        @JsonProperty("timestamp") long timestamp,
+        /**
+         * The SDK protocol version supported by the server. The SDK validates that this
+         * version matches the expected version to ensure compatibility.
+         */
+        @JsonProperty("protocolVersion") Integer protocolVersion) {
 }

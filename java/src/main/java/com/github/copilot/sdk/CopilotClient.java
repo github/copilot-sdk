@@ -179,15 +179,15 @@ public final class CopilotClient implements AutoCloseable {
         params.put("message", null);
         PingResponse pingResponse = connection.rpc.invoke("ping", params, PingResponse.class).get(30, TimeUnit.SECONDS);
 
-        if (pingResponse.getProtocolVersion() == null) {
+        if (pingResponse.protocolVersion() == null) {
             throw new RuntimeException("SDK protocol version mismatch: SDK expects version " + expectedVersion
                     + ", but server does not report a protocol version. "
                     + "Please update your server to ensure compatibility.");
         }
 
-        if (pingResponse.getProtocolVersion() != expectedVersion) {
+        if (pingResponse.protocolVersion() != expectedVersion) {
             throw new RuntimeException("SDK protocol version mismatch: SDK expects version " + expectedVersion
-                    + ", but server reports version " + pingResponse.getProtocolVersion() + ". "
+                    + ", but server reports version " + pingResponse.protocolVersion() + ". "
                     + "Please update your SDK or server to ensure compatibility.");
         }
     }
@@ -272,9 +272,9 @@ public final class CopilotClient implements AutoCloseable {
             var request = SessionRequestBuilder.buildCreateRequest(config);
 
             return connection.rpc.invoke("session.create", request, CreateSessionResponse.class).thenApply(response -> {
-                var session = new CopilotSession(response.getSessionId(), connection.rpc, response.getWorkspacePath());
+                var session = new CopilotSession(response.sessionId(), connection.rpc, response.workspacePath());
                 SessionRequestBuilder.configureSession(session, config);
-                sessions.put(response.getSessionId(), session);
+                sessions.put(response.sessionId(), session);
                 return session;
             });
         });
@@ -310,9 +310,9 @@ public final class CopilotClient implements AutoCloseable {
             var request = SessionRequestBuilder.buildResumeRequest(sessionId, config);
 
             return connection.rpc.invoke("session.resume", request, ResumeSessionResponse.class).thenApply(response -> {
-                var session = new CopilotSession(response.getSessionId(), connection.rpc, response.getWorkspacePath());
+                var session = new CopilotSession(response.sessionId(), connection.rpc, response.workspacePath());
                 SessionRequestBuilder.configureSession(session, config);
-                sessions.put(response.getSessionId(), session);
+                sessions.put(response.sessionId(), session);
                 return session;
             });
         });
@@ -432,7 +432,7 @@ public final class CopilotClient implements AutoCloseable {
     public CompletableFuture<String> getLastSessionId() {
         return ensureConnected().thenCompose(
                 connection -> connection.rpc.invoke("session.getLastId", Map.of(), GetLastSessionIdResponse.class)
-                        .thenApply(GetLastSessionIdResponse::getSessionId));
+                        .thenApply(GetLastSessionIdResponse::sessionId));
     }
 
     /**
@@ -450,9 +450,8 @@ public final class CopilotClient implements AutoCloseable {
         return ensureConnected().thenCompose(connection -> connection.rpc
                 .invoke("session.delete", Map.of("sessionId", sessionId), DeleteSessionResponse.class)
                 .thenAccept(response -> {
-                    if (!response.isSuccess()) {
-                        throw new RuntimeException(
-                                "Failed to delete session " + sessionId + ": " + response.getError());
+                    if (!response.success()) {
+                        throw new RuntimeException("Failed to delete session " + sessionId + ": " + response.error());
                     }
                     sessions.remove(sessionId);
                 }));
@@ -471,7 +470,7 @@ public final class CopilotClient implements AutoCloseable {
     public CompletableFuture<List<SessionMetadata>> listSessions() {
         return ensureConnected()
                 .thenCompose(connection -> connection.rpc.invoke("session.list", Map.of(), ListSessionsResponse.class)
-                        .thenApply(ListSessionsResponse::getSessions));
+                        .thenApply(ListSessionsResponse::sessions));
     }
 
     /**
@@ -487,7 +486,7 @@ public final class CopilotClient implements AutoCloseable {
         return ensureConnected().thenCompose(connection -> connection.rpc
                 .invoke("session.getForeground", Map.of(),
                         com.github.copilot.sdk.json.GetForegroundSessionResponse.class)
-                .thenApply(com.github.copilot.sdk.json.GetForegroundSessionResponse::getSessionId));
+                .thenApply(com.github.copilot.sdk.json.GetForegroundSessionResponse::sessionId));
     }
 
     /**
@@ -509,9 +508,9 @@ public final class CopilotClient implements AutoCloseable {
                                 .invoke("session.setForeground", Map.of("sessionId", sessionId),
                                         com.github.copilot.sdk.json.SetForegroundSessionResponse.class)
                                 .thenAccept(response -> {
-                                    if (!response.isSuccess()) {
-                                        throw new RuntimeException(response.getError() != null
-                                                ? response.getError()
+                                    if (!response.success()) {
+                                        throw new RuntimeException(response.error() != null
+                                                ? response.error()
                                                 : "Failed to set foreground session");
                                     }
                                 }));

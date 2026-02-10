@@ -16,37 +16,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class GetForegroundSessionResponse {
-
-    @JsonProperty("sessionId")
-    private String sessionId;
-
-    @JsonProperty("workspacePath")
-    private String workspacePath;
-
-    /**
-     * Gets the session ID currently displayed in the TUI.
-     *
-     * @return the session ID, or null if no foreground session
-     */
-    public String getSessionId() {
-        return sessionId;
-    }
-
-    public void setSessionId(String sessionId) {
-        this.sessionId = sessionId;
-    }
-
-    /**
-     * Gets the workspace path of the foreground session.
-     *
-     * @return the workspace path, or null
-     */
-    public String getWorkspacePath() {
-        return workspacePath;
-    }
-
-    public void setWorkspacePath(String workspacePath) {
-        this.workspacePath = workspacePath;
-    }
+public record GetForegroundSessionResponse(
+        /** The session ID currently displayed in the TUI, or null if none. */
+        @JsonProperty("sessionId") String sessionId,
+        /** The workspace path of the foreground session, or null. */
+        @JsonProperty("workspacePath") String workspacePath) {
 }

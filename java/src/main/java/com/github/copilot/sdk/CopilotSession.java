@@ -303,8 +303,7 @@ public final class CopilotSession implements AutoCloseable {
         request.setAttachments(options.getAttachments());
         request.setMode(options.getMode());
 
-        return rpc.invoke("session.send", request, SendMessageResponse.class)
-                .thenApply(SendMessageResponse::getMessageId);
+        return rpc.invoke("session.send", request, SendMessageResponse.class).thenApply(SendMessageResponse::messageId);
     }
 
     /**
@@ -747,8 +746,8 @@ public final class CopilotSession implements AutoCloseable {
         return rpc.invoke("session.getMessages", Map.of("sessionId", sessionId), GetMessagesResponse.class)
                 .thenApply(response -> {
                     var events = new ArrayList<AbstractSessionEvent>();
-                    if (response.getEvents() != null) {
-                        for (JsonNode eventNode : response.getEvents()) {
+                    if (response.events() != null) {
+                        for (JsonNode eventNode : response.events()) {
                             try {
                                 AbstractSessionEvent event = SessionEventParser.parse(eventNode);
                                 if (event != null) {
