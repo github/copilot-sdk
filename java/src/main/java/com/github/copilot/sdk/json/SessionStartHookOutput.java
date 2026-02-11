@@ -4,7 +4,6 @@
 
 package com.github.copilot.sdk.json;
 
-import java.util.Collections;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -15,56 +14,13 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * <p>
  * Allows adding additional context or modifying session configuration.
  *
+ * @param additionalContext
+ *            additional context to be added to the session, or {@code null}
+ * @param modifiedConfig
+ *            modified configuration options for the session, or {@code null}
  * @since 1.0.7
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class SessionStartHookOutput {
-
-    @JsonProperty("additionalContext")
-    private String additionalContext;
-
-    @JsonProperty("modifiedConfig")
-    private Map<String, Object> modifiedConfig;
-
-    /**
-     * Gets the additional context to add.
-     *
-     * @return the additional context, or {@code null}
-     */
-    public String getAdditionalContext() {
-        return additionalContext;
-    }
-
-    /**
-     * Sets additional context to be added to the session.
-     *
-     * @param additionalContext
-     *            the additional context
-     * @return this instance for method chaining
-     */
-    public SessionStartHookOutput setAdditionalContext(String additionalContext) {
-        this.additionalContext = additionalContext;
-        return this;
-    }
-
-    /**
-     * Gets the modified configuration.
-     *
-     * @return the modified configuration map, or {@code null}
-     */
-    public Map<String, Object> getModifiedConfig() {
-        return modifiedConfig == null ? null : Collections.unmodifiableMap(modifiedConfig);
-    }
-
-    /**
-     * Sets modified configuration options for the session.
-     *
-     * @param modifiedConfig
-     *            the modified configuration
-     * @return this instance for method chaining
-     */
-    public SessionStartHookOutput setModifiedConfig(Map<String, Object> modifiedConfig) {
-        this.modifiedConfig = modifiedConfig;
-        return this;
-    }
+public record SessionStartHookOutput(@JsonProperty("additionalContext") String additionalContext,
+        @JsonProperty("modifiedConfig") Map<String, Object> modifiedConfig) {
 }

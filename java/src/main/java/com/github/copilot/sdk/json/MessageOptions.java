@@ -19,7 +19,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  *
  * <pre>{@code
  * var options = new MessageOptions().setPrompt("Explain this code")
- * 		.setAttachments(List.of(new Attachment().setType("file").setPath("/path/to/file.java")));
+ * 		.setAttachments(List.of(new Attachment("file", "/path/to/file.java", null)));
  *
  * session.send(options).get();
  * }</pre>

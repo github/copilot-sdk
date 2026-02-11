@@ -20,13 +20,13 @@ package com.github.copilot.sdk.json;
  * 	System.out.println("Tool result: " + input.getToolResult());
  * 	return CompletableFuture.completedFuture(null);
  * }).setOnUserPromptSubmitted((input, invocation) -> {
- * 	System.out.println("User prompt: " + input.getPrompt());
+ * 	System.out.println("User prompt: " + input.prompt());
  * 	return CompletableFuture.completedFuture(null);
  * }).setOnSessionStart((input, invocation) -> {
- * 	System.out.println("Session started: " + input.getSource());
+ * 	System.out.println("Session started: " + input.source());
  * 	return CompletableFuture.completedFuture(null);
  * }).setOnSessionEnd((input, invocation) -> {
- * 	System.out.println("Session ended: " + input.getReason());
+ * 	System.out.println("Session ended: " + input.reason());
  * 	return CompletableFuture.completedFuture(null);
  * });
  *
