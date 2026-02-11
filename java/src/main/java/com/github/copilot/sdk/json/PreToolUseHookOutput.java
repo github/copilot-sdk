@@ -11,128 +11,74 @@ import com.fasterxml.jackson.databind.JsonNode;
 /**
  * Output for a pre-tool-use hook.
  *
+ * @param permissionDecision
+ *            "allow", "deny", or "ask"
+ * @param permissionDecisionReason
+ *            the reason for the permission decision
+ * @param modifiedArgs
+ *            the modified tool arguments, or {@code null} to use original
+ * @param additionalContext
+ *            additional context to provide to the model
+ * @param suppressOutput
+ *            {@code true} to suppress output
  * @since 1.0.6
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class PreToolUseHookOutput {
-
-    @JsonProperty("permissionDecision")
-    private String permissionDecision;
-
-    @JsonProperty("permissionDecisionReason")
-    private String permissionDecisionReason;
-
-    @JsonProperty("modifiedArgs")
-    private JsonNode modifiedArgs;
-
-    @JsonProperty("additionalContext")
-    private String additionalContext;
-
-    @JsonProperty("suppressOutput")
-    private Boolean suppressOutput;
+public record PreToolUseHookOutput(@JsonProperty("permissionDecision") String permissionDecision,
+        @JsonProperty("permissionDecisionReason") String permissionDecisionReason,
+        @JsonProperty("modifiedArgs") JsonNode modifiedArgs,
+        @JsonProperty("additionalContext") String additionalContext,
+        @JsonProperty("suppressOutput") Boolean suppressOutput) {
 
     /**
-     * Gets the permission decision.
+     * Creates an output that allows the tool to execute.
      *
-     * @return "allow", "deny", or "ask"
+     * @return a new PreToolUseHookOutput with permission decision "allow"
      */
-    public String getPermissionDecision() {
-        return permissionDecision;
+    public static PreToolUseHookOutput allow() {
+        return new PreToolUseHookOutput("allow", null, null, null, null);
     }
 
     /**
-     * Sets the permission decision.
+     * Creates an output that denies the tool execution.
+     *
+     * @return a new PreToolUseHookOutput with permission decision "deny"
+     */
+    public static PreToolUseHookOutput deny() {
+        return new PreToolUseHookOutput("deny", null, null, null, null);
+    }
+
+    /**
+     * Creates an output that denies the tool execution with a reason.
+     *
+     * @param reason
+     *            the reason for denying the tool execution
+     * @return a new PreToolUseHookOutput with permission decision "deny" and reason
+     */
+    public static PreToolUseHookOutput deny(String reason) {
+        return new PreToolUseHookOutput("deny", reason, null, null, null);
+    }
+
+    /**
+     * Creates an output that asks for user confirmation before executing the tool.
+     *
+     * @return a new PreToolUseHookOutput with permission decision "ask"
+     */
+    public static PreToolUseHookOutput ask() {
+        return new PreToolUseHookOutput("ask", null, null, null, null);
+    }
+
+    /**
+     * Creates an output with modified tool arguments.
      *
      * @param permissionDecision
      *            "allow", "deny", or "ask"
-     * @return this instance for method chaining
-     */
-    public PreToolUseHookOutput setPermissionDecision(String permissionDecision) {
-        this.permissionDecision = permissionDecision;
-        return this;
-    }
-
-    /**
-     * Gets the reason for the permission decision.
-     *
-     * @return the reason text
-     */
-    public String getPermissionDecisionReason() {
-        return permissionDecisionReason;
-    }
-
-    /**
-     * Sets the reason for the permission decision.
-     *
-     * @param permissionDecisionReason
-     *            the reason text
-     * @return this instance for method chaining
-     */
-    public PreToolUseHookOutput setPermissionDecisionReason(String permissionDecisionReason) {
-        this.permissionDecisionReason = permissionDecisionReason;
-        return this;
-    }
-
-    /**
-     * Gets the modified tool arguments.
-     *
-     * @return the modified arguments, or {@code null} to use original
-     */
-    public JsonNode getModifiedArgs() {
-        return modifiedArgs;
-    }
-
-    /**
-     * Sets the modified tool arguments.
-     *
      * @param modifiedArgs
-     *            the modified arguments
-     * @return this instance for method chaining
+     *            the modified tool arguments
+     * @return a new PreToolUseHookOutput with the specified permission and modified
+     *         arguments
      */
-    public PreToolUseHookOutput setModifiedArgs(JsonNode modifiedArgs) {
-        this.modifiedArgs = modifiedArgs;
-        return this;
-    }
-
-    /**
-     * Gets additional context to provide to the model.
-     *
-     * @return the additional context
-     */
-    public String getAdditionalContext() {
-        return additionalContext;
-    }
-
-    /**
-     * Sets additional context to provide to the model.
-     *
-     * @param additionalContext
-     *            the additional context
-     * @return this instance for method chaining
-     */
-    public PreToolUseHookOutput setAdditionalContext(String additionalContext) {
-        this.additionalContext = additionalContext;
-        return this;
-    }
-
-    /**
-     * Returns whether to suppress output.
-     *
-     * @return {@code true} to suppress output
-     */
-    public Boolean getSuppressOutput() {
-        return suppressOutput;
-    }
-
-    /**
-     * Sets whether to suppress output.
-     *
-     * @param suppressOutput
-     *            {@code true} to suppress output
-     * @return this instance for method chaining
-     */
-    public PreToolUseHookOutput setSuppressOutput(Boolean suppressOutput) {
-        this.suppressOutput = suppressOutput;
-        return this;
+    public static PreToolUseHookOutput withModifiedArgs(String permissionDecision, JsonNode modifiedArgs) {
+        return new PreToolUseHookOutput(permissionDecision, null, modifiedArgs, null, null);
     }
 }
