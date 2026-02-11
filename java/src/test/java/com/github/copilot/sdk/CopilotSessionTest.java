@@ -196,7 +196,8 @@ public class CopilotSessionTest {
             });
 
             // Use a slow command so we can verify send() returns before completion
-            session.send(new MessageOptions().setPrompt("Run 'sleep 2 && echo done'")).get();
+            // Use String convenience overload (covers send(String) path)
+            session.send("Run 'sleep 2 && echo done'").get();
 
             // At this point, we might not have received session.idle yet
             // The event handling happens asynchronously
@@ -231,8 +232,8 @@ public class CopilotSessionTest {
             var events = new ArrayList<String>();
             session.on(evt -> events.add(evt.getType()));
 
-            AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt("What is 2+2?")).get(60,
-                    TimeUnit.SECONDS);
+            // Use String convenience overload (covers sendAndWait(String) path)
+            AssistantMessageEvent response = session.sendAndWait("What is 2+2?").get(60, TimeUnit.SECONDS);
 
             assertNotNull(response);
             assertEquals("assistant.message", response.getType());
