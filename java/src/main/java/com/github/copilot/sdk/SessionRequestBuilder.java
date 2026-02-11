@@ -4,13 +4,10 @@
 
 package com.github.copilot.sdk;
 
-import java.util.stream.Collectors;
-
 import com.github.copilot.sdk.json.CreateSessionRequest;
 import com.github.copilot.sdk.json.ResumeSessionConfig;
 import com.github.copilot.sdk.json.ResumeSessionRequest;
 import com.github.copilot.sdk.json.SessionConfig;
-import com.github.copilot.sdk.json.ToolDef;
 
 /**
  * Builds JSON-RPC request objects from session configuration.
@@ -41,10 +38,7 @@ final class SessionRequestBuilder {
         request.setModel(config.getModel());
         request.setSessionId(config.getSessionId());
         request.setReasoningEffort(config.getReasoningEffort());
-        request.setTools(config.getTools() != null
-                ? config.getTools().stream().map(t -> new ToolDef(t.getName(), t.getDescription(), t.getParameters()))
-                        .collect(Collectors.toList())
-                : null);
+        request.setTools(config.getTools());
         request.setSystemMessage(config.getSystemMessage());
         request.setAvailableTools(config.getAvailableTools());
         request.setExcludedTools(config.getExcludedTools());
@@ -83,10 +77,7 @@ final class SessionRequestBuilder {
 
         request.setModel(config.getModel());
         request.setReasoningEffort(config.getReasoningEffort());
-        request.setTools(config.getTools() != null
-                ? config.getTools().stream().map(t -> new ToolDef(t.getName(), t.getDescription(), t.getParameters()))
-                        .collect(Collectors.toList())
-                : null);
+        request.setTools(config.getTools());
         request.setSystemMessage(config.getSystemMessage());
         request.setAvailableTools(config.getAvailableTools());
         request.setExcludedTools(config.getExcludedTools());

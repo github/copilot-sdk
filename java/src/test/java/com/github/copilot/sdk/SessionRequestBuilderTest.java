@@ -80,7 +80,7 @@ public class SessionRequestBuilderTest {
 
         assertNotNull(request.getTools());
         assertEquals(1, request.getTools().size());
-        assertEquals("my_tool", request.getTools().get(0).getName());
+        assertEquals("my_tool", request.getTools().get(0).name());
     }
 
     @Test

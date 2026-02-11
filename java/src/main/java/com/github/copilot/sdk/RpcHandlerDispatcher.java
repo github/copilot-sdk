@@ -129,7 +129,7 @@ final class RpcHandlerDispatcher {
                 }
 
                 ToolDefinition tool = session.getTool(toolName);
-                if (tool == null || tool.getHandler() == null) {
+                if (tool == null || tool.handler() == null) {
                     var result = new ToolResultObject().setTextResultForLlm("Tool '" + toolName + "' is not supported.")
                             .setResultType("failure").setError("tool '" + toolName + "' not supported");
                     rpc.sendResponse(Long.parseLong(requestId), Map.of("result", result));
@@ -139,7 +139,7 @@ final class RpcHandlerDispatcher {
                 var invocation = new ToolInvocation().setSessionId(sessionId).setToolCallId(toolCallId)
                         .setToolName(toolName).setArguments(arguments);
 
-                tool.getHandler().invoke(invocation).thenAccept(result -> {
+                tool.handler().invoke(invocation).thenAccept(result -> {
                     try {
                         ToolResultObject toolResult;
                         if (result instanceof ToolResultObject tr) {

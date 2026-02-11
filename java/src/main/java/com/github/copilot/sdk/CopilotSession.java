@@ -546,7 +546,7 @@ public final class CopilotSession implements AutoCloseable {
         toolHandlers.clear();
         if (tools != null) {
             for (ToolDefinition tool : tools) {
-                toolHandlers.put(tool.getName(), tool);
+                toolHandlers.put(tool.name(), tool);
             }
         }
     }

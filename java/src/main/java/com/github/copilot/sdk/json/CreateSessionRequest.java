@@ -35,7 +35,7 @@ public final class CreateSessionRequest {
     private String reasoningEffort;
 
     @JsonProperty("tools")
-    private List<ToolDef> tools;
+    private List<ToolDefinition> tools;
 
     @JsonProperty("systemMessage")
     private SystemMessageConfig systemMessage;
@@ -115,12 +115,12 @@ public final class CreateSessionRequest {
     }
 
     /** Gets the tools. @return the tool definitions */
-    public List<ToolDef> getTools() {
+    public List<ToolDefinition> getTools() {
         return tools == null ? null : Collections.unmodifiableList(tools);
     }
 
     /** Sets the tools. @param tools the tool definitions */
-    public void setTools(List<ToolDef> tools) {
+    public void setTools(List<ToolDefinition> tools) {
         this.tools = tools;
     }
 
