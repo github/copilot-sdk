@@ -18,6 +18,8 @@ import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -321,6 +323,130 @@ public class CopilotClientTest {
 
             assertEquals(1, wildcard.size());
             assertEquals(1, typed.size());
+        }
+    }
+
+    // ===== getState() coverage =====
+
+    @Test
+    void testGetStateErrorAfterFailedStart() throws Exception {
+        // Use a non-existent CLI path to trigger a startup failure
+        var options = new CopilotClientOptions().setCliPath("/nonexistent/path/to/cli").setAutoStart(false);
+
+        try (var client = new CopilotClient(options)) {
+            // Manually start to trigger the error
+            CompletableFuture<Void> startFuture = client.start();
+
+            // Wait for the start to fail
+            try {
+                startFuture.get();
+            } catch (ExecutionException e) {
+                // Expected
+            }
+
+            assertEquals(ConnectionState.ERROR, client.getState());
+        }
+    }
+
+    @Test
+    void testGetStateConnectingDuringStart() throws Exception {
+        // Use a non-existent CLI path; the future won't complete immediately
+        var options = new CopilotClientOptions().setCliPath("/nonexistent/path/to/cli").setAutoStart(false);
+
+        try (var client = new CopilotClient(options)) {
+            // Start is async - grab state before completion
+            client.start();
+
+            // The state should be either CONNECTING or ERROR depending on timing
+            ConnectionState state = client.getState();
+            assertTrue(state == ConnectionState.CONNECTING || state == ConnectionState.ERROR,
+                    "State should be CONNECTING or ERROR, was: " + state);
+        }
+    }
+
+    // ===== ensureConnected throws when autoStart=false and not connected =====
+
+    @Test
+    void testEnsureConnectedThrowsWhenNotStartedAndAutoStartDisabled() {
+        var options = new CopilotClientOptions().setAutoStart(false);
+
+        try (var client = new CopilotClient(options)) {
+            // Calling ping (which calls ensureConnected) without start() should throw
+            assertThrows(IllegalStateException.class, () -> client.ping("test"));
+        }
+    }
+
+    // ===== close() idempotency =====
+
+    @Test
+    void testCloseIsIdempotent() {
+        var client = new CopilotClient();
+
+        // First close
+        client.close();
+        // Second close should not throw
+        assertDoesNotThrow(() -> client.close());
+    }
+
+    @Test
+    void testCloseAfterFailedStart() throws Exception {
+        var options = new CopilotClientOptions().setCliPath("/nonexistent/path/to/cli").setAutoStart(false);
+        var client = new CopilotClient(options);
+
+        CompletableFuture<Void> startFuture = client.start();
+        try {
+            startFuture.get();
+        } catch (ExecutionException e) {
+            // Expected
+        }
+
+        // close() after a failed start should not throw
+        assertDoesNotThrow(() -> client.close());
+    }
+
+    // ===== stop() with no connection =====
+
+    @Test
+    void testStopWithNoConnectionCompletes() throws Exception {
+        try (var client = new CopilotClient(new CopilotClientOptions().setAutoStart(false))) {
+            // stop() without start() should complete without error
+            client.stop().get();
+            assertEquals(ConnectionState.DISCONNECTED, client.getState());
+        }
+    }
+
+    @Test
+    void testForceStopWithNoConnectionCompletes() throws Exception {
+        try (var client = new CopilotClient(new CopilotClientOptions().setAutoStart(false))) {
+            // forceStop() without start() should complete without error
+            client.forceStop().get();
+            assertEquals(ConnectionState.DISCONNECTED, client.getState());
+        }
+    }
+
+    // ===== start() idempotency =====
+
+    @Test
+    void testStartIsIdempotentSingleConnectionAttempt() throws Exception {
+        var options = new CopilotClientOptions().setCliPath("/nonexistent/path/to/cli").setAutoStart(false);
+
+        try (var client = new CopilotClient(options)) {
+            client.start();
+            client.start();
+
+            // Both calls should result in the same state (single connection attempt)
+            ConnectionState state = client.getState();
+            assertTrue(state == ConnectionState.CONNECTING || state == ConnectionState.ERROR,
+                    "State should be CONNECTING or ERROR after start(), was: " + state);
+        }
+    }
+
+    // ===== null options defaulting =====
+
+    @Test
+    void testNullOptionsDefaultsToEmpty() {
+        try (var client = new CopilotClient(null)) {
+            assertEquals(ConnectionState.DISCONNECTED, client.getState());
         }
     }
 }
