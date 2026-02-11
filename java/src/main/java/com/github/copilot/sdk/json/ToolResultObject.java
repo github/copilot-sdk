@@ -4,7 +4,6 @@
 
 package com.github.copilot.sdk.json;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -14,162 +13,95 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 /**
  * Result object returned from a tool execution.
  * <p>
- * This class represents the structured result of a tool invocation, including
+ * This record represents the structured result of a tool invocation, including
  * text output, binary data, error information, and telemetry.
  *
  * <h2>Example: Success Result</h2>
  *
  * <pre>{@code
- * return new ToolResultObject().setResultType("success").setTextResultForLlm("File contents: " + content);
+ * return ToolResultObject.success("File contents: " + content);
  * }</pre>
  *
  * <h2>Example: Error Result</h2>
  *
  * <pre>{@code
- * return new ToolResultObject().setResultType("error").setError("File not found: " + path);
+ * return ToolResultObject.error("File not found: " + path);
  * }</pre>
  *
+ * <h2>Example: Custom Result</h2>
+ *
+ * <pre>{@code
+ * return new ToolResultObject("success", "Result text", null, null, null, null);
+ * }</pre>
+ *
+ * @param resultType
+ *            the result type ("success" or "error"), defaults to "success"
+ * @param textResultForLlm
+ *            the text result to be sent to the LLM
+ * @param binaryResultsForLlm
+ *            the list of binary results to be sent to the LLM
+ * @param error
+ *            the error message, or {@code null} if successful
+ * @param sessionLog
+ *            the session log text
+ * @param toolTelemetry
+ *            the tool telemetry data
  * @see ToolHandler
  * @see ToolBinaryResult
  * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public final class ToolResultObject {
-
-    @JsonProperty("textResultForLlm")
-    private String textResultForLlm;
-
-    @JsonProperty("binaryResultsForLlm")
-    private List<ToolBinaryResult> binaryResultsForLlm;
-
-    @JsonProperty("resultType")
-    private String resultType = "success";
-
-    @JsonProperty("error")
-    private String error;
-
-    @JsonProperty("sessionLog")
-    private String sessionLog;
-
-    @JsonProperty("toolTelemetry")
-    private Map<String, Object> toolTelemetry;
+public record ToolResultObject(@JsonProperty("resultType") String resultType,
+        @JsonProperty("textResultForLlm") String textResultForLlm,
+        @JsonProperty("binaryResultsForLlm") List<ToolBinaryResult> binaryResultsForLlm,
+        @JsonProperty("error") String error, @JsonProperty("sessionLog") String sessionLog,
+        @JsonProperty("toolTelemetry") Map<String, Object> toolTelemetry) {
 
     /**
-     * Gets the text result to be sent to the LLM.
-     *
-     * @return the text result
-     */
-    public String getTextResultForLlm() {
-        return textResultForLlm;
-    }
-
-    /**
-     * Sets the text result to be sent to the LLM.
+     * Creates a success result with the given text.
      *
      * @param textResultForLlm
-     *            the text result
-     * @return this result for method chaining
+     *            the text result to be sent to the LLM
+     * @return a success result
      */
-    public ToolResultObject setTextResultForLlm(String textResultForLlm) {
-        this.textResultForLlm = textResultForLlm;
-        return this;
+    public static ToolResultObject success(String textResultForLlm) {
+        return new ToolResultObject("success", textResultForLlm, null, null, null, null);
     }
 
     /**
-     * Gets the binary results to be sent to the LLM.
-     *
-     * @return the list of binary results
-     */
-    public List<ToolBinaryResult> getBinaryResultsForLlm() {
-        return binaryResultsForLlm == null ? null : Collections.unmodifiableList(binaryResultsForLlm);
-    }
-
-    /**
-     * Sets binary results (images, files) to be sent to the LLM.
-     *
-     * @param binaryResultsForLlm
-     *            the list of binary results
-     * @return this result for method chaining
-     */
-    public ToolResultObject setBinaryResultsForLlm(List<ToolBinaryResult> binaryResultsForLlm) {
-        this.binaryResultsForLlm = binaryResultsForLlm;
-        return this;
-    }
-
-    /**
-     * Gets the result type.
-     *
-     * @return the result type ("success" or "error")
-     */
-    public String getResultType() {
-        return resultType;
-    }
-
-    /**
-     * Sets the result type.
-     *
-     * @param resultType
-     *            "success" or "error"
-     * @return this result for method chaining
-     */
-    public ToolResultObject setResultType(String resultType) {
-        this.resultType = resultType;
-        return this;
-    }
-
-    /**
-     * Gets the error message.
-     *
-     * @return the error message, or {@code null} if successful
-     */
-    public String getError() {
-        return error;
-    }
-
-    /**
-     * Sets an error message for failed tool execution.
+     * Creates an error result with the given error message.
      *
      * @param error
      *            the error message
-     * @return this result for method chaining
+     * @return an error result
      */
-    public ToolResultObject setError(String error) {
-        this.error = error;
-        return this;
+    public static ToolResultObject error(String error) {
+        return new ToolResultObject("error", "An error occurred.", null, error, null, null);
     }
 
     /**
-     * Gets the session log entry.
+     * Creates an error result with both a text result and error message.
      *
-     * @return the session log text
+     * @param textResultForLlm
+     *            the text result to be sent to the LLM
+     * @param error
+     *            the error message
+     * @return an error result
      */
-    public String getSessionLog() {
-        return sessionLog;
+    public static ToolResultObject error(String textResultForLlm, String error) {
+        return new ToolResultObject("error", textResultForLlm, null, error, null, null);
     }
 
     /**
-     * Sets a log entry to be recorded in the session.
+     * Creates a failure result with the given text and error message.
      *
-     * @param sessionLog
-     *            the log entry
-     * @return this result for method chaining
+     * @param textResultForLlm
+     *            the text result to be sent to the LLM
+     * @param error
+     *            the error message
+     * @return a failure result
      */
-    public ToolResultObject setSessionLog(String sessionLog) {
-        this.sessionLog = sessionLog;
-        return this;
-    }
-
-    /**
-     * Gets the tool telemetry data.
-     *
-     * @return the telemetry map
-     */
-    public Map<String, Object> getToolTelemetry() {
-        return toolTelemetry == null ? null : Collections.unmodifiableMap(toolTelemetry);
-    }
-
-    public ToolResultObject setToolTelemetry(Map<String, Object> toolTelemetry) {
-        this.toolTelemetry = toolTelemetry;
-        return this;
+    public static ToolResultObject failure(String textResultForLlm, String error) {
+        return new ToolResultObject("failure", textResultForLlm, null, error, null, null);
     }
 }

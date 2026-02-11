@@ -130,8 +130,8 @@ final class RpcHandlerDispatcher {
 
                 ToolDefinition tool = session.getTool(toolName);
                 if (tool == null || tool.handler() == null) {
-                    var result = new ToolResultObject().setTextResultForLlm("Tool '" + toolName + "' is not supported.")
-                            .setResultType("failure").setError("tool '" + toolName + "' not supported");
+                    var result = ToolResultObject.failure("Tool '" + toolName + "' is not supported.",
+                            "tool '" + toolName + "' not supported");
                     rpc.sendResponse(Long.parseLong(requestId), Map.of("result", result));
                     return;
                 }
@@ -145,8 +145,8 @@ final class RpcHandlerDispatcher {
                         if (result instanceof ToolResultObject tr) {
                             toolResult = tr;
                         } else {
-                            toolResult = new ToolResultObject().setResultType("success").setTextResultForLlm(
-                                    result instanceof String s ? s : MAPPER.writeValueAsString(result));
+                            toolResult = ToolResultObject
+                                    .success(result instanceof String s ? s : MAPPER.writeValueAsString(result));
                         }
                         rpc.sendResponse(Long.parseLong(requestId), Map.of("result", toolResult));
                     } catch (Exception e) {
@@ -154,10 +154,9 @@ final class RpcHandlerDispatcher {
                     }
                 }).exceptionally(ex -> {
                     try {
-                        var result = new ToolResultObject()
-                                .setTextResultForLlm(
-                                        "Invoking this tool produced an error. Detailed information is not available.")
-                                .setResultType("failure").setError(ex.getMessage());
+                        var result = ToolResultObject.failure(
+                                "Invoking this tool produced an error. Detailed information is not available.",
+                                ex.getMessage());
                         rpc.sendResponse(Long.parseLong(requestId), Map.of("result", result));
                     } catch (Exception e) {
                         LOG.log(Level.SEVERE, "Error sending tool error", e);
