@@ -1382,6 +1382,30 @@ public class SessionEventParserTest {
     }
 
     @Test
+    void testAssistantUsageEventWithNullQuotaSnapshots() throws Exception {
+        String json = """
+                {
+                    "type": "assistant.usage",
+                    "data": {
+                        "model": "gpt-4-turbo",
+                        "inputTokens": 500,
+                        "outputTokens": 200
+                    }
+                }
+                """;
+
+        var event = (AssistantUsageEvent) parseJson(json);
+        assertNotNull(event);
+        var data = event.getData();
+        assertEquals("gpt-4-turbo", data.model());
+        assertEquals(500.0, data.inputTokens());
+        assertEquals(200.0, data.outputTokens());
+        // quotaSnapshots should return an empty map, not null
+        assertNotNull(data.quotaSnapshots());
+        assertTrue(data.quotaSnapshots().isEmpty());
+    }
+
+    @Test
     void testAssistantReasoningDeltaEventAllFields() throws Exception {
         String json = """
                 {

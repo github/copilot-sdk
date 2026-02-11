@@ -47,7 +47,7 @@ public final class AssistantUsageEvent extends AbstractSessionEvent {
         /** Returns a defensive copy of the quota snapshots map. */
         @Override
         public Map<String, Object> quotaSnapshots() {
-            return quotaSnapshots == null ? null : Collections.unmodifiableMap(quotaSnapshots);
+            return quotaSnapshots == null ? Collections.emptyMap() : Collections.unmodifiableMap(quotaSnapshots);
         }
     }
 }
