@@ -9,11 +9,15 @@ import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.json.CopilotClientOptions;
 import com.github.copilot.sdk.json.PingResponse;
+import com.github.copilot.sdk.json.SessionLifecycleEvent;
+import com.github.copilot.sdk.json.SessionLifecycleEventTypes;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -217,5 +221,106 @@ public class CopilotClientTest {
         var options = new CopilotClientOptions().setCliUrl("localhost:8080").setUseLoggedInUser(false);
 
         assertThrows(IllegalArgumentException.class, () -> new CopilotClient(options));
+    }
+
+    // ===== onLifecycle tests =====
+
+    /**
+     * Gets the internal LifecycleEventManager from a CopilotClient via reflection
+     * so we can dispatch events for testing.
+     */
+    private static LifecycleEventManager getLifecycleManager(CopilotClient client) throws Exception {
+        Field f = CopilotClient.class.getDeclaredField("lifecycleManager");
+        f.setAccessible(true);
+        return (LifecycleEventManager) f.get(client);
+    }
+
+    private static SessionLifecycleEvent lifecycleEvent(String type) {
+        var e = new SessionLifecycleEvent();
+        e.setType(type);
+        e.setSessionId("test-session-id");
+        return e;
+    }
+
+    @Test
+    void testOnLifecycleWildcardReceivesAllEvents() throws Exception {
+        try (var client = new CopilotClient()) {
+            var received = new ArrayList<SessionLifecycleEvent>();
+            client.onLifecycle(received::add);
+
+            LifecycleEventManager mgr = getLifecycleManager(client);
+            mgr.dispatch(lifecycleEvent(SessionLifecycleEventTypes.CREATED));
+            mgr.dispatch(lifecycleEvent(SessionLifecycleEventTypes.DELETED));
+
+            assertEquals(2, received.size());
+            assertEquals(SessionLifecycleEventTypes.CREATED, received.get(0).getType());
+            assertEquals(SessionLifecycleEventTypes.DELETED, received.get(1).getType());
+        }
+    }
+
+    @Test
+    void testOnLifecycleTypedReceivesOnlyMatchingEvents() throws Exception {
+        try (var client = new CopilotClient()) {
+            var received = new ArrayList<SessionLifecycleEvent>();
+            client.onLifecycle(SessionLifecycleEventTypes.CREATED, received::add);
+
+            LifecycleEventManager mgr = getLifecycleManager(client);
+            mgr.dispatch(lifecycleEvent(SessionLifecycleEventTypes.CREATED));
+            mgr.dispatch(lifecycleEvent(SessionLifecycleEventTypes.DELETED));
+
+            assertEquals(1, received.size());
+            assertEquals(SessionLifecycleEventTypes.CREATED, received.get(0).getType());
+        }
+    }
+
+    @Test
+    void testOnLifecycleUnsubscribeStopsDelivery() throws Exception {
+        try (var client = new CopilotClient()) {
+            var received = new ArrayList<SessionLifecycleEvent>();
+            AutoCloseable sub = client.onLifecycle(received::add);
+
+            LifecycleEventManager mgr = getLifecycleManager(client);
+            mgr.dispatch(lifecycleEvent(SessionLifecycleEventTypes.CREATED));
+            assertEquals(1, received.size());
+
+            sub.close();
+
+            mgr.dispatch(lifecycleEvent(SessionLifecycleEventTypes.DELETED));
+            assertEquals(1, received.size(), "Should not receive events after unsubscribe");
+        }
+    }
+
+    @Test
+    void testOnLifecycleTypedUnsubscribeStopsDelivery() throws Exception {
+        try (var client = new CopilotClient()) {
+            var received = new ArrayList<SessionLifecycleEvent>();
+            AutoCloseable sub = client.onLifecycle(SessionLifecycleEventTypes.UPDATED, received::add);
+
+            LifecycleEventManager mgr = getLifecycleManager(client);
+            mgr.dispatch(lifecycleEvent(SessionLifecycleEventTypes.UPDATED));
+            assertEquals(1, received.size());
+
+            sub.close();
+
+            mgr.dispatch(lifecycleEvent(SessionLifecycleEventTypes.UPDATED));
+            assertEquals(1, received.size(), "Should not receive events after unsubscribe");
+        }
+    }
+
+    @Test
+    void testOnLifecycleMultipleHandlers() throws Exception {
+        try (var client = new CopilotClient()) {
+            var wildcard = new ArrayList<SessionLifecycleEvent>();
+            var typed = new ArrayList<SessionLifecycleEvent>();
+
+            client.onLifecycle(wildcard::add);
+            client.onLifecycle(SessionLifecycleEventTypes.CREATED, typed::add);
+
+            LifecycleEventManager mgr = getLifecycleManager(client);
+            mgr.dispatch(lifecycleEvent(SessionLifecycleEventTypes.CREATED));
+
+            assertEquals(1, wildcard.size());
+            assertEquals(1, typed.size());
+        }
     }
 }
