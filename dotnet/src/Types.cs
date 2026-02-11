@@ -1063,6 +1063,41 @@ public class GetModelsResponse
     public List<ModelInfo> Models { get; set; } = new();
 }
 
+/// <summary>
+/// Information about an available built-in tool
+/// </summary>
+public class ToolInfoItem
+{
+    /// <summary>Tool identifier (e.g., "bash", "grep", "str_replace_editor")</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Optional namespaced name for declarative filtering (e.g., "playwright/navigate" for MCP tools)</summary>
+    [JsonPropertyName("namespacedName")]
+    public string? NamespacedName { get; set; }
+
+    /// <summary>Description of what the tool does</summary>
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>JSON Schema for the tool's input parameters</summary>
+    [JsonPropertyName("parameters")]
+    public JsonElement? Parameters { get; set; }
+
+    /// <summary>Optional instructions for how to use this tool effectively</summary>
+    [JsonPropertyName("instructions")]
+    public string? Instructions { get; set; }
+}
+
+/// <summary>
+/// Response from tools.list
+/// </summary>
+public class GetToolsResponse
+{
+    [JsonPropertyName("tools")]
+    public List<ToolInfoItem> Tools { get; set; } = new();
+}
+
 // ============================================================================
 // Session Lifecycle Types (for TUI+server mode)
 // ============================================================================
@@ -1143,6 +1178,7 @@ public class SetForegroundSessionResponse
 [JsonSerializable(typeof(GetAuthStatusResponse))]
 [JsonSerializable(typeof(GetForegroundSessionResponse))]
 [JsonSerializable(typeof(GetModelsResponse))]
+[JsonSerializable(typeof(GetToolsResponse))]
 [JsonSerializable(typeof(GetStatusResponse))]
 [JsonSerializable(typeof(McpLocalServerConfig))]
 [JsonSerializable(typeof(McpRemoteServerConfig))]
@@ -1165,6 +1201,7 @@ public class SetForegroundSessionResponse
 [JsonSerializable(typeof(SetForegroundSessionResponse))]
 [JsonSerializable(typeof(SystemMessageConfig))]
 [JsonSerializable(typeof(ToolBinaryResult))]
+[JsonSerializable(typeof(ToolInfoItem))]
 [JsonSerializable(typeof(ToolInvocation))]
 [JsonSerializable(typeof(ToolResultObject))]
 [JsonSerializable(typeof(JsonElement))]

@@ -33,6 +33,7 @@ from .types import (
     StopError,
     Tool,
     ToolHandler,
+    ToolInfo,
     ToolInvocation,
     ToolResult,
 )
@@ -67,6 +68,7 @@ __all__ = [
     "StopError",
     "Tool",
     "ToolHandler",
+    "ToolInfo",
     "ToolInvocation",
     "ToolResult",
     "define_tool",

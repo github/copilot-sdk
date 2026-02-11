@@ -962,6 +962,26 @@ export interface ModelInfo {
 }
 
 // ============================================================================
+// Tool Info Types (for tools.list)
+// ============================================================================
+
+/**
+ * Information about an available built-in tool
+ */
+export interface ToolInfo {
+    /** Tool identifier (e.g., "bash", "grep", "str_replace_editor") */
+    name: string;
+    /** Optional namespaced name for declarative filtering (e.g., "playwright/navigate" for MCP tools) */
+    namespacedName?: string;
+    /** Description of what the tool does */
+    description: string;
+    /** JSON Schema for the tool's input parameters */
+    parameters?: Record<string, unknown>;
+    /** Optional instructions for how to use this tool effectively */
+    instructions?: string;
+}
+
+// ============================================================================
 // Session Lifecycle Types (for TUI+server mode)
 // ============================================================================
 

@@ -541,6 +541,15 @@ type ModelInfo struct {
 	DefaultReasoningEffort    string            `json:"defaultReasoningEffort,omitempty"`
 }
 
+// ToolInfo contains information about an available built-in tool
+type ToolInfo struct {
+	Name           string                 `json:"name"`
+	NamespacedName string                 `json:"namespacedName,omitempty"`
+	Description    string                 `json:"description"`
+	Parameters     map[string]interface{} `json:"parameters,omitempty"`
+	Instructions   string                 `json:"instructions,omitempty"`
+}
+
 // SessionMetadata contains metadata about a session
 type SessionMetadata struct {
 	SessionID    string  `json:"sessionId"`
@@ -731,6 +740,16 @@ type listModelsRequest struct{}
 // listModelsResponse is the response from models.list
 type listModelsResponse struct {
 	Models []ModelInfo `json:"models"`
+}
+
+// listToolsRequest is the request for tools.list
+type listToolsRequest struct {
+	Model string `json:"model,omitempty"`
+}
+
+// listToolsResponse is the response from tools.list
+type listToolsResponse struct {
+	Tools []ToolInfo `json:"tools"`
 }
 
 // sessionGetMessagesRequest is the request for session.getMessages

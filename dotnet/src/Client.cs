@@ -594,6 +594,23 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
+    /// Lists available built-in tools with their metadata.
+    /// </summary>
+    /// <param name="model">Optional model ID to get model-specific tool overrides.</param>
+    /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
+    /// <returns>A task that resolves with a list of available tools.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the client is not connected.</exception>
+    public async Task<List<ToolInfoItem>> ListToolsAsync(string? model = null, CancellationToken cancellationToken = default)
+    {
+        var connection = await EnsureConnectedAsync(cancellationToken);
+
+        var response = await InvokeRpcAsync<GetToolsResponse>(
+            connection.Rpc, "tools.list", [new ListToolsRequest { Model = model }], cancellationToken);
+
+        return response.Tools;
+    }
+
+    /// <summary>
     /// Gets the ID of the most recently used session.
     /// </summary>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
@@ -1385,6 +1402,11 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     internal record HooksInvokeResponse(
         object? Output);
 
+    internal record ListToolsRequest
+    {
+        public string? Model { get; init; }
+    }
+
     /// <summary>Trace source that forwards all logs to the ILogger.</summary>
     internal sealed class LoggerTraceSource : TraceSource
     {
@@ -1439,6 +1461,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(GetLastSessionIdResponse))]
     [JsonSerializable(typeof(HooksInvokeResponse))]
     [JsonSerializable(typeof(ListSessionsResponse))]
+    [JsonSerializable(typeof(ListToolsRequest))]
     [JsonSerializable(typeof(PermissionRequestResponse))]
     [JsonSerializable(typeof(PermissionRequestResult))]
     [JsonSerializable(typeof(ProviderConfig))]

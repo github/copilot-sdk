@@ -132,4 +132,24 @@ describe("Client", () => {
 
         await client.stop();
     });
+
+    it("should list tools", async () => {
+        const client = new CopilotClient({ useStdio: true });
+        onTestFinishedForceStop(client);
+
+        await client.start();
+
+        const tools = await client.listTools();
+        expect(Array.isArray(tools)).toBe(true);
+        expect(tools.length).toBeGreaterThan(0);
+        if (tools.length > 0) {
+            const tool = tools[0];
+            expect(tool.name).toBeDefined();
+            expect(tool.name).not.toBe("");
+            expect(tool.description).toBeDefined();
+            expect(tool.description).not.toBe("");
+        }
+
+        await client.stop();
+    });
 });

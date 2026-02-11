@@ -179,3 +179,24 @@ class TestClient:
             await client.stop()
         finally:
             await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_should_list_tools(self):
+        client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": True})
+
+        try:
+            await client.start()
+
+            tools = await client.list_tools()
+            assert isinstance(tools, list)
+            assert len(tools) > 0
+            if len(tools) > 0:
+                tool = tools[0]
+                assert hasattr(tool, "name")
+                assert tool.name != ""
+                assert hasattr(tool, "description")
+                assert tool.description != ""
+
+            await client.stop()
+        finally:
+            await client.force_stop()

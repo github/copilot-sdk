@@ -970,6 +970,27 @@ func (c *Client) ListModels(ctx context.Context) ([]ModelInfo, error) {
 	return models, nil
 }
 
+// ListTools returns available built-in tools with their metadata.
+//
+// When a model is provided, the returned tool list reflects model-specific overrides.
+func (c *Client) ListTools(ctx context.Context, model string) ([]ToolInfo, error) {
+	if c.client == nil {
+		return nil, fmt.Errorf("client not connected")
+	}
+
+	result, err := c.client.Request("tools.list", listToolsRequest{Model: model})
+	if err != nil {
+		return nil, err
+	}
+
+	var response listToolsResponse
+	if err := json.Unmarshal(result, &response); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal tools response: %w", err)
+	}
+
+	return response.Tools, nil
+}
+
 // verifyProtocolVersion verifies that the server's protocol version matches the SDK's expected version
 func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 	expectedVersion := GetSdkProtocolVersion()

@@ -42,6 +42,7 @@ import type {
     ToolCallRequestPayload,
     ToolCallResponsePayload,
     ToolHandler,
+    ToolInfo,
     ToolResult,
     ToolResultObject,
     TypedSessionLifecycleHandler,
@@ -719,6 +720,24 @@ export class CopilotClient {
         } finally {
             resolveLock!();
         }
+    }
+
+    /**
+     * List available built-in tools with their metadata.
+     *
+     * Returns the list of tools available in the runtime, optionally filtered
+     * by model-specific overrides when a model ID is provided.
+     *
+     * @param model - Optional model ID to get model-specific tool overrides
+     */
+    async listTools(model?: string): Promise<ToolInfo[]> {
+        if (!this.connection) {
+            throw new Error("Client not connected");
+        }
+
+        const result = await this.connection.sendRequest("tools.list", { model });
+        const response = result as { tools: ToolInfo[] };
+        return response.tools;
     }
 
     /**

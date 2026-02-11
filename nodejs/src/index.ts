@@ -45,6 +45,7 @@ export type {
     SystemMessageReplaceConfig,
     Tool,
     ToolHandler,
+    ToolInfo,
     ToolInvocation,
     ToolResultObject,
     TypedSessionEventHandler,

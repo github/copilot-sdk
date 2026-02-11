@@ -149,6 +149,35 @@ public class ClientTests
     }
 
     [Fact]
+    public async Task Should_List_Tools()
+    {
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = true });
+
+        try
+        {
+            await client.StartAsync();
+
+            var tools = await client.ListToolsAsync();
+            Assert.NotNull(tools);
+            Assert.True(tools.Count > 0, "Expected at least one tool");
+            if (tools.Count > 0)
+            {
+                var tool = tools[0];
+                Assert.NotNull(tool.Name);
+                Assert.NotEmpty(tool.Name);
+                Assert.NotNull(tool.Description);
+                Assert.NotEmpty(tool.Description);
+            }
+
+            await client.StopAsync();
+        }
+        finally
+        {
+            await client.ForceStopAsync();
+        }
+    }
+
+    [Fact]
     public void Should_Accept_GithubToken_Option()
     {
         var options = new CopilotClientOptions

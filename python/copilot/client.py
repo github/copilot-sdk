@@ -44,6 +44,7 @@ from .types import (
     SessionMetadata,
     StopError,
     ToolHandler,
+    ToolInfo,
     ToolInvocation,
     ToolResult,
 )
@@ -836,6 +837,34 @@ class CopilotClient:
             self._models_cache = models
 
             return list(models)  # Return a copy to prevent cache mutation
+
+    async def list_tools(self, model: str | None = None) -> list["ToolInfo"]:
+        """
+        List available built-in tools with their metadata.
+
+        Returns the list of tools available in the runtime, optionally filtered
+        by model-specific overrides when a model ID is provided.
+
+        Args:
+            model: Optional model ID to get model-specific tool overrides.
+
+        Returns:
+            A list of ToolInfo objects with tool details.
+
+        Raises:
+            RuntimeError: If the client is not connected.
+
+        Example:
+            >>> tools = await client.list_tools()
+            >>> for tool in tools:
+            ...     print(f"{tool.name}: {tool.description}")
+        """
+        if not self._client:
+            raise RuntimeError("Client not connected")
+
+        response = await self._client.request("tools.list", {"model": model})
+        tools_data = response.get("tools", [])
+        return [ToolInfo.from_dict(tool) for tool in tools_data]
 
     async def list_sessions(self) -> list["SessionMetadata"]:
         """

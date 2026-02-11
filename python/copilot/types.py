@@ -919,6 +919,49 @@ class ModelInfo:
 
 
 @dataclass
+class ToolInfo:
+    """Information about an available built-in tool"""
+
+    name: str  # Tool identifier (e.g., "bash", "grep", "str_replace_editor")
+    description: str  # Description of what the tool does
+    namespaced_name: str | None = None  # Optional namespaced name for filtering
+    parameters: dict | None = None  # JSON Schema for the tool's input parameters
+    instructions: str | None = None  # Optional instructions for how to use this tool
+
+    @staticmethod
+    def from_dict(obj: Any) -> ToolInfo:
+        assert isinstance(obj, dict)
+        name = obj.get("name")
+        description = obj.get("description")
+        if name is None or description is None:
+            raise ValueError(
+                f"Missing required fields in ToolInfo: name={name}, description={description}"
+            )
+        namespaced_name = obj.get("namespacedName")
+        parameters = obj.get("parameters")
+        instructions = obj.get("instructions")
+        return ToolInfo(
+            name=str(name),
+            description=str(description),
+            namespaced_name=namespaced_name,
+            parameters=parameters,
+            instructions=instructions,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["name"] = self.name
+        result["description"] = self.description
+        if self.namespaced_name is not None:
+            result["namespacedName"] = self.namespaced_name
+        if self.parameters is not None:
+            result["parameters"] = self.parameters
+        if self.instructions is not None:
+            result["instructions"] = self.instructions
+        return result
+
+
+@dataclass
 class SessionMetadata:
     """Metadata about a session"""
 

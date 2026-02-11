@@ -225,4 +225,37 @@ func TestClient(t *testing.T) {
 
 		client.Stop()
 	})
+
+	t.Run("should list tools", func(t *testing.T) {
+		client := copilot.NewClient(&copilot.ClientOptions{
+			CLIPath:  cliPath,
+			UseStdio: copilot.Bool(true),
+		})
+		t.Cleanup(func() { client.ForceStop() })
+
+		if err := client.Start(t.Context()); err != nil {
+			t.Fatalf("Failed to start client: %v", err)
+		}
+
+		tools, err := client.ListTools(t.Context(), "")
+		if err != nil {
+			t.Fatalf("Failed to list tools: %v", err)
+		}
+
+		if len(tools) == 0 {
+			t.Error("Expected at least one tool")
+		}
+
+		if len(tools) > 0 {
+			tool := tools[0]
+			if tool.Name == "" {
+				t.Error("Expected tool.Name to be non-empty")
+			}
+			if tool.Description == "" {
+				t.Error("Expected tool.Description to be non-empty")
+			}
+		}
+
+		client.Stop()
+	})
 }
