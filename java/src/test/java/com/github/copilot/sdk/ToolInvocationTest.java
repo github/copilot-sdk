@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.copilot.sdk.json.ToolInvocation;
@@ -20,8 +19,6 @@ import com.github.copilot.sdk.json.ToolInvocation;
  * to improve coverage beyond what E2E tests exercise.
  */
 public class ToolInvocationTest {
-
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     /**
      * Test all basic getters return values set via setters.
