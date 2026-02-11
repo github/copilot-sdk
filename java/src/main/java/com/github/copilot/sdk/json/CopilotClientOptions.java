@@ -5,7 +5,6 @@
 package com.github.copilot.sdk.json;
 
 import java.util.Map;
-import java.util.logging.Logger;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
@@ -42,7 +41,6 @@ public class CopilotClientOptions {
     private boolean autoStart = true;
     private boolean autoRestart = true;
     private Map<String, String> environment;
-    private Logger logger;
     private String githubToken;
     private Boolean useLoggedInUser;
 
@@ -273,27 +271,6 @@ public class CopilotClientOptions {
      */
     public CopilotClientOptions setEnvironment(Map<String, String> environment) {
         this.environment = environment;
-        return this;
-    }
-
-    /**
-     * Gets the custom logger for the client.
-     *
-     * @return the logger instance
-     */
-    public Logger getLogger() {
-        return logger;
-    }
-
-    /**
-     * Sets a custom logger for the client.
-     *
-     * @param logger
-     *            the logger instance to use
-     * @return this options instance for method chaining
-     */
-    public CopilotClientOptions setLogger(Logger logger) {
-        this.logger = logger;
         return this;
     }
 
