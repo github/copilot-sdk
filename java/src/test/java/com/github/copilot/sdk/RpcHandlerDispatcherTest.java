@@ -232,8 +232,7 @@ class RpcHandlerDispatcherTest {
     void toolCallReturnsToolResultObjectDirectly() throws Exception {
         CopilotSession session = createSession("s1");
         var tool = ToolDefinition.create("my_tool", "A test tool", Map.of("type", "object"),
-                invocation -> CompletableFuture.completedFuture(
-                        new ToolResultObject().setResultType("success").setTextResultForLlm("direct result")));
+                invocation -> CompletableFuture.completedFuture(ToolResultObject.success("direct result")));
         session.registerTools(List.of(tool));
 
         ObjectNode params = MAPPER.createObjectNode();
