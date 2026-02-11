@@ -76,7 +76,7 @@ public record ToolResultObject(@JsonProperty("resultType") String resultType,
      * @return an error result
      */
     public static ToolResultObject error(String error) {
-        return new ToolResultObject("error", "An error occurred.", null, error, null, null);
+        return new ToolResultObject("error", null, null, error, null, null);
     }
 
     /**
@@ -94,6 +94,10 @@ public record ToolResultObject(@JsonProperty("resultType") String resultType,
 
     /**
      * Creates a failure result with the given text and error message.
+     * <p>
+     * The "failure" result type indicates that the tool execution itself failed
+     * (e.g., tool not found), while "error" indicates the tool executed but
+     * encountered an error during processing.
      *
      * @param textResultForLlm
      *            the text result to be sent to the LLM
