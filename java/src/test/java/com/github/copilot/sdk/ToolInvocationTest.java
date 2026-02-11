@@ -15,8 +15,8 @@ import com.github.copilot.sdk.json.ToolInvocation;
 /**
  * Unit tests for {@link ToolInvocation}.
  * <p>
- * Tests getter methods, type-safe deserialization, and null handling
- * to improve coverage beyond what E2E tests exercise.
+ * Tests getter methods, type-safe deserialization, and null handling to improve
+ * coverage beyond what E2E tests exercise.
  */
 public class ToolInvocationTest {
 
@@ -25,9 +25,7 @@ public class ToolInvocationTest {
      */
     @Test
     void testGettersReturnSetValues() {
-        ToolInvocation invocation = new ToolInvocation()
-                .setSessionId("test-session-123")
-                .setToolCallId("call_abc123")
+        ToolInvocation invocation = new ToolInvocation().setSessionId("test-session-123").setToolCallId("call_abc123")
                 .setToolName("test_tool");
 
         assertEquals("test-session-123", invocation.getSessionId());
@@ -50,14 +48,14 @@ public class ToolInvocationTest {
     @Test
     void testGetArgumentsReturnsMap() {
         ToolInvocation invocation = new ToolInvocation();
-        
+
         // Create a JsonNode with some arguments
         ObjectNode argsNode = JsonNodeFactory.instance.objectNode();
         argsNode.put("location", "San Francisco");
         argsNode.put("units", "celsius");
-        
+
         invocation.setArguments(argsNode);
-        
+
         var args = invocation.getArguments();
         assertNotNull(args);
         assertEquals("San Francisco", args.get("location"));
@@ -70,14 +68,14 @@ public class ToolInvocationTest {
     @Test
     void testGetArgumentsAsWithRecord() {
         ToolInvocation invocation = new ToolInvocation();
-        
+
         // Create a JsonNode with weather arguments
         ObjectNode argsNode = JsonNodeFactory.instance.objectNode();
         argsNode.put("city", "Paris");
         argsNode.put("units", "metric");
-        
+
         invocation.setArguments(argsNode);
-        
+
         // Deserialize to record
         WeatherArgs args = invocation.getArgumentsAs(WeatherArgs.class);
         assertNotNull(args);
@@ -91,14 +89,14 @@ public class ToolInvocationTest {
     @Test
     void testGetArgumentsAsWithPojo() {
         ToolInvocation invocation = new ToolInvocation();
-        
+
         // Create a JsonNode with user data
         ObjectNode argsNode = JsonNodeFactory.instance.objectNode();
         argsNode.put("username", "alice");
         argsNode.put("age", 30);
-        
+
         invocation.setArguments(argsNode);
-        
+
         // Deserialize to POJO
         UserData userData = invocation.getArgumentsAs(UserData.class);
         assertNotNull(userData);
@@ -107,25 +105,24 @@ public class ToolInvocationTest {
     }
 
     /**
-     * Test getArgumentsAs throws IllegalArgumentException on deserialization failure.
+     * Test getArgumentsAs throws IllegalArgumentException on deserialization
+     * failure.
      */
     @Test
     void testGetArgumentsAsThrowsOnInvalidType() {
         ToolInvocation invocation = new ToolInvocation();
-        
+
         // Create invalid JSON for the target type (missing required field)
         ObjectNode argsNode = JsonNodeFactory.instance.objectNode();
         argsNode.put("invalid_field", "value");
-        
+
         invocation.setArguments(argsNode);
-        
+
         // Try to deserialize to a type that doesn't match
-        IllegalArgumentException exception = assertThrows(
-            IllegalArgumentException.class,
-            () -> invocation.getArgumentsAs(StrictType.class),
-            "Should throw IllegalArgumentException for invalid deserialization"
-        );
-        
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> invocation.getArgumentsAs(StrictType.class),
+                "Should throw IllegalArgumentException for invalid deserialization");
+
         assertTrue(exception.getMessage().contains("Failed to deserialize arguments"));
         assertTrue(exception.getMessage().contains("StrictType"));
     }
@@ -133,7 +130,8 @@ public class ToolInvocationTest {
     /**
      * Record for testing type-safe argument deserialization.
      */
-    record WeatherArgs(String city, String units) {}
+    record WeatherArgs(String city, String units) {
+    }
 
     /**
      * POJO for testing type-safe argument deserialization.
