@@ -87,6 +87,19 @@ export type SessionEvent =
       timestamp: string;
       parentId: string | null;
       ephemeral?: boolean;
+      type: "session.context_changed";
+      data: {
+        cwd: string;
+        gitRoot?: string;
+        repository?: string;
+        branch?: string;
+      };
+    }
+  | {
+      id: string;
+      timestamp: string;
+      parentId: string | null;
+      ephemeral?: boolean;
       type: "session.model_change";
       data: {
         previousModel?: string;

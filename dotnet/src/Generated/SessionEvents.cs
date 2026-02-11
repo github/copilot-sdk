@@ -41,6 +41,7 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(SessionHandoffEvent), "session.handoff")]
 [JsonDerivedType(typeof(SessionIdleEvent), "session.idle")]
 [JsonDerivedType(typeof(SessionInfoEvent), "session.info")]
+[JsonDerivedType(typeof(SessionContextChangedEvent), "session.context_changed")]
 [JsonDerivedType(typeof(SessionModelChangeEvent), "session.model_change")]
 [JsonDerivedType(typeof(SessionResumeEvent), "session.resume")]
 [JsonDerivedType(typeof(SessionShutdownEvent), "session.shutdown")]
@@ -146,6 +147,18 @@ public partial class SessionInfoEvent : SessionEvent
 
     [JsonPropertyName("data")]
     public required SessionInfoData Data { get; set; }
+}
+
+/// <summary>
+/// Event: session.context_changed
+/// </summary>
+public partial class SessionContextChangedEvent : SessionEvent
+{
+    [JsonIgnore]
+    public override string Type => "session.context_changed";
+
+    [JsonPropertyName("data")]
+    public required SessionContextChangedData Data { get; set; }
 }
 
 /// <summary>
@@ -603,6 +616,24 @@ public partial class SessionInfoData
 
     [JsonPropertyName("message")]
     public required string Message { get; set; }
+}
+
+public partial class SessionContextChangedData
+{
+    [JsonPropertyName("cwd")]
+    public required string Cwd { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("gitRoot")]
+    public string? GitRoot { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("repository")]
+    public string? Repository { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("branch")]
+    public string? Branch { get; set; }
 }
 
 public partial class SessionModelChangeData
@@ -1425,6 +1456,8 @@ public enum SystemMessageDataRole
 [JsonSerializable(typeof(SessionIdleEvent))]
 [JsonSerializable(typeof(SessionInfoData))]
 [JsonSerializable(typeof(SessionInfoEvent))]
+[JsonSerializable(typeof(SessionContextChangedData))]
+[JsonSerializable(typeof(SessionContextChangedEvent))]
 [JsonSerializable(typeof(SessionModelChangeData))]
 [JsonSerializable(typeof(SessionModelChangeEvent))]
 [JsonSerializable(typeof(SessionResumeData))]

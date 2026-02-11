@@ -508,6 +508,9 @@ class Data:
     stack: Optional[str] = None
     status_code: Optional[int] = None
     info_type: Optional[str] = None
+    cwd: Optional[str] = None
+    git_root: Optional[str] = None
+    branch: Optional[str] = None
     new_model: Optional[str] = None
     previous_model: Optional[str] = None
     handoff_time: Optional[datetime] = None
@@ -615,6 +618,9 @@ class Data:
         stack = from_union([from_str, from_none], obj.get("stack"))
         status_code = from_union([from_int, from_none], obj.get("statusCode"))
         info_type = from_union([from_str, from_none], obj.get("infoType"))
+        cwd = from_union([from_str, from_none], obj.get("cwd"))
+        git_root = from_union([from_str, from_none], obj.get("gitRoot"))
+        branch = from_union([from_str, from_none], obj.get("branch"))
         new_model = from_union([from_str, from_none], obj.get("newModel"))
         previous_model = from_union([from_str, from_none], obj.get("previousModel"))
         handoff_time = from_union([from_datetime, from_none], obj.get("handoffTime"))
@@ -703,7 +709,7 @@ class Data:
         output = obj.get("output")
         metadata = from_union([Metadata.from_dict, from_none], obj.get("metadata"))
         role = from_union([Role, from_none], obj.get("role"))
-        return Data(context, copilot_version, producer, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, info_type, new_model, previous_model, handoff_time, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, current_model, error_reason, model_metrics, session_start_time, shutdown_type, total_api_duration_ms, total_premium_requests, current_tokens, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, attachments, content, source, transformed_content, turn_id, intent, reasoning_id, delta_content, encrypted_content, message_id, parent_tool_call_id, reasoning_opaque, reasoning_text, tool_requests, total_response_size_bytes, api_call_id, cache_read_tokens, cache_write_tokens, cost, duration, initiator, input_tokens, model, output_tokens, quota_snapshots, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, name, path, agent_description, agent_display_name, agent_name, tools, hook_invocation_id, hook_type, input, output, metadata, role)
+        return Data(context, copilot_version, producer, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, info_type, cwd, git_root, branch, new_model, previous_model, handoff_time, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, current_model, error_reason, model_metrics, session_start_time, shutdown_type, total_api_duration_ms, total_premium_requests, current_tokens, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, attachments, content, source, transformed_content, turn_id, intent, reasoning_id, delta_content, encrypted_content, message_id, parent_tool_call_id, reasoning_opaque, reasoning_text, tool_requests, total_response_size_bytes, api_call_id, cache_read_tokens, cache_write_tokens, cost, duration, initiator, input_tokens, model, output_tokens, quota_snapshots, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, name, path, agent_description, agent_display_name, agent_name, tools, hook_invocation_id, hook_type, input, output, metadata, role)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -737,6 +743,12 @@ class Data:
             result["statusCode"] = from_union([from_int, from_none], self.status_code)
         if self.info_type is not None:
             result["infoType"] = from_union([from_str, from_none], self.info_type)
+        if self.cwd is not None:
+            result["cwd"] = from_union([from_str, from_none], self.cwd)
+        if self.git_root is not None:
+            result["gitRoot"] = from_union([from_str, from_none], self.git_root)
+        if self.branch is not None:
+            result["branch"] = from_union([from_str, from_none], self.branch)
         if self.new_model is not None:
             result["newModel"] = from_union([from_str, from_none], self.new_model)
         if self.previous_model is not None:
@@ -935,6 +947,7 @@ class SessionEventType(Enum):
     SESSION_HANDOFF = "session.handoff"
     SESSION_IDLE = "session.idle"
     SESSION_INFO = "session.info"
+    SESSION_CONTEXT_CHANGED = "session.context_changed"
     SESSION_MODEL_CHANGE = "session.model_change"
     SESSION_RESUME = "session.resume"
     SESSION_SHUTDOWN = "session.shutdown"

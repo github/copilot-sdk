@@ -56,6 +56,9 @@ type Data struct {
 	ProviderCallID                  *string                  `json:"providerCallId,omitempty"`
 	Stack                           *string                  `json:"stack,omitempty"`
 	StatusCode                      *int64                   `json:"statusCode,omitempty"`
+	Cwd                             *string                  `json:"cwd,omitempty"`
+	GitRoot                         *string                  `json:"gitRoot,omitempty"`
+	Branch                          *string                  `json:"branch,omitempty"`
 	InfoType                        *string                  `json:"infoType,omitempty"`
 	NewModel                        *string                  `json:"newModel,omitempty"`
 	PreviousModel                   *string                  `json:"previousModel,omitempty"`
@@ -304,6 +307,7 @@ const (
 	SessionHandoff             SessionEventType = "session.handoff"
 	SessionIdle                SessionEventType = "session.idle"
 	SessionInfo                SessionEventType = "session.info"
+	SessionContextChanged      SessionEventType = "session.context_changed"
 	SessionModelChange         SessionEventType = "session.model_change"
 	SessionResume              SessionEventType = "session.resume"
 	SessionShutdown            SessionEventType = "session.shutdown"
