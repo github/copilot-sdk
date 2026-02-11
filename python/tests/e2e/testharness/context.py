@@ -13,14 +13,12 @@ from typing import Optional
 
 from copilot import CopilotClient
 
-from .proxy import CapiProxy
-
+from .proxy import BASE_DIR, CapiProxy
 
 def get_cli_path_for_tests() -> str:
     """Get CLI path for E2E tests. Uses node_modules CLI during development."""
     # Look for CLI in sibling nodejs directory's node_modules
-    base_path = Path(__file__).parents[3]
-    full_path = base_path / "nodejs" / "node_modules" / "@github" / "copilot" / "index.js"
+    full_path = BASE_DIR / "nodejs" / "node_modules" / "@github" / "copilot" / "index.js"
     if full_path.exists():
         return str(full_path.resolve())
 
@@ -28,7 +26,7 @@ def get_cli_path_for_tests() -> str:
 
 
 CLI_PATH = get_cli_path_for_tests()
-SNAPSHOTS_DIR = Path(__file__).parents[3] / "test" / "snapshots"
+SNAPSHOTS_DIR = BASE_DIR / "test" / "snapshots"
 
 
 class E2ETestContext:
