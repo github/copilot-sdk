@@ -70,7 +70,7 @@ public class HooksTest {
         var config = new SessionConfig().setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {
             preToolUseInputs.add(input);
             assertEquals(sessionIdHolder[0], invocation.getSessionId());
-            return CompletableFuture.completedFuture(new PreToolUseHookOutput().setPermissionDecision("allow"));
+            return CompletableFuture.completedFuture(new PreToolUseHookOutput("allow", null, null, null, null));
         }));
 
         try (CopilotClient client = ctx.createClient()) {
@@ -149,7 +149,7 @@ public class HooksTest {
 
         var config = new SessionConfig().setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {
             preToolUseInputs.add(input);
-            return CompletableFuture.completedFuture(new PreToolUseHookOutput().setPermissionDecision("allow"));
+            return CompletableFuture.completedFuture(new PreToolUseHookOutput("allow", null, null, null, null));
         }).setOnPostToolUse((input, invocation) -> {
             postToolUseInputs.add(input);
             return CompletableFuture.completedFuture(null);
@@ -195,7 +195,7 @@ public class HooksTest {
         var config = new SessionConfig().setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {
             preToolUseInputs.add(input);
             // Deny all tool calls
-            return CompletableFuture.completedFuture(new PreToolUseHookOutput().setPermissionDecision("deny"));
+            return CompletableFuture.completedFuture(new PreToolUseHookOutput("deny", null, null, null, null));
         }));
 
         try (CopilotClient client = ctx.createClient()) {

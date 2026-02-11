@@ -15,7 +15,7 @@ package com.github.copilot.sdk.json;
  * <pre>{@code
  * var hooks = new SessionHooks().setOnPreToolUse((input, invocation) -> {
  * 	System.out.println("Tool being called: " + input.getToolName());
- * 	return CompletableFuture.completedFuture(new PreToolUseHookOutput().setPermissionDecision("allow"));
+ * 	return CompletableFuture.completedFuture(new PreToolUseHookOutput("allow", null, null, null, null));
  * }).setOnPostToolUse((input, invocation) -> {
  * 	System.out.println("Tool result: " + input.getToolResult());
  * 	return CompletableFuture.completedFuture(null);
