@@ -14,7 +14,6 @@ from typing import Any, Optional
 
 import httpx
 
-
 BASE_DIR = pathlib.Path(__file__).parents[4]
 
 
@@ -31,9 +30,7 @@ class CapiProxy:
             return self._proxy_url
 
         # The harness server is in the shared test directory
-        server_path = os.path.join(
-            BASE_DIR / "test" / "harness" / "server.ts"
-        )
+        server_path = os.path.join(BASE_DIR / "test" / "harness" / "server.ts")
         server_path = os.path.abspath(server_path)
 
         # On Windows, use shell=True to find npx

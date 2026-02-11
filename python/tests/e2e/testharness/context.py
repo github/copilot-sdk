@@ -15,6 +15,7 @@ from copilot import CopilotClient
 
 from .proxy import BASE_DIR, CapiProxy
 
+
 def get_cli_path_for_tests() -> str:
     """Get CLI path for E2E tests. Uses node_modules CLI during development."""
     # Look for CLI in sibling nodejs directory's node_modules

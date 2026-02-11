@@ -5,9 +5,9 @@ This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py
 """
 
 import pytest
+from e2e.testharness import CLI_PATH
 
 from copilot import CopilotClient
-from e2e.testharness import CLI_PATH
 
 
 class TestHandleToolCallRequest:
