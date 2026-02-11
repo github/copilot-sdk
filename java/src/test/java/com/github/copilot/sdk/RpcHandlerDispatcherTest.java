@@ -468,8 +468,8 @@ class RpcHandlerDispatcherTest {
     @Test
     void hooksInvokeWithNonNullOutput() throws Exception {
         CopilotSession session = createSession("s1");
-        session.registerHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> CompletableFuture
-                .completedFuture(new PreToolUseHookOutput("allow", null, null, null, null))));
+        session.registerHooks(new SessionHooks().setOnPreToolUse(
+                (input, invocation) -> CompletableFuture.completedFuture(PreToolUseHookOutput.allow())));
 
         ObjectNode params = MAPPER.createObjectNode();
         params.put("sessionId", "s1");
