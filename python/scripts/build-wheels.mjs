@@ -180,13 +180,19 @@ async function buildWheel(platform, pkgVersion, cliVersion, outputDir, licensePa
     // Create __init__.py
     writeFileSync(join(binDir, "__init__.py"), '"""Bundled Copilot CLI binary."""\n');
 
-    // Copy and modify pyproject.toml - replace license reference with file
+    // Copy and modify pyproject.toml for bundled CLI wheel
     let pyprojectContent = readFileSync(join(pythonDir, "pyproject.toml"), "utf-8");
 
-    // Replace the license specification with file reference
+    // Update SPDX expression to cover both SDK and bundled CLI licenses
     pyprojectContent = pyprojectContent.replace(
-        'license = {text = "MIT"}',
-        'license = {file = "CLI-LICENSE.md"}'
+        'license = "MIT"',
+        'license = "MIT AND LicenseRef-Copilot-CLI"'
+    );
+
+    // License files are copied into the build dir, so use local paths
+    pyprojectContent = pyprojectContent.replace(
+        'license = "MIT AND LicenseRef-Copilot-CLI"',
+        'license = "MIT AND LicenseRef-Copilot-CLI"\nlicense-files = ["LICENSE", "CLI-LICENSE.md"]'
     );
 
     // Add package-data configuration
@@ -201,6 +207,9 @@ async function buildWheel(platform, pkgVersion, cliVersion, outputDir, licensePa
     if (existsSync(join(pythonDir, "README.md"))) {
         cpSync(join(pythonDir, "README.md"), join(buildDir, "README.md"));
     }
+
+    // Copy SDK LICENSE
+    cpSync(join(repoRoot, "LICENSE"), join(buildDir, "LICENSE"));
 
     // Copy CLI LICENSE
     cpSync(licensePath, join(buildDir, "CLI-LICENSE.md"));
