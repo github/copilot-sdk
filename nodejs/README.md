@@ -108,9 +108,9 @@ Ping the server to check connectivity.
 
 Get current connection state.
 
-##### `listSessions(): Promise<SessionMetadata[]>`
+##### `listSessions(filter?: SessionListFilter): Promise<SessionMetadata[]>`
 
-List all available sessions.
+List all available sessions. Optionally filter by working directory context.
 
 **SessionMetadata:**
 

@@ -37,6 +37,7 @@ import type {
     SessionLifecycleEvent,
     SessionLifecycleEventType,
     SessionLifecycleHandler,
+    SessionContext,
     SessionListFilter,
     SessionMetadata,
     Tool,
@@ -805,20 +806,17 @@ export class CopilotClient {
     }
 
     /**
-     * Lists all available sessions known to the server.
+     * List all available sessions.
      *
-     * Returns metadata about each session including ID, timestamps, and summary.
-     *
-     * @returns A promise that resolves with an array of session metadata
-     * @throws Error if the client is not connected
+     * @param filter - Optional filter to limit returned sessions by context fields
      *
      * @example
-     * ```typescript
+     * // List all sessions
      * const sessions = await client.listSessions();
-     * for (const session of sessions) {
-     *   console.log(`${session.sessionId}: ${session.summary}`);
-     * }
-     * ```
+     *
+     * @example
+     * // List sessions for a specific repository
+     * const sessions = await client.listSessions({ repository: "owner/repo" });
      */
     async listSessions(filter?: SessionListFilter): Promise<SessionMetadata[]> {
         if (!this.connection) {
@@ -833,12 +831,7 @@ export class CopilotClient {
                 modifiedTime: string;
                 summary?: string;
                 isRemote: boolean;
-                context?: {
-                    cwd: string;
-                    gitRoot?: string;
-                    repository?: string;
-                    branch?: string;
-                };
+                context?: SessionContext;
             }>;
         };
 
