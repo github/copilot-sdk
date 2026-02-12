@@ -183,15 +183,9 @@ async function buildWheel(platform, pkgVersion, cliVersion, outputDir, licensePa
     // Copy and modify pyproject.toml for bundled CLI wheel
     let pyprojectContent = readFileSync(join(pythonDir, "pyproject.toml"), "utf-8");
 
-    // Update SPDX expression to cover both SDK and bundled CLI licenses
+    // Update SPDX expression and add license-files for both SDK and bundled CLI licenses
     pyprojectContent = pyprojectContent.replace(
         'license = "MIT"',
-        'license = "MIT AND LicenseRef-Copilot-CLI"'
-    );
-
-    // License files are copied into the build dir, so use local paths
-    pyprojectContent = pyprojectContent.replace(
-        'license = "MIT AND LicenseRef-Copilot-CLI"',
         'license = "MIT AND LicenseRef-Copilot-CLI"\nlicense-files = ["LICENSE", "CLI-LICENSE.md"]'
     );
 
