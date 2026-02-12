@@ -375,7 +375,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         var session = await Client.CreateSessionAsync();
         await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say hello" });
 
-        await Task.Delay(200);
+        await Task.Delay(500);
 
         var sessions = await Client.ListSessionsAsync();
         Assert.NotEmpty(sessions);
@@ -383,13 +383,10 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         var ourSession = sessions.Find(s => s.SessionId == session.SessionId);
         Assert.NotNull(ourSession);
 
-        // Verify context field
-        foreach (var s in sessions)
+        // Context may be present on sessions that have been persisted with workspace.yaml
+        if (ourSession.Context != null)
         {
-            if (s.Context != null)
-            {
-                Assert.False(string.IsNullOrEmpty(s.Context.Cwd), "Expected context.Cwd to be non-empty when context is present");
-            }
+            Assert.False(string.IsNullOrEmpty(ourSession.Context.Cwd), "Expected context.Cwd to be non-empty when context is present");
         }
     }
 

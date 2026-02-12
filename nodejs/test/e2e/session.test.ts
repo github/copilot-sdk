@@ -23,9 +23,13 @@ describe("Sessions", async () => {
     });
 
     it("should list sessions with context field", async () => {
-        // Create a new session
+        // Create a new session and send a message to persist it
         const session = await client.createSession();
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
+        await session.sendAndWait({ prompt: "Say hello" });
+
+        // Small delay to ensure session file is written to disk
+        await new Promise((resolve) => setTimeout(resolve, 200));
 
         // List sessions and find the one we just created
         const sessions = await client.listSessions();
