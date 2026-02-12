@@ -69,6 +69,18 @@ func main() {
 }
 ```
 
+## Distributing your application with an embedded GitHub Copilot CLI
+
+The SDK supports bundling, using Go's `embed` package, the Copilot CLI binary within your application's distribution.
+This allows you to bundle a specific CLI version and avoid external dependencies on the user's system.
+
+Follow these steps to embed the CLI:
+
+1. Run `go get -tool github.com/github/copilot-sdk/go/cmd/bundler`. This is a one-time setup step per project.
+2. Run `go tool bundler` in your build environment just before building your application.
+
+That's it! When your application calls `copilot.NewClient` without a `CLIPath` nor the `COPILOT_CLI_PATH` environment variable, the SDK will automatically install the embedded CLI to a cache directory and use it for all operations.
+
 ## API Reference
 
 ### Client
