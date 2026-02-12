@@ -7,7 +7,7 @@ import pytest
 from copilot import CopilotClient
 from copilot.types import Tool
 
-from .testharness import E2ETestContext, get_final_assistant_message, get_next_event_of_type
+from .testharness import E2E_FAKE_GITHUB_TOKEN, E2ETestContext, get_final_assistant_message, get_next_event_of_type
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -160,13 +160,12 @@ class TestSessions:
         assert "2" in answer.data.content
 
         # Resume using a new client
-        github_token = "fake-token-for-e2e-tests" if os.environ.get("CI") == "true" else None
         new_client = CopilotClient(
             {
                 "cli_path": ctx.cli_path,
                 "cwd": ctx.work_dir,
                 "env": ctx.get_env(),
-                "github_token": github_token,
+                "github_token": E2E_FAKE_GITHUB_TOKEN,
             }
         )
 
