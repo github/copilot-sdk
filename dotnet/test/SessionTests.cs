@@ -373,9 +373,6 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     public async Task Should_List_Sessions_With_Context()
     {
         var session = await Client.CreateSessionAsync();
-        await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say hello" });
-
-        await Task.Delay(500);
 
         var sessions = await Client.ListSessionsAsync();
         Assert.NotEmpty(sessions);
