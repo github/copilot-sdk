@@ -61,6 +61,11 @@ public final class CopilotClient implements AutoCloseable {
 
     private static final Logger LOG = Logger.getLogger(CopilotClient.class.getName());
 
+    /**
+     * Timeout, in seconds, used by {@link #close()} when waiting for graceful
+     * shutdown via {@link #stop()}.
+     */
+    public static final int AUTOCLOSEABLE_TIMEOUT_SECONDS = 10;
     private final CopilotClientOptions options;
     private final CliServerManager serverManager;
     private final LifecycleEventManager lifecycleManager = new LifecycleEventManager();
@@ -221,6 +226,7 @@ public final class CopilotClient implements AutoCloseable {
      * @return A future that completes when the client is stopped
      */
     public CompletableFuture<Void> forceStop() {
+        disposed = true;
         sessions.clear();
         return cleanupConnection();
     }
@@ -554,13 +560,27 @@ public final class CopilotClient implements AutoCloseable {
         return connectionFuture;
     }
 
+    /**
+     * Closes this client using graceful shutdown semantics.
+     * <p>
+     * This method is intended for {@code try-with-resources} usage and blocks while
+     * waiting for {@link #stop()} to complete, up to
+     * {@link #AUTOCLOSEABLE_TIMEOUT_SECONDS} seconds. If shutdown fails or times
+     * out, the error is logged at {@link Level#FINE} and the method returns.
+     * <p>
+     * This method is idempotent.
+     *
+     * @see #stop()
+     * @see #forceStop()
+     * @see #AUTOCLOSEABLE_TIMEOUT_SECONDS
+     */
     @Override
     public void close() {
         if (disposed)
             return;
         disposed = true;
         try {
-            forceStop().get(5, TimeUnit.SECONDS);
+            stop().get(AUTOCLOSEABLE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         } catch (Exception e) {
             LOG.log(Level.FINE, "Error during close", e);
         }
