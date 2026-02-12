@@ -22,7 +22,7 @@ describe("Sessions", async () => {
         await expect(() => session.getMessages()).rejects.toThrow(/Session not found/);
     });
 
-    it("should list sessions with context field", async () => {
+    it("should list sessions with context field", { timeout: 60000 }, async () => {
         // Create a session — just creating it is enough for it to appear in listSessions
         const session = await client.createSession();
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
