@@ -370,6 +370,30 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     }
 
     [Fact]
+    public async Task Should_List_Sessions_With_Context()
+    {
+        var session = await Client.CreateSessionAsync();
+        await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say hello" });
+
+        await Task.Delay(200);
+
+        var sessions = await Client.ListSessionsAsync();
+        Assert.NotEmpty(sessions);
+
+        var ourSession = sessions.Find(s => s.SessionId == session.SessionId);
+        Assert.NotNull(ourSession);
+
+        // Verify context field
+        foreach (var s in sessions)
+        {
+            if (s.Context != null)
+            {
+                Assert.False(string.IsNullOrEmpty(s.Context.Cwd), "Expected context.Cwd to be non-empty when context is present");
+            }
+        }
+    }
+
+    [Fact]
     public async Task SendAndWait_Throws_On_Timeout()
     {
         var session = await Client.CreateSessionAsync();

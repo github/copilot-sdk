@@ -812,6 +812,15 @@ func TestSession(t *testing.T) {
 			}
 			// isRemote is a boolean, so it's always set
 		}
+
+		// Verify context field is present on sessions
+		for _, s := range sessions {
+			if s.Context != nil {
+				if s.Context.Cwd == "" {
+					t.Error("Expected context.Cwd to be non-empty when context is present")
+				}
+			}
+		}
 	})
 
 	t.Run("should delete session", func(t *testing.T) {
