@@ -369,7 +369,8 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         Assert.Contains("assistant.message", events);
     }
 
-    [Fact]
+    // TODO: Re-enable once test harness CAPI proxy supports this test's session lifecycle
+    [Fact(Skip = "Needs test harness CAPI proxy support")]
     public async Task Should_List_Sessions_With_Context()
     {
         var session = await Client.CreateSessionAsync();
