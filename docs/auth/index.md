@@ -4,18 +4,19 @@ The GitHub Copilot SDK supports multiple authentication methods to fit different
 
 ## Authentication Methods
 
-| Method | Use Case | Copilot Subscription Required |
-|--------|----------|-------------------------------|
-| [GitHub Signed-in User](#github-signed-in-user) | Interactive apps where users sign in with GitHub | Yes |
-| [OAuth GitHub App](#oauth-github-app) | Apps acting on behalf of users via OAuth | Yes |
-| [Environment Variables](#environment-variables) | CI/CD, automation, server-to-server | Yes |
-| [BYOK (Bring Your Own Key)](./byok.md) | Using your own API keys (Azure AI Foundry, OpenAI, etc.) | No |
+| Method                                          | Use Case                                                 | Copilot Subscription Required |
+| ----------------------------------------------- | -------------------------------------------------------- | ----------------------------- |
+| [GitHub Signed-in User](#github-signed-in-user) | Interactive apps where users sign in with GitHub         | Yes                           |
+| [OAuth GitHub App](#oauth-github-app)           | Apps acting on behalf of users via OAuth                 | Yes                           |
+| [Environment Variables](#environment-variables) | CI/CD, automation, server-to-server                      | Yes                           |
+| [BYOK (Bring Your Own Key)](./byok.md)          | Using your own API keys (Azure AI Foundry, OpenAI, etc.) | No                            |
 
 ## GitHub Signed-in User
 
 This is the default authentication method when running the Copilot CLI interactively. Users authenticate via GitHub OAuth device flow, and the SDK uses their stored credentials.
 
 **How it works:**
+
 1. User runs `copilot` CLI and signs in via GitHub OAuth
 2. Credentials are stored securely in the system keychain
 3. SDK automatically uses stored credentials
@@ -51,6 +52,7 @@ await client.start()
 <summary><strong>Go</strong></summary>
 
 <!-- docs-validate: skip -->
+
 ```go
 import copilot "github.com/github/copilot-sdk/go"
 
@@ -73,6 +75,7 @@ await using var client = new CopilotClient();
 </details>
 
 **When to use:**
+
 - Desktop applications where users interact directly
 - Development and testing environments
 - Any scenario where a user can sign in interactively
@@ -82,6 +85,7 @@ await using var client = new CopilotClient();
 Use an OAuth GitHub App to authenticate users through your application and pass their credentials to the SDK. This enables your application to make Copilot API requests on behalf of users who authorize your app.
 
 **How it works:**
+
 1. User authorizes your OAuth GitHub App
 2. Your app receives a user access token (`gho_` or `ghu_` prefix)
 3. Pass the token to the SDK via `githubToken` option
@@ -95,8 +99,8 @@ Use an OAuth GitHub App to authenticate users through your application and pass 
 import { CopilotClient } from "@github/copilot-sdk";
 
 const client = new CopilotClient({
-    githubToken: userAccessToken,  // Token from OAuth flow
-    useLoggedInUser: false,        // Don't use stored CLI credentials
+  githubToken: userAccessToken, // Token from OAuth flow
+  useLoggedInUser: false, // Don't use stored CLI credentials
 });
 ```
 
@@ -121,11 +125,12 @@ await client.start()
 <summary><strong>Go</strong></summary>
 
 <!-- docs-validate: skip -->
+
 ```go
 import copilot "github.com/github/copilot-sdk/go"
 
 client := copilot.NewClient(&copilot.ClientOptions{
-    GithubToken:     userAccessToken,   // Token from OAuth flow
+    GitHubToken:     userAccessToken,   // Token from OAuth flow
     UseLoggedInUser: copilot.Bool(false), // Don't use stored CLI credentials
 })
 ```
@@ -136,12 +141,13 @@ client := copilot.NewClient(&copilot.ClientOptions{
 <summary><strong>.NET</strong></summary>
 
 <!-- docs-validate: skip -->
+
 ```csharp
 using GitHub.Copilot.SDK;
 
 await using var client = new CopilotClient(new CopilotClientOptions
 {
-    GithubToken = userAccessToken,     // Token from OAuth flow
+    GitHubToken = userAccessToken,     // Token from OAuth flow
     UseLoggedInUser = false,           // Don't use stored CLI credentials
 });
 ```
@@ -149,14 +155,17 @@ await using var client = new CopilotClient(new CopilotClientOptions
 </details>
 
 **Supported token types:**
+
 - `gho_` - OAuth user access tokens
-- `ghu_` - GitHub App user access tokens  
+- `ghu_` - GitHub App user access tokens
 - `github_pat_` - Fine-grained personal access tokens
 
 **Not supported:**
+
 - `ghp_` - Classic personal access tokens (deprecated)
 
 **When to use:**
+
 - Web applications where users sign in via GitHub
 - SaaS applications building on top of Copilot
 - Any multi-user application where you need to make requests on behalf of different users
@@ -166,11 +175,13 @@ await using var client = new CopilotClient(new CopilotClientOptions
 For automation, CI/CD pipelines, and server-to-server scenarios, you can authenticate using environment variables.
 
 **Supported environment variables (in priority order):**
+
 1. `COPILOT_GITHUB_TOKEN` - Recommended for explicit Copilot usage
 2. `GH_TOKEN` - GitHub CLI compatible
 3. `GITHUB_TOKEN` - GitHub Actions compatible
 
 **How it works:**
+
 1. Set one of the supported environment variables with a valid token
 2. The SDK automatically detects and uses the token
 
@@ -204,6 +215,7 @@ await client.start()
 </details>
 
 **When to use:**
+
 - CI/CD pipelines (GitHub Actions, Jenkins, etc.)
 - Automated testing
 - Server-side applications with service accounts
@@ -214,12 +226,14 @@ await client.start()
 BYOK allows you to use your own API keys from model providers like Azure AI Foundry, OpenAI, or Anthropic. This bypasses GitHub Copilot authentication entirely.
 
 **Key benefits:**
+
 - No GitHub Copilot subscription required
 - Use enterprise model deployments
 - Direct billing with your model provider
 - Support for Azure AI Foundry, OpenAI, Anthropic, and OpenAI-compatible endpoints
 
 **See the [BYOK documentation](./byok.md) for complete details**, including:
+
 - Azure AI Foundry setup
 - Provider configuration options
 - Limitations and considerations
@@ -245,7 +259,7 @@ To prevent the SDK from automatically using stored credentials or `gh` CLI auth,
 
 ```typescript
 const client = new CopilotClient({
-    useLoggedInUser: false,  // Only use explicit tokens
+  useLoggedInUser: false, // Only use explicit tokens
 });
 ```
 
@@ -255,6 +269,7 @@ const client = new CopilotClient({
 <summary><strong>Python</strong></summary>
 
 <!-- docs-validate: skip -->
+
 ```python
 client = CopilotClient({
     "use_logged_in_user": False,  # Only use explicit tokens
@@ -267,6 +282,7 @@ client = CopilotClient({
 <summary><strong>Go</strong></summary>
 
 <!-- docs-validate: skip -->
+
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
     UseLoggedInUser: copilot.Bool(false),  // Only use explicit tokens
