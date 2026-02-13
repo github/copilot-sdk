@@ -26,7 +26,13 @@
     <_CopilotBinary Condition="'$(_CopilotBinary)' == ''">copilot</_CopilotBinary>
   </PropertyGroup>
 
-  <!-- Allow customization of npm registry URL via project property -->
+  <!-- Allow customization of the npm registry URL used to download the Copilot CLI.
+       This is primarily for organizations using private or mirrored npm registries.
+       Set CopilotNpmRegistryUrl in your .csproj or Directory.Build.props, for example:
+       <PropertyGroup>
+         <CopilotNpmRegistryUrl>https://your-private-registry.example.com</CopilotNpmRegistryUrl>
+       </PropertyGroup>
+       If not set, this defaults to https://registry.npmjs.org. -->
   <PropertyGroup>
     <CopilotNpmRegistryUrl Condition="'$(CopilotNpmRegistryUrl)' == ''">https://registry.npmjs.org</CopilotNpmRegistryUrl>
   </PropertyGroup>
