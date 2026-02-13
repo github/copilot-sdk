@@ -116,7 +116,7 @@ func TestRpc(t *testing.T) {
 }
 
 func TestSessionRpc(t *testing.T) {
-	ctx := testharness.NewE2ETestContext(t)
+	ctx := testharness.NewTestContext(t)
 
 	// session.model.getCurrent is defined in schema but not yet implemented in CLI
 	t.Run("should call session.RPC.Model.GetCurrent", func(t *testing.T) {
