@@ -14,6 +14,7 @@
  */
 
 import type { JSONSchema7 } from "json-schema";
+import { toPascalCase, toPascalCaseEnumMember, schemaTypeToCSharp, typeToClassName } from "./codegen-csharp-utils.js";
 
 interface EventVariant {
     typeName: string; // e.g., "session.start"
@@ -21,109 +22,6 @@ interface EventVariant {
     dataClassName: string; // e.g., "SessionStartData"
     dataSchema: JSONSchema7;
     ephemeralConst?: boolean; // if ephemeral has a const value
-}
-
-/**
- * Convert a type string like "session.start" to PascalCase class name like "SessionStart"
- */
-function typeToClassName(typeName: string): string {
-    return typeName
-        .split(/[._]/)
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join("");
-}
-
-/**
- * Convert a property name to PascalCase for C#
- */
-function toPascalCase(name: string): string {
-    // Handle snake_case
-    if (name.includes("_")) {
-        return name
-            .split("_")
-            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-            .join("");
-    }
-    // Handle camelCase
-    return name.charAt(0).toUpperCase() + name.slice(1);
-}
-
-/**
- * Map JSON Schema type to C# type
- */
-function schemaTypeToCSharp(
-    schema: JSONSchema7,
-    required: boolean,
-    knownTypes: Map<string, string>,
-    parentClassName?: string,
-    propName?: string,
-    enumOutput?: string[]
-): string {
-    if (schema.anyOf) {
-        // Handle nullable types (anyOf with null)
-        const nonNull = schema.anyOf.filter((s) => typeof s === "object" && s.type !== "null");
-        if (nonNull.length === 1 && typeof nonNull[0] === "object") {
-            return (
-                schemaTypeToCSharp(
-                    nonNull[0] as JSONSchema7,
-                    false,
-                    knownTypes,
-                    parentClassName,
-                    propName,
-                    enumOutput
-                ) + "?"
-            );
-        }
-    }
-
-    if (schema.enum && parentClassName && propName && enumOutput) {
-        // Generate C# enum
-        const enumName = getOrCreateEnum(
-            parentClassName,
-            propName,
-            schema.enum as string[],
-            enumOutput
-        );
-        return required ? enumName : `${enumName}?`;
-    }
-
-    if (schema.$ref) {
-        const refName = schema.$ref.split("/").pop()!;
-        return knownTypes.get(refName) || refName;
-    }
-
-    const type = schema.type;
-    const format = schema.format;
-
-    if (type === "string") {
-        if (format === "uuid") return required ? "Guid" : "Guid?";
-        if (format === "date-time") return required ? "DateTimeOffset" : "DateTimeOffset?";
-        return required ? "string" : "string?";
-    }
-    if (type === "number" || type === "integer") {
-        return required ? "double" : "double?";
-    }
-    if (type === "boolean") {
-        return required ? "bool" : "bool?";
-    }
-    if (type === "array") {
-        const items = schema.items as JSONSchema7 | undefined;
-        const itemType = items ? schemaTypeToCSharp(items, true, knownTypes) : "object";
-        return required ? `${itemType}[]` : `${itemType}[]?`;
-    }
-    if (type === "object") {
-        if (schema.additionalProperties) {
-            const valueSchema = schema.additionalProperties;
-            if (typeof valueSchema === "object") {
-                const valueType = schemaTypeToCSharp(valueSchema as JSONSchema7, true, knownTypes);
-                return required ? `Dictionary<string, ${valueType}>` : `Dictionary<string, ${valueType}>?`;
-            }
-            return required ? "Dictionary<string, object>" : "Dictionary<string, object>?";
-        }
-        return required ? "object" : "object?";
-    }
-
-    return required ? "object" : "object?";
 }
 
 /**
@@ -182,17 +80,6 @@ function getOrCreateEnum(
 
     enumOutput.push(lines.join("\n"));
     return enumName;
-}
-
-/**
- * Convert a string value to a valid C# enum member name
- */
-function toPascalCaseEnumMember(value: string): string {
-    // Handle special characters and convert to PascalCase
-    return value
-        .split(/[-_.]/)
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join("");
 }
 
 /**
@@ -293,7 +180,7 @@ function generateDataClass(
  * Generate a nested class for complex object properties.
  * This function recursively handles nested objects, arrays of objects, and anyOf unions.
  */
-function generateNestedClass(
+export function generateNestedClass(
     className: string,
     schema: JSONSchema7,
     knownTypes: Map<string, string>,
@@ -509,7 +396,7 @@ function generateDerivedClass(
  * Resolve the C# type for a property, generating nested classes as needed.
  * Handles objects and arrays of objects.
  */
-function resolvePropertyType(
+export function resolvePropertyType(
     propSchema: JSONSchema7,
     parentClassName: string,
     propName: string,
