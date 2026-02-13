@@ -73,6 +73,8 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
 
     // Fix dataclass field ordering (Any fields need defaults)
     code = code.replace(/: Any$/gm, ": Any = None");
+    // Fix bare except: to use Exception (required by ruff/pylint)
+    code = code.replace(/except:/g, "except Exception:");
 
     // Add UNKNOWN enum value for forward compatibility
     code = code.replace(
@@ -156,6 +158,8 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     let typesCode = qtResult.lines.join("\n");
     // Fix dataclass field ordering
     typesCode = typesCode.replace(/: Any$/gm, ": Any = None");
+    // Fix bare except: to use Exception (required by ruff/pylint)
+    typesCode = typesCode.replace(/except:/g, "except Exception:");
 
     const lines: string[] = [];
     lines.push(`"""
