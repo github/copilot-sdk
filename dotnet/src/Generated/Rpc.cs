@@ -3,9 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // AUTO-GENERATED FILE - DO NOT EDIT
-//
 // Generated from: api.schema.json
-// Generated at: 2026-02-13T15:31:22.569Z
 
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
@@ -221,7 +219,6 @@ internal class SwitchToRequest
 internal static class ServerRpc
 {
     /// <summary>Calls "ping" via JSON-RPC.</summary>
-    /// <param name="message">Optional message to echo back</param>
     internal static async Task<PingResult> PingAsync(JsonRpc rpc, string? message = null, CancellationToken cancellationToken = default)
     {
         var request = new PingRequest { Message = message };
@@ -240,7 +237,6 @@ internal static class ServerRpc
     internal static class Tools
     {
         /// <summary>Calls "tools.list" via JSON-RPC.</summary>
-        /// <param name="model">Optional model ID — when provided, the returned tool list reflects model-specific overrides</param>
         internal static async Task<ToolsListResult> ListAsync(JsonRpc rpc, string? model = null, CancellationToken cancellationToken = default)
         {
             var request = new ListRequest { Model = model };
@@ -258,7 +254,7 @@ internal static class ServerRpc
     }
 }
 
-/// <summary>Typed session-scoped RPC methods. Automatically binds the session ID.</summary>
+/// <summary>Typed session-scoped RPC methods.</summary>
 public class SessionRpc
 {
     private readonly JsonRpc _rpc;
@@ -271,11 +267,9 @@ public class SessionRpc
         Model = new ModelApi(rpc, sessionId);
     }
 
-    /// <summary>Model APIs.</summary>
     public ModelApi Model { get; }
 }
 
-/// <summary>Session-scoped Model APIs.</summary>
 public class ModelApi
 {
     private readonly JsonRpc _rpc;
@@ -287,7 +281,7 @@ public class ModelApi
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.model.getCurrent" via JSON-RPC.</summary>
+    /// <summary>Calls "session.model.getCurrent".</summary>
     [Experimental("CopilotSdk001")]
     public async Task<ModelGetCurrentResult> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
@@ -295,7 +289,7 @@ public class ModelApi
         return await CopilotClient.InvokeRpcAsync<ModelGetCurrentResult>(_rpc, "session.model.getCurrent", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.model.switchTo" via JSON-RPC.</summary>
+    /// <summary>Calls "session.model.switchTo".</summary>
     [Experimental("CopilotSdk001")]
     public async Task<ModelSwitchToResult> SwitchToAsync(string modelId, CancellationToken cancellationToken = default)
     {
@@ -303,4 +297,3 @@ public class ModelApi
         return await CopilotClient.InvokeRpcAsync<ModelSwitchToResult>(_rpc, "session.model.switchTo", [request], cancellationToken);
     }
 }
-
