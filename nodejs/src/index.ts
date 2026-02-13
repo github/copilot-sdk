@@ -39,6 +39,8 @@ export type {
     SessionLifecycleEvent,
     SessionLifecycleEventType,
     SessionLifecycleHandler,
+    SessionContext,
+    SessionListFilter,
     SessionMetadata,
     SystemMessageAppendConfig,
     SystemMessageConfig,

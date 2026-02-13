@@ -919,6 +919,61 @@ class ModelInfo:
 
 
 @dataclass
+class SessionContext:
+    """Working directory context for a session"""
+
+    cwd: str  # Working directory where the session was created
+    gitRoot: str | None = None  # Git repository root (if in a git repo)
+    repository: str | None = None  # GitHub repository in "owner/repo" format
+    branch: str | None = None  # Current git branch
+
+    @staticmethod
+    def from_dict(obj: Any) -> SessionContext:
+        assert isinstance(obj, dict)
+        cwd = obj.get("cwd")
+        if cwd is None:
+            raise ValueError("Missing required field 'cwd' in SessionContext")
+        return SessionContext(
+            cwd=str(cwd),
+            gitRoot=obj.get("gitRoot"),
+            repository=obj.get("repository"),
+            branch=obj.get("branch"),
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {"cwd": self.cwd}
+        if self.gitRoot is not None:
+            result["gitRoot"] = self.gitRoot
+        if self.repository is not None:
+            result["repository"] = self.repository
+        if self.branch is not None:
+            result["branch"] = self.branch
+        return result
+
+
+@dataclass
+class SessionListFilter:
+    """Filter options for listing sessions"""
+
+    cwd: str | None = None  # Filter by exact cwd match
+    gitRoot: str | None = None  # Filter by git root
+    repository: str | None = None  # Filter by repository (owner/repo format)
+    branch: str | None = None  # Filter by branch
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.cwd is not None:
+            result["cwd"] = self.cwd
+        if self.gitRoot is not None:
+            result["gitRoot"] = self.gitRoot
+        if self.repository is not None:
+            result["repository"] = self.repository
+        if self.branch is not None:
+            result["branch"] = self.branch
+        return result
+
+
+@dataclass
 class SessionMetadata:
     """Metadata about a session"""
 
@@ -927,6 +982,7 @@ class SessionMetadata:
     modifiedTime: str  # ISO 8601 timestamp when session was last modified
     isRemote: bool  # Whether the session is remote
     summary: str | None = None  # Optional summary of the session
+    context: SessionContext | None = None  # Working directory context
 
     @staticmethod
     def from_dict(obj: Any) -> SessionMetadata:
@@ -941,12 +997,15 @@ class SessionMetadata:
                 f"startTime={startTime}, modifiedTime={modifiedTime}, isRemote={isRemote}"
             )
         summary = obj.get("summary")
+        context_dict = obj.get("context")
+        context = SessionContext.from_dict(context_dict) if context_dict else None
         return SessionMetadata(
             sessionId=str(sessionId),
             startTime=str(startTime),
             modifiedTime=str(modifiedTime),
             isRemote=bool(isRemote),
             summary=summary,
+            context=context,
         )
 
     def to_dict(self) -> dict:
@@ -957,6 +1016,8 @@ class SessionMetadata:
         result["isRemote"] = self.isRemote
         if self.summary is not None:
             result["summary"] = self.summary
+        if self.context is not None:
+            result["context"] = self.context.to_dict()
         return result
 
 

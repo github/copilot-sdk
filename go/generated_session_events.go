@@ -49,12 +49,14 @@ type Data struct {
 	ProviderCallID                  *string                  `json:"providerCallId,omitempty"`
 	Stack                           *string                  `json:"stack,omitempty"`
 	StatusCode                      *int64                   `json:"statusCode,omitempty"`
+	Title                           *string                  `json:"title,omitempty"`
 	InfoType                        *string                  `json:"infoType,omitempty"`
+	WarningType                     *string                  `json:"warningType,omitempty"`
 	NewModel                        *string                  `json:"newModel,omitempty"`
 	PreviousModel                   *string                  `json:"previousModel,omitempty"`
 	HandoffTime                     *time.Time               `json:"handoffTime,omitempty"`
 	RemoteSessionID                 *string                  `json:"remoteSessionId,omitempty"`
-	Repository                      *Repository              `json:"repository,omitempty"`
+	Repository                      *RepositoryUnion         `json:"repository"`
 	SourceType                      *SourceType              `json:"sourceType,omitempty"`
 	Summary                         *string                  `json:"summary,omitempty"`
 	MessagesRemovedDuringTruncation *float64                 `json:"messagesRemovedDuringTruncation,omitempty"`
@@ -75,6 +77,9 @@ type Data struct {
 	ShutdownType                    *ShutdownType            `json:"shutdownType,omitempty"`
 	TotalAPIDurationMS              *float64                 `json:"totalApiDurationMs,omitempty"`
 	TotalPremiumRequests            *float64                 `json:"totalPremiumRequests,omitempty"`
+	Branch                          *string                  `json:"branch,omitempty"`
+	Cwd                             *string                  `json:"cwd,omitempty"`
+	GitRoot                         *string                  `json:"gitRoot,omitempty"`
 	CurrentTokens                   *float64                 `json:"currentTokens,omitempty"`
 	MessagesLength                  *float64                 `json:"messagesLength,omitempty"`
 	CheckpointNumber                *float64                 `json:"checkpointNumber,omitempty"`
@@ -89,6 +94,7 @@ type Data struct {
 	Success                         *bool                    `json:"success,omitempty"`
 	SummaryContent                  *string                  `json:"summaryContent,omitempty"`
 	TokensRemoved                   *float64                 `json:"tokensRemoved,omitempty"`
+	AgentMode                       *AgentMode               `json:"agentMode,omitempty"`
 	Attachments                     []Attachment             `json:"attachments,omitempty"`
 	Content                         *string                  `json:"content,omitempty"`
 	Source                          *string                  `json:"source,omitempty"`
@@ -100,6 +106,7 @@ type Data struct {
 	EncryptedContent                *string                  `json:"encryptedContent,omitempty"`
 	MessageID                       *string                  `json:"messageId,omitempty"`
 	ParentToolCallID                *string                  `json:"parentToolCallId,omitempty"`
+	Phase                           *string                  `json:"phase,omitempty"`
 	ReasoningOpaque                 *string                  `json:"reasoningOpaque,omitempty"`
 	ReasoningText                   *string                  `json:"reasoningText,omitempty"`
 	ToolRequests                    []ToolRequest            `json:"toolRequests,omitempty"`
@@ -142,11 +149,17 @@ type Data struct {
 
 type Attachment struct {
 	DisplayName string          `json:"displayName"`
+	LineRange   *LineRange      `json:"lineRange,omitempty"`
 	Path        *string         `json:"path,omitempty"`
 	Type        AttachmentType  `json:"type"`
 	FilePath    *string         `json:"filePath,omitempty"`
 	Selection   *SelectionClass `json:"selection,omitempty"`
 	Text        *string         `json:"text,omitempty"`
+}
+
+type LineRange struct {
+	End   float64 `json:"end"`
+	Start float64 `json:"start"`
 }
 
 type SelectionClass struct {
@@ -222,15 +235,46 @@ type QuotaSnapshot struct {
 	UsedRequests                     float64    `json:"usedRequests"`
 }
 
-type Repository struct {
+type RepositoryClass struct {
 	Branch *string `json:"branch,omitempty"`
 	Name   string  `json:"name"`
 	Owner  string  `json:"owner"`
 }
 
 type Result struct {
-	Content         string  `json:"content"`
-	DetailedContent *string `json:"detailedContent,omitempty"`
+	Content         string    `json:"content"`
+	Contents        []Content `json:"contents,omitempty"`
+	DetailedContent *string   `json:"detailedContent,omitempty"`
+}
+
+type Content struct {
+	Text        *string        `json:"text,omitempty"`
+	Type        ContentType    `json:"type"`
+	Cwd         *string        `json:"cwd,omitempty"`
+	ExitCode    *float64       `json:"exitCode,omitempty"`
+	Data        *string        `json:"data,omitempty"`
+	MIMEType    *string        `json:"mimeType,omitempty"`
+	Description *string        `json:"description,omitempty"`
+	Icons       []Icon         `json:"icons,omitempty"`
+	Name        *string        `json:"name,omitempty"`
+	Size        *float64       `json:"size,omitempty"`
+	Title       *string        `json:"title,omitempty"`
+	URI         *string        `json:"uri,omitempty"`
+	Resource    *ResourceClass `json:"resource,omitempty"`
+}
+
+type Icon struct {
+	MIMEType *string  `json:"mimeType,omitempty"`
+	Sizes    []string `json:"sizes,omitempty"`
+	Src      string   `json:"src"`
+	Theme    *Theme   `json:"theme,omitempty"`
+}
+
+type ResourceClass struct {
+	MIMEType *string `json:"mimeType,omitempty"`
+	Text     *string `json:"text,omitempty"`
+	URI      string  `json:"uri"`
+	Blob     *string `json:"blob,omitempty"`
 }
 
 type ToolRequest struct {
@@ -240,12 +284,39 @@ type ToolRequest struct {
 	Type       *ToolRequestType `json:"type,omitempty"`
 }
 
+type AgentMode string
+
+const (
+	Autopilot   AgentMode = "autopilot"
+	Interactive AgentMode = "interactive"
+	Plan        AgentMode = "plan"
+	Shell       AgentMode = "shell"
+)
+
 type AttachmentType string
 
 const (
 	Directory AttachmentType = "directory"
 	File      AttachmentType = "file"
 	Selection AttachmentType = "selection"
+)
+
+type Theme string
+
+const (
+	Dark  Theme = "dark"
+	Light Theme = "light"
+)
+
+type ContentType string
+
+const (
+	Audio        ContentType = "audio"
+	Image        ContentType = "image"
+	Resource     ContentType = "resource"
+	ResourceLink ContentType = "resource_link"
+	Terminal     ContentType = "terminal"
+	Text         ContentType = "text"
 )
 
 type Role string
@@ -293,6 +364,7 @@ const (
 	PendingMessagesModified    SessionEventType = "pending_messages.modified"
 	SessionCompactionComplete  SessionEventType = "session.compaction_complete"
 	SessionCompactionStart     SessionEventType = "session.compaction_start"
+	SessionContextChanged      SessionEventType = "session.context_changed"
 	SessionError               SessionEventType = "session.error"
 	SessionHandoff             SessionEventType = "session.handoff"
 	SessionIdle                SessionEventType = "session.idle"
@@ -302,8 +374,10 @@ const (
 	SessionShutdown            SessionEventType = "session.shutdown"
 	SessionSnapshotRewind      SessionEventType = "session.snapshot_rewind"
 	SessionStart               SessionEventType = "session.start"
+	SessionTitleChanged        SessionEventType = "session.title_changed"
 	SessionTruncation          SessionEventType = "session.truncation"
 	SessionUsageInfo           SessionEventType = "session.usage_info"
+	SessionWarning             SessionEventType = "session.warning"
 	SkillInvoked               SessionEventType = "skill.invoked"
 	SubagentCompleted          SessionEventType = "subagent.completed"
 	SubagentFailed             SessionEventType = "subagent.failed"
@@ -360,6 +434,28 @@ func (x *ErrorUnion) UnmarshalJSON(data []byte) error {
 
 func (x *ErrorUnion) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, x.String, false, nil, x.ErrorClass != nil, x.ErrorClass, false, nil, false, nil, false)
+}
+
+type RepositoryUnion struct {
+	RepositoryClass *RepositoryClass
+	String          *string
+}
+
+func (x *RepositoryUnion) UnmarshalJSON(data []byte) error {
+	x.RepositoryClass = nil
+	var c RepositoryClass
+	object, err := unmarshalUnion(data, nil, nil, nil, &x.String, false, nil, true, &c, false, nil, false, nil, false)
+	if err != nil {
+		return err
+	}
+	if object {
+		x.RepositoryClass = &c
+	}
+	return nil
+}
+
+func (x *RepositoryUnion) MarshalJSON() ([]byte, error) {
+	return marshalUnion(nil, nil, nil, x.String, false, nil, x.RepositoryClass != nil, x.RepositoryClass, false, nil, false, nil, false)
 }
 
 func unmarshalUnion(data []byte, pi **int64, pf **float64, pb **bool, ps **string, haveArray bool, pa interface{}, haveObject bool, pc interface{}, haveMap bool, pm interface{}, haveEnum bool, pe interface{}, nullable bool) (bool, error) {

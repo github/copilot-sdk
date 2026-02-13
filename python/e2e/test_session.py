@@ -220,6 +220,13 @@ class TestSessions:
             assert isinstance(session_data.modifiedTime, str)
             assert isinstance(session_data.isRemote, bool)
 
+        # Verify context field is present
+        for session_data in sessions:
+            assert hasattr(session_data, "context")
+            if session_data.context is not None:
+                assert hasattr(session_data.context, "cwd")
+                assert isinstance(session_data.context.cwd, str)
+
     async def test_should_delete_session(self, ctx: E2ETestContext):
         import asyncio
 

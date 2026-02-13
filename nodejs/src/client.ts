@@ -38,6 +38,8 @@ import type {
     SessionLifecycleEvent,
     SessionLifecycleEventType,
     SessionLifecycleHandler,
+    SessionContext,
+    SessionListFilter,
     SessionMetadata,
     Tool,
     ToolCallRequestPayload,
@@ -822,27 +824,24 @@ export class CopilotClient {
     }
 
     /**
-     * Lists all available sessions known to the server.
+     * List all available sessions.
      *
-     * Returns metadata about each session including ID, timestamps, and summary.
-     *
-     * @returns A promise that resolves with an array of session metadata
-     * @throws Error if the client is not connected
+     * @param filter - Optional filter to limit returned sessions by context fields
      *
      * @example
-     * ```typescript
+     * // List all sessions
      * const sessions = await client.listSessions();
-     * for (const session of sessions) {
-     *   console.log(`${session.sessionId}: ${session.summary}`);
-     * }
-     * ```
+     *
+     * @example
+     * // List sessions for a specific repository
+     * const sessions = await client.listSessions({ repository: "owner/repo" });
      */
-    async listSessions(): Promise<SessionMetadata[]> {
+    async listSessions(filter?: SessionListFilter): Promise<SessionMetadata[]> {
         if (!this.connection) {
             throw new Error("Client not connected");
         }
 
-        const response = await this.connection.sendRequest("session.list", {});
+        const response = await this.connection.sendRequest("session.list", { filter });
         const { sessions } = response as {
             sessions: Array<{
                 sessionId: string;
@@ -850,6 +849,7 @@ export class CopilotClient {
                 modifiedTime: string;
                 summary?: string;
                 isRemote: boolean;
+                context?: SessionContext;
             }>;
         };
 
@@ -859,6 +859,7 @@ export class CopilotClient {
             modifiedTime: new Date(s.modifiedTime),
             summary: s.summary,
             isRemote: s.isRemote,
+            context: s.context,
         }));
     }
 

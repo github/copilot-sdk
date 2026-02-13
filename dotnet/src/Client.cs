@@ -667,6 +667,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <summary>
     /// Lists all sessions known to the Copilot server.
     /// </summary>
+    /// <param name="filter">Optional filter to narrow down the session list by cwd, git root, repository, or branch.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
     /// <returns>A task that resolves with a list of <see cref="SessionMetadata"/> for all available sessions.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the client is not connected.</exception>
@@ -679,12 +680,12 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     /// }
     /// </code>
     /// </example>
-    public async Task<List<SessionMetadata>> ListSessionsAsync(CancellationToken cancellationToken = default)
+    public async Task<List<SessionMetadata>> ListSessionsAsync(SessionListFilter? filter = null, CancellationToken cancellationToken = default)
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
 
         var response = await InvokeRpcAsync<ListSessionsResponse>(
-            connection.Rpc, "session.list", [], cancellationToken);
+            connection.Rpc, "session.list", [new ListSessionsRequest(filter)], cancellationToken);
 
         return response.Sessions;
     }
@@ -1388,6 +1389,9 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         bool Success,
         string? Error);
 
+    internal record ListSessionsRequest(
+        SessionListFilter? Filter);
+
     internal record ListSessionsResponse(
         List<SessionMetadata> Sessions);
 
@@ -1457,6 +1461,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(DeleteSessionResponse))]
     [JsonSerializable(typeof(GetLastSessionIdResponse))]
     [JsonSerializable(typeof(HooksInvokeResponse))]
+    [JsonSerializable(typeof(ListSessionsRequest))]
     [JsonSerializable(typeof(ListSessionsResponse))]
     [JsonSerializable(typeof(PermissionRequestResponse))]
     [JsonSerializable(typeof(PermissionRequestResult))]

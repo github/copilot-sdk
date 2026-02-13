@@ -881,6 +881,36 @@ public class MessageOptions
 
 public delegate void SessionEventHandler(SessionEvent sessionEvent);
 
+/// <summary>
+/// Working directory context for a session.
+/// </summary>
+public class SessionContext
+{
+    /// <summary>Working directory where the session was created.</summary>
+    public string Cwd { get; set; } = string.Empty;
+    /// <summary>Git repository root (if in a git repo).</summary>
+    public string? GitRoot { get; set; }
+    /// <summary>GitHub repository in "owner/repo" format.</summary>
+    public string? Repository { get; set; }
+    /// <summary>Current git branch.</summary>
+    public string? Branch { get; set; }
+}
+
+/// <summary>
+/// Filter options for listing sessions.
+/// </summary>
+public class SessionListFilter
+{
+    /// <summary>Filter by exact cwd match.</summary>
+    public string? Cwd { get; set; }
+    /// <summary>Filter by git root.</summary>
+    public string? GitRoot { get; set; }
+    /// <summary>Filter by repository (owner/repo format).</summary>
+    public string? Repository { get; set; }
+    /// <summary>Filter by branch.</summary>
+    public string? Branch { get; set; }
+}
+
 public class SessionMetadata
 {
     public string SessionId { get; set; } = string.Empty;
@@ -888,6 +918,8 @@ public class SessionMetadata
     public DateTime ModifiedTime { get; set; }
     public string? Summary { get; set; }
     public bool IsRemote { get; set; }
+    /// <summary>Working directory context (cwd, git info) from session creation.</summary>
+    public SessionContext? Context { get; set; }
 }
 
 internal class PingRequest
@@ -1159,8 +1191,10 @@ public class SetForegroundSessionResponse
 [JsonSerializable(typeof(PingRequest))]
 [JsonSerializable(typeof(PingResponse))]
 [JsonSerializable(typeof(ProviderConfig))]
+[JsonSerializable(typeof(SessionContext))]
 [JsonSerializable(typeof(SessionLifecycleEvent))]
 [JsonSerializable(typeof(SessionLifecycleEventMetadata))]
+[JsonSerializable(typeof(SessionListFilter))]
 [JsonSerializable(typeof(SessionMetadata))]
 [JsonSerializable(typeof(SetForegroundSessionResponse))]
 [JsonSerializable(typeof(SystemMessageConfig))]

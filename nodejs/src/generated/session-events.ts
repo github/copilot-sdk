@@ -68,10 +68,31 @@ export type SessionEvent =
       id: string;
       timestamp: string;
       parentId: string | null;
+      ephemeral: true;
+      type: "session.title_changed";
+      data: {
+        title: string;
+      };
+    }
+  | {
+      id: string;
+      timestamp: string;
+      parentId: string | null;
       ephemeral?: boolean;
       type: "session.info";
       data: {
         infoType: string;
+        message: string;
+      };
+    }
+  | {
+      id: string;
+      timestamp: string;
+      parentId: string | null;
+      ephemeral?: boolean;
+      type: "session.warning";
+      data: {
+        warningType: string;
         message: string;
       };
     }
@@ -171,6 +192,19 @@ export type SessionEvent =
       id: string;
       timestamp: string;
       parentId: string | null;
+      ephemeral?: boolean;
+      type: "session.context_changed";
+      data: {
+        cwd: string;
+        gitRoot?: string;
+        repository?: string;
+        branch?: string;
+      };
+    }
+  | {
+      id: string;
+      timestamp: string;
+      parentId: string | null;
       ephemeral: true;
       type: "session.usage_info";
       data: {
@@ -226,11 +260,19 @@ export type SessionEvent =
               type: "file";
               path: string;
               displayName: string;
+              lineRange?: {
+                start: number;
+                end: number;
+              };
             }
           | {
               type: "directory";
               path: string;
               displayName: string;
+              lineRange?: {
+                start: number;
+                end: number;
+              };
             }
           | {
               type: "selection";
@@ -250,6 +292,7 @@ export type SessionEvent =
             }
         )[];
         source?: string;
+        agentMode?: "interactive" | "plan" | "autopilot" | "shell";
       };
     }
   | {
@@ -320,6 +363,7 @@ export type SessionEvent =
         reasoningOpaque?: string;
         reasoningText?: string;
         encryptedContent?: string;
+        phase?: string;
         parentToolCallId?: string;
       };
     }
@@ -450,6 +494,57 @@ export type SessionEvent =
         result?: {
           content: string;
           detailedContent?: string;
+          contents?: (
+            | {
+                type: "text";
+                text: string;
+              }
+            | {
+                type: "terminal";
+                text: string;
+                exitCode?: number;
+                cwd?: string;
+              }
+            | {
+                type: "image";
+                data: string;
+                mimeType: string;
+              }
+            | {
+                type: "audio";
+                data: string;
+                mimeType: string;
+              }
+            | {
+                icons?: {
+                  src: string;
+                  mimeType?: string;
+                  sizes?: string[];
+                  theme?: "light" | "dark";
+                }[];
+                name: string;
+                title?: string;
+                uri: string;
+                description?: string;
+                mimeType?: string;
+                size?: number;
+                type: "resource_link";
+              }
+            | {
+                type: "resource";
+                resource:
+                  | {
+                      uri: string;
+                      mimeType?: string;
+                      text: string;
+                    }
+                  | {
+                      uri: string;
+                      mimeType?: string;
+                      blob: string;
+                    };
+              }
+          )[];
         };
         error?: {
           message: string;
@@ -496,6 +591,7 @@ export type SessionEvent =
       data: {
         toolCallId: string;
         agentName: string;
+        agentDisplayName: string;
       };
     }
   | {
@@ -507,6 +603,7 @@ export type SessionEvent =
       data: {
         toolCallId: string;
         agentName: string;
+        agentDisplayName: string;
         error: string;
       };
     }

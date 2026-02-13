@@ -618,23 +618,33 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 // ListSessions returns metadata about all sessions known to the server.
 //
 // Returns a list of SessionMetadata for all available sessions, including their IDs,
-// timestamps, and optional summaries.
+// timestamps, optional summaries, and context information.
+//
+// An optional filter can be provided to filter sessions by cwd, git root, repository, or branch.
 //
 // Example:
 //
-//	sessions, err := client.ListSessions(context.Background())
+//	sessions, err := client.ListSessions(context.Background(), nil)
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
 //	for _, session := range sessions {
 //	    fmt.Printf("Session: %s\n", session.SessionID)
 //	}
-func (c *Client) ListSessions(ctx context.Context) ([]SessionMetadata, error) {
+//
+// Example with filter:
+//
+//	sessions, err := client.ListSessions(context.Background(), &SessionListFilter{Repository: "owner/repo"})
+func (c *Client) ListSessions(ctx context.Context, filter *SessionListFilter) ([]SessionMetadata, error) {
 	if err := c.ensureConnected(); err != nil {
 		return nil, err
 	}
 
-	result, err := c.client.Request("session.list", listSessionsRequest{})
+	params := listSessionsRequest{}
+	if filter != nil {
+		params.Filter = filter
+	}
+	result, err := c.client.Request("session.list", params)
 	if err != nil {
 		return nil, err
 	}

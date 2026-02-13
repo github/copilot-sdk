@@ -42,6 +42,7 @@ from .types import (
     SessionLifecycleEvent,
     SessionLifecycleEventType,
     SessionLifecycleHandler,
+    SessionListFilter,
     SessionMetadata,
     StopError,
     ToolHandler,
@@ -848,11 +849,17 @@ class CopilotClient:
 
             return list(models)  # Return a copy to prevent cache mutation
 
-    async def list_sessions(self) -> list["SessionMetadata"]:
+    async def list_sessions(
+        self, filter: "SessionListFilter | None" = None
+    ) -> list["SessionMetadata"]:
         """
         List all available sessions known to the server.
 
         Returns metadata about each session including ID, timestamps, and summary.
+
+        Args:
+            filter: Optional filter to narrow down the list of sessions by cwd, git root,
+                repository, or branch.
 
         Returns:
             A list of SessionMetadata objects.
@@ -864,11 +871,18 @@ class CopilotClient:
             >>> sessions = await client.list_sessions()
             >>> for session in sessions:
             ...     print(f"Session: {session.sessionId}")
+            >>> # Filter sessions by repository
+            >>> from copilot import SessionListFilter
+            >>> filtered = await client.list_sessions(SessionListFilter(repository="owner/repo"))
         """
         if not self._client:
             raise RuntimeError("Client not connected")
 
-        response = await self._client.request("session.list", {})
+        payload: dict = {}
+        if filter is not None:
+            payload["filter"] = filter.to_dict()
+
+        response = await self._client.request("session.list", payload)
         sessions_data = response.get("sessions", [])
         return [SessionMetadata.from_dict(session) for session in sessions_data]
 

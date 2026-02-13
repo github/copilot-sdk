@@ -108,9 +108,25 @@ Ping the server to check connectivity.
 
 Get current connection state.
 
-##### `listSessions(): Promise<SessionMetadata[]>`
+##### `listSessions(filter?: SessionListFilter): Promise<SessionMetadata[]>`
 
-List all available sessions.
+List all available sessions. Optionally filter by working directory context.
+
+**SessionMetadata:**
+
+- `sessionId: string` - Unique session identifier
+- `startTime: Date` - When the session was created
+- `modifiedTime: Date` - When the session was last modified
+- `summary?: string` - Optional session summary
+- `isRemote: boolean` - Whether the session is remote
+- `context?: SessionContext` - Working directory context from session creation
+
+**SessionContext:**
+
+- `cwd: string` - Working directory where the session was created
+- `gitRoot?: string` - Git repository root (if in a git repo)
+- `repository?: string` - GitHub repository in "owner/repo" format
+- `branch?: string` - Current git branch
 
 ##### `deleteSession(sessionId: string): Promise<void>`
 
