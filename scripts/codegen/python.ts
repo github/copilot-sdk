@@ -251,30 +251,30 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
     const paramProps = method.params?.properties || {};
     const nonSessionParams = Object.keys(paramProps).filter((k) => k !== "sessionId");
     const hasParams = isSession ? nonSessionParams.length > 0 : Object.keys(paramProps).length > 0;
+    const paramsType = toPascalCase(method.rpcMethod) + "Params";
 
-    // Build signature
-    const sigParams = isSession ? nonSessionParams : Object.keys(paramProps);
-    const paramList = sigParams.map((p) => `${toSnakeCase(p)}`).join(", ");
+    // Build signature with typed params
     const sig = hasParams
-        ? `    async def ${methodName}(self, ${paramList}) -> ${resultType}:`
+        ? `    async def ${methodName}(self, params: ${paramsType}) -> ${resultType}:`
         : `    async def ${methodName}(self) -> ${resultType}:`;
 
     lines.push(sig);
 
-    // Build request body
+    // Build request body with proper serialization/deserialization
     if (isSession) {
         if (hasParams) {
-            const paramDict = nonSessionParams.map((p) => `"${p}": ${toSnakeCase(p)}`).join(", ");
-            lines.push(`        return await self._client.request("${method.rpcMethod}", {"sessionId": self._session_id, ${paramDict}})`);
+            lines.push(`        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}`);
+            lines.push(`        params_dict["sessionId"] = self._session_id`);
+            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", params_dict))`);
         } else {
-            lines.push(`        return await self._client.request("${method.rpcMethod}", {"sessionId": self._session_id})`);
+            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", {"sessionId": self._session_id}))`);
         }
     } else {
         if (hasParams) {
-            const paramDict = Object.keys(paramProps).map((p) => `"${p}": ${toSnakeCase(p)}`).join(", ");
-            lines.push(`        return await self._client.request("${method.rpcMethod}", {${paramDict}})`);
+            lines.push(`        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}`);
+            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", params_dict))`);
         } else {
-            lines.push(`        return await self._client.request("${method.rpcMethod}", {})`);
+            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", {}))`);
         }
     }
     lines.push(``);

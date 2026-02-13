@@ -358,6 +358,7 @@ export class CopilotClient {
                 );
             }
             this.connection = null;
+            this._rpc = null;
         }
 
         // Clear models cache
@@ -435,6 +436,7 @@ export class CopilotClient {
                 // Ignore errors during force stop
             }
             this.connection = null;
+            this._rpc = null;
         }
 
         // Clear models cache

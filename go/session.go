@@ -65,8 +65,8 @@ type Session struct {
 	hooks             *SessionHooks
 	hooksMux          sync.RWMutex
 
-	// Rpc provides typed session-scoped RPC methods.
-	Rpc *rpc.SessionRpc
+	// RPC provides typed session-scoped RPC methods.
+	RPC *rpc.SessionRpc
 }
 
 // WorkspacePath returns the path to the session workspace directory when infinite
@@ -84,7 +84,7 @@ func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string)
 		client:        client,
 		handlers:      make([]sessionHandler, 0),
 		toolHandlers:  make(map[string]ToolHandler),
-		Rpc:           rpc.NewSessionRpc(client, sessionID),
+		RPC:           rpc.NewSessionRpc(client, sessionID),
 	}
 }
 

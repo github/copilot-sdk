@@ -267,7 +267,7 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
         }
         lines.push(`    raw, err := a.client.Request("${method.rpcMethod}", req)`);
     } else {
-        const arg = hasParams ? "params" : "nil";
+        const arg = hasParams ? "params" : "map[string]interface{}{}";
         lines.push(`    raw, err := a.client.Request("${method.rpcMethod}", ${arg})`);
     }
 

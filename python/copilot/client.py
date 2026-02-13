@@ -334,6 +334,7 @@ class CopilotClient:
         if self._client:
             await self._client.stop()
             self._client = None
+        self._rpc = None
 
         # Clear models cache
         async with self._models_cache_lock:
@@ -382,6 +383,7 @@ class CopilotClient:
             except Exception:
                 pass  # Ignore errors during force stop
             self._client = None
+        self._rpc = None
 
         # Clear models cache
         async with self._models_cache_lock:

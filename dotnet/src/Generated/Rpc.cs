@@ -5,7 +5,6 @@
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: api.schema.json
 
-using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
 using StreamJsonRpc;
 

@@ -72,8 +72,11 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <remarks>
     /// The client must be started before accessing this property. Use <see cref="StartAsync"/> or set <see cref="CopilotClientOptions.AutoStart"/> to true.
     /// </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown if the client has been disposed.</exception>
     /// <exception cref="InvalidOperationException">Thrown if the client is not started.</exception>
-    public ServerRpc Rpc => _rpc ?? throw new InvalidOperationException("Client is not started. Call StartAsync first.");
+    public ServerRpc Rpc => _disposed
+        ? throw new ObjectDisposedException(nameof(CopilotClient))
+        : _rpc ?? throw new InvalidOperationException("Client is not started. Call StartAsync first.");
 
     /// <summary>
     /// Creates a new instance of <see cref="CopilotClient"/>.
@@ -300,7 +303,8 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         try { ctx.Rpc.Dispose(); }
         catch (Exception ex) { errors?.Add(ex); }
 
-        // Clear models cache
+        // Clear RPC and models cache
+        _rpc = null;
         _modelsCache = null;
 
         if (ctx.NetworkStream is not null)
