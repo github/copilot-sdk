@@ -209,6 +209,7 @@ export type SessionEvent =
           output: number;
           cachedInput: number;
         };
+        requestId?: string;
       };
     }
   | {

@@ -85,6 +85,7 @@ type Data struct {
 	PostCompactionTokens            *float64                 `json:"postCompactionTokens,omitempty"`
 	PreCompactionMessagesLength     *float64                 `json:"preCompactionMessagesLength,omitempty"`
 	PreCompactionTokens             *float64                 `json:"preCompactionTokens,omitempty"`
+	RequestID                       *string                  `json:"requestId,omitempty"`
 	Success                         *bool                    `json:"success,omitempty"`
 	SummaryContent                  *string                  `json:"summaryContent,omitempty"`
 	TokensRemoved                   *float64                 `json:"tokensRemoved,omitempty"`

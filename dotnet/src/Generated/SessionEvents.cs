@@ -758,6 +758,10 @@ public partial class SessionCompactionCompleteData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("compactionTokensUsed")]
     public SessionCompactionCompleteDataCompactionTokensUsed? CompactionTokensUsed { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestId")]
+    public string? RequestId { get; set; }
 }
 
 public partial class UserMessageData
