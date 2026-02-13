@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 type sessionHandler struct {
@@ -63,6 +64,9 @@ type Session struct {
 	userInputMux      sync.RWMutex
 	hooks             *SessionHooks
 	hooksMux          sync.RWMutex
+
+	// RPC provides typed session-scoped RPC methods.
+	RPC *rpc.SessionRpc
 }
 
 // WorkspacePath returns the path to the session workspace directory when infinite
@@ -80,6 +84,7 @@ func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string)
 		client:        client,
 		handlers:      make([]sessionHandler, 0),
 		toolHandlers:  make(map[string]ToolHandler),
+		RPC:           rpc.NewSessionRpc(client, sessionID),
 	}
 }
 

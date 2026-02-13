@@ -10,6 +10,7 @@ import inspect
 import threading
 from typing import Any, Callable, Optional
 
+from .generated.rpc import SessionRpc
 from .generated.session_events import SessionEvent, SessionEventType, session_event_from_dict
 from .types import (
     MessageOptions,
@@ -79,6 +80,14 @@ class CopilotSession:
         self._user_input_handler_lock = threading.Lock()
         self._hooks: Optional[SessionHooks] = None
         self._hooks_lock = threading.Lock()
+        self._rpc: Optional[SessionRpc] = None
+
+    @property
+    def rpc(self) -> SessionRpc:
+        """Typed session-scoped RPC methods."""
+        if self._rpc is None:
+            self._rpc = SessionRpc(self._client, self.session_id)
+        return self._rpc
 
     @property
     def workspace_path(self) -> Optional[str]:

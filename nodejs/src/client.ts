@@ -22,6 +22,7 @@ import {
     StreamMessageReader,
     StreamMessageWriter,
 } from "vscode-jsonrpc/node.js";
+import { createServerRpc } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
 import type {
@@ -143,6 +144,21 @@ export class CopilotClient {
         SessionLifecycleEventType,
         Set<(event: SessionLifecycleEvent) => void>
     > = new Map();
+    private _rpc: ReturnType<typeof createServerRpc> | null = null;
+
+    /**
+     * Typed server-scoped RPC methods.
+     * @throws Error if the client is not connected
+     */
+    get rpc(): ReturnType<typeof createServerRpc> {
+        if (!this.connection) {
+            throw new Error("Client is not connected. Call start() first.");
+        }
+        if (!this._rpc) {
+            this._rpc = createServerRpc(this.connection);
+        }
+        return this._rpc;
+    }
 
     /**
      * Creates a new CopilotClient instance.
@@ -344,6 +360,7 @@ export class CopilotClient {
                 );
             }
             this.connection = null;
+            this._rpc = null;
         }
 
         // Clear models cache
@@ -421,6 +438,7 @@ export class CopilotClient {
                 // Ignore errors during force stop
             }
             this.connection = null;
+            this._rpc = null;
         }
 
         // Clear models cache
