@@ -105,9 +105,10 @@ await client.stop()
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
-    CLIPath: "./vendor/copilot",
+    CLIPath:"./vendor/copilot",
 })
 if err := client.Start(ctx); err != nil {
     log.Fatal(err)

@@ -14,6 +14,7 @@ using System.Net.Sockets;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using GitHub.Copilot.SDK.Rpc;
 
 namespace GitHub.Copilot.SDK;
 
@@ -63,6 +64,19 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     private readonly List<Action<SessionLifecycleEvent>> _lifecycleHandlers = new();
     private readonly Dictionary<string, List<Action<SessionLifecycleEvent>>> _typedLifecycleHandlers = new();
     private readonly object _lifecycleHandlersLock = new();
+    private ServerRpc? _rpc;
+
+    /// <summary>
+    /// Gets the typed RPC client for server-scoped methods (no session required).
+    /// </summary>
+    /// <remarks>
+    /// The client must be started before accessing this property. Use <see cref="StartAsync"/> or set <see cref="CopilotClientOptions.AutoStart"/> to true.
+    /// </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown if the client has been disposed.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if the client is not started.</exception>
+    public ServerRpc Rpc => _disposed
+        ? throw new ObjectDisposedException(nameof(CopilotClient))
+        : _rpc ?? throw new InvalidOperationException("Client is not started. Call StartAsync first.");
 
     /// <summary>
     /// Creates a new instance of <see cref="CopilotClient"/>.
@@ -289,7 +303,8 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         try { ctx.Rpc.Dispose(); }
         catch (Exception ex) { errors?.Add(ex); }
 
-        // Clear models cache
+        // Clear RPC and models cache
+        _rpc = null;
         _modelsCache = null;
 
         if (ctx.NetworkStream is not null)
@@ -1040,6 +1055,9 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         rpc.AddLocalRpcMethod("userInput.request", handler.OnUserInputRequest);
         rpc.AddLocalRpcMethod("hooks.invoke", handler.OnHooksInvoke);
         rpc.StartListening();
+
+        _rpc = new ServerRpc(rpc);
+
         return new Connection(rpc, cliProcess, tcpClient, networkStream);
     }
 
@@ -1062,6 +1080,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         options.TypeInfoResolverChain.Add(TypesJsonContext.Default);
         options.TypeInfoResolverChain.Add(CopilotSession.SessionJsonContext.Default);
         options.TypeInfoResolverChain.Add(SessionEventsJsonContext.Default);
+        options.TypeInfoResolverChain.Add(SDK.Rpc.RpcJsonContext.Default);
 
         options.MakeReadOnly();
 

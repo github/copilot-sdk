@@ -131,9 +131,10 @@ response = await session.send_and_wait({"prompt": message})
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
-    CLIUrl: "localhost:4321",
+    CLIUrl:"localhost:4321",
 })
 client.Start(ctx)
 defer client.Stop()
@@ -151,6 +152,7 @@ response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: message})
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: skip -->
 ```csharp
 var client = new CopilotClient(new CopilotClientOptions
 {

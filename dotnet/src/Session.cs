@@ -7,6 +7,7 @@ using StreamJsonRpc;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using GitHub.Copilot.SDK.Rpc;
 
 namespace GitHub.Copilot.SDK;
 
@@ -52,12 +53,18 @@ public partial class CopilotSession : IAsyncDisposable
     private readonly SemaphoreSlim _userInputHandlerLock = new(1, 1);
     private SessionHooks? _hooks;
     private readonly SemaphoreSlim _hooksLock = new(1, 1);
+    private SessionRpc? _sessionRpc;
 
     /// <summary>
     /// Gets the unique identifier for this session.
     /// </summary>
     /// <value>A string that uniquely identifies this session.</value>
     public string SessionId { get; }
+
+    /// <summary>
+    /// Gets the typed RPC client for session-scoped methods.
+    /// </summary>
+    public SessionRpc Rpc => _sessionRpc ??= new SessionRpc(_rpc, SessionId);
 
     /// <summary>
     /// Gets the path to the session workspace directory when infinite sessions are enabled.

@@ -60,6 +60,12 @@ func Bool(v bool) *bool {
 	return &v
 }
 
+// String returns a pointer to the given string value.
+// Use for setting optional string parameters in RPC calls.
+func String(v string) *string {
+	return &v
+}
+
 // Float64 returns a pointer to the given float64 value.
 // Use for setting thresholds: BackgroundCompactionThreshold: Float64(0.80)
 func Float64(v float64) *float64 {

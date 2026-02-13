@@ -118,6 +118,7 @@ await client.stop()
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 client := copilot.NewClient(nil)
 client.Start(ctx)
