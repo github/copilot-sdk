@@ -117,12 +117,18 @@ func TestRpc(t *testing.T) {
 
 func TestSessionRpc(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
+	client := ctx.NewClient()
+	t.Cleanup(func() { client.ForceStop() })
+
+	if err := client.Start(t.Context()); err != nil {
+		t.Fatalf("Failed to start client: %v", err)
+	}
 
 	// session.model.getCurrent is defined in schema but not yet implemented in CLI
 	t.Run("should call session.RPC.Model.GetCurrent", func(t *testing.T) {
 		t.Skip("session.model.getCurrent not yet implemented in CLI")
 
-		session, err := ctx.Client.CreateSession(t.Context(), &copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			Model: "claude-sonnet-4.5",
 		})
 		if err != nil {
@@ -143,7 +149,7 @@ func TestSessionRpc(t *testing.T) {
 	t.Run("should call session.RPC.Model.SwitchTo", func(t *testing.T) {
 		t.Skip("session.model.switchTo not yet implemented in CLI")
 
-		session, err := ctx.Client.CreateSession(t.Context(), &copilot.SessionConfig{
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			Model: "claude-sonnet-4.5",
 		})
 		if err != nil {
