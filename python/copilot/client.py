@@ -23,7 +23,7 @@ from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional, cast
 
-from .generated.rpc import ServerRpc, SessionRpc
+from .generated.rpc import ServerRpc
 from .generated.session_events import session_event_from_dict
 from .jsonrpc import JsonRpcClient
 from .sdk_protocol_version import get_sdk_protocol_version
