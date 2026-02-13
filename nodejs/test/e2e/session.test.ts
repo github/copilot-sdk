@@ -5,7 +5,7 @@ import { createSdkTestContext } from "./harness/sdkTestContext.js";
 import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
 
 describe("Sessions", async () => {
-    const { copilotClient: client, openAiEndpoint, homeDir, env } = await createSdkTestContext();
+    const { copilotClient: client, openAiEndpoint, configDir, env } = await createSdkTestContext();
 
     it("should create and destroy sessions", async () => {
         const session = await client.createSession({ model: "fake-test-model" });
@@ -319,9 +319,8 @@ describe("Sessions", async () => {
     });
 
     it("should create session with custom config dir", async () => {
-        const customConfigDir = `${homeDir}/custom-config`;
         const session = await client.createSession({
-            configDir: customConfigDir,
+            configDir: configDir,
         });
 
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
