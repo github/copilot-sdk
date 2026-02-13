@@ -69,49 +69,6 @@ function paramsTypeName(rpcMethod: string): string {
     return rpcMethod.split(".").map(toPascalCase).join("") + "Params";
 }
 
-function emitGroup(node: Record<string, unknown>, indent: string, isSession: boolean): string[] {
-    const lines: string[] = [];
-    for (const [key, value] of Object.entries(node)) {
-        if (isRpcMethod(value)) {
-            const { rpcMethod, params } = value;
-            const resultType = resultTypeName(rpcMethod);
-            const paramsType = paramsTypeName(rpcMethod);
-
-            const sigParams = ["connection: MessageConnection"];
-            if (isSession) sigParams.push("sessionId: string");
-
-            const hasParams = params?.properties && Object.keys(params.properties).length > 0;
-            const hasNonSessionParams = hasParams && Object.keys(params!.properties!).some((k) => k !== "sessionId");
-
-            if (hasNonSessionParams) {
-                sigParams.push(`params: Omit<${paramsType}, "sessionId">`);
-            }
-
-            let bodyArg: string;
-            if (isSession && hasNonSessionParams) {
-                bodyArg = "{ sessionId, ...params }";
-            } else if (isSession) {
-                bodyArg = "{ sessionId }";
-            } else if (hasParams) {
-                bodyArg = "params";
-            } else {
-                bodyArg = "{}";
-            }
-
-            lines.push("");
-            lines.push(`${indent}${key}: async (${sigParams.join(", ")}): Promise<${resultType}> => {`);
-            lines.push(`${indent}    return await connection.sendRequest("${rpcMethod}", ${bodyArg});`);
-            lines.push(`${indent}},`);
-        } else if (typeof value === "object" && value !== null) {
-            lines.push("");
-            lines.push(`${indent}${key}: {`);
-            lines.push(...emitGroup(value as Record<string, unknown>, indent + "    ", isSession));
-            lines.push(`${indent}},`);
-        }
-    }
-    return lines;
-}
-
 async function generateRpc(schemaPath?: string): Promise<void> {
     console.log("TypeScript: generating RPC types...");
 
@@ -147,22 +104,71 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
         }
     }
 
+    // Generate factory functions
     if (schema.server) {
-        lines.push(`export const serverRpc = {`);
-        lines.push(...emitGroup(schema.server, "    ", false));
-        lines.push(`};`);
+        lines.push(`/** Create typed server-scoped RPC methods (no session required). */`);
+        lines.push(`export function createServerRpc(connection: MessageConnection) {`);
+        lines.push(`    return {`);
+        lines.push(...emitGroup(schema.server, "        ", false));
+        lines.push(`    };`);
+        lines.push(`}`);
         lines.push("");
     }
 
     if (schema.session) {
-        lines.push(`export const sessionRpc = {`);
-        lines.push(...emitGroup(schema.session, "    ", true));
-        lines.push(`};`);
+        lines.push(`/** Create typed session-scoped RPC methods. */`);
+        lines.push(`export function createSessionRpc(connection: MessageConnection, sessionId: string) {`);
+        lines.push(`    return {`);
+        lines.push(...emitGroup(schema.session, "        ", true));
+        lines.push(`    };`);
+        lines.push(`}`);
         lines.push("");
     }
 
     const outPath = await writeGeneratedFile("nodejs/src/generated/rpc.ts", lines.join("\n"));
     console.log(`  ✓ ${outPath}`);
+}
+
+function emitGroup(node: Record<string, unknown>, indent: string, isSession: boolean): string[] {
+    const lines: string[] = [];
+    for (const [key, value] of Object.entries(node)) {
+        if (isRpcMethod(value)) {
+            const { rpcMethod, params } = value;
+            const resultType = resultTypeName(rpcMethod);
+            const paramsType = paramsTypeName(rpcMethod);
+
+            const paramEntries = params?.properties ? Object.entries(params.properties).filter(([k]) => k !== "sessionId") : [];
+            const hasParams = params?.properties && Object.keys(params.properties).length > 0;
+            const hasNonSessionParams = paramEntries.length > 0;
+
+            const sigParams: string[] = [];
+            let bodyArg: string;
+
+            if (isSession) {
+                if (hasNonSessionParams) {
+                    sigParams.push(`params: Omit<${paramsType}, "sessionId">`);
+                    bodyArg = "{ sessionId, ...params }";
+                } else {
+                    bodyArg = "{ sessionId }";
+                }
+            } else {
+                if (hasParams) {
+                    sigParams.push(`params: ${paramsType}`);
+                    bodyArg = "params";
+                } else {
+                    bodyArg = "{}";
+                }
+            }
+
+            lines.push(`${indent}${key}: async (${sigParams.join(", ")}): Promise<${resultType}> =>`);
+            lines.push(`${indent}    connection.sendRequest("${rpcMethod}", ${bodyArg}),`);
+        } else if (typeof value === "object" && value !== null) {
+            lines.push(`${indent}${key}: {`);
+            lines.push(...emitGroup(value as Record<string, unknown>, indent + "    ", isSession));
+            lines.push(`${indent}},`);
+        }
+    }
+    return lines;
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────

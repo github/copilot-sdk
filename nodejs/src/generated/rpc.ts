@@ -175,44 +175,34 @@ export interface SessionModelSwitchToParams {
   modelId: string;
 }
 
-export const serverRpc = {
-
-    ping: async (connection: MessageConnection, params: Omit<PingParams, "sessionId">): Promise<PingResult> => {
-        return await connection.sendRequest("ping", params);
-    },
-
-    models: {
-
-        list: async (connection: MessageConnection): Promise<ModelsListResult> => {
-            return await connection.sendRequest("models.list", {});
+/** Create typed server-scoped RPC methods (no session required). */
+export function createServerRpc(connection: MessageConnection) {
+    return {
+        ping: async (params: PingParams): Promise<PingResult> =>
+            connection.sendRequest("ping", params),
+        models: {
+            list: async (): Promise<ModelsListResult> =>
+                connection.sendRequest("models.list", {}),
         },
-    },
-
-    tools: {
-
-        list: async (connection: MessageConnection, params: Omit<ToolsListParams, "sessionId">): Promise<ToolsListResult> => {
-            return await connection.sendRequest("tools.list", params);
+        tools: {
+            list: async (params: ToolsListParams): Promise<ToolsListResult> =>
+                connection.sendRequest("tools.list", params),
         },
-    },
-
-    account: {
-
-        getQuota: async (connection: MessageConnection): Promise<AccountGetQuotaResult> => {
-            return await connection.sendRequest("account.getQuota", {});
+        account: {
+            getQuota: async (): Promise<AccountGetQuotaResult> =>
+                connection.sendRequest("account.getQuota", {}),
         },
-    },
-};
+    };
+}
 
-export const sessionRpc = {
-
-    model: {
-
-        getCurrent: async (connection: MessageConnection, sessionId: string): Promise<SessionModelGetCurrentResult> => {
-            return await connection.sendRequest("session.model.getCurrent", { sessionId });
+/** Create typed session-scoped RPC methods. */
+export function createSessionRpc(connection: MessageConnection, sessionId: string) {
+    return {
+        model: {
+            getCurrent: async (): Promise<SessionModelGetCurrentResult> =>
+                connection.sendRequest("session.model.getCurrent", { sessionId }),
+            switchTo: async (params: Omit<SessionModelSwitchToParams, "sessionId">): Promise<SessionModelSwitchToResult> =>
+                connection.sendRequest("session.model.switchTo", { sessionId, ...params }),
         },
-
-        switchTo: async (connection: MessageConnection, sessionId: string, params: Omit<SessionModelSwitchToParams, "sessionId">): Promise<SessionModelSwitchToResult> => {
-            return await connection.sendRequest("session.model.switchTo", { sessionId, ...params });
-        },
-    },
-};
+    };
+}
