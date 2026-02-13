@@ -216,41 +216,85 @@ internal class SwitchToRequest
     public string ModelId { get; set; } = string.Empty;
 }
 
-internal static class ServerRpc
+/// <summary>Typed server-scoped RPC methods (no session required).</summary>
+public class ServerRpc
 {
-    /// <summary>Calls "ping" via JSON-RPC.</summary>
-    internal static async Task<PingResult> PingAsync(JsonRpc rpc, string? message = null, CancellationToken cancellationToken = default)
+    private readonly JsonRpc _rpc;
+
+    internal ServerRpc(JsonRpc rpc)
+    {
+        _rpc = rpc;
+        Models = new ModelsApi(rpc);
+        Tools = new ToolsApi(rpc);
+        Account = new AccountApi(rpc);
+    }
+
+    /// <summary>Calls "ping".</summary>
+    public async Task<PingResult> PingAsync(string? message = null, CancellationToken cancellationToken = default)
     {
         var request = new PingRequest { Message = message };
-        return await CopilotClient.InvokeRpcAsync<PingResult>(rpc, "ping", [request], cancellationToken);
+        return await CopilotClient.InvokeRpcAsync<PingResult>(_rpc, "ping", [request], cancellationToken);
     }
 
-    internal static class Models
+    /// <summary>Models APIs.</summary>
+    public ModelsApi Models { get; }
+
+    /// <summary>Tools APIs.</summary>
+    public ToolsApi Tools { get; }
+
+    /// <summary>Account APIs.</summary>
+    public AccountApi Account { get; }
+}
+
+/// <summary>Server-scoped Models APIs.</summary>
+public class ModelsApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ModelsApi(JsonRpc rpc)
     {
-        /// <summary>Calls "models.list" via JSON-RPC.</summary>
-        internal static async Task<ModelsListResult> ListAsync(JsonRpc rpc, CancellationToken cancellationToken = default)
-        {
-            return await CopilotClient.InvokeRpcAsync<ModelsListResult>(rpc, "models.list", [], cancellationToken);
-        }
+        _rpc = rpc;
     }
 
-    internal static class Tools
+    /// <summary>Calls "models.list".</summary>
+    public async Task<ModelsListResult> ListAsync(CancellationToken cancellationToken = default)
     {
-        /// <summary>Calls "tools.list" via JSON-RPC.</summary>
-        internal static async Task<ToolsListResult> ListAsync(JsonRpc rpc, string? model = null, CancellationToken cancellationToken = default)
-        {
-            var request = new ListRequest { Model = model };
-            return await CopilotClient.InvokeRpcAsync<ToolsListResult>(rpc, "tools.list", [request], cancellationToken);
-        }
+        return await CopilotClient.InvokeRpcAsync<ModelsListResult>(_rpc, "models.list", [], cancellationToken);
+    }
+}
+
+/// <summary>Server-scoped Tools APIs.</summary>
+public class ToolsApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ToolsApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
     }
 
-    internal static class Account
+    /// <summary>Calls "tools.list".</summary>
+    public async Task<ToolsListResult> ListAsync(string? model = null, CancellationToken cancellationToken = default)
     {
-        /// <summary>Calls "account.getQuota" via JSON-RPC.</summary>
-        internal static async Task<AccountGetQuotaResult> GetQuotaAsync(JsonRpc rpc, CancellationToken cancellationToken = default)
-        {
-            return await CopilotClient.InvokeRpcAsync<AccountGetQuotaResult>(rpc, "account.getQuota", [], cancellationToken);
-        }
+        var request = new ListRequest { Model = model };
+        return await CopilotClient.InvokeRpcAsync<ToolsListResult>(_rpc, "tools.list", [request], cancellationToken);
+    }
+}
+
+/// <summary>Server-scoped Account APIs.</summary>
+public class AccountApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal AccountApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Calls "account.getQuota".</summary>
+    public async Task<AccountGetQuotaResult> GetQuotaAsync(CancellationToken cancellationToken = default)
+    {
+        return await CopilotClient.InvokeRpcAsync<AccountGetQuotaResult>(_rpc, "account.getQuota", [], cancellationToken);
     }
 }
 
@@ -282,7 +326,6 @@ public class ModelApi
     }
 
     /// <summary>Calls "session.model.getCurrent".</summary>
-    [Experimental("CopilotSdk001")]
     public async Task<ModelGetCurrentResult> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
         var request = new GetCurrentRequest { SessionId = _sessionId };
@@ -290,7 +333,6 @@ public class ModelApi
     }
 
     /// <summary>Calls "session.model.switchTo".</summary>
-    [Experimental("CopilotSdk001")]
     public async Task<ModelSwitchToResult> SwitchToAsync(string modelId, CancellationToken cancellationToken = default)
     {
         var request = new SwitchToRequest { SessionId = _sessionId, ModelId = modelId };

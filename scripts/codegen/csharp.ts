@@ -517,30 +517,84 @@ function emitRpcClass(className: string, schema: JSONSchema7, visibility: "publi
     return lines.join("\n");
 }
 
-function emitServerRpcClass(node: Record<string, unknown>, classes: string[]): string {
-    const lines = [`internal static class ServerRpc`, `{`];
-    emitServerGroup(node, lines, classes, "    ");
+/**
+ * Emit ServerRpc as an instance class (like SessionRpc but without sessionId).
+ */
+function emitServerRpcClasses(node: Record<string, unknown>, classes: string[]): string[] {
+    const result: string[] = [];
+
+    // Find top-level groups (e.g. "models", "tools", "account")
+    const groups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
+    // Find top-level methods (e.g. "ping")
+    const topLevelMethods = Object.entries(node).filter(([, v]) => isRpcMethod(v));
+
+    // ServerRpc class
+    const srLines: string[] = [];
+    srLines.push(`/// <summary>Typed server-scoped RPC methods (no session required).</summary>`);
+    srLines.push(`public class ServerRpc`);
+    srLines.push(`{`);
+    srLines.push(`    private readonly JsonRpc _rpc;`);
+    srLines.push("");
+    srLines.push(`    internal ServerRpc(JsonRpc rpc)`);
+    srLines.push(`    {`);
+    srLines.push(`        _rpc = rpc;`);
+    for (const [groupName] of groups) {
+        srLines.push(`        ${toPascalCase(groupName)} = new ${toPascalCase(groupName)}Api(rpc);`);
+    }
+    srLines.push(`    }`);
+
+    // Top-level methods (like ping)
+    for (const [key, value] of topLevelMethods) {
+        if (!isRpcMethod(value)) continue;
+        emitServerInstanceMethod(key, value, srLines, classes, "    ");
+    }
+
+    // Group properties
+    for (const [groupName] of groups) {
+        srLines.push("");
+        srLines.push(`    /// <summary>${toPascalCase(groupName)} APIs.</summary>`);
+        srLines.push(`    public ${toPascalCase(groupName)}Api ${toPascalCase(groupName)} { get; }`);
+    }
+
+    srLines.push(`}`);
+    result.push(srLines.join("\n"));
+
+    // Per-group API classes
+    for (const [groupName, groupNode] of groups) {
+        result.push(emitServerApiClass(`${toPascalCase(groupName)}Api`, groupNode as Record<string, unknown>, classes));
+    }
+
+    return result;
+}
+
+function emitServerApiClass(className: string, node: Record<string, unknown>, classes: string[]): string {
+    const lines: string[] = [];
+    lines.push(`/// <summary>Server-scoped ${className.replace("Api", "")} APIs.</summary>`);
+    lines.push(`public class ${className}`);
+    lines.push(`{`);
+    lines.push(`    private readonly JsonRpc _rpc;`);
+    lines.push("");
+    lines.push(`    internal ${className}(JsonRpc rpc)`);
+    lines.push(`    {`);
+    lines.push(`        _rpc = rpc;`);
+    lines.push(`    }`);
+
+    for (const [key, value] of Object.entries(node)) {
+        if (!isRpcMethod(value)) continue;
+        emitServerInstanceMethod(key, value, lines, classes, "    ");
+    }
+
     lines.push(`}`);
     return lines.join("\n");
 }
 
-function emitServerGroup(node: Record<string, unknown>, lines: string[], classes: string[], indent: string): void {
-    const entries = Object.entries(node);
-    for (let i = 0; i < entries.length; i++) {
-        const [key, value] = entries[i];
-        if (isRpcMethod(value)) {
-            emitServerMethod(key, value, lines, classes, indent);
-            if (i < entries.length - 1) lines.push("");
-        } else if (typeof value === "object" && value !== null) {
-            lines.push(`${indent}internal static class ${toPascalCase(key)}`, `${indent}{`);
-            emitServerGroup(value as Record<string, unknown>, lines, classes, indent + "    ");
-            lines.push(`${indent}}`);
-            if (i < entries.length - 1) lines.push("");
-        }
-    }
-}
-
-function emitServerMethod(name: string, method: { rpcMethod: string; params: JSONSchema7 | null; result: JSONSchema7 }, lines: string[], classes: string[], indent: string): void {
+function emitServerInstanceMethod(
+    name: string,
+    method: { rpcMethod: string; params: JSONSchema7 | null; result: JSONSchema7 },
+    lines: string[],
+    classes: string[],
+    indent: string
+): void {
     const methodName = toPascalCase(name);
     const resultClassName = `${typeToClassName(method.rpcMethod)}Result`;
     const resultClass = emitRpcClass(resultClassName, method.result, "public", classes);
@@ -556,8 +610,10 @@ function emitServerMethod(name: string, method: { rpcMethod: string; params: JSO
         if (reqClass) classes.push(reqClass);
     }
 
-    lines.push(`${indent}/// <summary>Calls "${method.rpcMethod}" via JSON-RPC.</summary>`);
-    const sigParams = ["JsonRpc rpc"];
+    lines.push("");
+    lines.push(`${indent}/// <summary>Calls "${method.rpcMethod}".</summary>`);
+
+    const sigParams: string[] = [];
     const bodyAssignments: string[] = [];
 
     for (const [pName, pSchema] of paramEntries) {
@@ -569,13 +625,13 @@ function emitServerMethod(name: string, method: { rpcMethod: string; params: JSO
     }
     sigParams.push("CancellationToken cancellationToken = default");
 
-    lines.push(`${indent}internal static async Task<${resultClassName}> ${methodName}Async(${sigParams.join(", ")})`);
+    lines.push(`${indent}public async Task<${resultClassName}> ${methodName}Async(${sigParams.join(", ")})`);
     lines.push(`${indent}{`);
     if (requestClassName && bodyAssignments.length > 0) {
         lines.push(`${indent}    var request = new ${requestClassName} { ${bodyAssignments.join(", ")} };`);
-        lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(rpc, "${method.rpcMethod}", [request], cancellationToken);`);
+        lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [request], cancellationToken);`);
     } else {
-        lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(rpc, "${method.rpcMethod}", [], cancellationToken);`);
+        lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [], cancellationToken);`);
     }
     lines.push(`${indent}}`);
 }
@@ -631,7 +687,6 @@ function emitSessionApiClass(className: string, node: Record<string, unknown>, c
         }
         sigParams.push("CancellationToken cancellationToken = default");
 
-        lines.push(`    [Experimental("CopilotSdk001")]`);
         lines.push(`    public async Task<${resultClassName}> ${methodName}Async(${sigParams.join(", ")})`);
         lines.push(`    {`, `        var request = new ${requestClassName} { ${bodyAssignments.join(", ")} };`);
         lines.push(`        return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [request], cancellationToken);`, `    }`);
@@ -645,8 +700,8 @@ function generateRpcCode(schema: ApiSchema): string {
     rpcKnownTypes.clear();
     const classes: string[] = [];
 
-    let serverRpc = "";
-    if (schema.server) serverRpc = emitServerRpcClass(schema.server, classes);
+    let serverRpcParts: string[] = [];
+    if (schema.server) serverRpcParts = emitServerRpcClasses(schema.server, classes);
 
     let sessionRpcParts: string[] = [];
     if (schema.session) sessionRpcParts = emitSessionRpcClasses(schema.session, classes);
@@ -665,7 +720,7 @@ namespace GitHub.Copilot.SDK.Rpc;
 `);
 
     for (const cls of classes) if (cls) lines.push(cls, "");
-    if (serverRpc) lines.push(serverRpc, "");
+    for (const part of serverRpcParts) lines.push(part, "");
     for (const part of sessionRpcParts) lines.push(part, "");
 
     return lines.join("\n");
