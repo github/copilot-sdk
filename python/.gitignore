@@ -163,6 +163,9 @@ cython_debug/
 .ruff_cache/
 .ty_cache/
 
+# uv
+uv.lock
+
 # Build script caches
 .cli-cache/
 .build-temp/
