@@ -23,6 +23,7 @@ from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional, cast
 
+from .generated.rpc import ServerRpc, SessionRpc
 from .generated.session_events import session_event_from_dict
 from .jsonrpc import JsonRpcClient
 from .sdk_protocol_version import get_sdk_protocol_version
@@ -202,6 +203,14 @@ class CopilotClient:
             SessionLifecycleEventType, list[SessionLifecycleHandler]
         ] = {}
         self._lifecycle_handlers_lock = threading.Lock()
+        self._rpc: Optional[ServerRpc] = None
+
+    @property
+    def rpc(self) -> ServerRpc:
+        """Typed server-scoped RPC methods."""
+        if self._rpc is None:
+            raise RuntimeError("Client is not connected. Call start() first.")
+        return self._rpc
 
     def _parse_cli_url(self, url: str) -> tuple[str, int]:
         """
@@ -1222,6 +1231,7 @@ class CopilotClient:
 
         # Create JSON-RPC client with the process
         self._client = JsonRpcClient(self._process)
+        self._rpc = ServerRpc(self._client)
 
         # Set up notification handler for session events
         # Note: This handler is called from the event loop (thread-safe scheduling)
@@ -1304,6 +1314,7 @@ class CopilotClient:
 
         self._process = SocketWrapper(sock_file, sock)  # type: ignore
         self._client = JsonRpcClient(self._process)
+        self._rpc = ServerRpc(self._client)
 
         # Set up notification handler for session events
         def handle_notification(method: str, params: dict):
