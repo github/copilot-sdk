@@ -662,7 +662,7 @@ function emitSessionApiClass(className: string, node: Record<string, unknown>, c
         if (!isRpcMethod(value)) continue;
         const method = value;
         const methodName = toPascalCase(key);
-        const resultClassName = `${typeToClassName(method.rpcMethod.replace(/^session\./, ""))}Result`;
+        const resultClassName = `${typeToClassName(method.rpcMethod)}Result`;
         const resultClass = emitRpcClass(resultClassName, method.result, "public", classes);
         if (resultClass) classes.push(resultClass);
 

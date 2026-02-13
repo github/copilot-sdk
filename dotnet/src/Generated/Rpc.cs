@@ -188,7 +188,7 @@ public class AccountGetQuotaResult
     public Dictionary<string, AccountGetQuotaResultQuotaSnapshotsValue> QuotaSnapshots { get; set; } = new();
 }
 
-public class ModelGetCurrentResult
+public class SessionModelGetCurrentResult
 {
     [JsonPropertyName("modelId")]
     public string? ModelId { get; set; }
@@ -200,7 +200,7 @@ internal class GetCurrentRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-public class ModelSwitchToResult
+public class SessionModelSwitchToResult
 {
     [JsonPropertyName("modelId")]
     public string? ModelId { get; set; }
@@ -325,16 +325,16 @@ public class ModelApi
     }
 
     /// <summary>Calls "session.model.getCurrent".</summary>
-    public async Task<ModelGetCurrentResult> GetCurrentAsync(CancellationToken cancellationToken = default)
+    public async Task<SessionModelGetCurrentResult> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
         var request = new GetCurrentRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<ModelGetCurrentResult>(_rpc, "session.model.getCurrent", [request], cancellationToken);
+        return await CopilotClient.InvokeRpcAsync<SessionModelGetCurrentResult>(_rpc, "session.model.getCurrent", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.model.switchTo".</summary>
-    public async Task<ModelSwitchToResult> SwitchToAsync(string modelId, CancellationToken cancellationToken = default)
+    public async Task<SessionModelSwitchToResult> SwitchToAsync(string modelId, CancellationToken cancellationToken = default)
     {
         var request = new SwitchToRequest { SessionId = _sessionId, ModelId = modelId };
-        return await CopilotClient.InvokeRpcAsync<ModelSwitchToResult>(_rpc, "session.model.switchTo", [request], cancellationToken);
+        return await CopilotClient.InvokeRpcAsync<SessionModelSwitchToResult>(_rpc, "session.model.switchTo", [request], cancellationToken);
     }
 }
