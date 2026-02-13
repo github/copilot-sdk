@@ -35,7 +35,7 @@ func TestRpc(t *testing.T) {
 		}
 
 		if result.Timestamp < 0 {
-			t.Errorf("Expected timestamp >= 0, got %d", result.Timestamp)
+			t.Errorf("Expected timestamp >= 0, got %f", result.Timestamp)
 		}
 
 		if err := client.Stop(); err != nil {
@@ -140,7 +140,7 @@ func TestSessionRpc(t *testing.T) {
 			t.Fatalf("Failed to call session.RPC.Model.GetCurrent: %v", err)
 		}
 
-		if result.ModelID == "" {
+		if result.ModelID == nil || *result.ModelID == "" {
 			t.Error("Expected modelId to be defined")
 		}
 	})
@@ -161,7 +161,7 @@ func TestSessionRpc(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get current model: %v", err)
 		}
-		if before.ModelID == "" {
+		if before.ModelID == nil || *before.ModelID == "" {
 			t.Error("Expected initial modelId to be defined")
 		}
 
@@ -172,8 +172,8 @@ func TestSessionRpc(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to switch model: %v", err)
 		}
-		if result.ModelID != "gpt-4.1" {
-			t.Errorf("Expected modelId 'gpt-4.1', got %q", result.ModelID)
+		if result.ModelID == nil || *result.ModelID != "gpt-4.1" {
+			t.Errorf("Expected modelId 'gpt-4.1', got %v", result.ModelID)
 		}
 
 		// Verify the switch persisted
@@ -181,8 +181,8 @@ func TestSessionRpc(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get current model after switch: %v", err)
 		}
-		if after.ModelID != "gpt-4.1" {
-			t.Errorf("Expected modelId 'gpt-4.1' after switch, got %q", after.ModelID)
+		if after.ModelID == nil || *after.ModelID != "gpt-4.1" {
+			t.Errorf("Expected modelId 'gpt-4.1' after switch, got %v", after.ModelID)
 		}
 	})
 }
