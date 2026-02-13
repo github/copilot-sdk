@@ -22,6 +22,8 @@
     <_CopilotPlatform Condition="'$(_CopilotRid)' == 'linux-arm64'">linux-arm64</_CopilotPlatform>
     <_CopilotPlatform Condition="'$(_CopilotRid)' == 'osx-x64'">darwin-x64</_CopilotPlatform>
     <_CopilotPlatform Condition="'$(_CopilotRid)' == 'osx-arm64'">darwin-arm64</_CopilotPlatform>
+    <_CopilotPlatform Condition="'$(_CopilotRid)' == 'maccatalyst-x64'">darwin-x64</_CopilotPlatform>
+    <_CopilotPlatform Condition="'$(_CopilotRid)' == 'maccatalyst-arm64'">darwin-arm64</_CopilotPlatform>
     <_CopilotBinary Condition="$(_CopilotRid.StartsWith('win-'))">copilot.exe</_CopilotBinary>
     <_CopilotBinary Condition="'$(_CopilotBinary)' == ''">copilot</_CopilotBinary>
   </PropertyGroup>
