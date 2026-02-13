@@ -135,7 +135,7 @@ type SessionModelSwitchToParams struct {
 type ModelsRpcApi struct{ client *jsonrpc2.Client }
 
 func (a *ModelsRpcApi) List(ctx context.Context) (*ModelsListResult, error) {
-	raw, err := a.client.Request("models.list", nil)
+	raw, err := a.client.Request("models.list", map[string]interface{}{})
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +163,7 @@ func (a *ToolsRpcApi) List(ctx context.Context, params *ToolsListParams) (*Tools
 type AccountRpcApi struct{ client *jsonrpc2.Client }
 
 func (a *AccountRpcApi) GetQuota(ctx context.Context) (*AccountGetQuotaResult, error) {
-	raw, err := a.client.Request("account.getQuota", nil)
+	raw, err := a.client.Request("account.getQuota", map[string]interface{}{})
 	if err != nil {
 		return nil, err
 	}

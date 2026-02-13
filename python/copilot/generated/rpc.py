@@ -548,15 +548,16 @@ class ModelsApi:
         self._client = client
 
     async def list(self) -> ModelsListResult:
-        return await self._client.request("models.list", {})
+        return ModelsListResult.from_dict(await self._client.request("models.list", {}))
 
 
 class ToolsApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
-    async def list(self, model) -> ToolsListResult:
-        return await self._client.request("tools.list", {"model": model})
+    async def list(self, params: ToolsListParams) -> ToolsListResult:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return ToolsListResult.from_dict(await self._client.request("tools.list", params_dict))
 
 
 class AccountApi:
@@ -564,7 +565,7 @@ class AccountApi:
         self._client = client
 
     async def get_quota(self) -> AccountGetQuotaResult:
-        return await self._client.request("account.getQuota", {})
+        return AccountGetQuotaResult.from_dict(await self._client.request("account.getQuota", {}))
 
 
 class ServerRpc:
@@ -575,8 +576,9 @@ class ServerRpc:
         self.tools = ToolsApi(client)
         self.account = AccountApi(client)
 
-    async def ping(self, message) -> PingResult:
-        return await self._client.request("ping", {"message": message})
+    async def ping(self, params: PingParams) -> PingResult:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return PingResult.from_dict(await self._client.request("ping", params_dict))
 
 
 class ModelApi:
@@ -585,10 +587,12 @@ class ModelApi:
         self._session_id = session_id
 
     async def get_current(self) -> SessionModelGetCurrentResult:
-        return await self._client.request("session.model.getCurrent", {"sessionId": self._session_id})
+        return SessionModelGetCurrentResult.from_dict(await self._client.request("session.model.getCurrent", {"sessionId": self._session_id}))
 
-    async def switch_to(self, model_id) -> SessionModelSwitchToResult:
-        return await self._client.request("session.model.switchTo", {"sessionId": self._session_id, "modelId": model_id})
+    async def switch_to(self, params: SessionModelSwitchToParams) -> SessionModelSwitchToResult:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return SessionModelSwitchToResult.from_dict(await self._client.request("session.model.switchTo", params_dict))
 
 
 class SessionRpc:
