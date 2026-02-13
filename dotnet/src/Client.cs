@@ -847,6 +847,14 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             return await rpc.InvokeWithCancellationAsync<T>(method, args, cancellationToken);
         }
+        catch (StreamJsonRpc.ConnectionLostException ex)
+        {
+            throw new IOException(
+                $"Communication error with Copilot CLI: The connection was lost. " +
+                $"This usually means the CLI process crashed or exited unexpectedly. " +
+                $"See the troubleshooting guide at https://github.com/github/copilot-sdk/blob/main/docs/troubleshooting-connection-errors.md for help. " +
+                $"Details: {ex.Message}", ex);
+        }
         catch (StreamJsonRpc.RemoteRpcException ex)
         {
             throw new IOException($"Communication error with Copilot CLI: {ex.Message}", ex);
@@ -955,20 +963,71 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         }
 
         var cliProcess = new Process { StartInfo = startInfo };
-        cliProcess.Start();
-
-        // Forward stderr to logger
-        _ = Task.Run(async () =>
+        
+        try
         {
-            while (cliProcess != null && !cliProcess.HasExited)
+            cliProcess.Start();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"Failed to start Copilot CLI process. " +
+                $"Please ensure the Copilot CLI is installed and accessible at '{cliPath}'. " +
+                $"Error: {ex.Message}", ex);
+        }
+
+        // Start capturing stderr immediately to avoid race conditions
+        var stderrLines = new List<string>();
+        var stderrLock = new object();
+        var stderrTask = Task.Run(async () =>
+        {
+            try
             {
-                var line = await cliProcess.StandardError.ReadLineAsync(cancellationToken);
-                if (line != null)
+                while (!cliProcess.HasExited)
                 {
-                    logger.LogDebug("[CLI] {Line}", line);
+                    var line = await cliProcess.StandardError.ReadLineAsync(cancellationToken);
+                    if (line != null)
+                    {
+                        lock (stderrLock)
+                        {
+                            stderrLines.Add(line);
+                            // Keep only last 50 lines to avoid unbounded growth
+                            if (stderrLines.Count > 50)
+                            {
+                                stderrLines.RemoveAt(0);
+                            }
+                        }
+                        logger.LogDebug("[CLI] {Line}", line);
+                    }
                 }
             }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogDebug("Error reading CLI stderr: {Error}", ex.Message);
+            }
         }, cancellationToken);
+
+        // Check if process exited immediately (indicates a startup failure)
+        // Use a shorter delay and check HasExited to minimize false positives
+        await Task.Delay(50, cancellationToken);
+        if (cliProcess.HasExited)
+        {
+            var exitCode = cliProcess.ExitCode;
+            
+            // Give a moment for stderr task to capture any error output
+            await Task.Delay(50, cancellationToken);
+            
+            string errorOutput;
+            lock (stderrLock)
+            {
+                errorOutput = stderrLines.Count > 0 ? string.Join(Environment.NewLine, stderrLines) : string.Empty;
+            }
+
+            throw new InvalidOperationException(
+                $"Copilot CLI process exited immediately with code {exitCode}. " +
+                $"This may indicate the CLI is not properly installed or configured. " +
+                (string.IsNullOrEmpty(errorOutput) ? "Run with debug logging enabled for more details." : $"Error output:{Environment.NewLine}{errorOutput}"));
+        }
 
         var detectedLocalhostTcpPort = (int?)null;
         if (!options.UseStdio)
@@ -977,17 +1036,44 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(30));
 
-            while (!cts.Token.IsCancellationRequested)
+            try
             {
-                var line = await cliProcess.StandardOutput.ReadLineAsync(cts.Token);
-                if (line == null) throw new Exception("CLI process exited unexpectedly");
-
-                var match = Regex.Match(line, @"listening on port (\d+)", RegexOptions.IgnoreCase);
-                if (match.Success)
+                while (!cts.Token.IsCancellationRequested)
                 {
-                    detectedLocalhostTcpPort = int.Parse(match.Groups[1].Value);
-                    break;
+                    var line = await cliProcess.StandardOutput.ReadLineAsync(cts.Token);
+                    if (line == null)
+                    {
+                        var exitCode = cliProcess.HasExited ? cliProcess.ExitCode : -1;
+                        
+                        // Give a moment for stderr to be captured
+                        await Task.Delay(50, CancellationToken.None);
+                        
+                        string errorOutput;
+                        lock (stderrLock)
+                        {
+                            errorOutput = stderrLines.Count > 0 ? string.Join(Environment.NewLine, stderrLines) : string.Empty;
+                        }
+
+                        throw new InvalidOperationException(
+                            $"CLI process exited unexpectedly" +
+                            (cliProcess.HasExited ? $" with code {exitCode}" : "") +
+                            ". " +
+                            (string.IsNullOrEmpty(errorOutput) ? "Check CLI logs for details." : $"Error output:{Environment.NewLine}{errorOutput}"));
+                    }
+
+                    var match = Regex.Match(line, @"listening on port (\d+)", RegexOptions.IgnoreCase);
+                    if (match.Success)
+                    {
+                        detectedLocalhostTcpPort = int.Parse(match.Groups[1].Value);
+                        break;
+                    }
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                throw new TimeoutException(
+                    "Timed out waiting for CLI server to announce its port. " +
+                    "The CLI may have failed to start or is not responding.");
             }
         }
 
@@ -1023,6 +1109,14 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         if (_options.UseStdio)
         {
             if (cliProcess == null) throw new InvalidOperationException("CLI process not started");
+            
+            // Check if process has already exited
+            if (cliProcess.HasExited)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot connect to CLI process - it has already exited with code {cliProcess.ExitCode}.");
+            }
+
             inputStream = cliProcess.StandardOutput.BaseStream;
             outputStream = cliProcess.StandardInput.BaseStream;
         }
