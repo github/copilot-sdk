@@ -30,6 +30,7 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(PendingMessagesModifiedEvent), "pending_messages.modified")]
 [JsonDerivedType(typeof(SessionCompactionCompleteEvent), "session.compaction_complete")]
 [JsonDerivedType(typeof(SessionCompactionStartEvent), "session.compaction_start")]
+[JsonDerivedType(typeof(SessionContextChangedEvent), "session.context_changed")]
 [JsonDerivedType(typeof(SessionErrorEvent), "session.error")]
 [JsonDerivedType(typeof(SessionHandoffEvent), "session.handoff")]
 [JsonDerivedType(typeof(SessionIdleEvent), "session.idle")]
@@ -39,8 +40,10 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(SessionShutdownEvent), "session.shutdown")]
 [JsonDerivedType(typeof(SessionSnapshotRewindEvent), "session.snapshot_rewind")]
 [JsonDerivedType(typeof(SessionStartEvent), "session.start")]
+[JsonDerivedType(typeof(SessionTitleChangedEvent), "session.title_changed")]
 [JsonDerivedType(typeof(SessionTruncationEvent), "session.truncation")]
 [JsonDerivedType(typeof(SessionUsageInfoEvent), "session.usage_info")]
+[JsonDerivedType(typeof(SessionWarningEvent), "session.warning")]
 [JsonDerivedType(typeof(SkillInvokedEvent), "skill.invoked")]
 [JsonDerivedType(typeof(SubagentCompletedEvent), "subagent.completed")]
 [JsonDerivedType(typeof(SubagentFailedEvent), "subagent.failed")]
@@ -130,6 +133,18 @@ public partial class SessionIdleEvent : SessionEvent
 }
 
 /// <summary>
+/// Event: session.title_changed
+/// </summary>
+public partial class SessionTitleChangedEvent : SessionEvent
+{
+    [JsonIgnore]
+    public override string Type => "session.title_changed";
+
+    [JsonPropertyName("data")]
+    public required SessionTitleChangedData Data { get; set; }
+}
+
+/// <summary>
 /// Event: session.info
 /// </summary>
 public partial class SessionInfoEvent : SessionEvent
@@ -139,6 +154,18 @@ public partial class SessionInfoEvent : SessionEvent
 
     [JsonPropertyName("data")]
     public required SessionInfoData Data { get; set; }
+}
+
+/// <summary>
+/// Event: session.warning
+/// </summary>
+public partial class SessionWarningEvent : SessionEvent
+{
+    [JsonIgnore]
+    public override string Type => "session.warning";
+
+    [JsonPropertyName("data")]
+    public required SessionWarningData Data { get; set; }
 }
 
 /// <summary>
@@ -199,6 +226,18 @@ public partial class SessionShutdownEvent : SessionEvent
 
     [JsonPropertyName("data")]
     public required SessionShutdownData Data { get; set; }
+}
+
+/// <summary>
+/// Event: session.context_changed
+/// </summary>
+public partial class SessionContextChangedEvent : SessionEvent
+{
+    [JsonIgnore]
+    public override string Type => "session.context_changed";
+
+    [JsonPropertyName("data")]
+    public required SessionContextChangedData Data { get; set; }
 }
 
 /// <summary>
@@ -589,10 +628,25 @@ public partial class SessionIdleData
 {
 }
 
+public partial class SessionTitleChangedData
+{
+    [JsonPropertyName("title")]
+    public required string Title { get; set; }
+}
+
 public partial class SessionInfoData
 {
     [JsonPropertyName("infoType")]
     public required string InfoType { get; set; }
+
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+}
+
+public partial class SessionWarningData
+{
+    [JsonPropertyName("warningType")]
+    public required string WarningType { get; set; }
 
     [JsonPropertyName("message")]
     public required string Message { get; set; }
@@ -698,6 +752,24 @@ public partial class SessionShutdownData
     public string? CurrentModel { get; set; }
 }
 
+public partial class SessionContextChangedData
+{
+    [JsonPropertyName("cwd")]
+    public required string Cwd { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("gitRoot")]
+    public string? GitRoot { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("repository")]
+    public string? Repository { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("branch")]
+    public string? Branch { get; set; }
+}
+
 public partial class SessionUsageInfoData
 {
     [JsonPropertyName("tokenLimit")]
@@ -780,6 +852,10 @@ public partial class UserMessageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("source")]
     public string? Source { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("agentMode")]
+    public UserMessageDataAgentMode? AgentMode { get; set; }
 }
 
 public partial class PendingMessagesModifiedData
@@ -839,6 +915,10 @@ public partial class AssistantMessageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("encryptedContent")]
     public string? EncryptedContent { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("phase")]
+    public string? Phase { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
@@ -1047,6 +1127,9 @@ public partial class SubagentCompletedData
 
     [JsonPropertyName("agentName")]
     public required string AgentName { get; set; }
+
+    [JsonPropertyName("agentDisplayName")]
+    public required string AgentDisplayName { get; set; }
 }
 
 public partial class SubagentFailedData
@@ -1056,6 +1139,9 @@ public partial class SubagentFailedData
 
     [JsonPropertyName("agentName")]
     public required string AgentName { get; set; }
+
+    [JsonPropertyName("agentDisplayName")]
+    public required string AgentDisplayName { get; set; }
 
     [JsonPropertyName("error")]
     public required string Error { get; set; }
@@ -1196,6 +1282,15 @@ public partial class SessionCompactionCompleteDataCompactionTokensUsed
     public required double CachedInput { get; set; }
 }
 
+public partial class UserMessageDataAttachmentsItemFileLineRange
+{
+    [JsonPropertyName("start")]
+    public required double Start { get; set; }
+
+    [JsonPropertyName("end")]
+    public required double End { get; set; }
+}
+
 public partial class UserMessageDataAttachmentsItemFile : UserMessageDataAttachmentsItem
 {
     [JsonIgnore]
@@ -1206,6 +1301,19 @@ public partial class UserMessageDataAttachmentsItemFile : UserMessageDataAttachm
 
     [JsonPropertyName("displayName")]
     public required string DisplayName { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("lineRange")]
+    public UserMessageDataAttachmentsItemFileLineRange? LineRange { get; set; }
+}
+
+public partial class UserMessageDataAttachmentsItemDirectoryLineRange
+{
+    [JsonPropertyName("start")]
+    public required double Start { get; set; }
+
+    [JsonPropertyName("end")]
+    public required double End { get; set; }
 }
 
 public partial class UserMessageDataAttachmentsItemDirectory : UserMessageDataAttachmentsItem
@@ -1218,6 +1326,10 @@ public partial class UserMessageDataAttachmentsItemDirectory : UserMessageDataAt
 
     [JsonPropertyName("displayName")]
     public required string DisplayName { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("lineRange")]
+    public UserMessageDataAttachmentsItemDirectoryLineRange? LineRange { get; set; }
 }
 
 public partial class UserMessageDataAttachmentsItemSelectionSelectionStart
@@ -1295,6 +1407,131 @@ public partial class AssistantMessageDataToolRequestsItem
     public AssistantMessageDataToolRequestsItemType? Type { get; set; }
 }
 
+public partial class ToolExecutionCompleteDataResultContentsItemText : ToolExecutionCompleteDataResultContentsItem
+{
+    [JsonIgnore]
+    public override string Type => "text";
+
+    [JsonPropertyName("text")]
+    public required string Text { get; set; }
+}
+
+public partial class ToolExecutionCompleteDataResultContentsItemTerminal : ToolExecutionCompleteDataResultContentsItem
+{
+    [JsonIgnore]
+    public override string Type => "terminal";
+
+    [JsonPropertyName("text")]
+    public required string Text { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("exitCode")]
+    public double? ExitCode { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("cwd")]
+    public string? Cwd { get; set; }
+}
+
+public partial class ToolExecutionCompleteDataResultContentsItemImage : ToolExecutionCompleteDataResultContentsItem
+{
+    [JsonIgnore]
+    public override string Type => "image";
+
+    [JsonPropertyName("data")]
+    public required string Data { get; set; }
+
+    [JsonPropertyName("mimeType")]
+    public required string MimeType { get; set; }
+}
+
+public partial class ToolExecutionCompleteDataResultContentsItemAudio : ToolExecutionCompleteDataResultContentsItem
+{
+    [JsonIgnore]
+    public override string Type => "audio";
+
+    [JsonPropertyName("data")]
+    public required string Data { get; set; }
+
+    [JsonPropertyName("mimeType")]
+    public required string MimeType { get; set; }
+}
+
+public partial class ToolExecutionCompleteDataResultContentsItemResourceLinkIconsItem
+{
+    [JsonPropertyName("src")]
+    public required string Src { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("mimeType")]
+    public string? MimeType { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("sizes")]
+    public string[]? Sizes { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("theme")]
+    public ToolExecutionCompleteDataResultContentsItemResourceLinkIconsItemTheme? Theme { get; set; }
+}
+
+public partial class ToolExecutionCompleteDataResultContentsItemResourceLink : ToolExecutionCompleteDataResultContentsItem
+{
+    [JsonIgnore]
+    public override string Type => "resource_link";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("icons")]
+    public ToolExecutionCompleteDataResultContentsItemResourceLinkIconsItem[]? Icons { get; set; }
+
+    [JsonPropertyName("name")]
+    public required string Name { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    [JsonPropertyName("uri")]
+    public required string Uri { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("mimeType")]
+    public string? MimeType { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("size")]
+    public double? Size { get; set; }
+}
+
+public partial class ToolExecutionCompleteDataResultContentsItemResource : ToolExecutionCompleteDataResultContentsItem
+{
+    [JsonIgnore]
+    public override string Type => "resource";
+
+    [JsonPropertyName("resource")]
+    public required object Resource { get; set; }
+}
+
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "type",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(ToolExecutionCompleteDataResultContentsItemText), "text")]
+[JsonDerivedType(typeof(ToolExecutionCompleteDataResultContentsItemTerminal), "terminal")]
+[JsonDerivedType(typeof(ToolExecutionCompleteDataResultContentsItemImage), "image")]
+[JsonDerivedType(typeof(ToolExecutionCompleteDataResultContentsItemAudio), "audio")]
+[JsonDerivedType(typeof(ToolExecutionCompleteDataResultContentsItemResourceLink), "resource_link")]
+[JsonDerivedType(typeof(ToolExecutionCompleteDataResultContentsItemResource), "resource")]
+public partial class ToolExecutionCompleteDataResultContentsItem
+{
+    [JsonPropertyName("type")]
+    public virtual string Type { get; set; } = string.Empty;
+}
+
+
 public partial class ToolExecutionCompleteDataResult
 {
     [JsonPropertyName("content")]
@@ -1303,6 +1540,10 @@ public partial class ToolExecutionCompleteDataResult
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("detailedContent")]
     public string? DetailedContent { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("contents")]
+    public ToolExecutionCompleteDataResultContentsItem[]? Contents { get; set; }
 }
 
 public partial class ToolExecutionCompleteDataError
@@ -1354,6 +1595,19 @@ public enum SessionShutdownDataShutdownType
     Error,
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter<UserMessageDataAgentMode>))]
+public enum UserMessageDataAgentMode
+{
+    [JsonStringEnumMemberName("interactive")]
+    Interactive,
+    [JsonStringEnumMemberName("plan")]
+    Plan,
+    [JsonStringEnumMemberName("autopilot")]
+    Autopilot,
+    [JsonStringEnumMemberName("shell")]
+    Shell,
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<AssistantMessageDataToolRequestsItemType>))]
 public enum AssistantMessageDataToolRequestsItemType
 {
@@ -1361,6 +1615,15 @@ public enum AssistantMessageDataToolRequestsItemType
     Function,
     [JsonStringEnumMemberName("custom")]
     Custom,
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<ToolExecutionCompleteDataResultContentsItemResourceLinkIconsItemTheme>))]
+public enum ToolExecutionCompleteDataResultContentsItemResourceLinkIconsItemTheme
+{
+    [JsonStringEnumMemberName("light")]
+    Light,
+    [JsonStringEnumMemberName("dark")]
+    Dark,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<SystemMessageDataRole>))]
@@ -1408,6 +1671,8 @@ public enum SystemMessageDataRole
 [JsonSerializable(typeof(SessionCompactionCompleteEvent))]
 [JsonSerializable(typeof(SessionCompactionStartData))]
 [JsonSerializable(typeof(SessionCompactionStartEvent))]
+[JsonSerializable(typeof(SessionContextChangedData))]
+[JsonSerializable(typeof(SessionContextChangedEvent))]
 [JsonSerializable(typeof(SessionErrorData))]
 [JsonSerializable(typeof(SessionErrorEvent))]
 [JsonSerializable(typeof(SessionEvent))]
@@ -1431,10 +1696,14 @@ public enum SystemMessageDataRole
 [JsonSerializable(typeof(SessionStartData))]
 [JsonSerializable(typeof(SessionStartDataContext))]
 [JsonSerializable(typeof(SessionStartEvent))]
+[JsonSerializable(typeof(SessionTitleChangedData))]
+[JsonSerializable(typeof(SessionTitleChangedEvent))]
 [JsonSerializable(typeof(SessionTruncationData))]
 [JsonSerializable(typeof(SessionTruncationEvent))]
 [JsonSerializable(typeof(SessionUsageInfoData))]
 [JsonSerializable(typeof(SessionUsageInfoEvent))]
+[JsonSerializable(typeof(SessionWarningData))]
+[JsonSerializable(typeof(SessionWarningEvent))]
 [JsonSerializable(typeof(SkillInvokedData))]
 [JsonSerializable(typeof(SkillInvokedEvent))]
 [JsonSerializable(typeof(SubagentCompletedData))]
@@ -1451,6 +1720,14 @@ public enum SystemMessageDataRole
 [JsonSerializable(typeof(ToolExecutionCompleteData))]
 [JsonSerializable(typeof(ToolExecutionCompleteDataError))]
 [JsonSerializable(typeof(ToolExecutionCompleteDataResult))]
+[JsonSerializable(typeof(ToolExecutionCompleteDataResultContentsItem))]
+[JsonSerializable(typeof(ToolExecutionCompleteDataResultContentsItemAudio))]
+[JsonSerializable(typeof(ToolExecutionCompleteDataResultContentsItemImage))]
+[JsonSerializable(typeof(ToolExecutionCompleteDataResultContentsItemResource))]
+[JsonSerializable(typeof(ToolExecutionCompleteDataResultContentsItemResourceLink))]
+[JsonSerializable(typeof(ToolExecutionCompleteDataResultContentsItemResourceLinkIconsItem))]
+[JsonSerializable(typeof(ToolExecutionCompleteDataResultContentsItemTerminal))]
+[JsonSerializable(typeof(ToolExecutionCompleteDataResultContentsItemText))]
 [JsonSerializable(typeof(ToolExecutionCompleteEvent))]
 [JsonSerializable(typeof(ToolExecutionPartialResultData))]
 [JsonSerializable(typeof(ToolExecutionPartialResultEvent))]
@@ -1463,7 +1740,9 @@ public enum SystemMessageDataRole
 [JsonSerializable(typeof(UserMessageData))]
 [JsonSerializable(typeof(UserMessageDataAttachmentsItem))]
 [JsonSerializable(typeof(UserMessageDataAttachmentsItemDirectory))]
+[JsonSerializable(typeof(UserMessageDataAttachmentsItemDirectoryLineRange))]
 [JsonSerializable(typeof(UserMessageDataAttachmentsItemFile))]
+[JsonSerializable(typeof(UserMessageDataAttachmentsItemFileLineRange))]
 [JsonSerializable(typeof(UserMessageDataAttachmentsItemSelection))]
 [JsonSerializable(typeof(UserMessageDataAttachmentsItemSelectionSelection))]
 [JsonSerializable(typeof(UserMessageDataAttachmentsItemSelectionSelectionEnd))]
