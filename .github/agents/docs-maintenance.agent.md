@@ -27,7 +27,7 @@ The human will then review the plan and selectively ask Copilot to implement spe
 
 Create a file called `docs/IMPROVEMENT_PLAN.md` with this structure:
 
-```markdown
+````markdown
 # Documentation Improvement Plan
 
 Generated: [date]
@@ -43,6 +43,7 @@ Audited by: docs-maintenance agent
 ## Critical Issues (Fix Immediately)
 
 ### 1. [Issue Title]
+
 - **File**: `docs/path/to/file.md`
 - **Line**: ~42
 - **Problem**: [description]
@@ -53,6 +54,7 @@ Audited by: docs-maintenance agent
 ## High Priority (Should Fix Soon)
 
 ### 1. [Issue Title]
+
 - **File**: `docs/path/to/file.md`
 - **Problem**: [description]
 - **Fix**: [specific action to take]
@@ -79,15 +81,18 @@ The following code samples don't match the SDK interface:
 ### File: `docs/example.md`
 
 **Line ~25 - TypeScript sample uses wrong method name:**
+
 ```typescript
 // Current (wrong):
-await client.create_session()
+await client.create_session();
 
 // Should be:
-await client.createSession()
+await client.createSession();
 ```
+````
 
 **Line ~45 - Python sample has camelCase:**
+
 ```python
 # Current (wrong):
 client = CopilotClient(cliPath="/usr/bin/copilot")
@@ -98,14 +103,15 @@ client = CopilotClient(cli_path="/usr/bin/copilot")
 
 ## Broken Links
 
-| Source File | Line | Broken Link | Suggested Fix |
-|-------------|------|-------------|---------------|
-| `docs/a.md` | 15 | `./missing.md` | Remove or create file |
+| Source File | Line | Broken Link    | Suggested Fix         |
+| ----------- | ---- | -------------- | --------------------- |
+| `docs/a.md` | 15   | `./missing.md` | Remove or create file |
 
 ## Consistency Issues
 
 - [ ] Term "XXX" used inconsistently (file1.md says "A", file2.md says "B")
 - [ ] ...
+
 ```
 
 After creating this plan file, your work is complete. The platform (github.com) will handle creating a PR if applicable.
@@ -242,21 +248,23 @@ When auditing documentation, check:
 The expected documentation structure is:
 
 ```
+
 docs/
-├── getting-started.md      # Quick start tutorial
-├── debugging.md            # General debugging guide
-├── compatibility.md        # SDK vs CLI feature comparison
+├── getting-started.md # Quick start tutorial
+├── debugging.md # General debugging guide
+├── compatibility.md # SDK vs CLI feature comparison
 ├── hooks/
-│   ├── overview.md         # Hooks introduction
-│   ├── pre-tool-use.md     # Permission control
-│   ├── post-tool-use.md    # Result transformation
-│   ├── user-prompt-submitted.md
-│   ├── session-lifecycle.md
-│   └── error-handling.md
+│ ├── overview.md # Hooks introduction
+│ ├── pre-tool-use.md # Permission control
+│ ├── post-tool-use.md # Result transformation
+│ ├── user-prompt-submitted.md
+│ ├── session-lifecycle.md
+│ └── error-handling.md
 └── mcp/
-    ├── overview.md         # MCP configuration
-    └── debugging.md        # MCP troubleshooting
-```
+├── overview.md # MCP configuration
+└── debugging.md # MCP troubleshooting
+
+````
 
 Additional directories to consider:
 - `docs/tools/` - Custom tool development
@@ -274,7 +282,7 @@ find docs -name "*.md" -type f | sort
 
 # Check for README references
 grep -r "docs/" README.md
-```
+````
 
 ### Step 2: Check Feature Coverage
 
@@ -342,6 +350,7 @@ cat nodejs/src/types.ts | grep -A 10 "export interface ExportSessionOptions"
 ```
 
 **Must match:**
+
 - `CopilotClient` constructor options: `cliPath`, `cliUrl`, `useStdio`, `port`, `logLevel`, `autoStart`, `autoRestart`, `env`, `githubToken`, `useLoggedInUser`
 - `createSession()` config: `model`, `tools`, `hooks`, `systemMessage`, `mcpServers`, `availableTools`, `excludedTools`, `streaming`, `reasoningEffort`, `provider`, `infiniteSessions`, `customAgents`, `workingDirectory`
 - `CopilotSession` methods: `send()`, `sendAndWait()`, `getMessages()`, `destroy()`, `abort()`, `on()`, `once()`, `off()`
@@ -360,6 +369,7 @@ cat python/copilot/types.py | grep -A 15 "class SessionHooks"
 ```
 
 **Must match (snake_case):**
+
 - `CopilotClient` options: `cli_path`, `cli_url`, `use_stdio`, `port`, `log_level`, `auto_start`, `auto_restart`, `env`, `github_token`, `use_logged_in_user`
 - `create_session()` config keys: `model`, `tools`, `hooks`, `system_message`, `mcp_servers`, `available_tools`, `excluded_tools`, `streaming`, `reasoning_effort`, `provider`, `infinite_sessions`, `custom_agents`, `working_directory`
 - `CopilotSession` methods: `send()`, `send_and_wait()`, `get_messages()`, `destroy()`, `abort()`, `export_session()`
@@ -378,7 +388,8 @@ cat go/types.go | grep -A 15 "type SessionHooks struct"
 ```
 
 **Must match (PascalCase for exported):**
-- `ClientOptions` fields: `CLIPath`, `CLIUrl`, `UseStdio`, `Port`, `LogLevel`, `AutoStart`, `AutoRestart`, `Env`, `GithubToken`, `UseLoggedInUser`
+
+- `ClientOptions` fields: `CLIPath`, `CLIUrl`, `UseStdio`, `Port`, `LogLevel`, `AutoStart`, `AutoRestart`, `Env`, `GitHubToken`, `UseLoggedInUser`
 - `SessionConfig` fields: `Model`, `Tools`, `Hooks`, `SystemMessage`, `MCPServers`, `AvailableTools`, `ExcludedTools`, `Streaming`, `ReasoningEffort`, `Provider`, `InfiniteSessions`, `CustomAgents`, `WorkingDirectory`
 - `Session` methods: `Send()`, `SendAndWait()`, `GetMessages()`, `Destroy()`, `Abort()`, `ExportSession()`
 - Hook fields: `OnPreToolUse`, `OnPostToolUse`, `OnUserPromptSubmitted`, `OnSessionStart`, `OnSessionEnd`, `OnErrorOccurred`
@@ -396,7 +407,8 @@ cat dotnet/src/Types.cs | grep -A 15 "public class SessionHooks"
 ```
 
 **Must match (PascalCase):**
-- `CopilotClientOptions` properties: `CliPath`, `CliUrl`, `UseStdio`, `Port`, `LogLevel`, `AutoStart`, `AutoRestart`, `Environment`, `GithubToken`, `UseLoggedInUser`
+
+- `CopilotClientOptions` properties: `CliPath`, `CliUrl`, `UseStdio`, `Port`, `LogLevel`, `AutoStart`, `AutoRestart`, `Environment`, `GitHubToken`, `UseLoggedInUser`
 - `SessionConfig` properties: `Model`, `Tools`, `Hooks`, `SystemMessage`, `McpServers`, `AvailableTools`, `ExcludedTools`, `Streaming`, `ReasoningEffort`, `Provider`, `InfiniteSessions`, `CustomAgents`, `WorkingDirectory`
 - `CopilotSession` methods: `SendAsync()`, `SendAndWaitAsync()`, `GetMessagesAsync()`, `DisposeAsync()`, `AbortAsync()`, `ExportSessionAsync()`
 - Hook properties: `OnPreToolUse`, `OnPostToolUse`, `OnUserPromptSubmitted`, `OnSessionStart`, `OnSessionEnd`, `OnErrorOccurred`
@@ -429,7 +441,7 @@ cat dotnet/src/Types.cs | grep -A 15 "public class SessionHooks"
 
 Run this to extract all code blocks and check for common issues:
 
-```bash
+````bash
 # Extract TypeScript examples and check for Python-style naming
 grep -A 20 '```typescript' docs/**/*.md | grep -E "cli_path|create_session|send_and_wait" && echo "ERROR: Python naming in TypeScript"
 
@@ -438,7 +450,7 @@ grep -A 20 '```python' docs/**/*.md | grep -E "cliPath|createSession|sendAndWait
 
 # Check Go examples have context parameter
 grep -A 20 '```go' docs/**/*.md | grep -E "CreateSession\([^c]|Send\([^c]" && echo "WARNING: Go method may be missing context"
-```
+````
 
 ### Step 6: Create the Plan
 
@@ -448,6 +460,7 @@ After completing the audit:
 2. Your work is complete - the platform handles PR creation
 
 The human reviewer can then:
+
 - Review the plan
 - Comment on specific items to prioritize
 - Ask Copilot to implement specific fixes from the plan
