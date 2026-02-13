@@ -5,6 +5,7 @@
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: api.schema.json
 
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using StreamJsonRpc;
 
@@ -338,3 +339,27 @@ public class ModelApi
         return await CopilotClient.InvokeRpcAsync<SessionModelSwitchToResult>(_rpc, "session.model.switchTo", [request], cancellationToken);
     }
 }
+
+[JsonSourceGenerationOptions(
+    JsonSerializerDefaults.Web,
+    AllowOutOfOrderMetadataProperties = true,
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+[JsonSerializable(typeof(AccountGetQuotaResult))]
+[JsonSerializable(typeof(AccountGetQuotaResultQuotaSnapshotsValue))]
+[JsonSerializable(typeof(GetCurrentRequest))]
+[JsonSerializable(typeof(ListRequest))]
+[JsonSerializable(typeof(Model))]
+[JsonSerializable(typeof(ModelBilling))]
+[JsonSerializable(typeof(ModelCapabilities))]
+[JsonSerializable(typeof(ModelCapabilitiesLimits))]
+[JsonSerializable(typeof(ModelCapabilitiesSupports))]
+[JsonSerializable(typeof(ModelPolicy))]
+[JsonSerializable(typeof(ModelsListResult))]
+[JsonSerializable(typeof(PingRequest))]
+[JsonSerializable(typeof(PingResult))]
+[JsonSerializable(typeof(SessionModelGetCurrentResult))]
+[JsonSerializable(typeof(SessionModelSwitchToResult))]
+[JsonSerializable(typeof(SwitchToRequest))]
+[JsonSerializable(typeof(Tool))]
+[JsonSerializable(typeof(ToolsListResult))]
+internal partial class RpcJsonContext : JsonSerializerContext;

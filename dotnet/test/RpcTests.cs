@@ -13,6 +13,7 @@ public class RpcTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETes
     [Fact]
     public async Task Should_Call_Rpc_Ping_With_Typed_Params_And_Result()
     {
+        await Client.StartAsync();
         var result = await Client.Rpc.PingAsync(message: "typed rpc test");
         Assert.Equal("pong: typed rpc test", result.Message);
         Assert.True(result.Timestamp >= 0);
@@ -21,6 +22,7 @@ public class RpcTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETes
     [Fact]
     public async Task Should_Call_Rpc_Models_List_With_Typed_Result()
     {
+        await Client.StartAsync();
         var authStatus = await Client.GetAuthStatusAsync();
         if (!authStatus.IsAuthenticated)
         {
@@ -36,6 +38,7 @@ public class RpcTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETes
     [Fact(Skip = "account.getQuota not yet implemented in CLI")]
     public async Task Should_Call_Rpc_Account_GetQuota_When_Authenticated()
     {
+        await Client.StartAsync();
         var authStatus = await Client.GetAuthStatusAsync();
         if (!authStatus.IsAuthenticated)
         {

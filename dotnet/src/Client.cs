@@ -1080,6 +1080,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         options.TypeInfoResolverChain.Add(TypesJsonContext.Default);
         options.TypeInfoResolverChain.Add(CopilotSession.SessionJsonContext.Default);
         options.TypeInfoResolverChain.Add(SessionEventsJsonContext.Default);
+        options.TypeInfoResolverChain.Add(SDK.Rpc.RpcJsonContext.Default);
 
         options.MakeReadOnly();
 

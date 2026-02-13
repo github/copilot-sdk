@@ -712,6 +712,7 @@ function generateRpcCode(schema: ApiSchema): string {
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: api.schema.json
 
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using StreamJsonRpc;
 
@@ -721,6 +722,17 @@ namespace GitHub.Copilot.SDK.Rpc;
     for (const cls of classes) if (cls) lines.push(cls, "");
     for (const part of serverRpcParts) lines.push(part, "");
     for (const part of sessionRpcParts) lines.push(part, "");
+
+    // Add JsonSerializerContext for AOT/trimming support
+    const typeNames = [...emittedRpcClasses].sort();
+    if (typeNames.length > 0) {
+        lines.push(`[JsonSourceGenerationOptions(`);
+        lines.push(`    JsonSerializerDefaults.Web,`);
+        lines.push(`    AllowOutOfOrderMetadataProperties = true,`);
+        lines.push(`    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]`);
+        for (const t of typeNames) lines.push(`[JsonSerializable(typeof(${t}))]`);
+        lines.push(`internal partial class RpcJsonContext : JsonSerializerContext;`);
+    }
 
     return lines.join("\n");
 }
