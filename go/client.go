@@ -44,6 +44,7 @@ import (
 
 	"github.com/github/copilot-sdk/go/internal/embeddedcli"
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 // Client manages the connection to the Copilot CLI server and provides session management.
@@ -84,6 +85,10 @@ type Client struct {
 	lifecycleHandlers      []SessionLifecycleHandler
 	typedLifecycleHandlers map[SessionLifecycleEventType][]SessionLifecycleHandler
 	lifecycleHandlersMux   sync.Mutex
+
+	// Rpc provides typed server-scoped RPC methods.
+	// This field is nil until the client is connected via Start().
+	Rpc *rpc.ServerRpc
 }
 
 // NewClient creates a new Copilot CLI client with the given options.
@@ -1081,6 +1086,7 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 
 		// Create JSON-RPC client immediately
 		c.client = jsonrpc2.NewClient(stdin, stdout)
+		c.Rpc = rpc.NewServerRpc(c.client)
 		c.setupNotificationHandler()
 		c.client.Start()
 
@@ -1153,6 +1159,7 @@ func (c *Client) connectViaTcp(ctx context.Context) error {
 
 	// Create JSON-RPC client with the connection
 	c.client = jsonrpc2.NewClient(conn, conn)
+	c.Rpc = rpc.NewServerRpc(c.client)
 	c.setupNotificationHandler()
 	c.client.Start()
 
