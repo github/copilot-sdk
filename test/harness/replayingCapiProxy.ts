@@ -281,6 +281,26 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
 
             return;
           }
+
+          // Check if this request matches a snapshot with no response (e.g., timeout tests).
+          // If so, hang forever so the client-side timeout can trigger.
+          if (
+            await isRequestOnlySnapshot(
+              state.storedData,
+              options.body,
+              state.workDir,
+              state.toolResultNormalizers,
+            )
+          ) {
+            const headers = {
+              "content-type": "text/event-stream",
+              ...commonResponseHeaders,
+            };
+            options.onResponseStart(200, headers);
+            // Never call onResponseEnd - hang indefinitely for timeout tests
+            await new Promise(() => {});
+            return;
+          }
         }
 
         // Fallback to normal proxying if no cached response found
@@ -393,6 +413,35 @@ async function findSavedChatCompletionResponse(
   }
 
   return undefined;
+}
+
+// Checks if the request matches a snapshot that has no assistant response.
+// This handles timeout test scenarios where the snapshot only records the request.
+async function isRequestOnlySnapshot(
+  storedData: NormalizedData,
+  requestBody: string | undefined,
+  workDir: string,
+  toolResultNormalizers: ToolResultNormalizer[],
+): Promise<boolean> {
+  const normalized = await parseAndNormalizeRequest(
+    requestBody,
+    workDir,
+    toolResultNormalizers,
+  );
+  const requestMessages = normalized.conversations[0]?.messages ?? [];
+
+  for (const conversation of storedData.conversations) {
+    if (
+      requestMessages.length === conversation.messages.length &&
+      requestMessages.every(
+        (msg, i) =>
+          JSON.stringify(msg) === JSON.stringify(conversation.messages[i]),
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 async function parseAndNormalizeRequest(

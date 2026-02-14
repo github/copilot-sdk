@@ -1,0 +1,20 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Check the status of the service using check_status. If it fails, say 'service is down'.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: check_status
+              arguments: "{}"
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Service unavailable
+      - role: assistant
+        content: service is down

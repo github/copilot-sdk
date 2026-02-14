@@ -1,0 +1,13 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: |-
+          Summarize the attached file
+
+          <tagged_files>
+          * ${workdir}/attached.txt (1 lines)
+          </tagged_files>

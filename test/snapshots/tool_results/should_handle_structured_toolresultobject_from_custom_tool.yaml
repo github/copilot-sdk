@@ -1,0 +1,20 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: What's the weather in Paris?
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: get_weather
+              arguments: '{"city":"Paris"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: The weather in Paris is sunny and 72°F
+      - role: assistant
+        content: The weather in Paris is currently sunny and 72°F.

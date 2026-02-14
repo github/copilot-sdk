@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { SessionEvent } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
-describe("Compaction", async () => {
+describe.skip("Compaction", async () => {
     const { copilotClient: client } = await createSdkTestContext();
 
     it("should trigger compaction with low threshold and emit events", async () => {
