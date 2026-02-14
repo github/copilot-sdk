@@ -762,4 +762,60 @@ public class CopilotSessionTest {
             session.close();
         }
     }
+
+    /**
+     * Verifies that listSessions returns metadata with optional context
+     * information.
+     *
+     * @see Snapshot: session/should_list_sessions
+     */
+    @Test
+    void testListSessionsIncludesContextWhenAvailable() throws Exception {
+        ctx.configureForTest("session", "should_list_sessions");
+
+        try (CopilotClient client = ctx.createClient()) {
+            var session = client.createSession().get();
+
+            var sessions = client.listSessions().get(30, TimeUnit.SECONDS);
+            assertNotNull(sessions);
+
+            // List may be empty or contain sessions depending on test environment
+            // The main goal is to verify the API works and context field is accessible
+            for (var s : sessions) {
+                assertNotNull(s.getSessionId());
+                // Context field is optional
+                if (s.getContext() != null) {
+                    // When context is present, cwd should be non-null
+                    assertNotNull(s.getContext().getCwd());
+                }
+            }
+
+            session.close();
+        }
+    }
+
+    /**
+     * Verifies that SessionListFilter works with fluent setters.
+     */
+    @Test
+    void testSessionListFilterFluentAPI() throws Exception {
+        ctx.configureForTest("session", "should_list_sessions");
+
+        try (CopilotClient client = ctx.createClient()) {
+            var session = client.createSession().get();
+
+            var filter = new com.github.copilot.sdk.json.SessionListFilter().setCwd("/test/path")
+                    .setRepository("owner/repo").setBranch("main").setGitRoot("/test");
+
+            assertEquals("/test/path", filter.getCwd());
+            assertEquals("owner/repo", filter.getRepository());
+            assertEquals("main", filter.getBranch());
+            assertEquals("/test", filter.getGitRoot());
+
+            var filteredSessions = client.listSessions(filter).get(30, TimeUnit.SECONDS);
+            assertNotNull(filteredSessions);
+
+            session.close();
+        }
+    }
 }
