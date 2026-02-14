@@ -44,9 +44,11 @@ public class SessionContext {
      *
      * @param cwd
      *            the current working directory path
+     * @return this instance for method chaining
      */
-    public void setCwd(String cwd) {
+    public SessionContext setCwd(String cwd) {
         this.cwd = cwd;
+        return this;
     }
 
     /**
@@ -63,9 +65,11 @@ public class SessionContext {
      *
      * @param gitRoot
      *            the git root path
+     * @return this instance for method chaining
      */
-    public void setGitRoot(String gitRoot) {
+    public SessionContext setGitRoot(String gitRoot) {
         this.gitRoot = gitRoot;
+        return this;
     }
 
     /**
@@ -82,9 +86,11 @@ public class SessionContext {
      *
      * @param repository
      *            the repository in "owner/repo" format
+     * @return this instance for method chaining
      */
-    public void setRepository(String repository) {
+    public SessionContext setRepository(String repository) {
         this.repository = repository;
+        return this;
     }
 
     /**
@@ -101,8 +107,10 @@ public class SessionContext {
      *
      * @param branch
      *            the branch name
+     * @return this instance for method chaining
      */
-    public void setBranch(String branch) {
+    public SessionContext setBranch(String branch) {
         this.branch = branch;
+        return this;
     }
 }

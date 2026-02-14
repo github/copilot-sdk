@@ -4,14 +4,11 @@
 
 package com.github.copilot.sdk.json;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-
 /**
  * Filter options for listing sessions.
  * <p>
- * Allows filtering sessions by working directory context fields such as cwd,
- * git root, repository, or branch.
+ * Extends {@link SessionContext} to provide filtering capabilities with fluent
+ * setter methods that return the filter instance for method chaining.
  *
  * <h2>Example Usage</h2>
  *
@@ -28,29 +25,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @see com.github.copilot.sdk.CopilotClient#listSessions(SessionListFilter)
  * @since 1.0.0
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
-public class SessionListFilter {
-
-    @JsonProperty("cwd")
-    private String cwd;
-
-    @JsonProperty("gitRoot")
-    private String gitRoot;
-
-    @JsonProperty("repository")
-    private String repository;
-
-    @JsonProperty("branch")
-    private String branch;
-
-    /**
-     * Gets the current working directory filter.
-     *
-     * @return the cwd filter, or {@code null} if not set
-     */
-    public String getCwd() {
-        return cwd;
-    }
+public class SessionListFilter extends SessionContext {
 
     /**
      * Sets the filter for exact cwd match.
@@ -59,18 +34,10 @@ public class SessionListFilter {
      *            the current working directory to filter by
      * @return this filter for method chaining
      */
+    @Override
     public SessionListFilter setCwd(String cwd) {
-        this.cwd = cwd;
+        super.setCwd(cwd);
         return this;
-    }
-
-    /**
-     * Gets the git root filter.
-     *
-     * @return the git root filter, or {@code null} if not set
-     */
-    public String getGitRoot() {
-        return gitRoot;
     }
 
     /**
@@ -80,18 +47,10 @@ public class SessionListFilter {
      *            the git root path to filter by
      * @return this filter for method chaining
      */
+    @Override
     public SessionListFilter setGitRoot(String gitRoot) {
-        this.gitRoot = gitRoot;
+        super.setGitRoot(gitRoot);
         return this;
-    }
-
-    /**
-     * Gets the repository filter.
-     *
-     * @return the repository filter, or {@code null} if not set
-     */
-    public String getRepository() {
-        return repository;
     }
 
     /**
@@ -101,18 +60,10 @@ public class SessionListFilter {
      *            the repository identifier to filter by
      * @return this filter for method chaining
      */
+    @Override
     public SessionListFilter setRepository(String repository) {
-        this.repository = repository;
+        super.setRepository(repository);
         return this;
-    }
-
-    /**
-     * Gets the branch filter.
-     *
-     * @return the branch filter, or {@code null} if not set
-     */
-    public String getBranch() {
-        return branch;
     }
 
     /**
@@ -122,8 +73,9 @@ public class SessionListFilter {
      *            the branch name to filter by
      * @return this filter for method chaining
      */
+    @Override
     public SessionListFilter setBranch(String branch) {
-        this.branch = branch;
+        super.setBranch(branch);
         return this;
     }
 }

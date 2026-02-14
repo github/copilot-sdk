@@ -6,6 +6,7 @@ package com.github.copilot.sdk.events;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.copilot.sdk.json.SessionContext;
 
 /**
  * Event: session.context_changed
@@ -19,23 +20,18 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public final class SessionContextChangedEvent extends AbstractSessionEvent {
 
     @JsonProperty("data")
-    private SessionContextChangedData data;
+    private SessionContext data;
 
     @Override
     public String getType() {
         return "session.context_changed";
     }
 
-    public SessionContextChangedData getData() {
+    public SessionContext getData() {
         return data;
     }
 
-    public void setData(SessionContextChangedData data) {
+    public void setData(SessionContext data) {
         this.data = data;
-    }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public record SessionContextChangedData(@JsonProperty("cwd") String cwd, @JsonProperty("gitRoot") String gitRoot,
-            @JsonProperty("repository") String repository, @JsonProperty("branch") String branch) {
     }
 }
