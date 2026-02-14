@@ -30,6 +30,12 @@ def get_cli_path_for_tests() -> str:
 CLI_PATH = get_cli_path_for_tests()
 SNAPSHOTS_DIR = Path(__file__).parents[3] / "test" / "snapshots"
 
+# E2E tests use a replaying proxy with canned responses, so real auth is
+# never needed.  Without a token the CLI looks for credentials under
+# XDG_CONFIG_HOME, which points to an isolated temp dir and is therefore
+# empty, causing a silent auth failure that makes tests hang.
+E2E_FAKE_GITHUB_TOKEN = "fake-token-for-e2e-tests"
+
 
 class E2ETestContext:
     """Holds shared resources for E2E tests."""
@@ -53,14 +59,12 @@ class E2ETestContext:
         self.proxy_url = await self._proxy.start()
 
         # Create the shared client (like Node.js/Go do)
-        # Use fake token in CI to allow cached responses without real auth
-        github_token = "fake-token-for-e2e-tests" if os.environ.get("CI") == "true" else None
         self._client = CopilotClient(
             {
                 "cli_path": self.cli_path,
                 "cwd": self.work_dir,
                 "env": self.get_env(),
-                "github_token": github_token,
+                "github_token": E2E_FAKE_GITHUB_TOKEN,
             }
         )
 
