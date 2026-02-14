@@ -49,6 +49,9 @@ public class SessionMetadata {
     @JsonProperty("isRemote")
     private boolean isRemote;
 
+    @JsonProperty("context")
+    private SessionContext context;
+
     /**
      * Gets the unique identifier for this session.
      *
@@ -145,5 +148,27 @@ public class SessionMetadata {
      */
     public void setRemote(boolean remote) {
         isRemote = remote;
+    }
+
+    /**
+     * Gets the working directory context from session creation.
+     * <p>
+     * Contains information about the working directory, git repository, and branch
+     * where the session was created.
+     *
+     * @return the session context, or {@code null} if not available
+     */
+    public SessionContext getContext() {
+        return context;
+    }
+
+    /**
+     * Sets the working directory context.
+     *
+     * @param context
+     *            the session context
+     */
+    public void setContext(SessionContext context) {
+        this.context = context;
     }
 }
