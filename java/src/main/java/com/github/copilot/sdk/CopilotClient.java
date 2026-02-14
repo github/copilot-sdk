@@ -30,6 +30,7 @@ import com.github.copilot.sdk.json.ResumeSessionConfig;
 import com.github.copilot.sdk.json.ResumeSessionResponse;
 import com.github.copilot.sdk.json.SessionConfig;
 import com.github.copilot.sdk.json.SessionLifecycleHandler;
+import com.github.copilot.sdk.json.SessionListFilter;
 import com.github.copilot.sdk.json.SessionMetadata;
 
 /**
@@ -474,9 +475,41 @@ public final class CopilotClient implements AutoCloseable {
      * @see #resumeSession(String)
      */
     public CompletableFuture<List<SessionMetadata>> listSessions() {
-        return ensureConnected()
-                .thenCompose(connection -> connection.rpc.invoke("session.list", Map.of(), ListSessionsResponse.class)
-                        .thenApply(ListSessionsResponse::sessions));
+        return listSessions(null);
+    }
+
+    /**
+     * Lists all available sessions with optional filtering.
+     * <p>
+     * Returns metadata about all sessions that can be resumed, including their IDs,
+     * start times, summaries, and context information. Use the filter parameter to
+     * narrow down sessions by working directory, git repository, or branch.
+     *
+     * <h2>Example Usage</h2>
+     *
+     * <pre>{@code
+     * // List all sessions
+     * var allSessions = client.listSessions().get();
+     *
+     * // Filter by repository
+     * var filter = new SessionListFilter().setRepository("owner/repo");
+     * var repoSessions = client.listSessions(filter).get();
+     * }</pre>
+     *
+     * @param filter
+     *            optional filter to narrow down sessions by context fields, or
+     *            {@code null} to list all sessions
+     * @return a future that resolves with a list of session metadata
+     * @see SessionMetadata
+     * @see SessionListFilter
+     * @see #resumeSession(String)
+     */
+    public CompletableFuture<List<SessionMetadata>> listSessions(SessionListFilter filter) {
+        return ensureConnected().thenCompose(connection -> {
+            Map<String, Object> params = filter != null ? Map.of("filter", filter) : Map.of();
+            return connection.rpc.invoke("session.list", params, ListSessionsResponse.class)
+                    .thenApply(ListSessionsResponse::sessions);
+        });
     }
 
     /**
