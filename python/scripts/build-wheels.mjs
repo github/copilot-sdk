@@ -36,9 +36,10 @@ const pythonDir = dirname(__dirname);
 const repoRoot = dirname(pythonDir);
 
 // Platform mappings: npm package suffix -> [wheel platform tag, binary name]
+// Based on Node 24.11 binaries being included in the wheels
 const PLATFORMS = {
-    "linux-x64": ["manylinux_2_17_x86_64", "copilot"],
-    "linux-arm64": ["manylinux_2_17_aarch64", "copilot"],
+    "linux-x64": ["manylinux_2_28_x86_64", "copilot"],
+    "linux-arm64": ["manylinux_2_28_aarch64", "copilot"],
     "darwin-x64": ["macosx_10_9_x86_64", "copilot"],
     "darwin-arm64": ["macosx_11_0_arm64", "copilot"],
     "win32-x64": ["win_amd64", "copilot.exe"],
