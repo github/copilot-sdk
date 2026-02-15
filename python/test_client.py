@@ -147,3 +147,46 @@ class TestAuthOptions:
             CopilotClient(
                 {"cli_url": "localhost:8080", "use_logged_in_user": False, "log_level": "error"}
             )
+
+
+class TestContextManager:
+    @pytest.mark.asyncio
+    async def test_client_context_manager_returns_self(self):
+        """Test that __aenter__ returns the client instance."""
+        client = CopilotClient({"cli_path": CLI_PATH})
+        returned_client = await client.__aenter__()
+        assert returned_client is client
+        await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_client_aexit_returns_false(self):
+        """Test that __aexit__ returns False to propagate exceptions."""
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+        result = await client.__aexit__(None, None, None)
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_session_context_manager_returns_self(self):
+        """Test that session __aenter__ returns the session instance."""
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+        try:
+            session = await client.create_session()
+            returned_session = await session.__aenter__()
+            assert returned_session is session
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_session_aexit_returns_false(self):
+        """Test that session __aexit__ returns False to propagate exceptions."""
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+        try:
+            session = await client.create_session()
+            result = await session.__aexit__(None, None, None)
+            assert result is False
+        finally:
+            await client.force_stop()
+
