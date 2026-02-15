@@ -75,6 +75,7 @@ class CopilotSession:
         self.session_id = session_id
         self._client = client
         self._workspace_path = workspace_path
+        self._destroyed = False
         self._event_handlers: set[Callable[[SessionEvent], None]] = set()
         self._event_handlers_lock = threading.Lock()
         self._tool_handlers: dict[str, ToolHandler] = {}
@@ -126,9 +127,9 @@ class CopilotSession:
         """
         try:
             await self.destroy()
-        except Exception as e:
+        except Exception:
             # Log the error but don't raise - we want cleanup to always complete
-            logging.warning(f"Error during CopilotSession cleanup: {e}")
+            logging.warning("Error during CopilotSession cleanup", exc_info=True)
         return False
 
     @property
@@ -533,20 +534,30 @@ class CopilotSession:
 
         After calling this method, the session object can no longer be used.
 
+        This method is idempotent—calling it multiple times is safe and will
+        not raise an error if the session is already destroyed.
+
         Raises:
-            Exception: If the connection fails.
+            Exception: If the connection fails (on first destroy call).
 
         Example:
             >>> # Clean up when done — session can still be resumed later
             >>> await session.disconnect()
         """
-        await self._client.request("session.destroy", {"sessionId": self.session_id})
-        with self._event_handlers_lock:
-            self._event_handlers.clear()
-        with self._tool_handlers_lock:
-            self._tool_handlers.clear()
-        with self._permission_handler_lock:
-            self._permission_handler = None
+        if self._destroyed:
+            return
+
+        try:
+            await self._client.request("session.destroy", {"sessionId": self.session_id})
+        finally:
+            # Mark as destroyed and clear handlers even if the request fails
+            self._destroyed = True
+            with self._event_handlers_lock:
+                self._event_handlers.clear()
+            with self._tool_handlers_lock:
+                self._tool_handlers.clear()
+            with self._permission_handler_lock:
+                self._permission_handler = None
 
     async def destroy(self) -> None:
         """
