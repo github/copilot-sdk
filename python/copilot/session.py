@@ -536,14 +536,17 @@ class CopilotSession:
             >>> # Clean up when done
             >>> await session.destroy()
         """
-        if self._destroyed:
-            return
+        # Ensure that the check and update of _destroyed are atomic so that
+        # only the first caller proceeds to send the destroy RPC.
+        with self._event_handlers_lock:
+            if self._destroyed:
+                return
+            self._destroyed = True
 
         try:
             await self._client.request("session.destroy", {"sessionId": self.session_id})
         finally:
-            # Mark as destroyed and clear handlers even if the request fails
-            self._destroyed = True
+            # Clear handlers even if the request fails
             with self._event_handlers_lock:
                 self._event_handlers.clear()
             with self._tool_handlers_lock:

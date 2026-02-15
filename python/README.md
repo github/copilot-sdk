@@ -26,7 +26,7 @@ async def main():
     # Client automatically starts on enter and cleans up on exit
     async with CopilotClient() as client:
         # Create a session with automatic cleanup
-        async with await client.create_session({"model": "gpt-5"}) as session:
+        async with await client.create_session({"model": "gpt-4"}) as session:
             # Wait for response using session.idle event
             done = asyncio.Event()
 
