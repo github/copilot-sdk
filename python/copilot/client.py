@@ -248,10 +248,14 @@ class CopilotClient:
             False to propagate any exception that occurred in the context.
         """
         try:
-            await self.stop()
-        except Exception as e:
+            stop_errors = await self.stop()
+            # Log any session destruction errors
+            if stop_errors:
+                for error in stop_errors:
+                    logging.warning("Error during session cleanup in CopilotClient: %s", error)
+        except Exception:
             # Log the error but don't raise - we want cleanup to always complete
-            logging.warning(f"Error during CopilotClient cleanup: {e}")
+            logging.warning("Error during CopilotClient cleanup", exc_info=True)
         return False
 
     @property
