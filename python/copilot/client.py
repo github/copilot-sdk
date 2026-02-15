@@ -14,6 +14,7 @@ Example:
 
 import asyncio
 import inspect
+import logging
 import os
 import re
 import subprocess
@@ -21,6 +22,7 @@ import sys
 import threading
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
+from types import TracebackType
 from typing import Any, Callable, Optional, cast
 
 from .generated.rpc import ServerRpc
@@ -205,6 +207,52 @@ class CopilotClient:
         ] = {}
         self._lifecycle_handlers_lock = threading.Lock()
         self._rpc: Optional[ServerRpc] = None
+
+    async def __aenter__(self) -> "CopilotClient":
+        """
+        Enter the async context manager.
+
+        Automatically starts the CLI server and establishes a connection if not
+        already connected.
+
+        Returns:
+            The CopilotClient instance.
+
+        Example:
+            >>> async with CopilotClient() as client:
+            ...     session = await client.create_session()
+            ...     await session.send({"prompt": "Hello!"})
+        """
+        await self.start()
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> bool:
+        """
+        Exit the async context manager.
+
+        Performs graceful cleanup by destroying all active sessions and stopping
+        the CLI server. If cleanup errors occur, they are logged but do not
+        prevent the context from exiting.
+
+        Args:
+            exc_type: The type of exception that occurred, if any.
+            exc_val: The exception instance that occurred, if any.
+            exc_tb: The traceback of the exception that occurred, if any.
+
+        Returns:
+            False to propagate any exception that occurred in the context.
+        """
+        try:
+            await self.stop()
+        except Exception as e:
+            # Log the error but don't raise - we want cleanup to always complete
+            logging.warning(f"Error during CopilotClient cleanup: {e}")
+        return False
 
     @property
     def rpc(self) -> ServerRpc:

@@ -7,7 +7,9 @@ conversation sessions with the Copilot CLI.
 
 import asyncio
 import inspect
+import logging
 import threading
+from types import TracebackType
 from typing import Any, Callable, Optional
 
 from .generated.rpc import SessionRpc
@@ -81,6 +83,50 @@ class CopilotSession:
         self._hooks: Optional[SessionHooks] = None
         self._hooks_lock = threading.Lock()
         self._rpc: Optional[SessionRpc] = None
+
+    async def __aenter__(self) -> "CopilotSession":
+        """
+        Enter the async context manager.
+
+        Returns the session instance, ready for use. The session must already be
+        created (via CopilotClient.create_session or resume_session).
+
+        Returns:
+            The CopilotSession instance.
+
+        Example:
+            >>> async with await client.create_session() as session:
+            ...     await session.send({"prompt": "Hello!"})
+        """
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> bool:
+        """
+        Exit the async context manager.
+
+        Automatically destroys the session and releases all associated resources.
+        If an error occurs during cleanup, it is logged but does not prevent the
+        context from exiting.
+
+        Args:
+            exc_type: The type of exception that occurred, if any.
+            exc_val: The exception instance that occurred, if any.
+            exc_tb: The traceback of the exception that occurred, if any.
+
+        Returns:
+            False to propagate any exception that occurred in the context.
+        """
+        try:
+            await self.destroy()
+        except Exception as e:
+            # Log the error but don't raise - we want cleanup to always complete
+            logging.warning(f"Error during CopilotSession cleanup: {e}")
+        return False
 
     @property
     def rpc(self) -> SessionRpc:
