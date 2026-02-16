@@ -1056,6 +1056,9 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 
 	c.process = exec.CommandContext(ctx, command, args...)
 
+	// Configure platform-specific process attributes (e.g., hide window on Windows)
+	configureProcAttr(c.process)
+
 	// Set working directory if specified
 	if c.options.Cwd != "" {
 		c.process.Dir = c.options.Cwd
