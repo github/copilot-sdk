@@ -98,8 +98,6 @@ await client.stop()
 - `github_token` (str): GitHub token for authentication. When provided, takes priority over other auth methods.
 - `use_logged_in_user` (bool): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided). Cannot be used with `cli_url`.
 
-> **Note:** On Windows, the SDK automatically hides the console window when spawning the CLI process to avoid distracting users in GUI applications.
-
 **SessionConfig Options (for `create_session`):**
 
 - `model` (str): Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**

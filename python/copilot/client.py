@@ -1167,15 +1167,8 @@ class CopilotClient:
         if self.options.get("github_token"):
             env["COPILOT_SDK_AUTH_TOKEN"] = self.options["github_token"]
 
-        # Prepare subprocess kwargs
-        popen_kwargs = {
-            "cwd": self.options["cwd"],
-            "env": env,
-        }
-
         # On Windows, hide the console window to avoid distracting users in GUI apps
-        if sys.platform == "win32":
-            popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
         # Choose transport mode
         if self.options["use_stdio"]:
@@ -1187,7 +1180,9 @@ class CopilotClient:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 bufsize=0,
-                **popen_kwargs,
+                cwd=self.options["cwd"],
+                env=env,
+                creationflags=creationflags,
             )
         else:
             if self.options["port"] > 0:
@@ -1197,7 +1192,9 @@ class CopilotClient:
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                **popen_kwargs,
+                cwd=self.options["cwd"],
+                env=env,
+                creationflags=creationflags,
             )
 
         # For stdio mode, we're ready immediately
