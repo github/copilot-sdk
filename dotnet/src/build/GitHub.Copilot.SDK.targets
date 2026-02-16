@@ -8,6 +8,7 @@
     <!-- Determine OS: from RID prefix if set, otherwise from build host -->
     <_CopilotOs Condition="'$(RuntimeIdentifier)' != '' And $(RuntimeIdentifier.StartsWith('win'))">win</_CopilotOs>
     <_CopilotOs Condition="'$(_CopilotOs)' == '' And '$(RuntimeIdentifier)' != '' And $(RuntimeIdentifier.StartsWith('osx'))">osx</_CopilotOs>
+    <_CopilotOs Condition="'$(_CopilotOs)' == '' And '$(RuntimeIdentifier)' != '' And $(RuntimeIdentifier.StartsWith('maccatalyst'))">osx</_CopilotOs>
     <_CopilotOs Condition="'$(_CopilotOs)' == '' And '$(RuntimeIdentifier)' != ''">linux</_CopilotOs>
 
     <!-- Determine arch: from RID suffix if set, otherwise from build host -->
