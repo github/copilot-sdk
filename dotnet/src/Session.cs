@@ -54,6 +54,7 @@ public partial class CopilotSession : IAsyncDisposable
     private SessionHooks? _hooks;
     private readonly SemaphoreSlim _hooksLock = new(1, 1);
     private SessionRpc? _sessionRpc;
+    private int _isDisposed;
 
     /// <summary>
     /// Gets the unique identifier for this session.
@@ -560,8 +561,24 @@ public partial class CopilotSession : IAsyncDisposable
     /// </example>
     public async ValueTask DisposeAsync()
     {
-        await InvokeRpcAsync<object>(
-            "session.destroy", [new SessionDestroyRequest() { SessionId = SessionId }], CancellationToken.None);
+        if (Interlocked.Exchange(ref _isDisposed, 1) == 1)
+        {
+            return;
+        }
+
+        try
+        {
+            await InvokeRpcAsync<object>(
+                "session.destroy", [new SessionDestroyRequest() { SessionId = SessionId }], CancellationToken.None);
+        }
+        catch (ObjectDisposedException)
+        {
+            // Connection was already disposed (e.g., client.StopAsync() was called first)
+        }
+        catch (IOException)
+        {
+            // Connection is broken or closed
+        }
 
         _eventHandlers.Clear();
         _toolHandlers.Clear();
