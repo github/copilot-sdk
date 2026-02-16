@@ -1,0 +1,21 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the env-echo/get_env tool to read the TEST_SECRET environment variable. Reply with just the value, nothing
+          else.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: env-echo-get_env
+              arguments: '{"name":"TEST_SECRET"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: hunter2
+      - role: assistant
+        content: hunter2
