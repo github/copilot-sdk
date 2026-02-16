@@ -37,6 +37,17 @@
     <_CopilotBinary Condition="'$(_CopilotBinary)' == ''">copilot</_CopilotBinary>
   </PropertyGroup>
 
+  <!-- Allow customization of the npm registry URL used to download the Copilot CLI.
+       This is primarily for organizations using private or mirrored npm registries.
+       Set CopilotNpmRegistryUrl in your .csproj or Directory.Build.props, for example:
+       <PropertyGroup>
+         <CopilotNpmRegistryUrl>https://your-private-registry.example.com</CopilotNpmRegistryUrl>
+       </PropertyGroup>
+       If not set, this defaults to https://registry.npmjs.org. -->
+  <PropertyGroup>
+    <CopilotNpmRegistryUrl Condition="'$(CopilotNpmRegistryUrl)' == ''">https://registry.npmjs.org</CopilotNpmRegistryUrl>
+  </PropertyGroup>
+
   <!-- Download and extract CLI binary -->
   <Target Name="_DownloadCopilotCli" BeforeTargets="BeforeBuild" Condition="'$(_CopilotPlatform)' != ''">
     <Error Condition="'$(CopilotCliVersion)' == ''" Text="CopilotCliVersion is not set. The GitHub.Copilot.SDK.props file may be missing from the NuGet package." />
@@ -46,7 +57,8 @@
       <_CopilotCacheDir>$(IntermediateOutputPath)copilot-cli\$(CopilotCliVersion)\$(_CopilotPlatform)</_CopilotCacheDir>
       <_CopilotCliBinaryPath>$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
       <_CopilotArchivePath>$(_CopilotCacheDir)\copilot.tgz</_CopilotArchivePath>
-      <_CopilotDownloadUrl>https://registry.npmjs.org/@github/copilot-$(_CopilotPlatform)/-/copilot-$(_CopilotPlatform)-$(CopilotCliVersion).tgz</_CopilotDownloadUrl>
+      <_CopilotNormalizedRegistryUrl>$([System.String]::Copy('$(CopilotNpmRegistryUrl)').TrimEnd('/'))</_CopilotNormalizedRegistryUrl>
+      <_CopilotDownloadUrl>$(_CopilotNormalizedRegistryUrl)/@github/copilot-$(_CopilotPlatform)/-/copilot-$(_CopilotPlatform)-$(CopilotCliVersion).tgz</_CopilotDownloadUrl>
     </PropertyGroup>
 
     <!-- Delete archive if binary missing (handles partial/corrupted downloads) -->
