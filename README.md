@@ -14,12 +14,12 @@ The GitHub Copilot SDK exposes the same engine behind Copilot CLI: a production-
 
 ## Available SDKs
 
-| SDK                      | Location                                          | Installation                              |
-| ------------------------ | ------------------------------------------------- | ----------------------------------------- |
-| **Node.js / TypeScript** | [`cookbook/nodejs/`](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/nodejs/README.md) | `npm install @github/copilot-sdk`         |
-| **Python**               | [`cookbook/python/`](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/python/README.md) | `pip install github-copilot-sdk`          |
-| **Go**                   | [`cookbook/go/`](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/go/README.md)         | `go get github.com/github/copilot-sdk/go` |
-| **.NET**                 | [`cookbook/dotnet/`](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/dotnet/README.md) | `dotnet add package GitHub.Copilot.SDK`   |
+| SDK                      | Location       | Cookbook                                          | Installation                              |
+| ------------------------ | -------------- | ------------------------------------------------- | ----------------------------------------- |
+| **Node.js / TypeScript** | [`nodejs/`](./nodejs/)   | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/nodejs/README.md) | `npm install @github/copilot-sdk`         |
+| **Python**               | [`python/`](./python/)   | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/python/README.md) | `pip install github-copilot-sdk`          |
+| **Go**                   | [`go/`](./go/)           | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/go/README.md)     | `go get github.com/github/copilot-sdk/go` |
+| **.NET**                 | [`dotnet/`](./dotnet/)   | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/dotnet/README.md) | `dotnet add package GitHub.Copilot.SDK`   |
 
 See the individual SDK READMEs for installation, usage examples, and API reference.
 
