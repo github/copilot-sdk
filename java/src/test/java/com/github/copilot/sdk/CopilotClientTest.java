@@ -424,6 +424,28 @@ public class CopilotClientTest {
         }
     }
 
+    @Test
+    void testCloseSessionAfterStoppingClientDoesNotThrow() throws Exception {
+        if (cliPath == null) {
+            System.out.println("Skipping test: CLI not found");
+            return;
+        }
+
+        try (var client = new CopilotClient(new CopilotClientOptions().setCliPath(cliPath))) {
+            var session = client.createSession().get();
+
+            // Stop the client first (which closes the RPC connection)
+            client.stop().get();
+
+            // Then close the session - should not throw even though RPC is closed
+            assertDoesNotThrow(() -> session.close(), "Closing session after client.stop() should not throw exception");
+
+            // Verify session is terminated
+            assertThrows(IllegalStateException.class, () -> session.send("test"),
+                    "Session should be terminated after close()");
+        }
+    }
+
     // ===== start() idempotency =====
 
     @Test
