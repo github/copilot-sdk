@@ -268,9 +268,10 @@ provider: {
 To get started with Foundry Local:
 
 ```bash
-# Install Foundry Local CLI
+# Windows: Install Foundry Local CLI (requires winget)
 winget install Microsoft.FoundryLocal
 
+# macOS / Linux: see https://foundrylocal.ai for installation instructions
 # List available models
 foundry model list
 
