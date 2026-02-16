@@ -612,7 +612,7 @@ export class CopilotClient {
             configDir: config.configDir,
             streaming: config.streaming,
             mcpServers: config.mcpServers,
-            envValueMode: config.mcpServers ? "direct" : undefined,
+            envValueMode: "direct",
             customAgents: config.customAgents,
             skillDirectories: config.skillDirectories,
             disabledSkills: config.disabledSkills,
