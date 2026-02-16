@@ -997,9 +997,30 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     private static string? GetBundledCliPath(out string searchedPath)
     {
         var binaryName = OperatingSystem.IsWindows() ? "copilot.exe" : "copilot";
-        var rid = Path.GetFileName(System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier);
+        // Always use portable RID (e.g., linux-x64) to match the build-time placement,
+        // since distro-specific RIDs (e.g., ubuntu.24.04-x64) are normalized at build time.
+        var rid = GetPortableRid()
+            ?? Path.GetFileName(System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier);
         searchedPath = Path.Combine(AppContext.BaseDirectory, "runtimes", rid, "native", binaryName);
         return File.Exists(searchedPath) ? searchedPath : null;
+    }
+
+    private static string? GetPortableRid()
+    {
+        string os;
+        if (OperatingSystem.IsWindows()) os = "win";
+        else if (OperatingSystem.IsLinux()) os = "linux";
+        else if (OperatingSystem.IsMacOS()) os = "osx";
+        else return null;
+
+        var arch = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture switch
+        {
+            System.Runtime.InteropServices.Architecture.X64 => "x64",
+            System.Runtime.InteropServices.Architecture.Arm64 => "arm64",
+            _ => null,
+        };
+
+        return arch != null ? $"{os}-{arch}" : null;
     }
 
     private static (string FileName, IEnumerable<string> Args) ResolveCliCommand(string cliPath, IEnumerable<string> args)
