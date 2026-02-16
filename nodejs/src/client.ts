@@ -1053,12 +1053,14 @@ export class CopilotClient {
                     stdio: stdioConfig,
                     cwd: this.options.cwd,
                     env: envWithoutNodeDebug,
+                    windowsHide: true,
                 });
             } else {
                 this.cliProcess = spawn(this.options.cliPath, args, {
                     stdio: stdioConfig,
                     cwd: this.options.cwd,
                     env: envWithoutNodeDebug,
+                    windowsHide: true,
                 });
             }
 

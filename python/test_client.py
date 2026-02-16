@@ -147,17 +147,3 @@ class TestAuthOptions:
             CopilotClient(
                 {"cli_url": "localhost:8080", "use_logged_in_user": False, "log_level": "error"}
             )
-
-
-class TestHideCliWindow:
-    def test_hide_cli_window_default_false(self):
-        client = CopilotClient({"log_level": "error"})
-        assert not client.options.get("hide_cli_window")
-
-    def test_hide_cli_window_explicit_true(self):
-        client = CopilotClient({"hide_cli_window": True, "log_level": "error"})
-        assert client.options.get("hide_cli_window")
-
-    def test_hide_cli_window_explicit_false(self):
-        client = CopilotClient({"hide_cli_window": False, "log_level": "error"})
-        assert not client.options.get("hide_cli_window")

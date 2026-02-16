@@ -95,11 +95,6 @@ class CopilotClientOptions(TypedDict, total=False):
     # When False, only explicit tokens (github_token or environment variables) are used.
     # Default: True (but defaults to False when github_token is provided)
     use_logged_in_user: bool
-    # Whether to hide the console window when spawning the CLI process on Windows.
-    # When True, prevents the CLI subprocess from showing a console window on Windows.
-    # This is useful for GUI applications that should not display terminal windows.
-    # Default: False (console window is visible)
-    hide_cli_window: bool
 
 
 ToolResultType = Literal["success", "failure", "rejected", "denied"]
