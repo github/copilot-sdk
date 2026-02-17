@@ -25,7 +25,7 @@ from typing import Any, Callable, Optional, cast
 
 from .generated.rpc import ServerRpc
 from .generated.session_events import session_event_from_dict
-from .jsonrpc import JsonRpcClient
+from .jsonrpc import JsonRpcClient, ProcessExitedError
 from .sdk_protocol_version import get_sdk_protocol_version
 from .session import CopilotSession
 from .types import (
@@ -185,6 +185,8 @@ class CopilotClient:
             "auto_restart": opts.get("auto_restart", True),
             "use_logged_in_user": use_logged_in_user,
         }
+        if opts.get("cli_args"):
+            self.options["cli_args"] = opts["cli_args"]
         if opts.get("cli_url"):
             self.options["cli_url"] = opts["cli_url"]
         if opts.get("env"):
@@ -292,8 +294,21 @@ class CopilotClient:
             await self._verify_protocol_version()
 
             self._state = "connected"
-        except Exception:
+        except ProcessExitedError as e:
+            # Process exited with error - reraise as RuntimeError with stderr
             self._state = "error"
+            raise RuntimeError(str(e)) from None
+        except Exception as e:
+            self._state = "error"
+            # Check if process exited and capture any remaining stderr
+            if self._process and hasattr(self._process, "poll"):
+                return_code = self._process.poll()
+                if return_code is not None and self._client:
+                    stderr_output = self._client.get_stderr_output()
+                    if stderr_output:
+                        raise RuntimeError(
+                            f"CLI process exited with code {return_code}\nstderr: {stderr_output}"
+                        ) from e
             raise
 
     async def stop(self) -> list["StopError"]:
@@ -1141,7 +1156,14 @@ class CopilotClient:
         if not os.path.exists(cli_path):
             raise RuntimeError(f"Copilot CLI not found at {cli_path}")
 
-        args = ["--headless", "--no-auto-update", "--log-level", self.options["log_level"]]
+        # Start with user-provided cli_args, then add SDK-managed args
+        cli_args = self.options.get("cli_args") or []
+        args = list(cli_args) + [
+            "--headless",
+            "--no-auto-update",
+            "--log-level",
+            self.options["log_level"],
+        ]
 
         # Add auth-related flags
         if self.options.get("github_token"):

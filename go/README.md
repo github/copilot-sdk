@@ -10,6 +10,15 @@ A Go SDK for programmatic access to the GitHub Copilot CLI.
 go get github.com/github/copilot-sdk/go
 ```
 
+## Run the Sample
+
+Try the interactive chat sample (from the repo root):
+
+```bash
+cd go/samples
+go run chat.go
+```
+
 ## Quick Start
 
 ```go

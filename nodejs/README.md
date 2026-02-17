@@ -10,6 +10,19 @@ TypeScript SDK for programmatic control of GitHub Copilot CLI via JSON-RPC.
 npm install @github/copilot-sdk
 ```
 
+## Run the Sample
+
+Try the interactive chat sample (from the repo root):
+
+```bash
+cd nodejs
+npm ci
+npm run build
+cd samples
+npm install
+npm start
+```
+
 ## Quick Start
 
 ```typescript

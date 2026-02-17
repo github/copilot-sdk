@@ -225,4 +225,27 @@ func TestClient(t *testing.T) {
 
 		client.Stop()
 	})
+
+	t.Run("should report error when CLI fails to start", func(t *testing.T) {
+		client := copilot.NewClient(&copilot.ClientOptions{
+			CLIPath:  cliPath,
+			CLIArgs:  []string{"--nonexistent-flag-for-testing"},
+			UseStdio: copilot.Bool(true),
+		})
+		t.Cleanup(func() { client.ForceStop() })
+
+		err := client.Start(t.Context())
+		if err == nil {
+			t.Fatal("Expected Start to fail with invalid CLI args")
+		}
+
+		// Verify subsequent calls also fail (don't hang)
+		session, err := client.CreateSession(t.Context(), nil)
+		if err == nil {
+			_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "test"})
+		}
+		if err == nil {
+			t.Fatal("Expected CreateSession/Send to fail after CLI exit")
+		}
+	})
 }

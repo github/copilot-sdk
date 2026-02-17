@@ -128,6 +128,7 @@ export class CopilotClient {
     private actualHost: string = "localhost";
     private state: ConnectionState = "disconnected";
     private sessions: Map<string, CopilotSession> = new Map();
+    private stderrBuffer: string = ""; // Captures CLI stderr for error messages
     private options: Required<
         Omit<CopilotClientOptions, "cliUrl" | "githubToken" | "useLoggedInUser">
     > & {
@@ -145,6 +146,7 @@ export class CopilotClient {
         Set<(event: SessionLifecycleEvent) => void>
     > = new Map();
     private _rpc: ReturnType<typeof createServerRpc> | null = null;
+    private processExitPromise: Promise<never> | null = null; // Rejects when CLI process exits
 
     /**
      * Typed server-scoped RPC methods.
@@ -395,6 +397,8 @@ export class CopilotClient {
 
         this.state = "disconnected";
         this.actualPort = null;
+        this.stderrBuffer = "";
+        this.processExitPromise = null;
 
         return errors;
     }
@@ -465,6 +469,8 @@ export class CopilotClient {
 
         this.state = "disconnected";
         this.actualPort = null;
+        this.stderrBuffer = "";
+        this.processExitPromise = null;
     }
 
     /**
@@ -746,7 +752,15 @@ export class CopilotClient {
      */
     private async verifyProtocolVersion(): Promise<void> {
         const expectedVersion = getSdkProtocolVersion();
-        const pingResult = await this.ping();
+
+        // Race ping against process exit to detect early CLI failures
+        let pingResult: Awaited<ReturnType<typeof this.ping>>;
+        if (this.processExitPromise) {
+            pingResult = await Promise.race([this.ping(), this.processExitPromise]);
+        } else {
+            pingResult = await this.ping();
+        }
+
         const serverVersion = pingResult.protocolVersion;
 
         if (serverVersion === undefined) {
@@ -1002,6 +1016,9 @@ export class CopilotClient {
      */
     private async startCLIServer(): Promise<void> {
         return new Promise((resolve, reject) => {
+            // Clear stderr buffer for fresh capture
+            this.stderrBuffer = "";
+
             const args = [
                 ...this.options.cliArgs,
                 "--headless",
@@ -1085,6 +1102,8 @@ export class CopilotClient {
             }
 
             this.cliProcess.stderr?.on("data", (data: Buffer) => {
+                // Capture stderr for error messages
+                this.stderrBuffer += data.toString();
                 // Forward CLI stderr to parent's stderr so debug logs are visible
                 const lines = data.toString().split("\n");
                 for (const line of lines) {
@@ -1097,14 +1116,55 @@ export class CopilotClient {
             this.cliProcess.on("error", (error) => {
                 if (!resolved) {
                     resolved = true;
-                    reject(new Error(`Failed to start CLI server: ${error.message}`));
+                    const stderrOutput = this.stderrBuffer.trim();
+                    if (stderrOutput) {
+                        reject(
+                            new Error(
+                                `Failed to start CLI server: ${error.message}\nstderr: ${stderrOutput}`
+                            )
+                        );
+                    } else {
+                        reject(new Error(`Failed to start CLI server: ${error.message}`));
+                    }
                 }
             });
+
+            // Set up a promise that rejects when the process exits (used to race against RPC calls)
+            this.processExitPromise = new Promise<never>((_, rejectProcessExit) => {
+                this.cliProcess!.on("exit", (code) => {
+                    // Give a small delay for stderr to be fully captured
+                    setTimeout(() => {
+                        const stderrOutput = this.stderrBuffer.trim();
+                        if (stderrOutput) {
+                            rejectProcessExit(
+                                new Error(
+                                    `CLI server exited with code ${code}\nstderr: ${stderrOutput}`
+                                )
+                            );
+                        } else {
+                            rejectProcessExit(
+                                new Error(`CLI server exited unexpectedly with code ${code}`)
+                            );
+                        }
+                    }, 50);
+                });
+            });
+            // Prevent unhandled rejection when process exits normally (we only use this in Promise.race)
+            this.processExitPromise.catch(() => {});
 
             this.cliProcess.on("exit", (code) => {
                 if (!resolved) {
                     resolved = true;
-                    reject(new Error(`CLI server exited with code ${code}`));
+                    const stderrOutput = this.stderrBuffer.trim();
+                    if (stderrOutput) {
+                        reject(
+                            new Error(
+                                `CLI server exited with code ${code}\nstderr: ${stderrOutput}`
+                            )
+                        );
+                    } else {
+                        reject(new Error(`CLI server exited with code ${code}`));
+                    }
                 } else if (this.options.autoRestart && this.state === "connected") {
                     void this.reconnect();
                 }
