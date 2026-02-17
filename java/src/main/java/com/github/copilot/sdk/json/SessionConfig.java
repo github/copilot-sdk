@@ -525,6 +525,7 @@ public class SessionConfig {
      *
      * @return a clone of this config instance
      */
+    @Override
     public SessionConfig clone() {
         SessionConfig copy = new SessionConfig();
         copy.sessionId = this.sessionId;
