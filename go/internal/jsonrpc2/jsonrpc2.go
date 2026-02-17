@@ -57,6 +57,7 @@ type Client struct {
 	running         bool
 	stopChan        chan struct{}
 	wg              sync.WaitGroup
+	processDone     <-chan error // signals when the underlying process exits
 }
 
 // NewClient creates a new JSON-RPC client
@@ -68,6 +69,11 @@ func NewClient(stdin io.WriteCloser, stdout io.ReadCloser) *Client {
 		requestHandlers: make(map[string]RequestHandler),
 		stopChan:        make(chan struct{}),
 	}
+}
+
+// SetProcessDone sets a channel that signals when the underlying process exits
+func (c *Client) SetProcessDone(ch <-chan error) {
+	c.processDone = ch
 }
 
 // Start begins listening for messages in a background goroutine
@@ -189,7 +195,23 @@ func (c *Client) Request(method string, params any) (json.RawMessage, error) {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
-	// Wait for response
+	// Wait for response, also checking for process exit
+	if c.processDone != nil {
+		select {
+		case response := <-responseChan:
+			if response.Error != nil {
+				return nil, response.Error
+			}
+			return response.Result, nil
+		case err := <-c.processDone:
+			if err != nil {
+				return nil, err
+			}
+			return nil, fmt.Errorf("process exited unexpectedly")
+		case <-c.stopChan:
+			return nil, fmt.Errorf("client stopped")
+		}
+	}
 	select {
 	case response := <-responseChan:
 		if response.Error != nil {

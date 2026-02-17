@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -224,5 +225,25 @@ func TestClient(t *testing.T) {
 		}
 
 		client.Stop()
+	})
+
+	t.Run("should report error with stderr when CLI fails to start", func(t *testing.T) {
+		client := copilot.NewClient(&copilot.ClientOptions{
+			CLIPath:  cliPath,
+			CLIArgs:  []string{"--nonexistent-flag-for-testing"},
+			UseStdio: copilot.Bool(true),
+		})
+		t.Cleanup(func() { client.ForceStop() })
+
+		err := client.Start(t.Context())
+		if err == nil {
+			t.Fatal("Expected Start to fail with invalid CLI args")
+		}
+
+		errStr := err.Error()
+		// Verify we get the stderr output in the error message
+		if !strings.Contains(errStr, "stderr") || !strings.Contains(errStr, "nonexistent") {
+			t.Errorf("Expected error to contain stderr output about invalid flag, got: %v", err)
+		}
 	})
 }

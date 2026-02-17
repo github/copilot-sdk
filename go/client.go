@@ -29,10 +29,12 @@ package copilot
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -85,6 +87,8 @@ type Client struct {
 	lifecycleHandlers      []SessionLifecycleHandler
 	typedLifecycleHandlers map[SessionLifecycleEventType][]SessionLifecycleHandler
 	lifecycleHandlersMux   sync.Mutex
+	stderrBuf              bytes.Buffer // captures CLI stderr for error messages
+	processDone            chan error   // signals when CLI process exits
 
 	// RPC provides typed server-scoped RPC methods.
 	// This field is nil until the client is connected via Start().
@@ -148,6 +152,9 @@ func NewClient(options *ClientOptions) *Client {
 
 		if options.CLIPath != "" {
 			opts.CLIPath = options.CLIPath
+		}
+		if len(options.CLIArgs) > 0 {
+			opts.CLIArgs = append([]string{}, options.CLIArgs...)
 		}
 		if options.Cwd != "" {
 			opts.Cwd = options.Cwd
@@ -1022,7 +1029,10 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		// Default to "copilot" in PATH if no embedded CLI is available and no custom path is set
 		cliPath = "copilot"
 	}
-	args := []string{"--headless", "--no-auto-update", "--log-level", c.options.LogLevel}
+
+	// Start with user-provided CLIArgs, then add SDK-managed args
+	args := append([]string{}, c.options.CLIArgs...)
+	args = append(args, "--headless", "--no-auto-update", "--log-level", c.options.LogLevel)
 
 	// Choose transport mode
 	if c.useStdio {
@@ -1087,21 +1097,32 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 			return fmt.Errorf("failed to create stderr pipe: %w", err)
 		}
 
-		// Read stderr in background
+		// Read stderr in background, capturing for error messages
 		go func() {
-			scanner := bufio.NewScanner(stderr)
-			for scanner.Scan() {
-				// Optionally log stderr
-				// fmt.Fprintf(os.Stderr, "CLI stderr: %s\n", scanner.Text())
-			}
+			io.Copy(&c.stderrBuf, stderr)
 		}()
 
 		if err := c.process.Start(); err != nil {
 			return fmt.Errorf("failed to start CLI server: %w", err)
 		}
 
+		// Monitor process exit to signal pending requests
+		c.processDone = make(chan error, 1)
+		go func() {
+			err := c.process.Wait()
+			stderrOutput := strings.TrimSpace(c.stderrBuf.String())
+			if stderrOutput != "" {
+				c.processDone <- fmt.Errorf("CLI process exited: %v\nstderr: %s", err, stderrOutput)
+			} else if err != nil {
+				c.processDone <- fmt.Errorf("CLI process exited: %v", err)
+			} else {
+				c.processDone <- fmt.Errorf("CLI process exited unexpectedly")
+			}
+		}()
+
 		// Create JSON-RPC client immediately
 		c.client = jsonrpc2.NewClient(stdin, stdout)
+		c.client.SetProcessDone(c.processDone)
 		c.RPC = rpc.NewServerRpc(c.client)
 		c.setupNotificationHandler()
 		c.client.Start()

@@ -16,6 +16,8 @@ const (
 type ClientOptions struct {
 	// CLIPath is the path to the Copilot CLI executable (default: "copilot")
 	CLIPath string
+	// CLIArgs are extra arguments to pass to the CLI executable (inserted before SDK-managed args)
+	CLIArgs []string
 	// Cwd is the working directory for the CLI process (default: "" = inherit from current process)
 	Cwd string
 	// Port for TCP transport (default: 0 = random port)
