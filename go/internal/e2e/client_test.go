@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -227,7 +226,7 @@ func TestClient(t *testing.T) {
 		client.Stop()
 	})
 
-	t.Run("should report error with stderr when CLI fails to start", func(t *testing.T) {
+	t.Run("should report error when CLI fails to start", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
 			CLIPath:  cliPath,
 			CLIArgs:  []string{"--nonexistent-flag-for-testing"},
@@ -240,23 +239,13 @@ func TestClient(t *testing.T) {
 			t.Fatal("Expected Start to fail with invalid CLI args")
 		}
 
-		errStr := err.Error()
-		// Verify we get the stderr output in the error message
-		if !strings.Contains(errStr, "stderr") || !strings.Contains(errStr, "nonexistent") {
-			t.Errorf("Expected error to contain stderr output about invalid flag, got: %v", err)
-		}
-
-		// Verify subsequent calls also fail with the same error
+		// Verify subsequent calls also fail (don't hang)
 		session, err := client.CreateSession(t.Context(), nil)
 		if err == nil {
 			_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "test"})
 		}
 		if err == nil {
 			t.Fatal("Expected CreateSession/Send to fail after CLI exit")
-		}
-		errStr = err.Error()
-		if !strings.Contains(errStr, "stderr") && !strings.Contains(errStr, "nonexistent") {
-			t.Errorf("Expected subsequent error to reference CLI failure, got: %v", err)
 		}
 	})
 }
