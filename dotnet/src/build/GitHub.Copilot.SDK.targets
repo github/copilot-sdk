@@ -55,8 +55,8 @@
     <CopilotCliDownloadTimeout Condition="'$(CopilotCliDownloadTimeout)' == ''">600</CopilotCliDownloadTimeout>
   </PropertyGroup>
 
-  <!-- Download and extract CLI binary -->
-  <Target Name="_DownloadCopilotCli" BeforeTargets="BeforeBuild" Condition="'$(_CopilotPlatform)' != ''">
+  <!-- Download and extract CLI binary. Set CopilotSkipCliDownload=true to skip if you install the CLI separately. -->
+  <Target Name="_DownloadCopilotCli" BeforeTargets="BeforeBuild" Condition="'$(CopilotSkipCliDownload)' != 'true' And '$(_CopilotPlatform)' != ''">
     <Error Condition="'$(CopilotCliVersion)' == ''" Text="CopilotCliVersion is not set. The GitHub.Copilot.SDK.props file may be missing from the NuGet package." />
 
     <!-- Compute paths using version (now available) -->
@@ -90,7 +90,7 @@
   </Target>
 
   <!-- Copy CLI binary to output runtimes folder and register for transitive copy -->
-  <Target Name="_CopyCopilotCliToOutput" AfterTargets="Build" DependsOnTargets="_DownloadCopilotCli" Condition="'$(_CopilotPlatform)' != ''">
+  <Target Name="_CopyCopilotCliToOutput" AfterTargets="Build" DependsOnTargets="_DownloadCopilotCli" Condition="'$(CopilotSkipCliDownload)' != 'true' And '$(_CopilotPlatform)' != ''">
     <PropertyGroup>
       <_CopilotCacheDir>$(IntermediateOutputPath)copilot-cli\$(CopilotCliVersion)\$(_CopilotPlatform)</_CopilotCacheDir>
       <_CopilotCliBinaryPath>$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
@@ -101,7 +101,7 @@
   </Target>
 
   <!-- Register CLI binary as content so it flows through project references -->
-  <Target Name="_RegisterCopilotCliForCopy" BeforeTargets="GetCopyToOutputDirectoryItems" DependsOnTargets="_DownloadCopilotCli" Condition="'$(_CopilotPlatform)' != ''">
+  <Target Name="_RegisterCopilotCliForCopy" BeforeTargets="GetCopyToOutputDirectoryItems" DependsOnTargets="_DownloadCopilotCli" Condition="'$(CopilotSkipCliDownload)' != 'true' And '$(_CopilotPlatform)' != ''">
     <PropertyGroup>
       <_CopilotCacheDir>$(IntermediateOutputPath)copilot-cli\$(CopilotCliVersion)\$(_CopilotPlatform)</_CopilotCacheDir>
       <_CopilotCliBinaryPath>$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
