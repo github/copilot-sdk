@@ -6,13 +6,15 @@ await using var session = await client.CreateSessionAsync();
 using var _ = session.On(evt =>
 {
     Console.ForegroundColor = ConsoleColor.Blue;
-    var output = evt switch
+    switch (evt)
     {
-        AssistantReasoningEvent reasoning => $"[reasoning: {reasoning.Data.Content}]",
-        ToolExecutionStartEvent toolStart => $"[tool: {toolStart.Data.ToolName} {toolStart.Data.Arguments}]",
-        _ => null
-    };
-    if (output != null) Console.WriteLine(output);
+        case AssistantReasoningEvent reasoning:
+            Console.WriteLine($"[reasoning: {reasoning.Data.Content}]");
+            break;
+        case ToolExecutionStartEvent tool:
+            Console.WriteLine($"[tool: {tool.Data.ToolName}]");
+            break;
+    }
     Console.ResetColor();
 });
 
