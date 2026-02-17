@@ -59,6 +59,12 @@ public class SessionRequestBuilderTest {
         assertTrue(request.getHooks(), "Should be true when hooks have handlers");
     }
 
+    @Test
+    void testBuildCreateRequestSetsEnvValueModeToDirect() {
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(new SessionConfig());
+        assertEquals("direct", request.getEnvValueMode());
+    }
+
     // =========================================================================
     // buildResumeRequest
     // =========================================================================
@@ -128,6 +134,12 @@ public class SessionRequestBuilderTest {
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-7", config);
 
         assertTrue(request.getStreaming());
+    }
+
+    @Test
+    void testBuildResumeRequestSetsEnvValueModeToDirect() {
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-8", new ResumeSessionConfig());
+        assertEquals("direct", request.getEnvValueMode());
     }
 
     // =========================================================================

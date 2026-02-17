@@ -32,6 +32,7 @@ final class CliServerManager {
     private static final Logger LOG = Logger.getLogger(CliServerManager.class.getName());
 
     private final CopilotClientOptions options;
+    private final StringBuilder stderrBuffer = new StringBuilder();
 
     CliServerManager(CopilotClientOptions options) {
         this.options = options;
@@ -47,6 +48,8 @@ final class CliServerManager {
      *             if interrupted while waiting for port detection
      */
     ProcessInfo startCliServer() throws IOException, InterruptedException {
+        clearStderrBuffer();
+
         String cliPath = options.getCliPath() != null ? options.getCliPath() : "copilot";
         var args = new ArrayList<String>();
 
@@ -152,6 +155,9 @@ final class CliServerManager {
                     new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
+                    synchronized (stderrBuffer) {
+                        stderrBuffer.append(line).append('\n');
+                    }
                     LOG.fine("[CLI] " + line);
                 }
             } catch (IOException e) {
@@ -171,6 +177,10 @@ final class CliServerManager {
             while (System.currentTimeMillis() < deadline) {
                 String line = reader.readLine();
                 if (line == null) {
+                    String stderr = getStderrOutput();
+                    if (!stderr.isEmpty()) {
+                        throw new IOException("CLI process exited unexpectedly. stderr: " + stderr);
+                    }
                     throw new IOException("CLI process exited unexpectedly");
                 }
 
@@ -182,6 +192,18 @@ final class CliServerManager {
 
             process.destroyForcibly();
             throw new IOException("Timeout waiting for CLI to announce port");
+        }
+    }
+
+    String getStderrOutput() {
+        synchronized (stderrBuffer) {
+            return stderrBuffer.toString().trim();
+        }
+    }
+
+    private void clearStderrBuffer() {
+        synchronized (stderrBuffer) {
+            stderrBuffer.setLength(0);
         }
     }
 

@@ -74,6 +74,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("mcpServers")
     private Map<String, Object> mcpServers;
 
+    @JsonProperty("envValueMode")
+    private String envValueMode;
+
     @JsonProperty("customAgents")
     private List<CustomAgentConfig> customAgents;
 
@@ -249,6 +252,16 @@ public final class ResumeSessionRequest {
     /** Sets MCP servers. @param mcpServers the servers map */
     public void setMcpServers(Map<String, Object> mcpServers) {
         this.mcpServers = mcpServers;
+    }
+
+    /** Gets MCP environment variable value mode. @return the mode */
+    public String getEnvValueMode() {
+        return envValueMode;
+    }
+
+    /** Sets MCP environment variable value mode. @param envValueMode the mode */
+    public void setEnvValueMode(String envValueMode) {
+        this.envValueMode = envValueMode;
     }
 
     /** Gets custom agents. @return the agents */

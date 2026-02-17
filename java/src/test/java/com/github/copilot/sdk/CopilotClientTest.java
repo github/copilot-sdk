@@ -150,6 +150,26 @@ public class CopilotClientTest {
     }
 
     @Test
+    void testShouldReportErrorWithStderrWhenCliFailsToStart() throws Exception {
+        if (cliPath == null) {
+            System.out.println("Skipping test: CLI not found");
+            return;
+        }
+
+        var options = new CopilotClientOptions().setCliPath(cliPath)
+                .setCliArgs(new String[]{"--nonexistent-flag-for-testing"}).setUseStdio(true);
+
+        try (var client = new CopilotClient(options)) {
+            Exception ex = assertThrows(Exception.class, () -> client.start().get());
+            Throwable root = ex instanceof ExecutionException && ex.getCause() != null ? ex.getCause() : ex;
+            String message = root.getMessage();
+            assertNotNull(message);
+            assertTrue(message.toLowerCase().contains("stderr") || message.toLowerCase().contains("unexpectedly"),
+                    "Error should include stderr or unexpected exit details: " + message);
+        }
+    }
+
+    @Test
     void testStartAndConnectUsingTcp() throws Exception {
         if (cliPath == null) {
             System.out.println("Skipping test: CLI not found");
