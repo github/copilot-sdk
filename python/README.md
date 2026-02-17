@@ -22,7 +22,7 @@ async def main():
     await client.start()
 
     # Create a session
-    session = await client.create_session({"model": "gpt-5"})
+    session = await client.create_session({"model": "gpt-5.2"})
 
     # Wait for response using session.idle event
     done = asyncio.Event()
@@ -69,7 +69,7 @@ client = CopilotClient({
 })
 await client.start()
 
-session = await client.create_session({"model": "gpt-5"})
+session = await client.create_session({"model": "gpt-5.2"})
 
 def on_event(event):
     print(f"Event: {event['type']}")
@@ -111,7 +111,7 @@ async def lookup_issue(params: LookupIssueParams) -> str:
     return issue.summary
 
 session = await client.create_session({
-    "model": "gpt-5",
+    "model": "gpt-5.2",
     "tools": [lookup_issue],
 })
 ```
@@ -135,7 +135,7 @@ async def lookup_issue(invocation):
     }
 
 session = await client.create_session({
-    "model": "gpt-5",
+    "model": "gpt-5.2",
     "tools": [
         Tool(
             name="lookup_issue",
@@ -168,7 +168,7 @@ async def main():
     await client.start()
 
     session = await client.create_session({
-        "model": "gpt-5",
+        "model": "gpt-5.2",
         "streaming": True
     })
 

@@ -190,7 +190,7 @@ The YAML frontmatter supports these fields:
     engine:
       id: copilot                       # Required: coding agent identifier (copilot, custom, or experimental: claude, codex)
       version: beta                     # Optional: version of the action (has sensible default)
-      model: gpt-5                      # Optional: LLM model to use (has sensible default)
+      model: gpt-5.2                    # Optional: LLM model to use (has sensible default)
       max-turns: 5                      # Optional: maximum chat iterations per run (has sensible default)
       max-concurrency: 3                # Optional: max concurrent workflows across all workflows (default: 3)
       env:                              # Optional: custom environment variables (object)

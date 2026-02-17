@@ -84,7 +84,7 @@ async function main() {
         // Create a session
         console.log("📝 Creating session...");
         const session = await client.createSession({
-            model: "gpt-5",
+            model: "gpt-5.2",
             tools,
         });
         console.log(`✅ Session created: ${session.sessionId}\n`);

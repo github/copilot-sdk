@@ -78,7 +78,8 @@ class ToolInvocation(TypedDict):
     arguments: Any
 
 
-ToolHandler = Callable[[ToolInvocation], Union[ToolResult, Awaitable[ToolResult]]]
+ToolHandler = Callable[[ToolInvocation],
+                       Union[ToolResult, Awaitable[ToolResult]]]
 
 
 @dataclass
@@ -113,7 +114,8 @@ class SystemMessageReplaceConfig(TypedDict):
 
 
 # Union type - use one or the other
-SystemMessageConfig = Union[SystemMessageAppendConfig, SystemMessageReplaceConfig]
+SystemMessageConfig = Union[SystemMessageAppendConfig,
+                            SystemMessageReplaceConfig]
 
 
 # Permission request types
@@ -197,7 +199,8 @@ class SessionConfig(TypedDict, total=False):
     """Configuration for creating a session"""
 
     session_id: str  # Optional custom session ID
-    model: Literal["gpt-5", "claude-sonnet-4", "claude-sonnet-4.5", "claude-haiku-4.5"]
+    model: Literal["gpt-5.2", "claude-sonnet-4",
+                   "claude-sonnet-4.5", "claude-haiku-4.5"]
     tools: List[Tool]
     system_message: SystemMessageConfig  # System message configuration
     # List of tool names to allow (takes precedence over excluded_tools)

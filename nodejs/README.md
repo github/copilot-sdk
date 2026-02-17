@@ -21,7 +21,7 @@ await client.start();
 
 // Create a session
 const session = await client.createSession({
-    model: "gpt-5",
+    model: "gpt-5.2",
 });
 
 // Wait for response using session.idle event
@@ -86,7 +86,7 @@ Create a new conversation session.
 **Config:**
 
 - `sessionId?: string` - Custom session ID
-- `model?: string` - Model to use ("gpt-5", "claude-sonnet-4.5", etc.)
+- `model?: string` - Model to use ("gpt-5.2", "claude-sonnet-4.5", etc.)
 - `tools?: Tool[]` - Custom tools exposed to the CLI
 - `systemMessage?: SystemMessageConfig` - System message customization (see below)
 
@@ -189,7 +189,7 @@ Enable streaming to receive assistant response chunks as they're generated:
 
 ```typescript
 const session = await client.createSession({
-    model: "gpt-5",
+    model: "gpt-5.2",
     streaming: true,
 });
 
@@ -255,7 +255,7 @@ import { z } from "zod";
 import { CopilotClient, defineTool } from "@github/copilot-sdk";
 
 const session = await client.createSession({
-    model: "gpt-5",
+    model: "gpt-5.2",
     tools: [
         defineTool("lookup_issue", {
             description: "Fetch issue details from our tracker",
@@ -279,7 +279,7 @@ Control the system prompt using `systemMessage` in session config:
 
 ```typescript
 const session = await client.createSession({
-    model: "gpt-5",
+    model: "gpt-5.2",
     systemMessage: {
         content: `
 <workflow_rules>
@@ -297,7 +297,7 @@ For full control (removes all guardrails), use `mode: "replace"`:
 
 ```typescript
 const session = await client.createSession({
-    model: "gpt-5",
+    model: "gpt-5.2",
     systemMessage: {
         mode: "replace",
         content: "You are a helpful assistant.",
@@ -308,7 +308,7 @@ const session = await client.createSession({
 ### Multiple Sessions
 
 ```typescript
-const session1 = await client.createSession({ model: "gpt-5" });
+const session1 = await client.createSession({ model: "gpt-5.2" });
 const session2 = await client.createSession({ model: "claude-sonnet-4.5" });
 
 // Both sessions are independent
@@ -321,7 +321,7 @@ await session2.sendAndWait({ prompt: "Hello from session 2" });
 ```typescript
 const session = await client.createSession({
     sessionId: "my-custom-session-id",
-    model: "gpt-5",
+    model: "gpt-5.2",
 });
 ```
 

@@ -36,7 +36,7 @@ func main() {
 
     // Create a session
     session, err := client.CreateSession(&copilot.SessionConfig{
-        Model: "gpt-5",
+        Model: "gpt-5.2",
     })
     if err != nil {
         log.Fatal(err)
@@ -136,7 +136,7 @@ lookupIssue := copilot.DefineTool("lookup_issue", "Fetch issue details from our 
     })
 
 session, _ := client.CreateSession(&copilot.SessionConfig{
-    Model: "gpt-5",
+    Model: "gpt-5.2",
     Tools: []copilot.Tool{lookupIssue},
 })
 ```
@@ -174,7 +174,7 @@ lookupIssue := copilot.Tool{
 }
 
 session, _ := client.CreateSession(&copilot.SessionConfig{
-    Model: "gpt-5",
+    Model: "gpt-5.2",
     Tools: []copilot.Tool{lookupIssue},
 })
 ```
@@ -204,7 +204,7 @@ func main() {
     defer client.Stop()
 
     session, err := client.CreateSession(&copilot.SessionConfig{
-        Model:     "gpt-5",
+        Model:     "gpt-5.2",
         Streaming: true,
     })
     if err != nil {

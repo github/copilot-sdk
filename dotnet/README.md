@@ -22,7 +22,7 @@ await client.StartAsync();
 // Create a session
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
-    Model = "gpt-5"
+    Model = "gpt-5.2"
 });
 
 // Wait for response using session.idle event
@@ -90,7 +90,7 @@ Create a new conversation session.
 **Config:**
 
 - `SessionId` - Custom session ID
-- `Model` - Model to use ("gpt-5", "claude-sonnet-4.5", etc.)
+- `Model` - Model to use ("gpt-5.2", "claude-sonnet-4.5", etc.)
 - `Tools` - Custom tools exposed to the CLI
 - `SystemMessage` - System message customization
 - `AvailableTools` - List of tool names to allow
@@ -207,7 +207,7 @@ Enable streaming to receive assistant response chunks as they're generated:
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {
-    Model = "gpt-5",
+    Model = "gpt-5.2",
     Streaming = true
 });
 
@@ -282,7 +282,7 @@ using System.ComponentModel;
 
 var session = await client.CreateSessionAsync(new SessionConfig
 {
-    Model = "gpt-5",
+    Model = "gpt-5.2",
     Tools = [
         AIFunctionFactory.Create(
             async ([Description("Issue identifier")] string id) => {
@@ -304,7 +304,7 @@ Control the system prompt using `SystemMessage` in session config:
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {
-    Model = "gpt-5",
+    Model = "gpt-5.2",
     SystemMessage = new SystemMessageConfig
     {
         Mode = SystemMessageMode.Append,
@@ -323,7 +323,7 @@ For full control (removes all guardrails), use `Mode = SystemMessageMode.Replace
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {
-    Model = "gpt-5",
+    Model = "gpt-5.2",
     SystemMessage = new SystemMessageConfig
     {
         Mode = SystemMessageMode.Replace,
@@ -335,7 +335,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 ### Multiple Sessions
 
 ```csharp
-var session1 = await client.CreateSessionAsync(new SessionConfig { Model = "gpt-5" });
+var session1 = await client.CreateSessionAsync(new SessionConfig { Model = "gpt-5.2" });
 var session2 = await client.CreateSessionAsync(new SessionConfig { Model = "claude-sonnet-4.5" });
 
 // Both sessions are independent
