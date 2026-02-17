@@ -1099,7 +1099,10 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		}
 
 		// Read stderr in background, capturing for error messages
+		var stderrWg sync.WaitGroup
+		stderrWg.Add(1)
 		go func() {
+			defer stderrWg.Done()
 			io.Copy(&c.stderrBuf, stderr)
 		}()
 
@@ -1111,6 +1114,8 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		c.processDone = make(chan struct{})
 		go func() {
 			err := c.process.Wait()
+			// Wait for stderr to be fully read before checking the buffer
+			stderrWg.Wait()
 			stderrOutput := strings.TrimSpace(c.stderrBuf.String())
 			if stderrOutput != "" {
 				c.processError = fmt.Errorf("CLI process exited: %v\nstderr: %s", err, stderrOutput)

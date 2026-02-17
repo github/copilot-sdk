@@ -208,6 +208,8 @@ class TestClient:
             with pytest.raises(Exception) as exc_info2:
                 session = await client.create_session()
                 await session.send("test")
-            assert "Invalid argument" in str(exc_info2.value)
+            # Error message varies by platform (EINVAL on Windows, EPIPE on Linux)
+            error_msg = str(exc_info2.value).lower()
+            assert "invalid" in error_msg or "pipe" in error_msg or "closed" in error_msg
         finally:
             await client.force_stop()
