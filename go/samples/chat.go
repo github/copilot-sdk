@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -37,8 +36,7 @@ func main() {
 			}
 		case copilot.ToolExecutionStart:
 			if event.Data.ToolName != nil {
-				args, _ := json.Marshal(event.Data.Arguments)
-				output = fmt.Sprintf("[tool: %s %s]", *event.Data.ToolName, args)
+				output = fmt.Sprintf("[tool: %s]", *event.Data.ToolName)
 			}
 		}
 		if output != "" {

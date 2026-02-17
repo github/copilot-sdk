@@ -10,7 +10,7 @@ async function main() {
         if (event.type === "assistant.reasoning") {
             output = `[reasoning: ${event.data.content}]`;
         } else if (event.type === "tool.execution_start") {
-            output = `[tool: ${event.data.toolName} ${JSON.stringify(event.data.arguments)}]`;
+            output = `[tool: ${event.data.toolName}]`;
         }
         if (output) console.log(`\x1b[34m${output}\x1b[0m`);
     });

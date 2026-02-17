@@ -15,7 +15,10 @@ npm install @github/copilot-sdk
 Try the interactive chat sample (from the repo root):
 
 ```bash
-cd nodejs/samples
+cd nodejs
+npm ci
+npm run build
+cd samples
 npm install
 npm start
 ```
