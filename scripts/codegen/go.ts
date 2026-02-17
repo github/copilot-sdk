@@ -246,6 +246,7 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
     const resultType = toPascalCase(method.rpcMethod) + "Result";
 
     const paramProps = method.params?.properties || {};
+    const requiredParams = new Set(method.params?.required || []);
     const nonSessionParams = Object.keys(paramProps).filter((k) => k !== "sessionId");
     const hasParams = isSession ? nonSessionParams.length > 0 : Object.keys(paramProps).length > 0;
     const paramsType = hasParams ? toPascalCase(method.rpcMethod) + "Params" : "";
@@ -261,7 +262,16 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
         if (hasParams) {
             lines.push(`    if params != nil {`);
             for (const pName of nonSessionParams) {
-                lines.push(`        req["${pName}"] = params.${toGoFieldName(pName)}`);
+                const goField = toGoFieldName(pName);
+                const isOptional = !requiredParams.has(pName);
+                if (isOptional) {
+                    // Optional fields are pointers - only add when non-nil and dereference
+                    lines.push(`        if params.${goField} != nil {`);
+                    lines.push(`            req["${pName}"] = *params.${goField}`);
+                    lines.push(`        }`);
+                } else {
+                    lines.push(`        req["${pName}"] = params.${goField}`);
+                }
             }
             lines.push(`    }`);
         }

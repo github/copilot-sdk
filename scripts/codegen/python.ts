@@ -160,6 +160,8 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     typesCode = typesCode.replace(/: Any$/gm, ": Any = None");
     // Fix bare except: to use Exception (required by ruff/pylint)
     typesCode = typesCode.replace(/except:/g, "except Exception:");
+    // Remove unnecessary pass when class has methods (quicktype generates pass for empty schemas)
+    typesCode = typesCode.replace(/^(\s*)pass\n\n(\s*@staticmethod)/gm, "$2");
 
     const lines: string[] = [];
     lines.push(`"""

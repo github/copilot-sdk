@@ -67,7 +67,8 @@ function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: 
     if (schema.anyOf) {
         const nonNull = schema.anyOf.filter((s) => typeof s === "object" && s.type !== "null");
         if (nonNull.length === 1 && typeof nonNull[0] === "object") {
-            return schemaTypeToCSharp(nonNull[0] as JSONSchema7, false, knownTypes) + "?";
+            // Pass required=true to get the base type, then add "?" for nullable
+            return schemaTypeToCSharp(nonNull[0] as JSONSchema7, true, knownTypes) + "?";
         }
     }
     if (schema.$ref) {
@@ -76,6 +77,15 @@ function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: 
     }
     const type = schema.type;
     const format = schema.format;
+    // Handle type: ["string", "null"] patterns (nullable string)
+    if (Array.isArray(type)) {
+        const nonNullTypes = type.filter((t) => t !== "null");
+        if (nonNullTypes.length === 1 && nonNullTypes[0] === "string") {
+            if (format === "uuid") return "Guid?";
+            if (format === "date-time") return "DateTimeOffset?";
+            return "string?";
+        }
+    }
     if (type === "string") {
         if (format === "uuid") return required ? "Guid" : "Guid?";
         if (format === "date-time") return required ? "DateTimeOffset" : "DateTimeOffset?";

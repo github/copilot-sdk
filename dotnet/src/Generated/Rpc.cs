@@ -253,7 +253,7 @@ public class SessionPlanReadResult
 
     /// <summary>The content of plan.md, or null if it does not exist</summary>
     [JsonPropertyName("content")]
-    public object Content { get; set; }
+    public string? Content { get; set; }
 }
 
 internal class ReadRequest

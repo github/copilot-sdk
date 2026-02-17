@@ -457,7 +457,9 @@ type FleetRpcApi struct {
 func (a *FleetRpcApi) Start(ctx context.Context, params *SessionFleetStartParams) (*SessionFleetStartResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
 	if params != nil {
-		req["prompt"] = params.Prompt
+		if params.Prompt != nil {
+			req["prompt"] = *params.Prompt
+		}
 	}
 	raw, err := a.client.Request("session.fleet.start", req)
 	if err != nil {

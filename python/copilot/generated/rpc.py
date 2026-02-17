@@ -565,8 +565,6 @@ class SessionPlanReadResult:
 
 @dataclass
 class SessionPlanUpdateResult:
-    pass
-
     @staticmethod
     def from_dict(obj: Any) -> 'SessionPlanUpdateResult':
         assert isinstance(obj, dict)
@@ -596,8 +594,6 @@ class SessionPlanUpdateParams:
 
 @dataclass
 class SessionPlanDeleteResult:
-    pass
-
     @staticmethod
     def from_dict(obj: Any) -> 'SessionPlanDeleteResult':
         assert isinstance(obj, dict)
@@ -661,8 +657,6 @@ class SessionWorkspaceReadFileParams:
 
 @dataclass
 class SessionWorkspaceCreateFileResult:
-    pass
-
     @staticmethod
     def from_dict(obj: Any) -> 'SessionWorkspaceCreateFileResult':
         assert isinstance(obj, dict)
