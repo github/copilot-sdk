@@ -224,4 +224,27 @@ public class ClientTests
 
         await client.StopAsync();
     }
+
+    [Fact]
+    public async Task Should_Report_Error_With_Stderr_When_CLI_Fails_To_Start()
+    {
+        var client = new CopilotClient(new CopilotClientOptions
+        {
+            CliArgs = new[] { "--nonexistent-flag-for-testing" },
+            UseStdio = true
+        });
+
+        var ex = await Assert.ThrowsAsync<IOException>(async () =>
+        {
+            await client.StartAsync();
+        });
+
+        var errorMessage = ex.Message;
+        // Verify we get the stderr output in the error message
+        Assert.Contains("stderr", errorMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("nonexistent", errorMessage, StringComparison.OrdinalIgnoreCase);
+
+        // Cleanup - ForceStop should handle the disconnected state gracefully
+        try { await client.ForceStopAsync(); } catch { /* Expected */ }
+    }
 }

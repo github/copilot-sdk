@@ -11,6 +11,7 @@ using System.Data;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Sockets;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -183,13 +184,13 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
             if (_optionsHost is not null && _optionsPort is not null)
             {
                 // External server (TCP)
-                result = ConnectToServerAsync(null, _optionsHost, _optionsPort, ct);
+                result = ConnectToServerAsync(null, _optionsHost, _optionsPort, null, ct);
             }
             else
             {
                 // Child process (stdio or TCP)
-                var (cliProcess, portOrNull) = await StartCliServerAsync(_options, _logger, ct);
-                result = ConnectToServerAsync(cliProcess, portOrNull is null ? null : "localhost", portOrNull, ct);
+                var (cliProcess, portOrNull, stderrBuffer) = await StartCliServerAsync(_options, _logger, ct);
+                result = ConnectToServerAsync(cliProcess, portOrNull is null ? null : "localhost", portOrNull, stderrBuffer, ct);
             }
 
             var connection = await result;
@@ -843,9 +844,31 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
 
     internal static async Task<T> InvokeRpcAsync<T>(JsonRpc rpc, string method, object?[]? args, CancellationToken cancellationToken)
     {
+        return await InvokeRpcAsync<T>(rpc, method, args, null, cancellationToken);
+    }
+
+    internal static async Task<T> InvokeRpcAsync<T>(JsonRpc rpc, string method, object?[]? args, StringBuilder? stderrBuffer, CancellationToken cancellationToken)
+    {
         try
         {
             return await rpc.InvokeWithCancellationAsync<T>(method, args, cancellationToken);
+        }
+        catch (StreamJsonRpc.ConnectionLostException ex)
+        {
+            string? stderrOutput = null;
+            if (stderrBuffer is not null)
+            {
+                lock (stderrBuffer)
+                {
+                    stderrOutput = stderrBuffer.ToString().Trim();
+                }
+            }
+
+            if (!string.IsNullOrEmpty(stderrOutput))
+            {
+                throw new IOException($"CLI process exited unexpectedly.\nstderr: {stderrOutput}", ex);
+            }
+            throw new IOException($"Communication error with Copilot CLI: {ex.Message}", ex);
         }
         catch (StreamJsonRpc.RemoteRpcException ex)
         {
@@ -868,7 +891,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     {
         var expectedVersion = SdkProtocolVersion.GetVersion();
         var pingResponse = await InvokeRpcAsync<PingResponse>(
-            connection.Rpc, "ping", [new PingRequest()], cancellationToken);
+            connection.Rpc, "ping", [new PingRequest()], connection.StderrBuffer, cancellationToken);
 
         if (!pingResponse.ProtocolVersion.HasValue)
         {
@@ -887,7 +910,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         }
     }
 
-    private static async Task<(Process Process, int? DetectedLocalhostTcpPort)> StartCliServerAsync(CopilotClientOptions options, ILogger logger, CancellationToken cancellationToken)
+    private static async Task<(Process Process, int? DetectedLocalhostTcpPort, StringBuilder StderrBuffer)> StartCliServerAsync(CopilotClientOptions options, ILogger logger, CancellationToken cancellationToken)
     {
         // Use explicit path or bundled CLI - no PATH fallback
         var cliPath = options.CliPath ?? GetBundledCliPath(out var searchedPath)
@@ -957,7 +980,8 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         var cliProcess = new Process { StartInfo = startInfo };
         cliProcess.Start();
 
-        // Forward stderr to logger
+        // Capture stderr for error messages and forward to logger
+        var stderrBuffer = new StringBuilder();
         _ = Task.Run(async () =>
         {
             while (cliProcess != null && !cliProcess.HasExited)
@@ -965,6 +989,10 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
                 var line = await cliProcess.StandardError.ReadLineAsync(cancellationToken);
                 if (line != null)
                 {
+                    lock (stderrBuffer)
+                    {
+                        stderrBuffer.AppendLine(line);
+                    }
                     logger.LogDebug("[CLI] {Line}", line);
                 }
             }
@@ -991,7 +1019,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
             }
         }
 
-        return (cliProcess, detectedLocalhostTcpPort);
+        return (cliProcess, detectedLocalhostTcpPort, stderrBuffer);
     }
 
     private static string? GetBundledCliPath(out string searchedPath)
@@ -1035,7 +1063,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         return (cliPath, args);
     }
 
-    private async Task<Connection> ConnectToServerAsync(Process? cliProcess, string? tcpHost, int? tcpPort, CancellationToken cancellationToken)
+    private async Task<Connection> ConnectToServerAsync(Process? cliProcess, string? tcpHost, int? tcpPort, StringBuilder? stderrBuffer, CancellationToken cancellationToken)
     {
         Stream inputStream, outputStream;
         TcpClient? tcpClient = null;
@@ -1080,7 +1108,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
 
         _rpc = new ServerRpc(rpc);
 
-        return new Connection(rpc, cliProcess, tcpClient, networkStream);
+        return new Connection(rpc, cliProcess, tcpClient, networkStream, stderrBuffer);
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Using happy path from https://microsoft.github.io/vs-streamjsonrpc/docs/nativeAOT.html")]
@@ -1321,12 +1349,14 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         JsonRpc rpc,
         Process? cliProcess, // Set if we created the child process
         TcpClient? tcpClient, // Set if using TCP
-        NetworkStream? networkStream) // Set if using TCP
+        NetworkStream? networkStream, // Set if using TCP
+        StringBuilder? stderrBuffer = null) // Captures stderr for error messages
     {
         public Process? CliProcess => cliProcess;
         public TcpClient? TcpClient => tcpClient;
         public JsonRpc Rpc => rpc;
         public NetworkStream? NetworkStream => networkStream;
+        public StringBuilder? StderrBuffer => stderrBuffer;
     }
 
     private static class ProcessArgumentEscaper

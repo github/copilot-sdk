@@ -132,4 +132,21 @@ describe("Client", () => {
 
         await client.stop();
     });
+
+    it("should report error with stderr when CLI fails to start", async () => {
+        const client = new CopilotClient({
+            cliArgs: ["--nonexistent-flag-for-testing"],
+            useStdio: true,
+        });
+        onTestFinishedForceStop(client);
+
+        try {
+            await client.start();
+            expect.fail("Expected start() to throw an error");
+        } catch (error) {
+            const message = (error as Error).message;
+            expect(message).toContain("stderr");
+            expect(message).toContain("nonexistent");
+        }
+    });
 });
