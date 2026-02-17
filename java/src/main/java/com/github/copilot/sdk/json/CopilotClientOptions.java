@@ -335,6 +335,7 @@ public class CopilotClientOptions {
      * @return a clone of this options instance
      */
     @Override
+    @Override
     public CopilotClientOptions clone() {
         CopilotClientOptions copy = new CopilotClientOptions();
         copy.cliPath = this.cliPath;
