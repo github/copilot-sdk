@@ -49,6 +49,7 @@ final class SessionRequestBuilder {
         request.setWorkingDirectory(config.getWorkingDirectory());
         request.setStreaming(config.isStreaming() ? true : null);
         request.setMcpServers(config.getMcpServers());
+        request.setEnvValueMode("direct");
         request.setCustomAgents(config.getCustomAgents());
         request.setInfiniteSessions(config.getInfiniteSessions());
         request.setSkillDirectories(config.getSkillDirectories());
@@ -90,6 +91,7 @@ final class SessionRequestBuilder {
         request.setDisableResume(config.isDisableResume() ? true : null);
         request.setStreaming(config.isStreaming() ? true : null);
         request.setMcpServers(config.getMcpServers());
+        request.setEnvValueMode("direct");
         request.setCustomAgents(config.getCustomAgents());
         request.setSkillDirectories(config.getSkillDirectories());
         request.setDisabledSkills(config.getDisabledSkills());

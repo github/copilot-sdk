@@ -159,6 +159,59 @@ public class SessionEventParserTest {
     }
 
     @Test
+    void testParseSessionModeChangedEvent() throws Exception {
+        String json = """
+                {
+                    "type": "session.mode_changed",
+                    "data": {
+                        "previousMode": "interactive",
+                        "newMode": "plan"
+                    }
+                }
+                """;
+
+        AbstractSessionEvent event = parseJson(json);
+        assertNotNull(event);
+        assertInstanceOf(SessionModeChangedEvent.class, event);
+        assertEquals("session.mode_changed", event.getType());
+    }
+
+    @Test
+    void testParseSessionPlanChangedEvent() throws Exception {
+        String json = """
+                {
+                    "type": "session.plan_changed",
+                    "data": {
+                        "operation": "update"
+                    }
+                }
+                """;
+
+        AbstractSessionEvent event = parseJson(json);
+        assertNotNull(event);
+        assertInstanceOf(SessionPlanChangedEvent.class, event);
+        assertEquals("session.plan_changed", event.getType());
+    }
+
+    @Test
+    void testParseSessionWorkspaceFileChangedEvent() throws Exception {
+        String json = """
+                {
+                    "type": "session.workspace_file_changed",
+                    "data": {
+                        "path": "plan.md",
+                        "operation": "create"
+                    }
+                }
+                """;
+
+        AbstractSessionEvent event = parseJson(json);
+        assertNotNull(event);
+        assertInstanceOf(SessionWorkspaceFileChangedEvent.class, event);
+        assertEquals("session.workspace_file_changed", event.getType());
+    }
+
+    @Test
     void testParseSessionHandoffEvent() throws Exception {
         String json = """
                 {
@@ -861,7 +914,8 @@ public class SessionEventParserTest {
     @Test
     void testParseAllEventTypes() throws Exception {
         String[] types = {"session.start", "session.resume", "session.error", "session.idle", "session.info",
-                "session.model_change", "session.handoff", "session.truncation", "session.snapshot_rewind",
+                "session.model_change", "session.mode_changed", "session.plan_changed",
+                "session.workspace_file_changed", "session.handoff", "session.truncation", "session.snapshot_rewind",
                 "session.usage_info", "session.compaction_start", "session.compaction_complete", "user.message",
                 "pending_messages.modified", "assistant.turn_start", "assistant.intent", "assistant.reasoning",
                 "assistant.reasoning_delta", "assistant.message", "assistant.message_delta", "assistant.turn_end",

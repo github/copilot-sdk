@@ -4,6 +4,7 @@
 
 package com.github.copilot.sdk;
 
+import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -174,6 +175,11 @@ public final class CopilotClient implements AutoCloseable {
                 LOG.info("Copilot client connected");
                 return connection;
             } catch (Exception e) {
+                String stderr = serverManager.getStderrOutput();
+                if (!stderr.isEmpty()) {
+                    throw new CompletionException(
+                            new IOException("CLI process exited unexpectedly. stderr: " + stderr, e));
+                }
                 throw new CompletionException(e);
             }
         });
