@@ -244,18 +244,13 @@ public class ClientTests
         Assert.Contains("stderr", errorMessage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("nonexistent", errorMessage, StringComparison.OrdinalIgnoreCase);
 
-        // Verify subsequent calls also fail with the same error (containing stderr info)
+        // Verify subsequent calls also fail (don't hang)
         var ex2 = await Assert.ThrowsAnyAsync<Exception>(async () =>
         {
             var session = await client.CreateSessionAsync();
             await session.SendAsync(new MessageOptions { Prompt = "test" });
         });
-        var errorMessage2 = ex2.Message;
-        Assert.True(
-            errorMessage2.Contains("stderr", StringComparison.OrdinalIgnoreCase) ||
-            errorMessage2.Contains("nonexistent", StringComparison.OrdinalIgnoreCase) ||
-            errorMessage2.Contains("not connected", StringComparison.OrdinalIgnoreCase),
-            $"Expected subsequent error to reference CLI failure, got: {errorMessage2}");
+        Assert.Contains("exited", ex2.Message, StringComparison.OrdinalIgnoreCase);
 
         // Cleanup - ForceStop should handle the disconnected state gracefully
         try { await client.ForceStopAsync(); } catch { /* Expected */ }

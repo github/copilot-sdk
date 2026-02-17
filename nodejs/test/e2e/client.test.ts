@@ -150,21 +150,13 @@ describe("Client", () => {
             expect(initialError.message).toContain("nonexistent");
         }
 
-        // Verify subsequent calls also fail with the same error
+        // Verify subsequent calls also fail (don't hang)
         try {
             const session = await client.createSession();
             await session.send("test");
             expect.fail("Expected send() to throw an error after CLI exit");
         } catch (error) {
-            const message = (error as Error).message;
-            // Accept either stderr info or a "not connected" style error
-            expect(
-                message.includes("stderr") ||
-                message.includes("nonexistent") ||
-                message.includes("not connected") ||
-                message.includes("Connection") ||
-                message.includes("closed")
-            ).toBe(true);
+            expect((error as Error).message).toContain("Connection is closed");
         }
     });
 });

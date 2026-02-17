@@ -202,19 +202,10 @@ class TestClient:
                 f"Expected error to contain 'nonexistent', got: {error_message}"
             )
 
-            # Verify subsequent calls also fail with the same error
+            # Verify subsequent calls also fail (don't hang)
             with pytest.raises(Exception) as exc_info2:
                 session = await client.create_session()
                 await session.send("test")
-
-            error_message2 = str(exc_info2.value)
-            # Accept either stderr info or a generic connection error
-            assert (
-                "stderr" in error_message2
-                or "nonexistent" in error_message2
-                or "Invalid argument" in error_message2
-                or "not connected" in error_message2.lower()
-                or "closed" in error_message2.lower()
-            ), f"Expected subsequent error to reference CLI failure, got: {error_message2}"
+            assert "Invalid argument" in str(exc_info2.value)
         finally:
             await client.force_stop()
