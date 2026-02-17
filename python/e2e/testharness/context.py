@@ -17,7 +17,10 @@ from .proxy import CapiProxy
 
 
 def get_cli_path_for_tests() -> str:
-    """Get CLI path for E2E tests. Uses COPILOT_CLI_PATH env var if set, otherwise node_modules CLI."""
+    """Get CLI path for E2E tests.
+
+    Uses COPILOT_CLI_PATH env var if set, otherwise node_modules CLI.
+    """
     env_path = os.environ.get("COPILOT_CLI_PATH")
     if env_path and Path(env_path).exists():
         return str(Path(env_path).resolve())

@@ -93,7 +93,8 @@ class TestMCPServers:
 
         message = await session.send_and_wait(
             {
-                "prompt": "Use the env-echo/get_env tool to read the TEST_SECRET environment variable. Reply with just the value, nothing else."
+                "prompt": "Use the env-echo/get_env tool to read the TEST_SECRET "
+                "environment variable. Reply with just the value, nothing else."
             }
         )
         assert message is not None
