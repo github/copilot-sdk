@@ -147,3 +147,27 @@ class TestAuthOptions:
             CopilotClient(
                 {"cli_url": "localhost:8080", "use_logged_in_user": False, "log_level": "error"}
             )
+
+
+class TestCliArgs:
+    def test_cli_args_defaults_to_empty_list(self):
+        client = CopilotClient({"cli_path": CLI_PATH, "log_level": "error"})
+        assert client.options.get("cli_args") == []
+
+    def test_cli_args_stored_in_options(self):
+        client = CopilotClient(
+            {"cli_path": CLI_PATH, "cli_args": ["--verbose", "--debug"], "log_level": "error"}
+        )
+        assert client.options.get("cli_args") == ["--verbose", "--debug"]
+
+    def test_cli_args_empty_list(self):
+        client = CopilotClient(
+            {"cli_path": CLI_PATH, "cli_args": [], "log_level": "error"}
+        )
+        assert client.options.get("cli_args") == []
+
+    def test_cli_args_single_arg(self):
+        client = CopilotClient(
+            {"cli_path": CLI_PATH, "cli_args": ["--custom-flag"], "log_level": "error"}
+        )
+        assert client.options.get("cli_args") == ["--custom-flag"]
