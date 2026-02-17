@@ -488,6 +488,7 @@ public class ResumeSessionConfig {
      *
      * @return a clone of this config instance
      */
+    @Override
     public ResumeSessionConfig clone() {
         ResumeSessionConfig copy = new ResumeSessionConfig();
         copy.model = this.model;
