@@ -12,9 +12,9 @@ async def main():
 
     def on_event(event):
         output = None
-        if event.type == "assistant.reasoning":
+        if event.type.value == "assistant.reasoning":
             output = f"[reasoning: {event.data.content}]"
-        elif event.type == "tool.execution_start":
+        elif event.type.value == "tool.execution_start":
             output = f"[tool: {event.data.tool_name}]"
         if output:
             print(f"{BLUE}{output}{RESET}")
