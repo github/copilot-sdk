@@ -1,4 +1,5 @@
 import asyncio
+
 from copilot import CopilotClient
 
 BLUE = "\033[34m"
