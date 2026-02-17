@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/github/copilot-sdk/go"
@@ -15,7 +16,8 @@ const reset = "\033[0m"
 
 func main() {
 	ctx := context.Background()
-	client := copilot.NewClient(nil)
+	cliPath := filepath.Join("..", "..", "nodejs", "node_modules", "@github", "copilot", "index.js")
+	client := copilot.NewClient(&copilot.ClientOptions{CLIPath: cliPath})
 	if err := client.Start(ctx); err != nil {
 		panic(err)
 	}
