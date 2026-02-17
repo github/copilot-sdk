@@ -5,6 +5,8 @@ import com.github.copilot.sdk.events.*;
 import com.github.copilot.sdk.json.*;
 import java.util.concurrent.CompletableFuture;
 
+import static java.lang.System.out;
+
 class CopilotSDK {
     public static void main(String[] args) throws Exception {
         // Create and start client
@@ -17,16 +19,16 @@ class CopilotSDK {
 
             // Handle assistant message events
             session.on(AssistantMessageEvent.class, msg -> {
-                System.out.println(msg.getData().getContent());
+                out.println(msg.getData().content());
             });
 
             // Handle session usage info events
             session.on(SessionUsageInfoEvent.class, usage -> {
                 var data = usage.getData();
-                System.out.println("\n--- Usage Metrics ---");
-                System.out.println("Current tokens: " + (int) data.getCurrentTokens());
-                System.out.println("Token limit: " + (int) data.getTokenLimit());
-                System.out.println("Messages count: " + (int) data.getMessagesLength());
+                out.println("\n--- Usage Metrics ---");
+                out.println("Current tokens: " + (int) data.currentTokens());
+                out.println("Token limit: " + (int) data.tokenLimit());
+                out.println("Messages count: " + (int) data.messagesLength());
             });
 
             // Send a message
