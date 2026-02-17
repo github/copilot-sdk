@@ -48,6 +48,13 @@
     <CopilotNpmRegistryUrl Condition="'$(CopilotNpmRegistryUrl)' == ''">https://registry.npmjs.org</CopilotNpmRegistryUrl>
   </PropertyGroup>
 
+  <!-- Timeout in seconds for downloading the Copilot CLI tarball.
+       Override CopilotCliDownloadTimeout in your .csproj or Directory.Build.props if needed.
+       Default is 600 seconds (10 minutes) to handle slow or unreliable network conditions. -->
+  <PropertyGroup>
+    <CopilotCliDownloadTimeout Condition="'$(CopilotCliDownloadTimeout)' == ''">600</CopilotCliDownloadTimeout>
+  </PropertyGroup>
+
   <!-- Download and extract CLI binary -->
   <Target Name="_DownloadCopilotCli" BeforeTargets="BeforeBuild" Condition="'$(_CopilotPlatform)' != ''">
     <Error Condition="'$(CopilotCliVersion)' == ''" Text="CopilotCliVersion is not set. The GitHub.Copilot.SDK.props file may be missing from the NuGet package." />
@@ -68,6 +75,7 @@
     <MakeDir Directories="$(_CopilotCacheDir)" Condition="!Exists('$(_CopilotCliBinaryPath)')" />
     <Message Importance="high" Text="Downloading Copilot CLI $(CopilotCliVersion) for $(_CopilotPlatform)..." Condition="!Exists('$(_CopilotCliBinaryPath)')" />
     <DownloadFile SourceUrl="$(_CopilotDownloadUrl)" DestinationFolder="$(_CopilotCacheDir)" DestinationFileName="copilot.tgz"
+                  Timeout="$([System.Int32]::Parse('$(CopilotCliDownloadTimeout)'))"
                   Condition="!Exists('$(_CopilotCliBinaryPath)')" />
 
     <!-- Extract using tar (use Windows system tar explicitly to avoid Git bash tar issues) -->
