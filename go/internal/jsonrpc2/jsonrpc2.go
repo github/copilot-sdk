@@ -57,9 +57,9 @@ type Client struct {
 	running         bool
 	stopChan        chan struct{}
 	wg              sync.WaitGroup
-	processDone     chan struct{}   // closed when the underlying process exits
-	processError    error           // set before processDone is closed
-	processErrorMu  sync.RWMutex    // protects processError
+	processDone     chan struct{} // closed when the underlying process exits
+	processError    error         // set before processDone is closed
+	processErrorMu  sync.RWMutex  // protects processError
 }
 
 // NewClient creates a new JSON-RPC client

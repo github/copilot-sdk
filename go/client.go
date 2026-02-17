@@ -87,9 +87,9 @@ type Client struct {
 	lifecycleHandlers      []SessionLifecycleHandler
 	typedLifecycleHandlers map[SessionLifecycleEventType][]SessionLifecycleHandler
 	lifecycleHandlersMux   sync.Mutex
-	stderrBuf              bytes.Buffer // captures CLI stderr for error messages
+	stderrBuf              bytes.Buffer  // captures CLI stderr for error messages
 	processDone            chan struct{} // closed when CLI process exits
-	processError           error        // set before processDone is closed
+	processError           error         // set before processDone is closed
 
 	// RPC provides typed server-scoped RPC methods.
 	// This field is nil until the client is connected via Start().
