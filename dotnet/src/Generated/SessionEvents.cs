@@ -35,7 +35,9 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(SessionHandoffEvent), "session.handoff")]
 [JsonDerivedType(typeof(SessionIdleEvent), "session.idle")]
 [JsonDerivedType(typeof(SessionInfoEvent), "session.info")]
+[JsonDerivedType(typeof(SessionModeChangedEvent), "session.mode_changed")]
 [JsonDerivedType(typeof(SessionModelChangeEvent), "session.model_change")]
+[JsonDerivedType(typeof(SessionPlanChangedEvent), "session.plan_changed")]
 [JsonDerivedType(typeof(SessionResumeEvent), "session.resume")]
 [JsonDerivedType(typeof(SessionShutdownEvent), "session.shutdown")]
 [JsonDerivedType(typeof(SessionSnapshotRewindEvent), "session.snapshot_rewind")]
@@ -44,6 +46,7 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(SessionTruncationEvent), "session.truncation")]
 [JsonDerivedType(typeof(SessionUsageInfoEvent), "session.usage_info")]
 [JsonDerivedType(typeof(SessionWarningEvent), "session.warning")]
+[JsonDerivedType(typeof(SessionWorkspaceFileChangedEvent), "session.workspace_file_changed")]
 [JsonDerivedType(typeof(SkillInvokedEvent), "skill.invoked")]
 [JsonDerivedType(typeof(SubagentCompletedEvent), "subagent.completed")]
 [JsonDerivedType(typeof(SubagentFailedEvent), "subagent.failed")]
@@ -178,6 +181,42 @@ public partial class SessionModelChangeEvent : SessionEvent
 
     [JsonPropertyName("data")]
     public required SessionModelChangeData Data { get; set; }
+}
+
+/// <summary>
+/// Event: session.mode_changed
+/// </summary>
+public partial class SessionModeChangedEvent : SessionEvent
+{
+    [JsonIgnore]
+    public override string Type => "session.mode_changed";
+
+    [JsonPropertyName("data")]
+    public required SessionModeChangedData Data { get; set; }
+}
+
+/// <summary>
+/// Event: session.plan_changed
+/// </summary>
+public partial class SessionPlanChangedEvent : SessionEvent
+{
+    [JsonIgnore]
+    public override string Type => "session.plan_changed";
+
+    [JsonPropertyName("data")]
+    public required SessionPlanChangedData Data { get; set; }
+}
+
+/// <summary>
+/// Event: session.workspace_file_changed
+/// </summary>
+public partial class SessionWorkspaceFileChangedEvent : SessionEvent
+{
+    [JsonIgnore]
+    public override string Type => "session.workspace_file_changed";
+
+    [JsonPropertyName("data")]
+    public required SessionWorkspaceFileChangedData Data { get; set; }
 }
 
 /// <summary>
@@ -660,6 +699,30 @@ public partial class SessionModelChangeData
 
     [JsonPropertyName("newModel")]
     public required string NewModel { get; set; }
+}
+
+public partial class SessionModeChangedData
+{
+    [JsonPropertyName("previousMode")]
+    public required string PreviousMode { get; set; }
+
+    [JsonPropertyName("newMode")]
+    public required string NewMode { get; set; }
+}
+
+public partial class SessionPlanChangedData
+{
+    [JsonPropertyName("operation")]
+    public required SessionPlanChangedDataOperation Operation { get; set; }
+}
+
+public partial class SessionWorkspaceFileChangedData
+{
+    [JsonPropertyName("path")]
+    public required string Path { get; set; }
+
+    [JsonPropertyName("operation")]
+    public required SessionWorkspaceFileChangedDataOperation Operation { get; set; }
 }
 
 public partial class SessionHandoffData
@@ -1577,6 +1640,26 @@ public partial class SystemMessageDataMetadata
     public Dictionary<string, object>? Variables { get; set; }
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter<SessionPlanChangedDataOperation>))]
+public enum SessionPlanChangedDataOperation
+{
+    [JsonStringEnumMemberName("create")]
+    Create,
+    [JsonStringEnumMemberName("update")]
+    Update,
+    [JsonStringEnumMemberName("delete")]
+    Delete,
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<SessionWorkspaceFileChangedDataOperation>))]
+public enum SessionWorkspaceFileChangedDataOperation
+{
+    [JsonStringEnumMemberName("create")]
+    Create,
+    [JsonStringEnumMemberName("update")]
+    Update,
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<SessionHandoffDataSourceType>))]
 public enum SessionHandoffDataSourceType
 {
@@ -1683,8 +1766,12 @@ public enum SystemMessageDataRole
 [JsonSerializable(typeof(SessionIdleEvent))]
 [JsonSerializable(typeof(SessionInfoData))]
 [JsonSerializable(typeof(SessionInfoEvent))]
+[JsonSerializable(typeof(SessionModeChangedData))]
+[JsonSerializable(typeof(SessionModeChangedEvent))]
 [JsonSerializable(typeof(SessionModelChangeData))]
 [JsonSerializable(typeof(SessionModelChangeEvent))]
+[JsonSerializable(typeof(SessionPlanChangedData))]
+[JsonSerializable(typeof(SessionPlanChangedEvent))]
 [JsonSerializable(typeof(SessionResumeData))]
 [JsonSerializable(typeof(SessionResumeDataContext))]
 [JsonSerializable(typeof(SessionResumeEvent))]
@@ -1704,6 +1791,8 @@ public enum SystemMessageDataRole
 [JsonSerializable(typeof(SessionUsageInfoEvent))]
 [JsonSerializable(typeof(SessionWarningData))]
 [JsonSerializable(typeof(SessionWarningEvent))]
+[JsonSerializable(typeof(SessionWorkspaceFileChangedData))]
+[JsonSerializable(typeof(SessionWorkspaceFileChangedEvent))]
 [JsonSerializable(typeof(SkillInvokedData))]
 [JsonSerializable(typeof(SkillInvokedEvent))]
 [JsonSerializable(typeof(SubagentCompletedData))]

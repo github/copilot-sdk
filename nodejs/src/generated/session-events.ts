@@ -112,6 +112,41 @@ export type SessionEvent =
       timestamp: string;
       parentId: string | null;
       ephemeral?: boolean;
+      type: "session.mode_changed";
+      data: {
+        previousMode: string;
+        newMode: string;
+      };
+    }
+  | {
+      id: string;
+      timestamp: string;
+      parentId: string | null;
+      ephemeral?: boolean;
+      type: "session.plan_changed";
+      data: {
+        operation: "create" | "update" | "delete";
+      };
+    }
+  | {
+      id: string;
+      timestamp: string;
+      parentId: string | null;
+      ephemeral?: boolean;
+      type: "session.workspace_file_changed";
+      data: {
+        /**
+         * Relative path within the workspace files directory
+         */
+        path: string;
+        operation: "create" | "update";
+      };
+    }
+  | {
+      id: string;
+      timestamp: string;
+      parentId: string | null;
+      ephemeral?: boolean;
       type: "session.handoff";
       data: {
         handoffTime: string;

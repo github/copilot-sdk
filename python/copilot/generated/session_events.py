@@ -386,6 +386,12 @@ class ModelMetric:
         return result
 
 
+class Operation(Enum):
+    CREATE = "create"
+    DELETE = "delete"
+    UPDATE = "update"
+
+
 @dataclass
 class QuotaSnapshot:
     entitlement_requests: float
@@ -673,6 +679,12 @@ class Data:
     warning_type: Optional[str] = None
     new_model: Optional[str] = None
     previous_model: Optional[str] = None
+    new_mode: Optional[str] = None
+    previous_mode: Optional[str] = None
+    operation: Optional[Operation] = None
+    path: Optional[str] = None
+    """Relative path within the workspace files directory"""
+
     handoff_time: Optional[datetime] = None
     remote_session_id: Optional[str] = None
     repository: Optional[Union[RepositoryClass, str]] = None
@@ -753,7 +765,6 @@ class Data:
     tool_telemetry: Optional[Dict[str, Any]] = None
     allowed_tools: Optional[List[str]] = None
     name: Optional[str] = None
-    path: Optional[str] = None
     agent_description: Optional[str] = None
     agent_display_name: Optional[str] = None
     agent_name: Optional[str] = None
@@ -787,6 +798,10 @@ class Data:
         warning_type = from_union([from_str, from_none], obj.get("warningType"))
         new_model = from_union([from_str, from_none], obj.get("newModel"))
         previous_model = from_union([from_str, from_none], obj.get("previousModel"))
+        new_mode = from_union([from_str, from_none], obj.get("newMode"))
+        previous_mode = from_union([from_str, from_none], obj.get("previousMode"))
+        operation = from_union([Operation, from_none], obj.get("operation"))
+        path = from_union([from_str, from_none], obj.get("path"))
         handoff_time = from_union([from_datetime, from_none], obj.get("handoffTime"))
         remote_session_id = from_union([from_str, from_none], obj.get("remoteSessionId"))
         repository = from_union([RepositoryClass.from_dict, from_str, from_none], obj.get("repository"))
@@ -867,7 +882,6 @@ class Data:
         tool_telemetry = from_union([lambda x: from_dict(lambda x: x, x), from_none], obj.get("toolTelemetry"))
         allowed_tools = from_union([lambda x: from_list(from_str, x), from_none], obj.get("allowedTools"))
         name = from_union([from_str, from_none], obj.get("name"))
-        path = from_union([from_str, from_none], obj.get("path"))
         agent_description = from_union([from_str, from_none], obj.get("agentDescription"))
         agent_display_name = from_union([from_str, from_none], obj.get("agentDisplayName"))
         agent_name = from_union([from_str, from_none], obj.get("agentName"))
@@ -878,7 +892,7 @@ class Data:
         output = obj.get("output")
         metadata = from_union([Metadata.from_dict, from_none], obj.get("metadata"))
         role = from_union([Role, from_none], obj.get("role"))
-        return Data(context, copilot_version, producer, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, title, info_type, warning_type, new_model, previous_model, handoff_time, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, current_model, error_reason, model_metrics, session_start_time, shutdown_type, total_api_duration_ms, total_premium_requests, branch, cwd, git_root, current_tokens, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, source, transformed_content, turn_id, intent, reasoning_id, delta_content, encrypted_content, message_id, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, total_response_size_bytes, api_call_id, cache_read_tokens, cache_write_tokens, cost, duration, initiator, input_tokens, model, output_tokens, quota_snapshots, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, name, path, agent_description, agent_display_name, agent_name, tools, hook_invocation_id, hook_type, input, output, metadata, role)
+        return Data(context, copilot_version, producer, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, title, info_type, warning_type, new_model, previous_model, new_mode, previous_mode, operation, path, handoff_time, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, current_model, error_reason, model_metrics, session_start_time, shutdown_type, total_api_duration_ms, total_premium_requests, branch, cwd, git_root, current_tokens, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, source, transformed_content, turn_id, intent, reasoning_id, delta_content, encrypted_content, message_id, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, total_response_size_bytes, api_call_id, cache_read_tokens, cache_write_tokens, cost, duration, initiator, input_tokens, model, output_tokens, quota_snapshots, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, name, agent_description, agent_display_name, agent_name, tools, hook_invocation_id, hook_type, input, output, metadata, role)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -920,6 +934,14 @@ class Data:
             result["newModel"] = from_union([from_str, from_none], self.new_model)
         if self.previous_model is not None:
             result["previousModel"] = from_union([from_str, from_none], self.previous_model)
+        if self.new_mode is not None:
+            result["newMode"] = from_union([from_str, from_none], self.new_mode)
+        if self.previous_mode is not None:
+            result["previousMode"] = from_union([from_str, from_none], self.previous_mode)
+        if self.operation is not None:
+            result["operation"] = from_union([lambda x: to_enum(Operation, x), from_none], self.operation)
+        if self.path is not None:
+            result["path"] = from_union([from_str, from_none], self.path)
         if self.handoff_time is not None:
             result["handoffTime"] = from_union([lambda x: x.isoformat(), from_none], self.handoff_time)
         if self.remote_session_id is not None:
@@ -1080,8 +1102,6 @@ class Data:
             result["allowedTools"] = from_union([lambda x: from_list(from_str, x), from_none], self.allowed_tools)
         if self.name is not None:
             result["name"] = from_union([from_str, from_none], self.name)
-        if self.path is not None:
-            result["path"] = from_union([from_str, from_none], self.path)
         if self.agent_description is not None:
             result["agentDescription"] = from_union([from_str, from_none], self.agent_description)
         if self.agent_display_name is not None:
@@ -1126,6 +1146,8 @@ class SessionEventType(Enum):
     SESSION_IDLE = "session.idle"
     SESSION_INFO = "session.info"
     SESSION_MODEL_CHANGE = "session.model_change"
+    SESSION_MODE_CHANGED = "session.mode_changed"
+    SESSION_PLAN_CHANGED = "session.plan_changed"
     SESSION_RESUME = "session.resume"
     SESSION_SHUTDOWN = "session.shutdown"
     SESSION_SNAPSHOT_REWIND = "session.snapshot_rewind"
@@ -1134,6 +1156,7 @@ class SessionEventType(Enum):
     SESSION_TRUNCATION = "session.truncation"
     SESSION_USAGE_INFO = "session.usage_info"
     SESSION_WARNING = "session.warning"
+    SESSION_WORKSPACE_FILE_CHANGED = "session.workspace_file_changed"
     SKILL_INVOKED = "skill.invoked"
     SUBAGENT_COMPLETED = "subagent.completed"
     SUBAGENT_FAILED = "subagent.failed"

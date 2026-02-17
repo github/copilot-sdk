@@ -175,6 +175,145 @@ export interface SessionModelSwitchToParams {
   modelId: string;
 }
 
+export interface SessionModeGetResult {
+  /**
+   * The current agent mode.
+   */
+  mode: "interactive" | "plan" | "autopilot";
+}
+
+export interface SessionModeGetParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
+
+export interface SessionModeSetResult {
+  /**
+   * The agent mode after switching.
+   */
+  mode: "interactive" | "plan" | "autopilot";
+}
+
+export interface SessionModeSetParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * The mode to switch to. Valid values: "interactive", "plan", "autopilot".
+   */
+  mode: "interactive" | "plan" | "autopilot";
+}
+
+export interface SessionPlanReadResult {
+  /**
+   * Whether plan.md exists in the workspace
+   */
+  exists: boolean;
+  /**
+   * The content of plan.md, or null if it does not exist
+   */
+  content: string | null;
+}
+
+export interface SessionPlanReadParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
+
+export interface SessionPlanUpdateResult {}
+
+export interface SessionPlanUpdateParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * The new content for plan.md
+   */
+  content: string;
+}
+
+export interface SessionPlanDeleteResult {}
+
+export interface SessionPlanDeleteParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
+
+export interface SessionWorkspaceListFilesResult {
+  /**
+   * Relative file paths in the workspace files directory
+   */
+  files: string[];
+}
+
+export interface SessionWorkspaceListFilesParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
+
+export interface SessionWorkspaceReadFileResult {
+  /**
+   * File content as a UTF-8 string
+   */
+  content: string;
+}
+
+export interface SessionWorkspaceReadFileParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Relative path within the workspace files directory
+   */
+  path: string;
+}
+
+export interface SessionWorkspaceCreateFileResult {}
+
+export interface SessionWorkspaceCreateFileParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Relative path within the workspace files directory
+   */
+  path: string;
+  /**
+   * File content to write as a UTF-8 string
+   */
+  content: string;
+}
+
+export interface SessionFleetStartResult {
+  /**
+   * Whether fleet mode was successfully activated
+   */
+  started: boolean;
+}
+
+export interface SessionFleetStartParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Optional user prompt to combine with fleet instructions
+   */
+  prompt?: string;
+}
+
 /** Create typed server-scoped RPC methods (no session required). */
 export function createServerRpc(connection: MessageConnection) {
     return {
@@ -203,6 +342,32 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.model.getCurrent", { sessionId }),
             switchTo: async (params: Omit<SessionModelSwitchToParams, "sessionId">): Promise<SessionModelSwitchToResult> =>
                 connection.sendRequest("session.model.switchTo", { sessionId, ...params }),
+        },
+        mode: {
+            get: async (): Promise<SessionModeGetResult> =>
+                connection.sendRequest("session.mode.get", { sessionId }),
+            set: async (params: Omit<SessionModeSetParams, "sessionId">): Promise<SessionModeSetResult> =>
+                connection.sendRequest("session.mode.set", { sessionId, ...params }),
+        },
+        plan: {
+            read: async (): Promise<SessionPlanReadResult> =>
+                connection.sendRequest("session.plan.read", { sessionId }),
+            update: async (params: Omit<SessionPlanUpdateParams, "sessionId">): Promise<SessionPlanUpdateResult> =>
+                connection.sendRequest("session.plan.update", { sessionId, ...params }),
+            delete: async (): Promise<SessionPlanDeleteResult> =>
+                connection.sendRequest("session.plan.delete", { sessionId }),
+        },
+        workspace: {
+            listFiles: async (): Promise<SessionWorkspaceListFilesResult> =>
+                connection.sendRequest("session.workspace.listFiles", { sessionId }),
+            readFile: async (params: Omit<SessionWorkspaceReadFileParams, "sessionId">): Promise<SessionWorkspaceReadFileResult> =>
+                connection.sendRequest("session.workspace.readFile", { sessionId, ...params }),
+            createFile: async (params: Omit<SessionWorkspaceCreateFileParams, "sessionId">): Promise<SessionWorkspaceCreateFileResult> =>
+                connection.sendRequest("session.workspace.createFile", { sessionId, ...params }),
+        },
+        fleet: {
+            start: async (params: Omit<SessionFleetStartParams, "sessionId">): Promise<SessionFleetStartResult> =>
+                connection.sendRequest("session.fleet.start", { sessionId, ...params }),
         },
     };
 }

@@ -35,25 +35,30 @@ type SessionEvent struct {
 }
 
 type Data struct {
-	Context                         *ContextUnion            `json:"context"`
-	CopilotVersion                  *string                  `json:"copilotVersion,omitempty"`
-	Producer                        *string                  `json:"producer,omitempty"`
-	SelectedModel                   *string                  `json:"selectedModel,omitempty"`
-	SessionID                       *string                  `json:"sessionId,omitempty"`
-	StartTime                       *time.Time               `json:"startTime,omitempty"`
-	Version                         *float64                 `json:"version,omitempty"`
-	EventCount                      *float64                 `json:"eventCount,omitempty"`
-	ResumeTime                      *time.Time               `json:"resumeTime,omitempty"`
-	ErrorType                       *string                  `json:"errorType,omitempty"`
-	Message                         *string                  `json:"message,omitempty"`
-	ProviderCallID                  *string                  `json:"providerCallId,omitempty"`
-	Stack                           *string                  `json:"stack,omitempty"`
-	StatusCode                      *int64                   `json:"statusCode,omitempty"`
-	Title                           *string                  `json:"title,omitempty"`
-	InfoType                        *string                  `json:"infoType,omitempty"`
-	WarningType                     *string                  `json:"warningType,omitempty"`
-	NewModel                        *string                  `json:"newModel,omitempty"`
-	PreviousModel                   *string                  `json:"previousModel,omitempty"`
+	Context        *ContextUnion `json:"context"`
+	CopilotVersion *string       `json:"copilotVersion,omitempty"`
+	Producer       *string       `json:"producer,omitempty"`
+	SelectedModel  *string       `json:"selectedModel,omitempty"`
+	SessionID      *string       `json:"sessionId,omitempty"`
+	StartTime      *time.Time    `json:"startTime,omitempty"`
+	Version        *float64      `json:"version,omitempty"`
+	EventCount     *float64      `json:"eventCount,omitempty"`
+	ResumeTime     *time.Time    `json:"resumeTime,omitempty"`
+	ErrorType      *string       `json:"errorType,omitempty"`
+	Message        *string       `json:"message,omitempty"`
+	ProviderCallID *string       `json:"providerCallId,omitempty"`
+	Stack          *string       `json:"stack,omitempty"`
+	StatusCode     *int64        `json:"statusCode,omitempty"`
+	Title          *string       `json:"title,omitempty"`
+	InfoType       *string       `json:"infoType,omitempty"`
+	WarningType    *string       `json:"warningType,omitempty"`
+	NewModel       *string       `json:"newModel,omitempty"`
+	PreviousModel  *string       `json:"previousModel,omitempty"`
+	NewMode        *string       `json:"newMode,omitempty"`
+	PreviousMode   *string       `json:"previousMode,omitempty"`
+	Operation      *Operation    `json:"operation,omitempty"`
+	// Relative path within the workspace files directory
+	Path                            *string                  `json:"path,omitempty"`
 	HandoffTime                     *time.Time               `json:"handoffTime,omitempty"`
 	RemoteSessionID                 *string                  `json:"remoteSessionId,omitempty"`
 	Repository                      *RepositoryUnion         `json:"repository"`
@@ -134,7 +139,6 @@ type Data struct {
 	ToolTelemetry                   map[string]interface{}   `json:"toolTelemetry,omitempty"`
 	AllowedTools                    []string                 `json:"allowedTools,omitempty"`
 	Name                            *string                  `json:"name,omitempty"`
-	Path                            *string                  `json:"path,omitempty"`
 	AgentDescription                *string                  `json:"agentDescription,omitempty"`
 	AgentDisplayName                *string                  `json:"agentDisplayName,omitempty"`
 	AgentName                       *string                  `json:"agentName,omitempty"`
@@ -301,6 +305,14 @@ const (
 	Selection AttachmentType = "selection"
 )
 
+type Operation string
+
+const (
+	Create Operation = "create"
+	Delete Operation = "delete"
+	Update Operation = "update"
+)
+
 type Theme string
 
 const (
@@ -350,46 +362,49 @@ const (
 type SessionEventType string
 
 const (
-	Abort                      SessionEventType = "abort"
-	AssistantIntent            SessionEventType = "assistant.intent"
-	AssistantMessage           SessionEventType = "assistant.message"
-	AssistantMessageDelta      SessionEventType = "assistant.message_delta"
-	AssistantReasoning         SessionEventType = "assistant.reasoning"
-	AssistantReasoningDelta    SessionEventType = "assistant.reasoning_delta"
-	AssistantTurnEnd           SessionEventType = "assistant.turn_end"
-	AssistantTurnStart         SessionEventType = "assistant.turn_start"
-	AssistantUsage             SessionEventType = "assistant.usage"
-	HookEnd                    SessionEventType = "hook.end"
-	HookStart                  SessionEventType = "hook.start"
-	PendingMessagesModified    SessionEventType = "pending_messages.modified"
-	SessionCompactionComplete  SessionEventType = "session.compaction_complete"
-	SessionCompactionStart     SessionEventType = "session.compaction_start"
-	SessionContextChanged      SessionEventType = "session.context_changed"
-	SessionError               SessionEventType = "session.error"
-	SessionHandoff             SessionEventType = "session.handoff"
-	SessionIdle                SessionEventType = "session.idle"
-	SessionInfo                SessionEventType = "session.info"
-	SessionModelChange         SessionEventType = "session.model_change"
-	SessionResume              SessionEventType = "session.resume"
-	SessionShutdown            SessionEventType = "session.shutdown"
-	SessionSnapshotRewind      SessionEventType = "session.snapshot_rewind"
-	SessionStart               SessionEventType = "session.start"
-	SessionTitleChanged        SessionEventType = "session.title_changed"
-	SessionTruncation          SessionEventType = "session.truncation"
-	SessionUsageInfo           SessionEventType = "session.usage_info"
-	SessionWarning             SessionEventType = "session.warning"
-	SkillInvoked               SessionEventType = "skill.invoked"
-	SubagentCompleted          SessionEventType = "subagent.completed"
-	SubagentFailed             SessionEventType = "subagent.failed"
-	SubagentSelected           SessionEventType = "subagent.selected"
-	SubagentStarted            SessionEventType = "subagent.started"
-	SystemMessage              SessionEventType = "system.message"
-	ToolExecutionComplete      SessionEventType = "tool.execution_complete"
-	ToolExecutionPartialResult SessionEventType = "tool.execution_partial_result"
-	ToolExecutionProgress      SessionEventType = "tool.execution_progress"
-	ToolExecutionStart         SessionEventType = "tool.execution_start"
-	ToolUserRequested          SessionEventType = "tool.user_requested"
-	UserMessage                SessionEventType = "user.message"
+	Abort                       SessionEventType = "abort"
+	AssistantIntent             SessionEventType = "assistant.intent"
+	AssistantMessage            SessionEventType = "assistant.message"
+	AssistantMessageDelta       SessionEventType = "assistant.message_delta"
+	AssistantReasoning          SessionEventType = "assistant.reasoning"
+	AssistantReasoningDelta     SessionEventType = "assistant.reasoning_delta"
+	AssistantTurnEnd            SessionEventType = "assistant.turn_end"
+	AssistantTurnStart          SessionEventType = "assistant.turn_start"
+	AssistantUsage              SessionEventType = "assistant.usage"
+	HookEnd                     SessionEventType = "hook.end"
+	HookStart                   SessionEventType = "hook.start"
+	PendingMessagesModified     SessionEventType = "pending_messages.modified"
+	SessionCompactionComplete   SessionEventType = "session.compaction_complete"
+	SessionCompactionStart      SessionEventType = "session.compaction_start"
+	SessionContextChanged       SessionEventType = "session.context_changed"
+	SessionError                SessionEventType = "session.error"
+	SessionHandoff              SessionEventType = "session.handoff"
+	SessionIdle                 SessionEventType = "session.idle"
+	SessionInfo                 SessionEventType = "session.info"
+	SessionModeChanged          SessionEventType = "session.mode_changed"
+	SessionModelChange          SessionEventType = "session.model_change"
+	SessionPlanChanged          SessionEventType = "session.plan_changed"
+	SessionResume               SessionEventType = "session.resume"
+	SessionShutdown             SessionEventType = "session.shutdown"
+	SessionSnapshotRewind       SessionEventType = "session.snapshot_rewind"
+	SessionStart                SessionEventType = "session.start"
+	SessionTitleChanged         SessionEventType = "session.title_changed"
+	SessionTruncation           SessionEventType = "session.truncation"
+	SessionUsageInfo            SessionEventType = "session.usage_info"
+	SessionWarning              SessionEventType = "session.warning"
+	SessionWorkspaceFileChanged SessionEventType = "session.workspace_file_changed"
+	SkillInvoked                SessionEventType = "skill.invoked"
+	SubagentCompleted           SessionEventType = "subagent.completed"
+	SubagentFailed              SessionEventType = "subagent.failed"
+	SubagentSelected            SessionEventType = "subagent.selected"
+	SubagentStarted             SessionEventType = "subagent.started"
+	SystemMessage               SessionEventType = "system.message"
+	ToolExecutionComplete       SessionEventType = "tool.execution_complete"
+	ToolExecutionPartialResult  SessionEventType = "tool.execution_partial_result"
+	ToolExecutionProgress       SessionEventType = "tool.execution_progress"
+	ToolExecutionStart          SessionEventType = "tool.execution_start"
+	ToolUserRequested           SessionEventType = "tool.user_requested"
+	UserMessage                 SessionEventType = "user.message"
 )
 
 type ContextUnion struct {
