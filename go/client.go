@@ -34,7 +34,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -1093,18 +1092,8 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 			return fmt.Errorf("failed to create stdout pipe: %w", err)
 		}
 
-		stderr, err := c.process.StderrPipe()
-		if err != nil {
-			return fmt.Errorf("failed to create stderr pipe: %w", err)
-		}
-
-		// Read stderr in background, capturing for error messages
-		var stderrWg sync.WaitGroup
-		stderrWg.Add(1)
-		go func() {
-			defer stderrWg.Done()
-			io.Copy(&c.stderrBuf, stderr)
-		}()
+		// Capture stderr directly to buffer (not via pipe, which gets closed on Wait())
+		c.process.Stderr = &c.stderrBuf
 
 		if err := c.process.Start(); err != nil {
 			return fmt.Errorf("failed to start CLI server: %w", err)
@@ -1114,8 +1103,6 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		c.processDone = make(chan struct{})
 		go func() {
 			err := c.process.Wait()
-			// Wait for stderr to be fully read before checking the buffer
-			stderrWg.Wait()
 			stderrOutput := strings.TrimSpace(c.stderrBuf.String())
 			if stderrOutput != "" {
 				c.processError = fmt.Errorf("CLI process exited: %v\nstderr: %s", err, stderrOutput)
