@@ -697,7 +697,7 @@ function emitSessionApiClass(className: string, node: Record<string, unknown>, c
 
         for (const [pName, pSchema] of paramEntries) {
             if (typeof pSchema !== "object") continue;
-            const csType = schemaTypeToCSharp(pSchema as JSONSchema7, requiredSet.has(pName), rpcKnownTypes);
+            const csType = resolveRpcType(pSchema as JSONSchema7, requiredSet.has(pName), requestClassName, toPascalCase(pName), classes);
             sigParams.push(`${csType} ${pName}`);
             bodyAssignments.push(`${toPascalCase(pName)} = ${pName}`);
         }
