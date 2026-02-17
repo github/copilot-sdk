@@ -88,7 +88,8 @@ type Client struct {
 	typedLifecycleHandlers map[SessionLifecycleEventType][]SessionLifecycleHandler
 	lifecycleHandlersMux   sync.Mutex
 	stderrBuf              bytes.Buffer // captures CLI stderr for error messages
-	processDone            chan error   // signals when CLI process exits
+	processDone            chan struct{} // closed when CLI process exits
+	processError           error        // set before processDone is closed
 
 	// RPC provides typed server-scoped RPC methods.
 	// This field is nil until the client is connected via Start().
@@ -1107,22 +1108,23 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		}
 
 		// Monitor process exit to signal pending requests
-		c.processDone = make(chan error, 1)
+		c.processDone = make(chan struct{})
 		go func() {
 			err := c.process.Wait()
 			stderrOutput := strings.TrimSpace(c.stderrBuf.String())
 			if stderrOutput != "" {
-				c.processDone <- fmt.Errorf("CLI process exited: %v\nstderr: %s", err, stderrOutput)
+				c.processError = fmt.Errorf("CLI process exited: %v\nstderr: %s", err, stderrOutput)
 			} else if err != nil {
-				c.processDone <- fmt.Errorf("CLI process exited: %v", err)
+				c.processError = fmt.Errorf("CLI process exited: %v", err)
 			} else {
-				c.processDone <- fmt.Errorf("CLI process exited unexpectedly")
+				c.processError = fmt.Errorf("CLI process exited unexpectedly")
 			}
+			close(c.processDone)
 		}()
 
 		// Create JSON-RPC client immediately
 		c.client = jsonrpc2.NewClient(stdin, stdout)
-		c.client.SetProcessDone(c.processDone)
+		c.client.SetProcessDone(c.processDone, &c.processError)
 		c.RPC = rpc.NewServerRpc(c.client)
 		c.setupNotificationHandler()
 		c.client.Start()

@@ -245,5 +245,18 @@ func TestClient(t *testing.T) {
 		if !strings.Contains(errStr, "stderr") || !strings.Contains(errStr, "nonexistent") {
 			t.Errorf("Expected error to contain stderr output about invalid flag, got: %v", err)
 		}
+
+		// Verify subsequent calls also fail with the same error
+		session, err := client.CreateSession(t.Context(), nil)
+		if err == nil {
+			_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "test"})
+		}
+		if err == nil {
+			t.Fatal("Expected CreateSession/Send to fail after CLI exit")
+		}
+		errStr = err.Error()
+		if !strings.Contains(errStr, "stderr") && !strings.Contains(errStr, "nonexistent") {
+			t.Errorf("Expected subsequent error to reference CLI failure, got: %v", err)
+		}
 	})
 }

@@ -140,13 +140,31 @@ describe("Client", () => {
         });
         onTestFinishedForceStop(client);
 
+        let initialError: Error | undefined;
         try {
             await client.start();
             expect.fail("Expected start() to throw an error");
         } catch (error) {
+            initialError = error as Error;
+            expect(initialError.message).toContain("stderr");
+            expect(initialError.message).toContain("nonexistent");
+        }
+
+        // Verify subsequent calls also fail with the same error
+        try {
+            const session = await client.createSession();
+            await session.send("test");
+            expect.fail("Expected send() to throw an error after CLI exit");
+        } catch (error) {
             const message = (error as Error).message;
-            expect(message).toContain("stderr");
-            expect(message).toContain("nonexistent");
+            // Accept either stderr info or a "not connected" style error
+            expect(
+                message.includes("stderr") ||
+                message.includes("nonexistent") ||
+                message.includes("not connected") ||
+                message.includes("Connection") ||
+                message.includes("closed")
+            ).toBe(true);
         }
     });
 });
