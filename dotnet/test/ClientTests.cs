@@ -253,6 +253,6 @@ public class ClientTests
         Assert.Contains("exited", ex2.Message, StringComparison.OrdinalIgnoreCase);
 
         // Cleanup - ForceStop should handle the disconnected state gracefully
-        try { await client.ForceStopAsync(); } catch { /* Expected */ }
+        try { await client.ForceStopAsync(); } catch (Exception) { /* Expected */ }
     }
 }
