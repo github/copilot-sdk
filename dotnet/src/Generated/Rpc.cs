@@ -220,7 +220,7 @@ public class SessionModeGetResult
 {
     /// <summary>The current agent mode.</summary>
     [JsonPropertyName("mode")]
-    public string Mode { get; set; } = string.Empty;
+    public SessionModeGetResultMode Mode { get; set; }
 }
 
 internal class GetRequest
@@ -233,7 +233,7 @@ public class SessionModeSetResult
 {
     /// <summary>The agent mode after switching.</summary>
     [JsonPropertyName("mode")]
-    public string Mode { get; set; } = string.Empty;
+    public SessionModeGetResultMode Mode { get; set; }
 }
 
 internal class SetRequest
@@ -242,7 +242,7 @@ internal class SetRequest
     public string SessionId { get; set; } = string.Empty;
 
     [JsonPropertyName("mode")]
-    public string Mode { get; set; } = string.Empty;
+    public SessionModeGetResultMode Mode { get; set; }
 }
 
 public class SessionPlanReadResult
@@ -345,6 +345,18 @@ internal class StartRequest
     [JsonPropertyName("prompt")]
     public string? Prompt { get; set; }
 }
+
+[JsonConverter(typeof(JsonStringEnumConverter<SessionModeGetResultMode>))]
+public enum SessionModeGetResultMode
+{
+    [JsonStringEnumMemberName("interactive")]
+    Interactive,
+    [JsonStringEnumMemberName("plan")]
+    Plan,
+    [JsonStringEnumMemberName("autopilot")]
+    Autopilot,
+}
+
 
 /// <summary>Typed server-scoped RPC methods (no session required).</summary>
 public class ServerRpc

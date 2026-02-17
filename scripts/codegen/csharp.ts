@@ -459,6 +459,7 @@ export async function generateSessionEvents(schemaPath?: string): Promise<void> 
 
 let emittedRpcClasses = new Set<string>();
 let rpcKnownTypes = new Map<string, string>();
+let rpcEnumOutput: string[] = [];
 
 function singularPascal(s: string): string {
     const p = toPascalCase(s);
@@ -466,6 +467,11 @@ function singularPascal(s: string): string {
 }
 
 function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassName: string, propName: string, classes: string[]): string {
+    // Handle enums (string unions like "interactive" | "plan" | "autopilot")
+    if (schema.enum && Array.isArray(schema.enum)) {
+        const enumName = getOrCreateEnum(parentClassName, propName, schema.enum as string[], rpcEnumOutput);
+        return isRequired ? enumName : `${enumName}?`;
+    }
     if (schema.type === "object" && schema.properties) {
         const className = `${parentClassName}${propName}`;
         classes.push(emitRpcClass(className, schema, "public", classes));
@@ -708,6 +714,8 @@ function emitSessionApiClass(className: string, node: Record<string, unknown>, c
 function generateRpcCode(schema: ApiSchema): string {
     emittedRpcClasses.clear();
     rpcKnownTypes.clear();
+    rpcEnumOutput = [];
+    generatedEnums.clear(); // Clear shared enum deduplication map
     const classes: string[] = [];
 
     let serverRpcParts: string[] = [];
@@ -730,6 +738,7 @@ namespace GitHub.Copilot.SDK.Rpc;
 `);
 
     for (const cls of classes) if (cls) lines.push(cls, "");
+    for (const enumCode of rpcEnumOutput) lines.push(enumCode, "");
     for (const part of serverRpcParts) lines.push(part, "");
     for (const part of sessionRpcParts) lines.push(part, "");
 
