@@ -328,9 +328,9 @@ public class CopilotClientOptions {
      * Creates a shallow clone of this {@code CopilotClientOptions} instance.
      * <p>
      * Array properties (like {@code cliArgs}) are copied into new arrays so that
-     * modifications to the clone do not affect the original. Other reference-type
-     * properties (like {@code environment}) are shared between the original and
-     * clone.
+     * modifications to the clone do not affect the original. The
+     * {@code environment} map is also copied to a new map instance. Other
+     * reference-type properties are shared between the original and clone.
      *
      * @return a clone of this options instance
      */
@@ -346,7 +346,7 @@ public class CopilotClientOptions {
         copy.logLevel = this.logLevel;
         copy.autoStart = this.autoStart;
         copy.autoRestart = this.autoRestart;
-        copy.environment = this.environment;
+        copy.environment = this.environment != null ? new java.util.HashMap<>(this.environment) : null;
         copy.githubToken = this.githubToken;
         copy.useLoggedInUser = this.useLoggedInUser;
         return copy;
