@@ -118,6 +118,7 @@ public class MessageOptions {
      *
      * @return a clone of this options instance
      */
+    @Override
     public MessageOptions clone() {
         MessageOptions copy = new MessageOptions();
         copy.prompt = this.prompt;
