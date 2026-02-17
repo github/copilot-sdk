@@ -4,6 +4,7 @@
 
 package com.github.copilot.sdk.json;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -474,5 +475,40 @@ public class ResumeSessionConfig {
     public ResumeSessionConfig setInfiniteSessions(InfiniteSessionConfig infiniteSessions) {
         this.infiniteSessions = infiniteSessions;
         return this;
+    }
+
+    /**
+     * Creates a shallow clone of this {@code ResumeSessionConfig} instance.
+     * <p>
+     * Mutable collection properties are copied into new collection instances so
+     * that modifications to those collections on the clone do not affect the
+     * original. Other reference-type properties (like provider configuration,
+     * system messages, hooks, infinite session configuration, and delegates) are
+     * not deep-cloned; the original and the clone will share those objects.
+     *
+     * @return a clone of this config instance
+     */
+    public ResumeSessionConfig clone() {
+        ResumeSessionConfig copy = new ResumeSessionConfig();
+        copy.model = this.model;
+        copy.tools = this.tools != null ? new ArrayList<>(this.tools) : null;
+        copy.systemMessage = this.systemMessage;
+        copy.availableTools = this.availableTools != null ? new ArrayList<>(this.availableTools) : null;
+        copy.excludedTools = this.excludedTools != null ? new ArrayList<>(this.excludedTools) : null;
+        copy.provider = this.provider;
+        copy.reasoningEffort = this.reasoningEffort;
+        copy.onPermissionRequest = this.onPermissionRequest;
+        copy.onUserInputRequest = this.onUserInputRequest;
+        copy.hooks = this.hooks;
+        copy.workingDirectory = this.workingDirectory;
+        copy.configDir = this.configDir;
+        copy.disableResume = this.disableResume;
+        copy.streaming = this.streaming;
+        copy.mcpServers = this.mcpServers != null ? new java.util.HashMap<>(this.mcpServers) : null;
+        copy.customAgents = this.customAgents != null ? new ArrayList<>(this.customAgents) : null;
+        copy.skillDirectories = this.skillDirectories != null ? new ArrayList<>(this.skillDirectories) : null;
+        copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
+        copy.infiniteSessions = this.infiniteSessions;
+        return copy;
     }
 }
