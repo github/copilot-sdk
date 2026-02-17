@@ -34,6 +34,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -47,6 +48,11 @@ import (
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
 	"github.com/github/copilot-sdk/go/rpc"
 )
+
+// readAll reads all data from r until EOF or error, returning the data read.
+func readAll(r io.Reader) ([]byte, error) {
+	return io.ReadAll(r)
+}
 
 // Client manages the connection to the Copilot CLI server and provides session management.
 //
@@ -1092,22 +1098,35 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 			return fmt.Errorf("failed to create stdout pipe: %w", err)
 		}
 
-		// Capture stderr directly to buffer (not via pipe, which gets closed on Wait())
-		c.process.Stderr = &c.stderrBuf
+		stderr, err := c.process.StderrPipe()
+		if err != nil {
+			return fmt.Errorf("failed to create stderr pipe: %w", err)
+		}
 
 		if err := c.process.Start(); err != nil {
 			return fmt.Errorf("failed to start CLI server: %w", err)
 		}
 
+		// Read stderr in background - reads until EOF (process exit) then signals completion
+		stderrDone := make(chan struct{})
+		go func() {
+			// ReadAll reads until EOF, which happens when process terminates
+			data, _ := readAll(stderr)
+			c.stderrBuf.Write(data)
+			close(stderrDone)
+		}()
+
 		// Monitor process exit to signal pending requests
 		c.processDone = make(chan struct{})
 		go func() {
-			err := c.process.Wait()
+			waitErr := c.process.Wait()
+			// Wait for stderr reader to finish before accessing buffer
+			<-stderrDone
 			stderrOutput := strings.TrimSpace(c.stderrBuf.String())
 			if stderrOutput != "" {
-				c.processError = fmt.Errorf("CLI process exited: %v\nstderr: %s", err, stderrOutput)
-			} else if err != nil {
-				c.processError = fmt.Errorf("CLI process exited: %v", err)
+				c.processError = fmt.Errorf("CLI process exited: %v\nstderr: %s", waitErr, stderrOutput)
+			} else if waitErr != nil {
+				c.processError = fmt.Errorf("CLI process exited: %v", waitErr)
 			} else {
 				c.processError = fmt.Errorf("CLI process exited unexpectedly")
 			}
