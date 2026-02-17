@@ -519,6 +519,7 @@ class CopilotClient:
         mcp_servers = cfg.get("mcp_servers")
         if mcp_servers:
             payload["mcpServers"] = mcp_servers
+        payload["envValueMode"] = "direct"
 
         # Add custom agents configuration if provided
         custom_agents = cfg.get("custom_agents")
@@ -695,6 +696,7 @@ class CopilotClient:
         mcp_servers = cfg.get("mcp_servers")
         if mcp_servers:
             payload["mcpServers"] = mcp_servers
+        payload["envValueMode"] = "direct"
 
         # Add custom agents configuration if provided
         custom_agents = cfg.get("custom_agents")

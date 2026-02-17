@@ -464,6 +464,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		req.Provider = config.Provider
 		req.WorkingDirectory = config.WorkingDirectory
 		req.MCPServers = config.MCPServers
+		req.EnvValueMode = "direct"
 		req.CustomAgents = config.CustomAgents
 		req.SkillDirectories = config.SkillDirectories
 		req.DisabledSkills = config.DisabledSkills
@@ -581,6 +582,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 			req.DisableResume = Bool(true)
 		}
 		req.MCPServers = config.MCPServers
+		req.EnvValueMode = "direct"
 		req.CustomAgents = config.CustomAgents
 		req.SkillDirectories = config.SkillDirectories
 		req.DisabledSkills = config.DisabledSkills

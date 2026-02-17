@@ -2,9 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import { dirname, resolve } from "path";
+import { fileURLToPath } from "url";
 import { describe, expect, it } from "vitest";
 import type { CustomAgentConfig, MCPLocalServerConfig, MCPServerConfig } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const TEST_MCP_SERVER = resolve(__dirname, "../../../test/harness/test-mcp-server.mjs");
 
 describe("MCP Servers and Custom Agents", async () => {
     const { copilotClient: client } = await createSdkTestContext();
@@ -86,6 +92,31 @@ describe("MCP Servers and Custom Agents", async () => {
             });
 
             expect(session.sessionId).toBeDefined();
+            await session.destroy();
+        });
+
+        it("should pass literal env values to MCP server subprocess", async () => {
+            const mcpServers: Record<string, MCPServerConfig> = {
+                "env-echo": {
+                    type: "local",
+                    command: "node",
+                    args: [TEST_MCP_SERVER],
+                    tools: ["*"],
+                    env: { TEST_SECRET: "hunter2" },
+                } as MCPLocalServerConfig,
+            };
+
+            const session = await client.createSession({
+                mcpServers,
+            });
+
+            expect(session.sessionId).toBeDefined();
+
+            const message = await session.sendAndWait({
+                prompt: "Use the env-echo/get_env tool to read the TEST_SECRET environment variable. Reply with just the value, nothing else.",
+            });
+            expect(message?.data.content).toContain("hunter2");
+
             await session.destroy();
         });
     });

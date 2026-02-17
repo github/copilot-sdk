@@ -12,6 +12,7 @@
   },
   "devDependencies": {
     "@github/copilot": "^0.0.409",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "@types/node": "^25.2.0",
     "openai": "^6.17.0",
     "tsx": "^4.21.0",

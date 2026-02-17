@@ -261,6 +261,41 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task Should_Pass_Literal_Env_Values_To_Mcp_Server_Subprocess()
+    {
+        var testHarnessDir = FindTestHarnessDir();
+        var mcpServers = new Dictionary<string, object>
+        {
+            ["env-echo"] = new McpLocalServerConfig
+            {
+                Type = "local",
+                Command = "node",
+                Args = [Path.Combine(testHarnessDir, "test-mcp-server.mjs")],
+                Env = new Dictionary<string, string> { ["TEST_SECRET"] = "hunter2" },
+                Cwd = testHarnessDir,
+                Tools = ["*"]
+            }
+        };
+
+        var session = await Client.CreateSessionAsync(new SessionConfig
+        {
+            McpServers = mcpServers
+        });
+
+        Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
+
+        var message = await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Use the env-echo/get_env tool to read the TEST_SECRET environment variable. Reply with just the value, nothing else."
+        });
+
+        Assert.NotNull(message);
+        Assert.Contains("hunter2", message!.Data.Content);
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Should_Accept_Both_MCP_Servers_And_Custom_Agents()
     {
         var mcpServers = new Dictionary<string, object>
@@ -300,5 +335,18 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
         Assert.Contains("14", message!.Data.Content);
 
         await session.DisposeAsync();
+    }
+
+    private static string FindTestHarnessDir()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null)
+        {
+            var candidate = Path.Combine(dir.FullName, "test", "harness", "test-mcp-server.mjs");
+            if (File.Exists(candidate))
+                return Path.GetDirectoryName(candidate)!;
+            dir = dir.Parent;
+        }
+        throw new InvalidOperationException("Could not find test/harness/test-mcp-server.mjs");
     }
 }

@@ -638,6 +638,7 @@ type createSessionRequest struct {
 	WorkingDirectory  string                     `json:"workingDirectory,omitempty"`
 	Streaming         *bool                      `json:"streaming,omitempty"`
 	MCPServers        map[string]MCPServerConfig `json:"mcpServers,omitempty"`
+	EnvValueMode      string                     `json:"envValueMode,omitempty"`
 	CustomAgents      []CustomAgentConfig        `json:"customAgents,omitempty"`
 	ConfigDir         string                     `json:"configDir,omitempty"`
 	SkillDirectories  []string                   `json:"skillDirectories,omitempty"`
@@ -669,6 +670,7 @@ type resumeSessionRequest struct {
 	DisableResume     *bool                      `json:"disableResume,omitempty"`
 	Streaming         *bool                      `json:"streaming,omitempty"`
 	MCPServers        map[string]MCPServerConfig `json:"mcpServers,omitempty"`
+	EnvValueMode      string                     `json:"envValueMode,omitempty"`
 	CustomAgents      []CustomAgentConfig        `json:"customAgents,omitempty"`
 	SkillDirectories  []string                   `json:"skillDirectories,omitempty"`
 	DisabledSkills    []string                   `json:"disabledSkills,omitempty"`

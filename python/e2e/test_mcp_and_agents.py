@@ -2,11 +2,18 @@
 Tests for MCP servers and custom agents functionality
 """
 
+from pathlib import Path
+
 import pytest
 
 from copilot import CustomAgentConfig, MCPServerConfig
 
 from .testharness import E2ETestContext, get_final_assistant_message
+
+TEST_MCP_SERVER = str(
+    (Path(__file__).parents[2] / "test" / "harness" / "test-mcp-server.mjs").resolve()
+)
+TEST_HARNESS_DIR = str((Path(__file__).parents[2] / "test" / "harness").resolve())
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -64,6 +71,36 @@ class TestMCPServers:
         assert "6" in message.data.content
 
         await session2.destroy()
+
+    async def test_should_pass_literal_env_values_to_mcp_server_subprocess(
+        self, ctx: E2ETestContext
+    ):
+        """Test that env values are passed as literals to MCP server subprocess"""
+        mcp_servers: dict[str, MCPServerConfig] = {
+            "env-echo": {
+                "type": "local",
+                "command": "node",
+                "args": [TEST_MCP_SERVER],
+                "tools": ["*"],
+                "env": {"TEST_SECRET": "hunter2"},
+                "cwd": TEST_HARNESS_DIR,
+            }
+        }
+
+        session = await ctx.client.create_session({"mcp_servers": mcp_servers})
+
+        assert session.session_id is not None
+
+        message = await session.send_and_wait(
+            {
+                "prompt": "Use the env-echo/get_env tool to read the TEST_SECRET "
+                "environment variable. Reply with just the value, nothing else."
+            }
+        )
+        assert message is not None
+        assert "hunter2" in message.data.content
+
+        await session.destroy()
 
 
 class TestCustomAgents:
