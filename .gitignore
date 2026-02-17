@@ -1,6 +1,3 @@
 
 # Documentation validation output
 docs/.validation/
-
-# Go sample binaries
-go/samples/*.exe
