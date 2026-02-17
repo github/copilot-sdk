@@ -132,6 +132,87 @@ type SessionModelSwitchToParams struct {
 	ModelID string `json:"modelId"`
 }
 
+type SessionModeGetResult struct {
+	// The current agent mode.
+	Mode Mode `json:"mode"`
+}
+
+type SessionModeSetResult struct {
+	// The agent mode after switching.
+	Mode Mode `json:"mode"`
+}
+
+type SessionModeSetParams struct {
+	// The mode to switch to. Valid values: "interactive", "plan", "autopilot".
+	Mode Mode `json:"mode"`
+}
+
+type SessionPlanReadResult struct {
+	// The content of plan.md, or null if it does not exist
+	Content *string `json:"content"`
+	// Whether plan.md exists in the workspace
+	Exists bool `json:"exists"`
+}
+
+type SessionPlanUpdateResult struct {
+}
+
+type SessionPlanUpdateParams struct {
+	// The new content for plan.md
+	Content string `json:"content"`
+}
+
+type SessionPlanDeleteResult struct {
+}
+
+type SessionWorkspaceListFilesResult struct {
+	// Relative file paths in the workspace files directory
+	Files []string `json:"files"`
+}
+
+type SessionWorkspaceReadFileResult struct {
+	// File content as a UTF-8 string
+	Content string `json:"content"`
+}
+
+type SessionWorkspaceReadFileParams struct {
+	// Relative path within the workspace files directory
+	Path string `json:"path"`
+}
+
+type SessionWorkspaceCreateFileResult struct {
+}
+
+type SessionWorkspaceCreateFileParams struct {
+	// File content to write as a UTF-8 string
+	Content string `json:"content"`
+	// Relative path within the workspace files directory
+	Path string `json:"path"`
+}
+
+type SessionFleetStartResult struct {
+	// Whether fleet mode was successfully activated
+	Started bool `json:"started"`
+}
+
+type SessionFleetStartParams struct {
+	// Optional user prompt to combine with fleet instructions
+	Prompt *string `json:"prompt,omitempty"`
+}
+
+// The current agent mode.
+//
+// The agent mode after switching.
+//
+// The mode to switch to. Valid values: "interactive", "plan", "autopilot".
+type Mode string
+
+const (
+	Autopilot   Mode = "autopilot"
+	Interactive Mode = "interactive"
+	Plan        Mode = "plan"
+)
+
 type ModelsRpcApi struct{ client *jsonrpc2.Client }
 
 func (a *ModelsRpcApi) List(ctx context.Context) (*ModelsListResult, error) {
@@ -236,15 +317,178 @@ func (a *ModelRpcApi) SwitchTo(ctx context.Context, params *SessionModelSwitchTo
 	return &result, nil
 }
 
+type ModeRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
+
+func (a *ModeRpcApi) Get(ctx context.Context) (*SessionModeGetResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.mode.get", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionModeGetResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *ModeRpcApi) Set(ctx context.Context, params *SessionModeSetParams) (*SessionModeSetResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["mode"] = params.Mode
+	}
+	raw, err := a.client.Request("session.mode.set", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionModeSetResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+type PlanRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
+
+func (a *PlanRpcApi) Read(ctx context.Context) (*SessionPlanReadResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.plan.read", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionPlanReadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *PlanRpcApi) Update(ctx context.Context, params *SessionPlanUpdateParams) (*SessionPlanUpdateResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["content"] = params.Content
+	}
+	raw, err := a.client.Request("session.plan.update", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionPlanUpdateResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *PlanRpcApi) Delete(ctx context.Context) (*SessionPlanDeleteResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.plan.delete", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionPlanDeleteResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+type WorkspaceRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
+
+func (a *WorkspaceRpcApi) ListFiles(ctx context.Context) (*SessionWorkspaceListFilesResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.workspace.listFiles", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionWorkspaceListFilesResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *WorkspaceRpcApi) ReadFile(ctx context.Context, params *SessionWorkspaceReadFileParams) (*SessionWorkspaceReadFileResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["path"] = params.Path
+	}
+	raw, err := a.client.Request("session.workspace.readFile", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionWorkspaceReadFileResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *WorkspaceRpcApi) CreateFile(ctx context.Context, params *SessionWorkspaceCreateFileParams) (*SessionWorkspaceCreateFileResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["path"] = params.Path
+		req["content"] = params.Content
+	}
+	raw, err := a.client.Request("session.workspace.createFile", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionWorkspaceCreateFileResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+type FleetRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
+
+func (a *FleetRpcApi) Start(ctx context.Context, params *SessionFleetStartParams) (*SessionFleetStartResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Prompt != nil {
+			req["prompt"] = *params.Prompt
+		}
+	}
+	raw, err := a.client.Request("session.fleet.start", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionFleetStartResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // SessionRpc provides typed session-scoped RPC methods.
 type SessionRpc struct {
 	client    *jsonrpc2.Client
 	sessionID string
 	Model     *ModelRpcApi
+	Mode      *ModeRpcApi
+	Plan      *PlanRpcApi
+	Workspace *WorkspaceRpcApi
+	Fleet     *FleetRpcApi
 }
 
 func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 	return &SessionRpc{client: client, sessionID: sessionID,
-		Model: &ModelRpcApi{client: client, sessionID: sessionID},
+		Model:     &ModelRpcApi{client: client, sessionID: sessionID},
+		Mode:      &ModeRpcApi{client: client, sessionID: sessionID},
+		Plan:      &PlanRpcApi{client: client, sessionID: sessionID},
+		Workspace: &WorkspaceRpcApi{client: client, sessionID: sessionID},
+		Fleet:     &FleetRpcApi{client: client, sessionID: sessionID},
 	}
 }

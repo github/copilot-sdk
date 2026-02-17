@@ -11,9 +11,11 @@ if TYPE_CHECKING:
 
 from dataclasses import dataclass
 from typing import Any, Optional, List, Dict, TypeVar, Type, cast, Callable
+from enum import Enum
 
 
 T = TypeVar("T")
+EnumT = TypeVar("EnumT", bound=Enum)
 
 
 def from_str(x: Any) -> str:
@@ -63,6 +65,11 @@ def from_list(f: Callable[[Any], T], x: Any) -> List[T]:
 def from_dict(f: Callable[[Any], T], x: Any) -> Dict[str, T]:
     assert isinstance(x, dict)
     return { k: f(v) for (k, v) in x.items() }
+
+
+def to_enum(c: Type[EnumT], x: Any) -> EnumT:
+    assert isinstance(x, c)
+    return x.value
 
 
 @dataclass
@@ -471,6 +478,252 @@ class SessionModelSwitchToParams:
         return result
 
 
+class Mode(Enum):
+    """The current agent mode.
+    
+    The agent mode after switching.
+    
+    The mode to switch to. Valid values: "interactive", "plan", "autopilot".
+    """
+    AUTOPILOT = "autopilot"
+    INTERACTIVE = "interactive"
+    PLAN = "plan"
+
+
+@dataclass
+class SessionModeGetResult:
+    mode: Mode
+    """The current agent mode."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionModeGetResult':
+        assert isinstance(obj, dict)
+        mode = Mode(obj.get("mode"))
+        return SessionModeGetResult(mode)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["mode"] = to_enum(Mode, self.mode)
+        return result
+
+
+@dataclass
+class SessionModeSetResult:
+    mode: Mode
+    """The agent mode after switching."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionModeSetResult':
+        assert isinstance(obj, dict)
+        mode = Mode(obj.get("mode"))
+        return SessionModeSetResult(mode)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["mode"] = to_enum(Mode, self.mode)
+        return result
+
+
+@dataclass
+class SessionModeSetParams:
+    mode: Mode
+    """The mode to switch to. Valid values: "interactive", "plan", "autopilot"."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionModeSetParams':
+        assert isinstance(obj, dict)
+        mode = Mode(obj.get("mode"))
+        return SessionModeSetParams(mode)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["mode"] = to_enum(Mode, self.mode)
+        return result
+
+
+@dataclass
+class SessionPlanReadResult:
+    exists: bool
+    """Whether plan.md exists in the workspace"""
+
+    content: Optional[str] = None
+    """The content of plan.md, or null if it does not exist"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionPlanReadResult':
+        assert isinstance(obj, dict)
+        exists = from_bool(obj.get("exists"))
+        content = from_union([from_none, from_str], obj.get("content"))
+        return SessionPlanReadResult(exists, content)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["exists"] = from_bool(self.exists)
+        result["content"] = from_union([from_none, from_str], self.content)
+        return result
+
+
+@dataclass
+class SessionPlanUpdateResult:
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionPlanUpdateResult':
+        assert isinstance(obj, dict)
+        return SessionPlanUpdateResult()
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        return result
+
+
+@dataclass
+class SessionPlanUpdateParams:
+    content: str
+    """The new content for plan.md"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionPlanUpdateParams':
+        assert isinstance(obj, dict)
+        content = from_str(obj.get("content"))
+        return SessionPlanUpdateParams(content)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["content"] = from_str(self.content)
+        return result
+
+
+@dataclass
+class SessionPlanDeleteResult:
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionPlanDeleteResult':
+        assert isinstance(obj, dict)
+        return SessionPlanDeleteResult()
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        return result
+
+
+@dataclass
+class SessionWorkspaceListFilesResult:
+    files: List[str]
+    """Relative file paths in the workspace files directory"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionWorkspaceListFilesResult':
+        assert isinstance(obj, dict)
+        files = from_list(from_str, obj.get("files"))
+        return SessionWorkspaceListFilesResult(files)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["files"] = from_list(from_str, self.files)
+        return result
+
+
+@dataclass
+class SessionWorkspaceReadFileResult:
+    content: str
+    """File content as a UTF-8 string"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionWorkspaceReadFileResult':
+        assert isinstance(obj, dict)
+        content = from_str(obj.get("content"))
+        return SessionWorkspaceReadFileResult(content)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["content"] = from_str(self.content)
+        return result
+
+
+@dataclass
+class SessionWorkspaceReadFileParams:
+    path: str
+    """Relative path within the workspace files directory"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionWorkspaceReadFileParams':
+        assert isinstance(obj, dict)
+        path = from_str(obj.get("path"))
+        return SessionWorkspaceReadFileParams(path)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["path"] = from_str(self.path)
+        return result
+
+
+@dataclass
+class SessionWorkspaceCreateFileResult:
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionWorkspaceCreateFileResult':
+        assert isinstance(obj, dict)
+        return SessionWorkspaceCreateFileResult()
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        return result
+
+
+@dataclass
+class SessionWorkspaceCreateFileParams:
+    content: str
+    """File content to write as a UTF-8 string"""
+
+    path: str
+    """Relative path within the workspace files directory"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionWorkspaceCreateFileParams':
+        assert isinstance(obj, dict)
+        content = from_str(obj.get("content"))
+        path = from_str(obj.get("path"))
+        return SessionWorkspaceCreateFileParams(content, path)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["content"] = from_str(self.content)
+        result["path"] = from_str(self.path)
+        return result
+
+
+@dataclass
+class SessionFleetStartResult:
+    started: bool
+    """Whether fleet mode was successfully activated"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFleetStartResult':
+        assert isinstance(obj, dict)
+        started = from_bool(obj.get("started"))
+        return SessionFleetStartResult(started)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["started"] = from_bool(self.started)
+        return result
+
+
+@dataclass
+class SessionFleetStartParams:
+    prompt: Optional[str] = None
+    """Optional user prompt to combine with fleet instructions"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFleetStartParams':
+        assert isinstance(obj, dict)
+        prompt = from_union([from_str, from_none], obj.get("prompt"))
+        return SessionFleetStartParams(prompt)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.prompt is not None:
+            result["prompt"] = from_union([from_str, from_none], self.prompt)
+        return result
+
+
 def ping_result_from_dict(s: Any) -> PingResult:
     return PingResult.from_dict(s)
 
@@ -543,6 +796,118 @@ def session_model_switch_to_params_to_dict(x: SessionModelSwitchToParams) -> Any
     return to_class(SessionModelSwitchToParams, x)
 
 
+def session_mode_get_result_from_dict(s: Any) -> SessionModeGetResult:
+    return SessionModeGetResult.from_dict(s)
+
+
+def session_mode_get_result_to_dict(x: SessionModeGetResult) -> Any:
+    return to_class(SessionModeGetResult, x)
+
+
+def session_mode_set_result_from_dict(s: Any) -> SessionModeSetResult:
+    return SessionModeSetResult.from_dict(s)
+
+
+def session_mode_set_result_to_dict(x: SessionModeSetResult) -> Any:
+    return to_class(SessionModeSetResult, x)
+
+
+def session_mode_set_params_from_dict(s: Any) -> SessionModeSetParams:
+    return SessionModeSetParams.from_dict(s)
+
+
+def session_mode_set_params_to_dict(x: SessionModeSetParams) -> Any:
+    return to_class(SessionModeSetParams, x)
+
+
+def session_plan_read_result_from_dict(s: Any) -> SessionPlanReadResult:
+    return SessionPlanReadResult.from_dict(s)
+
+
+def session_plan_read_result_to_dict(x: SessionPlanReadResult) -> Any:
+    return to_class(SessionPlanReadResult, x)
+
+
+def session_plan_update_result_from_dict(s: Any) -> SessionPlanUpdateResult:
+    return SessionPlanUpdateResult.from_dict(s)
+
+
+def session_plan_update_result_to_dict(x: SessionPlanUpdateResult) -> Any:
+    return to_class(SessionPlanUpdateResult, x)
+
+
+def session_plan_update_params_from_dict(s: Any) -> SessionPlanUpdateParams:
+    return SessionPlanUpdateParams.from_dict(s)
+
+
+def session_plan_update_params_to_dict(x: SessionPlanUpdateParams) -> Any:
+    return to_class(SessionPlanUpdateParams, x)
+
+
+def session_plan_delete_result_from_dict(s: Any) -> SessionPlanDeleteResult:
+    return SessionPlanDeleteResult.from_dict(s)
+
+
+def session_plan_delete_result_to_dict(x: SessionPlanDeleteResult) -> Any:
+    return to_class(SessionPlanDeleteResult, x)
+
+
+def session_workspace_list_files_result_from_dict(s: Any) -> SessionWorkspaceListFilesResult:
+    return SessionWorkspaceListFilesResult.from_dict(s)
+
+
+def session_workspace_list_files_result_to_dict(x: SessionWorkspaceListFilesResult) -> Any:
+    return to_class(SessionWorkspaceListFilesResult, x)
+
+
+def session_workspace_read_file_result_from_dict(s: Any) -> SessionWorkspaceReadFileResult:
+    return SessionWorkspaceReadFileResult.from_dict(s)
+
+
+def session_workspace_read_file_result_to_dict(x: SessionWorkspaceReadFileResult) -> Any:
+    return to_class(SessionWorkspaceReadFileResult, x)
+
+
+def session_workspace_read_file_params_from_dict(s: Any) -> SessionWorkspaceReadFileParams:
+    return SessionWorkspaceReadFileParams.from_dict(s)
+
+
+def session_workspace_read_file_params_to_dict(x: SessionWorkspaceReadFileParams) -> Any:
+    return to_class(SessionWorkspaceReadFileParams, x)
+
+
+def session_workspace_create_file_result_from_dict(s: Any) -> SessionWorkspaceCreateFileResult:
+    return SessionWorkspaceCreateFileResult.from_dict(s)
+
+
+def session_workspace_create_file_result_to_dict(x: SessionWorkspaceCreateFileResult) -> Any:
+    return to_class(SessionWorkspaceCreateFileResult, x)
+
+
+def session_workspace_create_file_params_from_dict(s: Any) -> SessionWorkspaceCreateFileParams:
+    return SessionWorkspaceCreateFileParams.from_dict(s)
+
+
+def session_workspace_create_file_params_to_dict(x: SessionWorkspaceCreateFileParams) -> Any:
+    return to_class(SessionWorkspaceCreateFileParams, x)
+
+
+def session_fleet_start_result_from_dict(s: Any) -> SessionFleetStartResult:
+    return SessionFleetStartResult.from_dict(s)
+
+
+def session_fleet_start_result_to_dict(x: SessionFleetStartResult) -> Any:
+    return to_class(SessionFleetStartResult, x)
+
+
+def session_fleet_start_params_from_dict(s: Any) -> SessionFleetStartParams:
+    return SessionFleetStartParams.from_dict(s)
+
+
+def session_fleet_start_params_to_dict(x: SessionFleetStartParams) -> Any:
+    return to_class(SessionFleetStartParams, x)
+
+
 class ModelsApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
@@ -595,10 +960,75 @@ class ModelApi:
         return SessionModelSwitchToResult.from_dict(await self._client.request("session.model.switchTo", params_dict))
 
 
+class ModeApi:
+    def __init__(self, client: "JsonRpcClient", session_id: str):
+        self._client = client
+        self._session_id = session_id
+
+    async def get(self) -> SessionModeGetResult:
+        return SessionModeGetResult.from_dict(await self._client.request("session.mode.get", {"sessionId": self._session_id}))
+
+    async def set(self, params: SessionModeSetParams) -> SessionModeSetResult:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return SessionModeSetResult.from_dict(await self._client.request("session.mode.set", params_dict))
+
+
+class PlanApi:
+    def __init__(self, client: "JsonRpcClient", session_id: str):
+        self._client = client
+        self._session_id = session_id
+
+    async def read(self) -> SessionPlanReadResult:
+        return SessionPlanReadResult.from_dict(await self._client.request("session.plan.read", {"sessionId": self._session_id}))
+
+    async def update(self, params: SessionPlanUpdateParams) -> SessionPlanUpdateResult:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return SessionPlanUpdateResult.from_dict(await self._client.request("session.plan.update", params_dict))
+
+    async def delete(self) -> SessionPlanDeleteResult:
+        return SessionPlanDeleteResult.from_dict(await self._client.request("session.plan.delete", {"sessionId": self._session_id}))
+
+
+class WorkspaceApi:
+    def __init__(self, client: "JsonRpcClient", session_id: str):
+        self._client = client
+        self._session_id = session_id
+
+    async def list_files(self) -> SessionWorkspaceListFilesResult:
+        return SessionWorkspaceListFilesResult.from_dict(await self._client.request("session.workspace.listFiles", {"sessionId": self._session_id}))
+
+    async def read_file(self, params: SessionWorkspaceReadFileParams) -> SessionWorkspaceReadFileResult:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return SessionWorkspaceReadFileResult.from_dict(await self._client.request("session.workspace.readFile", params_dict))
+
+    async def create_file(self, params: SessionWorkspaceCreateFileParams) -> SessionWorkspaceCreateFileResult:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return SessionWorkspaceCreateFileResult.from_dict(await self._client.request("session.workspace.createFile", params_dict))
+
+
+class FleetApi:
+    def __init__(self, client: "JsonRpcClient", session_id: str):
+        self._client = client
+        self._session_id = session_id
+
+    async def start(self, params: SessionFleetStartParams) -> SessionFleetStartResult:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return SessionFleetStartResult.from_dict(await self._client.request("session.fleet.start", params_dict))
+
+
 class SessionRpc:
     """Typed session-scoped RPC methods."""
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
         self._session_id = session_id
         self.model = ModelApi(client, session_id)
+        self.mode = ModeApi(client, session_id)
+        self.plan = PlanApi(client, session_id)
+        self.workspace = WorkspaceApi(client, session_id)
+        self.fleet = FleetApi(client, session_id)
 

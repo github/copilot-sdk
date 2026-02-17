@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"strings"
 	"testing"
 
 	copilot "github.com/github/copilot-sdk/go"
@@ -185,4 +186,185 @@ func TestSessionRpc(t *testing.T) {
 			t.Errorf("Expected modelId 'gpt-4.1' after switch, got %v", after.ModelID)
 		}
 	})
+
+	t.Run("should get and set session mode", func(t *testing.T) {
+		session, err := client.CreateSession(t.Context(), nil)
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		// Get initial mode (default should be interactive)
+		initial, err := session.RPC.Mode.Get(t.Context())
+		if err != nil {
+			t.Fatalf("Failed to get mode: %v", err)
+		}
+		if initial.Mode != rpc.Interactive {
+			t.Errorf("Expected initial mode 'interactive', got %q", initial.Mode)
+		}
+
+		// Switch to plan mode
+		planResult, err := session.RPC.Mode.Set(t.Context(), &rpc.SessionModeSetParams{Mode: rpc.Plan})
+		if err != nil {
+			t.Fatalf("Failed to set mode to plan: %v", err)
+		}
+		if planResult.Mode != rpc.Plan {
+			t.Errorf("Expected mode 'plan', got %q", planResult.Mode)
+		}
+
+		// Verify mode persisted
+		afterPlan, err := session.RPC.Mode.Get(t.Context())
+		if err != nil {
+			t.Fatalf("Failed to get mode after plan: %v", err)
+		}
+		if afterPlan.Mode != rpc.Plan {
+			t.Errorf("Expected mode 'plan' after set, got %q", afterPlan.Mode)
+		}
+
+		// Switch back to interactive
+		interactiveResult, err := session.RPC.Mode.Set(t.Context(), &rpc.SessionModeSetParams{Mode: rpc.Interactive})
+		if err != nil {
+			t.Fatalf("Failed to set mode to interactive: %v", err)
+		}
+		if interactiveResult.Mode != rpc.Interactive {
+			t.Errorf("Expected mode 'interactive', got %q", interactiveResult.Mode)
+		}
+	})
+
+	t.Run("should read, update, and delete plan", func(t *testing.T) {
+		session, err := client.CreateSession(t.Context(), nil)
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		// Initially plan should not exist
+		initial, err := session.RPC.Plan.Read(t.Context())
+		if err != nil {
+			t.Fatalf("Failed to read plan: %v", err)
+		}
+		if initial.Exists {
+			t.Error("Expected plan to not exist initially")
+		}
+		if initial.Content != nil {
+			t.Error("Expected content to be nil initially")
+		}
+
+		// Create/update plan
+		planContent := "# Test Plan\n\n- Step 1\n- Step 2"
+		_, err = session.RPC.Plan.Update(t.Context(), &rpc.SessionPlanUpdateParams{Content: planContent})
+		if err != nil {
+			t.Fatalf("Failed to update plan: %v", err)
+		}
+
+		// Verify plan exists and has correct content
+		afterUpdate, err := session.RPC.Plan.Read(t.Context())
+		if err != nil {
+			t.Fatalf("Failed to read plan after update: %v", err)
+		}
+		if !afterUpdate.Exists {
+			t.Error("Expected plan to exist after update")
+		}
+		if afterUpdate.Content == nil || *afterUpdate.Content != planContent {
+			t.Errorf("Expected content %q, got %v", planContent, afterUpdate.Content)
+		}
+
+		// Delete plan
+		_, err = session.RPC.Plan.Delete(t.Context())
+		if err != nil {
+			t.Fatalf("Failed to delete plan: %v", err)
+		}
+
+		// Verify plan is deleted
+		afterDelete, err := session.RPC.Plan.Read(t.Context())
+		if err != nil {
+			t.Fatalf("Failed to read plan after delete: %v", err)
+		}
+		if afterDelete.Exists {
+			t.Error("Expected plan to not exist after delete")
+		}
+		if afterDelete.Content != nil {
+			t.Error("Expected content to be nil after delete")
+		}
+	})
+
+	t.Run("should create, list, and read workspace files", func(t *testing.T) {
+		session, err := client.CreateSession(t.Context(), nil)
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		// Initially no files
+		initialFiles, err := session.RPC.Workspace.ListFiles(t.Context())
+		if err != nil {
+			t.Fatalf("Failed to list files: %v", err)
+		}
+		if len(initialFiles.Files) != 0 {
+			t.Errorf("Expected no files initially, got %v", initialFiles.Files)
+		}
+
+		// Create a file
+		fileContent := "Hello, workspace!"
+		_, err = session.RPC.Workspace.CreateFile(t.Context(), &rpc.SessionWorkspaceCreateFileParams{
+			Path:    "test.txt",
+			Content: fileContent,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create file: %v", err)
+		}
+
+		// List files
+		afterCreate, err := session.RPC.Workspace.ListFiles(t.Context())
+		if err != nil {
+			t.Fatalf("Failed to list files after create: %v", err)
+		}
+		if !containsString(afterCreate.Files, "test.txt") {
+			t.Errorf("Expected files to contain 'test.txt', got %v", afterCreate.Files)
+		}
+
+		// Read file
+		readResult, err := session.RPC.Workspace.ReadFile(t.Context(), &rpc.SessionWorkspaceReadFileParams{
+			Path: "test.txt",
+		})
+		if err != nil {
+			t.Fatalf("Failed to read file: %v", err)
+		}
+		if readResult.Content != fileContent {
+			t.Errorf("Expected content %q, got %q", fileContent, readResult.Content)
+		}
+
+		// Create nested file
+		_, err = session.RPC.Workspace.CreateFile(t.Context(), &rpc.SessionWorkspaceCreateFileParams{
+			Path:    "subdir/nested.txt",
+			Content: "Nested content",
+		})
+		if err != nil {
+			t.Fatalf("Failed to create nested file: %v", err)
+		}
+
+		afterNested, err := session.RPC.Workspace.ListFiles(t.Context())
+		if err != nil {
+			t.Fatalf("Failed to list files after nested: %v", err)
+		}
+		if !containsString(afterNested.Files, "test.txt") {
+			t.Errorf("Expected files to contain 'test.txt', got %v", afterNested.Files)
+		}
+		hasNested := false
+		for _, f := range afterNested.Files {
+			if strings.Contains(f, "nested.txt") {
+				hasNested = true
+				break
+			}
+		}
+		if !hasNested {
+			t.Errorf("Expected files to contain 'nested.txt', got %v", afterNested.Files)
+		}
+	})
+}
+
+func containsString(slice []string, str string) bool {
+	for _, s := range slice {
+		if s == str {
+			return true
+		}
+	}
+	return false
 }

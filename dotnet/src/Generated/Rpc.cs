@@ -216,6 +216,148 @@ internal class SwitchToRequest
     public string ModelId { get; set; } = string.Empty;
 }
 
+public class SessionModeGetResult
+{
+    /// <summary>The current agent mode.</summary>
+    [JsonPropertyName("mode")]
+    public SessionModeGetResultMode Mode { get; set; }
+}
+
+internal class GetRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+public class SessionModeSetResult
+{
+    /// <summary>The agent mode after switching.</summary>
+    [JsonPropertyName("mode")]
+    public SessionModeGetResultMode Mode { get; set; }
+}
+
+internal class SetRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    [JsonPropertyName("mode")]
+    public SessionModeGetResultMode Mode { get; set; }
+}
+
+public class SessionPlanReadResult
+{
+    /// <summary>Whether plan.md exists in the workspace</summary>
+    [JsonPropertyName("exists")]
+    public bool Exists { get; set; }
+
+    /// <summary>The content of plan.md, or null if it does not exist</summary>
+    [JsonPropertyName("content")]
+    public string? Content { get; set; }
+}
+
+internal class ReadRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+public class SessionPlanUpdateResult
+{
+}
+
+internal class UpdateRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+}
+
+public class SessionPlanDeleteResult
+{
+}
+
+internal class DeleteRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+public class SessionWorkspaceListFilesResult
+{
+    /// <summary>Relative file paths in the workspace files directory</summary>
+    [JsonPropertyName("files")]
+    public List<string> Files { get; set; } = new();
+}
+
+internal class ListFilesRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+public class SessionWorkspaceReadFileResult
+{
+    /// <summary>File content as a UTF-8 string</summary>
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+}
+
+internal class ReadFileRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+}
+
+public class SessionWorkspaceCreateFileResult
+{
+}
+
+internal class CreateFileRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+}
+
+public class SessionFleetStartResult
+{
+    /// <summary>Whether fleet mode was successfully activated</summary>
+    [JsonPropertyName("started")]
+    public bool Started { get; set; }
+}
+
+internal class StartRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    [JsonPropertyName("prompt")]
+    public string? Prompt { get; set; }
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<SessionModeGetResultMode>))]
+public enum SessionModeGetResultMode
+{
+    [JsonStringEnumMemberName("interactive")]
+    Interactive,
+    [JsonStringEnumMemberName("plan")]
+    Plan,
+    [JsonStringEnumMemberName("autopilot")]
+    Autopilot,
+}
+
+
 /// <summary>Typed server-scoped RPC methods (no session required).</summary>
 public class ServerRpc
 {
@@ -309,9 +451,21 @@ public class SessionRpc
         _rpc = rpc;
         _sessionId = sessionId;
         Model = new ModelApi(rpc, sessionId);
+        Mode = new ModeApi(rpc, sessionId);
+        Plan = new PlanApi(rpc, sessionId);
+        Workspace = new WorkspaceApi(rpc, sessionId);
+        Fleet = new FleetApi(rpc, sessionId);
     }
 
     public ModelApi Model { get; }
+
+    public ModeApi Mode { get; }
+
+    public PlanApi Plan { get; }
+
+    public WorkspaceApi Workspace { get; }
+
+    public FleetApi Fleet { get; }
 }
 
 public class ModelApi
@@ -340,13 +494,128 @@ public class ModelApi
     }
 }
 
+public class ModeApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal ModeApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.mode.get".</summary>
+    public async Task<SessionModeGetResult> GetAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new GetRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionModeGetResult>(_rpc, "session.mode.get", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.mode.set".</summary>
+    public async Task<SessionModeSetResult> SetAsync(SessionModeGetResultMode mode, CancellationToken cancellationToken = default)
+    {
+        var request = new SetRequest { SessionId = _sessionId, Mode = mode };
+        return await CopilotClient.InvokeRpcAsync<SessionModeSetResult>(_rpc, "session.mode.set", [request], cancellationToken);
+    }
+}
+
+public class PlanApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal PlanApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.plan.read".</summary>
+    public async Task<SessionPlanReadResult> ReadAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new ReadRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionPlanReadResult>(_rpc, "session.plan.read", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.plan.update".</summary>
+    public async Task<SessionPlanUpdateResult> UpdateAsync(string content, CancellationToken cancellationToken = default)
+    {
+        var request = new UpdateRequest { SessionId = _sessionId, Content = content };
+        return await CopilotClient.InvokeRpcAsync<SessionPlanUpdateResult>(_rpc, "session.plan.update", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.plan.delete".</summary>
+    public async Task<SessionPlanDeleteResult> DeleteAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new DeleteRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionPlanDeleteResult>(_rpc, "session.plan.delete", [request], cancellationToken);
+    }
+}
+
+public class WorkspaceApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal WorkspaceApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.workspace.listFiles".</summary>
+    public async Task<SessionWorkspaceListFilesResult> ListFilesAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new ListFilesRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionWorkspaceListFilesResult>(_rpc, "session.workspace.listFiles", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.workspace.readFile".</summary>
+    public async Task<SessionWorkspaceReadFileResult> ReadFileAsync(string path, CancellationToken cancellationToken = default)
+    {
+        var request = new ReadFileRequest { SessionId = _sessionId, Path = path };
+        return await CopilotClient.InvokeRpcAsync<SessionWorkspaceReadFileResult>(_rpc, "session.workspace.readFile", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.workspace.createFile".</summary>
+    public async Task<SessionWorkspaceCreateFileResult> CreateFileAsync(string path, string content, CancellationToken cancellationToken = default)
+    {
+        var request = new CreateFileRequest { SessionId = _sessionId, Path = path, Content = content };
+        return await CopilotClient.InvokeRpcAsync<SessionWorkspaceCreateFileResult>(_rpc, "session.workspace.createFile", [request], cancellationToken);
+    }
+}
+
+public class FleetApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal FleetApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.fleet.start".</summary>
+    public async Task<SessionFleetStartResult> StartAsync(string? prompt, CancellationToken cancellationToken = default)
+    {
+        var request = new StartRequest { SessionId = _sessionId, Prompt = prompt };
+        return await CopilotClient.InvokeRpcAsync<SessionFleetStartResult>(_rpc, "session.fleet.start", [request], cancellationToken);
+    }
+}
+
 [JsonSourceGenerationOptions(
     JsonSerializerDefaults.Web,
     AllowOutOfOrderMetadataProperties = true,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(AccountGetQuotaResult))]
 [JsonSerializable(typeof(AccountGetQuotaResultQuotaSnapshotsValue))]
+[JsonSerializable(typeof(CreateFileRequest))]
+[JsonSerializable(typeof(DeleteRequest))]
 [JsonSerializable(typeof(GetCurrentRequest))]
+[JsonSerializable(typeof(GetRequest))]
+[JsonSerializable(typeof(ListFilesRequest))]
 [JsonSerializable(typeof(ListRequest))]
 [JsonSerializable(typeof(Model))]
 [JsonSerializable(typeof(ModelBilling))]
@@ -357,9 +626,23 @@ public class ModelApi
 [JsonSerializable(typeof(ModelsListResult))]
 [JsonSerializable(typeof(PingRequest))]
 [JsonSerializable(typeof(PingResult))]
+[JsonSerializable(typeof(ReadFileRequest))]
+[JsonSerializable(typeof(ReadRequest))]
+[JsonSerializable(typeof(SessionFleetStartResult))]
+[JsonSerializable(typeof(SessionModeGetResult))]
+[JsonSerializable(typeof(SessionModeSetResult))]
 [JsonSerializable(typeof(SessionModelGetCurrentResult))]
 [JsonSerializable(typeof(SessionModelSwitchToResult))]
+[JsonSerializable(typeof(SessionPlanDeleteResult))]
+[JsonSerializable(typeof(SessionPlanReadResult))]
+[JsonSerializable(typeof(SessionPlanUpdateResult))]
+[JsonSerializable(typeof(SessionWorkspaceCreateFileResult))]
+[JsonSerializable(typeof(SessionWorkspaceListFilesResult))]
+[JsonSerializable(typeof(SessionWorkspaceReadFileResult))]
+[JsonSerializable(typeof(SetRequest))]
+[JsonSerializable(typeof(StartRequest))]
 [JsonSerializable(typeof(SwitchToRequest))]
 [JsonSerializable(typeof(Tool))]
 [JsonSerializable(typeof(ToolsListResult))]
+[JsonSerializable(typeof(UpdateRequest))]
 internal partial class RpcJsonContext : JsonSerializerContext;
