@@ -483,7 +483,7 @@ public class ResumeSessionConfig {
      * Mutable collection properties are copied into new collection instances so
      * that modifications to those collections on the clone do not affect the
      * original. Other reference-type properties (like provider configuration,
-     * system messages, hooks, infinite session configuration, and delegates) are
+     * system messages, hooks, infinite session configuration, and handlers) are
      * not deep-cloned; the original and the clone will share those objects.
      *
      * @return a clone of this config instance
