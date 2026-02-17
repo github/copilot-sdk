@@ -85,6 +85,13 @@ final class CliServerManager {
         var pb = new ProcessBuilder(command);
         pb.redirectErrorStream(false);
 
+        // Note: On Windows, console window visibility depends on how the parent Java
+        // process was launched. GUI applications started with 'javaw' will not create
+        // visible console windows for subprocesses. Console applications started with
+        // 'java' will share their console with subprocesses. Java's ProcessBuilder
+        // doesn't provide explicit CREATE_NO_WINDOW flags like native Windows APIs,
+        // but the default behavior is appropriate for most use cases.
+
         if (options.getCwd() != null) {
             pb.directory(new File(options.getCwd()));
         }

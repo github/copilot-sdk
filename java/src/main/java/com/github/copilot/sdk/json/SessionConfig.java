@@ -4,6 +4,7 @@
 
 package com.github.copilot.sdk.json;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -511,5 +512,41 @@ public class SessionConfig {
     public SessionConfig setConfigDir(String configDir) {
         this.configDir = configDir;
         return this;
+    }
+
+    /**
+     * Creates a shallow clone of this {@code SessionConfig} instance.
+     * <p>
+     * Mutable collection properties are copied into new collection instances so
+     * that modifications to those collections on the clone do not affect the
+     * original. Other reference-type properties (like provider configuration,
+     * system messages, hooks, infinite session configuration, and handlers) are not
+     * deep-cloned; the original and the clone will share those objects.
+     *
+     * @return a clone of this config instance
+     */
+    @Override
+    public SessionConfig clone() {
+        SessionConfig copy = new SessionConfig();
+        copy.sessionId = this.sessionId;
+        copy.model = this.model;
+        copy.reasoningEffort = this.reasoningEffort;
+        copy.tools = this.tools != null ? new ArrayList<>(this.tools) : null;
+        copy.systemMessage = this.systemMessage;
+        copy.availableTools = this.availableTools != null ? new ArrayList<>(this.availableTools) : null;
+        copy.excludedTools = this.excludedTools != null ? new ArrayList<>(this.excludedTools) : null;
+        copy.provider = this.provider;
+        copy.onPermissionRequest = this.onPermissionRequest;
+        copy.onUserInputRequest = this.onUserInputRequest;
+        copy.hooks = this.hooks;
+        copy.workingDirectory = this.workingDirectory;
+        copy.streaming = this.streaming;
+        copy.mcpServers = this.mcpServers != null ? new java.util.HashMap<>(this.mcpServers) : null;
+        copy.customAgents = this.customAgents != null ? new ArrayList<>(this.customAgents) : null;
+        copy.infiniteSessions = this.infiniteSessions;
+        copy.skillDirectories = this.skillDirectories != null ? new ArrayList<>(this.skillDirectories) : null;
+        copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
+        copy.configDir = this.configDir;
+        return copy;
     }
 }

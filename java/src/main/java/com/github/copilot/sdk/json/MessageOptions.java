@@ -4,6 +4,7 @@
 
 package com.github.copilot.sdk.json;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -105,6 +106,25 @@ public class MessageOptions {
      */
     public String getMode() {
         return mode;
+    }
+
+    /**
+     * Creates a shallow clone of this {@code MessageOptions} instance.
+     * <p>
+     * Mutable collection properties are copied into new collection instances so
+     * that modifications to those collections on the clone do not affect the
+     * original. Other reference-type properties (like attachment items) are not
+     * deep-cloned; the original and the clone will share those objects.
+     *
+     * @return a clone of this options instance
+     */
+    @Override
+    public MessageOptions clone() {
+        MessageOptions copy = new MessageOptions();
+        copy.prompt = this.prompt;
+        copy.attachments = this.attachments != null ? new ArrayList<>(this.attachments) : null;
+        copy.mode = this.mode;
+        return copy;
     }
 
 }

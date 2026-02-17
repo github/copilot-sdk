@@ -323,4 +323,32 @@ public class CopilotClientOptions {
         this.useLoggedInUser = useLoggedInUser;
         return this;
     }
+
+    /**
+     * Creates a shallow clone of this {@code CopilotClientOptions} instance.
+     * <p>
+     * Array properties (like {@code cliArgs}) are copied into new arrays so that
+     * modifications to the clone do not affect the original. The
+     * {@code environment} map is also copied to a new map instance. Other
+     * reference-type properties are shared between the original and clone.
+     *
+     * @return a clone of this options instance
+     */
+    @Override
+    public CopilotClientOptions clone() {
+        CopilotClientOptions copy = new CopilotClientOptions();
+        copy.cliPath = this.cliPath;
+        copy.cliArgs = this.cliArgs != null ? this.cliArgs.clone() : null;
+        copy.cwd = this.cwd;
+        copy.port = this.port;
+        copy.useStdio = this.useStdio;
+        copy.cliUrl = this.cliUrl;
+        copy.logLevel = this.logLevel;
+        copy.autoStart = this.autoStart;
+        copy.autoRestart = this.autoRestart;
+        copy.environment = this.environment != null ? new java.util.HashMap<>(this.environment) : null;
+        copy.githubToken = this.githubToken;
+        copy.useLoggedInUser = this.useLoggedInUser;
+        return copy;
+    }
 }
