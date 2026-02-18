@@ -171,7 +171,8 @@ func TestPermissions(t *testing.T) {
 		session.On(func(event copilot.SessionEvent) {
 			if event.Type == copilot.ToolExecutionComplete &&
 				event.Data.Success != nil && !*event.Data.Success &&
-				event.Data.Result != nil && strings.Contains(event.Data.Result.Content, "Permission denied") {
+				event.Data.Error != nil && event.Data.Error.ErrorClass != nil &&
+				strings.Contains(event.Data.Error.ErrorClass.Message, "Permission denied") {
 				mu.Lock()
 				permissionDenied = true
 				mu.Unlock()

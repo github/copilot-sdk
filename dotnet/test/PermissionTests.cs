@@ -80,7 +80,7 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
         {
             if (evt is ToolExecutionCompleteEvent toolEvt &&
                 !toolEvt.Data.Success &&
-                toolEvt.Data.Result?.Content.Contains("Permission denied") == true)
+                toolEvt.Data.Error?.Message.Contains("Permission denied") == true)
             {
                 permissionDenied = true;
             }

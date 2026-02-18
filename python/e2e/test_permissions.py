@@ -79,14 +79,11 @@ class TestPermissions:
         done_event = asyncio.Event()
 
         def on_event(event):
-            if (
-                event.type.value == "tool.execution_complete"
-                and event.data.success is False
-                and event.data.result is not None
-                and event.data.result.content is not None
-                and "Permission denied" in event.data.result.content
-            ):
-                denied_events.append(event)
+            if event.type.value == "tool.execution_complete" and event.data.success is False:
+                error = event.data.error
+                msg = error if isinstance(error, str) else (getattr(error, "message", None) if error is not None else None)
+                if msg and "Permission denied" in msg:
+                    denied_events.append(event)
             elif event.type.value == "session.idle":
                 done_event.set()
 

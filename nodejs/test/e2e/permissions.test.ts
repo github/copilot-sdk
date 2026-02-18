@@ -71,7 +71,7 @@ describe("Permission callbacks", async () => {
             if (
                 event.type === "tool.execution_complete" &&
                 !event.data.success &&
-                event.data.result?.content.includes("Permission denied")
+                event.data.error?.message.includes("Permission denied")
             ) {
                 permissionDenied = true;
             }
