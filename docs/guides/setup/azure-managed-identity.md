@@ -1,6 +1,6 @@
 # Azure Managed Identity with BYOK
 
-The Copilot SDK's [BYOK mode](../guides/setup/byok.md) accepts static API keys, but Azure deployments often use **Managed Identity** (Entra ID) instead of long-lived keys. Since the SDK doesn't natively support Entra ID authentication, you can use a short-lived bearer token as the API key.
+The Copilot SDK's [BYOK mode](./byok.md) accepts static API keys, but Azure deployments often use **Managed Identity** (Entra ID) instead of long-lived keys. Since the SDK doesn't natively support Entra ID authentication, you can use a short-lived bearer token via the `bearer_token` provider config field.
 
 This guide shows how to use `DefaultAzureCredential` from the [Azure Identity](https://learn.microsoft.com/python/api/azure-identity/azure.identity.defaultazurecredential) library to authenticate with Azure AI Foundry models through the Copilot SDK.
 
@@ -9,7 +9,7 @@ This guide shows how to use `DefaultAzureCredential` from the [Azure Identity](h
 Azure AI Foundry's OpenAI-compatible endpoint accepts bearer tokens from Entra ID in place of static API keys. The pattern is:
 
 1. Use `DefaultAzureCredential` to obtain a token for the `https://cognitiveservices.azure.com/.default` scope
-2. Pass the token as the `api_key` in the BYOK provider config
+2. Pass the token as the `bearer_token` in the BYOK provider config
 3. Refresh the token before it expires (tokens are typically valid for ~1 hour)
 
 ```mermaid
@@ -21,7 +21,7 @@ sequenceDiagram
 
     App->>AAD: DefaultAzureCredential.get_token()
     AAD-->>App: Bearer token (~1hr)
-    App->>SDK: create_session(provider={api_key: token})
+    App->>SDK: create_session(provider={bearer_token: token})
     SDK->>Foundry: Request with Authorization: Bearer <token>
     Foundry-->>SDK: Model response
     SDK-->>App: Session events
@@ -63,7 +63,7 @@ async def main():
             provider=ProviderConfig(
                 type="openai",
                 base_url=f"{foundry_url.rstrip('/')}/openai/v1/",
-                api_key=token,  # Short-lived bearer token as API key
+                bearer_token=token,  # Short-lived bearer token
                 wire_api="responses",
             ),
         )
@@ -106,7 +106,7 @@ class ManagedIdentityCopilotAgent:
             provider=ProviderConfig(
                 type="openai",
                 base_url=f"{self.foundry_url}/openai/v1/",
-                api_key=token,
+                bearer_token=token,
                 wire_api="responses",
             ),
         )
@@ -125,6 +125,7 @@ class ManagedIdentityCopilotAgent:
 
 ## Node.js / TypeScript Example
 
+<!-- docs-validate: skip -->
 ```typescript
 import { DefaultAzureCredential } from "@azure/identity";
 import { CopilotClient } from "@github/copilot-sdk";
@@ -141,7 +142,7 @@ const session = await client.createSession({
   provider: {
     type: "openai",
     baseUrl: `${process.env.AZURE_AI_FOUNDRY_RESOURCE_URL}/openai/v1/`,
-    apiKey: tokenResponse.token,
+    bearerToken: tokenResponse.token,
     wireApi: "responses",
   },
 });
@@ -154,6 +155,7 @@ await client.stop();
 
 ## .NET Example
 
+<!-- docs-validate: skip -->
 ```csharp
 using Azure.Identity;
 using GitHub.Copilot;
@@ -173,7 +175,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
     {
         Type = "openai",
         BaseUrl = $"{foundryUrl!.TrimEnd('/')}/openai/v1/",
-        ApiKey = token.Token,
+        BearerToken = token.Token,
         WireApi = "responses",
     },
 });
@@ -205,11 +207,11 @@ See the [DefaultAzureCredential documentation](https://learn.microsoft.com/pytho
 | Azure-hosted app with Managed Identity | ✅ Use this pattern |
 | App with existing Azure AD service principal | ✅ Use this pattern |
 | Local development with `az login` | ✅ Use this pattern |
-| Non-Azure environment with static API key | Use [standard BYOK](../guides/setup/byok.md) |
-| GitHub Copilot subscription available | Use [GitHub OAuth](../guides/setup/github-oauth.md) |
+| Non-Azure environment with static API key | Use [standard BYOK](./byok.md) |
+| GitHub Copilot subscription available | Use [GitHub OAuth](./github-oauth.md) |
 
 ## See Also
 
-- [BYOK Setup Guide](../guides/setup/byok.md) — Static API key configuration
-- [Backend Services](../guides/setup/backend-services.md) — Server-side deployment
+- [BYOK Setup Guide](./byok.md) — Static API key configuration
+- [Backend Services](./backend-services.md) — Server-side deployment
 - [Azure Identity documentation](https://learn.microsoft.com/python/api/overview/azure/identity-readme)
