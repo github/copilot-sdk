@@ -63,6 +63,22 @@ describe("Permission callbacks", async () => {
         await session.destroy();
     });
 
+    it("should deny tool operations by default when no handler is provided", async () => {
+        const allEvents: unknown[] = [];
+
+        const session = await client.createSession();
+        session.on((event) => {
+            allEvents.push(event);
+            console.log("EVENT:", JSON.stringify(event, null, 2));
+        });
+
+        await session.sendAndWait({ prompt: "Run 'node --version'" });
+
+        console.log("ALL EVENTS:", JSON.stringify(allEvents, null, 2));
+
+        await session.destroy();
+    });
+
     it("should work without permission handler (default behavior)", async () => {
         // Create session without onPermissionRequest handler
         const session = await client.createSession();
