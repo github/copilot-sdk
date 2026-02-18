@@ -1,6 +1,7 @@
 package copilot
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -388,4 +389,58 @@ func findCLIPathForTest() string {
 func fileExistsForTest(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+func TestCreateSessionRequest_ClientName(t *testing.T) {
+	t.Run("includes clientName in JSON when set", func(t *testing.T) {
+		req := createSessionRequest{ClientName: "my-app"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["clientName"] != "my-app" {
+			t.Errorf("Expected clientName to be 'my-app', got %v", m["clientName"])
+		}
+	})
+
+	t.Run("omits clientName from JSON when empty", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["clientName"]; ok {
+			t.Error("Expected clientName to be omitted when empty")
+		}
+	})
+}
+
+func TestResumeSessionRequest_ClientName(t *testing.T) {
+	t.Run("includes clientName in JSON when set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", ClientName: "my-app"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["clientName"] != "my-app" {
+			t.Errorf("Expected clientName to be 'my-app', got %v", m["clientName"])
+		}
+	})
+
+	t.Run("omits clientName from JSON when empty", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["clientName"]; ok {
+			t.Error("Expected clientName to be omitted when empty")
+		}
+	})
 }
