@@ -485,10 +485,9 @@ class CopilotClient:
         if excluded_tools:
             payload["excludedTools"] = excluded_tools
 
-        # Enable permission request callback if handler provided
+        # Always enable permission request callback (deny by default if no handler provided)
         on_permission_request = cfg.get("on_permission_request")
-        if on_permission_request:
-            payload["requestPermission"] = True
+        payload["requestPermission"] = True
 
         # Enable user input request callback if handler provided
         on_user_input_request = cfg.get("on_user_input_request")
@@ -662,10 +661,9 @@ class CopilotClient:
         if streaming is not None:
             payload["streaming"] = streaming
 
-        # Enable permission request callback if handler provided
+        # Always enable permission request callback (deny by default if no handler provided)
         on_permission_request = cfg.get("on_permission_request")
-        if on_permission_request:
-            payload["requestPermission"] = True
+        payload["requestPermission"] = True
 
         # Enable user input request callback if handler provided
         on_user_input_request = cfg.get("on_user_input_request")

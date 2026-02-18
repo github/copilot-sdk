@@ -1,9 +1,11 @@
 import * as readline from "node:readline";
-import { CopilotClient, type SessionEvent } from "@github/copilot-sdk";
+import { CopilotClient, approveAll, type SessionEvent } from "@github/copilot-sdk";
 
 async function main() {
     const client = new CopilotClient();
-    const session = await client.createSession();
+    const session = await client.createSession({
+        onPermissionRequest: approveAll,
+    });
 
     session.on((event: SessionEvent) => {
         let output: string | null = null;

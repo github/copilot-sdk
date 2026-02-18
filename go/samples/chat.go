@@ -23,7 +23,10 @@ func main() {
 	}
 	defer client.Stop()
 
-	session, err := client.CreateSession(ctx, nil)
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+		CLIPath:             cliPath,
+		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+	})
 	if err != nil {
 		panic(err)
 	}

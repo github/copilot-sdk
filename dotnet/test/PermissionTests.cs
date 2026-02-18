@@ -71,6 +71,30 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
+    public async Task Should_Deny_Tool_Operations_By_Default_When_No_Handler_Is_Provided()
+    {
+        var session = await Client.CreateSessionAsync(new SessionConfig());
+        var permissionDenied = false;
+
+        session.On(evt =>
+        {
+            if (evt is ToolExecutionCompleteEvent toolEvt &&
+                !toolEvt.Data.Success &&
+                toolEvt.Data.Error?.Message.Contains("Permission denied") == true)
+            {
+                permissionDenied = true;
+            }
+        });
+
+        await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Run 'node --version'"
+        });
+
+        Assert.True(permissionDenied, "Expected a tool.execution_complete event with Permission denied result");
+    }
+
+    [Fact]
     public async Task Should_Work_Without_Permission_Handler__Default_Behavior_()
     {
         // Create session without permission handler
@@ -159,6 +183,37 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
 
         // Should handle the error and deny permission
         Assert.Matches("fail|cannot|unable|permission", message?.Data.Content?.ToLowerInvariant() ?? string.Empty);
+    }
+
+    [Fact]
+    public async Task Should_Deny_Tool_Operations_By_Default_When_No_Handler_Is_Provided_After_Resume()
+    {
+        var session1 = await Client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        var sessionId = session1.SessionId;
+        await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
+
+        var session2 = await Client.ResumeSessionAsync(sessionId);
+        var permissionDenied = false;
+
+        session2.On(evt =>
+        {
+            if (evt is ToolExecutionCompleteEvent toolEvt &&
+                !toolEvt.Data.Success &&
+                toolEvt.Data.Error?.Message.Contains("Permission denied") == true)
+            {
+                permissionDenied = true;
+            }
+        });
+
+        await session2.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Run 'node --version'"
+        });
+
+        Assert.True(permissionDenied, "Expected a tool.execution_complete event with Permission denied result");
     }
 
     [Fact]

@@ -21,7 +21,10 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
             Path.Combine(Ctx.WorkDir, "README.md"),
             "# ELIZA, the only chatbot you'll ever need");
 
-        var session = await Client.CreateSessionAsync();
+        var session = await Client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
 
         await session.SendAsync(new MessageOptions
         {

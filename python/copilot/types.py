@@ -186,10 +186,16 @@ class PermissionRequestResult(TypedDict, total=False):
     rules: list[Any]
 
 
-PermissionHandler = Callable[
+_PermissionHandlerFn = Callable[
     [PermissionRequest, dict[str, str]],
     Union[PermissionRequestResult, Awaitable[PermissionRequestResult]],
 ]
+
+
+class PermissionHandler:
+    @staticmethod
+    def approve_all(request: Any, invocation: Any) -> dict:
+        return {"kind": "approved"}
 
 
 # ============================================================================
@@ -473,7 +479,7 @@ class SessionConfig(TypedDict, total=False):
     # List of tool names to disable (ignored if available_tools is set)
     excluded_tools: list[str]
     # Handler for permission requests from the server
-    on_permission_request: PermissionHandler
+    on_permission_request: _PermissionHandlerFn
     # Handler for user input requests from the agent (enables ask_user tool)
     on_user_input_request: UserInputHandler
     # Hook handlers for intercepting session lifecycle events
@@ -540,8 +546,8 @@ class ResumeSessionConfig(TypedDict, total=False):
     provider: ProviderConfig
     # Reasoning effort level for models that support it.
     reasoning_effort: ReasoningEffort
-    on_permission_request: PermissionHandler
-    # Handler for user input requests from the agent (enables ask_user tool)
+    on_permission_request: _PermissionHandlerFn
+    # Handler for user input requestsfrom the agent (enables ask_user tool)
     on_user_input_request: UserInputHandler
     # Hook handlers for intercepting session lifecycle events
     hooks: SessionHooks

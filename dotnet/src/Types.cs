@@ -166,7 +166,7 @@ public class PermissionInvocation
     public string SessionId { get; set; } = string.Empty;
 }
 
-public delegate Task<PermissionRequestResult> PermissionHandler(PermissionRequest request, PermissionInvocation invocation);
+public delegate Task<PermissionRequestResult> PermissionRequestHandler(PermissionRequest request, PermissionInvocation invocation);
 
 // ============================================================================
 // User Input Handler Types
@@ -793,7 +793,7 @@ public class SessionConfig
     /// Handler for permission requests from the server.
     /// When provided, the server will call this handler to request permission for operations.
     /// </summary>
-    public PermissionHandler? OnPermissionRequest { get; set; }
+    public PermissionRequestHandler? OnPermissionRequest { get; set; }
 
     /// <summary>
     /// Handler for user input requests from the agent.
@@ -932,7 +932,7 @@ public class ResumeSessionConfig
     /// Handler for permission requests from the server.
     /// When provided, the server will call this handler to request permission for operations.
     /// </summary>
-    public PermissionHandler? OnPermissionRequest { get; set; }
+    public PermissionRequestHandler? OnPermissionRequest { get; set; }
 
     /// <summary>
     /// Handler for user input requests from the agent.
