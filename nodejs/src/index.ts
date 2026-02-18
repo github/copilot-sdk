@@ -10,7 +10,7 @@
 
 export { CopilotClient } from "./client.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
-export { defineTool, PermissionHandlers } from "./types.js";
+export { defineTool, PermissionHandler } from "./types.js";
 export type {
     ConnectionState,
     CopilotClientOptions,

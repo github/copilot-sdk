@@ -1,6 +1,6 @@
 import { describe, expect, it, onTestFinished } from "vitest";
 import { ParsedHttpExchange } from "../../../test/harness/replayingCapiProxy.js";
-import { CopilotClient, PermissionHandlers } from "../../src/index.js";
+import { CopilotClient, PermissionHandler } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
 
@@ -367,7 +367,7 @@ describe("Send Blocking Behavior", async () => {
 
     it("send returns immediately while events stream in background", async () => {
         const session = await client.createSession({
-            onPermissionRequest: PermissionHandlers.approveAll,
+            onPermissionRequest: PermissionHandler.approveAll,
         });
 
         const events: string[] = [];

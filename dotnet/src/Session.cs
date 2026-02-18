@@ -47,7 +47,7 @@ public partial class CopilotSession : IAsyncDisposable
     private readonly HashSet<SessionEventHandler> _eventHandlers = new();
     private readonly Dictionary<string, AIFunction> _toolHandlers = new();
     private readonly JsonRpc _rpc;
-    private PermissionHandler? _permissionHandler;
+    private PermissionRequestHandler? _permissionHandler;
     private readonly SemaphoreSlim _permissionHandlerLock = new(1, 1);
     private UserInputHandler? _userInputHandler;
     private readonly SemaphoreSlim _userInputHandlerLock = new(1, 1);
@@ -292,7 +292,7 @@ public partial class CopilotSession : IAsyncDisposable
     /// When the assistant needs permission to perform certain actions (e.g., file operations),
     /// this handler is called to approve or deny the request.
     /// </remarks>
-    internal void RegisterPermissionHandler(PermissionHandler handler)
+    internal void RegisterPermissionHandler(PermissionRequestHandler handler)
     {
         _permissionHandlerLock.Wait();
         try
@@ -313,7 +313,7 @@ public partial class CopilotSession : IAsyncDisposable
     internal async Task<PermissionRequestResult> HandlePermissionRequestAsync(JsonElement permissionRequestData)
     {
         await _permissionHandlerLock.WaitAsync();
-        PermissionHandler? handler;
+        PermissionRequestHandler? handler;
         try
         {
             handler = _permissionHandler;

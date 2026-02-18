@@ -280,7 +280,7 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
         var session = await Client.CreateSessionAsync(new SessionConfig
         {
             McpServers = mcpServers,
-            OnPermissionRequest = PermissionHandlers.ApproveAll,
+            OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);

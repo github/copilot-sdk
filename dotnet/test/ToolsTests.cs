@@ -23,7 +23,7 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
 
         var session = await Client.CreateSessionAsync(new SessionConfig
         {
-            OnPermissionRequest = PermissionHandlers.ApproveAll,
+            OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
         await session.SendAsync(new MessageOptions

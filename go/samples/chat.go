@@ -25,7 +25,7 @@ func main() {
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		CLIPath:             cliPath,
-		OnPermissionRequest: copilot.PermissionHandlers.ApproveAll,
+		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 	})
 	if err != nil {
 		panic(err)

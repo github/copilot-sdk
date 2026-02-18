@@ -22,7 +22,7 @@ func TestHooks(t *testing.T) {
 		var mu sync.Mutex
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: copilot.PermissionHandlers.ApproveAll,
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			Hooks: &copilot.SessionHooks{
 				OnPreToolUse: func(input copilot.PreToolUseHookInput, invocation copilot.HookInvocation) (*copilot.PreToolUseHookOutput, error) {
 					mu.Lock()
@@ -81,7 +81,7 @@ func TestHooks(t *testing.T) {
 		var mu sync.Mutex
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: copilot.PermissionHandlers.ApproveAll,
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			Hooks: &copilot.SessionHooks{
 				OnPostToolUse: func(input copilot.PostToolUseHookInput, invocation copilot.HookInvocation) (*copilot.PostToolUseHookOutput, error) {
 					mu.Lock()
@@ -147,7 +147,7 @@ func TestHooks(t *testing.T) {
 		var mu sync.Mutex
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: copilot.PermissionHandlers.ApproveAll,
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			Hooks: &copilot.SessionHooks{
 				OnPreToolUse: func(input copilot.PreToolUseHookInput, invocation copilot.HookInvocation) (*copilot.PreToolUseHookOutput, error) {
 					mu.Lock()
@@ -217,7 +217,7 @@ func TestHooks(t *testing.T) {
 		var mu sync.Mutex
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: copilot.PermissionHandlers.ApproveAll,
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			Hooks: &copilot.SessionHooks{
 				OnPreToolUse: func(input copilot.PreToolUseHookInput, invocation copilot.HookInvocation) (*copilot.PreToolUseHookOutput, error) {
 					mu.Lock()

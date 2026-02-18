@@ -1,7 +1,7 @@
 package copilot
 
-// PermissionHandlers provides pre-built OnPermissionRequest implementations.
-var PermissionHandlers = struct {
+// PermissionHandler provides pre-built OnPermissionRequest implementations.
+var PermissionHandler = struct {
 	// ApproveAll approves all permission requests.
 	ApproveAll func(PermissionRequest, PermissionInvocation) (PermissionRequestResult, error)
 }{

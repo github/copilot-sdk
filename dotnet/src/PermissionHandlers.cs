@@ -4,10 +4,10 @@
 
 namespace GitHub.Copilot.SDK;
 
-/// <summary>Provides pre-built <see cref="PermissionHandler"/> implementations.</summary>
-public static class PermissionHandlers
+/// <summary>Provides pre-built <see cref="PermissionRequestHandler"/> implementations.</summary>
+public static class PermissionHandler
 {
-    /// <summary>A <see cref="PermissionHandler"/> that approves all permission requests.</summary>
-    public static PermissionHandler ApproveAll { get; } =
+    /// <summary>A <see cref="PermissionRequestHandler"/> that approves all permission requests.</summary>
+    public static PermissionRequestHandler ApproveAll { get; } =
         (_, _) => Task.FromResult(new PermissionRequestResult { Kind = "approved" });
 }
