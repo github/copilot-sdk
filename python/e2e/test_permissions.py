@@ -68,6 +68,37 @@ class TestPermissions:
 
         await session.destroy()
 
+    async def test_should_deny_tool_operations_by_default_when_no_handler_is_provided(
+        self, ctx: E2ETestContext
+    ):
+        import asyncio
+
+        session = await ctx.client.create_session()
+
+        denied_events = []
+        done_event = asyncio.Event()
+
+        def on_event(event):
+            if (
+                event.type.value == "tool.execution_complete"
+                and event.data.success is False
+                and event.data.result is not None
+                and event.data.result.content is not None
+                and "Permission denied" in event.data.result.content
+            ):
+                denied_events.append(event)
+            elif event.type.value == "session.idle":
+                done_event.set()
+
+        session.on(on_event)
+
+        await session.send({"prompt": "Run 'node --version'"})
+        await asyncio.wait_for(done_event.wait(), timeout=60)
+
+        assert len(denied_events) > 0
+
+        await session.destroy()
+
     async def test_should_work_without_permission_handler__default_behavior_(
         self, ctx: E2ETestContext
     ):

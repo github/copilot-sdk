@@ -157,6 +157,40 @@ func TestPermissions(t *testing.T) {
 		}
 	})
 
+	t.Run("should deny tool operations by default when no handler is provided", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		session, err := client.CreateSession(t.Context(), nil)
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		var mu sync.Mutex
+		permissionDenied := false
+
+		session.On(func(event copilot.SessionEvent) {
+			if event.Type == copilot.ToolExecutionComplete &&
+				event.Data.Success != nil && !*event.Data.Success &&
+				event.Data.Result != nil && strings.Contains(event.Data.Result.Content, "Permission denied") {
+				mu.Lock()
+				permissionDenied = true
+				mu.Unlock()
+			}
+		})
+
+		if _, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt: "Run 'node --version'",
+		}); err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+		if !permissionDenied {
+			t.Error("Expected a tool.execution_complete event with Permission denied result")
+		}
+	})
+
 	t.Run("without permission handler", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 

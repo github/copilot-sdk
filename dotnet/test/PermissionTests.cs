@@ -71,6 +71,30 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
+    public async Task Should_Deny_Tool_Operations_By_Default_When_No_Handler_Is_Provided()
+    {
+        var session = await Client.CreateSessionAsync(new SessionConfig());
+        var permissionDenied = false;
+
+        session.On(evt =>
+        {
+            if (evt is ToolExecutionCompleteEvent toolEvt &&
+                !toolEvt.Data.Success &&
+                toolEvt.Data.Result?.Content.Contains("Permission denied") == true)
+            {
+                permissionDenied = true;
+            }
+        });
+
+        await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Run 'node --version'"
+        });
+
+        Assert.True(permissionDenied, "Expected a tool.execution_complete event with Permission denied result");
+    }
+
+    [Fact]
     public async Task Should_Work_Without_Permission_Handler__Default_Behavior_()
     {
         // Create session without permission handler

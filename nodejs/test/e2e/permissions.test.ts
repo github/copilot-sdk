@@ -64,17 +64,22 @@ describe("Permission callbacks", async () => {
     });
 
     it("should deny tool operations by default when no handler is provided", async () => {
-        const allEvents: unknown[] = [];
+        let permissionDenied = false;
 
         const session = await client.createSession();
         session.on((event) => {
-            allEvents.push(event);
-            console.log("EVENT:", JSON.stringify(event, null, 2));
+            if (
+                event.type === "tool.execution_complete" &&
+                !event.data.success &&
+                event.data.result?.content.includes("Permission denied")
+            ) {
+                permissionDenied = true;
+            }
         });
 
         await session.sendAndWait({ prompt: "Run 'node --version'" });
 
-        console.log("ALL EVENTS:", JSON.stringify(allEvents, null, 2));
+        expect(permissionDenied).toBe(true);
 
         await session.destroy();
     });
