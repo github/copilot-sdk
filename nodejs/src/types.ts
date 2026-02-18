@@ -230,9 +230,7 @@ export type PermissionHandler = (
     invocation: { sessionId: string }
 ) => Promise<PermissionRequestResult> | PermissionRequestResult;
 
-export const PermissionHandler = {
-    approveAll: (): PermissionRequestResult => ({ kind: "approved" }),
-} as const;
+export const approveAll: PermissionHandler = () => ({ kind: "approved" });
 
 // ============================================================================
 // User Input Request Types

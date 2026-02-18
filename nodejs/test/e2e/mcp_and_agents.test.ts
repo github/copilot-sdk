@@ -6,7 +6,7 @@ import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { describe, expect, it } from "vitest";
 import type { CustomAgentConfig, MCPLocalServerConfig, MCPServerConfig } from "../../src/index.js";
-import { PermissionHandler } from "../../src/index.js";
+import { approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -109,7 +109,7 @@ describe("MCP Servers and Custom Agents", async () => {
 
             const session = await client.createSession({
                 mcpServers,
-                onPermissionRequest: PermissionHandler.approveAll,
+                onPermissionRequest: approveAll,
             });
 
             expect(session.sessionId).toBeDefined();

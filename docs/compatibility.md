@@ -130,16 +130,7 @@ Instead of `--allow-all-paths` or `--yolo`, use the permission handler:
 
 ```typescript
 const session = await client.createSession({
-  onPermissionRequest: async (request) => {
-    // Auto-approve everything (equivalent to --yolo)
-    return { kind: "approved" };
-    
-    // Or implement custom logic
-    // if (request.kind === "shell") {
-    //   return { kind: "denied-interactively-by-user" };
-    // }
-    // return { kind: "approved" };
-  },
+  onPermissionRequest: approveAll,
 });
 ```
 
