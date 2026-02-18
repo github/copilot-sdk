@@ -6,7 +6,7 @@ import { writeFile } from "fs/promises";
 import { join } from "path";
 import { assert, describe, expect, it } from "vitest";
 import { z } from "zod";
-import { defineTool } from "../../src/index.js";
+import { defineTool, PermissionHandlers } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext";
 
 describe("Custom tools", async () => {
@@ -16,7 +16,7 @@ describe("Custom tools", async () => {
         await writeFile(join(workDir, "README.md"), "# ELIZA, the only chatbot you'll ever need");
 
         const session = await client.createSession({
-            onPermissionRequest: async () => ({ kind: "approved" as const }),
+            onPermissionRequest: PermissionHandlers.approveAll,
         });
         const assistantMessage = await session.sendAndWait({
             prompt: "What's the first line of README.md in this directory?",

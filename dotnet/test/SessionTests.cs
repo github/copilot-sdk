@@ -335,7 +335,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     {
         var session = await Client.CreateSessionAsync(new SessionConfig
         {
-            OnPermissionRequest = (request, invocation) => Task.FromResult(new PermissionRequestResult { Kind = "approved" }),
+            OnPermissionRequest = PermissionHandlers.ApproveAll,
         });
         var events = new List<string>();
 

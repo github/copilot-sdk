@@ -445,42 +445,6 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
 > - For Azure OpenAI endpoints (`*.openai.azure.com`), you **must** use `Type: "azure"`, not `Type: "openai"`.
 > - The `BaseURL` should be just the host (e.g., `https://my-resource.openai.azure.com`). Do **not** include `/openai/v1` in the URL - the SDK handles path construction automatically.
 
-## Permission Requests
-
-The SDK uses a **deny-by-default** permission model. When the Copilot agent needs to perform privileged operations (file writes, shell commands, URL fetches, etc.), it sends a permission request to the SDK. If no `OnPermissionRequest` handler is registered, all such requests are **automatically denied**.
-
-To allow operations, provide an `OnPermissionRequest` handler when creating a session:
-
-```go
-session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-    OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-        // request.Kind - The type of operation: "shell", "write", "read", "url", or "mcp"
-
-        // Approve everything (equivalent to --yolo mode in the CLI)
-        return copilot.PermissionRequestResult{Kind: "approved"}, nil
-
-        // Or implement fine-grained policy:
-        // if request.Kind == "shell" {
-        //     return copilot.PermissionRequestResult{Kind: "denied-interactively-by-user"}, nil
-        // }
-        // return copilot.PermissionRequestResult{Kind: "approved"}, nil
-    },
-})
-```
-
-**Permission request kinds:**
-- `"shell"` — Execute a shell command
-- `"write"` — Write to a file
-- `"read"` — Read a file
-- `"url"` — Fetch a URL
-- `"mcp"` — Call an MCP server tool
-
-**Permission result kinds:**
-- `"approved"` — Allow the operation
-- `"denied-interactively-by-user"` — User explicitly denied
-- `"denied-by-rules"` — Denied by policy rules
-- `"denied-no-approval-rule-and-could-not-request-from-user"` — Default deny (no handler)
-
 ## User Input Requests
 
 Enable the agent to ask questions to the user using the `ask_user` tool by providing an `OnUserInputRequest` handler:

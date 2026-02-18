@@ -127,9 +127,7 @@ func TestMCPServers(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			MCPServers: mcpServers,
-			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-				return copilot.PermissionRequestResult{Kind: "approved"}, nil
-			},
+			OnPermissionRequest: copilot.PermissionHandlers.ApproveAll,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)

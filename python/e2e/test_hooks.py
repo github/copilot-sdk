@@ -4,6 +4,8 @@ Tests for session hooks functionality
 
 import pytest
 
+from copilot import PermissionHandlers
+
 from .testharness import E2ETestContext
 from .testharness.helper import write_file
 
@@ -24,7 +26,7 @@ class TestHooks:
         session = await ctx.client.create_session(
             {
                 "hooks": {"on_pre_tool_use": on_pre_tool_use},
-                "on_permission_request": lambda _req, _inv: {"kind": "approved"},
+                "on_permission_request": PermissionHandlers.approve_all,
             }
         )
 
@@ -57,7 +59,7 @@ class TestHooks:
         session = await ctx.client.create_session(
             {
                 "hooks": {"on_post_tool_use": on_post_tool_use},
-                "on_permission_request": lambda _req, _inv: {"kind": "approved"},
+                "on_permission_request": PermissionHandlers.approve_all,
             }
         )
 
@@ -98,7 +100,7 @@ class TestHooks:
                     "on_pre_tool_use": on_pre_tool_use,
                     "on_post_tool_use": on_post_tool_use,
                 },
-                "on_permission_request": lambda _req, _inv: {"kind": "approved"},
+                "on_permission_request": PermissionHandlers.approve_all,
             }
         )
 
@@ -132,7 +134,7 @@ class TestHooks:
         session = await ctx.client.create_session(
             {
                 "hooks": {"on_pre_tool_use": on_pre_tool_use},
-                "on_permission_request": lambda _req, _inv: {"kind": "approved"},
+                "on_permission_request": PermissionHandlers.approve_all,
             }
         )
 

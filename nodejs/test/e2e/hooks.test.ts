@@ -11,6 +11,7 @@ import type {
     PostToolUseHookInput,
     PostToolUseHookOutput,
 } from "../../src/index.js";
+import { PermissionHandlers } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 describe("Session hooks", async () => {
@@ -20,7 +21,7 @@ describe("Session hooks", async () => {
         const preToolUseInputs: PreToolUseHookInput[] = [];
 
         const session = await client.createSession({
-            onPermissionRequest: async () => ({ kind: "approved" as const }),
+            onPermissionRequest: PermissionHandlers.approveAll,
             hooks: {
                 onPreToolUse: async (input, invocation) => {
                     preToolUseInputs.push(input);
@@ -51,7 +52,7 @@ describe("Session hooks", async () => {
         const postToolUseInputs: PostToolUseHookInput[] = [];
 
         const session = await client.createSession({
-            onPermissionRequest: async () => ({ kind: "approved" as const }),
+            onPermissionRequest: PermissionHandlers.approveAll,
             hooks: {
                 onPostToolUse: async (input, invocation) => {
                     postToolUseInputs.push(input);
@@ -83,7 +84,7 @@ describe("Session hooks", async () => {
         const postToolUseInputs: PostToolUseHookInput[] = [];
 
         const session = await client.createSession({
-            onPermissionRequest: async () => ({ kind: "approved" as const }),
+            onPermissionRequest: PermissionHandlers.approveAll,
             hooks: {
                 onPreToolUse: async (input) => {
                     preToolUseInputs.push(input);

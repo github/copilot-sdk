@@ -1,14 +1,10 @@
 import * as readline from "node:readline";
-import { CopilotClient, type SessionEvent } from "@github/copilot-sdk";
+import { CopilotClient, PermissionHandlers, type SessionEvent } from "@github/copilot-sdk";
 
 async function main() {
     const client = new CopilotClient();
     const session = await client.createSession({
-        // Permission requests are denied by default. Provide a handler to approve operations.
-        onPermissionRequest: async (_request) => {
-            // Approve all permission requests. Customize this to implement your own policy.
-            return { kind: "approved" };
-        },
+        onPermissionRequest: PermissionHandlers.approveAll,
     });
 
     session.on((event: SessionEvent) => {

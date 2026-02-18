@@ -192,6 +192,12 @@ PermissionHandler = Callable[
 ]
 
 
+class PermissionHandlers:
+    @staticmethod
+    def approve_all(request: Any, invocation: Any) -> dict:
+        return {"kind": "approved"}
+
+
 # ============================================================================
 # User Input Request Types
 # ============================================================================

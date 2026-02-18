@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from copilot import CustomAgentConfig, MCPServerConfig
+from copilot import CustomAgentConfig, MCPServerConfig, PermissionHandlers
 
 from .testharness import E2ETestContext, get_final_assistant_message
 
@@ -90,7 +90,7 @@ class TestMCPServers:
         session = await ctx.client.create_session(
             {
                 "mcp_servers": mcp_servers,
-                "on_permission_request": lambda _req, _inv: {"kind": "approved"},
+                "on_permission_request": PermissionHandlers.approve_all,
             }
         )
 
