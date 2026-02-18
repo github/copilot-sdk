@@ -23,6 +23,45 @@ python chat.py
 
 ## Quick Start
 
+### Using Context Managers (Recommended)
+
+The SDK supports Python's async context manager protocol for automatic resource cleanup:
+
+```python
+import asyncio
+from copilot import CopilotClient
+
+async def main():
+    # Client automatically starts on enter and cleans up on exit
+    async with CopilotClient() as client:
+        # Create a session with automatic cleanup
+        async with await client.create_session({"model": "gpt-4"}) as session:
+            # Wait for response using session.idle event
+            done = asyncio.Event()
+
+            def on_event(event):
+                if event.type.value == "assistant.message":
+                    print(event.data.content)
+                elif event.type.value == "session.idle":
+                    done.set()
+
+            session.on(on_event)
+
+            # Send a message and wait for completion
+            await session.send({"prompt": "What is 2+2?"})
+            await done.wait()
+        
+        # Session automatically destroyed here
+
+    # Client automatically stopped here
+
+asyncio.run(main())
+```
+
+### Manual Resource Management
+
+You can also manage resources manually:
+
 ```python
 import asyncio
 from copilot import CopilotClient
@@ -65,6 +104,7 @@ asyncio.run(main())
 - ✅ Session history with `get_messages()`
 - ✅ Type hints throughout
 - ✅ Async/await native
+- ✅ Async context manager support for automatic resource cleanup
 
 ## API Reference
 
@@ -148,6 +188,44 @@ unsubscribe()
 - `session.updated` - A session was updated
 - `session.foreground` - A session became the foreground session in TUI
 - `session.background` - A session is no longer the foreground session
+
+### Context Manager Support
+
+Both `CopilotClient` and `CopilotSession` support Python's async context manager protocol for automatic resource cleanup. This is the recommended pattern as it ensures resources are properly cleaned up even if exceptions occur.
+
+**CopilotClient Context Manager:**
+
+```python
+async with CopilotClient() as client:
+    # Client automatically starts on enter
+    session = await client.create_session()
+    await session.send({"prompt": "Hello!"})
+    # Client automatically stops on exit, cleaning up all sessions
+```
+
+**CopilotSession Context Manager:**
+
+```python
+async with await client.create_session() as session:
+    await session.send({"prompt": "Hello!"})
+    # Session automatically destroyed on exit
+```
+
+**Nested Context Managers:**
+
+```python
+async with CopilotClient() as client:
+    async with await client.create_session() as session:
+        await session.send({"prompt": "Hello!"})
+    # Session destroyed here
+# Client stopped here
+```
+
+**Benefits:**
+- Prevents resource leaks by ensuring cleanup even if exceptions occur
+- Eliminates the need to manually call `stop()` and `destroy()`
+- Follows Python best practices for resource management
+- Particularly useful in batch operations and evaluations to prevent process accumulation
 
 ### Tools
 
