@@ -99,6 +99,9 @@ check "Python (syntax)"  bash -c "python3 -c \"import ast; ast.parse(open('$SCRI
 # Go: build
 check "Go (build)" bash -c "cd '$SCRIPT_DIR/go' && go build -o fully-bundled-go . 2>&1"
 
+# C#: build
+check "C# (build)" bash -c "cd '$SCRIPT_DIR/csharp' && dotnet build --nologo -v q 2>&1"
+
 
 echo "══════════════════════════════════════"
 echo " Phase 2: E2E Run (timeout ${TIMEOUT}s each)"
@@ -113,6 +116,9 @@ run_with_timeout "Python (run)" bash -c "cd '$SCRIPT_DIR/python' && python3 main
 
 # Go: run
 run_with_timeout "Go (run)" bash -c "cd '$SCRIPT_DIR/go' && ./fully-bundled-go"
+
+# C#: run
+run_with_timeout "C# (run)" bash -c "cd '$SCRIPT_DIR/csharp' && dotnet run --no-build 2>&1"
 
 
 echo "══════════════════════════════════════"
