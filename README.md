@@ -116,17 +116,17 @@ Please use the [GitHub Issues](https://github.com/github/copilot-sdk/issues) pag
 
 ⚠️ Disclaimer: These are unofficial, community-driven SDKs and they are not supported by GitHub. Use at your own risk.
 
-| SDK           | Location                                           |
-| --------------| -------------------------------------------------- |
-| **Java**      | [copilot-community-sdk/copilot-sdk-java][sdk-java] |
-| **Rust**      | [copilot-community-sdk/copilot-sdk-rust][sdk-rust] |
-| **C++**       | [0xeb/copilot-sdk-cpp][sdk-cpp]                    |
-| **Clojure**   | [krukow/copilot-sdk-clojure][sdk-clojure]          |
+| SDK           | Location                                                          |
+| --------------| ----------------------------------------------------------------- |
+| **Java**      | [copilot-community-sdk/copilot-sdk-java][sdk-java]                |
+| **Rust**      | [copilot-community-sdk/copilot-sdk-rust][sdk-rust]                |
+| **Clojure**   | [copilot-community-sdk/copilot-sdk-clojure][sdk-clojure]          |
+| **C++**       | [0xeb/copilot-sdk-cpp][sdk-cpp]                                   |
 
 [sdk-java]: https://github.com/copilot-community-sdk/copilot-sdk-java
 [sdk-rust]: https://github.com/copilot-community-sdk/copilot-sdk-rust
 [sdk-cpp]: https://github.com/0xeb/copilot-sdk-cpp
-[sdk-clojure]: https://github.com/krukow/copilot-sdk-clojure
+[sdk-clojure]: https://github.com/copilot-community-sdk/copilot-sdk-clojure
 
 ## Contributing
 
