@@ -14,13 +14,13 @@ from .generated.rpc import SessionRpc
 from .generated.session_events import SessionEvent, SessionEventType, session_event_from_dict
 from .types import (
     MessageOptions,
-    _PermissionHandlerFn,
     SessionHooks,
     Tool,
     ToolHandler,
     UserInputHandler,
     UserInputRequest,
     UserInputResponse,
+    _PermissionHandlerFn,
 )
 from .types import (
     SessionEvent as SessionEventTypeAlias,
