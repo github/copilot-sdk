@@ -6,10 +6,18 @@ BLUE = "\033[34m"
 RESET = "\033[0m"
 
 
+def on_permission_request(request, invocation):
+    # Permission requests are denied by default. Approve all here.
+    # Customize this to implement your own policy.
+    return {"kind": "approved"}
+
+
 async def main():
     client = CopilotClient()
     await client.start()
-    session = await client.create_session()
+    session = await client.create_session({
+        "on_permission_request": on_permission_request,
+    })
 
     def on_event(event):
         output = None

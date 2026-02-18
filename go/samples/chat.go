@@ -23,7 +23,14 @@ func main() {
 	}
 	defer client.Stop()
 
-	session, err := client.CreateSession(ctx, nil)
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+		CLIPath: cliPath,
+		// Permission requests are denied by default. Provide a handler to approve operations.
+		OnPermissionRequest: func(_ copilot.PermissionRequest, _ copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			// Approve all permission requests. Customize this to implement your own policy.
+			return copilot.PermissionRequestResult{Kind: "approved"}, nil
+		},
+	})
 	if err != nil {
 		panic(err)
 	}

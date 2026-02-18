@@ -1,7 +1,15 @@
 using GitHub.Copilot.SDK;
 
 await using var client = new CopilotClient();
-await using var session = await client.CreateSessionAsync();
+await using var session = await client.CreateSessionAsync(new SessionConfig
+{
+    // Permission requests are denied by default. Provide a handler to approve operations.
+    OnPermissionRequest = (request, invocation) =>
+    {
+        // Approve all permission requests. Customize this to implement your own policy.
+        return Task.FromResult(new PermissionRequestResult { Kind = "approved" });
+    }
+});
 
 using var _ = session.On(evt =>
 {

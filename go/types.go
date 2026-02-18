@@ -349,7 +349,9 @@ type SessionConfig struct {
 	// ExcludedTools is a list of tool names to disable. All other tools remain available.
 	// Ignored if AvailableTools is specified.
 	ExcludedTools []string
-	// OnPermissionRequest is a handler for permission requests from the server
+	// OnPermissionRequest is a handler for permission requests from the server.
+	// If nil, all permission requests are denied by default.
+	// Provide a handler to approve operations (file writes, shell commands, URL fetches, etc.).
 	OnPermissionRequest PermissionHandler
 	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
 	OnUserInputRequest UserInputHandler
@@ -426,7 +428,9 @@ type ResumeSessionConfig struct {
 	// ReasoningEffort level for models that support it.
 	// Valid values: "low", "medium", "high", "xhigh"
 	ReasoningEffort string
-	// OnPermissionRequest is a handler for permission requests from the server
+	// OnPermissionRequest is a handler for permission requests from the server.
+	// If nil, all permission requests are denied by default.
+	// Provide a handler to approve operations (file writes, shell commands, URL fetches, etc.).
 	OnPermissionRequest PermissionHandler
 	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
 	OnUserInputRequest UserInputHandler

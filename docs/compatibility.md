@@ -124,19 +124,21 @@ The `--share` option is not available via SDK. Workarounds:
 
 ### Permission Control
 
+The SDK uses a **deny-by-default** permission model. All permission requests (file writes, shell commands, URL fetches, etc.) are denied unless your app provides an `onPermissionRequest` handler.
+
 Instead of `--allow-all-paths` or `--yolo`, use the permission handler:
 
 ```typescript
 const session = await client.createSession({
   onPermissionRequest: async (request) => {
     // Auto-approve everything (equivalent to --yolo)
-    return { approved: true };
+    return { kind: "approved" };
     
     // Or implement custom logic
-    if (request.kind === "shell") {
-      return { approved: request.command.startsWith("git") };
-    }
-    return { approved: true };
+    // if (request.kind === "shell") {
+    //   return { kind: "denied-interactively-by-user" };
+    // }
+    // return { kind: "approved" };
   },
 });
 ```

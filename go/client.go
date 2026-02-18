@@ -473,9 +473,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		if config.Streaming {
 			req.Streaming = Bool(true)
 		}
-		if config.OnPermissionRequest != nil {
-			req.RequestPermission = Bool(true)
-		}
+		req.RequestPermission = Bool(true)
 		if config.OnUserInputRequest != nil {
 			req.RequestUserInput = Bool(true)
 		}
@@ -562,9 +560,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		if config.Streaming {
 			req.Streaming = Bool(true)
 		}
-		if config.OnPermissionRequest != nil {
-			req.RequestPermission = Bool(true)
-		}
+		req.RequestPermission = Bool(true)
 		if config.OnUserInputRequest != nil {
 			req.RequestUserInput = Bool(true)
 		}
