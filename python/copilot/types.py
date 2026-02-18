@@ -533,6 +533,7 @@ class ResumeSessionConfig(TypedDict, total=False):
     """Configuration for resuming a session"""
 
     # Client name to identify the application using the SDK.
+    # Included in the User-Agent header for API requests.
     client_name: str
     # Model to use for this session. Can change the model when resuming.
     model: str
