@@ -513,6 +513,7 @@ export class CopilotClient {
         const response = await this.connection!.sendRequest("session.create", {
             model: config.model,
             sessionId: config.sessionId,
+            clientName: config.clientName,
             reasoningEffort: config.reasoningEffort,
             tools: config.tools?.map((tool) => ({
                 name: tool.name,
@@ -594,6 +595,7 @@ export class CopilotClient {
 
         const response = await this.connection!.sendRequest("session.resume", {
             sessionId,
+            clientName: config.clientName,
             model: config.model,
             reasoningEffort: config.reasoningEffort,
             systemMessage: config.systemMessage,
