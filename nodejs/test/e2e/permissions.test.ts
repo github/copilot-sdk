@@ -6,6 +6,7 @@ import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 import type { PermissionRequest, PermissionRequestResult } from "../../src/index.js";
+import { approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 describe("Permission callbacks", async () => {
@@ -82,6 +83,30 @@ describe("Permission callbacks", async () => {
         expect(permissionDenied).toBe(true);
 
         await session.destroy();
+    });
+
+    it("should deny tool operations by default when no handler is provided after resume", async () => {
+        const session1 = await client.createSession({ onPermissionRequest: approveAll });
+        const sessionId = session1.sessionId;
+        await session1.sendAndWait({ prompt: "What is 1+1?" });
+
+        const session2 = await client.resumeSession(sessionId);
+        let permissionDenied = false;
+        session2.on((event) => {
+            if (
+                event.type === "tool.execution_complete" &&
+                !event.data.success &&
+                event.data.error?.message.includes("Permission denied")
+            ) {
+                permissionDenied = true;
+            }
+        });
+
+        await session2.sendAndWait({ prompt: "Run 'node --version'" });
+
+        expect(permissionDenied).toBe(true);
+
+        await session2.destroy();
     });
 
     it("should work without permission handler (default behavior)", async () => {
