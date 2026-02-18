@@ -86,6 +86,7 @@ Use this table to find the right guides based on what you need to do:
 | Ship a standalone app with Copilot | [Bundled CLI](./bundled-cli.md) |
 | Users sign in with GitHub | [GitHub OAuth](./github-oauth.md) |
 | Use your own model keys (OpenAI, Azure, etc.) | [BYOK](./byok.md) |
+| Azure BYOK with Managed Identity (no API keys) | [Azure Managed Identity](./azure-managed-identity.md) |
 | Run the SDK on a server | [Backend Services](./backend-services.md) |
 | Serve multiple users / scale horizontally | [Scaling & Multi-Tenancy](./scaling.md) |
 

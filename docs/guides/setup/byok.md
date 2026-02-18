@@ -337,7 +337,7 @@ const resumed = await client.resumeSession("task-123", {
 
 | Limitation | Details |
 |------------|---------|
-| **Static credentials only** | API keys or bearer tokens — no Entra ID, OIDC, or managed identities |
+| **Static credentials only** | API keys or bearer tokens — no native Entra ID, OIDC, or managed identity support. See [Azure Managed Identity workaround](./azure-managed-identity.md) for using `DefaultAzureCredential` with short-lived tokens. |
 | **No auto-refresh** | If a bearer token expires, you must create a new session |
 | **Your billing** | All model usage is billed to your provider account |
 | **Model availability** | Limited to what your provider offers |
