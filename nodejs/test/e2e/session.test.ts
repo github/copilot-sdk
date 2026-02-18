@@ -366,7 +366,9 @@ describe("Send Blocking Behavior", async () => {
     const { copilotClient: client } = await createSdkTestContext();
 
     it("send returns immediately while events stream in background", async () => {
-        const session = await client.createSession();
+        const session = await client.createSession({
+            onPermissionRequest: async () => ({ kind: "approved" as const }),
+        });
 
         const events: string[] = [];
         session.on((event) => {

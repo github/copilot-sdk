@@ -279,7 +279,8 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
 
         var session = await Client.CreateSessionAsync(new SessionConfig
         {
-            McpServers = mcpServers
+            McpServers = mcpServers,
+            OnPermissionRequest = (request, invocation) => Task.FromResult(new PermissionRequestResult { Kind = "approved" }),
         });
 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);

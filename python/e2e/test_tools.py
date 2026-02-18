@@ -18,7 +18,9 @@ class TestTools:
         with open(readme_path, "w") as f:
             f.write("# ELIZA, the only chatbot you'll ever need")
 
-        session = await ctx.client.create_session()
+        session = await ctx.client.create_session(
+            {"on_permission_request": lambda _req, _inv: {"kind": "approved"}}
+        )
 
         await session.send({"prompt": "What's the first line of README.md in this directory?"})
         assistant_message = await get_final_assistant_message(session)

@@ -15,9 +15,11 @@ def on_permission_request(request, invocation):
 async def main():
     client = CopilotClient()
     await client.start()
-    session = await client.create_session({
-        "on_permission_request": on_permission_request,
-    })
+    session = await client.create_session(
+        {
+            "on_permission_request": on_permission_request,
+        }
+    )
 
     def on_event(event):
         output = None

@@ -108,6 +108,7 @@ describe("MCP Servers and Custom Agents", async () => {
 
             const session = await client.createSession({
                 mcpServers,
+                onPermissionRequest: async () => ({ kind: "approved" as const }),
             });
 
             expect(session.sessionId).toBeDefined();

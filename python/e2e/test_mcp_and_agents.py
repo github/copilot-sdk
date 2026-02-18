@@ -87,7 +87,12 @@ class TestMCPServers:
             }
         }
 
-        session = await ctx.client.create_session({"mcp_servers": mcp_servers})
+        session = await ctx.client.create_session(
+            {
+                "mcp_servers": mcp_servers,
+                "on_permission_request": lambda _req, _inv: {"kind": "approved"},
+            }
+        )
 
         assert session.session_id is not None
 

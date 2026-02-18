@@ -20,6 +20,7 @@ describe("Session hooks", async () => {
         const preToolUseInputs: PreToolUseHookInput[] = [];
 
         const session = await client.createSession({
+            onPermissionRequest: async () => ({ kind: "approved" as const }),
             hooks: {
                 onPreToolUse: async (input, invocation) => {
                     preToolUseInputs.push(input);
@@ -50,6 +51,7 @@ describe("Session hooks", async () => {
         const postToolUseInputs: PostToolUseHookInput[] = [];
 
         const session = await client.createSession({
+            onPermissionRequest: async () => ({ kind: "approved" as const }),
             hooks: {
                 onPostToolUse: async (input, invocation) => {
                     postToolUseInputs.push(input);
@@ -81,6 +83,7 @@ describe("Session hooks", async () => {
         const postToolUseInputs: PostToolUseHookInput[] = [];
 
         const session = await client.createSession({
+            onPermissionRequest: async () => ({ kind: "approved" as const }),
             hooks: {
                 onPreToolUse: async (input) => {
                     preToolUseInputs.push(input);

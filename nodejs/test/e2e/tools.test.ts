@@ -15,7 +15,9 @@ describe("Custom tools", async () => {
     it("invokes built-in tools", async () => {
         await writeFile(join(workDir, "README.md"), "# ELIZA, the only chatbot you'll ever need");
 
-        const session = await client.createSession();
+        const session = await client.createSession({
+            onPermissionRequest: async () => ({ kind: "approved" as const }),
+        });
         const assistantMessage = await session.sendAndWait({
             prompt: "What's the first line of README.md in this directory?",
         });
