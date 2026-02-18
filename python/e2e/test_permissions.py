@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 
-from copilot import PermissionRequest, PermissionRequestResult
+from copilot import PermissionHandler, PermissionRequest, PermissionRequestResult
 
 from .testharness import E2ETestContext
 from .testharness.helper import read_file, write_file
