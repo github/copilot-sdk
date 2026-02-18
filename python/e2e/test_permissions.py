@@ -71,8 +71,6 @@ class TestPermissions:
     async def test_should_deny_tool_operations_by_default_when_no_handler_is_provided(
         self, ctx: E2ETestContext
     ):
-        import asyncio
-
         session = await ctx.client.create_session()
 
         denied_events = []
@@ -103,8 +101,6 @@ class TestPermissions:
     async def test_should_deny_tool_operations_by_default_when_no_handler_is_provided_after_resume(
         self, ctx: E2ETestContext
     ):
-        import asyncio
-
         session1 = await ctx.client.create_session(
             {"on_permission_request": PermissionHandler.approve_all}
         )
