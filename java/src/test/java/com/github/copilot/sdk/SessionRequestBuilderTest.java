@@ -37,6 +37,8 @@ public class SessionRequestBuilderTest {
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(null);
         assertNotNull(request);
         assertNull(request.getModel());
+        assertTrue(request.getRequestPermission(), "requestPermission should be true even for null config");
+        assertEquals("direct", request.getEnvValueMode(), "envValueMode should be 'direct' even for null config");
     }
 
     @Test
@@ -89,6 +91,8 @@ public class SessionRequestBuilderTest {
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-1", null);
         assertEquals("sid-1", request.getSessionId());
         assertNull(request.getModel());
+        assertTrue(request.getRequestPermission(), "requestPermission should be true even for null config");
+        assertEquals("direct", request.getEnvValueMode(), "envValueMode should be 'direct' even for null config");
     }
 
     @Test

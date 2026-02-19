@@ -31,6 +31,10 @@ final class SessionRequestBuilder {
      */
     static CreateSessionRequest buildCreateRequest(SessionConfig config) {
         var request = new CreateSessionRequest();
+        // Always request permission callbacks to enable deny-by-default behavior
+        request.setRequestPermission(true);
+        // Always send envValueMode=direct for MCP servers
+        request.setEnvValueMode("direct");
         if (config == null) {
             return request;
         }
@@ -44,13 +48,11 @@ final class SessionRequestBuilder {
         request.setAvailableTools(config.getAvailableTools());
         request.setExcludedTools(config.getExcludedTools());
         request.setProvider(config.getProvider());
-        request.setRequestPermission(true);
         request.setRequestUserInput(config.getOnUserInputRequest() != null ? true : null);
         request.setHooks(config.getHooks() != null && config.getHooks().hasHooks() ? true : null);
         request.setWorkingDirectory(config.getWorkingDirectory());
         request.setStreaming(config.isStreaming() ? true : null);
         request.setMcpServers(config.getMcpServers());
-        request.setEnvValueMode("direct");
         request.setCustomAgents(config.getCustomAgents());
         request.setInfiniteSessions(config.getInfiniteSessions());
         request.setSkillDirectories(config.getSkillDirectories());
@@ -72,6 +74,10 @@ final class SessionRequestBuilder {
     static ResumeSessionRequest buildResumeRequest(String sessionId, ResumeSessionConfig config) {
         var request = new ResumeSessionRequest();
         request.setSessionId(sessionId);
+        // Always request permission callbacks to enable deny-by-default behavior
+        request.setRequestPermission(true);
+        // Always send envValueMode=direct for MCP servers
+        request.setEnvValueMode("direct");
 
         if (config == null) {
             return request;
@@ -85,7 +91,6 @@ final class SessionRequestBuilder {
         request.setAvailableTools(config.getAvailableTools());
         request.setExcludedTools(config.getExcludedTools());
         request.setProvider(config.getProvider());
-        request.setRequestPermission(true);
         request.setRequestUserInput(config.getOnUserInputRequest() != null ? true : null);
         request.setHooks(config.getHooks() != null && config.getHooks().hasHooks() ? true : null);
         request.setWorkingDirectory(config.getWorkingDirectory());
@@ -93,7 +98,6 @@ final class SessionRequestBuilder {
         request.setDisableResume(config.isDisableResume() ? true : null);
         request.setStreaming(config.isStreaming() ? true : null);
         request.setMcpServers(config.getMcpServers());
-        request.setEnvValueMode("direct");
         request.setCustomAgents(config.getCustomAgents());
         request.setSkillDirectories(config.getSkillDirectories());
         request.setDisabledSkills(config.getDisabledSkills());

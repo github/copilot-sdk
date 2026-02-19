@@ -26,6 +26,8 @@ import com.github.copilot.sdk.events.ToolExecutionCompleteEvent;
 import com.github.copilot.sdk.events.ToolExecutionStartEvent;
 import com.github.copilot.sdk.events.UserMessageEvent;
 import com.github.copilot.sdk.json.MessageOptions;
+import com.github.copilot.sdk.json.PermissionHandler;
+import com.github.copilot.sdk.json.SessionConfig;
 
 /**
  * E2E tests for session events to verify event lifecycle.
@@ -130,7 +132,8 @@ public class SessionEventsE2ETest {
         var toolCompletes = new ArrayList<ToolExecutionCompleteEvent>();
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession().get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             session.on(ToolExecutionStartEvent.class, toolStarts::add);
             session.on(ToolExecutionCompleteEvent.class, toolCompletes::add);
@@ -235,7 +238,8 @@ public class SessionEventsE2ETest {
         var eventTypes = new ArrayList<String>();
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession().get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             session.on(event -> eventTypes.add(event.getType()));
 
