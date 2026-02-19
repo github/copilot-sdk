@@ -1,0 +1,4 @@
+Project: Copilot SDK Samples
+Version: 1.0.0
+Description: Minimal buildable samples demonstrating the Copilot SDK
+Languages: TypeScript, Python, Go

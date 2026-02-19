@@ -1,0 +1,18 @@
+{
+  "name": "codegen",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "tsx typescript.ts && tsx csharp.ts && tsx python.ts && tsx go.ts",
+    "generate:ts": "tsx typescript.ts",
+    "generate:csharp": "tsx csharp.ts",
+    "generate:python": "tsx python.ts",
+    "generate:go": "tsx go.ts"
+  },
+  "dependencies": {
+    "json-schema": "^0.4.0",
+    "json-schema-to-typescript": "^15.0.4",
+    "quicktype-core": "^23.2.6",
+    "tsx": "^4.20.6"
+  }
+}

@@ -1,0 +1,186 @@
+name: "Scenario Build Verification"
+
+on:
+  pull_request:
+    paths:
+      - "test/scenarios/**"
+      - "nodejs/src/**"
+      - "python/copilot/**"
+      - "go/**/*.go"
+      - "dotnet/src/**"
+      - ".github/workflows/scenario-builds.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "test/scenarios/**"
+      - ".github/workflows/scenario-builds.yml"
+  workflow_dispatch:
+  merge_group:
+
+permissions:
+  contents: read
+
+jobs:
+  # ── TypeScript ──────────────────────────────────────────────────────
+  build-typescript:
+    name: "TypeScript scenarios"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-scenarios-${{ hashFiles('test/scenarios/**/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-scenarios-
+
+      # Build the SDK so local file: references resolve
+      - name: Build SDK
+        working-directory: nodejs
+        run: npm ci --ignore-scripts
+
+      - name: Build all TypeScript scenarios
+        run: |
+          PASS=0; FAIL=0; FAILURES=""
+          for dir in $(find test/scenarios -path '*/typescript/package.json' -exec dirname {} \; | sort); do
+            scenario="${dir#test/scenarios/}"
+            echo "::group::$scenario"
+            if (cd "$dir" && npm install --ignore-scripts 2>&1); then
+              echo "✅ $scenario"
+              PASS=$((PASS + 1))
+            else
+              echo "❌ $scenario"
+              FAIL=$((FAIL + 1))
+              FAILURES="$FAILURES\n  $scenario"
+            fi
+            echo "::endgroup::"
+          done
+          echo ""
+          echo "TypeScript builds: $PASS passed, $FAIL failed"
+          if [ "$FAIL" -gt 0 ]; then
+            echo -e "Failures:$FAILURES"
+            exit 1
+          fi
+
+  # ── Python ──────────────────────────────────────────────────────────
+  build-python:
+    name: "Python scenarios"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Python SDK
+        run: pip install -e python/
+
+      - name: Compile and import-check all Python scenarios
+        run: |
+          PASS=0; FAIL=0; FAILURES=""
+          for main in $(find test/scenarios -path '*/python/main.py' | sort); do
+            dir=$(dirname "$main")
+            scenario="${dir#test/scenarios/}"
+            echo "::group::$scenario"
+            if python3 -m py_compile "$main" 2>&1 && python3 -c "import copilot" 2>&1; then
+              echo "✅ $scenario"
+              PASS=$((PASS + 1))
+            else
+              echo "❌ $scenario"
+              FAIL=$((FAIL + 1))
+              FAILURES="$FAILURES\n  $scenario"
+            fi
+            echo "::endgroup::"
+          done
+          echo ""
+          echo "Python builds: $PASS passed, $FAIL failed"
+          if [ "$FAIL" -gt 0 ]; then
+            echo -e "Failures:$FAILURES"
+            exit 1
+          fi
+
+  # ── Go ──────────────────────────────────────────────────────────────
+  build-go:
+    name: "Go scenarios"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.24"
+          cache: true
+          cache-dependency-path: test/scenarios/**/go.sum
+
+      - name: Build all Go scenarios
+        run: |
+          PASS=0; FAIL=0; FAILURES=""
+          for mod in $(find test/scenarios -path '*/go/go.mod' | sort); do
+            dir=$(dirname "$mod")
+            scenario="${dir#test/scenarios/}"
+            echo "::group::$scenario"
+            if (cd "$dir" && go build ./... 2>&1); then
+              echo "✅ $scenario"
+              PASS=$((PASS + 1))
+            else
+              echo "❌ $scenario"
+              FAIL=$((FAIL + 1))
+              FAILURES="$FAILURES\n  $scenario"
+            fi
+            echo "::endgroup::"
+          done
+          echo ""
+          echo "Go builds: $PASS passed, $FAIL failed"
+          if [ "$FAIL" -gt 0 ]; then
+            echo -e "Failures:$FAILURES"
+            exit 1
+          fi
+
+  # ── C# ─────────────────────────────────────────────────────────────
+  build-csharp:
+    name: "C# scenarios"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "8.0.x"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-scenarios-${{ hashFiles('test/scenarios/**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-scenarios-
+
+      - name: Build all C# scenarios
+        run: |
+          PASS=0; FAIL=0; FAILURES=""
+          for proj in $(find test/scenarios -name '*.csproj' | sort); do
+            dir=$(dirname "$proj")
+            scenario="${dir#test/scenarios/}"
+            echo "::group::$scenario"
+            if (cd "$dir" && dotnet build --nologo 2>&1); then
+              echo "✅ $scenario"
+              PASS=$((PASS + 1))
+            else
+              echo "❌ $scenario"
+              FAIL=$((FAIL + 1))
+              FAILURES="$FAILURES\n  $scenario"
+            fi
+            echo "::endgroup::"
+          done
+          echo ""
+          echo "C# builds: $PASS passed, $FAIL failed"
+          if [ "$FAIL" -gt 0 ]; then
+            echo -e "Failures:$FAILURES"
+            exit 1
+          fi

@@ -42,7 +42,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/github/copilot-sdk/go/internal/embeddedcli"
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 // Client manages the connection to the Copilot CLI server and provides session management.
@@ -83,6 +85,12 @@ type Client struct {
 	lifecycleHandlers      []SessionLifecycleHandler
 	typedLifecycleHandlers map[SessionLifecycleEventType][]SessionLifecycleHandler
 	lifecycleHandlersMux   sync.Mutex
+	processDone            chan struct{} // closed when CLI process exits
+	processError           error         // set before processDone is closed
+
+	// RPC provides typed server-scoped RPC methods.
+	// This field is nil until the client is connected via Start().
+	RPC *rpc.ServerRpc
 }
 
 // NewClient creates a new Copilot CLI client with the given options.
@@ -102,7 +110,7 @@ type Client struct {
 //	})
 func NewClient(options *ClientOptions) *Client {
 	opts := ClientOptions{
-		CLIPath:  "copilot",
+		CLIPath:  "",
 		Cwd:      "",
 		Port:     0,
 		LogLevel: "info",
@@ -142,6 +150,9 @@ func NewClient(options *ClientOptions) *Client {
 
 		if options.CLIPath != "" {
 			opts.CLIPath = options.CLIPath
+		}
+		if len(options.CLIArgs) > 0 {
+			opts.CLIArgs = append([]string{}, options.CLIArgs...)
 		}
 		if options.Cwd != "" {
 			opts.Cwd = options.Cwd
@@ -336,6 +347,7 @@ func (c *Client) Stop() error {
 		c.actualPort = 0
 	}
 
+	c.RPC = nil
 	return errors.Join(errs...)
 }
 
@@ -394,6 +406,8 @@ func (c *Client) ForceStop() {
 	if !c.isExternalServer {
 		c.actualPort = 0
 	}
+
+	c.RPC = nil
 }
 
 func (c *Client) ensureConnected() error {
@@ -441,6 +455,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	if config != nil {
 		req.Model = config.Model
 		req.SessionID = config.SessionID
+		req.ClientName = config.ClientName
 		req.ReasoningEffort = config.ReasoningEffort
 		req.ConfigDir = config.ConfigDir
 		req.Tools = config.Tools
@@ -450,6 +465,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		req.Provider = config.Provider
 		req.WorkingDirectory = config.WorkingDirectory
 		req.MCPServers = config.MCPServers
+		req.EnvValueMode = "direct"
 		req.CustomAgents = config.CustomAgents
 		req.SkillDirectories = config.SkillDirectories
 		req.DisabledSkills = config.DisabledSkills
@@ -457,9 +473,6 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 
 		if config.Streaming {
 			req.Streaming = Bool(true)
-		}
-		if config.OnPermissionRequest != nil {
-			req.RequestPermission = Bool(true)
 		}
 		if config.OnUserInputRequest != nil {
 			req.RequestUserInput = Bool(true)
@@ -473,6 +486,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 			req.Hooks = Bool(true)
 		}
 	}
+	req.RequestPermission = Bool(true)
 
 	result, err := c.client.Request("session.create", req)
 	if err != nil {
@@ -537,6 +551,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	var req resumeSessionRequest
 	req.SessionID = sessionID
 	if config != nil {
+		req.ClientName = config.ClientName
 		req.Model = config.Model
 		req.ReasoningEffort = config.ReasoningEffort
 		req.SystemMessage = config.SystemMessage
@@ -546,9 +561,6 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		req.ExcludedTools = config.ExcludedTools
 		if config.Streaming {
 			req.Streaming = Bool(true)
-		}
-		if config.OnPermissionRequest != nil {
-			req.RequestPermission = Bool(true)
 		}
 		if config.OnUserInputRequest != nil {
 			req.RequestUserInput = Bool(true)
@@ -567,11 +579,13 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 			req.DisableResume = Bool(true)
 		}
 		req.MCPServers = config.MCPServers
+		req.EnvValueMode = "direct"
 		req.CustomAgents = config.CustomAgents
 		req.SkillDirectories = config.SkillDirectories
 		req.DisabledSkills = config.DisabledSkills
 		req.InfiniteSessions = config.InfiniteSessions
 	}
+	req.RequestPermission = Bool(true)
 
 	result, err := c.client.Request("session.resume", req)
 	if err != nil {
@@ -609,23 +623,33 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 // ListSessions returns metadata about all sessions known to the server.
 //
 // Returns a list of SessionMetadata for all available sessions, including their IDs,
-// timestamps, and optional summaries.
+// timestamps, optional summaries, and context information.
+//
+// An optional filter can be provided to filter sessions by cwd, git root, repository, or branch.
 //
 // Example:
 //
-//	sessions, err := client.ListSessions(context.Background())
+//	sessions, err := client.ListSessions(context.Background(), nil)
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
 //	for _, session := range sessions {
 //	    fmt.Printf("Session: %s\n", session.SessionID)
 //	}
-func (c *Client) ListSessions(ctx context.Context) ([]SessionMetadata, error) {
+//
+// Example with filter:
+//
+//	sessions, err := client.ListSessions(context.Background(), &SessionListFilter{Repository: "owner/repo"})
+func (c *Client) ListSessions(ctx context.Context, filter *SessionListFilter) ([]SessionMetadata, error) {
 	if err := c.ensureConnected(); err != nil {
 		return nil, err
 	}
 
-	result, err := c.client.Request("session.list", listSessionsRequest{})
+	params := listSessionsRequest{}
+	if filter != nil {
+		params.Filter = filter
+	}
+	result, err := c.client.Request("session.list", params)
 	if err != nil {
 		return nil, err
 	}
@@ -994,7 +1018,19 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 // This spawns the CLI server as a subprocess using the configured transport
 // mode (stdio or TCP).
 func (c *Client) startCLIServer(ctx context.Context) error {
-	args := []string{"--headless", "--no-auto-update", "--log-level", c.options.LogLevel}
+	cliPath := c.options.CLIPath
+	if cliPath == "" {
+		// If no CLI path is provided, attempt to use the embedded CLI if available
+		cliPath = embeddedcli.Path()
+	}
+	if cliPath == "" {
+		// Default to "copilot" in PATH if no embedded CLI is available and no custom path is set
+		cliPath = "copilot"
+	}
+
+	// Start with user-provided CLIArgs, then add SDK-managed args
+	args := append([]string{}, c.options.CLIArgs...)
+	args = append(args, "--headless", "--no-auto-update", "--log-level", c.options.LogLevel)
 
 	// Choose transport mode
 	if c.useStdio {
@@ -1020,13 +1056,16 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 
 	// If CLIPath is a .js file, run it with node
 	// Note we can't rely on the shebang as Windows doesn't support it
-	command := c.options.CLIPath
-	if strings.HasSuffix(c.options.CLIPath, ".js") {
+	command := cliPath
+	if strings.HasSuffix(cliPath, ".js") {
 		command = "node"
-		args = append([]string{c.options.CLIPath}, args...)
+		args = append([]string{cliPath}, args...)
 	}
 
 	c.process = exec.CommandContext(ctx, command, args...)
+
+	// Configure platform-specific process attributes (e.g., hide window on Windows)
+	configureProcAttr(c.process)
 
 	// Set working directory if specified
 	if c.options.Cwd != "" {
@@ -1051,26 +1090,26 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 			return fmt.Errorf("failed to create stdout pipe: %w", err)
 		}
 
-		stderr, err := c.process.StderrPipe()
-		if err != nil {
-			return fmt.Errorf("failed to create stderr pipe: %w", err)
-		}
-
-		// Read stderr in background
-		go func() {
-			scanner := bufio.NewScanner(stderr)
-			for scanner.Scan() {
-				// Optionally log stderr
-				// fmt.Fprintf(os.Stderr, "CLI stderr: %s\n", scanner.Text())
-			}
-		}()
-
 		if err := c.process.Start(); err != nil {
 			return fmt.Errorf("failed to start CLI server: %w", err)
 		}
 
+		// Monitor process exit to signal pending requests
+		c.processDone = make(chan struct{})
+		go func() {
+			waitErr := c.process.Wait()
+			if waitErr != nil {
+				c.processError = fmt.Errorf("CLI process exited: %v", waitErr)
+			} else {
+				c.processError = fmt.Errorf("CLI process exited unexpectedly")
+			}
+			close(c.processDone)
+		}()
+
 		// Create JSON-RPC client immediately
 		c.client = jsonrpc2.NewClient(stdin, stdout)
+		c.client.SetProcessDone(c.processDone, &c.processError)
+		c.RPC = rpc.NewServerRpc(c.client)
 		c.setupNotificationHandler()
 		c.client.Start()
 
@@ -1143,6 +1182,7 @@ func (c *Client) connectViaTcp(ctx context.Context) error {
 
 	// Create JSON-RPC client with the connection
 	c.client = jsonrpc2.NewClient(conn, conn)
+	c.RPC = rpc.NewServerRpc(c.client)
 	c.setupNotificationHandler()
 	c.client.Start()
 

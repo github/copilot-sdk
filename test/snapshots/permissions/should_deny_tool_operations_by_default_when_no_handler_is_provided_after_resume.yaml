@@ -1,0 +1,55 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: What is 1+1?
+      - role: assistant
+        content: 1+1 = 2
+      - role: user
+        content: Run 'node --version'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Checking Node.js version"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"node --version","description":"Check Node.js version"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: What is 1+1?
+      - role: assistant
+        content: 1+1 = 2
+      - role: user
+        content: Run 'node --version'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Checking Node.js version"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"node --version","description":"Check Node.js version"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Permission denied and could not request permission from user
+      - role: assistant
+        content: Permission was denied to run the command. I don't have access to execute shell commands in this environment.

@@ -1,0 +1,49 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Run 'node --version'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Checking Node.js version"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"node --version","description":"Check Node.js version"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Run 'node --version'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Checking Node.js version"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"node --version","description":"Check Node.js version"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Permission denied and could not request permission from user
+      - role: assistant
+        content: I received a permission denied error. It appears I don't have permission to execute the `node --version`
+          command in this environment. This might be due to security restrictions or the command not being available in
+          the current context.

@@ -10,6 +10,15 @@ SDK for programmatic control of GitHub Copilot CLI.
 dotnet add package GitHub.Copilot.SDK
 ```
 
+## Run the Sample
+
+Try the interactive chat sample (from the repo root):
+
+```bash
+cd dotnet/samples
+dotnet run
+```
+
 ## Quick Start
 
 ```csharp

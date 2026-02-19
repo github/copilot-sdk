@@ -132,4 +132,31 @@ describe("Client", () => {
 
         await client.stop();
     });
+
+    it("should report error with stderr when CLI fails to start", async () => {
+        const client = new CopilotClient({
+            cliArgs: ["--nonexistent-flag-for-testing"],
+            useStdio: true,
+        });
+        onTestFinishedForceStop(client);
+
+        let initialError: Error | undefined;
+        try {
+            await client.start();
+            expect.fail("Expected start() to throw an error");
+        } catch (error) {
+            initialError = error as Error;
+            expect(initialError.message).toContain("stderr");
+            expect(initialError.message).toContain("nonexistent");
+        }
+
+        // Verify subsequent calls also fail (don't hang)
+        try {
+            const session = await client.createSession();
+            await session.send("test");
+            expect.fail("Expected send() to throw an error after CLI exit");
+        } catch (error) {
+            expect((error as Error).message).toContain("Connection is closed");
+        }
+    });
 });

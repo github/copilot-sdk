@@ -230,6 +230,8 @@ export type PermissionHandler = (
     invocation: { sessionId: string }
 ) => Promise<PermissionRequestResult> | PermissionRequestResult;
 
+export const approveAll: PermissionHandler = () => ({ kind: "approved" });
+
 // ============================================================================
 // User Input Request Types
 // ============================================================================
@@ -616,6 +618,12 @@ export interface SessionConfig {
     sessionId?: string;
 
     /**
+     * Client name to identify the application using the SDK.
+     * Included in the User-Agent header for API requests.
+     */
+    clientName?: string;
+
+    /**
      * Model to use for this session
      */
     model?: string;
@@ -730,6 +738,7 @@ export interface SessionConfig {
  */
 export type ResumeSessionConfig = Pick<
     SessionConfig,
+    | "clientName"
     | "model"
     | "tools"
     | "systemMessage"
@@ -870,6 +879,34 @@ export type SessionEventHandler = (event: SessionEvent) => void;
 export type ConnectionState = "disconnected" | "connecting" | "connected" | "error";
 
 /**
+ * Working directory context for a session
+ */
+export interface SessionContext {
+    /** Working directory where the session was created */
+    cwd: string;
+    /** Git repository root (if in a git repo) */
+    gitRoot?: string;
+    /** GitHub repository in "owner/repo" format */
+    repository?: string;
+    /** Current git branch */
+    branch?: string;
+}
+
+/**
+ * Filter options for listing sessions
+ */
+export interface SessionListFilter {
+    /** Filter by exact cwd match */
+    cwd?: string;
+    /** Filter by git root */
+    gitRoot?: string;
+    /** Filter by repository (owner/repo format) */
+    repository?: string;
+    /** Filter by branch */
+    branch?: string;
+}
+
+/**
  * Metadata about a session
  */
 export interface SessionMetadata {
@@ -878,6 +915,8 @@ export interface SessionMetadata {
     modifiedTime: Date;
     summary?: string;
     isRemote: boolean;
+    /** Working directory context (cwd, git info) from session creation */
+    context?: SessionContext;
 }
 
 /**
