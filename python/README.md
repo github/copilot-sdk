@@ -63,7 +63,7 @@ asyncio.run(main())
 
 ```python
 client = CopilotClient(
-    cli_path="copilot",  # Optional: path to CLI executable
+    cli_path="/usr/local/bin/copilot",  # Optional: path to CLI executable
     cli_url=None,        # Optional: URL of existing server (e.g., "localhost:8080")
     log_level="info",    # Optional: log level (default: "info")
     auto_start=True,     # Optional: auto-start server (default: True)
@@ -74,7 +74,7 @@ await client.start()
 session = await client.create_session({"model": "gpt-5"})
 
 def on_event(event):
-    print(f"Event: {event['type']}")
+    print(f"Event: {event.type.value}")
 
 session.on(on_event)
 await session.send({"prompt": "Hello!"})
@@ -87,12 +87,12 @@ await client.stop()
 
 **CopilotClient Options:**
 
-- `cli_path` (str): Path to CLI executable (default: "copilot" or `COPILOT_CLI_PATH` env var)
+- `cli_path` (str | PathLike): Path to CLI executable (default: bundled CLI binary). Accepts strings or path-like objects.
 - `cli_url` (str): URL of existing CLI server (e.g., `"localhost:8080"`, `"http://127.0.0.1:9000"`, or just `"8080"`). When provided, the client will not spawn a CLI process.
-- `cwd` (str): Working directory for CLI process
+- `cwd` (str | PathLike): Working directory for CLI process. Accepts strings or path-like objects.
 - `port` (int): Server port for TCP mode (default: 0 for random)
 - `use_stdio` (bool): Use stdio transport instead of TCP (default: True)
-- `log_level` (str): Log level (default: "info")
+- `log_level` (str): Log level — `"none"`, `"error"`, `"warning"`, `"info"` (default), `"debug"`, or `"all"`
 - `auto_start` (bool): Auto-start server on first use (default: True)
 - `auto_restart` (bool): Auto-restart on crash (default: True)
 - `github_token` (str): GitHub token for authentication. When provided, takes priority over other auth methods.
