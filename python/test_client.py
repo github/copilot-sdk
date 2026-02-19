@@ -165,7 +165,7 @@ class TestAuthOptions:
 class TestSessionConfigForwarding:
     @pytest.mark.asyncio
     async def test_create_session_forwards_client_name(self):
-        client = CopilotClient({"cli_path": CLI_PATH})
+        client = CopilotClient(cli_path=CLI_PATH)
         await client.start()
 
         try:
@@ -184,7 +184,7 @@ class TestSessionConfigForwarding:
 
     @pytest.mark.asyncio
     async def test_resume_session_forwards_client_name(self):
-        client = CopilotClient({"cli_path": CLI_PATH})
+        client = CopilotClient(cli_path=CLI_PATH)
         await client.start()
 
         try:

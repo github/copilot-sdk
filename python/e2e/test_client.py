@@ -184,11 +184,9 @@ class TestClient:
     async def test_should_report_error_with_stderr_when_cli_fails_to_start(self):
         """Test that CLI startup errors include stderr output in the error message."""
         client = CopilotClient(
-            {
-                "cli_path": CLI_PATH,
-                "cli_args": ["--nonexistent-flag-for-testing"],
-                "use_stdio": True,
-            }
+            cli_path=CLI_PATH,
+            cli_args=["--nonexistent-flag-for-testing"],
+            use_stdio=True,
         )
 
         try:

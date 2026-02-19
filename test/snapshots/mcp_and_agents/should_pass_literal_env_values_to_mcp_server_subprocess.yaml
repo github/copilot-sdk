@@ -16,6 +16,58 @@ conversations:
               arguments: '{"name":"TEST_SECRET"}'
       - role: tool
         tool_call_id: toolcall_0
-        content: hunter2
+        content: Tool 'env-echo-get_env' does not exist. Available tools that can be called are bash, write_bash, read_bash,
+          stop_bash, list_bash, view, create, edit, web_fetch, report_intent, fetch_copilot_cli_documentation,
+          update_todo, read_agent, list_agents, grep, glob, task.
       - role: assistant
-        content: hunter2
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Reading environment variable"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"echo \"$TEST_SECRET\"","description":"Read TEST_SECRET environment variable"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the env-echo/get_env tool to read the TEST_SECRET environment variable. Reply with just the value, nothing
+          else.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: env-echo-get_env
+              arguments: '{"name":"TEST_SECRET"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Tool 'env-echo-get_env' does not exist. Available tools that can be called are bash, write_bash, read_bash,
+          stop_bash, list_bash, view, create, edit, web_fetch, report_intent, fetch_copilot_cli_documentation,
+          update_todo, read_agent, list_agents, grep, glob, task.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Reading environment variable"}'
+          - id: toolcall_2
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"echo \"$TEST_SECRET\"","description":"Read TEST_SECRET environment variable"}'
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_2
+        content: <exited with exit code 0>
+      - role: assistant
+        content: The environment variable TEST_SECRET is not set or is empty.
