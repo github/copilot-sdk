@@ -1,12 +1,12 @@
 # Multi-User Short-Lived Sessions
 
-Demonstrates a **stateless backend pattern** where multiple users interact with a shared `copilot-core` server through **ephemeral sessions** that are created and destroyed per request, with per-user virtual filesystems for isolation.
+Demonstrates a **stateless backend pattern** where multiple users interact with a shared `copilot` server through **ephemeral sessions** that are created and destroyed per request, with per-user virtual filesystems for isolation.
 
 ## Architecture
 
 ```
 ┌──────────────────────┐
-│    copilot-core       │  (headless TCP server)
+│    Copilot CLI       │  (headless TCP server)
 │    (shared server)    │
 └───┬──────┬───────┬───┘
     │      │       │   JSON-RPC over TCP (cliUrl)
@@ -59,4 +59,4 @@ Virtual FS per user (in-memory, not shared across users)
 ./verify.sh
 ```
 
-Requires `copilot-core` binary (auto-detected or set `COPILOT_CLI_PATH`) and `GITHUB_TOKEN`.
+Requires the `copilot` binary (auto-detected or set `COPILOT_CLI_PATH`) and `GITHUB_TOKEN`.

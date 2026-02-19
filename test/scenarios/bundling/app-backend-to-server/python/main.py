@@ -39,7 +39,7 @@ def chat():
     content = asyncio.run(ask_copilot(prompt))
     if content:
         return jsonify({"response": content})
-    return jsonify({"error": "No response content from copilot-core"}), 502
+    return jsonify({"error": "No response content from Copilot CLI"}), 502
 
 
 def self_test(port: int):

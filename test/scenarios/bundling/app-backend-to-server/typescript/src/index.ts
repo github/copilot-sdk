@@ -26,7 +26,7 @@ app.post("/chat", async (req, res) => {
     if (response?.data.content) {
       res.json({ response: response.data.content });
     } else {
-      res.status(502).json({ error: "No response content from copilot-core" });
+      res.status(502).json({ error: "No response content from Copilot CLI" });
     }
   } catch (err) {
     res.status(500).json({ error: String(err) });

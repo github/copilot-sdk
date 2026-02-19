@@ -29,4 +29,4 @@ This pattern is useful for:
 ./verify.sh
 ```
 
-Requires `copilot-core` binary (auto-detected or set `COPILOT_CLI_PATH`) and `GITHUB_TOKEN`.
+Requires the `copilot` binary (auto-detected or set `COPILOT_CLI_PATH`) and `GITHUB_TOKEN`.

@@ -14,7 +14,7 @@ echo ""
 # ── CLI path (optional) ──────────────────────────────────────────────
 # COPILOT_CLI_PATH is optional for most scenarios — the SDK discovers
 # the bundled CLI automatically.  Set it only to override, or for
-# server-mode scenarios (TCP, multi-user) that spawn copilot-core directly.
+# server-mode scenarios (TCP, multi-user) that spawn Copilot CLI directly.
 if [ -n "${COPILOT_CLI_PATH:-}" ]; then
   echo "Using CLI override: $COPILOT_CLI_PATH"
 else

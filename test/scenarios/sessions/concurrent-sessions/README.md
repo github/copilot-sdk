@@ -30,4 +30,4 @@ Demonstrates creating **multiple sessions on the same client** with different co
 ./verify.sh
 ```
 
-Requires `copilot-core` binary (auto-detected or set `COPILOT_CLI_PATH`) and `GITHUB_TOKEN`.
+Requires the `copilot` binary (auto-detected or set `COPILOT_CLI_PATH`) and `GITHUB_TOKEN`.

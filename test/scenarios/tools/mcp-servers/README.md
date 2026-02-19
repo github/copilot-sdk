@@ -24,7 +24,7 @@ Demonstrates configuring the Copilot SDK with **MCP (Model Context Protocol) ser
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `COPILOT_CLI_PATH` | No | Path to `copilot-core` binary (auto-detected) |
+| `COPILOT_CLI_PATH` | No | Path to `copilot` binary (auto-detected) |
 | `GITHUB_TOKEN` | Yes | GitHub auth token (falls back to `gh auth token`) |
 | `MCP_SERVER_CMD` | No | MCP server executable — when set, enables MCP integration |
 | `MCP_SERVER_ARGS` | No | Space-separated arguments for the MCP server command |
@@ -39,4 +39,4 @@ Demonstrates configuring the Copilot SDK with **MCP (Model Context Protocol) ser
 MCP_SERVER_CMD=npx MCP_SERVER_ARGS="@modelcontextprotocol/server-filesystem /tmp" ./verify.sh
 ```
 
-Requires `copilot-core` binary (auto-detected or set `COPILOT_CLI_PATH`) and `GITHUB_TOKEN`.
+Requires the `copilot` binary (auto-detected or set `COPILOT_CLI_PATH`) and `GITHUB_TOKEN`.

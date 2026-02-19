@@ -1,17 +1,17 @@
 # App-Direct-Server Samples
 
-Samples that demonstrate the **app-direct-server** deployment architecture of the Copilot SDK. In this scenario the SDK connects to a **pre-running** `copilot-core` TCP server — the app does not spawn or manage the server process.
+Samples that demonstrate the **app-direct-server** deployment architecture of the Copilot SDK. In this scenario the SDK connects to a **pre-running** `copilot` TCP server — the app does not spawn or manage the server process.
 
 ```
 ┌─────────────┐   TCP (JSON-RPC)   ┌──────────────┐
-│  Your App   │ ─────────────────▶  │ copilot-core │
+│  Your App   │ ─────────────────▶  │ Copilot CLI  │
 │  (SDK)      │ ◀─────────────────  │ (TCP server) │
 └─────────────┘                     └──────────────┘
 ```
 
 Each sample follows the same flow:
 
-1. **Connect** to a running `copilot-core` server via TCP
+1. **Connect** to a running `copilot` server via TCP
 2. **Open a session** targeting the `gpt-4.1` model
 3. **Send a prompt** ("What is the capital of France?")
 4. **Print the response** and clean up
@@ -26,7 +26,7 @@ Each sample follows the same flow:
 
 ## Prerequisites
 
-- **copilot-core binary** — set `COPILOT_CLI_PATH`
+- **Copilot CLI** — set `COPILOT_CLI_PATH`
 - **Authentication** — set `GITHUB_TOKEN`, or run `gh auth login`
 - **Node.js 20+** (TypeScript sample)
 - **Python 3.10+** (Python sample)
@@ -34,10 +34,10 @@ Each sample follows the same flow:
 
 ## Starting the Server
 
-Start `copilot-core` as a TCP server before running any sample:
+Start `copilot` as a TCP server before running any sample:
 
 ```bash
-copilot-core --port 3000 --headless --auth-token-env GITHUB_TOKEN
+copilot --port 3000 --headless --auth-token-env GITHUB_TOKEN
 ```
 
 ## Quick Start
@@ -77,7 +77,7 @@ A script is included that starts the server, builds, and end-to-end tests every 
 
 It runs in three phases:
 
-1. **Server** — starts `copilot-core` on a random port (auto-detected from server output)
+1. **Server** — starts `copilot` on a random port (auto-detected from server output)
 2. **Build** — installs dependencies and compiles each sample
 3. **E2E Run** — executes each sample with a 60-second timeout and verifies it produces output
 

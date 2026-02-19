@@ -29,7 +29,7 @@ This sample tests the **whitelist** approach with `["grep", "glob", "view"]`.
 ./verify.sh
 ```
 
-Requires `copilot-core` binary (auto-detected or set `COPILOT_CLI_PATH`) and `GITHUB_TOKEN`.
+Requires the `copilot` binary (auto-detected or set `COPILOT_CLI_PATH`) and `GITHUB_TOKEN`.
 
 ## Verification
 

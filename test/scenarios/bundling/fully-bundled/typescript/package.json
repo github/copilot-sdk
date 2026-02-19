@@ -2,7 +2,7 @@
   "name": "bundling-fully-bundled-typescript",
   "version": "1.0.0",
   "private": true,
-  "description": "Fully-bundled Copilot SDK sample — spawns copilot-core via stdio",
+  "description": "Fully-bundled Copilot SDK sample — spawns Copilot CLI via stdio",
   "type": "module",
   "scripts": {
     "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\"",

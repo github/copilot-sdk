@@ -11,7 +11,7 @@ This sample shows how to use Copilot SDK in **BYOK** mode with an Azure OpenAI p
 
 ## Prerequisites
 
-- `copilot-core` binary (`COPILOT_CLI_PATH`, or auto-detected by SDK)
+- `copilot` binary (`COPILOT_CLI_PATH`, or auto-detected by SDK)
 - Node.js 20+
 - An Azure OpenAI resource with a deployed model
 
@@ -32,7 +32,7 @@ AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com AZURE_OPENAI_API_KE
 | `AZURE_OPENAI_API_KEY` | Yes | — | Azure OpenAI API key |
 | `AZURE_OPENAI_MODEL` | No | `gpt-4.1` | Deployment / model name |
 | `AZURE_API_VERSION` | No | `2024-10-21` | Azure OpenAI API version |
-| `COPILOT_CLI_PATH` | No | auto-detected | Path to `copilot-core` binary |
+| `COPILOT_CLI_PATH` | No | auto-detected | Path to `copilot` binary |
 
 ## Provider configuration
 

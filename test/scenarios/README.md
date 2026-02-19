@@ -22,17 +22,17 @@ scenarios/
 Run all scenarios:
 
 ```bash
-COPILOT_CLI_PATH=/path/to/copilot-core GITHUB_TOKEN=$(gh auth token) bash verify.sh
+COPILOT_CLI_PATH=/path/to/copilot GITHUB_TOKEN=$(gh auth token) bash verify.sh
 ```
 
 Run a single scenario:
 
 ```bash
-COPILOT_CLI_PATH=/path/to/copilot-core GITHUB_TOKEN=$(gh auth token) bash <category>/<scenario>/verify.sh
+COPILOT_CLI_PATH=/path/to/copilot GITHUB_TOKEN=$(gh auth token) bash <category>/<scenario>/verify.sh
 ```
 
 ## Prerequisites
 
-- **copilot-core binary** — set `COPILOT_CLI_PATH`
+- **Copilot CLI** — set `COPILOT_CLI_PATH`
 - **GitHub token** — set `GITHUB_TOKEN` or use `gh auth login`
 - **Node.js 20+**, **Python 3.10+**, **Go 1.24+** (per language)

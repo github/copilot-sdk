@@ -2,11 +2,11 @@
 """
 Minimal OpenAI-compatible proxy for the container-proxy sample.
 
-This replaces a real LLM provider — copilot-core (running in Docker) sends
+This replaces a real LLM provider — Copilot CLI (running in Docker) sends
 its model requests here and gets back a canned response.  The point is to
 prove the network path:
 
-    client  →  copilot-core (container :3000)  →  this proxy (host :4000)
+    client  →  Copilot CLI (container :3000)  →  this proxy (host :4000)
 """
 
 import json

@@ -13,7 +13,7 @@ This scenario demonstrates how a packaged app can let end users sign in with Git
 ## Prerequisites
 
 - A GitHub OAuth App client ID (`GITHUB_OAUTH_CLIENT_ID`)
-- `copilot-core` binary (`COPILOT_CLI_PATH`, or auto-detected by SDK)
+- `copilot` binary (`COPILOT_CLI_PATH`, or auto-detected by SDK)
 - Node.js 20+
 - Python 3.10+
 - Go 1.24+

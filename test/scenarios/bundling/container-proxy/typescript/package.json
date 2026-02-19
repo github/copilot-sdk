@@ -2,7 +2,7 @@
   "name": "bundling-container-proxy-typescript",
   "version": "1.0.0",
   "private": true,
-  "description": "Container-proxy Copilot SDK sample — connects to copilot-core running in Docker",
+  "description": "Container-proxy Copilot SDK sample — connects to Copilot CLI running in Docker",
   "type": "module",
   "scripts": {
     "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\"",

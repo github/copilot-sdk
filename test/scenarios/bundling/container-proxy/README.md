@@ -1,6 +1,6 @@
 # Container-Proxy Samples
 
-Run copilot-core inside a Docker container with a simple proxy on the host that returns canned responses. This demonstrates the deployment pattern where an external service intercepts the agent's LLM calls — in production the proxy would add credentials and forward to a real provider; here it just returns a fixed reply as proof-of-concept.
+Run the Copilot CLI inside a Docker container with a simple proxy on the host that returns canned responses. This demonstrates the deployment pattern where an external service intercepts the agent's LLM calls — in production the proxy would add credentials and forward to a real provider; here it just returns a fixed reply as proof-of-concept.
 
 ```
   Host Machine
@@ -13,7 +13,7 @@ Run copilot-core inside a Docker container with a simple proxy on the host that 
 │                                  ▼                   │
 │                    ┌──────────────────────────┐       │
 │                    │  Docker Container        │       │
-│                    │  copilot-core            │       │
+│                    │  Copilot CLI             │       │
 │                    │  --port 3000 --headless  │       │
 │                    │  --bind 0.0.0.0          │       │
 │                    │  --auth-token-env        │       │
@@ -32,7 +32,7 @@ Run copilot-core inside a Docker container with a simple proxy on the host that 
 
 ## Why This Pattern?
 
-The agent runtime (copilot-core) has **no access to API keys**. All LLM traffic flows through a proxy on the host. In production you would replace `proxy.py` with a real proxy that injects credentials and forwards to OpenAI/Anthropic/etc. This means:
+The agent runtime (Copilot CLI) has **no access to API keys**. All LLM traffic flows through a proxy on the host. In production you would replace `proxy.py` with a real proxy that injects credentials and forwards to OpenAI/Anthropic/etc. This means:
 
 - **No secrets in the image** — safe to share, scan, deploy anywhere
 - **No secrets at runtime** — even if the container is compromised, there are no tokens to steal
@@ -54,13 +54,13 @@ python3 proxy.py 4000
 
 This starts a minimal OpenAI-compatible HTTP server on port 4000 that returns a canned "The capital of France is Paris." response for every request.
 
-### 2. Start copilot-core in Docker
+### 2. Start the Copilot CLI in Docker
 
 ```bash
 docker compose up -d --build
 ```
 
-This builds copilot-core from source and starts it on port 3000. It sends LLM requests to `host.docker.internal:4000` — no API keys are passed into the container.
+This builds the Copilot CLI from source and starts it on port 3000. It sends LLM requests to `host.docker.internal:4000` — no API keys are passed into the container.
 
 ### 3. Run a client sample
 
@@ -100,9 +100,9 @@ chmod +x verify.sh
 
 ## How It Works
 
-1. **copilot-core** starts in Docker with `COPILOT_API_URL=http://host.docker.internal:4000` — this overrides the default Copilot API endpoint to point at the proxy
+1. **Copilot CLI** starts in Docker with `COPILOT_API_URL=http://host.docker.internal:4000` — this overrides the default Copilot API endpoint to point at the proxy
 2. When the agent needs to call an LLM, it sends a standard OpenAI-format request to the proxy
 3. **proxy.py** receives the request and returns a canned response (in production, this would inject credentials and forward to a real provider)
-4. The response flows back: proxy → copilot-core → your app
+4. The response flows back: proxy → Copilot CLI → your app
 
 The container never sees or needs any API credentials.

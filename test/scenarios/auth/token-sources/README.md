@@ -23,7 +23,7 @@ The SDK resolves a GitHub token using the following priority (highest to lowest)
 
 ## Prerequisites
 
-- `copilot-core` binary (`COPILOT_CLI_PATH`, or auto-detected by SDK)
+- `copilot` binary (`COPILOT_CLI_PATH`, or auto-detected by SDK)
 - Node.js 20+
 - At least one token source configured (environment variable or `gh` CLI)
 

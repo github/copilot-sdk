@@ -1,12 +1,12 @@
 # Multi-User Long-Lived Sessions
 
-Demonstrates a **production-like multi-user setup** where multiple clients share a single `copilot-core` server with **persistent, long-lived sessions** stored on disk.
+Demonstrates a **production-like multi-user setup** where multiple clients share a single `copilot` server with **persistent, long-lived sessions** stored on disk.
 
 ## Architecture
 
 ```
 ┌──────────────────────┐
-│    copilot-core       │  (headless TCP server)
+│    Copilot CLI       │  (headless TCP server)
 │    (shared server)    │
 └───┬──────┬───────┬───┘
     │      │       │   JSON-RPC over TCP (cliUrl)
@@ -21,7 +21,7 @@ Demonstrates a **production-like multi-user setup** where multiple clients share
 
 ## What This Demonstrates
 
-1. **Shared server** — A single `copilot-core` instance serves multiple users and sessions over TCP.
+1. **Shared server** — A single `copilot` instance serves multiple users and sessions over TCP.
 2. **Per-user config isolation** — Each user gets their own `configDir` on disk (`tmp/user-a/`, `tmp/user-b/`), so configuration, logs, and state are fully separated.
 3. **Session sharing across clients** — User A's Client 1 creates a session and teaches it a fact. Client 2 resumes the same session (by `sessionId`) and retrieves the fact — demonstrating cross-client session continuity.
 4. **Session isolation between users** — User B operates in a completely separate session and cannot see User A's conversation history.
@@ -56,4 +56,4 @@ Demonstrates a **production-like multi-user setup** where multiple clients share
 ./verify.sh
 ```
 
-Requires `copilot-core` binary (auto-detected or set `COPILOT_CLI_PATH`) and `GITHUB_TOKEN`.
+Requires the `copilot` binary (auto-detected or set `COPILOT_CLI_PATH`) and `GITHUB_TOKEN`.

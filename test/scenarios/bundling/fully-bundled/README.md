@@ -1,10 +1,10 @@
 # Fully-Bundled Samples
 
-Self-contained samples that demonstrate the **fully-bundled** deployment architecture of the Copilot SDK. In this scenario the SDK spawns `copilot-core` as a child process over stdio — no external server or container is required.
+Self-contained samples that demonstrate the **fully-bundled** deployment architecture of the Copilot SDK. In this scenario the SDK spawns `copilot` as a child process over stdio — no external server or container is required.
 
 Each sample follows the same flow:
 
-1. **Create a client** that spawns `copilot-core` automatically
+1. **Create a client** that spawns `copilot` automatically
 2. **Open a session** targeting the `gpt-4.1` model
 3. **Send a prompt** ("What is the capital of France?")
 4. **Print the response** and clean up
@@ -20,7 +20,7 @@ Each sample follows the same flow:
 
 ## Prerequisites
 
-- **copilot-core binary** — set `COPILOT_CLI_PATH`
+- **Copilot CLI** — set `COPILOT_CLI_PATH`
 - **Authentication** — set `GITHUB_TOKEN`, or run `gh auth login`
 - **Node.js 20+** (TypeScript samples)
 - **Python 3.10+** (Python sample)
@@ -66,4 +66,4 @@ It runs in two phases:
 1. **Build** — installs dependencies and compiles each sample
 2. **E2E Run** — executes each sample with a 60-second timeout and verifies it produces output
 
-Set `COPILOT_CLI_PATH` to point at your `copilot-core` binary if it isn't in the default location.
+Set `COPILOT_CLI_PATH` to point at your `copilot` binary if it isn't in the default location.

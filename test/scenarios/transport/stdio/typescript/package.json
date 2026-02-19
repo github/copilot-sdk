@@ -2,7 +2,7 @@
   "name": "transport-stdio-typescript",
   "version": "1.0.0",
   "private": true,
-  "description": "Stdio transport sample — spawns copilot-core as a child process",
+  "description": "Stdio transport sample — spawns Copilot CLI as a child process",
   "type": "module",
   "scripts": {
     "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\"",

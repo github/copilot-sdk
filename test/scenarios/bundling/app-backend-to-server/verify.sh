@@ -18,7 +18,7 @@ cleanup() {
   fi
   if [ -n "$SERVER_PID" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
     echo ""
-    echo "Stopping copilot-core server (PID $SERVER_PID)..."
+    echo "Stopping Copilot CLI server (PID $SERVER_PID)..."
     kill "$SERVER_PID" 2>/dev/null || true
     wait "$SERVER_PID" 2>/dev/null || true
   fi
@@ -26,7 +26,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Resolve copilot-core binary: use COPILOT_CLI_PATH env var or find the SDK bundled CLI.
+# Resolve Copilot CLI binary: use COPILOT_CLI_PATH env var or find the SDK bundled CLI.
 if [ -z "${COPILOT_CLI_PATH:-}" ]; then
   # Try to resolve from the TypeScript sample node_modules
   TS_DIR="$SCRIPT_DIR/typescript"
@@ -35,11 +35,11 @@ if [ -z "${COPILOT_CLI_PATH:-}" ]; then
   fi
   # Fallback: check PATH
   if [ -z "${COPILOT_CLI_PATH:-}" ]; then
-    COPILOT_CLI_PATH="$(command -v copilot-core 2>/dev/null || true)"
+    COPILOT_CLI_PATH="$(command -v copilot 2>/dev/null || true)"
   fi
 fi
 if [ -z "${COPILOT_CLI_PATH:-}" ]; then
-  echo "❌ Could not find copilot-core binary."
+  echo "❌ Could not find Copilot CLI binary."
   echo "   Set COPILOT_CLI_PATH or run: cd typescript && npm install"
   exit 1
 fi
@@ -197,7 +197,7 @@ for test_port in 18081 18082 18083 18084; do
 done
 
 echo "══════════════════════════════════════"
-echo " Starting copilot-core TCP server"
+echo " Starting Copilot CLI TCP server"
 echo "══════════════════════════════════════"
 echo ""
 

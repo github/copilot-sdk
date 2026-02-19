@@ -1,10 +1,10 @@
 # App-Backend-to-Server Samples
 
-Samples that demonstrate the **app-backend-to-server** deployment architecture of the Copilot SDK. In this scenario a web backend connects to a **pre-running** `copilot-core` TCP server and exposes a `POST /chat` HTTP endpoint. The HTTP server receives a prompt from the client, forwards it to copilot-core, and returns the response.
+Samples that demonstrate the **app-backend-to-server** deployment architecture of the Copilot SDK. In this scenario a web backend connects to a **pre-running** `copilot` TCP server and exposes a `POST /chat` HTTP endpoint. The HTTP server receives a prompt from the client, forwards it to Copilot CLI, and returns the response.
 
 ```
 ┌────────┐   HTTP POST /chat   ┌─────────────┐   TCP (JSON-RPC)   ┌──────────────┐
-│ Client │ ──────────────────▶  │ Web Backend  │ ─────────────────▶  │ copilot-core │
+│ Client │ ──────────────────▶  │ Web Backend  │ ─────────────────▶  │ Copilot CLI  │
 │ (curl) │ ◀──────────────────  │ (HTTP server)│ ◀─────────────────  │ (TCP server) │
 └────────┘                      └─────────────┘                     └──────────────┘
 ```
@@ -13,7 +13,7 @@ Each sample follows the same flow:
 
 1. **Start** an HTTP server with a `POST /chat` endpoint
 2. **Receive** a JSON request `{ "prompt": "..." }`
-3. **Connect** to a running `copilot-core` server via TCP
+3. **Connect** to a running `copilot` server via TCP
 4. **Open a session** targeting the `gpt-4.1` model
 5. **Forward the prompt** and collect the response
 6. **Return** a JSON response `{ "response": "..." }`
@@ -28,7 +28,7 @@ Each sample follows the same flow:
 
 ## Prerequisites
 
-- **copilot-core binary** — set `COPILOT_CLI_PATH`
+- **Copilot CLI** — set `COPILOT_CLI_PATH`
 - **Authentication** — set `GITHUB_TOKEN`, or run `gh auth login`
 - **Node.js 20+** (TypeScript sample)
 - **Python 3.10+** (Python sample)
@@ -36,10 +36,10 @@ Each sample follows the same flow:
 
 ## Starting the Server
 
-Start `copilot-core` as a TCP server before running any sample:
+Start `copilot` as a TCP server before running any sample:
 
 ```bash
-copilot-core --port 3000 --headless --auth-token-env GITHUB_TOKEN
+copilot --port 3000 --headless --auth-token-env GITHUB_TOKEN
 ```
 
 ## Quick Start
@@ -76,7 +76,7 @@ curl -X POST http://localhost:8080/chat \
   -d '{"prompt": "What is the capital of France?"}'
 ```
 
-All samples default to `localhost:3000` for copilot-core and port `8080` for the HTTP server. Override with `CLI_URL` (or `COPILOT_CLI_URL`) and `PORT` environment variables:
+All samples default to `localhost:3000` for the Copilot CLI and port `8080` for the HTTP server. Override with `CLI_URL` (or `COPILOT_CLI_URL`) and `PORT` environment variables:
 
 ```bash
 CLI_URL=localhost:4000 PORT=9090 npm start
@@ -92,7 +92,7 @@ A script is included that starts the server, builds, and end-to-end tests every 
 
 It runs in three phases:
 
-1. **Server** — starts `copilot-core` on a random port
+1. **Server** — starts `copilot` on a random port
 2. **Build** — installs dependencies and compiles each sample
 3. **E2E Run** — starts each HTTP server, sends a `POST /chat` request via curl, and verifies it returns a response
 

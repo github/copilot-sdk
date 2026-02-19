@@ -10,7 +10,7 @@ TIMEOUT=60
 
 # Skip if runtime source not available (needed for Docker build)
 if [ ! -d "$ROOT_DIR/runtime" ]; then
-  echo "SKIP: runtime/ directory not found — cannot build copilot-core Docker image"
+  echo "SKIP: runtime/ directory not found — cannot build Copilot CLI Docker image"
   exit 0
 fi
 
@@ -115,21 +115,21 @@ echo ""
 
 # ── Build and start container ────────────────────────────────────────
 echo "══════════════════════════════════════"
-echo " Building and starting copilot-core container"
+echo " Building and starting Copilot CLI container"
 echo "══════════════════════════════════════"
 echo ""
 
 docker compose -f "$SCRIPT_DIR/docker-compose.yml" up -d --build
 
-# Wait for copilot-core to be ready
-echo "Waiting for copilot-core to be ready..."
+# Wait for Copilot CLI to be ready
+echo "Waiting for Copilot CLI to be ready..."
 for i in $(seq 1 30); do
   if (echo > /dev/tcp/localhost/3000) 2>/dev/null; then
-    echo "✅ copilot-core is ready on port 3000"
+    echo "✅ Copilot CLI is ready on port 3000"
     break
   fi
   if [ "$i" -eq 30 ]; then
-    echo "❌ copilot-core did not become ready within 30 seconds"
+    echo "❌ Copilot CLI did not become ready within 30 seconds"
     docker compose -f "$SCRIPT_DIR/docker-compose.yml" logs
     exit 1
   fi

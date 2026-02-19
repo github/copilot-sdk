@@ -2,7 +2,7 @@
   "name": "bundling-app-backend-to-server-typescript",
   "version": "1.0.0",
   "private": true,
-  "description": "App-backend-to-server Copilot SDK sample — web backend proxies to copilot-core TCP server",
+  "description": "App-backend-to-server Copilot SDK sample — web backend proxies to Copilot CLI TCP server",
   "type": "module",
   "scripts": {
     "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\"",

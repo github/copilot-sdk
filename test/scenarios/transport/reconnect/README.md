@@ -1,10 +1,10 @@
 # TCP Reconnection Sample
 
-Tests that a **pre-running** `copilot-core` TCP server correctly handles **multiple sequential sessions**. The SDK connects, creates a session, exchanges a message, destroys the session, then repeats the process — verifying the server remains responsive across session lifecycles.
+Tests that a **pre-running** `copilot` TCP server correctly handles **multiple sequential sessions**. The SDK connects, creates a session, exchanges a message, destroys the session, then repeats the process — verifying the server remains responsive across session lifecycles.
 
 ```
 ┌─────────────┐   TCP (JSON-RPC)   ┌──────────────┐
-│  Your App   │ ─────────────────▶  │ copilot-core │
+│  Your App   │ ─────────────────▶  │ Copilot CLI  │
 │  (SDK)      │ ◀─────────────────  │ (TCP server) │
 └─────────────┘                     └──────────────┘
      Session 1: create → send → destroy
@@ -28,7 +28,7 @@ Tests that a **pre-running** `copilot-core` TCP server correctly handles **multi
 
 ## Prerequisites
 
-- **copilot-core binary** — set `COPILOT_CLI_PATH`
+- **Copilot CLI** — set `COPILOT_CLI_PATH`
 - **Authentication** — set `GITHUB_TOKEN`, or run `gh auth login`
 - **Node.js 20+** (TypeScript sample)
 
@@ -37,7 +37,7 @@ Tests that a **pre-running** `copilot-core` TCP server correctly handles **multi
 Start the TCP server:
 
 ```bash
-copilot-core --port 3000 --headless --auth-token-env GITHUB_TOKEN
+copilot --port 3000 --headless --auth-token-env GITHUB_TOKEN
 ```
 
 Run the sample:
@@ -56,7 +56,7 @@ COPILOT_CLI_URL=localhost:3000 npm start
 
 Runs in three phases:
 
-1. **Server** — starts `copilot-core` as a TCP server (auto-detects port)
+1. **Server** — starts `copilot` as a TCP server (auto-detects port)
 2. **Build** — installs dependencies and compiles the TypeScript sample
 3. **E2E Run** — executes the sample with a 120-second timeout, verifies both sessions complete and prints "Reconnect test passed"
 

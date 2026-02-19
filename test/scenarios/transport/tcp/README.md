@@ -1,17 +1,17 @@
 # TCP Transport Samples
 
-Samples demonstrating the **TCP** transport model. The SDK connects to a **pre-running** `copilot-core` TCP server using Content-Length-framed JSON-RPC 2.0 messages over a TCP socket.
+Samples demonstrating the **TCP** transport model. The SDK connects to a **pre-running** `copilot` TCP server using Content-Length-framed JSON-RPC 2.0 messages over a TCP socket.
 
 ```
 ┌─────────────┐   TCP (JSON-RPC)   ┌──────────────┐
-│  Your App   │ ─────────────────▶  │ copilot-core │
+│  Your App   │ ─────────────────▶  │ Copilot CLI  │
 │  (SDK)      │ ◀─────────────────  │ (TCP server) │
 └─────────────┘                     └──────────────┘
 ```
 
 Each sample follows the same flow:
 
-1. **Connect** to a running `copilot-core` server via TCP
+1. **Connect** to a running `copilot` server via TCP
 2. **Open a session** targeting the `gpt-4.1` model
 3. **Send a prompt** ("What is the capital of France?")
 4. **Print the response** and clean up
@@ -26,7 +26,7 @@ Each sample follows the same flow:
 
 ## Prerequisites
 
-- **copilot-core binary** — set `COPILOT_CLI_PATH`
+- **Copilot CLI** — set `COPILOT_CLI_PATH`
 - **Authentication** — set `GITHUB_TOKEN`, or run `gh auth login`
 - **Node.js 20+** (TypeScript sample)
 - **Python 3.10+** (Python sample)
@@ -34,10 +34,10 @@ Each sample follows the same flow:
 
 ## Starting the Server
 
-Start `copilot-core` as a TCP server before running any sample:
+Start `copilot` as a TCP server before running any sample:
 
 ```bash
-copilot-core --port 3000 --headless --auth-token-env GITHUB_TOKEN
+copilot --port 3000 --headless --auth-token-env GITHUB_TOKEN
 ```
 
 ## Quick Start
@@ -75,7 +75,7 @@ COPILOT_CLI_URL=localhost:8080 npm start
 
 Runs in three phases:
 
-1. **Server** — starts `copilot-core` as a TCP server (auto-detects port)
+1. **Server** — starts `copilot` as a TCP server (auto-detects port)
 2. **Build** — installs dependencies and compiles each sample
 3. **E2E Run** — executes each sample with a 60-second timeout and verifies it produces output
 

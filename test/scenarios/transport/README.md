@@ -1,14 +1,14 @@
 # Transport Samples
 
-Minimal samples organized by **transport model** — the wire protocol used to communicate with `copilot-core`. Each subfolder demonstrates one transport with the same "What is the capital of France?" flow.
+Minimal samples organized by **transport model** — the wire protocol used to communicate with `copilot`. Each subfolder demonstrates one transport with the same "What is the capital of France?" flow.
 
 ## Transport Models
 
 | Transport | Description | Languages |
 |-----------|-------------|-----------|
-| **[stdio](stdio/)** | SDK spawns `copilot-core` as a child process and communicates via stdin/stdout | TypeScript, Python, Go |
-| **[tcp](tcp/)** | SDK connects to a pre-running `copilot-core` TCP server | TypeScript, Python, Go |
-| **[wasm](wasm/)** | SDK loads `copilot-core` as an in-process WASM module | TypeScript |
+| **[stdio](stdio/)** | SDK spawns `copilot` as a child process and communicates via stdin/stdout | TypeScript, Python, Go |
+| **[tcp](tcp/)** | SDK connects to a pre-running `copilot` TCP server | TypeScript, Python, Go |
+| **[wasm](wasm/)** | SDK loads `copilot` as an in-process WASM module | TypeScript |
 
 ## How They Differ
 
@@ -22,7 +22,7 @@ Minimal samples organized by **transport model** — the wire protocol used to c
 ## Prerequisites
 
 - **Authentication** — set `GITHUB_TOKEN`, or run `gh auth login`
-- **copilot-core binary** — required for stdio and tcp (set `COPILOT_CLI_PATH`)
+- **Copilot CLI** — required for stdio and tcp (set `COPILOT_CLI_PATH`)
 - Language toolchains as needed (Node.js 20+, Python 3.10+, Go 1.24+)
 
 ## Verification

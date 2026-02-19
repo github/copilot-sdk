@@ -13,7 +13,7 @@ This creates a small assistant profile suitable for constrained context windows.
 
 ## Prerequisites
 
-- `copilot-core` binary (`COPILOT_CLI_PATH`, or auto-detected by SDK)
+- `copilot` binary (`COPILOT_CLI_PATH`, or auto-detected by SDK)
 - Node.js 20+
 - Ollama running locally (`ollama serve`)
 - A local model pulled (for example: `ollama pull llama3.2:3b`)

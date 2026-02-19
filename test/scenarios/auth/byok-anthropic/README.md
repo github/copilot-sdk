@@ -10,7 +10,7 @@ This sample shows how to use Copilot SDK in **BYOK** mode with an Anthropic prov
 
 ## Prerequisites
 
-- `copilot-core` binary (`COPILOT_CLI_PATH`, or auto-detected by SDK)
+- `copilot` binary (`COPILOT_CLI_PATH`, or auto-detected by SDK)
 - Node.js 20+
 - `ANTHROPIC_API_KEY`
 

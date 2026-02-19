@@ -2,7 +2,7 @@
   "name": "transport-tcp-typescript",
   "version": "1.0.0",
   "private": true,
-  "description": "TCP transport sample — connects to a running copilot-core TCP server",
+  "description": "TCP transport sample — connects to a running Copilot CLI TCP server",
   "type": "module",
   "scripts": {
     "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\"",
