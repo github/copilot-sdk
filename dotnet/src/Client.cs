@@ -105,9 +105,15 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         _options = options ?? new();
 
         // Validate mutually exclusive options
-        if (!string.IsNullOrEmpty(_options.CliUrl) && (_options.UseStdio || _options.CliPath != null))
+        if (!string.IsNullOrEmpty(_options.CliUrl) && _options.CliPath != null)
         {
-            throw new ArgumentException("CliUrl is mutually exclusive with UseStdio and CliPath");
+            throw new ArgumentException("CliUrl is mutually exclusive with CliPath");
+        }
+
+        // When CliUrl is provided, disable UseStdio (we connect to an external server, not spawn one)
+        if (!string.IsNullOrEmpty(_options.CliUrl))
+        {
+            _options.UseStdio = false;
         }
 
         // Validate auth options with external server
