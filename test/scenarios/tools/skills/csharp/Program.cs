@@ -1,6 +1,6 @@
 using GitHub.Copilot.SDK;
 
-var client = new CopilotClient(new CopilotClientOptions
+using var client = new CopilotClient(new CopilotClientOptions
 {
     CliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH"),
     GithubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
@@ -12,7 +12,7 @@ try
 {
     var skillsDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "sample-skills"));
 
-    var session = await client.CreateSessionAsync(new SessionConfig
+    await using var session = await client.CreateSessionAsync(new SessionConfig
     {
         Model = "gpt-4.1",
         SkillDirectories = [skillsDir],
@@ -36,8 +36,6 @@ try
     }
 
     Console.WriteLine("\nSkill directories configured successfully");
-
-    await session.DisposeAsync();
 }
 finally
 {

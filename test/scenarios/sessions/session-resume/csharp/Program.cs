@@ -1,6 +1,6 @@
 using GitHub.Copilot.SDK;
 
-var client = new CopilotClient(new CopilotClientOptions
+using var client = new CopilotClient(new CopilotClientOptions
 {
     CliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH"),
     GithubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
@@ -11,7 +11,7 @@ await client.StartAsync();
 try
 {
     // 1. Create a session
-    var session = await client.CreateSessionAsync(new SessionConfig
+    await using var session = await client.CreateSessionAsync(new SessionConfig
     {
         Model = "gpt-4.1",
         AvailableTools = new List<string>(),
@@ -27,7 +27,7 @@ try
     var sessionId = session.SessionId;
 
     // 4. Resume the session with the same ID
-    var resumed = await client.ResumeSessionAsync(sessionId);
+    await using var resumed = await client.ResumeSessionAsync(sessionId);
 
     // 5. Ask for the secret word
     var response = await resumed.SendAndWaitAsync(new MessageOptions
@@ -39,8 +39,6 @@ try
     {
         Console.WriteLine(response.Data?.Content);
     }
-
-    await resumed.DisposeAsync();
 }
 finally
 {

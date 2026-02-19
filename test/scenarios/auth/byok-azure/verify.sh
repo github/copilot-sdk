@@ -69,8 +69,12 @@ echo ""
 check "TypeScript (install)" bash -c "cd '$SCRIPT_DIR/typescript' && npm install --ignore-scripts 2>&1"
 check "TypeScript (build)" bash -c "cd '$SCRIPT_DIR/typescript' && npm run build 2>&1"
 
+# C#: build
+check "C# (build)" bash -c "cd '$SCRIPT_DIR/csharp' && dotnet build --nologo -v q 2>&1"
+
 if [ -n "${AZURE_OPENAI_ENDPOINT:-}" ] && [ -n "${AZURE_OPENAI_API_KEY:-}" ]; then
   run_with_timeout "TypeScript (run)" bash -c "cd '$SCRIPT_DIR/typescript' && node dist/index.js"
+  run_with_timeout "C# (run)" bash -c "cd '$SCRIPT_DIR/csharp' && dotnet run --no-build 2>&1"
 else
   echo "⚠️  WARNING: E2E run was SKIPPED — only build was verified, not runtime behavior."
   echo "   To run fully: set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY."

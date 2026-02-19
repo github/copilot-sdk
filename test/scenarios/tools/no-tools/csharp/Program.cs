@@ -7,11 +7,13 @@ const string SystemPrompt = """
     If asked about your capabilities or tools, clearly state that you have no tools available.
     """;
 
-var client = new CopilotClient(new CopilotClientOptions
+using var client = new CopilotClient(new CopilotClientOptions
 {
     CliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH"),
     GithubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
 });
+
+await client.StartAsync();
 
 try
 {

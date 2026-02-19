@@ -1,6 +1,6 @@
 using GitHub.Copilot.SDK;
 
-var client = new CopilotClient(new CopilotClientOptions
+using var client = new CopilotClient(new CopilotClientOptions
 {
     CliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH"),
     GithubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
@@ -10,7 +10,7 @@ await client.StartAsync();
 
 try
 {
-    var session = await client.CreateSessionAsync(new SessionConfig
+    await using var session = await client.CreateSessionAsync(new SessionConfig
     {
         Model = "gpt-4.1",
         AvailableTools = new List<string>(),
@@ -49,8 +49,6 @@ try
     }
 
     Console.WriteLine("Infinite sessions test complete — all messages processed successfully");
-
-    await session.DisposeAsync();
 }
 finally
 {

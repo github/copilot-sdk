@@ -45,6 +45,8 @@ gh-app-go
 cli-preset-go
 filesystem-preset-go
 minimal-preset-go
+default-go
+minimal-go
 
 # Python
 __pycache__/

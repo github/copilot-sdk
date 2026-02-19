@@ -1,6 +1,6 @@
 using GitHub.Copilot.SDK;
 
-var client = new CopilotClient(new CopilotClientOptions
+using var client = new CopilotClient(new CopilotClientOptions
 {
     CliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH"),
     GithubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
@@ -39,7 +39,7 @@ try
         config.McpServers = mcpServers;
     }
 
-    var session = await client.CreateSessionAsync(config);
+    await using var session = await client.CreateSessionAsync(config);
 
     var response = await session.SendAndWaitAsync(new MessageOptions
     {
@@ -59,8 +59,6 @@ try
     {
         Console.WriteLine("\nNo MCP servers configured (set MCP_SERVER_CMD to test with a real server)");
     }
-
-    await session.DisposeAsync();
 }
 finally
 {

@@ -11,40 +11,49 @@ if (string.IsNullOrEmpty(endpoint) || string.IsNullOrEmpty(apiKey))
     return 1;
 }
 
-await using var client = new CopilotClient(new CopilotClientOptions
+using var client = new CopilotClient(new CopilotClientOptions
 {
     CliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH"),
 });
 
-await using var session = await client.CreateSessionAsync(new SessionConfig
+await client.StartAsync();
+
+try
 {
-    Model = model,
-    Provider = new ProviderConfig
+    await using var session = await client.CreateSessionAsync(new SessionConfig
     {
-        Type = "azure",
-        BaseUrl = endpoint,
-        ApiKey = apiKey,
-        Azure = new AzureOptions
+        Model = model,
+        Provider = new ProviderConfig
         {
-            ApiVersion = apiVersion,
+            Type = "azure",
+            BaseUrl = endpoint,
+            ApiKey = apiKey,
+            Azure = new AzureOptions
+            {
+                ApiVersion = apiVersion,
+            },
         },
-    },
-    AvailableTools = [],
-    SystemMessage = new SystemMessageConfig
+        AvailableTools = [],
+        SystemMessage = new SystemMessageConfig
+        {
+            Mode = SystemMessageMode.Replace,
+            Content = "You are a helpful assistant. Answer concisely.",
+        },
+    });
+
+    var response = await session.SendAndWaitAsync(new MessageOptions
     {
-        Mode = SystemMessageMode.Replace,
-        Content = "You are a helpful assistant. Answer concisely.",
-    },
-});
+        Prompt = "What is the capital of France?",
+    });
 
-var response = await session.SendAndWaitAsync(new MessageOptions
-{
-    Prompt = "What is the capital of France?",
-});
-
-if (response != null)
-{
-    Console.WriteLine(response.Data?.Content);
+    if (response != null)
+    {
+        Console.WriteLine(response.Data?.Content);
+    }
 }
-
+finally
+{
+    await client.StopAsync();
+}
 return 0;
+

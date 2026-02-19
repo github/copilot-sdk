@@ -9,7 +9,7 @@ try
 {
     // First session
     Console.WriteLine("--- Session 1 ---");
-    var session1 = await client.CreateSessionAsync(new SessionConfig
+    await using var session1 = await client.CreateSessionAsync(new SessionConfig
     {
         Model = "gpt-4.1",
     });
@@ -28,13 +28,11 @@ try
         Console.Error.WriteLine("No response content received for session 1");
         Environment.Exit(1);
     }
-
-    await session1.DisposeAsync();
     Console.WriteLine("Session 1 destroyed\n");
 
     // Second session — tests that the server accepts new sessions
     Console.WriteLine("--- Session 2 ---");
-    var session2 = await client.CreateSessionAsync(new SessionConfig
+    await using var session2 = await client.CreateSessionAsync(new SessionConfig
     {
         Model = "gpt-4.1",
     });
@@ -53,8 +51,6 @@ try
         Console.Error.WriteLine("No response content received for session 2");
         Environment.Exit(1);
     }
-
-    await session2.DisposeAsync();
     Console.WriteLine("Session 2 destroyed");
 
     Console.WriteLine("\nReconnect test passed — both sessions completed successfully");

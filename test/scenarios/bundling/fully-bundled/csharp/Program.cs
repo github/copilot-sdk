@@ -10,7 +10,7 @@ await client.StartAsync();
 
 try
 {
-    var session = await client.CreateSessionAsync(new SessionConfig
+    await using var session = await client.CreateSessionAsync(new SessionConfig
     {
         Model = "gpt-4.1",
     });
@@ -24,8 +24,6 @@ try
     {
         Console.WriteLine(response.Data?.Content);
     }
-
-    await session.DisposeAsync();
 }
 finally
 {

@@ -9,7 +9,7 @@ await client.StartAsync();
 
 try
 {
-    var session = await client.CreateSessionAsync(new SessionConfig
+    await using var session = await client.CreateSessionAsync(new SessionConfig
     {
         Model = "gpt-4.1",
     });
@@ -28,8 +28,6 @@ try
         Console.Error.WriteLine("No response content from Copilot CLI");
         Environment.Exit(1);
     }
-
-    await session.DisposeAsync();
 }
 finally
 {

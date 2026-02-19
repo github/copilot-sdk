@@ -5,7 +5,7 @@ using Microsoft.Extensions.AI;
 // In-memory virtual filesystem
 var virtualFs = new Dictionary<string, string>();
 
-var client = new CopilotClient(new CopilotClientOptions
+using var client = new CopilotClient(new CopilotClientOptions
 {
     CliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH"),
     GithubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
@@ -15,7 +15,7 @@ await client.StartAsync();
 
 try
 {
-    var session = await client.CreateSessionAsync(new SessionConfig
+    await using var session = await client.CreateSessionAsync(new SessionConfig
     {
         Model = "gpt-4.1",
         AvailableTools = [],
@@ -74,8 +74,6 @@ try
         Console.WriteLine($"\n[{path}]");
         Console.WriteLine(content);
     }
-
-    await session.DisposeAsync();
 }
 finally
 {

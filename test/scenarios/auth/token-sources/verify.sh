@@ -76,6 +76,9 @@ check "Python (syntax)"  bash -c "python3 -c \"import ast; ast.parse(open('$SCRI
 # Go: build
 check "Go (build)" bash -c "cd '$SCRIPT_DIR/go' && go build -o token-sources-go . 2>&1"
 
+# C#: build
+check "C# (build)" bash -c "cd '$SCRIPT_DIR/csharp' && dotnet build --nologo -v q 2>&1"
+
 if [ "${BYOK_SAMPLE_RUN_E2E:-}" = "1" ]; then
   run_with_timeout "TypeScript (run)" bash -c "
     cd '$SCRIPT_DIR/typescript' && \
@@ -86,6 +89,7 @@ if [ "${BYOK_SAMPLE_RUN_E2E:-}" = "1" ]; then
   "
   run_with_timeout "Python (run)" bash -c "cd '$SCRIPT_DIR/python' && python3 main.py"
   run_with_timeout "Go (run)" bash -c "cd '$SCRIPT_DIR/go' && ./token-sources-go"
+  run_with_timeout "C# (run)" bash -c "cd '$SCRIPT_DIR/csharp' && dotnet run --no-build 2>&1"
 else
   echo "⚠️  WARNING: E2E run was SKIPPED — only build was verified, not runtime behavior."
   echo "   To run fully: set BYOK_SAMPLE_RUN_E2E=1."

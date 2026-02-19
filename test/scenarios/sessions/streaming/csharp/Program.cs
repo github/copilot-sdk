@@ -11,29 +11,39 @@ if (!string.IsNullOrEmpty(cliPath))
     options.CliPath = cliPath;
 }
 
-await using var client = new CopilotClient(options);
-await using var session = await client.CreateSessionAsync(new SessionConfig
-{
-    Model = "gpt-4.1",
-    Streaming = true,
-});
+using var client = new CopilotClient(options);
 
-var chunkCount = 0;
-using var subscription = session.On(evt =>
+await client.StartAsync();
+
+try
 {
-    if (evt is AssistantMessageDeltaEvent)
+    await using var session = await client.CreateSessionAsync(new SessionConfig
     {
-        chunkCount++;
+        Model = "gpt-4.1",
+        Streaming = true,
+    });
+
+    var chunkCount = 0;
+    using var subscription = session.On(evt =>
+    {
+        if (evt is AssistantMessageDeltaEvent)
+        {
+            chunkCount++;
+        }
+    });
+
+    var response = await session.SendAndWaitAsync(new MessageOptions
+    {
+        Prompt = "What is the capital of France?",
+    });
+
+    if (response != null)
+    {
+        Console.WriteLine(response.Data.Content);
     }
-});
-
-var response = await session.SendAndWaitAsync(new MessageOptions
-{
-    Prompt = "What is the capital of France?",
-});
-
-if (response != null)
-{
-    Console.WriteLine(response.Data.Content);
+    Console.WriteLine($"\nStreaming chunks received: {chunkCount}");
 }
-Console.WriteLine($"\nStreaming chunks received: {chunkCount}");
+finally
+{
+    await client.StopAsync();
+}

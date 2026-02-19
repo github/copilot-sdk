@@ -3,7 +3,7 @@ using GitHub.Copilot.SDK;
 const string PiratePrompt = "You are a pirate. Always say Arrr!";
 const string RobotPrompt = "You are a robot. Always say BEEP BOOP!";
 
-var client = new CopilotClient(new CopilotClientOptions
+using var client = new CopilotClient(new CopilotClientOptions
 {
     CliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH"),
     GithubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
@@ -27,8 +27,8 @@ try
         AvailableTools = [],
     });
 
-    var session1 = await session1Task;
-    var session2 = await session2Task;
+    await using var session1 = await session1Task;
+    await using var session2 = await session2Task;
 
     var response1Task = session1.SendAndWaitAsync(new MessageOptions
     {
@@ -51,9 +51,6 @@ try
     {
         Console.WriteLine($"Session 2 (robot): {response2.Data?.Content}");
     }
-
-    await session1.DisposeAsync();
-    await session2.DisposeAsync();
 }
 finally
 {

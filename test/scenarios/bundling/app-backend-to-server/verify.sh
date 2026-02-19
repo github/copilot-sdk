@@ -245,6 +245,9 @@ check "Python (syntax)"  bash -c "python3 -c \"import ast; ast.parse(open('$SCRI
 # Go: build
 check "Go (build)" bash -c "cd '$SCRIPT_DIR/go' && go build -o app-backend-to-server-go . 2>&1"
 
+# C#: build
+check "C# (build)" bash -c "cd '$SCRIPT_DIR/csharp' && dotnet build --nologo -v q 2>&1"
+
 
 echo "══════════════════════════════════════"
 echo " Phase 2: E2E Run (timeout ${TIMEOUT}s each)"
@@ -265,6 +268,11 @@ run_http_test "Python (run)" \
 run_http_test "Go (run)" \
   "cd '$SCRIPT_DIR/go' && PORT=18083 CLI_URL=$COPILOT_CLI_URL ./app-backend-to-server-go" \
   18083
+
+# C#: start server, curl, stop
+run_http_test "C# (run)" \
+  "cd '$SCRIPT_DIR/csharp' && PORT=18084 COPILOT_CLI_URL=$COPILOT_CLI_URL dotnet run --no-build" \
+  18084
 
 echo "══════════════════════════════════════"
 echo " Results: $PASS passed, $FAIL failed"

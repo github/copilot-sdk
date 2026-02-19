@@ -1,6 +1,6 @@
 using GitHub.Copilot.SDK;
 
-var client = new CopilotClient(new CopilotClientOptions
+using var client = new CopilotClient(new CopilotClientOptions
 {
     CliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH"),
     GithubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
@@ -10,7 +10,7 @@ await client.StartAsync();
 
 try
 {
-    var session = await client.CreateSessionAsync(new SessionConfig
+    await using var session = await client.CreateSessionAsync(new SessionConfig
     {
         Model = "gpt-4.1",
         SystemMessage = new SystemMessageConfig { Mode = SystemMessageMode.Replace, Content = "You are a helpful assistant. Answer questions about attached files concisely." },
@@ -32,8 +32,6 @@ try
     {
         Console.WriteLine(response.Data?.Content);
     }
-
-    await session.DisposeAsync();
 }
 finally
 {
