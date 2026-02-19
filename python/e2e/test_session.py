@@ -4,7 +4,7 @@ import os
 
 import pytest
 
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 from copilot.types import Tool
 
 from .testharness import E2ETestContext, get_final_assistant_message, get_next_event_of_type
@@ -333,7 +333,9 @@ class TestSessions:
     async def test_should_abort_a_session(self, ctx: E2ETestContext):
         import asyncio
 
-        session = await ctx.client.create_session()
+        session = await ctx.client.create_session(
+            {"on_permission_request": PermissionHandler.approve_all}
+        )
 
         # Set up event listeners BEFORE sending to avoid race conditions
         wait_for_tool_start = asyncio.create_task(
