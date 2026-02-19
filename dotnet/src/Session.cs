@@ -580,6 +580,11 @@ public partial class CopilotSession : IAsyncDisposable
             // Connection is broken or closed
         }
 
+        // Wait briefly for any final notifications (e.g., session.shutdown)
+        // to arrive before clearing handlers. The CLI may send these after
+        // the RPC response.
+        await Task.Delay(100);
+
         _eventHandlers.Clear();
         _toolHandlers.Clear();
 

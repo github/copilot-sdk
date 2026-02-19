@@ -531,6 +531,11 @@ func (s *Session) Destroy() error {
 		return fmt.Errorf("failed to destroy session: %w", err)
 	}
 
+	// Wait briefly for any final notifications (e.g., session.shutdown)
+	// to arrive before clearing handlers. The CLI may send these after
+	// the RPC response.
+	time.Sleep(100 * time.Millisecond)
+
 	// Clear handlers
 	s.handlerMutex.Lock()
 	s.handlers = nil

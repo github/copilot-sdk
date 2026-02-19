@@ -487,6 +487,12 @@ class CopilotSession:
             >>> await session.destroy()
         """
         await self._client.request("session.destroy", {"sessionId": self.session_id})
+
+        # Wait briefly for any final notifications (e.g., session.shutdown)
+        # to arrive before clearing handlers. The CLI may send these after
+        # the RPC response.
+        await asyncio.sleep(0.1)
+
         with self._event_handlers_lock:
             self._event_handlers.clear()
         with self._tool_handlers_lock:

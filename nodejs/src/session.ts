@@ -518,6 +518,12 @@ export class CopilotSession {
         await this.connection.sendRequest("session.destroy", {
             sessionId: this.sessionId,
         });
+
+        // Wait briefly for any final notifications (e.g., session.shutdown)
+        // to arrive before clearing handlers. The CLI may send these after
+        // the RPC response.
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
         this.eventHandlers.clear();
         this.typedEventHandlers.clear();
         this.toolHandlers.clear();
