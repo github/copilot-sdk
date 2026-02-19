@@ -1,0 +1,41 @@
+using GitHub.Copilot.SDK;
+
+var client = new CopilotClient(new CopilotClientOptions
+{
+    CliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH"),
+    GithubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
+});
+
+await client.StartAsync();
+
+try
+{
+    var session = await client.CreateSessionAsync(new SessionConfig
+    {
+        Model = "gpt-4.1",
+        ReasoningEffort = "low",
+        AvailableTools = new List<string>(),
+        SystemMessage = new SystemMessageConfig
+        {
+            Mode = SystemMessageMode.Replace,
+            Content = "You are a helpful assistant. Answer concisely.",
+        },
+    });
+
+    var response = await session.SendAndWaitAsync(new MessageOptions
+    {
+        Prompt = "What is the capital of France?",
+    });
+
+    if (response != null)
+    {
+        Console.WriteLine("Reasoning effort: low");
+        Console.WriteLine($"Response: {response.Data?.Content}");
+    }
+
+    await session.DisposeAsync();
+}
+finally
+{
+    await client.StopAsync();
+}
