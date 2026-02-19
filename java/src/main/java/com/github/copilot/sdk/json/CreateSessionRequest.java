@@ -31,6 +31,9 @@ public final class CreateSessionRequest {
     @JsonProperty("sessionId")
     private String sessionId;
 
+    @JsonProperty("clientName")
+    private String clientName;
+
     @JsonProperty("reasoningEffort")
     private String reasoningEffort;
 
@@ -103,6 +106,16 @@ public final class CreateSessionRequest {
     /** Sets the session ID. @param sessionId the session ID */
     public void setSessionId(String sessionId) {
         this.sessionId = sessionId;
+    }
+
+    /** Gets the client name. @return the client name */
+    public String getClientName() {
+        return clientName;
+    }
+
+    /** Sets the client name. @param clientName the client name */
+    public void setClientName(String clientName) {
+        this.clientName = clientName;
     }
 
     /** Gets the reasoning effort. @return the reasoning effort level */

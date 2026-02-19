@@ -33,6 +33,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ResumeSessionConfig {
 
+    private String clientName;
     private String model;
     private List<ToolDefinition> tools;
     private SystemMessageConfig systemMessage;
@@ -73,6 +74,29 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setModel(String model) {
         this.model = model;
+        return this;
+    }
+
+    /**
+     * Gets the client name used to identify the application using the SDK.
+     *
+     * @return the client name, or {@code null} if not set
+     */
+    public String getClientName() {
+        return clientName;
+    }
+
+    /**
+     * Sets the client name to identify the application using the SDK.
+     * <p>
+     * This value is included in the User-Agent header for API requests.
+     *
+     * @param clientName
+     *            the client name
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setClientName(String clientName) {
+        this.clientName = clientName;
         return this;
     }
 
@@ -491,6 +515,7 @@ public class ResumeSessionConfig {
     @Override
     public ResumeSessionConfig clone() {
         ResumeSessionConfig copy = new ResumeSessionConfig();
+        copy.clientName = this.clientName;
         copy.model = this.model;
         copy.tools = this.tools != null ? new ArrayList<>(this.tools) : null;
         copy.systemMessage = this.systemMessage;

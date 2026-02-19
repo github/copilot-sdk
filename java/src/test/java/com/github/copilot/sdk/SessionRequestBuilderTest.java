@@ -37,6 +37,8 @@ public class SessionRequestBuilderTest {
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(null);
         assertNotNull(request);
         assertNull(request.getModel());
+        assertTrue(request.getRequestPermission(), "requestPermission should be true even for null config");
+        assertEquals("direct", request.getEnvValueMode(), "envValueMode should be 'direct' even for null config");
     }
 
     @Test
@@ -65,6 +67,21 @@ public class SessionRequestBuilderTest {
         assertEquals("direct", request.getEnvValueMode());
     }
 
+    @Test
+    void testBuildCreateRequestAlwaysSetsRequestPermissionTrue() {
+        // No permission handler set - requestPermission should still be true
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(new SessionConfig());
+        assertTrue(request.getRequestPermission(),
+                "requestPermission should always be true to enable deny-by-default behavior");
+    }
+
+    @Test
+    void testBuildCreateRequestSetsClientName() {
+        var config = new SessionConfig().setClientName("my-app");
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        assertEquals("my-app", request.getClientName());
+    }
+
     // =========================================================================
     // buildResumeRequest
     // =========================================================================
@@ -74,6 +91,8 @@ public class SessionRequestBuilderTest {
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-1", null);
         assertEquals("sid-1", request.getSessionId());
         assertNull(request.getModel());
+        assertTrue(request.getRequestPermission(), "requestPermission should be true even for null config");
+        assertEquals("direct", request.getEnvValueMode(), "envValueMode should be 'direct' even for null config");
     }
 
     @Test
@@ -140,6 +159,21 @@ public class SessionRequestBuilderTest {
     void testBuildResumeRequestSetsEnvValueModeToDirect() {
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-8", new ResumeSessionConfig());
         assertEquals("direct", request.getEnvValueMode());
+    }
+
+    @Test
+    void testBuildResumeRequestAlwaysSetsRequestPermissionTrue() {
+        // No permission handler set - requestPermission should still be true
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-9", new ResumeSessionConfig());
+        assertTrue(request.getRequestPermission(),
+                "requestPermission should always be true to enable deny-by-default behavior");
+    }
+
+    @Test
+    void testBuildResumeRequestSetsClientName() {
+        var config = new ResumeSessionConfig().setClientName("my-app");
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-10", config);
+        assertEquals("my-app", request.getClientName());
     }
 
     // =========================================================================

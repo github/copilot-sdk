@@ -30,6 +30,7 @@ import com.github.copilot.sdk.events.SessionStartEvent;
 import com.github.copilot.sdk.events.ToolExecutionStartEvent;
 import com.github.copilot.sdk.events.UserMessageEvent;
 import com.github.copilot.sdk.json.MessageOptions;
+import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.SessionConfig;
 import com.github.copilot.sdk.json.SystemMessageConfig;
 import com.github.copilot.sdk.json.ToolDefinition;
@@ -180,7 +181,8 @@ public class CopilotSessionTest {
         ctx.configureForTest("session", "send_returns_immediately_while_events_stream_in_background");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession().get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             var events = new ArrayList<String>();
             var lastMessage = new AtomicReference<AssistantMessageEvent>();
