@@ -75,7 +75,7 @@ run_with_timeout() {
     if echo "$output" | grep -qi "grep\|glob\|view"; then
       has_whitelisted=true
     fi
-    if echo "$output" | grep -qi "bash\|edit\|create_file"; then
+    if echo "$output" | grep -qiw "bash\|edit\|create_file"; then
       has_blacklisted=true
     fi
 

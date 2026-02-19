@@ -19,7 +19,7 @@ async function main() {
     });
 
     const response = await session.sendAndWait({
-      prompt: "What tools do you have available? List them.",
+      prompt: "Use the bash tool to run 'echo hello'.",
     });
 
     if (response) {

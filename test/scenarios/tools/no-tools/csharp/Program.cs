@@ -30,7 +30,7 @@ try
 
     var response = await session.SendAndWaitAsync(new MessageOptions
     {
-        Prompt = "What tools do you have available? List them.",
+        Prompt = "Use the bash tool to run 'echo hello'.",
     });
 
     if (response != null)

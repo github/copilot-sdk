@@ -39,7 +39,7 @@ func main() {
 	defer session.Destroy()
 
 	response, err := session.SendAndWait(ctx, copilot.MessageOptions{
-		Prompt: "What tools do you have available? List them.",
+		Prompt: "Use the bash tool to run 'echo hello'.",
 	})
 	if err != nil {
 		log.Fatal(err)

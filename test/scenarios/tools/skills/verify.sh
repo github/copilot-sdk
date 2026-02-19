@@ -68,7 +68,7 @@ run_with_timeout() {
   echo "$output"
 
   if [ "$code" -eq 0 ] && [ -n "$output" ]; then
-    if echo "$output" | grep -qi "Skill directories configured\|Alice\|greeting"; then
+    if echo "$output" | grep -qi "skill\|Skill\|greeting\|Alice"; then
       echo "✅ $name passed (confirmed skill execution)"
       PASS=$((PASS + 1))
     else

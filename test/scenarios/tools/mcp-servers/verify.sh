@@ -67,13 +67,17 @@ run_with_timeout() {
 
   echo "$output"
 
-  if [ "$code" -eq 0 ] && [ -n "$output" ]; then
-    echo "✅ $name passed (got response)"
+  if [ "$code" -eq 0 ] && [ -n "$output" ] && echo "$output" | grep -qi "MCP\|mcp\|capital\|France\|Paris\|configured"; then
+    echo "✅ $name passed (got meaningful response)"
     PASS=$((PASS + 1))
   elif [ "$code" -eq 124 ]; then
     echo "❌ $name failed (timed out after ${TIMEOUT}s)"
     FAIL=$((FAIL + 1))
     ERRORS="$ERRORS\n  - $name (timeout)"
+  elif [ "$code" -eq 0 ]; then
+    echo "❌ $name failed (expected pattern not found)"
+    FAIL=$((FAIL + 1))
+    ERRORS="$ERRORS\n  - $name"
   else
     echo "❌ $name failed (exit code $code)"
     FAIL=$((FAIL + 1))

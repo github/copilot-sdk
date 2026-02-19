@@ -69,7 +69,7 @@ run_with_timeout() {
 
   # Check that the response mentions the researcher agent or its tools
   if [ "$code" -eq 0 ] && [ -n "$output" ]; then
-    if echo "$output" | grep -qi "research\|researcher\|grep\|glob\|view"; then
+    if echo "$output" | grep -qi "researcher\|Research"; then
       echo "✅ $name passed (confirmed custom agent)"
       PASS=$((PASS + 1))
     else

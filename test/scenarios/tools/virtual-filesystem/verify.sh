@@ -68,10 +68,10 @@ run_with_timeout() {
   echo "$output"
 
   if [ "$code" -eq 0 ] && [ -n "$output" ]; then
-    if echo "$output" | grep -qi "Virtual filesystem contents"; then
+    if echo "$output" | grep -qi "Virtual filesystem contents" && echo "$output" | grep -qi "plan\.md"; then
       echo "✅ $name passed (virtual FS operations confirmed)"
       PASS=$((PASS + 1))
-    elif [ "$code" -eq 0 ] && [ -n "$output" ]; then
+    else
       echo "❌ $name failed (expected pattern not found)"
       FAIL=$((FAIL + 1))
       ERRORS="$ERRORS\n  - $name"
