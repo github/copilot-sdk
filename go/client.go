@@ -455,6 +455,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	if config != nil {
 		req.Model = config.Model
 		req.SessionID = config.SessionID
+		req.ClientName = config.ClientName
 		req.ReasoningEffort = config.ReasoningEffort
 		req.ConfigDir = config.ConfigDir
 		req.Tools = config.Tools
@@ -473,9 +474,6 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		if config.Streaming {
 			req.Streaming = Bool(true)
 		}
-		if config.OnPermissionRequest != nil {
-			req.RequestPermission = Bool(true)
-		}
 		if config.OnUserInputRequest != nil {
 			req.RequestUserInput = Bool(true)
 		}
@@ -488,6 +486,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 			req.Hooks = Bool(true)
 		}
 	}
+	req.RequestPermission = Bool(true)
 
 	result, err := c.client.Request("session.create", req)
 	if err != nil {
@@ -552,6 +551,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	var req resumeSessionRequest
 	req.SessionID = sessionID
 	if config != nil {
+		req.ClientName = config.ClientName
 		req.Model = config.Model
 		req.ReasoningEffort = config.ReasoningEffort
 		req.SystemMessage = config.SystemMessage
@@ -561,9 +561,6 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		req.ExcludedTools = config.ExcludedTools
 		if config.Streaming {
 			req.Streaming = Bool(true)
-		}
-		if config.OnPermissionRequest != nil {
-			req.RequestPermission = Bool(true)
 		}
 		if config.OnUserInputRequest != nil {
 			req.RequestUserInput = Bool(true)
@@ -588,6 +585,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		req.DisabledSkills = config.DisabledSkills
 		req.InfiniteSessions = config.InfiniteSessions
 	}
+	req.RequestPermission = Bool(true)
 
 	result, err := c.client.Request("session.resume", req)
 	if err != nil {

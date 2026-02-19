@@ -14,13 +14,13 @@ from .generated.rpc import SessionRpc
 from .generated.session_events import SessionEvent, SessionEventType, session_event_from_dict
 from .types import (
     MessageOptions,
-    PermissionHandler,
     SessionHooks,
     Tool,
     ToolHandler,
     UserInputHandler,
     UserInputRequest,
     UserInputResponse,
+    _PermissionHandlerFn,
 )
 from .types import (
     SessionEvent as SessionEventTypeAlias,
@@ -74,7 +74,7 @@ class CopilotSession:
         self._event_handlers_lock = threading.Lock()
         self._tool_handlers: dict[str, ToolHandler] = {}
         self._tool_handlers_lock = threading.Lock()
-        self._permission_handler: Optional[PermissionHandler] = None
+        self._permission_handler: Optional[_PermissionHandlerFn] = None
         self._permission_handler_lock = threading.Lock()
         self._user_input_handler: Optional[UserInputHandler] = None
         self._user_input_handler_lock = threading.Lock()
@@ -291,7 +291,7 @@ class CopilotSession:
         with self._tool_handlers_lock:
             return self._tool_handlers.get(name)
 
-    def _register_permission_handler(self, handler: Optional[PermissionHandler]) -> None:
+    def _register_permission_handler(self, handler: Optional[_PermissionHandlerFn]) -> None:
         """
         Register a handler for permission requests.
 

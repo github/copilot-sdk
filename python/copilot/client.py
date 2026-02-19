@@ -467,6 +467,8 @@ class CopilotClient:
             payload["model"] = cfg["model"]
         if cfg.get("session_id"):
             payload["sessionId"] = cfg["session_id"]
+        if cfg.get("client_name"):
+            payload["clientName"] = cfg["client_name"]
         if cfg.get("reasoning_effort"):
             payload["reasoningEffort"] = cfg["reasoning_effort"]
         if tool_defs:
@@ -485,10 +487,9 @@ class CopilotClient:
         if excluded_tools:
             payload["excludedTools"] = excluded_tools
 
-        # Enable permission request callback if handler provided
+        # Always enable permission request callback (deny by default if no handler provided)
         on_permission_request = cfg.get("on_permission_request")
-        if on_permission_request:
-            payload["requestPermission"] = True
+        payload["requestPermission"] = True
 
         # Enable user input request callback if handler provided
         on_user_input_request = cfg.get("on_user_input_request")
@@ -629,6 +630,11 @@ class CopilotClient:
 
         payload: dict[str, Any] = {"sessionId": session_id}
 
+        # Add client name if provided
+        client_name = cfg.get("client_name")
+        if client_name:
+            payload["clientName"] = client_name
+
         # Add model if provided
         model = cfg.get("model")
         if model:
@@ -662,10 +668,9 @@ class CopilotClient:
         if streaming is not None:
             payload["streaming"] = streaming
 
-        # Enable permission request callback if handler provided
+        # Always enable permission request callback (deny by default if no handler provided)
         on_permission_request = cfg.get("on_permission_request")
-        if on_permission_request:
-            payload["requestPermission"] = True
+        payload["requestPermission"] = True
 
         # Enable user input request callback if handler provided
         on_user_input_request = cfg.get("on_user_input_request")

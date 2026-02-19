@@ -230,6 +230,8 @@ export type PermissionHandler = (
     invocation: { sessionId: string }
 ) => Promise<PermissionRequestResult> | PermissionRequestResult;
 
+export const approveAll: PermissionHandler = () => ({ kind: "approved" });
+
 // ============================================================================
 // User Input Request Types
 // ============================================================================
@@ -616,6 +618,12 @@ export interface SessionConfig {
     sessionId?: string;
 
     /**
+     * Client name to identify the application using the SDK.
+     * Included in the User-Agent header for API requests.
+     */
+    clientName?: string;
+
+    /**
      * Model to use for this session
      */
     model?: string;
@@ -730,6 +738,7 @@ export interface SessionConfig {
  */
 export type ResumeSessionConfig = Pick<
     SessionConfig,
+    | "clientName"
     | "model"
     | "tools"
     | "systemMessage"

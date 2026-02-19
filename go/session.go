@@ -58,7 +58,7 @@ type Session struct {
 	handlerMutex      sync.RWMutex
 	toolHandlers      map[string]ToolHandler
 	toolHandlersM     sync.RWMutex
-	permissionHandler PermissionHandler
+	permissionHandler PermissionHandlerFunc
 	permissionMux     sync.RWMutex
 	userInputHandler  UserInputHandler
 	userInputMux      sync.RWMutex
@@ -290,14 +290,14 @@ func (s *Session) getToolHandler(name string) (ToolHandler, bool) {
 // operations), this handler is called to approve or deny the request.
 //
 // This method is internal and typically called when creating a session.
-func (s *Session) registerPermissionHandler(handler PermissionHandler) {
+func (s *Session) registerPermissionHandler(handler PermissionHandlerFunc) {
 	s.permissionMux.Lock()
 	defer s.permissionMux.Unlock()
 	s.permissionHandler = handler
 }
 
 // getPermissionHandler returns the currently registered permission handler, or nil.
-func (s *Session) getPermissionHandler() PermissionHandler {
+func (s *Session) getPermissionHandler() PermissionHandlerFunc {
 	s.permissionMux.RLock()
 	defer s.permissionMux.RUnlock()
 	return s.permissionHandler

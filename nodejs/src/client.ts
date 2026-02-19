@@ -107,6 +107,13 @@ function toJsonSchema(parameters: Tool["parameters"]): Record<string, unknown> |
  * ```
  */
 
+function getNodeExecPath(): string {
+    if (process.versions.bun) {
+        return "node";
+    }
+    return process.execPath;
+}
+
 /**
  * Gets the path to the bundled CLI from the @github/copilot package.
  * Uses index.js directly rather than npm-loader.js (which spawns the native binary).
@@ -513,6 +520,7 @@ export class CopilotClient {
         const response = await this.connection!.sendRequest("session.create", {
             model: config.model,
             sessionId: config.sessionId,
+            clientName: config.clientName,
             reasoningEffort: config.reasoningEffort,
             tools: config.tools?.map((tool) => ({
                 name: tool.name,
@@ -523,7 +531,7 @@ export class CopilotClient {
             availableTools: config.availableTools,
             excludedTools: config.excludedTools,
             provider: config.provider,
-            requestPermission: !!config.onPermissionRequest,
+            requestPermission: true,
             requestUserInput: !!config.onUserInputRequest,
             hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
             workingDirectory: config.workingDirectory,
@@ -594,6 +602,7 @@ export class CopilotClient {
 
         const response = await this.connection!.sendRequest("session.resume", {
             sessionId,
+            clientName: config.clientName,
             model: config.model,
             reasoningEffort: config.reasoningEffort,
             systemMessage: config.systemMessage,
@@ -605,7 +614,7 @@ export class CopilotClient {
                 parameters: toJsonSchema(tool.parameters),
             })),
             provider: config.provider,
-            requestPermission: !!config.onPermissionRequest,
+            requestPermission: true,
             requestUserInput: !!config.onUserInputRequest,
             hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
             workingDirectory: config.workingDirectory,
@@ -1068,7 +1077,7 @@ export class CopilotClient {
             // For .js files, spawn node explicitly; for executables, spawn directly
             const isJsFile = this.options.cliPath.endsWith(".js");
             if (isJsFile) {
-                this.cliProcess = spawn(process.execPath, [this.options.cliPath, ...args], {
+                this.cliProcess = spawn(getNodeExecPath(), [this.options.cliPath, ...args], {
                     stdio: stdioConfig,
                     cwd: this.options.cwd,
                     env: envWithoutNodeDebug,

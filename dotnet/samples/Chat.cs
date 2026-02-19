@@ -1,7 +1,10 @@
 using GitHub.Copilot.SDK;
 
 await using var client = new CopilotClient();
-await using var session = await client.CreateSessionAsync();
+await using var session = await client.CreateSessionAsync(new SessionConfig
+{
+    OnPermissionRequest = PermissionHandler.ApproveAll
+});
 
 using var _ = session.On(evt =>
 {

@@ -377,13 +377,14 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         var request = new CreateSessionRequest(
             config?.Model,
             config?.SessionId,
+            config?.ClientName,
             config?.ReasoningEffort,
             config?.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
             config?.SystemMessage,
             config?.AvailableTools,
             config?.ExcludedTools,
             config?.Provider,
-            config?.OnPermissionRequest != null ? true : null,
+            (bool?)true,
             config?.OnUserInputRequest != null ? true : null,
             hasHooks ? true : null,
             config?.WorkingDirectory,
@@ -460,6 +461,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
 
         var request = new ResumeSessionRequest(
             sessionId,
+            config?.ClientName,
             config?.Model,
             config?.ReasoningEffort,
             config?.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
@@ -467,7 +469,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
             config?.AvailableTools,
             config?.ExcludedTools,
             config?.Provider,
-            config?.OnPermissionRequest != null ? true : null,
+            (bool?)true,
             config?.OnUserInputRequest != null ? true : null,
             hasHooks ? true : null,
             config?.WorkingDirectory,
@@ -1381,6 +1383,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     internal record CreateSessionRequest(
         string? Model,
         string? SessionId,
+        string? ClientName,
         string? ReasoningEffort,
         List<ToolDefinition>? Tools,
         SystemMessageConfig? SystemMessage,
@@ -1415,6 +1418,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
 
     internal record ResumeSessionRequest(
         string SessionId,
+        string? ClientName,
         string? Model,
         string? ReasoningEffort,
         List<ToolDefinition>? Tools,

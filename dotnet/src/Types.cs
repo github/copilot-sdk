@@ -166,7 +166,7 @@ public class PermissionInvocation
     public string SessionId { get; set; } = string.Empty;
 }
 
-public delegate Task<PermissionRequestResult> PermissionHandler(PermissionRequest request, PermissionInvocation invocation);
+public delegate Task<PermissionRequestResult> PermissionRequestHandler(PermissionRequest request, PermissionInvocation invocation);
 
 // ============================================================================
 // User Input Handler Types
@@ -745,6 +745,7 @@ public class SessionConfig
         if (other is null) return;
 
         AvailableTools = other.AvailableTools is not null ? [.. other.AvailableTools] : null;
+        ClientName = other.ClientName;
         ConfigDir = other.ConfigDir;
         CustomAgents = other.CustomAgents is not null ? [.. other.CustomAgents] : null;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
@@ -768,6 +769,13 @@ public class SessionConfig
     }
 
     public string? SessionId { get; set; }
+
+    /// <summary>
+    /// Client name to identify the application using the SDK.
+    /// Included in the User-Agent header for API requests.
+    /// </summary>
+    public string? ClientName { get; set; }
+
     public string? Model { get; set; }
 
     /// <summary>
@@ -793,7 +801,7 @@ public class SessionConfig
     /// Handler for permission requests from the server.
     /// When provided, the server will call this handler to request permission for operations.
     /// </summary>
-    public PermissionHandler? OnPermissionRequest { get; set; }
+    public PermissionRequestHandler? OnPermissionRequest { get; set; }
 
     /// <summary>
     /// Handler for user input requests from the agent.
@@ -874,6 +882,7 @@ public class ResumeSessionConfig
         if (other is null) return;
 
         AvailableTools = other.AvailableTools is not null ? [.. other.AvailableTools] : null;
+        ClientName = other.ClientName;
         ConfigDir = other.ConfigDir;
         CustomAgents = other.CustomAgents is not null ? [.. other.CustomAgents] : null;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
@@ -895,6 +904,12 @@ public class ResumeSessionConfig
         Tools = other.Tools is not null ? [.. other.Tools] : null;
         WorkingDirectory = other.WorkingDirectory;
     }
+
+    /// <summary>
+    /// Client name to identify the application using the SDK.
+    /// Included in the User-Agent header for API requests.
+    /// </summary>
+    public string? ClientName { get; set; }
 
     /// <summary>
     /// Model to use for this session. Can change the model when resuming.
@@ -932,7 +947,7 @@ public class ResumeSessionConfig
     /// Handler for permission requests from the server.
     /// When provided, the server will call this handler to request permission for operations.
     /// </summary>
-    public PermissionHandler? OnPermissionRequest { get; set; }
+    public PermissionRequestHandler? OnPermissionRequest { get; set; }
 
     /// <summary>
     /// Handler for user input requests from the agent.

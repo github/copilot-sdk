@@ -333,7 +333,10 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     [Fact]
     public async Task Send_Returns_Immediately_While_Events_Stream_In_Background()
     {
-        var session = await Client.CreateSessionAsync();
+        var session = await Client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
         var events = new List<string>();
 
         session.On(evt => events.Add(evt.Type));

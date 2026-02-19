@@ -113,9 +113,9 @@ type PermissionRequestResult struct {
 	Rules []any  `json:"rules,omitempty"`
 }
 
-// PermissionHandler executes a permission request
+// PermissionHandlerFunc executes a permission request
 // The handler should return a PermissionRequestResult. Returning an error denies the permission.
-type PermissionHandler func(request PermissionRequest, invocation PermissionInvocation) (PermissionRequestResult, error)
+type PermissionHandlerFunc func(request PermissionRequest, invocation PermissionInvocation) (PermissionRequestResult, error)
 
 // PermissionInvocation provides context about a permission request
 type PermissionInvocation struct {
@@ -331,6 +331,9 @@ type InfiniteSessionConfig struct {
 type SessionConfig struct {
 	// SessionID is an optional custom session ID
 	SessionID string
+	// ClientName identifies the application using the SDK.
+	// Included in the User-Agent header for API requests.
+	ClientName string
 	// Model to use for this session
 	Model string
 	// ReasoningEffort level for models that support it.
@@ -350,8 +353,10 @@ type SessionConfig struct {
 	// ExcludedTools is a list of tool names to disable. All other tools remain available.
 	// Ignored if AvailableTools is specified.
 	ExcludedTools []string
-	// OnPermissionRequest is a handler for permission requests from the server
-	OnPermissionRequest PermissionHandler
+	// OnPermissionRequest is a handler for permission requests from the server.
+	// If nil, all permission requests are denied by default.
+	// Provide a handler to approve operations (file writes, shell commands, URL fetches, etc.).
+	OnPermissionRequest PermissionHandlerFunc
 	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
 	OnUserInputRequest UserInputHandler
 	// Hooks configures hook handlers for session lifecycle events
@@ -410,6 +415,9 @@ type ToolResult struct {
 
 // ResumeSessionConfig configures options when resuming a session
 type ResumeSessionConfig struct {
+	// ClientName identifies the application using the SDK.
+	// Included in the User-Agent header for API requests.
+	ClientName string
 	// Model to use for this session. Can change the model when resuming.
 	Model string
 	// Tools exposes caller-implemented tools to the CLI
@@ -427,8 +435,10 @@ type ResumeSessionConfig struct {
 	// ReasoningEffort level for models that support it.
 	// Valid values: "low", "medium", "high", "xhigh"
 	ReasoningEffort string
-	// OnPermissionRequest is a handler for permission requests from the server
-	OnPermissionRequest PermissionHandler
+	// OnPermissionRequest is a handler for permission requests from the server.
+	// If nil, all permission requests are denied by default.
+	// Provide a handler to approve operations (file writes, shell commands, URL fetches, etc.).
+	OnPermissionRequest PermissionHandlerFunc
 	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
 	OnUserInputRequest UserInputHandler
 	// Hooks configures hook handlers for session lifecycle events
@@ -627,6 +637,7 @@ type permissionRequestResponse struct {
 type createSessionRequest struct {
 	Model             string                     `json:"model,omitempty"`
 	SessionID         string                     `json:"sessionId,omitempty"`
+	ClientName        string                     `json:"clientName,omitempty"`
 	ReasoningEffort   string                     `json:"reasoningEffort,omitempty"`
 	Tools             []Tool                     `json:"tools,omitempty"`
 	SystemMessage     *SystemMessageConfig       `json:"systemMessage,omitempty"`
@@ -656,6 +667,7 @@ type createSessionResponse struct {
 // resumeSessionRequest is the request for session.resume
 type resumeSessionRequest struct {
 	SessionID         string                     `json:"sessionId"`
+	ClientName        string                     `json:"clientName,omitempty"`
 	Model             string                     `json:"model,omitempty"`
 	ReasoningEffort   string                     `json:"reasoningEffort,omitempty"`
 	Tools             []Tool                     `json:"tools,omitempty"`

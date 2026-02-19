@@ -186,10 +186,16 @@ class PermissionRequestResult(TypedDict, total=False):
     rules: list[Any]
 
 
-PermissionHandler = Callable[
+_PermissionHandlerFn = Callable[
     [PermissionRequest, dict[str, str]],
     Union[PermissionRequestResult, Awaitable[PermissionRequestResult]],
 ]
+
+
+class PermissionHandler:
+    @staticmethod
+    def approve_all(request: Any, invocation: Any) -> dict:
+        return {"kind": "approved"}
 
 
 # ============================================================================
@@ -462,6 +468,9 @@ class SessionConfig(TypedDict, total=False):
     """Configuration for creating a session"""
 
     session_id: str  # Optional custom session ID
+    # Client name to identify the application using the SDK.
+    # Included in the User-Agent header for API requests.
+    client_name: str
     model: str  # Model to use for this session. Use client.list_models() to see available models.
     # Reasoning effort level for models that support it.
     # Only valid for models where capabilities.supports.reasoning_effort is True.
@@ -473,7 +482,7 @@ class SessionConfig(TypedDict, total=False):
     # List of tool names to disable (ignored if available_tools is set)
     excluded_tools: list[str]
     # Handler for permission requests from the server
-    on_permission_request: PermissionHandler
+    on_permission_request: _PermissionHandlerFn
     # Handler for user input requests from the agent (enables ask_user tool)
     on_user_input_request: UserInputHandler
     # Hook handlers for intercepting session lifecycle events
@@ -529,6 +538,9 @@ class ProviderConfig(TypedDict, total=False):
 class ResumeSessionConfig(TypedDict, total=False):
     """Configuration for resuming a session"""
 
+    # Client name to identify the application using the SDK.
+    # Included in the User-Agent header for API requests.
+    client_name: str
     # Model to use for this session. Can change the model when resuming.
     model: str
     tools: list[Tool]
@@ -540,8 +552,8 @@ class ResumeSessionConfig(TypedDict, total=False):
     provider: ProviderConfig
     # Reasoning effort level for models that support it.
     reasoning_effort: ReasoningEffort
-    on_permission_request: PermissionHandler
-    # Handler for user input requests from the agent (enables ask_user tool)
+    on_permission_request: _PermissionHandlerFn
+    # Handler for user input requestsfrom the agent (enables ask_user tool)
     on_user_input_request: UserInputHandler
     # Hook handlers for intercepting session lifecycle events
     hooks: SessionHooks
