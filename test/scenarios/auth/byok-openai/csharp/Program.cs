@@ -1,7 +1,7 @@
 using GitHub.Copilot.SDK;
 
 var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-var model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "gpt-4.1-mini";
+var model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "claude-sonnet-4.6";
 var baseUrl = Environment.GetEnvironmentVariable("OPENAI_BASE_URL") ?? "https://api.openai.com/v1";
 
 if (string.IsNullOrEmpty(apiKey))

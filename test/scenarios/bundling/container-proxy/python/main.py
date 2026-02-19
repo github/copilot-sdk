@@ -9,7 +9,7 @@ async def main():
     })
 
     try:
-        session = await client.create_session({"model": "gpt-4.1"})
+        session = await client.create_session({"model": "claude-sonnet-4.6"})
 
         response = await session.send_and_wait(
             {"prompt": "What is the capital of France?"}

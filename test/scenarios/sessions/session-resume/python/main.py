@@ -13,7 +13,7 @@ async def main():
         # 1. Create a session
         session = await client.create_session(
             {
-                "model": "gpt-4.1",
+                "model": "claude-sonnet-4.6",
                 "available_tools": [],
             }
         )

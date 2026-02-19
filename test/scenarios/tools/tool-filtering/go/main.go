@@ -23,7 +23,7 @@ func main() {
 	defer client.Stop()
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model: "gpt-4.1",
+		Model: "claude-sonnet-4.6",
 		SystemMessage: &copilot.SystemMessageConfig{
 			Mode:    "replace",
 			Content: systemPrompt,

@@ -12,7 +12,7 @@ try
 {
     await using var session = await client.CreateSessionAsync(new SessionConfig
     {
-        Model = "gpt-4.1",
+        Model = "claude-sonnet-4.6",
         ReasoningEffort = "low",
         AvailableTools = new List<string>(),
         SystemMessage = new SystemMessageConfig

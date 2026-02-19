@@ -7,7 +7,7 @@ async function main() {
   });
 
   try {
-    const session = await client.createSession({ model: "gpt-4.1" });
+    const session = await client.createSession({ model: "claude-sonnet-4.6" });
 
     const response = await session.sendAndWait({
       prompt: "What is the capital of France?",

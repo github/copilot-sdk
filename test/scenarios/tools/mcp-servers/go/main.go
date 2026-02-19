@@ -38,7 +38,7 @@ func main() {
 	}
 
 	sessionConfig := &copilot.SessionConfig{
-		Model: "gpt-4.1",
+		Model: "claude-sonnet-4.6",
 		SystemMessage: &copilot.SystemMessageConfig{
 			Mode:    "replace",
 			Content: "You are a helpful assistant. Answer questions concisely.",

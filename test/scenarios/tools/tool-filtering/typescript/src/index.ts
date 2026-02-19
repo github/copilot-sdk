@@ -8,7 +8,7 @@ async function main() {
 
   try {
     const session = await client.createSession({
-      model: "gpt-4.1",
+      model: "claude-sonnet-4.6",
       systemMessage: {
         mode: "replace",
         content: "You are a helpful assistant. You have access to a limited set of tools. When asked about your tools, list exactly which tools you have available.",

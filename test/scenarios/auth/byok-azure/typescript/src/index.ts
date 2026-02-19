@@ -3,7 +3,7 @@ import { CopilotClient } from "@github/copilot-sdk";
 async function main() {
   const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
   const apiKey = process.env.AZURE_OPENAI_API_KEY;
-  const model = process.env.AZURE_OPENAI_MODEL || "gpt-4.1";
+  const model = process.env.AZURE_OPENAI_MODEL || "claude-sonnet-4.6";
 
   if (!endpoint || !apiKey) {
     console.error("Required: AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY");

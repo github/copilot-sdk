@@ -18,7 +18,7 @@ func main() {
 
 	model := os.Getenv("AZURE_OPENAI_MODEL")
 	if model == "" {
-		model = "gpt-4.1"
+		model = "claude-sonnet-4.6"
 	}
 
 	apiVersion := os.Getenv("AZURE_API_VERSION")

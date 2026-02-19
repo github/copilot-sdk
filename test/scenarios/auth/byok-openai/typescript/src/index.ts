@@ -1,7 +1,7 @@
 import { CopilotClient } from "@github/copilot-sdk";
 
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
-const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-4.1-mini";
+const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "claude-sonnet-4.6";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 if (!OPENAI_API_KEY) {

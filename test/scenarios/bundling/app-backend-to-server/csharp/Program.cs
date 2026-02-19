@@ -11,7 +11,7 @@ try
 {
     await using var session = await client.CreateSessionAsync(new SessionConfig
     {
-        Model = "gpt-4.1",
+        Model = "claude-sonnet-4.6",
     });
 
     var response = await session.SendAndWaitAsync(new MessageOptions

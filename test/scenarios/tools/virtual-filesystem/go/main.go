@@ -84,7 +84,7 @@ func main() {
 	defer client.Stop()
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model: "gpt-4.1",
+		Model: "claude-sonnet-4.6",
 		// Remove all built-in tools — only our custom virtual FS tools are available
 		AvailableTools: []string{},
 		Tools:          []copilot.Tool{createFile, readFile, listFiles},

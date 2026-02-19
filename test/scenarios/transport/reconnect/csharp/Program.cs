@@ -11,7 +11,7 @@ try
     Console.WriteLine("--- Session 1 ---");
     await using var session1 = await client.CreateSessionAsync(new SessionConfig
     {
-        Model = "gpt-4.1",
+        Model = "claude-sonnet-4.6",
     });
 
     var response1 = await session1.SendAndWaitAsync(new MessageOptions
@@ -34,7 +34,7 @@ try
     Console.WriteLine("--- Session 2 ---");
     await using var session2 = await client.CreateSessionAsync(new SessionConfig
     {
-        Model = "gpt-4.1",
+        Model = "claude-sonnet-4.6",
     });
 
     var response2 = await session2.SendAndWaitAsync(new MessageOptions

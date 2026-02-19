@@ -25,7 +25,7 @@ func main() {
 	defer client.Stop()
 
 	session1, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model: "gpt-4.1",
+		Model: "claude-sonnet-4.6",
 		SystemMessage: &copilot.SystemMessageConfig{
 			Mode:    "replace",
 			Content: piratePrompt,
@@ -38,7 +38,7 @@ func main() {
 	defer session1.Destroy()
 
 	session2, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model: "gpt-4.1",
+		Model: "claude-sonnet-4.6",
 		SystemMessage: &copilot.SystemMessageConfig{
 			Mode:    "replace",
 			Content: robotPrompt,

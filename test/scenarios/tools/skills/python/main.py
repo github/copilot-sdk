@@ -16,7 +16,7 @@ async def main():
 
         session = await client.create_session(
             {
-                "model": "gpt-4.1",
+                "model": "claude-sonnet-4.6",
                 "skill_directories": [skills_dir],
                 "on_permission_request": lambda _: {"kind": "approved"},
                 "hooks": {

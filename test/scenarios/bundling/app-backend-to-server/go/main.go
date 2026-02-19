@@ -64,7 +64,7 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 	defer client.Stop()
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model: "gpt-4.1",
+		Model: "claude-sonnet-4.6",
 	})
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, chatResponse{Error: err.Error()})

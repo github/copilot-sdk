@@ -54,7 +54,7 @@ async def main():
     try:
         session = await client.create_session(
             {
-                "model": "gpt-4.1",
+                "model": "claude-sonnet-4.6",
                 "available_tools": [],
                 "tools": [create_file, read_file, list_files],
                 "on_permission_request": auto_approve_permission,

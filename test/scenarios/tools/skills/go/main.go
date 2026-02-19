@@ -26,7 +26,7 @@ func main() {
 	skillsDir := filepath.Join(filepath.Dir(thisFile), "..", "sample-skills")
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model:            "gpt-4.1",
+		Model:            "claude-sonnet-4.6",
 		SkillDirectories: []string{skillsDir},
 	})
 	if err != nil {

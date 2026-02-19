@@ -10,7 +10,7 @@ async function main() {
 
   try {
     const session = await client.createSession({
-      model: "gpt-4.1",
+      model: "claude-sonnet-4.6",
       systemMessage: { mode: "replace", content: PIRATE_PROMPT },
       availableTools: [],
     });

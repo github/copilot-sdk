@@ -15,14 +15,14 @@ try
 {
     var session1Task = client.CreateSessionAsync(new SessionConfig
     {
-        Model = "gpt-4.1",
+        Model = "claude-sonnet-4.6",
         SystemMessage = new SystemMessageConfig { Mode = SystemMessageMode.Replace, Content = PiratePrompt },
         AvailableTools = [],
     });
 
     var session2Task = client.CreateSessionAsync(new SessionConfig
     {
-        Model = "gpt-4.1",
+        Model = "claude-sonnet-4.6",
         SystemMessage = new SystemMessageConfig { Mode = SystemMessageMode.Replace, Content = RobotPrompt },
         AvailableTools = [],
     });

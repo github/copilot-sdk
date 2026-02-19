@@ -14,7 +14,7 @@ try
 {
     await using var session = await client.CreateSessionAsync(new SessionConfig
     {
-        Model = "gpt-4.1",
+        Model = "claude-sonnet-4.6",
         OnPermissionRequest = (request, invocation) =>
             Task.FromResult(new PermissionRequestResult { Kind = "approved" }),
         OnUserInputRequest = (request, invocation) =>

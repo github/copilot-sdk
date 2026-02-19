@@ -20,7 +20,7 @@ async function main() {
     }
 
     const session = await client.createSession({
-      model: "gpt-4.1",
+      model: "claude-sonnet-4.6",
       ...(Object.keys(mcpServers).length > 0 && { mcpServers }),
       availableTools: [],
       systemMessage: {

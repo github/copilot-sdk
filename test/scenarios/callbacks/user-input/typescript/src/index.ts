@@ -10,7 +10,7 @@ async function main() {
 
   try {
     const session = await client.createSession({
-      model: "gpt-4.1",
+      model: "claude-sonnet-4.6",
       onPermissionRequest: async () => ({ kind: "approved" as const }),
       onUserInputRequest: async (request) => {
         inputLog.push(`question: ${request.question}`);

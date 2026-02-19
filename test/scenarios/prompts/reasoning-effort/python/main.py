@@ -11,7 +11,7 @@ async def main():
 
     try:
         session = await client.create_session({
-            "model": "gpt-4.1",
+            "model": "claude-sonnet-4.6",
             "reasoning_effort": "low",
             "available_tools": [],
             "system_message": {

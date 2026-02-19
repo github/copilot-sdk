@@ -12,7 +12,7 @@ async def main():
     try:
         # First session
         print("--- Session 1 ---")
-        session1 = await client.create_session({"model": "gpt-4.1"})
+        session1 = await client.create_session({"model": "claude-sonnet-4.6"})
 
         response1 = await session1.send_and_wait(
             {"prompt": "What is the capital of France?"}
@@ -29,7 +29,7 @@ async def main():
 
         # Second session — tests that the server accepts new sessions
         print("--- Session 2 ---")
-        session2 = await client.create_session({"model": "gpt-4.1"})
+        session2 = await client.create_session({"model": "claude-sonnet-4.6"})
 
         response2 = await session2.send_and_wait(
             {"prompt": "What is the capital of France?"}

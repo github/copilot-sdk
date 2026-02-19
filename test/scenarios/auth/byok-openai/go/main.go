@@ -22,7 +22,7 @@ func main() {
 
 	model := os.Getenv("OPENAI_MODEL")
 	if model == "" {
-		model = "gpt-4.1-mini"
+		model = "claude-sonnet-4.6"
 	}
 
 	client := copilot.NewClient(&copilot.ClientOptions{})

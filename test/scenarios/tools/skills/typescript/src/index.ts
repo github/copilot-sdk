@@ -14,7 +14,7 @@ async function main() {
     const skillsDir = path.resolve(__dirname, "../../sample-skills");
 
     const session = await client.createSession({
-      model: "gpt-4.1",
+      model: "claude-sonnet-4.6",
       skillDirectories: [skillsDir],
       onPermissionRequest: async () => ({ kind: "approved" as const }),
       hooks: {

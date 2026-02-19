@@ -23,7 +23,7 @@ async def main():
             }
 
         session_config = {
-            "model": "gpt-4.1",
+            "model": "claude-sonnet-4.6",
             "available_tools": [],
             "system_message": {
                 "mode": "replace",
