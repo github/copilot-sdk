@@ -25,7 +25,7 @@
         <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="10.2.0" />
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
         <PackageReference Include="StreamJsonRpc" Version="2.24.84" PrivateAssets="compile" />
-        <PackageReference Include="System.Text.Json" Version="10.0.2" />
+        <PackageReference Include="System.Text.Json" Version="10.0.3" />
     </ItemGroup>
 
     <!-- Generate version props file at build time (gitignored) -->
