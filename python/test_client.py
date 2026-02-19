@@ -4,6 +4,7 @@ CopilotClient Unit Tests
 This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py instead.
 """
 
+import os
 from pathlib import Path
 
 import pytest
