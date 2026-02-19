@@ -21,7 +21,7 @@ import sys
 import threading
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional, Union, cast
+from typing import Any, Callable, Optional, Union, cast, overload
 
 from .generated.session_events import session_event_from_dict
 from .jsonrpc import JsonRpcClient
@@ -101,6 +101,35 @@ class CopilotClient:
         >>> # Or connect to an existing server
         >>> client = CopilotClient(cli_url="localhost:3000")
     """
+
+    @overload
+    def __init__(
+        self,
+        *,
+        cli_url: str,
+        cwd: Union[str, os.PathLike[str], None] = None,
+        port: int = 0,
+        log_level: LogLevel = "info",
+        auto_start: bool = True,
+        auto_restart: bool = True,
+        env: Optional[dict[str, str]] = None,
+    ) -> None: ...
+
+    @overload
+    def __init__(
+        self,
+        *,
+        cli_path: Union[str, os.PathLike[str], None] = None,
+        cwd: Union[str, os.PathLike[str], None] = None,
+        port: int = 0,
+        use_stdio: Optional[bool] = None,
+        log_level: LogLevel = "info",
+        auto_start: bool = True,
+        auto_restart: bool = True,
+        github_token: Optional[str] = None,
+        use_logged_in_user: Optional[bool] = None,
+        env: Optional[dict[str, str]] = None,
+    ) -> None: ...
 
     def __init__(
         self,
