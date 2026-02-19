@@ -5,48 +5,51 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: run the shell command 'sleep 100' (note this works on both bash and PowerShell)
+        content: Find all .ts files in this directory (recursively). List the filenames you found.
       - role: assistant
-        content: I'll run the sleep command for 100 seconds.
+        content: I'll search for all TypeScript files recursively in the current directory.
       - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: report_intent
-              arguments: '{"intent":"Running sleep command"}'
+              arguments: '{"intent":"Finding TypeScript files"}'
       - role: assistant
         tool_calls:
           - id: toolcall_1
             type: function
             function:
-              name: ${shell}
-              arguments: '{"command":"sleep 100","description":"Run sleep 100 command","mode":"sync","initial_wait":105}'
+              name: glob
+              arguments: '{"pattern":"**/*.ts"}'
   - messages:
       - role: system
         content: ${system}
       - role: user
-        content: run the shell command 'sleep 100' (note this works on both bash and PowerShell)
+        content: Find all .ts files in this directory (recursively). List the filenames you found.
       - role: assistant
-        content: I'll run the sleep command for 100 seconds.
+        content: I'll search for all TypeScript files recursively in the current directory.
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: report_intent
-              arguments: '{"intent":"Running sleep command"}'
+              arguments: '{"intent":"Finding TypeScript files"}'
           - id: toolcall_1
             type: function
             function:
-              name: ${shell}
-              arguments: '{"command":"sleep 100","description":"Run sleep 100 command","mode":"sync","initial_wait":105}'
+              name: glob
+              arguments: '{"pattern":"**/*.ts"}'
       - role: tool
         tool_call_id: toolcall_0
         content: Intent logged
       - role: tool
         tool_call_id: toolcall_1
-        content: The execution of this tool, or a previous tool was interrupted.
-      - role: user
-        content: What is 2+2?
+        content: |-
+          ./src/app.ts
+          ./src/index.ts
       - role: assistant
-        content: "4"
+        content: |-
+          Found 2 TypeScript files:
+          - `src/app.ts`
+          - `src/index.ts`

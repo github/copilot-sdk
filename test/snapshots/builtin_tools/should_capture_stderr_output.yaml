@@ -1,0 +1,23 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Run 'echo error_msg >&2; echo ok' and tell me what stderr said. Reply with just the stderr content.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"echo error_msg >&2; echo ok","description":"Run command with stderr output"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: |-
+          error_msg
+          ok
+          <exited with exit code 0>
+      - role: assistant
+        content: error_msg

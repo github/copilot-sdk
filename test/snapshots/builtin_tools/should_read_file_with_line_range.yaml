@@ -5,43 +5,50 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: Run 'echo test'. If you can't, say 'failed'.
+        content: Read lines 2 through 4 of the file 'lines.txt' in this directory. Tell me what those lines contain.
       - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: report_intent
-              arguments: '{"intent":"Running echo command"}'
+              arguments: '{"intent":"Reading specific file lines"}'
       - role: assistant
         tool_calls:
           - id: toolcall_1
             type: function
             function:
-              name: ${shell}
-              arguments: '{"command":"echo test","description":"Run echo test"}'
+              name: view
+              arguments: '{"path":"${workdir}/lines.txt","view_range":[2,4]}'
   - messages:
       - role: system
         content: ${system}
       - role: user
-        content: Run 'echo test'. If you can't, say 'failed'.
+        content: Read lines 2 through 4 of the file 'lines.txt' in this directory. Tell me what those lines contain.
       - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: report_intent
-              arguments: '{"intent":"Running echo command"}'
+              arguments: '{"intent":"Reading specific file lines"}'
           - id: toolcall_1
             type: function
             function:
-              name: ${shell}
-              arguments: '{"command":"echo test","description":"Run echo test"}'
+              name: view
+              arguments: '{"path":"${workdir}/lines.txt","view_range":[2,4]}'
       - role: tool
         tool_call_id: toolcall_0
         content: Intent logged
       - role: tool
         tool_call_id: toolcall_1
-        content: Permission denied and could not request permission from user
+        content: |-
+          2. line2
+          3. line3
+          4. line4
       - role: assistant
-        content: failed
+        content: |-
+          Lines 2 through 4 contain:
+          - Line 2: "line2"
+          - Line 3: "line3"  
+          - Line 4: "line4"

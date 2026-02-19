@@ -5,43 +5,43 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: Run 'echo test'. If you can't, say 'failed'.
+        content: Use calculate to add 17 and 25
       - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: report_intent
-              arguments: '{"intent":"Running echo command"}'
+              arguments: '{"intent":"Calculating sum"}'
       - role: assistant
         tool_calls:
           - id: toolcall_1
             type: function
             function:
-              name: ${shell}
-              arguments: '{"command":"echo test","description":"Run echo test"}'
+              name: calculate
+              arguments: '{"operation":"add","a":17,"b":25}'
   - messages:
       - role: system
         content: ${system}
       - role: user
-        content: Run 'echo test'. If you can't, say 'failed'.
+        content: Use calculate to add 17 and 25
       - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: report_intent
-              arguments: '{"intent":"Running echo command"}'
+              arguments: '{"intent":"Calculating sum"}'
           - id: toolcall_1
             type: function
             function:
-              name: ${shell}
-              arguments: '{"command":"echo test","description":"Run echo test"}'
+              name: calculate
+              arguments: '{"operation":"add","a":17,"b":25}'
       - role: tool
         tool_call_id: toolcall_0
         content: Intent logged
       - role: tool
         tool_call_id: toolcall_1
-        content: Permission denied and could not request permission from user
+        content: "42"
       - role: assistant
-        content: failed
+        content: 17 + 25 = 42

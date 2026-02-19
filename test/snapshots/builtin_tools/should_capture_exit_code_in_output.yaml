@@ -5,48 +5,51 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: run the shell command 'sleep 100' (note this works on both bash and PowerShell)
-      - role: assistant
-        content: I'll run the sleep command for 100 seconds.
+        content: Run 'echo hello && echo world'. Tell me the exact output.
       - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: report_intent
-              arguments: '{"intent":"Running sleep command"}'
+              arguments: '{"intent":"Running echo commands"}'
       - role: assistant
         tool_calls:
           - id: toolcall_1
             type: function
             function:
               name: ${shell}
-              arguments: '{"command":"sleep 100","description":"Run sleep 100 command","mode":"sync","initial_wait":105}'
+              arguments: '{"command":"echo hello && echo world","description":"Run echo hello && echo world"}'
   - messages:
       - role: system
         content: ${system}
       - role: user
-        content: run the shell command 'sleep 100' (note this works on both bash and PowerShell)
+        content: Run 'echo hello && echo world'. Tell me the exact output.
       - role: assistant
-        content: I'll run the sleep command for 100 seconds.
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: report_intent
-              arguments: '{"intent":"Running sleep command"}'
+              arguments: '{"intent":"Running echo commands"}'
           - id: toolcall_1
             type: function
             function:
               name: ${shell}
-              arguments: '{"command":"sleep 100","description":"Run sleep 100 command","mode":"sync","initial_wait":105}'
+              arguments: '{"command":"echo hello && echo world","description":"Run echo hello && echo world"}'
       - role: tool
         tool_call_id: toolcall_0
         content: Intent logged
       - role: tool
         tool_call_id: toolcall_1
-        content: The execution of this tool, or a previous tool was interrupted.
-      - role: user
-        content: What is 2+2?
+        content: |-
+          hello
+          world
+          <exited with exit code 0>
       - role: assistant
-        content: "4"
+        content: |-
+          The exact output is:
+          ```
+          hello
+          world
+          ```

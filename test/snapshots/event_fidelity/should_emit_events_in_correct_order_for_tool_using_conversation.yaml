@@ -5,43 +5,43 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: Run 'echo test'. If you can't, say 'failed'.
+        content: Read the file 'hello.txt' and tell me its contents.
       - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: report_intent
-              arguments: '{"intent":"Running echo command"}'
+              arguments: '{"intent":"Reading file contents"}'
       - role: assistant
         tool_calls:
           - id: toolcall_1
             type: function
             function:
-              name: ${shell}
-              arguments: '{"command":"echo test","description":"Run echo test"}'
+              name: view
+              arguments: '{"path":"${workdir}/hello.txt"}'
   - messages:
       - role: system
         content: ${system}
       - role: user
-        content: Run 'echo test'. If you can't, say 'failed'.
+        content: Read the file 'hello.txt' and tell me its contents.
       - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: report_intent
-              arguments: '{"intent":"Running echo command"}'
+              arguments: '{"intent":"Reading file contents"}'
           - id: toolcall_1
             type: function
             function:
-              name: ${shell}
-              arguments: '{"command":"echo test","description":"Run echo test"}'
+              name: view
+              arguments: '{"path":"${workdir}/hello.txt"}'
       - role: tool
         tool_call_id: toolcall_0
         content: Intent logged
       - role: tool
         tool_call_id: toolcall_1
-        content: Permission denied and could not request permission from user
+        content: 1. Hello World
       - role: assistant
-        content: failed
+        content: "The file 'hello.txt' contains: \"Hello World\""

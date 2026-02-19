@@ -44,4 +44,4 @@ conversations:
         tool_call_id: toolcall_1
         content: 1. Hello from the test!
       - role: assistant
-        content: The file says "Hello from the test!"
+        content: 'The file contains: "Hello from the test!"'

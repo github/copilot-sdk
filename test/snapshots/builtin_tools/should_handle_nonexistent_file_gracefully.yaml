@@ -5,43 +5,43 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: Run 'echo test'. If you can't, say 'failed'.
+        content: Try to read the file 'does_not_exist.txt'. If it doesn't exist, say 'FILE_NOT_FOUND'.
       - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: report_intent
-              arguments: '{"intent":"Running echo command"}'
+              arguments: '{"intent":"Reading file"}'
       - role: assistant
         tool_calls:
           - id: toolcall_1
             type: function
             function:
-              name: ${shell}
-              arguments: '{"command":"echo test","description":"Run echo test"}'
+              name: view
+              arguments: '{"path":"${workdir}/does_not_exist.txt"}'
   - messages:
       - role: system
         content: ${system}
       - role: user
-        content: Run 'echo test'. If you can't, say 'failed'.
+        content: Try to read the file 'does_not_exist.txt'. If it doesn't exist, say 'FILE_NOT_FOUND'.
       - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: report_intent
-              arguments: '{"intent":"Running echo command"}'
+              arguments: '{"intent":"Reading file"}'
           - id: toolcall_1
             type: function
             function:
-              name: ${shell}
-              arguments: '{"command":"echo test","description":"Run echo test"}'
+              name: view
+              arguments: '{"path":"${workdir}/does_not_exist.txt"}'
       - role: tool
         tool_call_id: toolcall_0
         content: Intent logged
       - role: tool
         tool_call_id: toolcall_1
-        content: Permission denied and could not request permission from user
+        content: Path ${workdir}/does_not_exist.txt does not exist. Please provide a valid path.
       - role: assistant
-        content: failed
+        content: FILE_NOT_FOUND
