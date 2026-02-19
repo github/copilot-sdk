@@ -82,12 +82,14 @@ run_with_timeout() {
       PASS=$((PASS + 1))
     elif $has_session1 || $has_session2; then
       echo "⚠️  $name ran but only one session responded"
-      echo "✅ $name passed (partial)"
-      PASS=$((PASS + 1))
+      echo "❌ $name failed (expected both to respond)"
+      FAIL=$((FAIL + 1))
+      ERRORS="$ERRORS\n  - $name (partial)"
     else
       echo "⚠️  $name ran but session labels not found in output"
-      echo "✅ $name passed (got response)"
-      PASS=$((PASS + 1))
+      echo "❌ $name failed (expected pattern not found)"
+      FAIL=$((FAIL + 1))
+      ERRORS="$ERRORS\n  - $name"
     fi
   elif [ "$code" -eq 124 ]; then
     echo "❌ $name failed (timed out after ${TIMEOUT}s)"

@@ -74,8 +74,9 @@ run_with_timeout() {
       PASS=$((PASS + 1))
     else
       echo "⚠️  $name ran but response may not contain expected content"
-      echo "✅ $name passed (got response)"
-      PASS=$((PASS + 1))
+      echo "❌ $name failed (expected pattern not found)"
+      FAIL=$((FAIL + 1))
+      ERRORS="$ERRORS\n  - $name"
     fi
   elif [ "$code" -eq 124 ]; then
     echo "❌ $name failed (timed out after ${TIMEOUT}s)"

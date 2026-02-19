@@ -107,11 +107,13 @@ run_with_timeout() {
       PASS=$((PASS + 1))
     elif $has_user_a || $has_user_b; then
       echo "⚠️  $name ran but only one user responded"
-      echo "✅ $name passed (partial)"
-      PASS=$((PASS + 1))
+      echo "❌ $name failed (expected both to respond)"
+      FAIL=$((FAIL + 1))
+      ERRORS="$ERRORS\n  - $name (partial)"
     else
-      echo "✅ $name passed (got response)"
-      PASS=$((PASS + 1))
+      echo "❌ $name failed (expected pattern not found)"
+      FAIL=$((FAIL + 1))
+      ERRORS="$ERRORS\n  - $name"
     fi
   elif [ "$code" -eq 124 ]; then
     echo "${output:-(no output)}"
