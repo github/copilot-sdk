@@ -27,7 +27,7 @@ func main() {
 	defer client.Stop()
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model: "claude-sonnet-4.6",
+		Model: "claude-haiku-4.5",
 		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
 			return copilot.PermissionRequestResult{Kind: "approved"}, nil
 		},

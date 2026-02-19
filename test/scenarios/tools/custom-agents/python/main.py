@@ -12,7 +12,7 @@ async def main():
     try:
         session = await client.create_session(
             {
-                "model": "claude-sonnet-4.6",
+                "model": "claude-haiku-4.5",
                 "custom_agents": [
                     {
                         "name": "researcher",

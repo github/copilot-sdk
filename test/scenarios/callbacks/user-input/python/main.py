@@ -28,7 +28,7 @@ async def main():
     try:
         session = await client.create_session(
             {
-                "model": "claude-sonnet-4.6",
+                "model": "claude-haiku-4.5",
                 "on_permission_request": auto_approve_permission,
                 "on_user_input_request": handle_user_input,
                 "hooks": {"on_pre_tool_use": auto_approve_tool},

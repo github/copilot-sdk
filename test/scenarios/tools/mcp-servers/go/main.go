@@ -38,7 +38,7 @@ func main() {
 	}
 
 	sessionConfig := &copilot.SessionConfig{
-		Model: "claude-sonnet-4.6",
+		Model: "claude-haiku-4.5",
 		SystemMessage: &copilot.SystemMessageConfig{
 			Mode:    "replace",
 			Content: "You are a helpful assistant. Answer questions concisely.",

@@ -8,7 +8,7 @@ async function main() {
 
   try {
     const session = await client.createSession({
-      model: "claude-sonnet-4.6",
+      model: "claude-haiku-4.5",
       customAgents: [
         {
           name: "researcher",

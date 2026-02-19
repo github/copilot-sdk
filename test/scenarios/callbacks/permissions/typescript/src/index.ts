@@ -12,7 +12,7 @@ async function main() {
 
   try {
     const session = await client.createSession({
-      model: "claude-sonnet-4.6",
+      model: "claude-haiku-4.5",
       onPermissionRequest: async (request) => {
         permissionLog.push(`approved:${request.toolName}`);
         return { kind: "approved" as const };

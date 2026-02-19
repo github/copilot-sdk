@@ -19,7 +19,7 @@ try
 {
     await using var session = await client.CreateSessionAsync(new SessionConfig
     {
-        Model = "claude-sonnet-4.6",
+        Model = "claude-haiku-4.5",
         SystemMessage = new SystemMessageConfig
         {
             Mode = SystemMessageMode.Replace,

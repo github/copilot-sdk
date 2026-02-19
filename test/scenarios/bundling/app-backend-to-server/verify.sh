@@ -117,6 +117,7 @@ run_http_test() {
   local name="$1"
   local start_cmd="$2"
   local app_port="$3"
+  local max_retries="${4:-15}"
 
   printf "━━━ %s ━━━\n" "$name"
 
@@ -126,7 +127,7 @@ run_http_test() {
 
   # Wait for server to be ready
   local ready=false
-  for i in $(seq 1 15); do
+  for i in $(seq 1 "$max_retries"); do
     if curl -sf "http://localhost:${app_port}/chat" -X POST \
        -H "Content-Type: application/json" \
        -d '{"prompt":"ping"}' >/dev/null 2>&1; then
@@ -275,10 +276,11 @@ run_http_test "Go (run)" \
   "cd '$SCRIPT_DIR/go' && PORT=18083 CLI_URL=$COPILOT_CLI_URL ./app-backend-to-server-go" \
   18083
 
-# C#: start server, curl, stop
+# C#: start server, curl, stop (extra retries for JIT startup)
 run_http_test "C# (run)" \
   "cd '$SCRIPT_DIR/csharp' && PORT=18084 COPILOT_CLI_URL=$COPILOT_CLI_URL dotnet run --no-build" \
-  18084
+  18084 \
+  30
 
 echo "══════════════════════════════════════"
 echo " Results: $PASS passed, $FAIL failed"

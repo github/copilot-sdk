@@ -5,7 +5,7 @@ from copilot import CopilotClient
 
 AZURE_OPENAI_ENDPOINT = os.environ.get("AZURE_OPENAI_ENDPOINT")
 AZURE_OPENAI_API_KEY = os.environ.get("AZURE_OPENAI_API_KEY")
-AZURE_OPENAI_MODEL = os.environ.get("AZURE_OPENAI_MODEL", "claude-sonnet-4.6")
+AZURE_OPENAI_MODEL = os.environ.get("AZURE_OPENAI_MODEL", "claude-haiku-4.5")
 AZURE_API_VERSION = os.environ.get("AZURE_API_VERSION", "2024-10-21")
 
 if not AZURE_OPENAI_ENDPOINT or not AZURE_OPENAI_API_KEY:

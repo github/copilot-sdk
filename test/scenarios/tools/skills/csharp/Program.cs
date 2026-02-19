@@ -14,7 +14,7 @@ try
 
     await using var session = await client.CreateSessionAsync(new SessionConfig
     {
-        Model = "claude-sonnet-4.6",
+        Model = "claude-haiku-4.5",
         SkillDirectories = [skillsDir],
         OnPermissionRequest = (request, invocation) =>
             Task.FromResult(new PermissionRequestResult { Kind = "approved" }),

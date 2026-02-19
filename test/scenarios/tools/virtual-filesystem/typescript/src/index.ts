@@ -47,7 +47,7 @@ async function main() {
 
   try {
     const session = await client.createSession({
-      model: "claude-sonnet-4.6",
+      model: "claude-haiku-4.5",
       // Remove all built-in tools — only our custom virtual FS tools are available
       availableTools: [],
       tools: [createFile, readFile, listFiles],

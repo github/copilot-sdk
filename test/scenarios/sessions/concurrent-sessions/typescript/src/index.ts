@@ -12,12 +12,12 @@ async function main() {
   try {
     const [session1, session2] = await Promise.all([
       client.createSession({
-        model: "claude-sonnet-4.6",
+        model: "claude-haiku-4.5",
         systemMessage: { mode: "replace", content: PIRATE_PROMPT },
         availableTools: [],
       }),
       client.createSession({
-        model: "claude-sonnet-4.6",
+        model: "claude-haiku-4.5",
         systemMessage: { mode: "replace", content: ROBOT_PROMPT },
         availableTools: [],
       }),

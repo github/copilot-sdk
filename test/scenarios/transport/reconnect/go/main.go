@@ -24,7 +24,7 @@ func main() {
 	// Session 1
 	fmt.Println("--- Session 1 ---")
 	session1, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model: "claude-sonnet-4.6",
+		Model: "claude-haiku-4.5",
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -50,7 +50,7 @@ func main() {
 	// Session 2 — tests that the server accepts new sessions
 	fmt.Println("--- Session 2 ---")
 	session2, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model: "claude-sonnet-4.6",
+		Model: "claude-haiku-4.5",
 	})
 	if err != nil {
 		log.Fatal(err)

@@ -20,7 +20,7 @@ async function main() {
     }
 
     const session = await client.createSession({
-      model: "claude-sonnet-4.6",
+      model: "claude-haiku-4.5",
       ...(Object.keys(mcpServers).length > 0 && { mcpServers }),
       availableTools: [],
       systemMessage: {

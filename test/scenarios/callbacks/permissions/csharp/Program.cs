@@ -14,7 +14,7 @@ try
 {
     await using var session = await client.CreateSessionAsync(new SessionConfig
     {
-        Model = "claude-sonnet-4.6",
+        Model = "claude-haiku-4.5",
         OnPermissionRequest = (request, invocation) =>
         {
             var toolName = request.ExtensionData?.TryGetValue("toolName", out var value) == true

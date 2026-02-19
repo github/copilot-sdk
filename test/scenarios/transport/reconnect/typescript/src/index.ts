@@ -8,7 +8,7 @@ async function main() {
   try {
     // First session
     console.log("--- Session 1 ---");
-    const session1 = await client.createSession({ model: "claude-sonnet-4.6" });
+    const session1 = await client.createSession({ model: "claude-haiku-4.5" });
 
     const response1 = await session1.sendAndWait({
       prompt: "What is the capital of France?",
@@ -26,7 +26,7 @@ async function main() {
 
     // Second session — tests that the server accepts new sessions
     console.log("--- Session 2 ---");
-    const session2 = await client.createSession({ model: "claude-sonnet-4.6" });
+    const session2 = await client.createSession({ model: "claude-haiku-4.5" });
 
     const response2 = await session2.sendAndWait({
       prompt: "What is the capital of France?",

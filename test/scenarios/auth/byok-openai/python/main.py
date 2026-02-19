@@ -4,7 +4,7 @@ import sys
 from copilot import CopilotClient
 
 OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
-OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "claude-sonnet-4.6")
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "claude-haiku-4.5")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 if not OPENAI_API_KEY:

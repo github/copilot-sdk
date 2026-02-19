@@ -2,7 +2,7 @@ using GitHub.Copilot.SDK;
 
 var endpoint = Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT");
 var apiKey = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_KEY");
-var model = Environment.GetEnvironmentVariable("AZURE_OPENAI_MODEL") ?? "claude-sonnet-4.6";
+var model = Environment.GetEnvironmentVariable("AZURE_OPENAI_MODEL") ?? "claude-haiku-4.5";
 var apiVersion = Environment.GetEnvironmentVariable("AZURE_API_VERSION") ?? "2024-10-21";
 
 if (string.IsNullOrEmpty(endpoint) || string.IsNullOrEmpty(apiKey))

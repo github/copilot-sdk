@@ -23,7 +23,7 @@ async def main():
             }
 
         session_config = {
-            "model": "claude-sonnet-4.6",
+            "model": "claude-haiku-4.5",
             "available_tools": [],
             "system_message": {
                 "mode": "replace",

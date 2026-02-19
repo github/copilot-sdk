@@ -13,7 +13,7 @@ try
     // 1. Create a session
     await using var session = await client.CreateSessionAsync(new SessionConfig
     {
-        Model = "claude-sonnet-4.6",
+        Model = "claude-haiku-4.5",
         AvailableTools = new List<string>(),
     });
 

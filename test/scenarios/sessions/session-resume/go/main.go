@@ -22,7 +22,7 @@ func main() {
 
 	// 1. Create a session
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model:          "claude-sonnet-4.6",
+		Model:          "claude-haiku-4.5",
 		AvailableTools: []string{},
 	})
 	if err != nil {

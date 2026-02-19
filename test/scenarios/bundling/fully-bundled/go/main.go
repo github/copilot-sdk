@@ -22,7 +22,7 @@ func main() {
 	defer client.Stop()
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model: "claude-sonnet-4.6",
+		Model: "claude-haiku-4.5",
 	})
 	if err != nil {
 		log.Fatal(err)

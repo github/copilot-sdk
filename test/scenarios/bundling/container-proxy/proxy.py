@@ -20,7 +20,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(length)) if length else {}
 
-        model = body.get("model", "claude-sonnet-4.6")
+        model = body.get("model", "claude-haiku-4.5")
         stream = body.get("stream", False)
 
         if stream:

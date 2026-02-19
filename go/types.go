@@ -630,7 +630,7 @@ type createSessionRequest struct {
 	ReasoningEffort   string                     `json:"reasoningEffort,omitempty"`
 	Tools             []Tool                     `json:"tools,omitempty"`
 	SystemMessage     *SystemMessageConfig       `json:"systemMessage,omitempty"`
-	AvailableTools    []string                   `json:"availableTools,omitempty"`
+	AvailableTools    []string                   `json:"availableTools"`
 	ExcludedTools     []string                   `json:"excludedTools,omitempty"`
 	Provider          *ProviderConfig            `json:"provider,omitempty"`
 	RequestPermission *bool                      `json:"requestPermission,omitempty"`
@@ -660,7 +660,7 @@ type resumeSessionRequest struct {
 	ReasoningEffort   string                     `json:"reasoningEffort,omitempty"`
 	Tools             []Tool                     `json:"tools,omitempty"`
 	SystemMessage     *SystemMessageConfig       `json:"systemMessage,omitempty"`
-	AvailableTools    []string                   `json:"availableTools,omitempty"`
+	AvailableTools    []string                   `json:"availableTools"`
 	ExcludedTools     []string                   `json:"excludedTools,omitempty"`
 	Provider          *ProviderConfig            `json:"provider,omitempty"`
 	RequestPermission *bool                      `json:"requestPermission,omitempty"`

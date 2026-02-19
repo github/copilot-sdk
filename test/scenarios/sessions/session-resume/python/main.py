@@ -13,7 +13,7 @@ async def main():
         # 1. Create a session
         session = await client.create_session(
             {
-                "model": "claude-sonnet-4.6",
+                "model": "claude-haiku-4.5",
                 "available_tools": [],
             }
         )

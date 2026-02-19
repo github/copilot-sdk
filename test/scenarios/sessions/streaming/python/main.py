@@ -12,7 +12,7 @@ async def main():
     try:
         session = await client.create_session(
             {
-                "model": "claude-sonnet-4.6",
+                "model": "claude-haiku-4.5",
                 "streaming": True,
             }
         )
@@ -21,7 +21,7 @@ async def main():
 
         def on_event(event):
             nonlocal chunk_count
-            if event.type == "assistant.message.chunk":
+            if event.type == "assistant.message_delta":
                 chunk_count += 1
 
         session.on(on_event)
