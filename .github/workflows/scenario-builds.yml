@@ -79,14 +79,17 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Syntax-check all Python scenarios
+      - name: Install Python SDK
+        run: pip install -e python/
+
+      - name: Compile and import-check all Python scenarios
         run: |
           PASS=0; FAIL=0; FAILURES=""
           for main in $(find test/scenarios -path '*/python/main.py' | sort); do
             dir=$(dirname "$main")
             scenario="${dir#test/scenarios/}"
             echo "::group::$scenario"
-            if python3 -c "import ast, sys; ast.parse(open('$main').read()); print('syntax ok')" 2>&1; then
+            if python3 -m py_compile "$main" 2>&1 && python3 -c "import copilot" 2>&1; then
               echo "✅ $scenario"
               PASS=$((PASS + 1))
             else
