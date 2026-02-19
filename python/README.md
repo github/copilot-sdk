@@ -97,6 +97,7 @@ await client.stop()
 **CopilotClient Options:**
 
 - `cli_path` (str | PathLike | None): Path to CLI executable (default: bundled CLI binary). Accepts strings or path-like objects.
+- `cli_args` (list[str] | None): Additional command-line arguments to pass to the CLI process.
 - `cli_url` (str | None): URL of existing CLI server (e.g., `"localhost:8080"`, `"http://127.0.0.1:9000"`, or just `"8080"`). When provided, the client will not spawn a CLI process.
 - `cwd` (str | PathLike | None): Working directory for CLI process. Accepts strings or path-like objects.
 - `port` (int): Server port for TCP mode (default: 0 for random)
