@@ -34,6 +34,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 public class SessionConfig {
 
     private String sessionId;
+    private String clientName;
     private String model;
     private String reasoningEffort;
     private List<ToolDefinition> tools;
@@ -73,6 +74,29 @@ public class SessionConfig {
      */
     public SessionConfig setSessionId(String sessionId) {
         this.sessionId = sessionId;
+        return this;
+    }
+
+    /**
+     * Gets the client name used to identify the application using the SDK.
+     *
+     * @return the client name, or {@code null} if not set
+     */
+    public String getClientName() {
+        return clientName;
+    }
+
+    /**
+     * Sets the client name to identify the application using the SDK.
+     * <p>
+     * This value is included in the User-Agent header for API requests.
+     *
+     * @param clientName
+     *            the client name
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setClientName(String clientName) {
+        this.clientName = clientName;
         return this;
     }
 
@@ -529,6 +553,7 @@ public class SessionConfig {
     public SessionConfig clone() {
         SessionConfig copy = new SessionConfig();
         copy.sessionId = this.sessionId;
+        copy.clientName = this.clientName;
         copy.model = this.model;
         copy.reasoningEffort = this.reasoningEffort;
         copy.tools = this.tools != null ? new ArrayList<>(this.tools) : null;

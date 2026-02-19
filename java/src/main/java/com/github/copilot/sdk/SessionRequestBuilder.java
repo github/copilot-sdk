@@ -37,13 +37,14 @@ final class SessionRequestBuilder {
 
         request.setModel(config.getModel());
         request.setSessionId(config.getSessionId());
+        request.setClientName(config.getClientName());
         request.setReasoningEffort(config.getReasoningEffort());
         request.setTools(config.getTools());
         request.setSystemMessage(config.getSystemMessage());
         request.setAvailableTools(config.getAvailableTools());
         request.setExcludedTools(config.getExcludedTools());
         request.setProvider(config.getProvider());
-        request.setRequestPermission(config.getOnPermissionRequest() != null ? true : null);
+        request.setRequestPermission(true);
         request.setRequestUserInput(config.getOnUserInputRequest() != null ? true : null);
         request.setHooks(config.getHooks() != null && config.getHooks().hasHooks() ? true : null);
         request.setWorkingDirectory(config.getWorkingDirectory());
@@ -77,13 +78,14 @@ final class SessionRequestBuilder {
         }
 
         request.setModel(config.getModel());
+        request.setClientName(config.getClientName());
         request.setReasoningEffort(config.getReasoningEffort());
         request.setTools(config.getTools());
         request.setSystemMessage(config.getSystemMessage());
         request.setAvailableTools(config.getAvailableTools());
         request.setExcludedTools(config.getExcludedTools());
         request.setProvider(config.getProvider());
-        request.setRequestPermission(config.getOnPermissionRequest() != null ? true : null);
+        request.setRequestPermission(true);
         request.setRequestUserInput(config.getOnUserInputRequest() != null ? true : null);
         request.setHooks(config.getHooks() != null && config.getHooks().hasHooks() ? true : null);
         request.setWorkingDirectory(config.getWorkingDirectory());

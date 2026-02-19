@@ -19,6 +19,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.json.MessageOptions;
+import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.PostToolUseHookInput;
 import com.github.copilot.sdk.json.PreToolUseHookInput;
 import com.github.copilot.sdk.json.PreToolUseHookOutput;
@@ -67,11 +68,12 @@ public class HooksTest {
         var preToolUseInputs = new ArrayList<PreToolUseHookInput>();
         final String[] sessionIdHolder = new String[1];
 
-        var config = new SessionConfig().setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {
-            preToolUseInputs.add(input);
-            assertEquals(sessionIdHolder[0], invocation.getSessionId());
-            return CompletableFuture.completedFuture(PreToolUseHookOutput.allow());
-        }));
+        var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                .setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {
+                    preToolUseInputs.add(input);
+                    assertEquals(sessionIdHolder[0], invocation.getSessionId());
+                    return CompletableFuture.completedFuture(PreToolUseHookOutput.allow());
+                }));
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession(config).get();
@@ -106,11 +108,12 @@ public class HooksTest {
         var postToolUseInputs = new ArrayList<PostToolUseHookInput>();
         final String[] sessionIdHolder = new String[1];
 
-        var config = new SessionConfig().setHooks(new SessionHooks().setOnPostToolUse((input, invocation) -> {
-            postToolUseInputs.add(input);
-            assertEquals(sessionIdHolder[0], invocation.getSessionId());
-            return CompletableFuture.completedFuture(null);
-        }));
+        var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                .setHooks(new SessionHooks().setOnPostToolUse((input, invocation) -> {
+                    postToolUseInputs.add(input);
+                    assertEquals(sessionIdHolder[0], invocation.getSessionId());
+                    return CompletableFuture.completedFuture(null);
+                }));
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession(config).get();
@@ -147,13 +150,14 @@ public class HooksTest {
         var preToolUseInputs = new ArrayList<PreToolUseHookInput>();
         var postToolUseInputs = new ArrayList<PostToolUseHookInput>();
 
-        var config = new SessionConfig().setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {
-            preToolUseInputs.add(input);
-            return CompletableFuture.completedFuture(PreToolUseHookOutput.allow());
-        }).setOnPostToolUse((input, invocation) -> {
-            postToolUseInputs.add(input);
-            return CompletableFuture.completedFuture(null);
-        }));
+        var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                .setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {
+                    preToolUseInputs.add(input);
+                    return CompletableFuture.completedFuture(PreToolUseHookOutput.allow());
+                }).setOnPostToolUse((input, invocation) -> {
+                    postToolUseInputs.add(input);
+                    return CompletableFuture.completedFuture(null);
+                }));
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession(config).get();
@@ -192,11 +196,12 @@ public class HooksTest {
 
         var preToolUseInputs = new ArrayList<PreToolUseHookInput>();
 
-        var config = new SessionConfig().setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {
-            preToolUseInputs.add(input);
-            // Deny all tool calls
-            return CompletableFuture.completedFuture(PreToolUseHookOutput.deny());
-        }));
+        var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                .setHooks(new SessionHooks().setOnPreToolUse((input, invocation) -> {
+                    preToolUseInputs.add(input);
+                    // Deny all tool calls
+                    return CompletableFuture.completedFuture(PreToolUseHookOutput.deny());
+                }));
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession(config).get();

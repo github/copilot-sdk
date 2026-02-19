@@ -18,6 +18,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 
 import com.github.copilot.sdk.events.AssistantMessageEvent;
+import com.github.copilot.sdk.events.ToolExecutionCompleteEvent;
+import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.PermissionRequest;
 import com.github.copilot.sdk.json.PermissionRequestResult;
 import com.github.copilot.sdk.json.SessionConfig;
@@ -284,6 +286,72 @@ public class PermissionsTest {
                     || content.contains("permission"), "Response should indicate failure: " + content);
 
             session.close();
+        }
+    }
+
+    /**
+     * Verifies that tool operations are denied by default when no handler is
+     * provided.
+     *
+     * @see Snapshot:
+     *      permissions/should_deny_tool_operations_by_default_when_no_handler_is_provided
+     */
+    @Test
+    void testShouldDenyToolOperationsByDefaultWhenNoHandlerIsProvided(TestInfo testInfo) throws Exception {
+        ctx.configureForTest("permissions", "should_deny_tool_operations_by_default_when_no_handler_is_provided");
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession().get();
+
+            final boolean[] permissionDenied = {false};
+            session.on(ToolExecutionCompleteEvent.class, evt -> {
+                if (!evt.getData().success() && evt.getData().error() != null && evt.getData().error().message() != null
+                        && evt.getData().error().message().contains("Permission denied")) {
+                    permissionDenied[0] = true;
+                }
+            });
+
+            session.sendAndWait(new MessageOptions().setPrompt("Run 'node --version'")).get(60, TimeUnit.SECONDS);
+
+            assertTrue(permissionDenied[0], "Expected a tool.execution_complete event with Permission denied result");
+
+            session.close();
+        }
+    }
+
+    /**
+     * Verifies that tool operations are denied by default when no handler is
+     * provided after resuming a session.
+     *
+     * @see Snapshot:
+     *      permissions/should_deny_tool_operations_by_default_when_no_handler_is_provided_after_resume
+     */
+    @Test
+    void testShouldDenyToolOperationsByDefaultWhenNoHandlerIsProvidedAfterResume(TestInfo testInfo) throws Exception {
+        ctx.configureForTest("permissions",
+                "should_deny_tool_operations_by_default_when_no_handler_is_provided_after_resume");
+
+        try (CopilotClient client = ctx.createClient()) {
+            var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
+            CopilotSession session1 = client.createSession(config).get();
+            String sessionId = session1.getSessionId();
+            session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60, TimeUnit.SECONDS);
+
+            CopilotSession session2 = client.resumeSession(sessionId).get();
+
+            final boolean[] permissionDenied = {false};
+            session2.on(ToolExecutionCompleteEvent.class, evt -> {
+                if (!evt.getData().success() && evt.getData().error() != null && evt.getData().error().message() != null
+                        && evt.getData().error().message().contains("Permission denied")) {
+                    permissionDenied[0] = true;
+                }
+            });
+
+            session2.sendAndWait(new MessageOptions().setPrompt("Run 'node --version'")).get(60, TimeUnit.SECONDS);
+
+            assertTrue(permissionDenied[0], "Expected a tool.execution_complete event with Permission denied result");
+
+            session2.close();
         }
     }
 }

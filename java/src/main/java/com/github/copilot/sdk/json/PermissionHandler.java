@@ -28,6 +28,10 @@ import java.util.concurrent.CompletableFuture;
  * };
  * }</pre>
  *
+ * <p>
+ * A pre-built handler that approves all requests is available as
+ * {@link #APPROVE_ALL}.
+ *
  * @see SessionConfig#setOnPermissionRequest(PermissionHandler)
  * @see PermissionRequest
  * @see PermissionRequestResult
@@ -35,6 +39,14 @@ import java.util.concurrent.CompletableFuture;
  */
 @FunctionalInterface
 public interface PermissionHandler {
+
+    /**
+     * A pre-built handler that approves all permission requests.
+     *
+     * @since 1.0.11
+     */
+    PermissionHandler APPROVE_ALL = (request, invocation) -> CompletableFuture
+            .completedFuture(new PermissionRequestResult().setKind("approved"));
 
     /**
      * Handles a permission request from the assistant.

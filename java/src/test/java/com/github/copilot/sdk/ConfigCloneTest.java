@@ -68,12 +68,14 @@ class ConfigCloneTest {
     void sessionConfigCloneBasic() {
         SessionConfig original = new SessionConfig();
         original.setSessionId("my-session");
+        original.setClientName("my-app");
         original.setModel("gpt-4o");
         original.setStreaming(true);
 
         SessionConfig cloned = original.clone();
 
         assertEquals(original.getSessionId(), cloned.getSessionId());
+        assertEquals(original.getClientName(), cloned.getClientName());
         assertEquals(original.getModel(), cloned.getModel());
         assertEquals(original.isStreaming(), cloned.isStreaming());
     }
