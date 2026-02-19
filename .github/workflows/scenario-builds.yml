@@ -33,6 +33,13 @@ jobs:
         with:
           node-version: 22
 
+      - uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-scenarios-${{ hashFiles('test/scenarios/**/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-scenarios-
+
       # Build the SDK so local file: references resolve
       - name: Build SDK
         working-directory: nodejs
@@ -106,6 +113,8 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: "1.24"
+          cache: true
+          cache-dependency-path: test/scenarios/**/go.sum
 
       - name: Build all Go scenarios
         run: |
@@ -141,6 +150,13 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "8.0.x"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-scenarios-${{ hashFiles('test/scenarios/**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-scenarios-
 
       - name: Build all C# scenarios
         run: |
