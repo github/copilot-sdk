@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { CopilotClient } from "../src/index.js";
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.ts instead
@@ -25,6 +25,35 @@ describe("CopilotClient", () => {
             resultType: "failure",
             error: "tool 'missing_tool' not supported",
         });
+    });
+
+    it("forwards clientName in session.create request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi.spyOn((client as any).connection!, "sendRequest");
+        await client.createSession({ clientName: "my-app" });
+
+        expect(spy).toHaveBeenCalledWith(
+            "session.create",
+            expect.objectContaining({ clientName: "my-app" })
+        );
+    });
+
+    it("forwards clientName in session.resume request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession();
+        const spy = vi.spyOn((client as any).connection!, "sendRequest");
+        await client.resumeSession(session.sessionId, { clientName: "my-app" });
+
+        expect(spy).toHaveBeenCalledWith(
+            "session.resume",
+            expect.objectContaining({ clientName: "my-app", sessionId: session.sessionId })
+        );
     });
 
     describe("URL parsing", () => {

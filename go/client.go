@@ -455,6 +455,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	if config != nil {
 		req.Model = config.Model
 		req.SessionID = config.SessionID
+		req.ClientName = config.ClientName
 		req.ReasoningEffort = config.ReasoningEffort
 		req.ConfigDir = config.ConfigDir
 		req.Tools = config.Tools
@@ -550,6 +551,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	var req resumeSessionRequest
 	req.SessionID = sessionID
 	if config != nil {
+		req.ClientName = config.ClientName
 		req.Model = config.Model
 		req.ReasoningEffort = config.ReasoningEffort
 		req.SystemMessage = config.SystemMessage

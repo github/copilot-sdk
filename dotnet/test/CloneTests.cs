@@ -78,6 +78,7 @@ public class CloneTests
         var original = new SessionConfig
         {
             SessionId = "test-session",
+            ClientName = "my-app",
             Model = "gpt-4",
             ReasoningEffort = "high",
             ConfigDir = "/config",
@@ -94,6 +95,7 @@ public class CloneTests
         var clone = original.Clone();
 
         Assert.Equal(original.SessionId, clone.SessionId);
+        Assert.Equal(original.ClientName, clone.ClientName);
         Assert.Equal(original.Model, clone.Model);
         Assert.Equal(original.ReasoningEffort, clone.ReasoningEffort);
         Assert.Equal(original.ConfigDir, clone.ConfigDir);

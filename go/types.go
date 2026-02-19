@@ -330,6 +330,9 @@ type InfiniteSessionConfig struct {
 type SessionConfig struct {
 	// SessionID is an optional custom session ID
 	SessionID string
+	// ClientName identifies the application using the SDK.
+	// Included in the User-Agent header for API requests.
+	ClientName string
 	// Model to use for this session
 	Model string
 	// ReasoningEffort level for models that support it.
@@ -411,6 +414,9 @@ type ToolResult struct {
 
 // ResumeSessionConfig configures options when resuming a session
 type ResumeSessionConfig struct {
+	// ClientName identifies the application using the SDK.
+	// Included in the User-Agent header for API requests.
+	ClientName string
 	// Model to use for this session. Can change the model when resuming.
 	Model string
 	// Tools exposes caller-implemented tools to the CLI
@@ -630,6 +636,7 @@ type permissionRequestResponse struct {
 type createSessionRequest struct {
 	Model             string                     `json:"model,omitempty"`
 	SessionID         string                     `json:"sessionId,omitempty"`
+	ClientName        string                     `json:"clientName,omitempty"`
 	ReasoningEffort   string                     `json:"reasoningEffort,omitempty"`
 	Tools             []Tool                     `json:"tools,omitempty"`
 	SystemMessage     *SystemMessageConfig       `json:"systemMessage,omitempty"`
@@ -659,6 +666,7 @@ type createSessionResponse struct {
 // resumeSessionRequest is the request for session.resume
 type resumeSessionRequest struct {
 	SessionID         string                     `json:"sessionId"`
+	ClientName        string                     `json:"clientName,omitempty"`
 	Model             string                     `json:"model,omitempty"`
 	ReasoningEffort   string                     `json:"reasoningEffort,omitempty"`
 	Tools             []Tool                     `json:"tools,omitempty"`
