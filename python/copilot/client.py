@@ -21,7 +21,7 @@ import sys
 import threading
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional, cast
+from typing import Any, Callable, Optional, Union, cast
 
 from .generated.session_events import session_event_from_dict
 from .jsonrpc import JsonRpcClient
@@ -105,9 +105,9 @@ class CopilotClient:
     def __init__(
         self,
         *,
-        cli_path: Optional[str] = None,
+        cli_path: Union[str, os.PathLike[str], None] = None,
         cli_url: Optional[str] = None,
-        cwd: Optional[str] = None,
+        cwd: Union[str, os.PathLike[str], None] = None,
         port: int = 0,
         use_stdio: Optional[bool] = None,
         log_level: LogLevel = "info",
@@ -121,13 +121,14 @@ class CopilotClient:
         Initialize a new CopilotClient.
 
         Args:
-            cli_path: Path to the Copilot CLI executable. If not provided,
-                uses the bundled CLI binary.
+            cli_path: Path to the Copilot CLI executable. Accepts strings
+                or path-like objects. If not provided, uses the bundled
+                CLI binary.
             cli_url: URL of an existing Copilot CLI server to connect to.
                 Format: "host:port", "http://host:port", or just "port".
                 Mutually exclusive with cli_path and use_stdio.
-            cwd: Working directory for the CLI process (default: current
-                working directory).
+            cwd: Working directory for the CLI process. Accepts strings
+                or path-like objects (default: current working directory).
             port: Port for the CLI server in TCP mode (default: 0 for random).
             use_stdio: Use stdio transport instead of TCP (default: True,
                 forced to False when cli_url is set).
@@ -185,7 +186,7 @@ class CopilotClient:
         if cli_url:
             default_cli_path = ""  # Not used for external server
         elif cli_path:
-            default_cli_path = cli_path
+            default_cli_path = os.fspath(cli_path)
         else:
             bundled_path = _get_bundled_cli_path()
             if bundled_path:
@@ -202,7 +203,7 @@ class CopilotClient:
 
         self.options: CopilotClientOptions = {
             "cli_path": default_cli_path,
-            "cwd": cwd or os.getcwd(),
+            "cwd": os.fspath(cwd) if cwd else os.getcwd(),
             "port": port,
             "use_stdio": False if cli_url else (use_stdio if use_stdio is not None else True),
             "log_level": log_level,

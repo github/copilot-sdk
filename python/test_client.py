@@ -4,6 +4,8 @@ CopilotClient Unit Tests
 This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py instead.
 """
 
+from pathlib import Path
+
 import pytest
 
 from copilot import CopilotClient
@@ -90,6 +92,23 @@ class TestURLParsing:
     def test_is_external_server_true(self):
         client = CopilotClient(cli_url="localhost:8080", log_level="error")
         assert client._is_external_server
+
+
+class TestPathLikeArguments:
+    def test_cli_path_accepts_pathlib_path(self):
+        client = CopilotClient(cli_path=Path(CLI_PATH), log_level="error")
+        assert client.options["cli_path"] == CLI_PATH
+        assert isinstance(client.options["cli_path"], str)
+
+    def test_cwd_accepts_pathlib_path(self):
+        client = CopilotClient(cli_path=CLI_PATH, cwd=Path("/tmp"), log_level="error")
+        assert client.options["cwd"] == "/tmp"
+        assert isinstance(client.options["cwd"], str)
+
+    def test_cli_path_and_cwd_accept_strings(self):
+        client = CopilotClient(cli_path=CLI_PATH, cwd="/tmp", log_level="error")
+        assert client.options["cli_path"] == CLI_PATH
+        assert client.options["cwd"] == "/tmp"
 
 
 class TestAuthOptions:
