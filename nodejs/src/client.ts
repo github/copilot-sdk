@@ -107,6 +107,13 @@ function toJsonSchema(parameters: Tool["parameters"]): Record<string, unknown> |
  * ```
  */
 
+function getNodeExecPath(): string {
+    if (process.versions.bun) {
+        return "node";
+    }
+    return process.execPath;
+}
+
 /**
  * Gets the path to the bundled CLI from the @github/copilot package.
  * Uses index.js directly rather than npm-loader.js (which spawns the native binary).
@@ -1070,7 +1077,7 @@ export class CopilotClient {
             // For .js files, spawn node explicitly; for executables, spawn directly
             const isJsFile = this.options.cliPath.endsWith(".js");
             if (isJsFile) {
-                this.cliProcess = spawn(process.execPath, [this.options.cliPath, ...args], {
+                this.cliProcess = spawn(getNodeExecPath(), [this.options.cliPath, ...args], {
                     stdio: stdioConfig,
                     cwd: this.options.cwd,
                     env: envWithoutNodeDebug,
