@@ -11,7 +11,7 @@ async def main():
 
     try:
         session = await client.create_session({
-            "model": "claude-haiku-4.5",
+            "model": "claude-opus-4.6",
             "reasoning_effort": "low",
             "available_tools": [],
             "system_message": {

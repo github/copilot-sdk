@@ -9,7 +9,7 @@ async function main() {
   try {
     // Test with "low" reasoning effort
     const session = await client.createSession({
-      model: "claude-haiku-4.5",
+      model: "claude-opus-4.6",
       reasoningEffort: "low",
       availableTools: [],
       systemMessage: {

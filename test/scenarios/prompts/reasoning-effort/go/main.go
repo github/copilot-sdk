@@ -21,7 +21,7 @@ func main() {
 	defer client.Stop()
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model:           "claude-haiku-4.5",
+		Model:           "claude-opus-4.6",
 		ReasoningEffort: "low",
 		AvailableTools:  []string{},
 		SystemMessage: &copilot.SystemMessageConfig{

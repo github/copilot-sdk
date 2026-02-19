@@ -12,7 +12,7 @@ try
 {
     await using var session = await client.CreateSessionAsync(new SessionConfig
     {
-        Model = "claude-haiku-4.5",
+        Model = "claude-opus-4.6",
         ReasoningEffort = "low",
         AvailableTools = new List<string>(),
         SystemMessage = new SystemMessageConfig
