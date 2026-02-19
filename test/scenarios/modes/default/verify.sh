@@ -67,13 +67,13 @@ run_with_timeout() {
 
   echo "$output"
 
-  # Check that the response mentions CLI tools (bash, view, edit, create, grep, glob)
+  # Check that the response shows evidence of tool usage or SDK-related content
   if [ "$code" -eq 0 ] && [ -n "$output" ]; then
-    if echo "$output" | grep -qi "bash\|view\|edit\|create\|grep\|glob"; then
-      echo "✅ $name passed (confirmed CLI tools present)"
+    if echo "$output" | grep -qi "SDK\|readme\|grep\|match\|search"; then
+      echo "✅ $name passed (confirmed tool usage or SDK content)"
       PASS=$((PASS + 1))
     else
-      echo "⚠️  $name ran but response may not confirm CLI tools"
+      echo "⚠️  $name ran but response may not confirm tool usage"
       echo "❌ $name failed (expected pattern not found)"
       FAIL=$((FAIL + 1))
       ERRORS="$ERRORS\n  - $name"

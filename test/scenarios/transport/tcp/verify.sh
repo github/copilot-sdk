@@ -89,10 +89,15 @@ run_with_timeout() {
   else
     output=$("$@" 2>&1) && code=0 || code=$?
   fi
-  if [ "$code" -eq 0 ] && [ -n "$output" ]; then
+  if [ "$code" -eq 0 ] && [ -n "$output" ] && echo "$output" | grep -qi "Paris\|capital\|France\|response"; then
     echo "$output"
-    echo "✅ $name passed (got response)"
+    echo "✅ $name passed (content validated)"
     PASS=$((PASS + 1))
+  elif [ "$code" -eq 0 ] && [ -n "$output" ]; then
+    echo "$output"
+    echo "❌ $name failed (no meaningful content in response)"
+    FAIL=$((FAIL + 1))
+    ERRORS="$ERRORS\n  - $name (no content match)"
   elif [ "$code" -eq 124 ]; then
     echo "${output:-(no output)}"
     echo "❌ $name failed (timed out after ${TIMEOUT}s)"

@@ -73,8 +73,18 @@ check "TypeScript (build)" bash -c "cd '$SCRIPT_DIR/typescript' && npm run build
 check "C# (build)" bash -c "cd '$SCRIPT_DIR/csharp' && dotnet build --nologo -v q 2>&1"
 
 if [ "${BYOK_SAMPLE_RUN_E2E:-}" = "1" ] && [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-  run_with_timeout "TypeScript (run)" bash -c "cd '$SCRIPT_DIR/typescript' && node dist/index.js"
-  run_with_timeout "C# (run)" bash -c "cd '$SCRIPT_DIR/csharp' && dotnet run --no-build 2>&1"
+  run_with_timeout "TypeScript (run)" bash -c "
+    cd '$SCRIPT_DIR/typescript' && \
+    output=\$(node dist/index.js 2>&1) && \
+    echo \"\$output\" && \
+    echo \"\$output\" | grep -qi 'Paris\|capital\|France\|response\|hello'
+  "
+  run_with_timeout "C# (run)" bash -c "
+    cd '$SCRIPT_DIR/csharp' && \
+    output=\$(dotnet run --no-build 2>&1) && \
+    echo \"\$output\" && \
+    echo \"\$output\" | grep -qi 'Paris\|capital\|France\|response\|hello'
+  "
 else
   echo "⚠️  WARNING: E2E run was SKIPPED — only build was verified, not runtime behavior."
   echo "   To run fully: set BYOK_SAMPLE_RUN_E2E=1 and ANTHROPIC_API_KEY."

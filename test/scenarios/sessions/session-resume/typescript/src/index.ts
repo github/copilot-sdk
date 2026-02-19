@@ -23,6 +23,7 @@ async function main() {
 
     // 4. Resume the session with the same ID
     const resumed = await client.resumeSession(sessionId);
+    console.log("Session resumed");
 
     // 5. Ask for the secret word
     const response = await resumed.sendAndWait({

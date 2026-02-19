@@ -23,7 +23,7 @@ try
 
     var response = await session.SendAndWaitAsync(new MessageOptions
     {
-        Prompt = "What is the capital of France?",
+        Prompt = "Use the grep tool to search for 'SDK' in README.md.",
     });
 
     if (response != null)

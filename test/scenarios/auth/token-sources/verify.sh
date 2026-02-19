@@ -87,9 +87,24 @@ if [ "${BYOK_SAMPLE_RUN_E2E:-}" = "1" ]; then
     echo \"\$output\" | grep -q 'Token source resolved' && \
     echo \"\$output\" | grep -q 'Auth test passed'
   "
-  run_with_timeout "Python (run)" bash -c "cd '$SCRIPT_DIR/python' && python3 main.py"
-  run_with_timeout "Go (run)" bash -c "cd '$SCRIPT_DIR/go' && ./token-sources-go"
-  run_with_timeout "C# (run)" bash -c "cd '$SCRIPT_DIR/csharp' && dotnet run --no-build 2>&1"
+  run_with_timeout "Python (run)" bash -c "
+    cd '$SCRIPT_DIR/python' && \
+    output=\$(python3 main.py 2>&1) && \
+    echo \"\$output\" && \
+    echo \"\$output\" | grep -qi 'Token source\|Auth test\|token\|authenticated'
+  "
+  run_with_timeout "Go (run)" bash -c "
+    cd '$SCRIPT_DIR/go' && \
+    output=\$(./token-sources-go 2>&1) && \
+    echo \"\$output\" && \
+    echo \"\$output\" | grep -qi 'Token source\|Auth test\|token\|authenticated'
+  "
+  run_with_timeout "C# (run)" bash -c "
+    cd '$SCRIPT_DIR/csharp' && \
+    output=\$(dotnet run --no-build 2>&1) && \
+    echo \"\$output\" && \
+    echo \"\$output\" | grep -qi 'Token source\|Auth test\|token\|authenticated'
+  "
 else
   echo "⚠️  WARNING: E2E run was SKIPPED — only build was verified, not runtime behavior."
   echo "   To run fully: set BYOK_SAMPLE_RUN_E2E=1."

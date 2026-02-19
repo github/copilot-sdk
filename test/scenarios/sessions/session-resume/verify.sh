@@ -70,8 +70,16 @@ run_with_timeout() {
   # Check that the response mentions the secret word
   if [ "$code" -eq 0 ] && [ -n "$output" ]; then
     if echo "$output" | grep -qi "pineapple"; then
-      echo "✅ $name passed (confirmed session resume — found PINEAPPLE)"
-      PASS=$((PASS + 1))
+      # Also verify session resume indication in output
+      if echo "$output" | grep -qi "session.*resum\|resum.*session\|Session resumed"; then
+        echo "✅ $name passed (confirmed session resume — found PINEAPPLE and session resume)"
+        PASS=$((PASS + 1))
+      else
+        echo "⚠️  $name found PINEAPPLE but no session resume indication in output"
+        echo "❌ $name failed (session resume not confirmed)"
+        FAIL=$((FAIL + 1))
+        ERRORS="$ERRORS\n  - $name (no resume indication)"
+      fi
     else
       echo "⚠️  $name ran but response does not mention PINEAPPLE"
       echo "❌ $name failed (secret word not recalled)"

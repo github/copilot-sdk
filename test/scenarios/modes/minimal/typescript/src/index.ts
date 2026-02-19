@@ -17,7 +17,7 @@ async function main() {
     });
 
     const response = await session.sendAndWait({
-      prompt: "What is the capital of France?",
+      prompt: "Use the grep tool to search for 'SDK' in README.md.",
     });
 
     if (response) {

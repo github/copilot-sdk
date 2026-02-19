@@ -9,7 +9,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@github/copilot-sdk": "file:../../../../nodejs"
+    "@github/copilot-sdk": "file:../../../../../nodejs"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

@@ -69,11 +69,19 @@ run_with_timeout() {
 
   if [ "$code" -eq 0 ] && [ -n "$output" ]; then
     if echo "$output" | grep -qE "Streaming chunks received: [1-9]"; then
-      echo "✅ $name passed (confirmed streaming chunks)"
-      PASS=$((PASS + 1))
-    elif [ "$code" -eq 0 ] && [ -n "$output" ]; then
+      # Also verify a final response was received (content printed before chunk count)
+      if echo "$output" | grep -qiE "Paris|France|capital"; then
+        echo "✅ $name passed (confirmed streaming chunks and final response)"
+        PASS=$((PASS + 1))
+      else
+        echo "⚠️  $name had streaming chunks but no final response content detected"
+        echo "❌ $name failed (final response not found)"
+        FAIL=$((FAIL + 1))
+        ERRORS="$ERRORS\n  - $name (no final response)"
+      fi
+    else
       echo "⚠️  $name ran but response may not confirm streaming"
-      echo "❌ $name failed (expected pattern not found)"
+      echo "❌ $name failed (expected streaming chunk pattern not found)"
       FAIL=$((FAIL + 1))
       ERRORS="$ERRORS\n  - $name"
     fi

@@ -28,6 +28,7 @@ async def main():
 
         # 4. Resume the session with the same ID
         resumed = await client.resume_session(session_id)
+        print("Session resumed")
 
         # 5. Ask for the secret word
         response = await resumed.send_and_wait(

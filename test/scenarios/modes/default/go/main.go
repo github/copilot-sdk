@@ -29,7 +29,7 @@ func main() {
 	defer session.Destroy()
 
 	response, err := session.SendAndWait(ctx, copilot.MessageOptions{
-		Prompt: "What is the capital of France?",
+		Prompt: "Use the grep tool to search for the word 'SDK' in README.md and show the matching lines.",
 	})
 	if err != nil {
 		log.Fatal(err)

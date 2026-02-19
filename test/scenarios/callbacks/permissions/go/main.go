@@ -30,7 +30,7 @@ func main() {
 		Model: "claude-sonnet-4.6",
 		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
 			permissionLogMu.Lock()
-			permissionLog = append(permissionLog, fmt.Sprintf("approved:%s", req.Kind))
+			permissionLog = append(permissionLog, fmt.Sprintf("approved:%s", req.ToolName))
 			permissionLogMu.Unlock()
 			return copilot.PermissionRequestResult{Kind: "approved"}, nil
 		},

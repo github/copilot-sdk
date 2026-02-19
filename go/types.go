@@ -103,6 +103,7 @@ type SystemMessageConfig struct {
 type PermissionRequest struct {
 	Kind       string         `json:"kind"`
 	ToolCallID string         `json:"toolCallId,omitempty"`
+	ToolName   string         `json:"toolName,omitempty"`
 	Extra      map[string]any `json:"-"` // Additional fields vary by kind
 }
 

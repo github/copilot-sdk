@@ -19,7 +19,7 @@ async def main():
             },
         })
 
-        response = await session.send_and_wait({"prompt": "What is the capital of France?"})
+        response = await session.send_and_wait({"prompt": "Use the grep tool to search for 'SDK' in README.md."})
         if response:
             print(f"Response: {response.data.content}")
 

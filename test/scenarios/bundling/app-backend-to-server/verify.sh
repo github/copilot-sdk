@@ -171,8 +171,14 @@ run_http_test() {
 
   if [ "$code" -eq 0 ] && [ -n "$output" ]; then
     echo "$output"
-    echo "✅ $name passed (got response)"
-    PASS=$((PASS + 1))
+    if echo "$output" | grep -qi 'Paris\|capital\|France'; then
+      echo "✅ $name passed (got response with expected content)"
+      PASS=$((PASS + 1))
+    else
+      echo "❌ $name failed (response missing expected content)"
+      FAIL=$((FAIL + 1))
+      ERRORS="$ERRORS\n  - $name (no expected content)"
+    fi
   elif [ "$code" -eq 124 ]; then
     echo "${output:-(no output)}"
     echo "❌ $name failed (timed out after ${TIMEOUT}s)"

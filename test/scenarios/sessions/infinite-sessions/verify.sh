@@ -69,8 +69,16 @@ run_with_timeout() {
 
   if [ "$code" -eq 0 ] && [ -n "$output" ]; then
     if echo "$output" | grep -q "Infinite sessions test complete"; then
-      echo "✅ $name passed (infinite sessions confirmed)"
-      PASS=$((PASS + 1))
+      # Verify all 3 questions got meaningful responses (country/capital names)
+      if echo "$output" | grep -qiE "France|Japan|Brazil|Paris|Tokyo|Bras[ií]lia"; then
+        echo "✅ $name passed (infinite sessions confirmed with all responses)"
+        PASS=$((PASS + 1))
+      else
+        echo "⚠️  $name completed but expected country/capital responses not found"
+        echo "❌ $name failed (responses missing for some questions)"
+        FAIL=$((FAIL + 1))
+        ERRORS="$ERRORS\n  - $name (incomplete responses)"
+      fi
     else
       echo "⚠️  $name ran but completion message not found"
       echo "❌ $name failed (expected pattern not found)"

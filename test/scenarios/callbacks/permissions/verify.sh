@@ -68,14 +68,20 @@ run_with_timeout() {
   echo "$output"
 
   if [ "$code" -eq 0 ] && [ -n "$output" ]; then
-    if echo "$output" | grep -qi "approved:" && \
-       echo "$output" | grep -qi "Total permission requests"; then
+    local missing=""
+    if ! echo "$output" | grep -qi "approved:"; then
+      missing="$missing approved-string"
+    fi
+    if ! echo "$output" | grep -qE "Total permission requests: [1-9]"; then
+      missing="$missing permission-count>0"
+    fi
+    if [ -z "$missing" ]; then
       echo "✅ $name passed (permission flow confirmed)"
       PASS=$((PASS + 1))
-    elif [ "$code" -eq 0 ] && [ -n "$output" ]; then
-      echo "❌ $name failed (expected pattern not found)"
+    else
+      echo "❌ $name failed (missing:$missing)"
       FAIL=$((FAIL + 1))
-      ERRORS="$ERRORS\n  - $name"
+      ERRORS="$ERRORS\n  - $name (missing:$missing)"
     fi
   elif [ "$code" -eq 124 ]; then
     echo "❌ $name failed (timed out after ${TIMEOUT}s)"

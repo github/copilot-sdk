@@ -14,7 +14,7 @@ async def main():
             "model": "claude-sonnet-4.6",
         })
 
-        response = await session.send_and_wait({"prompt": "What is the capital of France?"})
+        response = await session.send_and_wait({"prompt": "Use the grep tool to search for the word 'SDK' in README.md and show the matching lines."})
         if response:
             print(f"Response: {response.data.content}")
 

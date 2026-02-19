@@ -76,10 +76,30 @@ check "Go (build)" bash -c "cd '$SCRIPT_DIR/go' && go mod tidy && go build -o gh
 check "C# (build)" bash -c "cd '$SCRIPT_DIR/csharp' && dotnet build --nologo -v q 2>&1"
 
 if [ -n "${GITHUB_OAUTH_CLIENT_ID:-}" ] && [ "${AUTH_SAMPLE_RUN_INTERACTIVE:-}" = "1" ]; then
-  run_with_timeout "TypeScript (run)" bash -c "cd '$SCRIPT_DIR/typescript' && printf '\\n' | node dist/index.js"
-  run_with_timeout "Python (run)" bash -c "cd '$SCRIPT_DIR/python' && printf '\\n' | python3 main.py"
-  run_with_timeout "Go (run)" bash -c "cd '$SCRIPT_DIR/go' && printf '\\n' | ./gh-app-go"
-  run_with_timeout "C# (run)" bash -c "cd '$SCRIPT_DIR/csharp' && printf '\\n' | dotnet run --no-build 2>&1"
+  run_with_timeout "TypeScript (run)" bash -c "
+    cd '$SCRIPT_DIR/typescript' && \
+    output=\$(printf '\\n' | node dist/index.js 2>&1) && \
+    echo \"\$output\" && \
+    echo \"\$output\" | grep -qi 'device\|code\|http\|login\|verify\|oauth\|github'
+  "
+  run_with_timeout "Python (run)" bash -c "
+    cd '$SCRIPT_DIR/python' && \
+    output=\$(printf '\\n' | python3 main.py 2>&1) && \
+    echo \"\$output\" && \
+    echo \"\$output\" | grep -qi 'device\|code\|http\|login\|verify\|oauth\|github'
+  "
+  run_with_timeout "Go (run)" bash -c "
+    cd '$SCRIPT_DIR/go' && \
+    output=\$(printf '\\n' | ./gh-app-go 2>&1) && \
+    echo \"\$output\" && \
+    echo \"\$output\" | grep -qi 'device\|code\|http\|login\|verify\|oauth\|github'
+  "
+  run_with_timeout "C# (run)" bash -c "
+    cd '$SCRIPT_DIR/csharp' && \
+    output=\$(printf '\\n' | dotnet run --no-build 2>&1) && \
+    echo \"\$output\" && \
+    echo \"\$output\" | grep -qi 'device\|code\|http\|login\|verify\|oauth\|github'
+  "
 else
   echo "⚠️  WARNING: E2E run was SKIPPED — only build was verified, not runtime behavior."
   echo "   To run fully: set GITHUB_OAUTH_CLIENT_ID and AUTH_SAMPLE_RUN_INTERACTIVE=1."

@@ -45,6 +45,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	fmt.Println("Session resumed")
 	defer resumed.Destroy()
 
 	// 5. Ask for the secret word

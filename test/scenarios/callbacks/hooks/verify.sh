@@ -68,14 +68,26 @@ run_with_timeout() {
   echo "$output"
 
   if [ "$code" -eq 0 ] && [ -n "$output" ]; then
-    if echo "$output" | grep -q "onSessionStart\|on_session_start\|OnSessionStart" && \
-       echo "$output" | grep -q "onPreToolUse\|on_pre_tool_use\|OnPreToolUse"; then
-      echo "✅ $name passed (hooks confirmed)"
+    local missing=""
+    if ! echo "$output" | grep -q "onSessionStart\|on_session_start\|OnSessionStart"; then
+      missing="$missing onSessionStart"
+    fi
+    if ! echo "$output" | grep -q "onPreToolUse\|on_pre_tool_use\|OnPreToolUse"; then
+      missing="$missing onPreToolUse"
+    fi
+    if ! echo "$output" | grep -q "onPostToolUse\|on_post_tool_use\|OnPostToolUse"; then
+      missing="$missing onPostToolUse"
+    fi
+    if ! echo "$output" | grep -q "onSessionEnd\|on_session_end\|OnSessionEnd"; then
+      missing="$missing onSessionEnd"
+    fi
+    if [ -z "$missing" ]; then
+      echo "✅ $name passed (all hooks confirmed)"
       PASS=$((PASS + 1))
-    elif [ "$code" -eq 0 ] && [ -n "$output" ]; then
-      echo "❌ $name failed (expected pattern not found)"
+    else
+      echo "❌ $name failed (missing hooks:$missing)"
       FAIL=$((FAIL + 1))
-      ERRORS="$ERRORS\n  - $name"
+      ERRORS="$ERRORS\n  - $name (missing:$missing)"
     fi
   elif [ "$code" -eq 124 ]; then
     echo "❌ $name failed (timed out after ${TIMEOUT}s)"

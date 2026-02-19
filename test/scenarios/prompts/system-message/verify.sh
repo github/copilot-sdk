@@ -69,7 +69,7 @@ run_with_timeout() {
 
   # Check that the response contains pirate language
   if [ "$code" -eq 0 ] && [ -n "$output" ]; then
-    if echo "$output" | grep -qi "arrr\|pirate\|matey\|ahoy\|ye\|sail\|sea"; then
+    if echo "$output" | grep -qi "arrr\|pirate\|matey\|ahoy\|ye\|sail"; then
       echo "✅ $name passed (confirmed pirate speak)"
       PASS=$((PASS + 1))
     else

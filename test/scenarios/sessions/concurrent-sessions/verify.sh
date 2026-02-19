@@ -78,8 +78,24 @@ run_with_timeout() {
       has_session2=true
     fi
     if $has_session1 && $has_session2; then
-      echo "✅ $name passed (both sessions responded)"
-      PASS=$((PASS + 1))
+      # Verify persona isolation: pirate language from session 1, robot language from session 2
+      local persona_ok=true
+      if ! echo "$output" | grep -qi "arrr\|pirate\|matey\|ahoy"; then
+        echo "⚠️  $name: pirate persona words not found in output"
+        persona_ok=false
+      fi
+      if ! echo "$output" | grep -qi "beep\|boop\|robot"; then
+        echo "⚠️  $name: robot persona words not found in output"
+        persona_ok=false
+      fi
+      if $persona_ok; then
+        echo "✅ $name passed (both sessions responded with correct personas)"
+        PASS=$((PASS + 1))
+      else
+        echo "❌ $name failed (persona isolation not verified)"
+        FAIL=$((FAIL + 1))
+        ERRORS="$ERRORS\n  - $name (persona check)"
+      fi
     elif $has_session1 || $has_session2; then
       echo "⚠️  $name ran but only one session responded"
       echo "❌ $name failed (expected both to respond)"

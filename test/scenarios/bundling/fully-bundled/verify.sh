@@ -109,16 +109,36 @@ echo "════════════════════════�
 echo ""
 
 # TypeScript: run
-run_with_timeout "TypeScript (run)" bash -c "cd '$SCRIPT_DIR/typescript' && node dist/index.js"
+run_with_timeout "TypeScript (run)" bash -c "
+  cd '$SCRIPT_DIR/typescript' && \
+  output=\$(node dist/index.js 2>&1) && \
+  echo \"\$output\" && \
+  echo \"\$output\" | grep -qi 'Paris\|capital\|France\|response'
+"
 
 # Python: run
-run_with_timeout "Python (run)" bash -c "cd '$SCRIPT_DIR/python' && python3 main.py"
+run_with_timeout "Python (run)" bash -c "
+  cd '$SCRIPT_DIR/python' && \
+  output=\$(python3 main.py 2>&1) && \
+  echo \"\$output\" && \
+  echo \"\$output\" | grep -qi 'Paris\|capital\|France\|response'
+"
 
 # Go: run
-run_with_timeout "Go (run)" bash -c "cd '$SCRIPT_DIR/go' && ./fully-bundled-go"
+run_with_timeout "Go (run)" bash -c "
+  cd '$SCRIPT_DIR/go' && \
+  output=\$(./fully-bundled-go 2>&1) && \
+  echo \"\$output\" && \
+  echo \"\$output\" | grep -qi 'Paris\|capital\|France\|response'
+"
 
 # C#: run
-run_with_timeout "C# (run)" bash -c "cd '$SCRIPT_DIR/csharp' && dotnet run --no-build 2>&1"
+run_with_timeout "C# (run)" bash -c "
+  cd '$SCRIPT_DIR/csharp' && \
+  output=\$(dotnet run --no-build 2>&1) && \
+  echo \"\$output\" && \
+  echo \"\$output\" | grep -qi 'Paris\|capital\|France\|response'
+"
 
 
 echo "══════════════════════════════════════"

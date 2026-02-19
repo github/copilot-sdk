@@ -1,35 +1,56 @@
+using System.Text.Json;
 using GitHub.Copilot.SDK;
 
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 var cliUrl = Environment.GetEnvironmentVariable("CLI_URL")
     ?? Environment.GetEnvironmentVariable("COPILOT_CLI_URL")
     ?? "localhost:3000";
 
-using var client = new CopilotClient(new CopilotClientOptions { CliUrl = cliUrl });
-await client.StartAsync();
+var builder = WebApplication.CreateBuilder(args);
+builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+var app = builder.Build();
 
-try
+app.MapPost("/chat", async (HttpContext ctx) =>
 {
-    await using var session = await client.CreateSessionAsync(new SessionConfig
+    var body = await JsonSerializer.DeserializeAsync<JsonElement>(ctx.Request.Body);
+    var prompt = body.TryGetProperty("prompt", out var p) ? p.GetString() : null;
+    if (string.IsNullOrEmpty(prompt))
     {
-        Model = "claude-sonnet-4.6",
-    });
-
-    var response = await session.SendAndWaitAsync(new MessageOptions
-    {
-        Prompt = "What is the capital of France?",
-    });
-
-    if (response?.Data?.Content != null)
-    {
-        Console.WriteLine(response.Data.Content);
+        ctx.Response.StatusCode = 400;
+        await ctx.Response.WriteAsJsonAsync(new { error = "Missing 'prompt' in request body" });
+        return;
     }
-    else
+
+    using var client = new CopilotClient(new CopilotClientOptions { CliUrl = cliUrl });
+    await client.StartAsync();
+
+    try
     {
-        Console.Error.WriteLine("No response content from Copilot CLI");
-        Environment.Exit(1);
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Model = "claude-sonnet-4.6",
+        });
+
+        var response = await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = prompt,
+        });
+
+        if (response?.Data?.Content != null)
+        {
+            await ctx.Response.WriteAsJsonAsync(new { response = response.Data.Content });
+        }
+        else
+        {
+            ctx.Response.StatusCode = 502;
+            await ctx.Response.WriteAsJsonAsync(new { error = "No response content from Copilot CLI" });
+        }
     }
-}
-finally
-{
-    await client.StopAsync();
-}
+    finally
+    {
+        await client.StopAsync();
+    }
+});
+
+Console.WriteLine($"Listening on port {port}");
+app.Run();

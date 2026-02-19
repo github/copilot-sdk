@@ -67,9 +67,9 @@ run_with_timeout() {
 
   echo "$output"
 
-  # Check that the response indicates no tools are available
+  # Check that the response indicates it can't use tools
   if [ "$code" -eq 0 ] && [ -n "$output" ]; then
-    if echo "$output" | grep -qi "no tool\|not have\|don't have\|do not have\|cannot\|not available\|none"; then
+    if echo "$output" | grep -qi "no tool\|can't\|cannot\|unable\|don't have\|do not have\|not available\|not have access\|no access"; then
       echo "✅ $name passed (confirmed no tools)"
       PASS=$((PASS + 1))
     else
