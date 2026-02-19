@@ -68,7 +68,7 @@ echo ""
 
 check "TypeScript (install)" bash -c "cd '$SCRIPT_DIR/typescript' && npm install --ignore-scripts 2>&1"
 check "TypeScript (build)" bash -c "cd '$SCRIPT_DIR/typescript' && npm run build 2>&1"
-check "Python (install)" bash -c "cd '$SCRIPT_DIR/python' && pip3 install -r requirements.txt --quiet 2>&1"
+check "Python (install)" bash -c "python3 -c 'import copilot' 2>/dev/null || (cd '$SCRIPT_DIR/python' && pip3 install -r requirements.txt --quiet 2>&1)"
 check "Python (syntax)" bash -c "python3 -c \"import ast; ast.parse(open('$SCRIPT_DIR/python/main.py').read()); print('Syntax OK')\""
 check "Go (build)" bash -c "cd '$SCRIPT_DIR/go' && go mod tidy && go build -o gh-app-go . 2>&1"
 

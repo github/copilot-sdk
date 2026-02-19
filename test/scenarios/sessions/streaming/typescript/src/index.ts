@@ -13,10 +13,8 @@ async function main() {
     });
 
     let chunkCount = 0;
-    session.on("event", (event: { type: string }) => {
-      if (event.type === "assistant.message_delta") {
-        chunkCount++;
-      }
+    session.on("assistant.message_delta", () => {
+      chunkCount++;
     });
 
     const response = await session.sendAndWait({

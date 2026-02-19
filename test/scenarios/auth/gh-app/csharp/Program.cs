@@ -3,7 +3,8 @@ using System.Text.Json;
 using GitHub.Copilot.SDK;
 
 // GitHub OAuth Device Flow
-var clientId = Environment.GetEnvironmentVariable("GITHUB_CLIENT_ID") ?? "Iv1.b507a08c87ecfe98";
+var clientId = Environment.GetEnvironmentVariable("GITHUB_OAUTH_CLIENT_ID")
+    ?? throw new InvalidOperationException("Missing GITHUB_OAUTH_CLIENT_ID");
 
 var httpClient = new HttpClient();
 httpClient.DefaultRequestHeaders.Add("Accept", "application/json");

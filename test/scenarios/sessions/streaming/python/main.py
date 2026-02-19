@@ -21,7 +21,7 @@ async def main():
 
         def on_event(event):
             nonlocal chunk_count
-            if event.type == "assistant.message_delta":
+            if event.type.value == "assistant.message_delta":
                 chunk_count += 1
 
         session.on(on_event)
