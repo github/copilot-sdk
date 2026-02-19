@@ -33,6 +33,7 @@ from .types import (
     CustomAgentConfig,
     GetAuthStatusResponse,
     GetStatusResponse,
+    LogLevel,
     ModelInfo,
     PingResponse,
     ProviderConfig,
@@ -98,44 +99,72 @@ class CopilotClient:
         >>> await client.stop()
 
         >>> # Or connect to an existing server
-        >>> client = CopilotClient({"cli_url": "localhost:3000"})
+        >>> client = CopilotClient(cli_url="localhost:3000")
     """
 
-    def __init__(self, options: Optional[CopilotClientOptions] = None):
+    def __init__(
+        self,
+        *,
+        cli_path: Optional[str] = None,
+        cli_url: Optional[str] = None,
+        cwd: Optional[str] = None,
+        port: int = 0,
+        use_stdio: Optional[bool] = None,
+        log_level: LogLevel = "info",
+        auto_start: bool = True,
+        auto_restart: bool = True,
+        github_token: Optional[str] = None,
+        use_logged_in_user: Optional[bool] = None,
+        env: Optional[dict[str, str]] = None,
+    ):
         """
         Initialize a new CopilotClient.
 
         Args:
-            options: Optional configuration options for the client. If not provided,
-                default options are used (spawns CLI server using stdio).
+            cli_path: Path to the Copilot CLI executable. If not provided,
+                uses the bundled CLI binary.
+            cli_url: URL of an existing Copilot CLI server to connect to.
+                Format: "host:port", "http://host:port", or just "port".
+                Mutually exclusive with cli_path and use_stdio.
+            cwd: Working directory for the CLI process (default: current
+                working directory).
+            port: Port for the CLI server in TCP mode (default: 0 for random).
+            use_stdio: Use stdio transport instead of TCP (default: True,
+                forced to False when cli_url is set).
+            log_level: Log level (default: "info").
+            auto_start: Auto-start the CLI server on first use (default: True).
+            auto_restart: Auto-restart the CLI server if it crashes
+                (default: True).
+            github_token: GitHub token for authentication. Takes priority over
+                other authentication methods.
+            use_logged_in_user: Whether to use the logged-in user for
+                authentication (default: True, but False when github_token
+                is provided). Cannot be used with cli_url.
+            env: Environment variables for the CLI process.
 
         Raises:
-            ValueError: If mutually exclusive options are provided (e.g., cli_url
-                with use_stdio or cli_path).
+            ValueError: If mutually exclusive options are provided (e.g.,
+                cli_url with use_stdio or cli_path).
 
         Example:
             >>> # Default options - spawns CLI server using stdio
             >>> client = CopilotClient()
             >>>
             >>> # Connect to an existing server
-            >>> client = CopilotClient({"cli_url": "localhost:3000"})
+            >>> client = CopilotClient(cli_url="localhost:3000")
             >>>
             >>> # Custom CLI path with specific log level
-            >>> client = CopilotClient({
-            ...     "cli_path": "/usr/local/bin/copilot",
-            ...     "log_level": "debug"
-            ... })
+            >>> client = CopilotClient(
+            ...     cli_path="/usr/local/bin/copilot",
+            ...     log_level="debug",
+            ... )
         """
-        opts = options or {}
-
         # Validate mutually exclusive options
-        if opts.get("cli_url") and (opts.get("use_stdio") or opts.get("cli_path")):
+        if cli_url and (use_stdio or cli_path):
             raise ValueError("cli_url is mutually exclusive with use_stdio and cli_path")
 
         # Validate auth options with external server
-        if opts.get("cli_url") and (
-            opts.get("github_token") or opts.get("use_logged_in_user") is not None
-        ):
+        if cli_url and (github_token or use_logged_in_user is not None):
             raise ValueError(
                 "github_token and use_logged_in_user cannot be used with cli_url "
                 "(external server manages its own auth)"
@@ -144,8 +173,8 @@ class CopilotClient:
         # Parse cli_url if provided
         self._actual_host: str = "localhost"
         self._is_external_server: bool = False
-        if opts.get("cli_url"):
-            self._actual_host, actual_port = self._parse_cli_url(opts["cli_url"])
+        if cli_url:
+            self._actual_host, actual_port = self._parse_cli_url(cli_url)
             self._actual_port: Optional[int] = actual_port
             self._is_external_server = True
         else:
@@ -153,10 +182,10 @@ class CopilotClient:
 
         # Determine CLI path: explicit option > bundled binary
         # Not needed when connecting to external server via cli_url
-        if opts.get("cli_url"):
+        if cli_url:
             default_cli_path = ""  # Not used for external server
-        elif opts.get("cli_path"):
-            default_cli_path = opts["cli_path"]
+        elif cli_path:
+            default_cli_path = cli_path
         else:
             bundled_path = _get_bundled_cli_path()
             if bundled_path:
@@ -168,25 +197,23 @@ class CopilotClient:
                 )
 
         # Default use_logged_in_user to False when github_token is provided
-        github_token = opts.get("github_token")
-        use_logged_in_user = opts.get("use_logged_in_user")
         if use_logged_in_user is None:
             use_logged_in_user = False if github_token else True
 
         self.options: CopilotClientOptions = {
             "cli_path": default_cli_path,
-            "cwd": opts.get("cwd", os.getcwd()),
-            "port": opts.get("port", 0),
-            "use_stdio": False if opts.get("cli_url") else opts.get("use_stdio", True),
-            "log_level": opts.get("log_level", "info"),
-            "auto_start": opts.get("auto_start", True),
-            "auto_restart": opts.get("auto_restart", True),
+            "cwd": cwd or os.getcwd(),
+            "port": port,
+            "use_stdio": False if cli_url else (use_stdio if use_stdio is not None else True),
+            "log_level": log_level,
+            "auto_start": auto_start,
+            "auto_restart": auto_restart,
             "use_logged_in_user": use_logged_in_user,
         }
-        if opts.get("cli_url"):
-            self.options["cli_url"] = opts["cli_url"]
-        if opts.get("env"):
-            self.options["env"] = opts["env"]
+        if cli_url:
+            self.options["cli_url"] = cli_url
+        if env:
+            self.options["env"] = env
         if github_token:
             self.options["github_token"] = github_token
 
@@ -261,7 +288,7 @@ class CopilotClient:
             RuntimeError: If the server fails to start or the connection fails.
 
         Example:
-            >>> client = CopilotClient({"auto_start": False})
+            >>> client = CopilotClient(auto_start=False)
             >>> await client.start()
             >>> # Now ready to create sessions
         """

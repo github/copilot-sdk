@@ -62,13 +62,13 @@ asyncio.run(main())
 ### CopilotClient
 
 ```python
-client = CopilotClient({
-    "cli_path": "copilot",  # Optional: path to CLI executable
-    "cli_url": None,        # Optional: URL of existing server (e.g., "localhost:8080")
-    "log_level": "info",    # Optional: log level (default: "info")
-    "auto_start": True,     # Optional: auto-start server (default: True)
-    "auto_restart": True,   # Optional: auto-restart on crash (default: True)
-})
+client = CopilotClient(
+    cli_path="copilot",  # Optional: path to CLI executable
+    cli_url=None,        # Optional: URL of existing server (e.g., "localhost:8080")
+    log_level="info",    # Optional: log level (default: "info")
+    auto_start=True,     # Optional: auto-start server (default: True)
+    auto_restart=True,   # Optional: auto-restart on crash (default: True)
+)
 await client.start()
 
 session = await client.create_session({"model": "gpt-5"})
