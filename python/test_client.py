@@ -96,13 +96,15 @@ class TestURLParsing:
 
 class TestPathLikeArguments:
     def test_cli_path_accepts_pathlib_path(self):
-        client = CopilotClient(cli_path=Path(CLI_PATH), log_level="error")
-        assert client.options["cli_path"] == CLI_PATH
+        cli_path = Path(CLI_PATH)
+        client = CopilotClient(cli_path=cli_path, log_level="error")
+        assert client.options["cli_path"] == os.fspath(cli_path)
         assert isinstance(client.options["cli_path"], str)
 
     def test_cwd_accepts_pathlib_path(self):
-        client = CopilotClient(cli_path=CLI_PATH, cwd=Path("/tmp"), log_level="error")
-        assert client.options["cwd"] == "/tmp"
+        cwd_path = Path("/tmp")
+        client = CopilotClient(cli_path=CLI_PATH, cwd=cwd_path, log_level="error")
+        assert client.options["cwd"] == os.fspath(cwd_path)
         assert isinstance(client.options["cwd"], str)
 
     def test_cli_path_and_cwd_accept_strings(self):
