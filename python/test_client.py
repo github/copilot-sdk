@@ -116,9 +116,7 @@ class TestPathLikeArguments:
 
 class TestAuthOptions:
     def test_accepts_github_token(self):
-        client = CopilotClient(
-            cli_path=CLI_PATH, github_token="gho_test_token", log_level="error"
-        )
+        client = CopilotClient(cli_path=CLI_PATH, github_token="gho_test_token", log_level="error")
         assert client.options.get("github_token") == "gho_test_token"
 
     def test_default_use_logged_in_user_true_without_token(self):
@@ -126,9 +124,7 @@ class TestAuthOptions:
         assert client.options.get("use_logged_in_user") is True
 
     def test_default_use_logged_in_user_false_with_token(self):
-        client = CopilotClient(
-            cli_path=CLI_PATH, github_token="gho_test_token", log_level="error"
-        )
+        client = CopilotClient(cli_path=CLI_PATH, github_token="gho_test_token", log_level="error")
         assert client.options.get("use_logged_in_user") is False
 
     def test_explicit_use_logged_in_user_true_with_token(self):
@@ -141,9 +137,7 @@ class TestAuthOptions:
         assert client.options.get("use_logged_in_user") is True
 
     def test_explicit_use_logged_in_user_false_without_token(self):
-        client = CopilotClient(
-            cli_path=CLI_PATH, use_logged_in_user=False, log_level="error"
-        )
+        client = CopilotClient(cli_path=CLI_PATH, use_logged_in_user=False, log_level="error")
         assert client.options.get("use_logged_in_user") is False
 
     def test_github_token_with_cli_url_raises(self):
@@ -160,9 +154,7 @@ class TestAuthOptions:
         with pytest.raises(
             ValueError, match="github_token and use_logged_in_user cannot be used with cli_url"
         ):
-            CopilotClient(
-                cli_url="localhost:8080", use_logged_in_user=False, log_level="error"
-            )
+            CopilotClient(cli_url="localhost:8080", use_logged_in_user=False, log_level="error")
 
 
 class TestSessionConfigForwarding:
