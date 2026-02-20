@@ -32,10 +32,6 @@ dependencies = [
 Homepage = "https://github.com/github/copilot-sdk"
 Repository = "https://github.com/github/copilot-sdk"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["copilot*"]
-
 [project.optional-dependencies]
 dev = [
     "ruff>=0.1.0",
@@ -45,6 +41,9 @@ dev = [
     "pytest-timeout>=2.0.0",
     "httpx>=0.24.0",
 ]
+
+[tool.setuptools]
+packages = ["copilot"]
 
 [tool.ruff]
 line-length = 100
