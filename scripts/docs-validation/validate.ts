@@ -5,7 +5,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { execSync, spawn } from "child_process";
+import { execFileSync } from "child_process";
 import { glob } from "glob";
 
 const ROOT_DIR = path.resolve(import.meta.dirname, "../..");
@@ -76,7 +76,7 @@ async function validateTypeScript(): Promise<ValidationResult[]> {
   try {
     // Run tsc
     const tscPath = path.join(ROOT_DIR, "nodejs/node_modules/.bin/tsc");
-    execSync(`${tscPath} --project ${tsconfigPath} 2>&1`, {
+    execFileSync(tscPath, ["--project", tsconfigPath], {
       encoding: "utf-8",
       cwd: tsDir,
     });
@@ -98,10 +98,8 @@ async function validateTypeScript(): Promise<ValidationResult[]> {
     }
   } catch (err: any) {
     // Parse tsc output for errors
-    const output = err.stdout || err.message || "";
+    const output = err.stdout || err.stderr || err.message || "";
     const errorLines = output.split("\n");
-
-    // Group errors by file
     const fileErrors = new Map<string, string[]>();
     let currentFile = "";
 
@@ -162,22 +160,23 @@ async function validatePython(): Promise<ValidationResult[]> {
 
     // Syntax check with py_compile
     try {
-      execSync(`python3 -m py_compile "${fullPath}" 2>&1`, {
+      execFileSync("python3", ["-m", "py_compile", fullPath], {
         encoding: "utf-8",
       });
     } catch (err: any) {
-      errors.push(err.stdout || err.message || "Syntax error");
+      errors.push(err.stdout || err.stderr || err.message || "Syntax error");
     }
 
     // Type check with mypy (if available)
     if (errors.length === 0) {
       try {
-        execSync(
-          `python3 -m mypy "${fullPath}" --ignore-missing-imports --no-error-summary 2>&1`,
+        execFileSync(
+          "python3",
+          ["-m", "mypy", fullPath, "--ignore-missing-imports", "--no-error-summary"],
           { encoding: "utf-8" }
         );
       } catch (err: any) {
-        const output = err.stdout || err.message || "";
+        const output = err.stdout || err.stderr || err.message || "";
         // Filter out "Success" messages and notes
         const typeErrors = output
           .split("\n")
@@ -227,7 +226,7 @@ replace github.com/github/copilot-sdk/go => ${path.join(ROOT_DIR, "go")}
 
   // Run go mod tidy to fetch dependencies
   try {
-    execSync(`go mod tidy 2>&1`, {
+    execFileSync("go", ["mod", "tidy"], {
       encoding: "utf-8",
       cwd: goDir,
       env: { ...process.env, GO111MODULE: "on" },
@@ -246,7 +245,7 @@ replace github.com/github/copilot-sdk/go => ${path.join(ROOT_DIR, "go")}
 
     try {
       // Use go vet for syntax and basic checks
-      execSync(`go build -o /dev/null "${fullPath}" 2>&1`, {
+      execFileSync("go", ["build", "-o", "/dev/null", fullPath], {
         encoding: "utf-8",
         cwd: goDir,
         env: { ...process.env, GO111MODULE: "on" },
@@ -300,7 +299,7 @@ async function validateCSharp(): Promise<ValidationResult[]> {
 
   // Compile all files together
   try {
-    execSync(`dotnet build "${path.join(csDir, "DocsValidation.csproj")}" 2>&1`, {
+    execFileSync("dotnet", ["build", path.join(csDir, "DocsValidation.csproj")], {
       encoding: "utf-8",
       cwd: csDir,
     });
