@@ -210,6 +210,20 @@ session = await client.create_session({
 
 The SDK automatically handles `tool.call`, executes your handler (sync or async), and responds with the final result when the tool completes.
 
+#### Overriding Built-in Tools
+
+If you register a tool with the same name as a built-in CLI tool (e.g. `edit_file`, `read_file`), your tool takes precedence. The SDK automatically adds the tool name to `excluded_tools`, so the built-in is disabled and your handler is called instead. This is useful when you need custom behavior for built-in operations.
+
+```python
+class EditFileParams(BaseModel):
+    path: str = Field(description="File path")
+    content: str = Field(description="New file content")
+
+@define_tool(name="edit_file", description="Custom file editor with project-specific validation")
+async def edit_file(params: EditFileParams) -> str:
+    # your logic
+```
+
 ## Image Support
 
 The SDK supports image attachments via the `attachments` parameter. You can attach images by providing their file path:

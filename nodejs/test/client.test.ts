@@ -243,4 +243,71 @@ describe("CopilotClient", () => {
             }).toThrow(/githubToken and useLoggedInUser cannot be used with cliUrl/);
         });
     });
+
+    describe("excludedTools merging with config.tools", () => {
+        it("adds tool names from config.tools to excludedTools in session.create", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            await client.createSession({
+                tools: [{ name: "edit_file", description: "edit", handler: async () => "ok" }],
+            });
+
+            expect(spy).toHaveBeenCalledWith(
+                "session.create",
+                expect.objectContaining({ excludedTools: ["edit_file"] })
+            );
+        });
+
+        it("merges and deduplicates with existing excludedTools", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            await client.createSession({
+                tools: [{ name: "edit_file", description: "edit", handler: async () => "ok" }],
+                excludedTools: ["edit_file", "run_command"],
+            });
+
+            const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
+            expect(payload.excludedTools).toEqual(
+                expect.arrayContaining(["edit_file", "run_command"])
+            );
+            expect(payload.excludedTools).toHaveLength(2);
+        });
+
+        it("leaves excludedTools unchanged when no tools provided", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            await client.createSession({ excludedTools: ["run_command"] });
+
+            expect(spy).toHaveBeenCalledWith(
+                "session.create",
+                expect.objectContaining({ excludedTools: ["run_command"] })
+            );
+        });
+
+        it("adds tool names from config.tools to excludedTools in session.resume", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const session = await client.createSession();
+            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            await client.resumeSession(session.sessionId, {
+                tools: [{ name: "edit_file", description: "edit", handler: async () => "ok" }],
+            });
+
+            expect(spy).toHaveBeenCalledWith(
+                "session.resume",
+                expect.objectContaining({ excludedTools: ["edit_file"] })
+            );
+        });
+    });
 });

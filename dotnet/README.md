@@ -415,6 +415,19 @@ var session = await client.CreateSessionAsync(new SessionConfig
 
 When Copilot invokes `lookup_issue`, the client automatically runs your handler and responds to the CLI. Handlers can return any JSON-serializable value (automatically wrapped), or a `ToolResultAIContent` wrapping a `ToolResultObject` for full control over result metadata.
 
+#### Overriding Built-in Tools
+
+If you register a tool with the same name as a built-in CLI tool (e.g. `edit_file`, `read_file`), your tool takes precedence. The SDK automatically adds the tool name to `ExcludedTools`, so the built-in is disabled and your handler is called instead. This is useful when you need custom behavior for built-in operations.
+
+```csharp
+AIFunctionFactory.Create(
+    async ([Description("File path")] string path, [Description("New content")] string content) => {
+        // your logic
+    },
+    "edit_file",
+    "Custom file editor with project-specific validation")
+```
+
 ### System Message Customization
 
 Control the system prompt using `SystemMessage` in session config:
