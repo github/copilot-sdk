@@ -51,6 +51,19 @@ import type {
 } from "./types.js";
 
 /**
+ * Merge user-provided excludedTools with tool names from config.tools so that
+ * SDK-registered tools automatically override built-in CLI tools.
+ */
+function mergeExcludedTools(
+    excludedTools: string[] | undefined,
+    tools: Tool[] | undefined
+): string[] | undefined {
+    const toolNames = tools?.map((t) => t.name);
+    if (!excludedTools?.length && !toolNames?.length) return excludedTools;
+    return [...new Set([...(excludedTools ?? []), ...(toolNames ?? [])])];
+}
+
+/**
  * Check if value is a Zod schema (has toJSONSchema method)
  */
 function isZodSchema(value: unknown): value is { toJSONSchema(): Record<string, unknown> } {
@@ -529,7 +542,7 @@ export class CopilotClient {
             })),
             systemMessage: config.systemMessage,
             availableTools: config.availableTools,
-            excludedTools: config.excludedTools,
+            excludedTools: mergeExcludedTools(config.excludedTools, config.tools),
             provider: config.provider,
             requestPermission: true,
             requestUserInput: !!config.onUserInputRequest,
@@ -607,7 +620,7 @@ export class CopilotClient {
             reasoningEffort: config.reasoningEffort,
             systemMessage: config.systemMessage,
             availableTools: config.availableTools,
-            excludedTools: config.excludedTools,
+            excludedTools: mergeExcludedTools(config.excludedTools, config.tools),
             tools: config.tools?.map((tool) => ({
                 name: tool.name,
                 description: tool.description,

@@ -6,7 +6,7 @@ This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py
 
 import pytest
 
-from copilot import CopilotClient
+from copilot import CopilotClient, define_tool
 from e2e.testharness import CLI_PATH
 
 
@@ -147,6 +147,106 @@ class TestAuthOptions:
             CopilotClient(
                 {"cli_url": "localhost:8080", "use_logged_in_user": False, "log_level": "error"}
             )
+
+
+class TestExcludedToolsFromRegisteredTools:
+    @pytest.mark.asyncio
+    async def test_tools_added_to_excluded_tools(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+
+            @define_tool(description="Edit a file")
+            def edit_file(params) -> str:
+                return "ok"
+
+            await client.create_session({"tools": [edit_file]})
+            assert "edit_file" in captured["session.create"]["excludedTools"]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_deduplication_with_existing_excluded_tools(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+
+            @define_tool(description="Edit a file")
+            def edit_file(params) -> str:
+                return "ok"
+
+            await client.create_session({
+                "tools": [edit_file],
+                "excluded_tools": ["edit_file", "other_tool"],
+            })
+            excluded = captured["session.create"]["excludedTools"]
+            assert excluded.count("edit_file") == 1
+            assert "other_tool" in excluded
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_no_excluded_tools_when_no_tools(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            await client.create_session()
+            assert "excludedTools" not in captured["session.create"]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_resume_session_adds_tools_to_excluded(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            session = await client.create_session()
+
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+
+            @define_tool(description="Edit a file")
+            def edit_file(params) -> str:
+                return "ok"
+
+            await client.resume_session(session.session_id, {"tools": [edit_file]})
+            assert "edit_file" in captured["session.resume"]["excludedTools"]
+        finally:
+            await client.force_stop()
 
 
 class TestSessionConfigForwarding:

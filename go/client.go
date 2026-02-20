@@ -461,7 +461,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		req.Tools = config.Tools
 		req.SystemMessage = config.SystemMessage
 		req.AvailableTools = config.AvailableTools
-		req.ExcludedTools = config.ExcludedTools
+		req.ExcludedTools = mergeExcludedTools(config.ExcludedTools, config.Tools)
 		req.Provider = config.Provider
 		req.WorkingDirectory = config.WorkingDirectory
 		req.MCPServers = config.MCPServers
@@ -558,7 +558,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		req.Tools = config.Tools
 		req.Provider = config.Provider
 		req.AvailableTools = config.AvailableTools
-		req.ExcludedTools = config.ExcludedTools
+		req.ExcludedTools = mergeExcludedTools(config.ExcludedTools, config.Tools)
 		if config.Streaming {
 			req.Streaming = Bool(true)
 		}
@@ -1352,6 +1352,29 @@ func buildFailedToolResult(internalError string) ToolResult {
 }
 
 // buildUnsupportedToolResult creates a failure ToolResult for an unsupported tool.
+// mergeExcludedTools returns a deduplicated list combining excludedTools with
+// the names of any SDK-registered tools, so the CLI won't handle them.
+func mergeExcludedTools(excludedTools []string, tools []Tool) []string {
+	if len(tools) == 0 {
+		return excludedTools
+	}
+	seen := make(map[string]bool, len(excludedTools)+len(tools))
+	merged := make([]string, 0, len(excludedTools)+len(tools))
+	for _, name := range excludedTools {
+		if !seen[name] {
+			seen[name] = true
+			merged = append(merged, name)
+		}
+	}
+	for _, t := range tools {
+		if !seen[t.Name] {
+			seen[t.Name] = true
+			merged = append(merged, t.Name)
+		}
+	}
+	return merged
+}
+
 func buildUnsupportedToolResult(toolName string) ToolResult {
 	return ToolResult{
 		TextResultForLLM: fmt.Sprintf("Tool '%s' is not supported by this client instance.", toolName),
