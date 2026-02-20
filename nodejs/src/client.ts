@@ -325,8 +325,8 @@ export class CopilotClient {
     async stop(): Promise<Error[]> {
         const errors: Error[] = [];
 
-        // Destroy all active sessions with retry logic
-        for (const session of this.sessions.values()) {
+        // Destroy all active sessions in parallel with retry logic
+        const sessionPromises = Array.from(this.sessions.values()).map(async (session) => {
             const sessionId = session.sessionId;
             let lastError: Error | null = null;
 
@@ -348,11 +348,17 @@ export class CopilotClient {
             }
 
             if (lastError) {
-                errors.push(
-                    new Error(
-                        `Failed to destroy session ${sessionId} after 3 attempts: ${lastError.message}`
-                    )
+                return new Error(
+                    `Failed to destroy session ${sessionId} after 3 attempts: ${lastError.message}`
                 );
+            }
+            return null;
+        });
+
+        const results = await Promise.all(sessionPromises);
+        for (const result of results) {
+            if (result instanceof Error) {
+                errors.push(result);
             }
         }
         this.sessions.clear();
