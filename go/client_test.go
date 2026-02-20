@@ -444,3 +444,39 @@ func TestResumeSessionRequest_ClientName(t *testing.T) {
 		}
 	})
 }
+
+func TestMergeExcludedTools(t *testing.T) {
+	t.Run("adds tool names to excluded tools", func(t *testing.T) {
+		tools := []Tool{{Name: "edit_file"}, {Name: "read_file"}}
+		got := mergeExcludedTools(nil, tools)
+		want := []string{"edit_file", "read_file"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("deduplicates with existing excluded tools", func(t *testing.T) {
+		excluded := []string{"edit_file", "run_shell"}
+		tools := []Tool{{Name: "edit_file"}, {Name: "read_file"}}
+		got := mergeExcludedTools(excluded, tools)
+		want := []string{"edit_file", "run_shell", "read_file"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("returns original list when no tools provided", func(t *testing.T) {
+		excluded := []string{"edit_file"}
+		got := mergeExcludedTools(excluded, nil)
+		if !reflect.DeepEqual(got, excluded) {
+			t.Errorf("got %v, want %v", got, excluded)
+		}
+	})
+
+	t.Run("returns nil when both inputs are empty", func(t *testing.T) {
+		got := mergeExcludedTools(nil, nil)
+		if got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+}

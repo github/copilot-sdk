@@ -483,7 +483,10 @@ class CopilotClient:
         available_tools = cfg.get("available_tools")
         if available_tools is not None:
             payload["availableTools"] = available_tools
-        excluded_tools = cfg.get("excluded_tools")
+        excluded_tools = list(cfg.get("excluded_tools") or [])
+        if tools:
+            tool_names = [t.name for t in tools]
+            excluded_tools = list(dict.fromkeys(excluded_tools + tool_names))
         if excluded_tools:
             payload["excludedTools"] = excluded_tools
 
@@ -655,7 +658,10 @@ class CopilotClient:
         if available_tools is not None:
             payload["availableTools"] = available_tools
 
-        excluded_tools = cfg.get("excluded_tools")
+        excluded_tools = list(cfg.get("excluded_tools") or [])
+        if tools:
+            tool_names = [t.name for t in tools]
+            excluded_tools = list(dict.fromkeys(excluded_tools + tool_names))
         if excluded_tools:
             payload["excludedTools"] = excluded_tools
 
