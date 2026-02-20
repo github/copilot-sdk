@@ -34,6 +34,7 @@ sequenceDiagram
 ```
 
 **Key characteristics:**
+
 - Each user authenticates with their own GitHub account
 - Copilot usage is billed to each user's subscription
 - Supports GitHub organizations and enterprise accounts
@@ -93,21 +94,21 @@ Your application handles the standard GitHub OAuth flow. Here's the server-side 
 ```typescript
 // Server-side: Exchange authorization code for user token
 async function handleOAuthCallback(code: string): Promise<string> {
-    const response = await fetch("https://github.com/login/oauth/access_token", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-        },
-        body: JSON.stringify({
-            client_id: process.env.GITHUB_CLIENT_ID,
-            client_secret: process.env.GITHUB_CLIENT_SECRET,
-            code,
-        }),
-    });
+  const response = await fetch("https://github.com/login/oauth/access_token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      client_id: process.env.GITHUB_CLIENT_ID,
+      client_secret: process.env.GITHUB_CLIENT_SECRET,
+      code,
+    }),
+  });
 
-    const data = await response.json();
-    return data.access_token; // gho_xxxx or ghu_xxxx
+  const data = await response.json();
+  return data.access_token; // gho_xxxx or ghu_xxxx
 }
 ```
 
@@ -123,17 +124,17 @@ import { CopilotClient } from "@github/copilot-sdk";
 
 // Create a client for an authenticated user
 function createClientForUser(userToken: string): CopilotClient {
-    return new CopilotClient({
-        githubToken: userToken,
-        useLoggedInUser: false,  // Don't fall back to CLI login
-    });
+  return new CopilotClient({
+    githubToken: userToken,
+    useLoggedInUser: false, // Don't fall back to CLI login
+  });
 }
 
 // Usage
 const client = createClientForUser("gho_user_access_token");
 const session = await client.createSession({
-    sessionId: `user-${userId}-session`,
-    model: "gpt-4.1",
+  sessionId: `user-${userId}-session`,
+  model: "gpt-4.1",
 });
 
 const response = await session.sendAndWait({ prompt: "Hello!" });
@@ -174,7 +175,7 @@ response = await session.send_and_wait({"prompt": "Hello!"})
 ```go
 func createClientForUser(userToken string) *copilot.Client {
     return copilot.NewClient(&copilot.ClientOptions{
-        GithubToken:     userToken,
+        GitHubToken:     userToken,
         UseLoggedInUser: copilot.Bool(false),
     })
 }
@@ -201,7 +202,7 @@ response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Hello!"}
 CopilotClient CreateClientForUser(string userToken) =>
     new CopilotClient(new CopilotClientOptions
     {
-        GithubToken = userToken,
+        GitHubToken = userToken,
         UseLoggedInUser = false,
     });
 
@@ -258,20 +259,20 @@ After OAuth, check that the user belongs to your organization:
 
 ```typescript
 async function verifyOrgMembership(
-    token: string,
-    requiredOrg: string
+  token: string,
+  requiredOrg: string,
 ): Promise<boolean> {
-    const response = await fetch("https://api.github.com/user/orgs", {
-        headers: { Authorization: `Bearer ${token}` },
-    });
-    const orgs = await response.json();
-    return orgs.some((org: any) => org.login === requiredOrg);
+  const response = await fetch("https://api.github.com/user/orgs", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const orgs = await response.json();
+  return orgs.some((org: any) => org.login === requiredOrg);
 }
 
 // In your auth flow
 const token = await handleOAuthCallback(code);
-if (!await verifyOrgMembership(token, "my-company")) {
-    throw new Error("User is not a member of the required organization");
+if (!(await verifyOrgMembership(token, "my-company"))) {
+  throw new Error("User is not a member of the required organization");
 }
 const client = createClientForUser(token);
 ```
@@ -284,19 +285,19 @@ For GitHub Enterprise Managed Users, the flow is identical — EMU users authent
 // No special SDK configuration needed for EMU
 // Enterprise policies are enforced server-side by GitHub
 const client = new CopilotClient({
-    githubToken: emuUserToken,  // Works the same as regular tokens
-    useLoggedInUser: false,
+  githubToken: emuUserToken, // Works the same as regular tokens
+  useLoggedInUser: false,
 });
 ```
 
 ## Supported Token Types
 
-| Token Prefix | Source | Works? |
-|-------------|--------|--------|
-| `gho_` | OAuth user access token | ✅ |
-| `ghu_` | GitHub App user access token | ✅ |
-| `github_pat_` | Fine-grained personal access token | ✅ |
-| `ghp_` | Classic personal access token | ❌ (deprecated) |
+| Token Prefix  | Source                             | Works?          |
+| ------------- | ---------------------------------- | --------------- |
+| `gho_`        | OAuth user access token            | ✅              |
+| `ghu_`        | GitHub App user access token       | ✅              |
+| `github_pat_` | Fine-grained personal access token | ✅              |
+| `ghp_`        | Classic personal access token      | ❌ (deprecated) |
 
 ## Token Lifecycle
 
@@ -321,19 +322,19 @@ flowchart LR
 
 ```typescript
 async function getOrRefreshToken(userId: string): Promise<string> {
-    const stored = await tokenStore.get(userId);
+  const stored = await tokenStore.get(userId);
 
-    if (stored && !isExpired(stored)) {
-        return stored.accessToken;
-    }
+  if (stored && !isExpired(stored)) {
+    return stored.accessToken;
+  }
 
-    if (stored?.refreshToken) {
-        const refreshed = await refreshGitHubToken(stored.refreshToken);
-        await tokenStore.set(userId, refreshed);
-        return refreshed.accessToken;
-    }
+  if (stored?.refreshToken) {
+    const refreshed = await refreshGitHubToken(stored.refreshToken);
+    await tokenStore.set(userId, refreshed);
+    return refreshed.accessToken;
+  }
 
-    throw new Error("User must re-authenticate");
+  throw new Error("User must re-authenticate");
 }
 ```
 
@@ -347,13 +348,16 @@ Each user gets their own SDK client with their own token. This provides the stro
 const clients = new Map<string, CopilotClient>();
 
 function getClientForUser(userId: string, token: string): CopilotClient {
-    if (!clients.has(userId)) {
-        clients.set(userId, new CopilotClient({
-            githubToken: token,
-            useLoggedInUser: false,
-        }));
-    }
-    return clients.get(userId)!;
+  if (!clients.has(userId)) {
+    clients.set(
+      userId,
+      new CopilotClient({
+        githubToken: token,
+        useLoggedInUser: false,
+      }),
+    );
+  }
+  return clients.get(userId)!;
 }
 ```
 
@@ -363,20 +367,20 @@ For a lighter resource footprint, you can run a single external CLI server and p
 
 ## Limitations
 
-| Limitation | Details |
-|------------|---------|
-| **Copilot subscription required** | Each user needs an active Copilot subscription |
-| **Token management is your responsibility** | Store, refresh, and handle expiration |
-| **GitHub account required** | Users must have GitHub accounts |
-| **Rate limits per user** | Subject to each user's Copilot rate limits |
+| Limitation                                  | Details                                        |
+| ------------------------------------------- | ---------------------------------------------- |
+| **Copilot subscription required**           | Each user needs an active Copilot subscription |
+| **Token management is your responsibility** | Store, refresh, and handle expiration          |
+| **GitHub account required**                 | Users must have GitHub accounts                |
+| **Rate limits per user**                    | Subject to each user's Copilot rate limits     |
 
 ## When to Move On
 
-| Need | Next Guide |
-|------|-----------|
-| Users without GitHub accounts | [BYOK](./byok.md) |
-| Run the SDK on servers | [Backend Services](./backend-services.md) |
-| Handle many concurrent users | [Scaling & Multi-Tenancy](./scaling.md) |
+| Need                          | Next Guide                                |
+| ----------------------------- | ----------------------------------------- |
+| Users without GitHub accounts | [BYOK](./byok.md)                         |
+| Run the SDK on servers        | [Backend Services](./backend-services.md) |
+| Handle many concurrent users  | [Scaling & Multi-Tenancy](./scaling.md)   |
 
 ## Next Steps
 

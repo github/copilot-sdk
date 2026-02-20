@@ -24,7 +24,7 @@ The first step in debugging is enabling verbose logging to see what's happening 
 import { CopilotClient } from "@github/copilot-sdk";
 
 const client = new CopilotClient({
-  logLevel: "debug",  // Options: "none", "error", "warning", "info", "debug", "all"
+  logLevel: "debug", // Options: "none", "error", "warning", "info", "debug", "all"
 });
 ```
 
@@ -45,6 +45,7 @@ client = CopilotClient({"log_level": "debug"})
 <summary><strong>Go</strong></summary>
 
 <!-- docs-validate: skip -->
+
 ```go
 import copilot "github.com/github/copilot-sdk/go"
 
@@ -59,6 +60,7 @@ client := copilot.NewClient(&copilot.ClientOptions{
 <summary><strong>.NET</strong></summary>
 
 <!-- docs-validate: skip -->
+
 ```csharp
 using GitHub.Copilot.SDK;
 using Microsoft.Extensions.Logging;
@@ -111,6 +113,7 @@ const client = new CopilotClient({
 <summary><strong>Go</strong></summary>
 
 <!-- docs-validate: skip -->
+
 ```go
 // The Go SDK does not currently support passing extra CLI arguments.
 // For custom log directories, run the CLI manually with --log-dir
@@ -144,6 +147,7 @@ var client = new CopilotClient(new CopilotClientOptions
 1. Install the CLI: [Installation guide](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli)
 
 2. Verify installation:
+
    ```bash
    copilot --version
    ```
@@ -158,6 +162,7 @@ var client = new CopilotClient(new CopilotClientOptions
      cliPath: "/usr/local/bin/copilot",
    });
    ```
+
    </details>
 
    <details>
@@ -166,6 +171,7 @@ var client = new CopilotClient(new CopilotClientOptions
    ```python
    client = CopilotClient({"cli_path": "/usr/local/bin/copilot"})
    ```
+
    </details>
 
    <details>
@@ -176,6 +182,7 @@ var client = new CopilotClient(new CopilotClientOptions
        CLIPath: "/usr/local/bin/copilot",
    })
    ```
+
    </details>
 
    <details>
@@ -187,6 +194,7 @@ var client = new CopilotClient(new CopilotClientOptions
        CliPath = "/usr/local/bin/copilot"
    });
    ```
+
    </details>
 
 ### "Not authenticated"
@@ -196,6 +204,7 @@ var client = new CopilotClient(new CopilotClientOptions
 **Solution:**
 
 1. Authenticate the CLI:
+
    ```bash
    copilot auth login
    ```
@@ -210,6 +219,7 @@ var client = new CopilotClient(new CopilotClientOptions
      githubToken: process.env.GITHUB_TOKEN,
    });
    ```
+
    </details>
 
    <details>
@@ -219,6 +229,7 @@ var client = new CopilotClient(new CopilotClientOptions
    import os
    client = CopilotClient({"github_token": os.environ.get("GITHUB_TOKEN")})
    ```
+
    </details>
 
    <details>
@@ -226,9 +237,10 @@ var client = new CopilotClient(new CopilotClientOptions
 
    ```go
    client := copilot.NewClient(&copilot.ClientOptions{
-       GithubToken: os.Getenv("GITHUB_TOKEN"),
+       GitHubToken: os.Getenv("GITHUB_TOKEN"),
    })
    ```
+
    </details>
 
    <details>
@@ -237,9 +249,10 @@ var client = new CopilotClient(new CopilotClientOptions
    ```csharp
    var client = new CopilotClient(new CopilotClientOptions
    {
-       GithubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN")
+       GitHubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN")
    });
    ```
+
    </details>
 
 ### "Session not found"
@@ -249,6 +262,7 @@ var client = new CopilotClient(new CopilotClientOptions
 **Solution:**
 
 1. Ensure you're not calling methods after `destroy()`:
+
    ```typescript
    await session.destroy();
    // Don't use session after this!
@@ -267,11 +281,13 @@ var client = new CopilotClient(new CopilotClientOptions
 **Solution:**
 
 1. Check if the CLI runs correctly standalone:
+
    ```bash
    copilot --server --stdio
    ```
 
 2. Enable auto-restart (enabled by default):
+
    ```typescript
    const client = new CopilotClient({
      autoRestart: true,
@@ -282,7 +298,7 @@ var client = new CopilotClient(new CopilotClientOptions
    ```typescript
    const client = new CopilotClient({
      useStdio: false,
-     port: 0,  // Use random available port
+     port: 0, // Use random available port
    });
    ```
 
@@ -318,42 +334,47 @@ See [MCP Debugging Guide](./mcp/debugging.md) for detailed troubleshooting.
 
 The SDK supports two transport modes:
 
-| Mode | Description | Use Case |
-|------|-------------|----------|
-| **Stdio** (default) | CLI runs as subprocess, communicates via pipes | Local development, single process |
-| **TCP** | CLI runs separately, communicates via TCP socket | Multiple clients, remote CLI |
+| Mode                | Description                                      | Use Case                          |
+| ------------------- | ------------------------------------------------ | --------------------------------- |
+| **Stdio** (default) | CLI runs as subprocess, communicates via pipes   | Local development, single process |
+| **TCP**             | CLI runs separately, communicates via TCP socket | Multiple clients, remote CLI      |
 
 **Stdio mode (default):**
+
 ```typescript
 const client = new CopilotClient({
-  useStdio: true,  // This is the default
+  useStdio: true, // This is the default
 });
 ```
 
 **TCP mode:**
+
 ```typescript
 const client = new CopilotClient({
   useStdio: false,
-  port: 8080,  // Or 0 for random port
+  port: 8080, // Or 0 for random port
 });
 ```
 
 **Connect to existing server:**
+
 ```typescript
 const client = new CopilotClient({
-  cliUrl: "localhost:8080",  // Connect to running server
+  cliUrl: "localhost:8080", // Connect to running server
 });
 ```
 
 ### Diagnosing Connection Failures
 
 1. **Check client state:**
+
    ```typescript
    console.log("Connection state:", client.getState());
    // Should be "connected" after start()
    ```
 
 2. **Listen for state changes:**
+
    ```typescript
    client.on("stateChange", (state) => {
      console.log("State changed to:", state);
@@ -373,16 +394,18 @@ const client = new CopilotClient({
 ### Custom Tool Not Being Called
 
 1. **Verify tool registration:**
+
    ```typescript
    const session = await client.createSession({
      tools: [myTool],
    });
-   
+
    // Check registered tools
    console.log("Registered tools:", session.getTools?.());
    ```
 
 2. **Check tool schema is valid JSON Schema:**
+
    ```typescript
    const myTool = {
      name: "get_weather",
@@ -401,13 +424,14 @@ const client = new CopilotClient({
    ```
 
 3. **Ensure handler returns valid result:**
+
    ```typescript
    handler: async (args) => {
      // Must return something JSON-serializable
      return { success: true, data: "result" };
-     
+
      // Don't return undefined or non-serializable objects
-   }
+   };
    ```
 
 ### Tool Errors Not Surfacing
@@ -431,6 +455,7 @@ session.on("error", (event) => {
 ### Windows
 
 1. **Path separators:** Use raw strings or forward slashes:
+
    ```csharp
    CliPath = @"C:\Program Files\GitHub\copilot.exe"
    // or
@@ -438,6 +463,7 @@ session.on("error", (event) => {
    ```
 
 2. **PATHEXT resolution:** The SDK handles this automatically, but if issues persist:
+
    ```csharp
    // Explicitly specify .exe
    Command = "myserver.exe"  // Not just "myserver"
@@ -451,6 +477,7 @@ session.on("error", (event) => {
 ### macOS
 
 1. **Gatekeeper issues:** If CLI is blocked:
+
    ```bash
    xattr -d com.apple.quarantine /path/to/copilot
    ```
@@ -458,13 +485,14 @@ session.on("error", (event) => {
 2. **PATH issues in GUI apps:** GUI applications may not inherit shell PATH:
    ```typescript
    const client = new CopilotClient({
-     cliPath: "/opt/homebrew/bin/copilot",  // Full path
+     cliPath: "/opt/homebrew/bin/copilot", // Full path
    });
    ```
 
 ### Linux
 
 1. **Permission issues:**
+
    ```bash
    chmod +x /path/to/copilot
    ```

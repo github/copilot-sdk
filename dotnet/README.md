@@ -77,8 +77,8 @@ new CopilotClient(CopilotClientOptions? options = null)
 - `Cwd` - Working directory for the CLI process
 - `Environment` - Environment variables to pass to the CLI process
 - `Logger` - `ILogger` instance for SDK logging
-- `GithubToken` - GitHub token for authentication. When provided, takes priority over other auth methods.
-- `UseLoggedInUser` - Whether to use logged-in user for authentication (default: true, but false when `GithubToken` is provided). Cannot be used with `CliUrl`.
+- `GitHubToken` - GitHub token for authentication. When provided, takes priority over other auth methods.
+- `UseLoggedInUser` - Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `CliUrl`.
 
 #### Methods
 
@@ -164,6 +164,7 @@ using var subscription = client.On(SessionLifecycleEventTypes.Foreground, evt =>
 ```
 
 **Lifecycle Event Types:**
+
 - `SessionLifecycleEventTypes.Created` - A new session was created
 - `SessionLifecycleEventTypes.Deleted` - A session was deleted
 - `SessionLifecycleEventTypes.Updated` - A session was updated

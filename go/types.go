@@ -44,14 +44,14 @@ type ClientOptions struct {
 	// If Env contains duplicate environment keys, only the last value in the
 	// slice for each duplicate key is used.
 	Env []string
-	// GithubToken is the GitHub token to use for authentication.
+	// GitHubToken is the GitHub token to use for authentication.
 	// When provided, the token is passed to the CLI server via environment variable.
 	// This takes priority over other authentication methods.
-	GithubToken string
+	GitHubToken string
 	// UseLoggedInUser controls whether to use the logged-in user for authentication.
 	// When true, the CLI server will attempt to use stored OAuth tokens or gh CLI auth.
-	// When false, only explicit tokens (GithubToken or environment variables) are used.
-	// Default: true (but defaults to false when GithubToken is provided).
+	// When false, only explicit tokens (GitHubToken or environment variables) are used.
+	// Default: true (but defaults to false when GitHubToken is provided).
 	// Use Bool(false) to explicitly disable.
 	UseLoggedInUser *bool
 }
