@@ -162,12 +162,10 @@ class TestSessions:
         # Resume using a new client
         github_token = "fake-token-for-e2e-tests" if os.environ.get("CI") == "true" else None
         new_client = CopilotClient(
-            {
-                "cli_path": ctx.cli_path,
-                "cwd": ctx.work_dir,
-                "env": ctx.get_env(),
-                "github_token": github_token,
-            }
+            cli_path=ctx.cli_path,
+            cwd=ctx.work_dir,
+            env=ctx.get_env(),
+            github_token=github_token,
         )
 
         try:
