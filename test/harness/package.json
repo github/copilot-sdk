@@ -14,7 +14,7 @@
     "@github/copilot": "^0.0.411",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@types/node": "^25.2.0",
-    "openai": "^6.17.0",
+    "openai": "^6.22.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18",
