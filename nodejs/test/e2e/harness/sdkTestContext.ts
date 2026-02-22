@@ -22,18 +22,15 @@ export async function createSdkTestContext({
 }: { logLevel?: "error" | "none" | "warning" | "info" | "debug" | "all"; cliPath?: string } = {}) {
     const homeDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-config-")));
     const workDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-work-")));
+    const configDir = join(homeDir, "config");
+
+    fs.mkdirSync(configDir, { recursive: true });
 
     const openAiEndpoint = new CapiProxy();
     const proxyUrl = await openAiEndpoint.start();
     const env = {
         ...process.env,
         COPILOT_API_URL: proxyUrl,
-
-        // TODO: I'm not convinced the SDK should default to using whatever config you happen to have in your homedir.
-        // The SDK config should be independent of the regular CLI app. Likewise it shouldn't mix sessions from the
-        // SDK with those from the CLI app, at least not by default.
-        XDG_CONFIG_HOME: homeDir,
-        XDG_STATE_HOME: homeDir,
     };
 
     const copilotClient = new CopilotClient({
@@ -45,7 +42,7 @@ export async function createSdkTestContext({
         githubToken: process.env.CI === "true" ? "fake-token-for-e2e-tests" : undefined,
     });
 
-    const harness = { homeDir, workDir, openAiEndpoint, copilotClient, env };
+    const harness = { homeDir, workDir, configDir, openAiEndpoint, copilotClient, env };
 
     // Track if any test fails to avoid writing corrupted snapshots
     let anyTestFailed = false;
