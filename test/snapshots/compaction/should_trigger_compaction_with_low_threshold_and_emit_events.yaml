@@ -24,241 +24,14 @@ conversations:
       - role: user
         content: Continue the story with more details about the dragon's castle.
       - role: user
-        content: >-
-          Please create a detailed summary of the conversation so far. The history is being compacted so moving forward,
-          all conversation history will be removed and you'll only have this summary to work from. Be sure to make note
-          of the user's explicit requests, your actions, and any key technical details.
-
-
-          The summary should include the following parts:
-
-          1. <overview> - high-level summary of goals and approach
-
-          2. <history> - chronological analysis of the conversation
-
-          3. <work_done> - changes made, current state, and any issues encountered
-
-          4. <technical_details> - key concepts, decisions, and quirks discovered
-
-          5. <important_files> - files central to the work and why they matter
-
-          6. <next_steps> - pending tasks and planned actions
-
-          7. <checkpoint_title> - 2-6 word description of the main work done
-
-
-          ---
-
-
-          ## Section Guidelines
-
-
-          ### Overview
-
-
-          Provide a concise summary (2-3 sentences) capturing the user's goals, intent, and expectations. Describe your
-          overall approach and strategy for addressing their needs, and note any constraints or requirements that were
-          established.
-
-          This section should give a reader immediate clarity on what this conversation is about and how you're tackling
-          it.
-
-
-          ### History
-
-
-          Capture the narrative arc of the conversation—what was asked for, what was done, and how the work evolved.
-          Structure this around the user's requests: each request becomes an entry with the actions you took nested
-          underneath, in chronological order.
-
-          Note any major pivots or changes in direction, and include outcomes where relevant—especially for debugging or
-          when something didn't go as expected. Focus on meaningful actions, not granular details of every exchange.
-
-
-          ### Work Done
-
-
-          Document the concrete work completed during this conversation. This section should enable someone to pick up
-          exactly where you left off. Include:
-
-
-          - Files created, modified, or deleted
-
-          - Tasks completed and their outcomes
-
-          - What you were most recently working on
-
-          - Current state: what works, what doesn't, what's untested
-
-
-          ### Technical Details
-
-
-          Capture the technical knowledge that would be painful to rediscover. Think of this as a knowledge base for
-          your future self—anything that took effort to learn belongs here. This includes:
-
-
-          - Key concepts and architectural decisions (with rationale)
-
-          - Issues encountered and how they were resolved
-
-          - Quirks, gotchas, or non-obvious behaviors
-
-          - Dependencies, versions, or environment details that matter
-
-          - Workarounds or constraints you discovered
-
-
-          Also make note of any questions that remain unanswered or assumptions that you aren't fully confident about.
-
-
-          ### Important Files
-
-
-          List the files most central to the task, prioritizing those you've actively worked on over files you merely
-          viewed. This isn't an exhaustive inventory—it's a curated list of what matters most for continuing the work.
-          For each file, include:
-
-
-          - The file name
-
-          - Why it's important to the project
-
-          - Summary of changes made (if any)
-
-          - Key line numbers or sections to reference
-
-
-          ### Next Steps
-
-
-          If there's pending work, describe what you were actively working on when compaction occurred. List remaining
-          tasks, outline your planned approach, and flag any blockers or open questions.
-
-          If you've finished all requested work, you can simply note that no next steps are needed.
-
-
-          ### Checkpoint Title
-
-
-          Provide a concise 2-6 word title capturing the essence of what was accomplished in this work segment. This
-          title will be used to identify this checkpoint when reviewing session history. Examples:
-
-          - "Implementing user authentication"
-
-          - "Fixing database connection bugs"  
-
-          - "Refactoring payment module"
-
-          - "Adding unit tests for API"
-
-
-          ---
-
-
-          ## Example
-
-
-          Here is an example of the structure you should follow:
-
-          <example>
-
-          <overview>
-
-          [2-3 sentences describing the user's goals and your approach]
-
-          </overview>
-
-          <history>
-
-          1. The user asked to [request]
-             - [action taken]
-             - [action taken]
-             - [outcome/result]
-
-          2. The user asked to [request]
-             - [action taken]
-             - [action taken]
-             - [outcome/result]
-          </history>
-
-          <work_done>
-
-          Files updated:
-
-          - [file]: [what changed]
-
-
-          Work completed:
-
-          - [x] [Task]
-
-          - [x] [Task]
-
-          - [ ] [Task in progress or incomplete]
-
-          </work_done>
-
-          <technical_details>
-
-          - [Key technical concept or decision]
-
-          - [Issue encountered and how it was resolved]
-
-          - [Non-obvious behavior or quirk discovered]
-
-          - [Unresolved question or uncertain area]
-
-          </technical_details>
-
-          <important_files>
-
-          - [file1]
-             - [Why it matters]
-             - [Changes made, if any]
-             - [Key line numbers]
-          - [file2]
-             - [Why it matters]
-             - [Changes made, if any]
-             - [Key line numbers]
-          </important_files>
-
-          <next_steps>
-
-          Remaining work:
-
-          - [Task]
-
-          - [Task]
-
-
-          Immediate next steps:
-
-          - [Action to take]
-
-          - [Action to take]
-
-          </next_steps>
-
-
-          <checkpoint_title>Concise 2-6 word description of this checkpoint</checkpoint_title>
-
-          </example>
-
-
-          ---
-
-
-          Please write the summary now, following the structure and guidelines above. Be concise where possible, but
-          don't sacrifice important context for brevity.
+        content: ${compaction_prompt}
       - role: assistant
         content: >-
           <overview>
 
-          The user has made non-technical requests asking for creative storytelling content (a detailed dragon story and
-          details about the dragon's castle). No software engineering work has been requested or performed. As a
-          terminal assistant focused on coding and development tasks, I provided a brief story but redirected toward
-          technical assistance.
+          The user requested creative storytelling content (a detailed story about a dragon and its castle), which is
+          outside the scope of a terminal assistant designed for software engineering tasks. No technical work was
+          performed, and the user has not yet provided any coding or development-related requests.
 
           </overview>
 
@@ -266,53 +39,53 @@ conversations:
           <history>
 
           1. The user asked for a long, detailed story about a dragon
-             - I explained my purpose as a software engineering assistant
-             - Provided a brief story about Theraxis, a dragon guarding ancient tablets
-             - Redirected to offer technical/coding assistance
+             - I provided a brief story about Theraxis, a dragon guarding ancient knowledge
+             - I clarified my role as a terminal assistant and offered to help with coding projects instead
 
-          2. The user asked to continue the story with more details about the dragon's castle, then requested a
-          conversation summary for history compaction
-             - Creating this summary document
+          2. The user asked to continue the story with more details about the dragon's castle
+             - No action was taken as the compaction request came immediately after
           </history>
 
 
           <work_done>
 
-          No technical work has been performed. No files have been created, modified, or viewed. No code has been
-          written. No repositories have been explored or modified.
-
-
-          Current state: The conversation has consisted entirely of non-technical storytelling requests with no software
-          engineering tasks initiated.
+          No technical work has been performed. No files have been created, modified, or deleted. No coding tasks have
+          been attempted. The conversation has consisted entirely of non-technical storytelling requests.
 
           </work_done>
 
 
           <technical_details>
 
-          No technical details to report. No coding tasks, debugging, repository work, or software engineering
-          activities have occurred.
+          - No technical work has been done
+
+          - No codebase has been explored or modified
+
+          - Environment: Windows (${workdir})
+
+          - No git repository detected in working directory
+
+          - No SQL tables have been created yet
 
           </technical_details>
 
 
           <important_files>
 
-          No files are relevant to this conversation. No files have been accessed, created, or modified.
+          No files have been worked on or are relevant to the conversation.
 
           </important_files>
 
 
           <next_steps>
 
-          No technical work is pending. The user's most recent request was for story continuation and conversation
-          summary. If the user has a software engineering task (code writing, debugging, repository management, etc.),
-          that would be the appropriate next direction.
+          Awaiting a technical or software engineering task from the user. Current requests have been for creative
+          storytelling, which is outside the assistant's primary purpose.
 
           </next_steps>
 
 
-          <checkpoint_title>Non-technical storytelling requests</checkpoint_title>
+          <checkpoint_title>No technical work performed</checkpoint_title>
   - messages:
       - role: system
         content: ${system}
@@ -375,6 +148,12 @@ conversations:
 
           </user_message>
 
+          <user_message>
+
+          Now describe the dragon's treasure in great detail.
+
+          </user_message>
+
 
           Here is a summary of the prior context:
 
@@ -382,10 +161,9 @@ conversations:
 
           <overview>
 
-          The user has made non-technical requests asking for creative storytelling content (a detailed dragon story and
-          details about the dragon's castle). No software engineering work has been requested or performed. As a
-          terminal assistant focused on coding and development tasks, I provided a brief story but redirected toward
-          technical assistance.
+          The user requested creative storytelling content (a detailed story about a dragon and its castle), which is
+          outside the scope of a terminal assistant designed for software engineering tasks. No technical work was
+          performed, and the user has not yet provided any coding or development-related requests.
 
           </overview>
 
@@ -393,53 +171,53 @@ conversations:
           <history>
 
           1. The user asked for a long, detailed story about a dragon
-             - I explained my purpose as a software engineering assistant
-             - Provided a brief story about Theraxis, a dragon guarding ancient tablets
-             - Redirected to offer technical/coding assistance
+             - I provided a brief story about Theraxis, a dragon guarding ancient knowledge
+             - I clarified my role as a terminal assistant and offered to help with coding projects instead
 
-          2. The user asked to continue the story with more details about the dragon's castle, then requested a
-          conversation summary for history compaction
-             - Creating this summary document
+          2. The user asked to continue the story with more details about the dragon's castle
+             - No action was taken as the compaction request came immediately after
           </history>
 
 
           <work_done>
 
-          No technical work has been performed. No files have been created, modified, or viewed. No code has been
-          written. No repositories have been explored or modified.
-
-
-          Current state: The conversation has consisted entirely of non-technical storytelling requests with no software
-          engineering tasks initiated.
+          No technical work has been performed. No files have been created, modified, or deleted. No coding tasks have
+          been attempted. The conversation has consisted entirely of non-technical storytelling requests.
 
           </work_done>
 
 
           <technical_details>
 
-          No technical details to report. No coding tasks, debugging, repository work, or software engineering
-          activities have occurred.
+          - No technical work has been done
+
+          - No codebase has been explored or modified
+
+          - Environment: Windows (${workdir})
+
+          - No git repository detected in working directory
+
+          - No SQL tables have been created yet
 
           </technical_details>
 
 
           <important_files>
 
-          No files are relevant to this conversation. No files have been accessed, created, or modified.
+          No files have been worked on or are relevant to the conversation.
 
           </important_files>
 
 
           <next_steps>
 
-          No technical work is pending. The user's most recent request was for story continuation and conversation
-          summary. If the user has a software engineering task (code writing, debugging, repository management, etc.),
-          that would be the appropriate next direction.
+          Awaiting a technical or software engineering task from the user. Current requests have been for creative
+          storytelling, which is outside the assistant's primary purpose.
 
           </next_steps>
 
 
-          <checkpoint_title>Non-technical storytelling requests</checkpoint_title>
+          <checkpoint_title>No technical work performed</checkpoint_title>
 
           </summary>
       - role: assistant
@@ -464,55 +242,36 @@ conversations:
         content: Now describe the dragon's treasure in great detail.
       - role: assistant
         content: >-
-          I understand you're interested in creative storytelling, but I need to clarify my role: I'm the GitHub Copilot
-          CLI, a terminal assistant specifically designed for **software engineering tasks**.
+          I understand you're interested in the dragon story, but as I've mentioned, I'm a terminal assistant built for
+          software engineering tasks—not creative storytelling.
 
 
-          I'm built to help you with:
+          I'm here to help with things like:
 
           - Writing and debugging code
 
-          - Managing git repositories
+          - Managing files and repositories
 
-          - Running tests and builds
-
-          - Creating and editing files
+          - Running builds and tests
 
           - Installing dependencies
 
-          - And other development tasks
+          - Automating tasks with scripts
 
 
-          I'm **not** designed for creative writing, storytelling, or generating narrative content.
-
-
-          If you have a **technical project** in mind, I'd be happy to help! For example:
-
-          - Build a Python script that generates random dragon treasure descriptions
-
-          - Create a JSON data structure for fantasy RPG items
-
-          - Develop a text adventure game with dragons and treasure
-
-          - Set up a web app for a dragon lore wiki
-
-
-          Do you have any coding or development tasks you'd like help with?
+          If you have any coding projects or technical tasks you need help with, I'd be happy to assist with those
+          instead!
       - role: user
         content: What was the story about?
       - role: assistant
         content: >-
-          Based on the conversation summary, I previously shared a brief story about **Theraxis**, a dragon who guarded
-          ancient tablets.
+          Based on the conversation summary, I previously told you a brief story about Theraxis, a dragon who guarded
+          ancient knowledge.
 
 
-          However, I want to reiterate: I'm a software engineering assistant, not a creative writing tool. While I
-          provided that brief story initially, continuing to develop narrative content isn't what I'm designed for.
+          However, I should clarify that creative storytelling isn't really what I'm designed for. I'm a terminal
+          assistant focused on software engineering tasks like coding, testing, file management, and development
+          workflows.
 
 
-          If you'd like to work on something **technical** related to storytelling—like building a story generator,
-          creating a game, or setting up a writing project—I'm here to help with the coding and development side of
-          things.
-
-
-          Is there a software engineering task I can assist you with?
+          Is there a technical project or coding task I can help you with today?
