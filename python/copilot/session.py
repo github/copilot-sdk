@@ -14,6 +14,8 @@ from .generated.rpc import SessionRpc
 from .generated.session_events import SessionEvent, SessionEventType, session_event_from_dict
 from .types import (
     MessageOptions,
+    PermissionRequest,
+    PermissionRequestResult,
     SessionHooks,
     Tool,
     ToolHandler,
@@ -308,7 +310,9 @@ class CopilotSession:
         with self._permission_handler_lock:
             self._permission_handler = handler
 
-    async def _handle_permission_request(self, request: dict) -> dict:
+    async def _handle_permission_request(
+        self, request: PermissionRequest
+    ) -> PermissionRequestResult:
         """
         Handle a permission request from the Copilot CLI.
 
