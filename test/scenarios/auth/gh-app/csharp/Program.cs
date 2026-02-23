@@ -61,7 +61,7 @@ Console.WriteLine($"Authenticated as: {userResponse.GetProperty("login").GetStri
 using var client = new CopilotClient(new CopilotClientOptions
 {
     CliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH"),
-    GithubToken = accessToken,
+    GitHubToken = accessToken,
 });
 
 await client.StartAsync();

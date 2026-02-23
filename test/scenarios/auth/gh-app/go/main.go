@@ -162,7 +162,7 @@ func main() {
 	}
 
 	client := copilot.NewClient(&copilot.ClientOptions{
-		GithubToken: token,
+		GitHubToken: token,
 	})
 
 	ctx := context.Background()

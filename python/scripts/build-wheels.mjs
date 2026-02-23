@@ -36,9 +36,10 @@ const pythonDir = dirname(__dirname);
 const repoRoot = dirname(pythonDir);
 
 // Platform mappings: npm package suffix -> [wheel platform tag, binary name]
+// Based on Node 24.11 binaries being included in the wheels
 const PLATFORMS = {
-    "linux-x64": ["manylinux_2_17_x86_64", "copilot"],
-    "linux-arm64": ["manylinux_2_17_aarch64", "copilot"],
+    "linux-x64": ["manylinux_2_28_x86_64", "copilot"],
+    "linux-arm64": ["manylinux_2_28_aarch64", "copilot"],
     "darwin-x64": ["macosx_10_9_x86_64", "copilot"],
     "darwin-arm64": ["macosx_11_0_arm64", "copilot"],
     "win32-x64": ["win_amd64", "copilot.exe"],
@@ -180,13 +181,13 @@ async function buildWheel(platform, pkgVersion, cliVersion, outputDir, licensePa
     // Create __init__.py
     writeFileSync(join(binDir, "__init__.py"), '"""Bundled Copilot CLI binary."""\n');
 
-    // Copy and modify pyproject.toml - replace license reference with file
+    // Copy and modify pyproject.toml for bundled CLI wheel
     let pyprojectContent = readFileSync(join(pythonDir, "pyproject.toml"), "utf-8");
 
-    // Replace the license specification with file reference
+    // Update SPDX expression and add license-files for both SDK and bundled CLI licenses
     pyprojectContent = pyprojectContent.replace(
-        'license = {text = "MIT"}',
-        'license = {file = "CLI-LICENSE.md"}'
+        'license = "MIT"',
+        'license = "MIT AND LicenseRef-Copilot-CLI"\nlicense-files = ["LICENSE", "CLI-LICENSE.md"]'
     );
 
     // Add package-data configuration
@@ -201,6 +202,9 @@ async function buildWheel(platform, pkgVersion, cliVersion, outputDir, licensePa
     if (existsSync(join(pythonDir, "README.md"))) {
         cpSync(join(pythonDir, "README.md"), join(buildDir, "README.md"));
     }
+
+    // Copy SDK LICENSE
+    cpSync(join(repoRoot, "LICENSE"), join(buildDir, "LICENSE"));
 
     // Copy CLI LICENSE
     cpSync(licensePath, join(buildDir, "CLI-LICENSE.md"));

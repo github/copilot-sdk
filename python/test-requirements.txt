@@ -1,5 +1,0 @@
-pytest>=7.0.0
-pytest-asyncio>=0.21.0
-typing-extensions>=4.0.0
-python-dateutil >=2.9.0
-httpx>=0.25.0

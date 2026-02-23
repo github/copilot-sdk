@@ -59,7 +59,7 @@ jobs:
           enable-cache: true
 
       - name: Install Python dev dependencies
-        run: uv sync --locked --all-extras --dev
+        run: uv sync --all-extras --dev
 
       - name: Install Node.js dependencies (for CLI in tests)
         working-directory: ./nodejs

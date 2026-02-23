@@ -5,7 +5,7 @@ var piratePrompt = "You are a pirate. Always respond in pirate speak. Say 'Arrr!
 using var client = new CopilotClient(new CopilotClientOptions
 {
     CliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH"),
-    GithubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
+    GitHubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
 });
 
 await client.StartAsync();

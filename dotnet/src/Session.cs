@@ -147,6 +147,7 @@ public partial class CopilotSession : IAsyncDisposable
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
     /// <returns>A task that resolves with the final assistant message event, or null if none was received.</returns>
     /// <exception cref="TimeoutException">Thrown if the timeout is reached before the session becomes idle.</exception>
+    /// <exception cref="OperationCanceledException">Thrown if the <paramref name="cancellationToken"/> is cancelled.</exception>
     /// <exception cref="InvalidOperationException">Thrown if the session has been disposed.</exception>
     /// <remarks>
     /// <para>
@@ -201,7 +202,12 @@ public partial class CopilotSession : IAsyncDisposable
         cts.CancelAfter(effectiveTimeout);
 
         using var registration = cts.Token.Register(() =>
-            tcs.TrySetException(new TimeoutException($"SendAndWaitAsync timed out after {effectiveTimeout}")));
+        {
+            if (cancellationToken.IsCancellationRequested)
+                tcs.TrySetCanceled(cancellationToken);
+            else
+                tcs.TrySetException(new TimeoutException($"SendAndWaitAsync timed out after {effectiveTimeout}"));
+        });
         return await tcs.Task;
     }
 
