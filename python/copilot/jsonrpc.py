@@ -24,6 +24,12 @@ class JsonRpcError(Exception):
         super().__init__(f"JSON-RPC Error {code}: {message}")
 
 
+class ProcessExitedError(Exception):
+    """Error raised when the CLI process exits unexpectedly"""
+
+    pass
+
+
 RequestHandler = Callable[[dict], Union[dict, Awaitable[dict]]]
 
 
@@ -47,9 +53,13 @@ class JsonRpcClient:
         self.request_handlers: dict[str, RequestHandler] = {}
         self._running = False
         self._read_thread: Optional[threading.Thread] = None
+        self._stderr_thread: Optional[threading.Thread] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._write_lock = threading.Lock()
         self._pending_lock = threading.Lock()
+        self._process_exit_error: Optional[str] = None
+        self._stderr_output: list[str] = []
+        self._stderr_lock = threading.Lock()
 
     def start(self, loop: Optional[asyncio.AbstractEventLoop] = None):
         """Start listening for messages in background thread"""
@@ -59,12 +69,39 @@ class JsonRpcClient:
             self._loop = loop or asyncio.get_running_loop()
             self._read_thread = threading.Thread(target=self._read_loop, daemon=True)
             self._read_thread.start()
+            # Start stderr reader thread if process has stderr
+            if hasattr(self.process, "stderr") and self.process.stderr:
+                self._stderr_thread = threading.Thread(target=self._stderr_loop, daemon=True)
+                self._stderr_thread.start()
+
+    def _stderr_loop(self):
+        """Read stderr in background to capture error messages"""
+        try:
+            while self._running:
+                if not self.process.stderr:
+                    break
+                line = self.process.stderr.readline()
+                if not line:
+                    break
+                with self._stderr_lock:
+                    self._stderr_output.append(
+                        line.decode("utf-8") if isinstance(line, bytes) else line
+                    )
+        except Exception:
+            pass  # Ignore errors reading stderr
+
+    def get_stderr_output(self) -> str:
+        """Get captured stderr output"""
+        with self._stderr_lock:
+            return "".join(self._stderr_output).strip()
 
     async def stop(self):
         """Stop listening and clean up"""
         self._running = False
         if self._read_thread:
             self._read_thread.join(timeout=1.0)
+        if self._stderr_thread:
+            self._stderr_thread.join(timeout=1.0)
 
     async def request(
         self, method: str, params: Optional[dict] = None, timeout: float = 30.0
@@ -157,9 +194,43 @@ class JsonRpcClient:
                 message = self._read_message()
                 if message:
                     self._handle_message(message)
+                else:
+                    # No message means stream closed - process likely exited
+                    break
+        except EOFError:
+            # Stream closed - check if process exited
+            pass
         except Exception as e:
             if self._running:
-                print(f"JSON-RPC read loop error: {e}")
+                # Store error for pending requests
+                self._process_exit_error = str(e)
+
+        # Process exited or read failed - fail all pending requests
+        if self._running:
+            self._fail_pending_requests()
+
+    def _fail_pending_requests(self):
+        """Fail all pending requests when process exits"""
+        # Build error message with stderr output
+        stderr_output = self.get_stderr_output()
+        return_code = None
+        if hasattr(self.process, "poll"):
+            return_code = self.process.poll()
+
+        if stderr_output:
+            error_msg = f"CLI process exited with code {return_code}\nstderr: {stderr_output}"
+        elif return_code is not None:
+            error_msg = f"CLI process exited with code {return_code}"
+        else:
+            error_msg = "CLI process exited unexpectedly"
+
+        # Fail all pending requests
+        with self._pending_lock:
+            for request_id, future in list(self.pending_requests.items()):
+                if not future.done():
+                    exc = ProcessExitedError(error_msg)
+                    loop = future.get_loop()
+                    loop.call_soon_threadsafe(future.set_exception, exc)
 
     def _read_exact(self, num_bytes: int) -> bytes:
         """

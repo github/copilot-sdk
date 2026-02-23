@@ -1,0 +1,86 @@
+# Dependencies
+node_modules/
+.venv/
+vendor/
+
+# E2E run artifacts (agents may create files during verify.sh runs)
+**/sessions/**/plan.md
+**/tools/**/plan.md
+**/callbacks/**/plan.md
+**/prompts/**/plan.md
+
+# Build output
+dist/
+target/
+build/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go
+*.test
+fully-bundled-go
+app-direct-server-go
+container-proxy-go
+container-relay-go
+app-backend-to-server-go
+custom-agents-go
+mcp-servers-go
+no-tools-go
+virtual-filesystem-go
+system-message-go
+skills-go
+streaming-go
+attachments-go
+tool-filtering-go
+permissions-go
+hooks-go
+user-input-go
+concurrent-sessions-go
+session-resume-go
+stdio-go
+tcp-go
+gh-app-go
+cli-preset-go
+filesystem-preset-go
+minimal-preset-go
+default-go
+minimal-go
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+*.egg
+.eggs/
+
+# TypeScript
+*.tsbuildinfo
+package-lock.json
+
+# C# / .NET
+bin/
+obj/
+*.csproj.nuget.*
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Multi-user scenario temp directories
+**/sessions/multi-user-long-lived/tmp/
+
+# Logs
+*.log
+npm-debug.log*
+infinite-sessions-go
+reasoning-effort-go
+reconnect-go
+byok-openai-go
+token-sources-go

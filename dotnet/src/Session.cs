@@ -7,6 +7,7 @@ using StreamJsonRpc;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using GitHub.Copilot.SDK.Rpc;
 
 namespace GitHub.Copilot.SDK;
 
@@ -46,18 +47,25 @@ public partial class CopilotSession : IAsyncDisposable
     private readonly HashSet<SessionEventHandler> _eventHandlers = new();
     private readonly Dictionary<string, AIFunction> _toolHandlers = new();
     private readonly JsonRpc _rpc;
-    private PermissionHandler? _permissionHandler;
+    private PermissionRequestHandler? _permissionHandler;
     private readonly SemaphoreSlim _permissionHandlerLock = new(1, 1);
     private UserInputHandler? _userInputHandler;
     private readonly SemaphoreSlim _userInputHandlerLock = new(1, 1);
     private SessionHooks? _hooks;
     private readonly SemaphoreSlim _hooksLock = new(1, 1);
+    private SessionRpc? _sessionRpc;
+    private int _isDisposed;
 
     /// <summary>
     /// Gets the unique identifier for this session.
     /// </summary>
     /// <value>A string that uniquely identifies this session.</value>
     public string SessionId { get; }
+
+    /// <summary>
+    /// Gets the typed RPC client for session-scoped methods.
+    /// </summary>
+    public SessionRpc Rpc => _sessionRpc ??= new SessionRpc(_rpc, SessionId);
 
     /// <summary>
     /// Gets the path to the session workspace directory when infinite sessions are enabled.
@@ -284,7 +292,7 @@ public partial class CopilotSession : IAsyncDisposable
     /// When the assistant needs permission to perform certain actions (e.g., file operations),
     /// this handler is called to approve or deny the request.
     /// </remarks>
-    internal void RegisterPermissionHandler(PermissionHandler handler)
+    internal void RegisterPermissionHandler(PermissionRequestHandler handler)
     {
         _permissionHandlerLock.Wait();
         try
@@ -305,7 +313,7 @@ public partial class CopilotSession : IAsyncDisposable
     internal async Task<PermissionRequestResult> HandlePermissionRequestAsync(JsonElement permissionRequestData)
     {
         await _permissionHandlerLock.WaitAsync();
-        PermissionHandler? handler;
+        PermissionRequestHandler? handler;
         try
         {
             handler = _permissionHandler;
@@ -553,8 +561,24 @@ public partial class CopilotSession : IAsyncDisposable
     /// </example>
     public async ValueTask DisposeAsync()
     {
-        await InvokeRpcAsync<object>(
-            "session.destroy", [new SessionDestroyRequest() { SessionId = SessionId }], CancellationToken.None);
+        if (Interlocked.Exchange(ref _isDisposed, 1) == 1)
+        {
+            return;
+        }
+
+        try
+        {
+            await InvokeRpcAsync<object>(
+                "session.destroy", [new SessionDestroyRequest() { SessionId = SessionId }], CancellationToken.None);
+        }
+        catch (ObjectDisposedException)
+        {
+            // Connection was already disposed (e.g., client.StopAsync() was called first)
+        }
+        catch (IOException)
+        {
+            // Connection is broken or closed
+        }
 
         _eventHandlers.Clear();
         _toolHandlers.Clear();

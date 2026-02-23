@@ -12,6 +12,15 @@ pip install -e ".[dev]"
 uv pip install -e ".[dev]"
 ```
 
+## Run the Sample
+
+Try the interactive chat sample (from the repo root):
+
+```bash
+cd python/samples
+python chat.py
+```
+
 ## Quick Start
 
 ```python

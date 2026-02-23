@@ -46,7 +46,7 @@ jobs:
           dotnet-version: "8.0.x"
       - uses: actions/setup-node@v6
         with:
-          node-version: "24"
+          node-version: "22"
           cache: "npm"
           cache-dependency-path: "./nodejs/package-lock.json"
 

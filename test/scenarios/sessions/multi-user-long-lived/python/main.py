@@ -1,0 +1,1 @@
+print("SKIP: multi-user-long-lived is not yet implemented for Python")

@@ -10,4 +10,7 @@
   <Folder Name="/test/">
     <Project Path="test/GitHub.Copilot.SDK.Test.csproj" />
   </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/Chat.csproj" />
+  </Folder>
 </Solution>

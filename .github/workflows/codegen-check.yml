@@ -1,0 +1,56 @@
+name: "Codegen Check"
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - 'scripts/codegen/**'
+      - 'nodejs/src/generated/**'
+      - 'dotnet/src/Generated/**'
+      - 'python/copilot/generated/**'
+      - 'go/generated_*.go'
+      - 'go/rpc/**'
+      - '.github/workflows/codegen-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: "Verify generated files are up-to-date"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Install nodejs SDK dependencies
+        working-directory: ./nodejs
+        run: npm ci
+
+      - name: Install codegen dependencies
+        working-directory: ./scripts/codegen
+        run: npm ci
+
+      - name: Run codegen
+        working-directory: ./scripts/codegen
+        run: npm run generate
+
+      - name: Check for uncommitted changes
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::Generated files are out of date. Run 'cd scripts/codegen && npm run generate' and commit the changes."
+            git diff --stat
+            git diff
+            exit 1
+          fi
+          echo "✅ Generated files are up-to-date"

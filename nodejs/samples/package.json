@@ -1,0 +1,14 @@
+{
+  "name": "copilot-sdk-sample",
+  "type": "module",
+  "scripts": {
+    "start": "npx tsx chat.ts"
+  },
+  "dependencies": {
+    "@github/copilot-sdk": "file:.."
+  },
+  "devDependencies": {
+    "tsx": "^4.20.6",
+    "@types/node": "^22.0.0"
+  }
+}

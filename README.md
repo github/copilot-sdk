@@ -14,12 +14,12 @@ The GitHub Copilot SDK exposes the same engine behind Copilot CLI: a production-
 
 ## Available SDKs
 
-| SDK                      | Location                                          | Installation                              |
-| ------------------------ | ------------------------------------------------- | ----------------------------------------- |
-| **Node.js / TypeScript** | [`cookbook/nodejs/`](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/nodejs/README.md) | `npm install @github/copilot-sdk`         |
-| **Python**               | [`cookbook/python/`](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/python/README.md) | `pip install github-copilot-sdk`          |
-| **Go**                   | [`cookbook/go/`](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/go/README.md)         | `go get github.com/github/copilot-sdk/go` |
-| **.NET**                 | [`cookbook/dotnet/`](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/dotnet/README.md) | `dotnet add package GitHub.Copilot.SDK`   |
+| SDK                      | Location       | Cookbook                                          | Installation                              |
+| ------------------------ | -------------- | ------------------------------------------------- | ----------------------------------------- |
+| **Node.js / TypeScript** | [`nodejs/`](./nodejs/)   | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/nodejs/README.md) | `npm install @github/copilot-sdk`         |
+| **Python**               | [`python/`](./python/)   | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/python/README.md) | `pip install github-copilot-sdk`          |
+| **Go**                   | [`go/`](./go/)           | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/go/README.md)     | `go get github.com/github/copilot-sdk/go` |
+| **.NET**                 | [`dotnet/`](./dotnet/)   | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/dotnet/README.md) | `dotnet add package GitHub.Copilot.SDK`   |
 
 See the individual SDK READMEs for installation, usage examples, and API reference.
 
@@ -116,17 +116,17 @@ Please use the [GitHub Issues](https://github.com/github/copilot-sdk/issues) pag
 
 ⚠️ Disclaimer: These are unofficial, community-driven SDKs and they are not supported by GitHub. Use at your own risk.
 
-| SDK           | Location                                           |
-| --------------| -------------------------------------------------- |
-| **Java**      | [copilot-community-sdk/copilot-sdk-java][sdk-java] |
-| **Rust**      | [copilot-community-sdk/copilot-sdk-rust][sdk-rust] |
-| **C++**       | [0xeb/copilot-sdk-cpp][sdk-cpp]                    |
-| **Clojure**   | [krukow/copilot-sdk-clojure][sdk-clojure]          |
+| SDK           | Location                                                          |
+| --------------| ----------------------------------------------------------------- |
+| **Java**      | [copilot-community-sdk/copilot-sdk-java][sdk-java]                |
+| **Rust**      | [copilot-community-sdk/copilot-sdk-rust][sdk-rust]                |
+| **Clojure**   | [copilot-community-sdk/copilot-sdk-clojure][sdk-clojure]          |
+| **C++**       | [0xeb/copilot-sdk-cpp][sdk-cpp]                                   |
 
 [sdk-java]: https://github.com/copilot-community-sdk/copilot-sdk-java
 [sdk-rust]: https://github.com/copilot-community-sdk/copilot-sdk-rust
 [sdk-cpp]: https://github.com/0xeb/copilot-sdk-cpp
-[sdk-clojure]: https://github.com/krukow/copilot-sdk-clojure
+[sdk-clojure]: https://github.com/copilot-community-sdk/copilot-sdk-clojure
 
 ## Contributing
 

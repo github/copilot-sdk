@@ -17,6 +17,7 @@ public class HooksTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ET
         CopilotSession? session = null;
         session = await Client.CreateSessionAsync(new SessionConfig
         {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
             Hooks = new SessionHooks
             {
                 OnPreToolUse = (input, invocation) =>
@@ -52,6 +53,7 @@ public class HooksTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ET
         CopilotSession? session = null;
         session = await Client.CreateSessionAsync(new SessionConfig
         {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
             Hooks = new SessionHooks
             {
                 OnPostToolUse = (input, invocation) =>
@@ -89,6 +91,7 @@ public class HooksTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ET
 
         var session = await Client.CreateSessionAsync(new SessionConfig
         {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
             Hooks = new SessionHooks
             {
                 OnPreToolUse = (input, invocation) =>
@@ -130,6 +133,7 @@ public class HooksTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ET
 
         var session = await Client.CreateSessionAsync(new SessionConfig
         {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
             Hooks = new SessionHooks
             {
                 OnPreToolUse = (input, invocation) =>

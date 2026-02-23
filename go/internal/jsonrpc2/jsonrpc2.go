@@ -57,6 +57,9 @@ type Client struct {
 	running         bool
 	stopChan        chan struct{}
 	wg              sync.WaitGroup
+	processDone     chan struct{} // closed when the underlying process exits
+	processError    error         // set before processDone is closed
+	processErrorMu  sync.RWMutex  // protects processError
 }
 
 // NewClient creates a new JSON-RPC client
@@ -68,6 +71,28 @@ func NewClient(stdin io.WriteCloser, stdout io.ReadCloser) *Client {
 		requestHandlers: make(map[string]RequestHandler),
 		stopChan:        make(chan struct{}),
 	}
+}
+
+// SetProcessDone sets a channel that will be closed when the process exits,
+// and stores the error that should be returned to pending/future requests.
+func (c *Client) SetProcessDone(done chan struct{}, errPtr *error) {
+	c.processDone = done
+	// Monitor the channel and copy the error when it closes
+	go func() {
+		<-done
+		if errPtr != nil {
+			c.processErrorMu.Lock()
+			c.processError = *errPtr
+			c.processErrorMu.Unlock()
+		}
+	}()
+}
+
+// getProcessError returns the process exit error if the process has exited
+func (c *Client) getProcessError() error {
+	c.processErrorMu.RLock()
+	defer c.processErrorMu.RUnlock()
+	return c.processError
 }
 
 // Start begins listening for messages in a background goroutine
@@ -172,6 +197,19 @@ func (c *Client) Request(method string, params any) (json.RawMessage, error) {
 		c.mu.Unlock()
 	}()
 
+	// Check if process already exited before sending
+	if c.processDone != nil {
+		select {
+		case <-c.processDone:
+			if err := c.getProcessError(); err != nil {
+				return nil, err
+			}
+			return nil, fmt.Errorf("process exited unexpectedly")
+		default:
+			// Process still running, continue
+		}
+	}
+
 	paramsData, err := json.Marshal(params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal params: %w", err)
@@ -189,7 +227,23 @@ func (c *Client) Request(method string, params any) (json.RawMessage, error) {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
-	// Wait for response
+	// Wait for response, also checking for process exit
+	if c.processDone != nil {
+		select {
+		case response := <-responseChan:
+			if response.Error != nil {
+				return nil, response.Error
+			}
+			return response.Result, nil
+		case <-c.processDone:
+			if err := c.getProcessError(); err != nil {
+				return nil, err
+			}
+			return nil, fmt.Errorf("process exited unexpectedly")
+		case <-c.stopChan:
+			return nil, fmt.Errorf("client stopped")
+		}
+	}
 	select {
 	case response := <-responseChan:
 		if response.Error != nil {

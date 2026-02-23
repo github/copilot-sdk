@@ -8,6 +8,7 @@
  */
 
 import type { MessageConnection } from "vscode-jsonrpc/node";
+import { createSessionRpc } from "./generated/rpc.js";
 import type {
     MessageOptions,
     PermissionHandler,
@@ -62,6 +63,7 @@ export class CopilotSession {
     private permissionHandler?: PermissionHandler;
     private userInputHandler?: UserInputHandler;
     private hooks?: SessionHooks;
+    private _rpc: ReturnType<typeof createSessionRpc> | null = null;
 
     /**
      * Creates a new CopilotSession instance.
@@ -76,6 +78,16 @@ export class CopilotSession {
         private connection: MessageConnection,
         private readonly _workspacePath?: string
     ) {}
+
+    /**
+     * Typed session-scoped RPC methods.
+     */
+    get rpc(): ReturnType<typeof createSessionRpc> {
+        if (!this._rpc) {
+            this._rpc = createSessionRpc(this.connection, this.sessionId);
+        }
+        return this._rpc;
+    }
 
     /**
      * Path to the session workspace directory when infinite sessions are enabled.

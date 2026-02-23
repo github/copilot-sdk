@@ -179,3 +179,37 @@ class TestClient:
             await client.stop()
         finally:
             await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_should_report_error_with_stderr_when_cli_fails_to_start(self):
+        """Test that CLI startup errors include stderr output in the error message."""
+        client = CopilotClient(
+            {
+                "cli_path": CLI_PATH,
+                "cli_args": ["--nonexistent-flag-for-testing"],
+                "use_stdio": True,
+            }
+        )
+
+        try:
+            with pytest.raises(RuntimeError) as exc_info:
+                await client.start()
+
+            error_message = str(exc_info.value)
+            # Verify we get the stderr output in the error message
+            assert "stderr" in error_message, (
+                f"Expected error to contain 'stderr', got: {error_message}"
+            )
+            assert "nonexistent" in error_message, (
+                f"Expected error to contain 'nonexistent', got: {error_message}"
+            )
+
+            # Verify subsequent calls also fail (don't hang)
+            with pytest.raises(Exception) as exc_info2:
+                session = await client.create_session()
+                await session.send("test")
+            # Error message varies by platform (EINVAL on Windows, EPIPE on Linux)
+            error_msg = str(exc_info2.value).lower()
+            assert "invalid" in error_msg or "pipe" in error_msg or "closed" in error_msg
+        finally:
+            await client.force_stop()

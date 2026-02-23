@@ -16,6 +16,8 @@ const (
 type ClientOptions struct {
 	// CLIPath is the path to the Copilot CLI executable (default: "copilot")
 	CLIPath string
+	// CLIArgs are extra arguments to pass to the CLI executable (inserted before SDK-managed args)
+	CLIArgs []string
 	// Cwd is the working directory for the CLI process (default: "" = inherit from current process)
 	Cwd string
 	// Port for TCP transport (default: 0 = random port)
@@ -57,6 +59,12 @@ type ClientOptions struct {
 // Bool returns a pointer to the given bool value.
 // Use for setting AutoStart or AutoRestart: AutoStart: Bool(false)
 func Bool(v bool) *bool {
+	return &v
+}
+
+// String returns a pointer to the given string value.
+// Use for setting optional string parameters in RPC calls.
+func String(v string) *string {
 	return &v
 }
 
@@ -104,9 +112,9 @@ type PermissionRequestResult struct {
 	Rules []any  `json:"rules,omitempty"`
 }
 
-// PermissionHandler executes a permission request
+// PermissionHandlerFunc executes a permission request
 // The handler should return a PermissionRequestResult. Returning an error denies the permission.
-type PermissionHandler func(request PermissionRequest, invocation PermissionInvocation) (PermissionRequestResult, error)
+type PermissionHandlerFunc func(request PermissionRequest, invocation PermissionInvocation) (PermissionRequestResult, error)
 
 // PermissionInvocation provides context about a permission request
 type PermissionInvocation struct {
@@ -322,6 +330,9 @@ type InfiniteSessionConfig struct {
 type SessionConfig struct {
 	// SessionID is an optional custom session ID
 	SessionID string
+	// ClientName identifies the application using the SDK.
+	// Included in the User-Agent header for API requests.
+	ClientName string
 	// Model to use for this session
 	Model string
 	// ReasoningEffort level for models that support it.
@@ -341,8 +352,10 @@ type SessionConfig struct {
 	// ExcludedTools is a list of tool names to disable. All other tools remain available.
 	// Ignored if AvailableTools is specified.
 	ExcludedTools []string
-	// OnPermissionRequest is a handler for permission requests from the server
-	OnPermissionRequest PermissionHandler
+	// OnPermissionRequest is a handler for permission requests from the server.
+	// If nil, all permission requests are denied by default.
+	// Provide a handler to approve operations (file writes, shell commands, URL fetches, etc.).
+	OnPermissionRequest PermissionHandlerFunc
 	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
 	OnUserInputRequest UserInputHandler
 	// Hooks configures hook handlers for session lifecycle events
@@ -401,6 +414,9 @@ type ToolResult struct {
 
 // ResumeSessionConfig configures options when resuming a session
 type ResumeSessionConfig struct {
+	// ClientName identifies the application using the SDK.
+	// Included in the User-Agent header for API requests.
+	ClientName string
 	// Model to use for this session. Can change the model when resuming.
 	Model string
 	// Tools exposes caller-implemented tools to the CLI
@@ -418,8 +434,10 @@ type ResumeSessionConfig struct {
 	// ReasoningEffort level for models that support it.
 	// Valid values: "low", "medium", "high", "xhigh"
 	ReasoningEffort string
-	// OnPermissionRequest is a handler for permission requests from the server
-	OnPermissionRequest PermissionHandler
+	// OnPermissionRequest is a handler for permission requests from the server.
+	// If nil, all permission requests are denied by default.
+	// Provide a handler to approve operations (file writes, shell commands, URL fetches, etc.).
+	OnPermissionRequest PermissionHandlerFunc
 	// OnUserInputRequest is a handler for user input requests from the agent (enables ask_user tool)
 	OnUserInputRequest UserInputHandler
 	// Hooks configures hook handlers for session lifecycle events
@@ -541,13 +559,38 @@ type ModelInfo struct {
 	DefaultReasoningEffort    string            `json:"defaultReasoningEffort,omitempty"`
 }
 
+// SessionContext contains working directory context for a session
+type SessionContext struct {
+	// Cwd is the working directory where the session was created
+	Cwd string `json:"cwd"`
+	// GitRoot is the git repository root (if in a git repo)
+	GitRoot string `json:"gitRoot,omitempty"`
+	// Repository is the GitHub repository in "owner/repo" format
+	Repository string `json:"repository,omitempty"`
+	// Branch is the current git branch
+	Branch string `json:"branch,omitempty"`
+}
+
+// SessionListFilter contains filter options for listing sessions
+type SessionListFilter struct {
+	// Cwd filters by exact working directory match
+	Cwd string `json:"cwd,omitempty"`
+	// GitRoot filters by git root
+	GitRoot string `json:"gitRoot,omitempty"`
+	// Repository filters by repository (owner/repo format)
+	Repository string `json:"repository,omitempty"`
+	// Branch filters by branch
+	Branch string `json:"branch,omitempty"`
+}
+
 // SessionMetadata contains metadata about a session
 type SessionMetadata struct {
-	SessionID    string  `json:"sessionId"`
-	StartTime    string  `json:"startTime"`
-	ModifiedTime string  `json:"modifiedTime"`
-	Summary      *string `json:"summary,omitempty"`
-	IsRemote     bool    `json:"isRemote"`
+	SessionID    string          `json:"sessionId"`
+	StartTime    string          `json:"startTime"`
+	ModifiedTime string          `json:"modifiedTime"`
+	Summary      *string         `json:"summary,omitempty"`
+	IsRemote     bool            `json:"isRemote"`
+	Context      *SessionContext `json:"context,omitempty"`
 }
 
 // SessionLifecycleEventType represents the type of session lifecycle event
@@ -593,10 +636,11 @@ type permissionRequestResponse struct {
 type createSessionRequest struct {
 	Model             string                     `json:"model,omitempty"`
 	SessionID         string                     `json:"sessionId,omitempty"`
+	ClientName        string                     `json:"clientName,omitempty"`
 	ReasoningEffort   string                     `json:"reasoningEffort,omitempty"`
 	Tools             []Tool                     `json:"tools,omitempty"`
 	SystemMessage     *SystemMessageConfig       `json:"systemMessage,omitempty"`
-	AvailableTools    []string                   `json:"availableTools,omitempty"`
+	AvailableTools    []string                   `json:"availableTools"`
 	ExcludedTools     []string                   `json:"excludedTools,omitempty"`
 	Provider          *ProviderConfig            `json:"provider,omitempty"`
 	RequestPermission *bool                      `json:"requestPermission,omitempty"`
@@ -605,6 +649,7 @@ type createSessionRequest struct {
 	WorkingDirectory  string                     `json:"workingDirectory,omitempty"`
 	Streaming         *bool                      `json:"streaming,omitempty"`
 	MCPServers        map[string]MCPServerConfig `json:"mcpServers,omitempty"`
+	EnvValueMode      string                     `json:"envValueMode,omitempty"`
 	CustomAgents      []CustomAgentConfig        `json:"customAgents,omitempty"`
 	ConfigDir         string                     `json:"configDir,omitempty"`
 	SkillDirectories  []string                   `json:"skillDirectories,omitempty"`
@@ -621,11 +666,12 @@ type createSessionResponse struct {
 // resumeSessionRequest is the request for session.resume
 type resumeSessionRequest struct {
 	SessionID         string                     `json:"sessionId"`
+	ClientName        string                     `json:"clientName,omitempty"`
 	Model             string                     `json:"model,omitempty"`
 	ReasoningEffort   string                     `json:"reasoningEffort,omitempty"`
 	Tools             []Tool                     `json:"tools,omitempty"`
 	SystemMessage     *SystemMessageConfig       `json:"systemMessage,omitempty"`
-	AvailableTools    []string                   `json:"availableTools,omitempty"`
+	AvailableTools    []string                   `json:"availableTools"`
 	ExcludedTools     []string                   `json:"excludedTools,omitempty"`
 	Provider          *ProviderConfig            `json:"provider,omitempty"`
 	RequestPermission *bool                      `json:"requestPermission,omitempty"`
@@ -636,6 +682,7 @@ type resumeSessionRequest struct {
 	DisableResume     *bool                      `json:"disableResume,omitempty"`
 	Streaming         *bool                      `json:"streaming,omitempty"`
 	MCPServers        map[string]MCPServerConfig `json:"mcpServers,omitempty"`
+	EnvValueMode      string                     `json:"envValueMode,omitempty"`
 	CustomAgents      []CustomAgentConfig        `json:"customAgents,omitempty"`
 	SkillDirectories  []string                   `json:"skillDirectories,omitempty"`
 	DisabledSkills    []string                   `json:"disabledSkills,omitempty"`
@@ -655,7 +702,9 @@ type hooksInvokeRequest struct {
 }
 
 // listSessionsRequest is the request for session.list
-type listSessionsRequest struct{}
+type listSessionsRequest struct {
+	Filter *SessionListFilter `json:"filter,omitempty"`
+}
 
 // listSessionsResponse is the response from session.list
 type listSessionsResponse struct {
