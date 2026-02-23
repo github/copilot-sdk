@@ -19,7 +19,7 @@ const SNAPSHOTS_DIR = resolve(__dirname, "../../../../test/snapshots");
 
 export async function createSdkTestContext({
     logLevel,
-}: { logLevel?: "error" | "none" | "warning" | "info" | "debug" | "all" } = {}) {
+}: { logLevel?: "error" | "none" | "warning" | "info" | "debug" | "all"; cliPath?: string } = {}) {
     const homeDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-config-")));
     const workDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-work-")));
 
@@ -40,6 +40,7 @@ export async function createSdkTestContext({
         cwd: workDir,
         env,
         logLevel: logLevel || "error",
+        cliPath: process.env.COPILOT_CLI_PATH,
         // Use fake token in CI to allow cached responses without real auth
         githubToken: process.env.CI === "true" ? "fake-token-for-e2e-tests" : undefined,
     });

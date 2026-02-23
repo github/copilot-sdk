@@ -25,7 +25,9 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to write test file: %v", err)
 		}
 
-		session, err := client.CreateSession(t.Context(), nil)
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}

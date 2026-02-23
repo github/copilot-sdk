@@ -5,7 +5,7 @@ import os
 import pytest
 from pydantic import BaseModel, Field
 
-from copilot import ToolInvocation, define_tool
+from copilot import PermissionHandler, ToolInvocation, define_tool
 
 from .testharness import E2ETestContext, get_final_assistant_message
 
@@ -18,7 +18,9 @@ class TestTools:
         with open(readme_path, "w") as f:
             f.write("# ELIZA, the only chatbot you'll ever need")
 
-        session = await ctx.client.create_session()
+        session = await ctx.client.create_session(
+            {"on_permission_request": PermissionHandler.approve_all}
+        )
 
         await session.send({"prompt": "What's the first line of README.md in this directory?"})
         assistant_message = await get_final_assistant_message(session)

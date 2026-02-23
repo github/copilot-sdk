@@ -49,7 +49,7 @@ jobs:
           python-version: "3.12"
       - uses: actions/setup-node@v6
         with:
-          node-version: "24"
+          node-version: "22"
           cache: "npm"
           cache-dependency-path: "./nodejs/package-lock.json"
 
@@ -59,7 +59,7 @@ jobs:
           enable-cache: true
 
       - name: Install Python dev dependencies
-        run: uv sync --locked --all-extras --dev
+        run: uv sync --all-extras --dev
 
       - name: Install Node.js dependencies (for CLI in tests)
         working-directory: ./nodejs

@@ -293,12 +293,16 @@ session_id = create_session_id("alice", "code-review")
 ### Listing Active Sessions
 
 ```typescript
+// List all sessions
 const sessions = await client.listSessions();
 console.log(`Found ${sessions.length} sessions`);
 
 for (const session of sessions) {
   console.log(`- ${session.sessionId} (created: ${session.createdAt})`);
 }
+
+// Filter sessions by repository
+const repoSessions = await client.listSessions({ repository: "owner/repo" });
 ```
 
 ### Cleaning Up Old Sessions
@@ -521,7 +525,7 @@ await withSessionLock("user-123-task-456", async () => {
 | **Create resumable session** | Provide your own `sessionId` |
 | **Resume session** | `client.resumeSession(sessionId)` |
 | **BYOK resume** | Re-provide `provider` config |
-| **List sessions** | `client.listSessions()` |
+| **List sessions** | `client.listSessions(filter?)` |
 | **Delete session** | `client.deleteSession(sessionId)` |
 | **Destroy active session** | `session.destroy()` |
 | **Containerized deployment** | Mount `~/.copilot/session-state/` to persistent storage |

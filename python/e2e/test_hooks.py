@@ -4,6 +4,8 @@ Tests for session hooks functionality
 
 import pytest
 
+from copilot import PermissionHandler
+
 from .testharness import E2ETestContext
 from .testharness.helper import write_file
 
@@ -21,7 +23,12 @@ class TestHooks:
             # Allow the tool to run
             return {"permissionDecision": "allow"}
 
-        session = await ctx.client.create_session({"hooks": {"on_pre_tool_use": on_pre_tool_use}})
+        session = await ctx.client.create_session(
+            {
+                "hooks": {"on_pre_tool_use": on_pre_tool_use},
+                "on_permission_request": PermissionHandler.approve_all,
+            }
+        )
 
         # Create a file for the model to read
         write_file(ctx.work_dir, "hello.txt", "Hello from the test!")
@@ -49,7 +56,12 @@ class TestHooks:
             assert invocation["session_id"] == session.session_id
             return None
 
-        session = await ctx.client.create_session({"hooks": {"on_post_tool_use": on_post_tool_use}})
+        session = await ctx.client.create_session(
+            {
+                "hooks": {"on_post_tool_use": on_post_tool_use},
+                "on_permission_request": PermissionHandler.approve_all,
+            }
+        )
 
         # Create a file for the model to read
         write_file(ctx.work_dir, "world.txt", "World from the test!")
@@ -87,7 +99,8 @@ class TestHooks:
                 "hooks": {
                     "on_pre_tool_use": on_pre_tool_use,
                     "on_post_tool_use": on_post_tool_use,
-                }
+                },
+                "on_permission_request": PermissionHandler.approve_all,
             }
         )
 
@@ -118,7 +131,12 @@ class TestHooks:
             # Deny all tool calls
             return {"permissionDecision": "deny"}
 
-        session = await ctx.client.create_session({"hooks": {"on_pre_tool_use": on_pre_tool_use}})
+        session = await ctx.client.create_session(
+            {
+                "hooks": {"on_pre_tool_use": on_pre_tool_use},
+                "on_permission_request": PermissionHandler.approve_all,
+            }
+        )
 
         # Create a file
         original_content = "Original content that should not be modified"

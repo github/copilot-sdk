@@ -463,7 +463,9 @@ func TestSession(t *testing.T) {
 	t.Run("should abort a session", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		session, err := client.CreateSession(t.Context(), nil)
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
@@ -775,7 +777,7 @@ func TestSession(t *testing.T) {
 		time.Sleep(200 * time.Millisecond)
 
 		// List sessions and verify they're included
-		sessions, err := client.ListSessions(t.Context())
+		sessions, err := client.ListSessions(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("Failed to list sessions: %v", err)
 		}
@@ -812,6 +814,15 @@ func TestSession(t *testing.T) {
 			}
 			// isRemote is a boolean, so it's always set
 		}
+
+		// Verify context field is present on sessions
+		for _, s := range sessions {
+			if s.Context != nil {
+				if s.Context.Cwd == "" {
+					t.Error("Expected context.Cwd to be non-empty when context is present")
+				}
+			}
+		}
 	})
 
 	t.Run("should delete session", func(t *testing.T) {
@@ -834,7 +845,7 @@ func TestSession(t *testing.T) {
 		time.Sleep(200 * time.Millisecond)
 
 		// Verify session exists in the list
-		sessions, err := client.ListSessions(t.Context())
+		sessions, err := client.ListSessions(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("Failed to list sessions: %v", err)
 		}
@@ -855,7 +866,7 @@ func TestSession(t *testing.T) {
 		}
 
 		// Verify session no longer exists in the list
-		sessionsAfter, err := client.ListSessions(t.Context())
+		sessionsAfter, err := client.ListSessions(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("Failed to list sessions after delete: %v", err)
 		}

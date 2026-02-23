@@ -1,0 +1,24 @@
+# Container-proxy sample: Copilot CLI in Docker, simple proxy on host.
+#
+# The proxy (proxy.py) runs on the host and returns canned responses.
+# This demonstrates the network path without needing real LLM credentials.
+#
+# Usage:
+#   1. Start the proxy on the host:  python3 proxy.py 4000
+#   2. Start the container:          docker compose up -d
+#   3. Run client samples against localhost:3000
+
+services:
+  copilot-cli:
+    build:
+      context: ../../../..
+      dockerfile: test/scenarios/bundling/container-proxy/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      # Point LLM requests at the host proxy — returns canned responses
+      COPILOT_API_URL: "http://host.docker.internal:4000"
+      # Dummy token so Copilot CLI enters the Token auth path
+      GITHUB_TOKEN: "not-used"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

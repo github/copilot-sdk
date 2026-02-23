@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 type sessionHandler struct {
@@ -57,12 +58,15 @@ type Session struct {
 	handlerMutex      sync.RWMutex
 	toolHandlers      map[string]ToolHandler
 	toolHandlersM     sync.RWMutex
-	permissionHandler PermissionHandler
+	permissionHandler PermissionHandlerFunc
 	permissionMux     sync.RWMutex
 	userInputHandler  UserInputHandler
 	userInputMux      sync.RWMutex
 	hooks             *SessionHooks
 	hooksMux          sync.RWMutex
+
+	// RPC provides typed session-scoped RPC methods.
+	RPC *rpc.SessionRpc
 }
 
 // WorkspacePath returns the path to the session workspace directory when infinite
@@ -80,6 +84,7 @@ func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string)
 		client:        client,
 		handlers:      make([]sessionHandler, 0),
 		toolHandlers:  make(map[string]ToolHandler),
+		RPC:           rpc.NewSessionRpc(client, sessionID),
 	}
 }
 
@@ -285,14 +290,14 @@ func (s *Session) getToolHandler(name string) (ToolHandler, bool) {
 // operations), this handler is called to approve or deny the request.
 //
 // This method is internal and typically called when creating a session.
-func (s *Session) registerPermissionHandler(handler PermissionHandler) {
+func (s *Session) registerPermissionHandler(handler PermissionHandlerFunc) {
 	s.permissionMux.Lock()
 	defer s.permissionMux.Unlock()
 	s.permissionHandler = handler
 }
 
 // getPermissionHandler returns the currently registered permission handler, or nil.
-func (s *Session) getPermissionHandler() PermissionHandler {
+func (s *Session) getPermissionHandler() PermissionHandlerFunc {
 	s.permissionMux.RLock()
 	defer s.permissionMux.RUnlock()
 	return s.permissionHandler

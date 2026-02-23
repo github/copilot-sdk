@@ -1,6 +1,6 @@
 import { describe, expect, it, onTestFinished } from "vitest";
 import { ParsedHttpExchange } from "../../../test/harness/replayingCapiProxy.js";
-import { CopilotClient } from "../../src/index.js";
+import { CopilotClient, approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
 
@@ -20,6 +20,27 @@ describe("Sessions", async () => {
 
         await session.destroy();
         await expect(() => session.getMessages()).rejects.toThrow(/Session not found/);
+    });
+
+    // TODO: Re-enable once test harness CAPI proxy supports this test's session lifecycle
+    it.skip("should list sessions with context field", { timeout: 60000 }, async () => {
+        // Create a session — just creating it is enough for it to appear in listSessions
+        const session = await client.createSession();
+        expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
+
+        // Verify it has a start event (confirms session is active)
+        const messages = await session.getMessages();
+        expect(messages.length).toBeGreaterThan(0);
+
+        // List sessions and find the one we just created
+        const sessions = await client.listSessions();
+        const ourSession = sessions.find((s) => s.sessionId === session.sessionId);
+
+        expect(ourSession).toBeDefined();
+        // Context may not be populated if workspace.yaml hasn't been written yet
+        if (ourSession?.context) {
+            expect(ourSession.context.cwd).toMatch(/^(\/|[A-Za-z]:)/);
+        }
     });
 
     it("should have stateful conversation", async () => {
@@ -345,7 +366,9 @@ describe("Send Blocking Behavior", async () => {
     const { copilotClient: client } = await createSdkTestContext();
 
     it("send returns immediately while events stream in background", async () => {
-        const session = await client.createSession();
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+        });
 
         const events: string[] = [];
         session.on((event) => {

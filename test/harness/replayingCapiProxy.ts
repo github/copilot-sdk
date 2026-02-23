@@ -631,6 +631,7 @@ function transformOpenAIRequestMessage(
 function normalizeUserMessage(content: string): string {
   return content
     .replace(/<current_datetime>.*?<\/current_datetime>/g, "")
+    .replace(/<reminder>[\s\S]*?<\/reminder>/g, "")
     .trim();
 }
 
