@@ -404,6 +404,30 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     }
 
     [Fact]
+    public async Task SendAndWait_Throws_OperationCanceledException_When_Token_Cancelled()
+    {
+        var session = await Client.CreateSessionAsync();
+
+        // Set up wait for tool execution to start BEFORE sending
+        var toolStartTask = TestHelper.GetNextEventOfTypeAsync<ToolExecutionStartEvent>(session);
+
+        using var cts = new CancellationTokenSource();
+
+        // Start SendAndWaitAsync - don't await it yet
+        var sendTask = session.SendAndWaitAsync(
+            new MessageOptions { Prompt = "run the shell command 'sleep 10' (note this works on both bash and PowerShell)" },
+            cancellationToken: cts.Token);
+
+        // Wait for the tool to begin executing before cancelling
+        await toolStartTask;
+
+        // Cancel the token
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => sendTask);
+    }
+
+    [Fact]
     public async Task Should_Create_Session_With_Custom_Config_Dir()
     {
         var customConfigDir = Path.Join(Ctx.HomeDir, "custom-config");
