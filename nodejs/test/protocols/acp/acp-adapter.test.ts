@@ -601,9 +601,7 @@ describe("AcpProtocolAdapter", () => {
                         title: "Delete file",
                         kind: "file_edit",
                     },
-                    options: [
-                        { optionId: "allow_once", name: "Allow", kind: "allow_once" },
-                    ],
+                    options: [{ optionId: "allow_once", name: "Allow", kind: "allow_once" }],
                 },
             };
             mockProcess.stdout.write(JSON.stringify(acpRequest) + "\n");

@@ -67,11 +67,14 @@ describe.skipIf(!ACP_CLI_PATH)("ACP E2E Tests", () => {
     });
 
     describe("connection", () => {
-        it.skipIf(!ACP_CLI_PATH)("should connect to ACP CLI and verify protocol version", async () => {
-            await client.start();
+        it.skipIf(!ACP_CLI_PATH)(
+            "should connect to ACP CLI and verify protocol version",
+            async () => {
+                await client.start();
 
-            expect(client.getState()).toBe("connected");
-        });
+                expect(client.getState()).toBe("connected");
+            }
+        );
 
         it.skipIf(!ACP_CLI_PATH)("should handle ping request", async () => {
             await client.start();
@@ -130,37 +133,40 @@ describe.skipIf(!ACP_CLI_PATH)("ACP E2E Tests", () => {
             expect(hasIdle).toBe(true);
         });
 
-        it.skipIf(!ACP_CLI_PATH)("should receive streaming content via assistant.message_delta", async () => {
-            await client.start();
+        it.skipIf(!ACP_CLI_PATH)(
+            "should receive streaming content via assistant.message_delta",
+            async () => {
+                await client.start();
 
-            const session = await client.createSession();
+                const session = await client.createSession();
 
-            const deltas: string[] = [];
-            session.on("assistant.message_delta", (event) => {
-                deltas.push(event.data.deltaContent);
-            });
+                const deltas: string[] = [];
+                session.on("assistant.message_delta", (event) => {
+                    deltas.push(event.data.deltaContent);
+                });
 
-            let idleReceived = false;
-            session.on("session.idle", () => {
-                idleReceived = true;
-            });
+                let idleReceived = false;
+                session.on("session.idle", () => {
+                    idleReceived = true;
+                });
 
-            await session.send({ prompt: "Count from 1 to 5, one number per line." });
+                await session.send({ prompt: "Count from 1 to 5, one number per line." });
 
-            // Wait for idle
-            const timeout = 30000;
-            const startTime = Date.now();
-            while (!idleReceived && Date.now() - startTime < timeout) {
-                await new Promise((resolve) => setTimeout(resolve, 100));
+                // Wait for idle
+                const timeout = 30000;
+                const startTime = Date.now();
+                while (!idleReceived && Date.now() - startTime < timeout) {
+                    await new Promise((resolve) => setTimeout(resolve, 100));
+                }
+
+                // Should have received multiple deltas for streaming
+                expect(deltas.length).toBeGreaterThan(0);
+
+                // Concatenated content should contain the numbers
+                const fullContent = deltas.join("");
+                expect(fullContent.length).toBeGreaterThan(0);
             }
-
-            // Should have received multiple deltas for streaming
-            expect(deltas.length).toBeGreaterThan(0);
-
-            // Concatenated content should contain the numbers
-            const fullContent = deltas.join("");
-            expect(fullContent.length).toBeGreaterThan(0);
-        });
+        );
     });
 
     describe("tool calls", () => {
@@ -216,55 +222,58 @@ describe.skipIf(!ACP_CLI_PATH)("ACP E2E Tests", () => {
             expect(allEvents.length).toBeGreaterThan(0);
         });
 
-        it.skipIf(!ACP_CLI_PATH)("should receive tool.execution_start and tool.execution_complete", async () => {
-            await client.start();
+        it.skipIf(!ACP_CLI_PATH)(
+            "should receive tool.execution_start and tool.execution_complete",
+            async () => {
+                await client.start();
 
-            const session = await client.createSession({
-                workingDirectory: process.cwd(),
-            });
+                const session = await client.createSession({
+                    workingDirectory: process.cwd(),
+                });
 
-            let toolStarted = false;
-            let toolCompleted = false;
+                let toolStarted = false;
+                let toolCompleted = false;
 
-            session.on("tool.execution_start", (event) => {
-                console.log("Tool started:", event.data.toolName, event.data.toolCallId);
-                toolStarted = true;
-            });
+                session.on("tool.execution_start", (event) => {
+                    console.log("Tool started:", event.data.toolName, event.data.toolCallId);
+                    toolStarted = true;
+                });
 
-            session.on("tool.execution_complete", (event) => {
-                console.log(
-                    "Tool completed:",
-                    event.data.toolCallId,
-                    event.data.success ? "success" : "failed"
-                );
-                toolCompleted = true;
-            });
+                session.on("tool.execution_complete", (event) => {
+                    console.log(
+                        "Tool completed:",
+                        event.data.toolCallId,
+                        event.data.success ? "success" : "failed"
+                    );
+                    toolCompleted = true;
+                });
 
-            let idleReceived = false;
-            session.on("session.idle", () => {
-                idleReceived = true;
-            });
+                let idleReceived = false;
+                session.on("session.idle", () => {
+                    idleReceived = true;
+                });
 
-            // Ask to list files - should trigger tool call
-            await session.send({
-                prompt: "List the files in the current directory.",
-            });
+                // Ask to list files - should trigger tool call
+                await session.send({
+                    prompt: "List the files in the current directory.",
+                });
 
-            // Wait for idle
-            const timeout = 60000;
-            const startTime = Date.now();
-            while (!idleReceived && Date.now() - startTime < timeout) {
-                await new Promise((resolve) => setTimeout(resolve, 100));
+                // Wait for idle
+                const timeout = 60000;
+                const startTime = Date.now();
+                while (!idleReceived && Date.now() - startTime < timeout) {
+                    await new Promise((resolve) => setTimeout(resolve, 100));
+                }
+
+                expect(idleReceived).toBe(true);
+
+                // Log whether tool events were received
+                console.log(`Tool started: ${toolStarted}, Tool completed: ${toolCompleted}`);
+
+                // Note: Tool events depend on whether Gemini decides to use tools
+                // This test verifies the event handling works when tools are used
             }
-
-            expect(idleReceived).toBe(true);
-
-            // Log whether tool events were received
-            console.log(`Tool started: ${toolStarted}, Tool completed: ${toolCompleted}`);
-
-            // Note: Tool events depend on whether Gemini decides to use tools
-            // This test verifies the event handling works when tools are used
-        });
+        );
     });
 
     describe("error handling", () => {

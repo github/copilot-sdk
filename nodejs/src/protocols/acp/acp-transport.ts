@@ -8,7 +8,13 @@
  */
 
 import type { Readable, Writable } from "node:stream";
-import type { AcpMessage, AcpNotification, AcpRequest, AcpResponse, AcpError } from "./acp-types.js";
+import type {
+    AcpMessage,
+    AcpNotification,
+    AcpRequest,
+    AcpResponse,
+    AcpError,
+} from "./acp-types.js";
 
 /**
  * Pending request tracker
@@ -135,7 +141,10 @@ export class AcpTransport {
     /**
      * Registers a handler for incoming requests (server-to-client).
      */
-    onRequest(method: string, handler: (id: string | number, params: unknown) => Promise<void>): void {
+    onRequest(
+        method: string,
+        handler: (id: string | number, params: unknown) => Promise<void>
+    ): void {
         this.requestHandlers.set(method, handler);
     }
 
@@ -354,9 +363,7 @@ export class AcpTransport {
         let message = acpError.message;
         if (acpError.data) {
             const dataStr =
-                typeof acpError.data === "string"
-                    ? acpError.data
-                    : JSON.stringify(acpError.data);
+                typeof acpError.data === "string" ? acpError.data : JSON.stringify(acpError.data);
             message = `${message}: ${dataStr}`;
         }
 

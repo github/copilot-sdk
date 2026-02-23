@@ -201,7 +201,12 @@ export interface AcpToolCallLocation {
  * ACP update inner structure for message updates
  */
 export interface AcpMessageUpdateInner {
-    sessionUpdate: "agent_message_chunk" | "agent_thought_chunk" | "agent_message" | "end_turn" | "error";
+    sessionUpdate:
+        | "agent_message_chunk"
+        | "agent_thought_chunk"
+        | "agent_message"
+        | "end_turn"
+        | "error";
     content?: AcpTextContent;
     message?: string;
     code?: string;
@@ -237,7 +242,10 @@ export interface AcpToolCallUpdateUpdateInner {
 /**
  * ACP update inner structure (union of all update types)
  */
-export type AcpUpdateInner = AcpMessageUpdateInner | AcpToolCallUpdateInner | AcpToolCallUpdateUpdateInner;
+export type AcpUpdateInner =
+    | AcpMessageUpdateInner
+    | AcpToolCallUpdateInner
+    | AcpToolCallUpdateUpdateInner;
 
 /**
  * ACP session/update notification params (actual Gemini format)
@@ -300,7 +308,11 @@ export type AcpSessionUpdate =
 /**
  * ACP permission option kind (semantic hint for UI)
  */
-export type AcpPermissionOptionKind = "allow_once" | "allow_always" | "reject_once" | "reject_always";
+export type AcpPermissionOptionKind =
+    | "allow_once"
+    | "allow_always"
+    | "reject_once"
+    | "reject_always";
 
 /**
  * ACP permission option

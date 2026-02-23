@@ -8,7 +8,12 @@
  * @module protocols/acp/acp-mapper
  */
 
-import type { SessionEvent, SessionConfig, MessageOptions, MCPLocalServerConfig } from "../../types.js";
+import type {
+    SessionEvent,
+    SessionConfig,
+    MessageOptions,
+    MCPLocalServerConfig,
+} from "../../types.js";
 import type {
     AcpContentPart,
     AcpSessionNewParams,
@@ -51,7 +56,9 @@ export function stringToAcpContent(prompt: string): AcpContentPart[] {
  * Maps an ACP session/update notification (Gemini format) to a Copilot SessionEvent.
  * This handles the actual wire format from Gemini CLI.
  */
-export function acpSessionUpdateToSessionEvent(params: AcpSessionUpdateParams): SessionEvent | null {
+export function acpSessionUpdateToSessionEvent(
+    params: AcpSessionUpdateParams
+): SessionEvent | null {
     const meta = createEventMetadata();
     const { update } = params;
 

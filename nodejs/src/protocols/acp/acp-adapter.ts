@@ -306,7 +306,10 @@ class AcpConnection implements ProtocolConnection {
         }
     }
 
-    private async applySessionConfig(createResult: unknown, originalParams: unknown): Promise<void> {
+    private async applySessionConfig(
+        createResult: unknown,
+        originalParams: unknown
+    ): Promise<void> {
         const sessionId = (createResult as { sessionId?: string })?.sessionId;
         const config = originalParams as SessionConfig | undefined;
         if (!sessionId || !config) return;
