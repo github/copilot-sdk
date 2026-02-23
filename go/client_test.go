@@ -255,17 +255,17 @@ func TestClient_URLParsing(t *testing.T) {
 }
 
 func TestClient_AuthOptions(t *testing.T) {
-	t.Run("should accept GithubToken option", func(t *testing.T) {
+	t.Run("should accept GitHubToken option", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
-			GithubToken: "gho_test_token",
+			GitHubToken: "gho_test_token",
 		})
 
-		if client.options.GithubToken != "gho_test_token" {
-			t.Errorf("Expected GithubToken to be 'gho_test_token', got %q", client.options.GithubToken)
+		if client.options.GitHubToken != "gho_test_token" {
+			t.Errorf("Expected GitHubToken to be 'gho_test_token', got %q", client.options.GitHubToken)
 		}
 	})
 
-	t.Run("should default UseLoggedInUser to nil when no GithubToken", func(t *testing.T) {
+	t.Run("should default UseLoggedInUser to nil when no GitHubToken", func(t *testing.T) {
 		client := NewClient(&ClientOptions{})
 
 		if client.options.UseLoggedInUser != nil {
@@ -283,9 +283,9 @@ func TestClient_AuthOptions(t *testing.T) {
 		}
 	})
 
-	t.Run("should allow explicit UseLoggedInUser true with GithubToken", func(t *testing.T) {
+	t.Run("should allow explicit UseLoggedInUser true with GitHubToken", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
-			GithubToken:     "gho_test_token",
+			GitHubToken:     "gho_test_token",
 			UseLoggedInUser: Bool(true),
 		})
 
@@ -294,12 +294,12 @@ func TestClient_AuthOptions(t *testing.T) {
 		}
 	})
 
-	t.Run("should throw error when GithubToken is used with CLIUrl", func(t *testing.T) {
+	t.Run("should throw error when GitHubToken is used with CLIUrl", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
 				t.Error("Expected panic for auth options with CLIUrl")
 			} else {
-				matched, _ := regexp.MatchString("GithubToken and UseLoggedInUser cannot be used with CLIUrl", r.(string))
+				matched, _ := regexp.MatchString("GitHubToken and UseLoggedInUser cannot be used with CLIUrl", r.(string))
 				if !matched {
 					t.Errorf("Expected panic message about auth options, got: %v", r)
 				}
@@ -308,7 +308,7 @@ func TestClient_AuthOptions(t *testing.T) {
 
 		NewClient(&ClientOptions{
 			CLIUrl:      "localhost:8080",
-			GithubToken: "gho_test_token",
+			GitHubToken: "gho_test_token",
 		})
 	})
 
@@ -317,7 +317,7 @@ func TestClient_AuthOptions(t *testing.T) {
 			if r := recover(); r == nil {
 				t.Error("Expected panic for auth options with CLIUrl")
 			} else {
-				matched, _ := regexp.MatchString("GithubToken and UseLoggedInUser cannot be used with CLIUrl", r.(string))
+				matched, _ := regexp.MatchString("GitHubToken and UseLoggedInUser cannot be used with CLIUrl", r.(string))
 				if !matched {
 					t.Errorf("Expected panic message about auth options, got: %v", r)
 				}

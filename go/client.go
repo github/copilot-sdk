@@ -134,8 +134,8 @@ func NewClient(options *ClientOptions) *Client {
 		}
 
 		// Validate auth options with external server
-		if options.CLIUrl != "" && (options.GithubToken != "" || options.UseLoggedInUser != nil) {
-			panic("GithubToken and UseLoggedInUser cannot be used with CLIUrl (external server manages its own auth)")
+		if options.CLIUrl != "" && (options.GitHubToken != "" || options.UseLoggedInUser != nil) {
+			panic("GitHubToken and UseLoggedInUser cannot be used with CLIUrl (external server manages its own auth)")
 		}
 
 		// Parse CLIUrl if provided
@@ -177,8 +177,8 @@ func NewClient(options *ClientOptions) *Client {
 		if options.AutoRestart != nil {
 			client.autoRestart = *options.AutoRestart
 		}
-		if options.GithubToken != "" {
-			opts.GithubToken = options.GithubToken
+		if options.GitHubToken != "" {
+			opts.GitHubToken = options.GitHubToken
 		}
 		if options.UseLoggedInUser != nil {
 			opts.UseLoggedInUser = options.UseLoggedInUser
@@ -1040,14 +1040,14 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 	}
 
 	// Add auth-related flags
-	if c.options.GithubToken != "" {
+	if c.options.GitHubToken != "" {
 		args = append(args, "--auth-token-env", "COPILOT_SDK_AUTH_TOKEN")
 	}
-	// Default useLoggedInUser to false when GithubToken is provided
+	// Default useLoggedInUser to false when GitHubToken is provided
 	useLoggedInUser := true
 	if c.options.UseLoggedInUser != nil {
 		useLoggedInUser = *c.options.UseLoggedInUser
-	} else if c.options.GithubToken != "" {
+	} else if c.options.GitHubToken != "" {
 		useLoggedInUser = false
 	}
 	if !useLoggedInUser {
@@ -1074,8 +1074,8 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 
 	// Add auth token if needed.
 	c.process.Env = c.options.Env
-	if c.options.GithubToken != "" {
-		c.process.Env = append(c.process.Env, "COPILOT_SDK_AUTH_TOKEN="+c.options.GithubToken)
+	if c.options.GitHubToken != "" {
+		c.process.Env = append(c.process.Env, "COPILOT_SDK_AUTH_TOKEN="+c.options.GitHubToken)
 	}
 
 	if c.useStdio {

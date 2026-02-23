@@ -13,7 +13,7 @@ const piratePrompt = `You are a pirate. Always respond in pirate speak. Say 'Arr
 
 func main() {
 	client := copilot.NewClient(&copilot.ClientOptions{
-		GithubToken: os.Getenv("GITHUB_TOKEN"),
+		GitHubToken: os.Getenv("GITHUB_TOKEN"),
 	})
 
 	ctx := context.Background()
