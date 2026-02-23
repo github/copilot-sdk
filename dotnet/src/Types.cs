@@ -75,6 +75,16 @@ public class CopilotClientOptions
     public string? GitHubToken { get; set; }
 
     /// <summary>
+    /// Obsolete. Use <see cref="GitHubToken"/> instead.
+    /// </summary>
+    [Obsolete("Use GitHubToken instead.", error: false)]
+    public string? GithubToken
+    {
+        get => GitHubToken;
+        set => GitHubToken = value;
+    }
+
+    /// <summary>
     /// Whether to use the logged-in user for authentication.
     /// When true, the CLI server will attempt to use stored OAuth tokens or gh CLI auth.
     /// When false, only explicit tokens (GitHubToken or environment variables) are used.
