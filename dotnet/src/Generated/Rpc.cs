@@ -374,11 +374,26 @@ internal class SessionAgentListRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+public class SessionAgentGetCurrentResultAgent
+{
+    /// <summary>Unique identifier of the custom agent</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Human-readable display name</summary>
+    [JsonPropertyName("displayName")]
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>Description of the agent's purpose</summary>
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+}
+
 public class SessionAgentGetCurrentResult
 {
     /// <summary>Currently selected custom agent, or null if using the default agent</summary>
     [JsonPropertyName("agent")]
-    public object? Agent { get; set; }
+    public SessionAgentGetCurrentResultAgent? Agent { get; set; }
 }
 
 internal class SessionAgentGetCurrentRequest
@@ -794,6 +809,7 @@ public class CompactionApi
 [JsonSerializable(typeof(SessionAgentDeselectResult))]
 [JsonSerializable(typeof(SessionAgentGetCurrentRequest))]
 [JsonSerializable(typeof(SessionAgentGetCurrentResult))]
+[JsonSerializable(typeof(SessionAgentGetCurrentResultAgent))]
 [JsonSerializable(typeof(SessionAgentListRequest))]
 [JsonSerializable(typeof(SessionAgentListResult))]
 [JsonSerializable(typeof(SessionAgentSelectRequest))]

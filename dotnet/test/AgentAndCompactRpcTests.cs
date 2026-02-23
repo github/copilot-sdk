@@ -89,6 +89,7 @@ public class AgentAndCompactRpcTests(E2ETestFixture fixture, ITestOutputHelper o
         // Verify getCurrent returns the selected agent
         var currentResult = await session.Rpc.Agent.GetCurrentAsync();
         Assert.NotNull(currentResult.Agent);
+        Assert.Equal("test-agent", currentResult.Agent.Name);
     }
 
     [Fact]

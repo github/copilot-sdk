@@ -467,6 +467,14 @@ function singularPascal(s: string): string {
 }
 
 function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassName: string, propName: string, classes: string[]): string {
+    // Handle anyOf: [T, null] → T? (nullable typed property)
+    if (schema.anyOf) {
+        const hasNull = schema.anyOf.some((s) => typeof s === "object" && (s as JSONSchema7).type === "null");
+        const nonNull = schema.anyOf.filter((s) => typeof s === "object" && (s as JSONSchema7).type !== "null");
+        if (nonNull.length === 1) {
+            return resolveRpcType(nonNull[0] as JSONSchema7, isRequired && !hasNull, parentClassName, propName, classes);
+        }
+    }
     // Handle enums (string unions like "interactive" | "plan" | "autopilot")
     if (schema.enum && Array.isArray(schema.enum)) {
         const enumName = getOrCreateEnum(parentClassName, propName, schema.enum as string[], rpcEnumOutput);
