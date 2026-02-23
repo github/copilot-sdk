@@ -13,7 +13,7 @@ const systemPrompt = `You are a helpful assistant. You have access to a limited 
 
 func main() {
 	client := copilot.NewClient(&copilot.ClientOptions{
-		GithubToken: os.Getenv("GITHUB_TOKEN"),
+		GitHubToken: os.Getenv("GITHUB_TOKEN"),
 	})
 
 	ctx := context.Background()

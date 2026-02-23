@@ -14,7 +14,7 @@ const systemPrompt = `You are a helpful assistant. Answer questions about attach
 
 func main() {
 	client := copilot.NewClient(&copilot.ClientOptions{
-		GithubToken: os.Getenv("GITHUB_TOKEN"),
+		GitHubToken: os.Getenv("GITHUB_TOKEN"),
 	})
 
 	ctx := context.Background()

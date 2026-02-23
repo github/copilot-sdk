@@ -44,7 +44,7 @@ public class CopilotClientOptions
         CliUrl = other.CliUrl;
         Cwd = other.Cwd;
         Environment = other.Environment;
-        GithubToken = other.GithubToken;
+        GitHubToken = other.GitHubToken;
         Logger = other.Logger;
         LogLevel = other.LogLevel;
         Port = other.Port;
@@ -72,13 +72,23 @@ public class CopilotClientOptions
     /// When provided, the token is passed to the CLI server via environment variable.
     /// This takes priority over other authentication methods.
     /// </summary>
-    public string? GithubToken { get; set; }
+    public string? GitHubToken { get; set; }
+
+    /// <summary>
+    /// Obsolete. Use <see cref="GitHubToken"/> instead.
+    /// </summary>
+    [Obsolete("Use GitHubToken instead.", error: false)]
+    public string? GithubToken
+    {
+        get => GitHubToken;
+        set => GitHubToken = value;
+    }
 
     /// <summary>
     /// Whether to use the logged-in user for authentication.
     /// When true, the CLI server will attempt to use stored OAuth tokens or gh CLI auth.
-    /// When false, only explicit tokens (GithubToken or environment variables) are used.
-    /// Default: true (but defaults to false when GithubToken is provided).
+    /// When false, only explicit tokens (GitHubToken or environment variables) are used.
+    /// Default: true (but defaults to false when GitHubToken is provided).
     /// </summary>
     public bool? UseLoggedInUser { get; set; }
 

@@ -24,7 +24,7 @@ public class CloneTests
             AutoStart = false,
             AutoRestart = false,
             Environment = new Dictionary<string, string> { ["KEY"] = "value" },
-            GithubToken = "ghp_test",
+            GitHubToken = "ghp_test",
             UseLoggedInUser = false,
         };
 
@@ -40,7 +40,7 @@ public class CloneTests
         Assert.Equal(original.AutoStart, clone.AutoStart);
         Assert.Equal(original.AutoRestart, clone.AutoRestart);
         Assert.Equal(original.Environment, clone.Environment);
-        Assert.Equal(original.GithubToken, clone.GithubToken);
+        Assert.Equal(original.GitHubToken, clone.GitHubToken);
         Assert.Equal(original.UseLoggedInUser, clone.UseLoggedInUser);
     }
 

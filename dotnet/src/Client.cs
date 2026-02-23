@@ -117,9 +117,9 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         }
 
         // Validate auth options with external server
-        if (!string.IsNullOrEmpty(_options.CliUrl) && (!string.IsNullOrEmpty(_options.GithubToken) || _options.UseLoggedInUser != null))
+        if (!string.IsNullOrEmpty(_options.CliUrl) && (!string.IsNullOrEmpty(_options.GitHubToken) || _options.UseLoggedInUser != null))
         {
-            throw new ArgumentException("GithubToken and UseLoggedInUser cannot be used with CliUrl (external server manages its own auth)");
+            throw new ArgumentException("GitHubToken and UseLoggedInUser cannot be used with CliUrl (external server manages its own auth)");
         }
 
         _logger = _options.Logger ?? NullLogger.Instance;
@@ -944,13 +944,13 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         }
 
         // Add auth-related flags
-        if (!string.IsNullOrEmpty(options.GithubToken))
+        if (!string.IsNullOrEmpty(options.GitHubToken))
         {
             args.AddRange(["--auth-token-env", "COPILOT_SDK_AUTH_TOKEN"]);
         }
 
-        // Default UseLoggedInUser to false when GithubToken is provided
-        var useLoggedInUser = options.UseLoggedInUser ?? string.IsNullOrEmpty(options.GithubToken);
+        // Default UseLoggedInUser to false when GitHubToken is provided
+        var useLoggedInUser = options.UseLoggedInUser ?? string.IsNullOrEmpty(options.GitHubToken);
         if (!useLoggedInUser)
         {
             args.Add("--no-auto-login");
@@ -982,9 +982,9 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         startInfo.Environment.Remove("NODE_DEBUG");
 
         // Set auth token in environment if provided
-        if (!string.IsNullOrEmpty(options.GithubToken))
+        if (!string.IsNullOrEmpty(options.GitHubToken))
         {
-            startInfo.Environment["COPILOT_SDK_AUTH_TOKEN"] = options.GithubToken;
+            startInfo.Environment["COPILOT_SDK_AUTH_TOKEN"] = options.GitHubToken;
         }
 
         var cliProcess = new Process { StartInfo = startInfo };

@@ -14,7 +14,7 @@ func float64Ptr(f float64) *float64 { return &f }
 
 func main() {
 	client := copilot.NewClient(&copilot.ClientOptions{
-		GithubToken: os.Getenv("GITHUB_TOKEN"),
+		GitHubToken: os.Getenv("GITHUB_TOKEN"),
 	})
 
 	ctx := context.Background()

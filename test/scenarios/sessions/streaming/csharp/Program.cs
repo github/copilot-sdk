@@ -2,7 +2,7 @@ using GitHub.Copilot.SDK;
 
 var options = new CopilotClientOptions
 {
-    GithubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
+    GitHubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
 };
 
 var cliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");

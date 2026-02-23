@@ -149,14 +149,14 @@ public class ClientTests
     }
 
     [Fact]
-    public void Should_Accept_GithubToken_Option()
+    public void Should_Accept_GitHubToken_Option()
     {
         var options = new CopilotClientOptions
         {
-            GithubToken = "gho_test_token"
+            GitHubToken = "gho_test_token"
         };
 
-        Assert.Equal("gho_test_token", options.GithubToken);
+        Assert.Equal("gho_test_token", options.GitHubToken);
     }
 
     [Fact]
@@ -179,11 +179,11 @@ public class ClientTests
     }
 
     [Fact]
-    public void Should_Allow_Explicit_UseLoggedInUser_True_With_GithubToken()
+    public void Should_Allow_Explicit_UseLoggedInUser_True_With_GitHubToken()
     {
         var options = new CopilotClientOptions
         {
-            GithubToken = "gho_test_token",
+            GitHubToken = "gho_test_token",
             UseLoggedInUser = true
         };
 
@@ -191,14 +191,14 @@ public class ClientTests
     }
 
     [Fact]
-    public void Should_Throw_When_GithubToken_Used_With_CliUrl()
+    public void Should_Throw_When_GitHubToken_Used_With_CliUrl()
     {
         Assert.Throws<ArgumentException>(() =>
         {
             _ = new CopilotClient(new CopilotClientOptions
             {
                 CliUrl = "localhost:8080",
-                GithubToken = "gho_test_token"
+                GitHubToken = "gho_test_token"
             });
         });
     }

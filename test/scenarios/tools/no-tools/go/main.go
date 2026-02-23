@@ -16,7 +16,7 @@ If asked about your capabilities or tools, clearly state that you have no tools 
 
 func main() {
 	client := copilot.NewClient(&copilot.ClientOptions{
-		GithubToken: os.Getenv("GITHUB_TOKEN"),
+		GitHubToken: os.Getenv("GITHUB_TOKEN"),
 	})
 
 	ctx := context.Background()
