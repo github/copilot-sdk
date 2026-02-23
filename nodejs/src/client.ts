@@ -14,9 +14,10 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
 import { Socket } from "node:net";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { pathToFileURL } from "node:url";
 import {
     createMessageConnection,
     MessageConnection,
@@ -88,14 +89,29 @@ function getNodeExecPath(): string {
 /**
  * Gets the path to the bundled CLI from the @github/copilot package.
  * Uses index.js directly rather than npm-loader.js (which spawns the native binary).
+ *
+ * The @github/copilot package only exposes an ESM-only "./sdk" export,
+ * which breaks in CJS contexts (e.g., VS Code extensions bundled with esbuild).
+ * Instead of resolving through the package's exports, we locate the package
+ * root by walking module resolution paths and checking for its directory.
+ * See: https://github.com/github/copilot-sdk/issues/528
  */
 function getBundledCliPath(): string {
-    // Find the actual location of the @github/copilot package by resolving its sdk export
-    const sdkUrl = import.meta.resolve("@github/copilot/sdk");
-    const sdkPath = fileURLToPath(sdkUrl);
-    // sdkPath is like .../node_modules/@github/copilot/sdk/index.js
-    // Go up two levels to get the package root, then append index.js
-    return join(dirname(dirname(sdkPath)), "index.js");
+    // import.meta.url is defined in ESM; in CJS bundles (esbuild format:"cjs")
+    // it's undefined, so we fall back to __filename via pathToFileURL.
+    const require = createRequire(import.meta.url ?? pathToFileURL(__filename).href);
+    // The @github/copilot package has strict ESM-only exports, so require.resolve
+    // cannot resolve it. Instead, walk the module resolution paths to find it.
+    const searchPaths = require.resolve.paths("@github/copilot") ?? [];
+    for (const base of searchPaths) {
+        const candidate = join(base, "@github", "copilot", "index.js");
+        if (existsSync(candidate)) {
+            return candidate;
+        }
+    }
+    throw new Error(
+        `Could not find @github/copilot package. Searched ${searchPaths.length} paths. Ensure it is installed.`
+    );
 }
 
 /**
