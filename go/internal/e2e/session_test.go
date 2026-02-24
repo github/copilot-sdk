@@ -344,7 +344,9 @@ func TestSession(t *testing.T) {
 		}
 
 		// Resume using the same client
-		session2, err := client.ResumeSession(t.Context(), sessionID)
+		session2, err := client.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
 		if err != nil {
 			t.Fatalf("Failed to resume session: %v", err)
 		}
@@ -391,7 +393,9 @@ func TestSession(t *testing.T) {
 		newClient := ctx.NewClient()
 		defer newClient.ForceStop()
 
-		session2, err := newClient.ResumeSession(t.Context(), sessionID)
+		session2, err := newClient.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
 		if err != nil {
 			t.Fatalf("Failed to resume session: %v", err)
 		}
@@ -428,7 +432,9 @@ func TestSession(t *testing.T) {
 	t.Run("should throw error when resuming non-existent session", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		_, err := client.ResumeSession(t.Context(), "non-existent-session-id")
+		_, err := client.ResumeSession(t.Context(), "non-existent-session-id", &copilot.ResumeSessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
 		if err == nil {
 			t.Error("Expected error when resuming non-existent session")
 		}
@@ -881,7 +887,9 @@ func TestSession(t *testing.T) {
 		}
 
 		// Verify we cannot resume the deleted session
-		_, err = client.ResumeSession(t.Context(), sessionID)
+		_, err = client.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
 		if err == nil {
 			t.Error("Expected error when resuming deleted session")
 		}

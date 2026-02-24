@@ -42,8 +42,7 @@ conversations:
         content: Intent logged
       - role: tool
         tool_call_id: toolcall_1
-        content: |-
-          v22.19.0
-          <exited with exit code 0>
+        content: Permission denied and could not request permission from user
       - role: assistant
-        content: Node.js version v22.19.0 is installed.
+        content: Permission was denied to run the command. This may be due to security policies or execution restrictions in the
+          current environment.

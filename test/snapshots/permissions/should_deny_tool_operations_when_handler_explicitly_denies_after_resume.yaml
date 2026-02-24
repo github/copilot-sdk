@@ -7,7 +7,7 @@ conversations:
       - role: user
         content: What is 1+1?
       - role: assistant
-        content: 1+1 = 2
+        content: 1+1 equals 2.
       - role: user
         content: Run 'node --version'
       - role: assistant
@@ -30,7 +30,7 @@ conversations:
       - role: user
         content: What is 1+1?
       - role: assistant
-        content: 1+1 = 2
+        content: 1+1 equals 2.
       - role: user
         content: Run 'node --version'
       - role: assistant
@@ -50,8 +50,7 @@ conversations:
         content: Intent logged
       - role: tool
         tool_call_id: toolcall_1
-        content: |-
-          v22.19.0
-          <exited with exit code 0>
+        content: Permission denied and could not request permission from user
       - role: assistant
-        content: Node.js version v22.19.0 is installed.
+        content: The command was denied due to insufficient permissions. You'll need to grant permission to run commands in this
+          session.

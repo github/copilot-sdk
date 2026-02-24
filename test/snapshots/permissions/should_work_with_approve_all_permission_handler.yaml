@@ -7,4 +7,4 @@ conversations:
       - role: user
         content: What is 2+2?
       - role: assistant
-        content: 2 + 2 = 4
+        content: 2+2 = 4

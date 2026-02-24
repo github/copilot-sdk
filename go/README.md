@@ -99,7 +99,7 @@ That's it! When your application calls `copilot.NewClient` without a `CLIPath` n
 - `Stop() error` - Stop the CLI server
 - `ForceStop()` - Forcefully stop without graceful cleanup
 - `CreateSession(config *SessionConfig) (*Session, error)` - Create a new session
-- `ResumeSession(sessionID string) (*Session, error)` - Resume an existing session
+- `ResumeSession(sessionID string, config *ResumeSessionConfig) (*Session, error)` - Resume an existing session
 - `ResumeSessionWithOptions(sessionID string, config *ResumeSessionConfig) (*Session, error)` - Resume with additional configuration
 - `ListSessions(filter *SessionListFilter) ([]SessionMetadata, error)` - List sessions (with optional filter)
 - `DeleteSession(sessionID string) error` - Delete a session permanently

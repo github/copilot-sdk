@@ -426,17 +426,20 @@ func (c *Client) ensureConnected() error {
 // If the client is not connected and AutoStart is enabled, this will automatically
 // start the connection.
 //
-// The config parameter is optional; pass nil for default settings.
+// The config parameter is required and must include an OnPermissionRequest handler.
 //
 // Returns the created session or an error if session creation fails.
 //
 // Example:
 //
 //	// Basic session
-//	session, err := client.CreateSession(context.Background(), nil)
+//	session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
+//	    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+//	})
 //
 //	// Session with model and tools
 //	session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
+//	    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 //	    Model: "gpt-4",
 //	    Tools: []copilot.Tool{
 //	        {
@@ -518,15 +521,18 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	return session, nil
 }
 
-// ResumeSession resumes an existing conversation session by its ID using default options.
+// ResumeSession resumes an existing conversation session by its ID.
 //
-// This is a convenience method that calls [Client.ResumeSessionWithOptions] with nil config.
+// This is a convenience method that calls [Client.ResumeSessionWithOptions].
+// The config must include an OnPermissionRequest handler.
 //
 // Example:
 //
-//	session, err := client.ResumeSession(context.Background(), "session-123")
-func (c *Client) ResumeSession(ctx context.Context, sessionID string) (*Session, error) {
-	return c.ResumeSessionWithOptions(ctx, sessionID, nil)
+//	session, err := client.ResumeSession(context.Background(), "session-123", &copilot.ResumeSessionConfig{
+//	    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+//	})
+func (c *Client) ResumeSession(ctx context.Context, sessionID string, config *ResumeSessionConfig) (*Session, error) {
+	return c.ResumeSessionWithOptions(ctx, sessionID, config)
 }
 
 // ResumeSessionWithOptions resumes an existing conversation session with additional configuration.
@@ -537,6 +543,7 @@ func (c *Client) ResumeSession(ctx context.Context, sessionID string) (*Session,
 // Example:
 //
 //	session, err := client.ResumeSessionWithOptions(context.Background(), "session-123", &copilot.ResumeSessionConfig{
+//	    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 //	    Tools: []copilot.Tool{myNewTool},
 //	})
 func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string, config *ResumeSessionConfig) (*Session, error) {

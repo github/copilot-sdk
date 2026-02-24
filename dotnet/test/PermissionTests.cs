@@ -50,7 +50,7 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
             {
                 return Task.FromResult(new PermissionRequestResult
                 {
-                    Kind = "denied-interactively-by-user"
+                    Kind = "denied-no-approval-rule-and-could-not-request-from-user"
                 });
             }
         });
@@ -71,9 +71,13 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
-    public async Task Should_Deny_Tool_Operations_By_Default_When_No_Handler_Is_Provided()
+    public async Task Should_Deny_Tool_Operations_When_Handler_Explicitly_Denies()
     {
-        var session = await CreateSessionAsync(new SessionConfig());
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = (_, _) =>
+                Task.FromResult(new PermissionRequestResult { Kind = "denied-no-approval-rule-and-could-not-request-from-user" })
+        });
         var permissionDenied = false;
 
         session.On(evt =>
@@ -95,9 +99,8 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
-    public async Task Should_Work_Without_Permission_Handler__Default_Behavior_()
+    public async Task Should_Work_With_Approve_All_Permission_Handler()
     {
-        // Create session without permission handler
         var session = await CreateSessionAsync(new SessionConfig());
 
         await session.SendAsync(new MessageOptions
@@ -186,7 +189,7 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
-    public async Task Should_Deny_Tool_Operations_By_Default_When_No_Handler_Is_Provided_After_Resume()
+    public async Task Should_Deny_Tool_Operations_When_Handler_Explicitly_Denies_After_Resume()
     {
         var session1 = await CreateSessionAsync(new SessionConfig
         {
@@ -195,7 +198,11 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
         var sessionId = session1.SessionId;
         await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
 
-        var session2 = await ResumeSessionAsync(sessionId);
+        var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        {
+            OnPermissionRequest = (_, _) =>
+                Task.FromResult(new PermissionRequestResult { Kind = "denied-no-approval-rule-and-could-not-request-from-user" })
+        });
         var permissionDenied = false;
 
         session2.On(evt =>

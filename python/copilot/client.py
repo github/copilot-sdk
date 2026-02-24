@@ -434,10 +434,11 @@ class CopilotClient:
 
         Example:
             >>> # Basic session
-            >>> session = await client.create_session()
+            >>> session = await client.create_session({"on_permission_request": PermissionHandler.approve_all})
             >>>
             >>> # Session with model and streaming
             >>> session = await client.create_session({
+            ...     "on_permission_request": PermissionHandler.approve_all,
             ...     "model": "gpt-4",
             ...     "streaming": True
             ... })
@@ -575,8 +576,7 @@ class CopilotClient:
         workspace_path = response.get("workspacePath")
         session = CopilotSession(session_id, self._client, workspace_path)
         session._register_tools(tools)
-        if on_permission_request:
-            session._register_permission_handler(on_permission_request)
+        session._register_permission_handler(on_permission_request)
         if on_user_input_request:
             session._register_user_input_handler(on_user_input_request)
         if hooks:
@@ -606,10 +606,11 @@ class CopilotClient:
 
         Example:
             >>> # Resume a previous session
-            >>> session = await client.resume_session("session-123")
+            >>> session = await client.resume_session("session-123", {"on_permission_request": PermissionHandler.approve_all})
             >>>
             >>> # Resume with new tools
             >>> session = await client.resume_session("session-123", {
+            ...     "on_permission_request": PermissionHandler.approve_all,
             ...     "tools": [my_new_tool]
             ... })
         """
@@ -756,8 +757,7 @@ class CopilotClient:
         workspace_path = response.get("workspacePath")
         session = CopilotSession(resumed_session_id, self._client, workspace_path)
         session._register_tools(cfg.get("tools"))
-        if on_permission_request:
-            session._register_permission_handler(on_permission_request)
+        session._register_permission_handler(on_permission_request)
         if on_user_input_request:
             session._register_user_input_handler(on_user_input_request)
         if hooks:

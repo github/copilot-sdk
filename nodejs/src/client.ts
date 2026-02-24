@@ -494,10 +494,11 @@ export class CopilotClient {
      * @example
      * ```typescript
      * // Basic session
-     * const session = await client.createSession();
+     * const session = await client.createSession({ onPermissionRequest: approveAll });
      *
      * // Session with model and tools
      * const session = await client.createSession({
+     *   onPermissionRequest: approveAll,
      *   model: "gpt-4",
      *   tools: [{
      *     name: "get_weather",
@@ -557,9 +558,7 @@ export class CopilotClient {
         };
         const session = new CopilotSession(sessionId, this.connection!, workspacePath);
         session.registerTools(config.tools);
-        if (config.onPermissionRequest) {
-            session.registerPermissionHandler(config.onPermissionRequest);
-        }
+        session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
             session.registerUserInputHandler(config.onUserInputRequest);
         }
@@ -586,10 +585,11 @@ export class CopilotClient {
      * @example
      * ```typescript
      * // Resume a previous session
-     * const session = await client.resumeSession("session-123");
+     * const session = await client.resumeSession("session-123", { onPermissionRequest: approveAll });
      *
      * // Resume with new tools
      * const session = await client.resumeSession("session-123", {
+     *   onPermissionRequest: approveAll,
      *   tools: [myNewTool]
      * });
      * ```
@@ -644,9 +644,7 @@ export class CopilotClient {
         };
         const session = new CopilotSession(resumedSessionId, this.connection!, workspacePath);
         session.registerTools(config.tools);
-        if (config.onPermissionRequest) {
-            session.registerPermissionHandler(config.onPermissionRequest);
-        }
+        session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
             session.registerUserInputHandler(config.onUserInputRequest);
         }
