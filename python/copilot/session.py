@@ -7,7 +7,6 @@ conversation sessions with the Copilot CLI.
 
 import asyncio
 import inspect
-import logging
 import threading
 from collections.abc import Callable
 from types import TracebackType
@@ -114,8 +113,10 @@ class CopilotSession:
         Exit the async context manager.
 
         Automatically destroys the session and releases all associated resources.
-        If an error occurs during cleanup, it is logged but does not prevent the
-        context from exiting.
+        If a cleanup error occurs and no exception was raised inside the context,
+        the cleanup error is propagated. If an exception was already raised inside
+        the context, the cleanup error is suppressed so the original exception is
+        not masked.
 
         Args:
             exc_type: The type of exception that occurred, if any.
@@ -128,8 +129,8 @@ class CopilotSession:
         try:
             await self.destroy()
         except Exception:
-            # Log the error but don't raise - we want cleanup to always complete
-            logging.warning("Error during CopilotSession cleanup", exc_info=True)
+            if exc_type is None:
+                raise
         return False
 
     @property

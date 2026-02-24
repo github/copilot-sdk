@@ -14,7 +14,6 @@ Example:
 
 import asyncio
 import inspect
-import logging
 import os
 import re
 import subprocess
@@ -242,8 +241,10 @@ class CopilotClient:
         Exit the async context manager.
 
         Performs graceful cleanup by destroying all active sessions and stopping
-        the CLI server. If cleanup errors occur, they are logged but do not
-        prevent the context from exiting.
+        the CLI server. If a cleanup error occurs and no exception was raised
+        inside the context, the cleanup error is propagated. If an exception
+        was already raised inside the context, the cleanup error is suppressed
+        so the original exception is not masked.
 
         Args:
             exc_type: The type of exception that occurred, if any.
@@ -254,14 +255,10 @@ class CopilotClient:
             False to propagate any exception that occurred in the context.
         """
         try:
-            stop_errors = await self.stop()
-            # Log any session destruction errors
-            if stop_errors:
-                for error in stop_errors:
-                    logging.warning("Error during session cleanup in CopilotClient: %s", error)
+            await self.stop()
         except Exception:
-            # Log the error but don't raise - we want cleanup to always complete
-            logging.warning("Error during CopilotClient cleanup", exc_info=True)
+            if exc_type is None:
+                raise
         return False
 
     @property
