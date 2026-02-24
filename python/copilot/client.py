@@ -7,9 +7,12 @@ to the Copilot CLI server and provides session management capabilities.
 Example:
     >>> from copilot import CopilotClient
     >>>
-    >>> async with CopilotClient() as client:
-    ...     session = await client.create_session()
-    ...     await session.send({"prompt": "Hello!"})
+    >>> client = CopilotClient()
+    >>> await client.start()
+    >>> session = await client.create_session()
+    >>> await session.send({"prompt": "Hello!"})
+    >>> await session.destroy()
+    >>> await client.stop()
 """
 
 import asyncio
