@@ -10,7 +10,9 @@ describe("CopilotClient", () => {
         await client.start();
         onTestFinished(() => client.forceStop());
 
-        await expect((client as any).createSession({})).rejects.toThrow(/onPermissionRequest.*is required/);
+        await expect((client as any).createSession({})).rejects.toThrow(
+            /onPermissionRequest.*is required/
+        );
     });
 
     it("throws when resumeSession is called without onPermissionRequest", async () => {
@@ -19,9 +21,9 @@ describe("CopilotClient", () => {
         onTestFinished(() => client.forceStop());
 
         const session = await client.createSession({ onPermissionRequest: approveAll });
-        await expect(
-            (client as any).resumeSession(session.sessionId, {})
-        ).rejects.toThrow(/onPermissionRequest.*is required/);
+        await expect((client as any).resumeSession(session.sessionId, {})).rejects.toThrow(
+            /onPermissionRequest.*is required/
+        );
     });
 
     it("returns a standardized failure result when a tool is not registered", async () => {
@@ -67,7 +69,10 @@ describe("CopilotClient", () => {
 
         const session = await client.createSession({ onPermissionRequest: approveAll });
         const spy = vi.spyOn((client as any).connection!, "sendRequest");
-        await client.resumeSession(session.sessionId, { clientName: "my-app", onPermissionRequest: approveAll });
+        await client.resumeSession(session.sessionId, {
+            clientName: "my-app",
+            onPermissionRequest: approveAll,
+        });
 
         expect(spy).toHaveBeenCalledWith(
             "session.resume",

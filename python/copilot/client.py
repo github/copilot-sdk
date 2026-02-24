@@ -434,7 +434,8 @@ class CopilotClient:
 
         Example:
             >>> # Basic session
-            >>> session = await client.create_session({"on_permission_request": PermissionHandler.approve_all})
+            >>> config = {"on_permission_request": PermissionHandler.approve_all}
+            >>> session = await client.create_session(config)
             >>>
             >>> # Session with model and streaming
             >>> session = await client.create_session({
@@ -606,7 +607,8 @@ class CopilotClient:
 
         Example:
             >>> # Resume a previous session
-            >>> session = await client.resume_session("session-123", {"on_permission_request": PermissionHandler.approve_all})
+            >>> config = {"on_permission_request": PermissionHandler.approve_all}
+            >>> session = await client.resume_session("session-123", config)
             >>>
             >>> # Resume with new tools
             >>> session = await client.resume_session("session-123", {

@@ -76,9 +76,7 @@ class TestPermissions:
         def deny_all(request, invocation):
             return {"kind": "denied-no-approval-rule-and-could-not-request-from-user"}
 
-        session = await ctx.client.create_session(
-            {"on_permission_request": deny_all}
-        )
+        session = await ctx.client.create_session({"on_permission_request": deny_all})
 
         denied_events = []
         done_event = asyncio.Event()
@@ -89,9 +87,7 @@ class TestPermissions:
                 msg = (
                     error
                     if isinstance(error, str)
-                    else (
-                        getattr(error, "message", None) if error is not None else None
-                    )
+                    else (getattr(error, "message", None) if error is not None else None)
                 )
                 if msg and "Permission denied" in msg:
                     denied_events.append(event)
@@ -120,9 +116,7 @@ class TestPermissions:
         def deny_all(request, invocation):
             return {"kind": "denied-no-approval-rule-and-could-not-request-from-user"}
 
-        session2 = await ctx.client.resume_session(
-            session_id, {"on_permission_request": deny_all}
-        )
+        session2 = await ctx.client.resume_session(session_id, {"on_permission_request": deny_all})
 
         denied_events = []
         done_event = asyncio.Event()
@@ -133,9 +127,7 @@ class TestPermissions:
                 msg = (
                     error
                     if isinstance(error, str)
-                    else (
-                        getattr(error, "message", None) if error is not None else None
-                    )
+                    else (getattr(error, "message", None) if error is not None else None)
                 )
                 if msg and "Permission denied" in msg:
                     denied_events.append(event)
@@ -151,9 +143,7 @@ class TestPermissions:
 
         await session2.destroy()
 
-    async def test_should_work_with_approve_all_permission_handler(
-        self, ctx: E2ETestContext
-    ):
+    async def test_should_work_with_approve_all_permission_handler(self, ctx: E2ETestContext):
         """Test that sessions work with approve-all permission handler"""
         session = await ctx.client.create_session(
             {"on_permission_request": PermissionHandler.approve_all}

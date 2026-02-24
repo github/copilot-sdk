@@ -161,7 +161,7 @@ func TestPermissions(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.ToolInvocation) (copilot.PermissionRequestResult, error) {
+			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
 				return copilot.PermissionRequestResult{Kind: "denied-no-approval-rule-and-could-not-request-from-user"}, nil
 			},
 		})
@@ -211,7 +211,7 @@ func TestPermissions(t *testing.T) {
 		}
 
 		session2, err := client.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
-			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.ToolInvocation) (copilot.PermissionRequestResult, error) {
+			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
 				return copilot.PermissionRequestResult{Kind: "denied-no-approval-rule-and-could-not-request-from-user"}, nil
 			},
 		})
