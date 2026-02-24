@@ -2,7 +2,7 @@
 
 import pytest
 
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 from copilot.generated.rpc import PingParams
 
 from .testharness import CLI_PATH, E2ETestContext
@@ -77,7 +77,9 @@ class TestSessionRpc:
     @pytest.mark.skip(reason="session.model.getCurrent not yet implemented in CLI")
     async def test_should_call_session_rpc_model_get_current(self, ctx: E2ETestContext):
         """Test calling session.rpc.model.getCurrent"""
-        session = await ctx.client.create_session({"model": "claude-sonnet-4.5"})
+        session = await ctx.client.create_session(
+            {"model": "claude-sonnet-4.5", "on_permission_request": PermissionHandler.approve_all}
+        )
 
         result = await session.rpc.model.get_current()
         assert result.model_id is not None
@@ -89,7 +91,9 @@ class TestSessionRpc:
         """Test calling session.rpc.model.switchTo"""
         from copilot.generated.rpc import SessionModelSwitchToParams
 
-        session = await ctx.client.create_session({"model": "claude-sonnet-4.5"})
+        session = await ctx.client.create_session(
+            {"model": "claude-sonnet-4.5", "on_permission_request": PermissionHandler.approve_all}
+        )
 
         # Get initial model
         before = await session.rpc.model.get_current()
@@ -112,7 +116,9 @@ class TestSessionRpc:
 
         try:
             await client.start()
-            session = await client.create_session({})
+            session = await client.create_session(
+                {"on_permission_request": PermissionHandler.approve_all}
+            )
 
             # Get initial mode (default should be interactive)
             initial = await session.rpc.mode.get()
@@ -146,7 +152,9 @@ class TestSessionRpc:
 
         try:
             await client.start()
-            session = await client.create_session({})
+            session = await client.create_session(
+                {"on_permission_request": PermissionHandler.approve_all}
+            )
 
             # Initially plan should not exist
             initial = await session.rpc.plan.read()
@@ -187,7 +195,9 @@ class TestSessionRpc:
 
         try:
             await client.start()
-            session = await client.create_session({})
+            session = await client.create_session(
+                {"on_permission_request": PermissionHandler.approve_all}
+            )
 
             # Initially no files
             initial_files = await session.rpc.workspace.list_files()

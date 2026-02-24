@@ -91,7 +91,10 @@ class CopilotClient:
         >>> await client.start()
         >>>
         >>> # Create a session and send a message
-        >>> session = await client.create_session({"model": "gpt-4"})
+        >>> session = await client.create_session({
+        ...     "on_permission_request": PermissionHandler.approve_all,
+        ...     "model": "gpt-4",
+        ... })
         >>> session.on(lambda event: print(event.type))
         >>> await session.send({"prompt": "Hello!"})
         >>>
@@ -414,7 +417,7 @@ class CopilotClient:
         if not self._is_external_server:
             self._actual_port = None
 
-    async def create_session(self, config: Optional[SessionConfig] = None) -> CopilotSession:
+    async def create_session(self, config: SessionConfig) -> CopilotSession:
         """
         Create a new conversation session with the Copilot CLI.
 
@@ -434,10 +437,12 @@ class CopilotClient:
 
         Example:
             >>> # Basic session
-            >>> session = await client.create_session()
+            >>> config = {"on_permission_request": PermissionHandler.approve_all}
+            >>> session = await client.create_session(config)
             >>>
             >>> # Session with model and streaming
             >>> session = await client.create_session({
+            ...     "on_permission_request": PermissionHandler.approve_all,
             ...     "model": "gpt-4",
             ...     "streaming": True
             ... })
@@ -448,7 +453,14 @@ class CopilotClient:
             else:
                 raise RuntimeError("Client not connected. Call start() first.")
 
-        cfg = config or {}
+        cfg = config
+
+        if not cfg.get("on_permission_request"):
+            raise ValueError(
+                "An on_permission_request handler is required when creating a session. "
+                "For example, to allow all permissions, use "
+                '{"on_permission_request": PermissionHandler.approve_all}.'
+            )
 
         tool_defs = []
         tools = cfg.get("tools")
@@ -568,8 +580,7 @@ class CopilotClient:
         workspace_path = response.get("workspacePath")
         session = CopilotSession(session_id, self._client, workspace_path)
         session._register_tools(tools)
-        if on_permission_request:
-            session._register_permission_handler(on_permission_request)
+        session._register_permission_handler(on_permission_request)
         if on_user_input_request:
             session._register_user_input_handler(on_user_input_request)
         if hooks:
@@ -579,9 +590,7 @@ class CopilotClient:
 
         return session
 
-    async def resume_session(
-        self, session_id: str, config: Optional[ResumeSessionConfig] = None
-    ) -> CopilotSession:
+    async def resume_session(self, session_id: str, config: ResumeSessionConfig) -> CopilotSession:
         """
         Resume an existing conversation session by its ID.
 
@@ -601,10 +610,12 @@ class CopilotClient:
 
         Example:
             >>> # Resume a previous session
-            >>> session = await client.resume_session("session-123")
+            >>> config = {"on_permission_request": PermissionHandler.approve_all}
+            >>> session = await client.resume_session("session-123", config)
             >>>
             >>> # Resume with new tools
             >>> session = await client.resume_session("session-123", {
+            ...     "on_permission_request": PermissionHandler.approve_all,
             ...     "tools": [my_new_tool]
             ... })
         """
@@ -614,7 +625,14 @@ class CopilotClient:
             else:
                 raise RuntimeError("Client not connected. Call start() first.")
 
-        cfg = config or {}
+        cfg = config
+
+        if not cfg.get("on_permission_request"):
+            raise ValueError(
+                "An on_permission_request handler is required when resuming a session. "
+                "For example, to allow all permissions, use "
+                '{"on_permission_request": PermissionHandler.approve_all}.'
+            )
 
         tool_defs = []
         tools = cfg.get("tools")
@@ -744,8 +762,7 @@ class CopilotClient:
         workspace_path = response.get("workspacePath")
         session = CopilotSession(resumed_session_id, self._client, workspace_path)
         session._register_tools(cfg.get("tools"))
-        if on_permission_request:
-            session._register_permission_handler(on_permission_request)
+        session._register_permission_handler(on_permission_request)
         if on_user_input_request:
             session._register_user_input_handler(on_user_input_request)
         if hooks:

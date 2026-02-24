@@ -120,6 +120,7 @@ describe("Session hooks", async () => {
         const preToolUseInputs: PreToolUseHookInput[] = [];
 
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             hooks: {
                 onPreToolUse: async (input) => {
                     preToolUseInputs.push(input);

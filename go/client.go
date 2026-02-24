@@ -12,6 +12,7 @@
 //	defer client.Stop()
 //
 //	session, err := client.CreateSession(&copilot.SessionConfig{
+//	    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 //	    Model: "gpt-4",
 //	})
 //	if err != nil {
@@ -426,17 +427,20 @@ func (c *Client) ensureConnected() error {
 // If the client is not connected and AutoStart is enabled, this will automatically
 // start the connection.
 //
-// The config parameter is optional; pass nil for default settings.
+// The config parameter is required and must include an OnPermissionRequest handler.
 //
 // Returns the created session or an error if session creation fails.
 //
 // Example:
 //
 //	// Basic session
-//	session, err := client.CreateSession(context.Background(), nil)
+//	session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
+//	    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+//	})
 //
 //	// Session with model and tools
 //	session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
+//	    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 //	    Model: "gpt-4",
 //	    Tools: []copilot.Tool{
 //	        {
@@ -447,44 +451,46 @@ func (c *Client) ensureConnected() error {
 //	    },
 //	})
 func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Session, error) {
+	if config == nil || config.OnPermissionRequest == nil {
+		return nil, fmt.Errorf("an OnPermissionRequest handler is required when creating a session. For example, to allow all permissions, use &copilot.SessionConfig{OnPermissionRequest: copilot.PermissionHandler.ApproveAll}")
+	}
+
 	if err := c.ensureConnected(); err != nil {
 		return nil, err
 	}
 
 	req := createSessionRequest{}
-	if config != nil {
-		req.Model = config.Model
-		req.SessionID = config.SessionID
-		req.ClientName = config.ClientName
-		req.ReasoningEffort = config.ReasoningEffort
-		req.ConfigDir = config.ConfigDir
-		req.Tools = config.Tools
-		req.SystemMessage = config.SystemMessage
-		req.AvailableTools = config.AvailableTools
-		req.ExcludedTools = config.ExcludedTools
-		req.Provider = config.Provider
-		req.WorkingDirectory = config.WorkingDirectory
-		req.MCPServers = config.MCPServers
-		req.EnvValueMode = "direct"
-		req.CustomAgents = config.CustomAgents
-		req.SkillDirectories = config.SkillDirectories
-		req.DisabledSkills = config.DisabledSkills
-		req.InfiniteSessions = config.InfiniteSessions
+	req.Model = config.Model
+	req.SessionID = config.SessionID
+	req.ClientName = config.ClientName
+	req.ReasoningEffort = config.ReasoningEffort
+	req.ConfigDir = config.ConfigDir
+	req.Tools = config.Tools
+	req.SystemMessage = config.SystemMessage
+	req.AvailableTools = config.AvailableTools
+	req.ExcludedTools = config.ExcludedTools
+	req.Provider = config.Provider
+	req.WorkingDirectory = config.WorkingDirectory
+	req.MCPServers = config.MCPServers
+	req.EnvValueMode = "direct"
+	req.CustomAgents = config.CustomAgents
+	req.SkillDirectories = config.SkillDirectories
+	req.DisabledSkills = config.DisabledSkills
+	req.InfiniteSessions = config.InfiniteSessions
 
-		if config.Streaming {
-			req.Streaming = Bool(true)
-		}
-		if config.OnUserInputRequest != nil {
-			req.RequestUserInput = Bool(true)
-		}
-		if config.Hooks != nil && (config.Hooks.OnPreToolUse != nil ||
-			config.Hooks.OnPostToolUse != nil ||
-			config.Hooks.OnUserPromptSubmitted != nil ||
-			config.Hooks.OnSessionStart != nil ||
-			config.Hooks.OnSessionEnd != nil ||
-			config.Hooks.OnErrorOccurred != nil) {
-			req.Hooks = Bool(true)
-		}
+	if config.Streaming {
+		req.Streaming = Bool(true)
+	}
+	if config.OnUserInputRequest != nil {
+		req.RequestUserInput = Bool(true)
+	}
+	if config.Hooks != nil && (config.Hooks.OnPreToolUse != nil ||
+		config.Hooks.OnPostToolUse != nil ||
+		config.Hooks.OnUserPromptSubmitted != nil ||
+		config.Hooks.OnSessionStart != nil ||
+		config.Hooks.OnSessionEnd != nil ||
+		config.Hooks.OnErrorOccurred != nil) {
+		req.Hooks = Bool(true)
 	}
 	req.RequestPermission = Bool(true)
 
@@ -500,19 +506,13 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 
 	session := newSession(response.SessionID, c.client, response.WorkspacePath)
 
-	if config != nil {
-		session.registerTools(config.Tools)
-		if config.OnPermissionRequest != nil {
-			session.registerPermissionHandler(config.OnPermissionRequest)
-		}
-		if config.OnUserInputRequest != nil {
-			session.registerUserInputHandler(config.OnUserInputRequest)
-		}
-		if config.Hooks != nil {
-			session.registerHooks(config.Hooks)
-		}
-	} else {
-		session.registerTools(nil)
+	session.registerTools(config.Tools)
+	session.registerPermissionHandler(config.OnPermissionRequest)
+	if config.OnUserInputRequest != nil {
+		session.registerUserInputHandler(config.OnUserInputRequest)
+	}
+	if config.Hooks != nil {
+		session.registerHooks(config.Hooks)
 	}
 
 	c.sessionsMux.Lock()
@@ -522,15 +522,18 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	return session, nil
 }
 
-// ResumeSession resumes an existing conversation session by its ID using default options.
+// ResumeSession resumes an existing conversation session by its ID.
 //
-// This is a convenience method that calls [Client.ResumeSessionWithOptions] with nil config.
+// This is a convenience method that calls [Client.ResumeSessionWithOptions].
+// The config must include an OnPermissionRequest handler.
 //
 // Example:
 //
-//	session, err := client.ResumeSession(context.Background(), "session-123")
-func (c *Client) ResumeSession(ctx context.Context, sessionID string) (*Session, error) {
-	return c.ResumeSessionWithOptions(ctx, sessionID, nil)
+//	session, err := client.ResumeSession(context.Background(), "session-123", &copilot.ResumeSessionConfig{
+//	    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+//	})
+func (c *Client) ResumeSession(ctx context.Context, sessionID string, config *ResumeSessionConfig) (*Session, error) {
+	return c.ResumeSessionWithOptions(ctx, sessionID, config)
 }
 
 // ResumeSessionWithOptions resumes an existing conversation session with additional configuration.
@@ -541,50 +544,53 @@ func (c *Client) ResumeSession(ctx context.Context, sessionID string) (*Session,
 // Example:
 //
 //	session, err := client.ResumeSessionWithOptions(context.Background(), "session-123", &copilot.ResumeSessionConfig{
+//	    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 //	    Tools: []copilot.Tool{myNewTool},
 //	})
 func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string, config *ResumeSessionConfig) (*Session, error) {
+	if config == nil || config.OnPermissionRequest == nil {
+		return nil, fmt.Errorf("an OnPermissionRequest handler is required when resuming a session. For example, to allow all permissions, use &copilot.ResumeSessionConfig{OnPermissionRequest: copilot.PermissionHandler.ApproveAll}")
+	}
+
 	if err := c.ensureConnected(); err != nil {
 		return nil, err
 	}
 
 	var req resumeSessionRequest
 	req.SessionID = sessionID
-	if config != nil {
-		req.ClientName = config.ClientName
-		req.Model = config.Model
-		req.ReasoningEffort = config.ReasoningEffort
-		req.SystemMessage = config.SystemMessage
-		req.Tools = config.Tools
-		req.Provider = config.Provider
-		req.AvailableTools = config.AvailableTools
-		req.ExcludedTools = config.ExcludedTools
-		if config.Streaming {
-			req.Streaming = Bool(true)
-		}
-		if config.OnUserInputRequest != nil {
-			req.RequestUserInput = Bool(true)
-		}
-		if config.Hooks != nil && (config.Hooks.OnPreToolUse != nil ||
-			config.Hooks.OnPostToolUse != nil ||
-			config.Hooks.OnUserPromptSubmitted != nil ||
-			config.Hooks.OnSessionStart != nil ||
-			config.Hooks.OnSessionEnd != nil ||
-			config.Hooks.OnErrorOccurred != nil) {
-			req.Hooks = Bool(true)
-		}
-		req.WorkingDirectory = config.WorkingDirectory
-		req.ConfigDir = config.ConfigDir
-		if config.DisableResume {
-			req.DisableResume = Bool(true)
-		}
-		req.MCPServers = config.MCPServers
-		req.EnvValueMode = "direct"
-		req.CustomAgents = config.CustomAgents
-		req.SkillDirectories = config.SkillDirectories
-		req.DisabledSkills = config.DisabledSkills
-		req.InfiniteSessions = config.InfiniteSessions
+	req.ClientName = config.ClientName
+	req.Model = config.Model
+	req.ReasoningEffort = config.ReasoningEffort
+	req.SystemMessage = config.SystemMessage
+	req.Tools = config.Tools
+	req.Provider = config.Provider
+	req.AvailableTools = config.AvailableTools
+	req.ExcludedTools = config.ExcludedTools
+	if config.Streaming {
+		req.Streaming = Bool(true)
 	}
+	if config.OnUserInputRequest != nil {
+		req.RequestUserInput = Bool(true)
+	}
+	if config.Hooks != nil && (config.Hooks.OnPreToolUse != nil ||
+		config.Hooks.OnPostToolUse != nil ||
+		config.Hooks.OnUserPromptSubmitted != nil ||
+		config.Hooks.OnSessionStart != nil ||
+		config.Hooks.OnSessionEnd != nil ||
+		config.Hooks.OnErrorOccurred != nil) {
+		req.Hooks = Bool(true)
+	}
+	req.WorkingDirectory = config.WorkingDirectory
+	req.ConfigDir = config.ConfigDir
+	if config.DisableResume {
+		req.DisableResume = Bool(true)
+	}
+	req.MCPServers = config.MCPServers
+	req.EnvValueMode = "direct"
+	req.CustomAgents = config.CustomAgents
+	req.SkillDirectories = config.SkillDirectories
+	req.DisabledSkills = config.DisabledSkills
+	req.InfiniteSessions = config.InfiniteSessions
 	req.RequestPermission = Bool(true)
 
 	result, err := c.client.Request("session.resume", req)
@@ -598,19 +604,13 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	}
 
 	session := newSession(response.SessionID, c.client, response.WorkspacePath)
-	if config != nil {
-		session.registerTools(config.Tools)
-		if config.OnPermissionRequest != nil {
-			session.registerPermissionHandler(config.OnPermissionRequest)
-		}
-		if config.OnUserInputRequest != nil {
-			session.registerUserInputHandler(config.OnUserInputRequest)
-		}
-		if config.Hooks != nil {
-			session.registerHooks(config.Hooks)
-		}
-	} else {
-		session.registerTools(nil)
+	session.registerTools(config.Tools)
+	session.registerPermissionHandler(config.OnPermissionRequest)
+	if config.OnUserInputRequest != nil {
+		session.registerUserInputHandler(config.OnUserInputRequest)
+	}
+	if config.Hooks != nil {
+		session.registerHooks(config.Hooks)
 	}
 
 	c.sessionsMux.Lock()
@@ -881,7 +881,9 @@ func (c *Client) handleLifecycleEvent(event SessionLifecycleEvent) {
 // Example:
 //
 //	if client.State() == copilot.StateConnected {
-//	    session, err := client.CreateSession(context.Background(), nil)
+//	    session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
+//	        OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+//	    })
 //	}
 func (c *Client) State() ConnectionState {
 	return c.state

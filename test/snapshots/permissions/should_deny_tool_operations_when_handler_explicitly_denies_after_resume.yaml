@@ -5,6 +5,10 @@ conversations:
       - role: system
         content: ${system}
       - role: user
+        content: What is 1+1?
+      - role: assistant
+        content: 1+1 equals 2.
+      - role: user
         content: Run 'node --version'
       - role: assistant
         tool_calls:
@@ -23,6 +27,10 @@ conversations:
   - messages:
       - role: system
         content: ${system}
+      - role: user
+        content: What is 1+1?
+      - role: assistant
+        content: 1+1 equals 2.
       - role: user
         content: Run 'node --version'
       - role: assistant
@@ -44,6 +52,5 @@ conversations:
         tool_call_id: toolcall_1
         content: Permission denied and could not request permission from user
       - role: assistant
-        content: I received a permission denied error. It appears I don't have permission to execute the `node --version`
-          command in this environment. This might be due to security restrictions or the command not being available in
-          the current context.
+        content: The command was denied due to insufficient permissions. You'll need to grant permission to run commands in this
+          session.

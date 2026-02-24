@@ -59,7 +59,7 @@ public class ClientTests
     {
         using var client = new CopilotClient(new CopilotClientOptions());
 
-        await client.CreateSessionAsync();
+        await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
         await client.ForceStopAsync();
 
         Assert.Equal(ConnectionState.Disconnected, client.State);
@@ -220,7 +220,7 @@ public class ClientTests
     public async Task Should_Not_Throw_When_Disposing_Session_After_Stopping_Client()
     {
         await using var client = new CopilotClient(new CopilotClientOptions());
-        await using var session = await client.CreateSessionAsync();
+        await using var session = await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
 
         await client.StopAsync();
     }
@@ -247,12 +247,40 @@ public class ClientTests
         // Verify subsequent calls also fail (don't hang)
         var ex2 = await Assert.ThrowsAnyAsync<Exception>(async () =>
         {
-            var session = await client.CreateSessionAsync();
+            var session = await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
             await session.SendAsync(new MessageOptions { Prompt = "test" });
         });
         Assert.Contains("exited", ex2.Message, StringComparison.OrdinalIgnoreCase);
 
         // Cleanup - ForceStop should handle the disconnected state gracefully
         try { await client.ForceStopAsync(); } catch (Exception) { /* Expected */ }
+    }
+
+    [Fact]
+    public async Task Should_Throw_When_CreateSession_Called_Without_PermissionHandler()
+    {
+        using var client = new CopilotClient(new CopilotClientOptions());
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(async () =>
+        {
+            await client.CreateSessionAsync(new SessionConfig());
+        });
+
+        Assert.Contains("OnPermissionRequest", ex.Message);
+        Assert.Contains("is required", ex.Message);
+    }
+
+    [Fact]
+    public async Task Should_Throw_When_ResumeSession_Called_Without_PermissionHandler()
+    {
+        using var client = new CopilotClient(new CopilotClientOptions());
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(async () =>
+        {
+            await client.ResumeSessionAsync("some-session-id", new ResumeSessionConfig());
+        });
+
+        Assert.Contains("OnPermissionRequest", ex.Message);
+        Assert.Contains("is required", ex.Message);
     }
 }

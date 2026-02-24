@@ -1193,14 +1193,14 @@ Once the CLI is running in server mode, configure your SDK client to connect to 
 <summary><strong>Node.js / TypeScript</strong></summary>
 
 ```typescript
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, approveAll } from "@github/copilot-sdk";
 
 const client = new CopilotClient({
     cliUrl: "localhost:4321"
 });
 
 // Use the client normally
-const session = await client.createSession();
+const session = await client.createSession({ onPermissionRequest: approveAll });
 // ...
 ```
 
@@ -1210,7 +1210,7 @@ const session = await client.createSession();
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 
 client = CopilotClient({
     "cli_url": "localhost:4321"
@@ -1218,7 +1218,7 @@ client = CopilotClient({
 await client.start()
 
 # Use the client normally
-session = await client.create_session()
+session = await client.create_session({"on_permission_request": PermissionHandler.approve_all})
 # ...
 ```
 
@@ -1241,7 +1241,9 @@ if err := client.Start(ctx); err != nil {
 defer client.Stop()
 
 // Use the client normally
-session, err := client.CreateSession(ctx, nil)
+session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+})
 // ...
 ```
 
@@ -1260,7 +1262,10 @@ using var client = new CopilotClient(new CopilotClientOptions
 });
 
 // Use the client normally
-await using var session = await client.CreateSessionAsync();
+await using var session = await client.CreateSessionAsync(new()
+{
+    OnPermissionRequest = PermissionHandler.ApproveAll
+});
 // ...
 ```
 

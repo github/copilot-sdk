@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { UserInputRequest, UserInputResponse } from "../../src/index.js";
+import { approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 describe("User input (ask_user)", async () => {
@@ -13,6 +14,7 @@ describe("User input (ask_user)", async () => {
         const userInputRequests: UserInputRequest[] = [];
 
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             onUserInputRequest: async (request, invocation) => {
                 userInputRequests.push(request);
                 expect(invocation.sessionId).toBe(session.sessionId);
@@ -43,6 +45,7 @@ describe("User input (ask_user)", async () => {
         const userInputRequests: UserInputRequest[] = [];
 
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             onUserInputRequest: async (request) => {
                 userInputRequests.push(request);
                 // Pick the first choice
@@ -74,6 +77,7 @@ describe("User input (ask_user)", async () => {
         const freeformAnswer = "This is my custom freeform answer that was not in the choices";
 
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             onUserInputRequest: async (request) => {
                 userInputRequests.push(request);
                 // Return a freeform answer (not from choices)

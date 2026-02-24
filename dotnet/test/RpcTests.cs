@@ -55,7 +55,7 @@ public class RpcTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETes
     [Fact(Skip = "session.model.getCurrent not yet implemented in CLI")]
     public async Task Should_Call_Session_Rpc_Model_GetCurrent()
     {
-        var session = await Client.CreateSessionAsync(new SessionConfig { Model = "claude-sonnet-4.5" });
+        var session = await CreateSessionAsync(new SessionConfig { Model = "claude-sonnet-4.5" });
 
         var result = await session.Rpc.Model.GetCurrentAsync();
         Assert.NotNull(result.ModelId);
@@ -66,7 +66,7 @@ public class RpcTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETes
     [Fact(Skip = "session.model.switchTo not yet implemented in CLI")]
     public async Task Should_Call_Session_Rpc_Model_SwitchTo()
     {
-        var session = await Client.CreateSessionAsync(new SessionConfig { Model = "claude-sonnet-4.5" });
+        var session = await CreateSessionAsync(new SessionConfig { Model = "claude-sonnet-4.5" });
 
         // Get initial model
         var before = await session.Rpc.Model.GetCurrentAsync();
@@ -84,7 +84,7 @@ public class RpcTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETes
     [Fact]
     public async Task Should_Get_And_Set_Session_Mode()
     {
-        var session = await Client.CreateSessionAsync();
+        var session = await CreateSessionAsync();
 
         // Get initial mode (default should be interactive)
         var initial = await session.Rpc.Mode.GetAsync();
@@ -106,7 +106,7 @@ public class RpcTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETes
     [Fact]
     public async Task Should_Read_Update_And_Delete_Plan()
     {
-        var session = await Client.CreateSessionAsync();
+        var session = await CreateSessionAsync();
 
         // Initially plan should not exist
         var initial = await session.Rpc.Plan.ReadAsync();
@@ -134,7 +134,7 @@ public class RpcTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETes
     [Fact]
     public async Task Should_Create_List_And_Read_Workspace_Files()
     {
-        var session = await Client.CreateSessionAsync();
+        var session = await CreateSessionAsync();
 
         // Initially no files
         var initialFiles = await session.Rpc.Workspace.ListFilesAsync();

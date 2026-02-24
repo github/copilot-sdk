@@ -21,7 +21,9 @@ func TestClient_HandleToolCallRequest(t *testing.T) {
 		client := NewClient(&ClientOptions{CLIPath: cliPath})
 		t.Cleanup(func() { client.ForceStop() })
 
-		session, err := client.CreateSession(t.Context(), nil)
+		session, err := client.CreateSession(t.Context(), &SessionConfig{
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
@@ -441,6 +443,46 @@ func TestResumeSessionRequest_ClientName(t *testing.T) {
 		json.Unmarshal(data, &m)
 		if _, ok := m["clientName"]; ok {
 			t.Error("Expected clientName to be omitted when empty")
+		}
+	})
+}
+
+func TestClient_CreateSession_RequiresPermissionHandler(t *testing.T) {
+	t.Run("returns error when config is nil", func(t *testing.T) {
+		client := NewClient(nil)
+		_, err := client.CreateSession(t.Context(), nil)
+		if err == nil {
+			t.Fatal("Expected error when OnPermissionRequest is nil")
+		}
+		matched, _ := regexp.MatchString("OnPermissionRequest.*is required", err.Error())
+		if !matched {
+			t.Errorf("Expected error about OnPermissionRequest being required, got: %v", err)
+		}
+	})
+
+	t.Run("returns error when OnPermissionRequest is not set", func(t *testing.T) {
+		client := NewClient(nil)
+		_, err := client.CreateSession(t.Context(), &SessionConfig{})
+		if err == nil {
+			t.Fatal("Expected error when OnPermissionRequest is nil")
+		}
+		matched, _ := regexp.MatchString("OnPermissionRequest.*is required", err.Error())
+		if !matched {
+			t.Errorf("Expected error about OnPermissionRequest being required, got: %v", err)
+		}
+	})
+}
+
+func TestClient_ResumeSession_RequiresPermissionHandler(t *testing.T) {
+	t.Run("returns error when config is nil", func(t *testing.T) {
+		client := NewClient(nil)
+		_, err := client.ResumeSessionWithOptions(t.Context(), "some-id", nil)
+		if err == nil {
+			t.Fatal("Expected error when OnPermissionRequest is nil")
+		}
+		matched, _ := regexp.MatchString("OnPermissionRequest.*is required", err.Error())
+		if !matched {
+			t.Errorf("Expected error about OnPermissionRequest being required, got: %v", err)
 		}
 	})
 }

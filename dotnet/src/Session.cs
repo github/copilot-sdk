@@ -27,7 +27,7 @@ namespace GitHub.Copilot.SDK;
 /// </remarks>
 /// <example>
 /// <code>
-/// await using var session = await client.CreateSessionAsync(new SessionConfig { Model = "gpt-4" });
+/// await using var session = await client.CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll, Model = "gpt-4" });
 ///
 /// // Subscribe to events
 /// using var subscription = session.On(evt =>
@@ -557,10 +557,10 @@ public partial class CopilotSession : IAsyncDisposable
     /// <example>
     /// <code>
     /// // Using 'await using' for automatic disposal
-    /// await using var session = await client.CreateSessionAsync();
+    /// await using var session = await client.CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll });
     ///
     /// // Or manually dispose
-    /// var session2 = await client.CreateSessionAsync();
+    /// var session2 = await client.CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll });
     /// // ... use the session ...
     /// await session2.DisposeAsync();
     /// </code>

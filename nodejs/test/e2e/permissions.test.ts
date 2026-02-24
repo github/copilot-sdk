@@ -64,10 +64,14 @@ describe("Permission callbacks", async () => {
         await session.destroy();
     });
 
-    it("should deny tool operations by default when no handler is provided", async () => {
+    it("should deny tool operations when handler explicitly denies", async () => {
         let permissionDenied = false;
 
-        const session = await client.createSession();
+        const session = await client.createSession({
+            onPermissionRequest: () => ({
+                kind: "denied-no-approval-rule-and-could-not-request-from-user",
+            }),
+        });
         session.on((event) => {
             if (
                 event.type === "tool.execution_complete" &&
@@ -85,12 +89,16 @@ describe("Permission callbacks", async () => {
         await session.destroy();
     });
 
-    it("should deny tool operations by default when no handler is provided after resume", async () => {
+    it("should deny tool operations when handler explicitly denies after resume", async () => {
         const session1 = await client.createSession({ onPermissionRequest: approveAll });
         const sessionId = session1.sessionId;
         await session1.sendAndWait({ prompt: "What is 1+1?" });
 
-        const session2 = await client.resumeSession(sessionId);
+        const session2 = await client.resumeSession(sessionId, {
+            onPermissionRequest: () => ({
+                kind: "denied-no-approval-rule-and-could-not-request-from-user",
+            }),
+        });
         let permissionDenied = false;
         session2.on((event) => {
             if (
@@ -109,9 +117,8 @@ describe("Permission callbacks", async () => {
         await session2.destroy();
     });
 
-    it("should work without permission handler (default behavior)", async () => {
-        // Create session without onPermissionRequest handler
-        const session = await client.createSession();
+    it("should work with approve-all permission handler", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
 
         const message = await session.sendAndWait({
             prompt: "What is 2+2?",
@@ -147,8 +154,8 @@ describe("Permission callbacks", async () => {
     it("should resume session with permission handler", async () => {
         const permissionRequests: PermissionRequest[] = [];
 
-        // Create session without permission handler
-        const session1 = await client.createSession();
+        // Create initial session
+        const session1 = await client.createSession({ onPermissionRequest: approveAll });
         const sessionId = session1.sessionId;
         await session1.sendAndWait({ prompt: "What is 1+1?" });
 

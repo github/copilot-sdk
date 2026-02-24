@@ -1,6 +1,6 @@
 import { ChildProcess } from "child_process";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { CopilotClient } from "../../src/index.js";
+import { CopilotClient, approveAll } from "../../src/index.js";
 
 function onTestFinishedForceStop(client: CopilotClient) {
     onTestFinished(async () => {
@@ -51,9 +51,9 @@ describe("Client", () => {
         // the process has exited.
         const client = new CopilotClient({ useStdio: false });
 
-        await client.createSession();
+        await client.createSession({ onPermissionRequest: approveAll });
 
-        // Kill the server process to force cleanup to fail
+        // Kill the server processto force cleanup to fail
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const cliProcess = (client as any).cliProcess as ChildProcess;
         expect(cliProcess).toBeDefined();
@@ -69,7 +69,7 @@ describe("Client", () => {
         const client = new CopilotClient({});
         onTestFinishedForceStop(client);
 
-        await client.createSession();
+        await client.createSession({ onPermissionRequest: approveAll });
         await client.forceStop();
         expect(client.getState()).toBe("disconnected");
     });
@@ -152,7 +152,7 @@ describe("Client", () => {
 
         // Verify subsequent calls also fail (don't hang)
         try {
-            const session = await client.createSession();
+            const session = await client.createSession({ onPermissionRequest: approveAll });
             await session.send("test");
             expect.fail("Expected send() to throw an error after CLI exit");
         } catch (error) {

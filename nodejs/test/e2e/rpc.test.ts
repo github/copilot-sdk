@@ -1,5 +1,5 @@
 import { describe, expect, it, onTestFinished } from "vitest";
-import { CopilotClient } from "../../src/index.js";
+import { CopilotClient, approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 function onTestFinishedForceStop(client: CopilotClient) {
@@ -71,7 +71,10 @@ describe("Session RPC", async () => {
 
     // session.model.getCurrent is defined in schema but not yet implemented in CLI
     it.skip("should call session.rpc.model.getCurrent", async () => {
-        const session = await client.createSession({ model: "claude-sonnet-4.5" });
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            model: "claude-sonnet-4.5",
+        });
 
         const result = await session.rpc.model.getCurrent();
         expect(result.modelId).toBeDefined();
@@ -80,7 +83,10 @@ describe("Session RPC", async () => {
 
     // session.model.switchTo is defined in schema but not yet implemented in CLI
     it.skip("should call session.rpc.model.switchTo", async () => {
-        const session = await client.createSession({ model: "claude-sonnet-4.5" });
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            model: "claude-sonnet-4.5",
+        });
 
         // Get initial model
         const before = await session.rpc.model.getCurrent();
@@ -96,7 +102,7 @@ describe("Session RPC", async () => {
     });
 
     it("should get and set session mode", async () => {
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
 
         // Get initial mode (default should be interactive)
         const initial = await session.rpc.mode.get();
@@ -116,7 +122,7 @@ describe("Session RPC", async () => {
     });
 
     it("should read, update, and delete plan", async () => {
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
 
         // Initially plan should not exist
         const initial = await session.rpc.plan.read();
@@ -142,7 +148,7 @@ describe("Session RPC", async () => {
     });
 
     it("should create, list, and read workspace files", async () => {
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
 
         // Initially no files
         const initialFiles = await session.rpc.workspace.listFiles();

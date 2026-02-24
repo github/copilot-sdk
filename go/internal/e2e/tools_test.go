@@ -55,6 +55,7 @@ func TestTools(t *testing.T) {
 		}
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			Tools: []copilot.Tool{
 				copilot.DefineTool("encrypt_string", "Encrypts a string",
 					func(params EncryptParams, inv copilot.ToolInvocation) (string, error) {
@@ -87,6 +88,7 @@ func TestTools(t *testing.T) {
 		type EmptyParams struct{}
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			Tools: []copilot.Tool{
 				copilot.DefineTool("get_user_location", "Gets the user's location",
 					func(params EmptyParams, inv copilot.ToolInvocation) (any, error) {
@@ -189,6 +191,7 @@ func TestTools(t *testing.T) {
 		var receivedInvocation *copilot.ToolInvocation
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			Tools: []copilot.Tool{
 				copilot.DefineTool("db_query", "Performs a database query",
 					func(params DbQueryParams, inv copilot.ToolInvocation) ([]City, error) {

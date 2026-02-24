@@ -1,16 +1,37 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { CopilotClient } from "../src/index.js";
+import { approveAll, CopilotClient } from "../src/index.js";
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.ts instead
 
 describe("CopilotClient", () => {
+    it("throws when createSession is called without onPermissionRequest", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        await expect((client as any).createSession({})).rejects.toThrow(
+            /onPermissionRequest.*is required/
+        );
+    });
+
+    it("throws when resumeSession is called without onPermissionRequest", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        await expect((client as any).resumeSession(session.sessionId, {})).rejects.toThrow(
+            /onPermissionRequest.*is required/
+        );
+    });
+
     it("returns a standardized failure result when a tool is not registered", async () => {
         const client = new CopilotClient();
         await client.start();
         onTestFinished(() => client.forceStop());
 
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
 
         const response = await (
             client as unknown as { handleToolCallRequest: (typeof client)["handleToolCallRequest"] }
@@ -33,7 +54,7 @@ describe("CopilotClient", () => {
         onTestFinished(() => client.forceStop());
 
         const spy = vi.spyOn((client as any).connection!, "sendRequest");
-        await client.createSession({ clientName: "my-app" });
+        await client.createSession({ clientName: "my-app", onPermissionRequest: approveAll });
 
         expect(spy).toHaveBeenCalledWith(
             "session.create",
@@ -46,9 +67,12 @@ describe("CopilotClient", () => {
         await client.start();
         onTestFinished(() => client.forceStop());
 
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
         const spy = vi.spyOn((client as any).connection!, "sendRequest");
-        await client.resumeSession(session.sessionId, { clientName: "my-app" });
+        await client.resumeSession(session.sessionId, {
+            clientName: "my-app",
+            onPermissionRequest: approveAll,
+        });
 
         expect(spy).toHaveBeenCalledWith(
             "session.resume",

@@ -27,7 +27,8 @@ func TestMCPServers(t *testing.T) {
 		}
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			MCPServers: mcpServers,
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			MCPServers:          mcpServers,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -61,7 +62,7 @@ func TestMCPServers(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		// Create a session first
-		session1, err := client.CreateSession(t.Context(), nil)
+		session1, err := client.CreateSession(t.Context(), &copilot.SessionConfig{OnPermissionRequest: copilot.PermissionHandler.ApproveAll})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
@@ -83,7 +84,8 @@ func TestMCPServers(t *testing.T) {
 		}
 
 		session2, err := client.ResumeSessionWithOptions(t.Context(), sessionID, &copilot.ResumeSessionConfig{
-			MCPServers: mcpServers,
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			MCPServers:          mcpServers,
 		})
 		if err != nil {
 			t.Fatalf("Failed to resume session: %v", err)
@@ -170,7 +172,8 @@ func TestMCPServers(t *testing.T) {
 		}
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			MCPServers: mcpServers,
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			MCPServers:          mcpServers,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -204,7 +207,8 @@ func TestCustomAgents(t *testing.T) {
 		}
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			CustomAgents: customAgents,
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			CustomAgents:        customAgents,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -238,7 +242,7 @@ func TestCustomAgents(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		// Create a session first
-		session1, err := client.CreateSession(t.Context(), nil)
+		session1, err := client.CreateSession(t.Context(), &copilot.SessionConfig{OnPermissionRequest: copilot.PermissionHandler.ApproveAll})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
@@ -260,7 +264,8 @@ func TestCustomAgents(t *testing.T) {
 		}
 
 		session2, err := client.ResumeSessionWithOptions(t.Context(), sessionID, &copilot.ResumeSessionConfig{
-			CustomAgents: customAgents,
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			CustomAgents:        customAgents,
 		})
 		if err != nil {
 			t.Fatalf("Failed to resume session: %v", err)
@@ -298,7 +303,8 @@ func TestCustomAgents(t *testing.T) {
 		}
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			CustomAgents: customAgents,
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			CustomAgents:        customAgents,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -332,7 +338,8 @@ func TestCustomAgents(t *testing.T) {
 		}
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			CustomAgents: customAgents,
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			CustomAgents:        customAgents,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -368,7 +375,8 @@ func TestCustomAgents(t *testing.T) {
 		}
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			CustomAgents: customAgents,
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			CustomAgents:        customAgents,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -409,8 +417,9 @@ func TestCombinedConfiguration(t *testing.T) {
 		}
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			MCPServers:   mcpServers,
-			CustomAgents: customAgents,
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			MCPServers:          mcpServers,
+			CustomAgents:        customAgents,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)

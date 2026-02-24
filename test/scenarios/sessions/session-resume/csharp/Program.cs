@@ -13,6 +13,7 @@ try
     // 1. Create a session
     await using var session = await client.CreateSessionAsync(new SessionConfig
     {
+        OnPermissionRequest = PermissionHandler.ApproveAll,
         Model = "claude-haiku-4.5",
         AvailableTools = new List<string>(),
     });
@@ -27,7 +28,10 @@ try
     var sessionId = session.SessionId;
 
     // 4. Resume the session with the same ID
-    await using var resumed = await client.ResumeSessionAsync(sessionId);
+    await using var resumed = await client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+    {
+        OnPermissionRequest = PermissionHandler.ApproveAll,
+    });
     Console.WriteLine("Session resumed");
 
     // 5. Ask for the secret word

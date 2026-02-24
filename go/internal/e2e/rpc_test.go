@@ -130,7 +130,8 @@ func TestSessionRpc(t *testing.T) {
 		t.Skip("session.model.getCurrent not yet implemented in CLI")
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			Model: "claude-sonnet-4.5",
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Model:               "claude-sonnet-4.5",
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -151,7 +152,8 @@ func TestSessionRpc(t *testing.T) {
 		t.Skip("session.model.switchTo not yet implemented in CLI")
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			Model: "claude-sonnet-4.5",
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Model:               "claude-sonnet-4.5",
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -188,7 +190,7 @@ func TestSessionRpc(t *testing.T) {
 	})
 
 	t.Run("should get and set session mode", func(t *testing.T) {
-		session, err := client.CreateSession(t.Context(), nil)
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{OnPermissionRequest: copilot.PermissionHandler.ApproveAll})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
@@ -231,7 +233,7 @@ func TestSessionRpc(t *testing.T) {
 	})
 
 	t.Run("should read, update, and delete plan", func(t *testing.T) {
-		session, err := client.CreateSession(t.Context(), nil)
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{OnPermissionRequest: copilot.PermissionHandler.ApproveAll})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
@@ -287,7 +289,7 @@ func TestSessionRpc(t *testing.T) {
 	})
 
 	t.Run("should create, list, and read workspace files", func(t *testing.T) {
-		session, err := client.CreateSession(t.Context(), nil)
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{OnPermissionRequest: copilot.PermissionHandler.ApproveAll})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}

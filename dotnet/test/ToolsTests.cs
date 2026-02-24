@@ -21,7 +21,7 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
             Path.Combine(Ctx.WorkDir, "README.md"),
             "# ELIZA, the only chatbot you'll ever need");
 
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
@@ -39,7 +39,7 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
     [Fact]
     public async Task Invokes_Custom_Tool()
     {
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             Tools = [AIFunctionFactory.Create(EncryptString, "encrypt_string")],
         });
@@ -64,7 +64,7 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
         var getUserLocation = AIFunctionFactory.Create(
             () => { throw new Exception("Melbourne"); }, "get_user_location", "Gets the user's location");
 
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             Tools = [getUserLocation]
         });
@@ -105,7 +105,7 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
     public async Task Can_Receive_And_Return_Complex_Types()
     {
         ToolInvocation? receivedInvocation = null;
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             Tools = [AIFunctionFactory.Create(PerformDbQuery, "db_query", serializerOptions: ToolsTestsJsonContext.Default.Options)],
         });
@@ -151,7 +151,7 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
     [Fact(Skip = "Behaves as if no content was in the result. Likely that binary results aren't fully implemented yet.")]
     public async Task Can_Return_Binary_Result()
     {
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             Tools = [AIFunctionFactory.Create(GetImage, "get_image")],
         });

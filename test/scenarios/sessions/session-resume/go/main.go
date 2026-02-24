@@ -22,8 +22,9 @@ func main() {
 
 	// 1. Create a session
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model:          "claude-haiku-4.5",
-		AvailableTools: []string{},
+		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		Model:               "claude-haiku-4.5",
+		AvailableTools:      []string{},
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -41,7 +42,9 @@ func main() {
 	sessionID := session.SessionID
 
 	// 4. Resume the session with the same ID
-	resumed, err := client.ResumeSession(ctx, sessionID)
+	resumed, err := client.ResumeSession(ctx, sessionID, &copilot.ResumeSessionConfig{
+		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}

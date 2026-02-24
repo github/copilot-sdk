@@ -2,6 +2,7 @@
 
 import pytest
 
+from copilot import PermissionHandler
 from copilot.generated.session_events import SessionEventType
 
 from .testharness import E2ETestContext
@@ -23,7 +24,8 @@ class TestCompaction:
                     "background_compaction_threshold": 0.005,
                     # Block at 1% to ensure compaction runs
                     "buffer_exhaustion_threshold": 0.01,
-                }
+                },
+                "on_permission_request": PermissionHandler.approve_all,
             }
         )
 
@@ -71,7 +73,12 @@ class TestCompaction:
     async def test_should_not_emit_compaction_events_when_infinite_sessions_disabled(
         self, ctx: E2ETestContext
     ):
-        session = await ctx.client.create_session({"infinite_sessions": {"enabled": False}})
+        session = await ctx.client.create_session(
+            {
+                "infinite_sessions": {"enabled": False},
+                "on_permission_request": PermissionHandler.approve_all,
+            }
+        )
 
         compaction_events = []
 

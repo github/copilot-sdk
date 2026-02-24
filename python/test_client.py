@@ -6,8 +6,33 @@ This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py
 
 import pytest
 
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 from e2e.testharness import CLI_PATH
+
+
+class TestPermissionHandlerRequired:
+    @pytest.mark.asyncio
+    async def test_create_session_raises_without_permission_handler(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+        try:
+            with pytest.raises(ValueError, match="on_permission_request.*is required"):
+                await client.create_session({})
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_resume_session_raises_without_permission_handler(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+        try:
+            session = await client.create_session(
+                {"on_permission_request": PermissionHandler.approve_all}
+            )
+            with pytest.raises(ValueError, match="on_permission_request.*is required"):
+                await client.resume_session(session.session_id, {})
+        finally:
+            await client.force_stop()
 
 
 class TestHandleToolCallRequest:
@@ -17,7 +42,9 @@ class TestHandleToolCallRequest:
         await client.start()
 
         try:
-            session = await client.create_session()
+            session = await client.create_session(
+                {"on_permission_request": PermissionHandler.approve_all}
+            )
 
             response = await client._handle_tool_call_request(
                 {
@@ -164,7 +191,9 @@ class TestSessionConfigForwarding:
                 return await original_request(method, params)
 
             client._client.request = mock_request
-            await client.create_session({"client_name": "my-app"})
+            await client.create_session(
+                {"client_name": "my-app", "on_permission_request": PermissionHandler.approve_all}
+            )
             assert captured["session.create"]["clientName"] == "my-app"
         finally:
             await client.force_stop()
@@ -175,7 +204,9 @@ class TestSessionConfigForwarding:
         await client.start()
 
         try:
-            session = await client.create_session()
+            session = await client.create_session(
+                {"on_permission_request": PermissionHandler.approve_all}
+            )
 
             captured = {}
             original_request = client._client.request
@@ -185,7 +216,10 @@ class TestSessionConfigForwarding:
                 return await original_request(method, params)
 
             client._client.request = mock_request
-            await client.resume_session(session.session_id, {"client_name": "my-app"})
+            await client.resume_session(
+                session.session_id,
+                {"client_name": "my-app", "on_permission_request": PermissionHandler.approve_all},
+            )
             assert captured["session.resume"]["clientName"] == "my-app"
         finally:
             await client.force_stop()

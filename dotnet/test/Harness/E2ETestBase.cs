@@ -42,6 +42,28 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
 
     public Task DisposeAsync() => Task.CompletedTask;
 
+    /// <summary>
+    /// Creates a session with a default config that approves all permissions.
+    /// Convenience wrapper for E2E tests.
+    /// </summary>
+    protected Task<CopilotSession> CreateSessionAsync(SessionConfig? config = null)
+    {
+        config ??= new SessionConfig();
+        config.OnPermissionRequest ??= PermissionHandler.ApproveAll;
+        return Client.CreateSessionAsync(config);
+    }
+
+    /// <summary>
+    /// Resumes a session with a default config that approves all permissions.
+    /// Convenience wrapper for E2E tests.
+    /// </summary>
+    protected Task<CopilotSession> ResumeSessionAsync(string sessionId, ResumeSessionConfig? config = null)
+    {
+        config ??= new ResumeSessionConfig();
+        config.OnPermissionRequest ??= PermissionHandler.ApproveAll;
+        return Client.ResumeSessionAsync(sessionId, config);
+    }
+
     protected static string GetSystemMessage(ParsedHttpExchange exchange) =>
         exchange.Request.Messages.FirstOrDefault(m => m.Role == "system")?.Content ?? string.Empty;
 

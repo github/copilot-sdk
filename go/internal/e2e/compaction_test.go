@@ -21,6 +21,7 @@ func TestCompaction(t *testing.T) {
 		bufferThreshold := 0.01      // 1%
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			InfiniteSessions: &copilot.InfiniteSessionConfig{
 				Enabled:                       &enabled,
 				BackgroundCompactionThreshold: &backgroundThreshold,
@@ -93,6 +94,7 @@ func TestCompaction(t *testing.T) {
 
 		enabled := false
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			InfiniteSessions: &copilot.InfiniteSessionConfig{
 				Enabled: &enabled,
 			},

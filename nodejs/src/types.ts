@@ -675,7 +675,7 @@ export interface SessionConfig {
      * Handler for permission requests from the server.
      * When provided, the server will call this handler to request permission for operations.
      */
-    onPermissionRequest?: PermissionHandler;
+    onPermissionRequest: PermissionHandler;
 
     /**
      * Handler for user input requests from the agent.

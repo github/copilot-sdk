@@ -38,7 +38,7 @@ namespace GitHub.Copilot.SDK;
 /// await using var client = new CopilotClient();
 ///
 /// // Create a session
-/// await using var session = await client.CreateSessionAsync(new SessionConfig { Model = "gpt-4" });
+/// await using var session = await client.CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll, Model = "gpt-4" });
 ///
 /// // Handle events
 /// using var subscription = session.On(evt =>
@@ -340,10 +340,9 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <summary>
     /// Creates a new Copilot session with the specified configuration.
     /// </summary>
-    /// <param name="config">Configuration for the session. If null, default settings are used.</param>
+    /// <param name="config">Configuration for the session, including the required <see cref="SessionConfig.OnPermissionRequest"/> handler.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
     /// <returns>A task that resolves to provide the <see cref="CopilotSession"/>.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when the client is not connected and AutoStart is disabled, or when a session with the same ID already exists.</exception>
     /// <remarks>
     /// Sessions maintain conversation state, handle events, and manage tool execution.
     /// If the client is not connected and <see cref="CopilotClientOptions.AutoStart"/> is enabled (default),
@@ -352,21 +351,29 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <example>
     /// <code>
     /// // Basic session
-    /// var session = await client.CreateSessionAsync();
+    /// var session = await client.CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll });
     ///
     /// // Session with model and tools
-    /// var session = await client.CreateSessionAsync(new SessionConfig
+    /// var session = await client.CreateSessionAsync(new()
     /// {
+    ///     OnPermissionRequest = PermissionHandler.ApproveAll,
     ///     Model = "gpt-4",
     ///     Tools = [AIFunctionFactory.Create(MyToolMethod)]
     /// });
     /// </code>
     /// </example>
-    public async Task<CopilotSession> CreateSessionAsync(SessionConfig? config = null, CancellationToken cancellationToken = default)
+    public async Task<CopilotSession> CreateSessionAsync(SessionConfig config, CancellationToken cancellationToken = default)
     {
+        if (config.OnPermissionRequest == null)
+        {
+            throw new ArgumentException(
+                "An OnPermissionRequest handler is required when creating a session. " +
+                "For example, to allow all permissions, use CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll });");
+        }
+
         var connection = await EnsureConnectedAsync(cancellationToken);
 
-        var hasHooks = config?.Hooks != null && (
+        var hasHooks = config.Hooks != null && (
             config.Hooks.OnPreToolUse != null ||
             config.Hooks.OnPostToolUse != null ||
             config.Hooks.OnUserPromptSubmitted != null ||
@@ -375,42 +382,39 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
             config.Hooks.OnErrorOccurred != null);
 
         var request = new CreateSessionRequest(
-            config?.Model,
-            config?.SessionId,
-            config?.ClientName,
-            config?.ReasoningEffort,
-            config?.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
-            config?.SystemMessage,
-            config?.AvailableTools,
-            config?.ExcludedTools,
-            config?.Provider,
+            config.Model,
+            config.SessionId,
+            config.ClientName,
+            config.ReasoningEffort,
+            config.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
+            config.SystemMessage,
+            config.AvailableTools,
+            config.ExcludedTools,
+            config.Provider,
             (bool?)true,
-            config?.OnUserInputRequest != null ? true : null,
+            config.OnUserInputRequest != null ? true : null,
             hasHooks ? true : null,
-            config?.WorkingDirectory,
-            config?.Streaming == true ? true : null,
-            config?.McpServers,
+            config.WorkingDirectory,
+            config.Streaming is true ? true : null,
+            config.McpServers,
             "direct",
-            config?.CustomAgents,
-            config?.ConfigDir,
-            config?.SkillDirectories,
-            config?.DisabledSkills,
-            config?.InfiniteSessions);
+            config.CustomAgents,
+            config.ConfigDir,
+            config.SkillDirectories,
+            config.DisabledSkills,
+            config.InfiniteSessions);
 
         var response = await InvokeRpcAsync<CreateSessionResponse>(
             connection.Rpc, "session.create", [request], cancellationToken);
 
         var session = new CopilotSession(response.SessionId, connection.Rpc, response.WorkspacePath);
-        session.RegisterTools(config?.Tools ?? []);
-        if (config?.OnPermissionRequest != null)
-        {
-            session.RegisterPermissionHandler(config.OnPermissionRequest);
-        }
-        if (config?.OnUserInputRequest != null)
+        session.RegisterTools(config.Tools ?? []);
+        session.RegisterPermissionHandler(config.OnPermissionRequest);
+        if (config.OnUserInputRequest != null)
         {
             session.RegisterUserInputHandler(config.OnUserInputRequest);
         }
-        if (config?.Hooks != null)
+        if (config.Hooks != null)
         {
             session.RegisterHooks(config.Hooks);
         }
@@ -427,9 +431,10 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     /// Resumes an existing Copilot session with the specified configuration.
     /// </summary>
     /// <param name="sessionId">The ID of the session to resume.</param>
-    /// <param name="config">Configuration for the resumed session. If null, default settings are used.</param>
+    /// <param name="config">Configuration for the resumed session, including the required <see cref="ResumeSessionConfig.OnPermissionRequest"/> handler.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
     /// <returns>A task that resolves to provide the <see cref="CopilotSession"/>.</returns>
+    /// <exception cref="ArgumentException">Thrown when <see cref="ResumeSessionConfig.OnPermissionRequest"/> is not set.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the session does not exist or the client is not connected.</exception>
     /// <remarks>
     /// This allows you to continue a previous conversation, maintaining all conversation history.
@@ -438,20 +443,28 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <example>
     /// <code>
     /// // Resume a previous session
-    /// var session = await client.ResumeSessionAsync("session-123");
+    /// var session = await client.ResumeSessionAsync("session-123", new() { OnPermissionRequest = PermissionHandler.ApproveAll });
     ///
     /// // Resume with new tools
-    /// var session = await client.ResumeSessionAsync("session-123", new ResumeSessionConfig
+    /// var session = await client.ResumeSessionAsync("session-123", new()
     /// {
+    ///     OnPermissionRequest = PermissionHandler.ApproveAll,
     ///     Tools = [AIFunctionFactory.Create(MyNewToolMethod)]
     /// });
     /// </code>
     /// </example>
-    public async Task<CopilotSession> ResumeSessionAsync(string sessionId, ResumeSessionConfig? config = null, CancellationToken cancellationToken = default)
+    public async Task<CopilotSession> ResumeSessionAsync(string sessionId, ResumeSessionConfig config, CancellationToken cancellationToken = default)
     {
+        if (config.OnPermissionRequest == null)
+        {
+            throw new ArgumentException(
+                "An OnPermissionRequest handler is required when resuming a session. " +
+                "For example, to allow all permissions, use new() { OnPermissionRequest = PermissionHandler.ApproveAll }.");
+        }
+
         var connection = await EnsureConnectedAsync(cancellationToken);
 
-        var hasHooks = config?.Hooks != null && (
+        var hasHooks = config.Hooks != null && (
             config.Hooks.OnPreToolUse != null ||
             config.Hooks.OnPostToolUse != null ||
             config.Hooks.OnUserPromptSubmitted != null ||
@@ -461,42 +474,39 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
 
         var request = new ResumeSessionRequest(
             sessionId,
-            config?.ClientName,
-            config?.Model,
-            config?.ReasoningEffort,
-            config?.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
-            config?.SystemMessage,
-            config?.AvailableTools,
-            config?.ExcludedTools,
-            config?.Provider,
+            config.ClientName,
+            config.Model,
+            config.ReasoningEffort,
+            config.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
+            config.SystemMessage,
+            config.AvailableTools,
+            config.ExcludedTools,
+            config.Provider,
             (bool?)true,
-            config?.OnUserInputRequest != null ? true : null,
+            config.OnUserInputRequest != null ? true : null,
             hasHooks ? true : null,
-            config?.WorkingDirectory,
-            config?.ConfigDir,
-            config?.DisableResume == true ? true : null,
-            config?.Streaming == true ? true : null,
-            config?.McpServers,
+            config.WorkingDirectory,
+            config.ConfigDir,
+            config.DisableResume is true ? true : null,
+            config.Streaming is true ? true : null,
+            config.McpServers,
             "direct",
-            config?.CustomAgents,
-            config?.SkillDirectories,
-            config?.DisabledSkills,
-            config?.InfiniteSessions);
+            config.CustomAgents,
+            config.SkillDirectories,
+            config.DisabledSkills,
+            config.InfiniteSessions);
 
         var response = await InvokeRpcAsync<ResumeSessionResponse>(
             connection.Rpc, "session.resume", [request], cancellationToken);
 
         var session = new CopilotSession(response.SessionId, connection.Rpc, response.WorkspacePath);
-        session.RegisterTools(config?.Tools ?? []);
-        if (config?.OnPermissionRequest != null)
-        {
-            session.RegisterPermissionHandler(config.OnPermissionRequest);
-        }
-        if (config?.OnUserInputRequest != null)
+        session.RegisterTools(config.Tools ?? []);
+        session.RegisterPermissionHandler(config.OnPermissionRequest);
+        if (config.OnUserInputRequest != null)
         {
             session.RegisterUserInputHandler(config.OnUserInputRequest);
         }
-        if (config?.Hooks != null)
+        if (config.Hooks != null)
         {
             session.RegisterHooks(config.Hooks);
         }
@@ -516,7 +526,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <code>
     /// if (client.State == ConnectionState.Connected)
     /// {
-    ///     var session = await client.CreateSessionAsync();
+    ///     var session = await client.CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll });
     /// }
     /// </code>
     /// </example>
@@ -630,7 +640,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     /// var lastId = await client.GetLastSessionIdAsync();
     /// if (lastId != null)
     /// {
-    ///     var session = await client.ResumeSessionAsync(lastId);
+    ///     var session = await client.ResumeSessionAsync(lastId, new() { OnPermissionRequest = PermissionHandler.ApproveAll });
     /// }
     /// </code>
     /// </example>

@@ -8,7 +8,10 @@ describe("Sessions", async () => {
     const { copilotClient: client, openAiEndpoint, homeDir, env } = await createSdkTestContext();
 
     it("should create and destroy sessions", async () => {
-        const session = await client.createSession({ model: "fake-test-model" });
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            model: "fake-test-model",
+        });
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
 
         expect(await session.getMessages()).toMatchObject([
@@ -25,7 +28,7 @@ describe("Sessions", async () => {
     // TODO: Re-enable once test harness CAPI proxy supports this test's session lifecycle
     it.skip("should list sessions with context field", { timeout: 60000 }, async () => {
         // Create a session — just creating it is enough for it to appear in listSessions
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
 
         // Verify it has a start event (confirms session is active)
@@ -44,7 +47,7 @@ describe("Sessions", async () => {
     });
 
     it("should have stateful conversation", async () => {
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
         const assistantMessage = await session.sendAndWait({ prompt: "What is 1+1?" });
         expect(assistantMessage?.data.content).toContain("2");
 
@@ -57,6 +60,7 @@ describe("Sessions", async () => {
     it("should create a session with appended systemMessage config", async () => {
         const systemMessageSuffix = "End each response with the phrase 'Have a nice day!'";
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             systemMessage: {
                 mode: "append",
                 content: systemMessageSuffix,
@@ -77,6 +81,7 @@ describe("Sessions", async () => {
     it("should create a session with replaced systemMessage config", async () => {
         const testSystemMessage = "You are an assistant called Testy McTestface. Reply succinctly.";
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             systemMessage: { mode: "replace", content: testSystemMessage },
         });
 
@@ -92,6 +97,7 @@ describe("Sessions", async () => {
 
     it("should create a session with availableTools", async () => {
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             availableTools: ["view", "edit"],
         });
 
@@ -107,6 +113,7 @@ describe("Sessions", async () => {
 
     it("should create a session with excludedTools", async () => {
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             excludedTools: ["view"],
         });
 
@@ -128,9 +135,9 @@ describe("Sessions", async () => {
     // we stopped all the clients (one or more child processes were left orphaned).
     it.skip("should handle multiple concurrent sessions", async () => {
         const [s1, s2, s3] = await Promise.all([
-            client.createSession(),
-            client.createSession(),
-            client.createSession(),
+            client.createSession({ onPermissionRequest: approveAll }),
+            client.createSession({ onPermissionRequest: approveAll }),
+            client.createSession({ onPermissionRequest: approveAll }),
         ]);
 
         // All sessions should have unique IDs
@@ -156,13 +163,13 @@ describe("Sessions", async () => {
 
     it("should resume a session using the same client", async () => {
         // Create initial session
-        const session1 = await client.createSession();
+        const session1 = await client.createSession({ onPermissionRequest: approveAll });
         const sessionId = session1.sessionId;
         const answer = await session1.sendAndWait({ prompt: "What is 1+1?" });
         expect(answer?.data.content).toContain("2");
 
         // Resume using the same client
-        const session2 = await client.resumeSession(sessionId);
+        const session2 = await client.resumeSession(sessionId, { onPermissionRequest: approveAll });
         expect(session2.sessionId).toBe(sessionId);
         const messages = await session2.getMessages();
         const assistantMessages = messages.filter((m) => m.type === "assistant.message");
@@ -171,7 +178,7 @@ describe("Sessions", async () => {
 
     it("should resume a session using a new client", async () => {
         // Create initial session
-        const session1 = await client.createSession();
+        const session1 = await client.createSession({ onPermissionRequest: approveAll });
         const sessionId = session1.sessionId;
         const answer = await session1.sendAndWait({ prompt: "What is 1+1?" });
         expect(answer?.data.content).toContain("2");
@@ -183,7 +190,9 @@ describe("Sessions", async () => {
         });
 
         onTestFinished(() => newClient.forceStop());
-        const session2 = await newClient.resumeSession(sessionId);
+        const session2 = await newClient.resumeSession(sessionId, {
+            onPermissionRequest: approveAll,
+        });
         expect(session2.sessionId).toBe(sessionId);
 
         // TODO: There's an inconsistency here. When resuming with a new client, we don't see
@@ -195,11 +204,14 @@ describe("Sessions", async () => {
     });
 
     it("should throw error when resuming non-existent session", async () => {
-        await expect(client.resumeSession("non-existent-session-id")).rejects.toThrow();
+        await expect(
+            client.resumeSession("non-existent-session-id", { onPermissionRequest: approveAll })
+        ).rejects.toThrow();
     });
 
     it("should create session with custom tool", async () => {
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             tools: [
                 {
                     name: "get_secret_number",
@@ -229,11 +241,12 @@ describe("Sessions", async () => {
     });
 
     it("should resume session with a custom provider", async () => {
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
         const sessionId = session.sessionId;
 
         // Resume the session with a provider
         const session2 = await client.resumeSession(sessionId, {
+            onPermissionRequest: approveAll,
             provider: {
                 type: "openai",
                 baseUrl: "https://api.openai.com/v1",
@@ -245,7 +258,7 @@ describe("Sessions", async () => {
     });
 
     it("should abort a session", async () => {
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
 
         // Set up event listeners BEFORE sending to avoid race conditions
         const nextToolCallStart = getNextEventOfType(session, "tool.execution_start");
@@ -272,6 +285,7 @@ describe("Sessions", async () => {
 
     it("should receive streaming delta events when streaming is enabled", async () => {
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             streaming: true,
         });
 
@@ -308,6 +322,7 @@ describe("Sessions", async () => {
     it("should pass streaming option to session creation", async () => {
         // Verify that the streaming option is accepted without errors
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             streaming: true,
         });
 
@@ -319,7 +334,7 @@ describe("Sessions", async () => {
     });
 
     it("should receive session events", async () => {
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
         const receivedEvents: Array<{ type: string }> = [];
 
         session.on((event) => {
@@ -342,6 +357,7 @@ describe("Sessions", async () => {
     it("should create session with custom config dir", async () => {
         const customConfigDir = `${homeDir}/custom-config`;
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             configDir: customConfigDir,
         });
 
@@ -390,7 +406,7 @@ describe("Send Blocking Behavior", async () => {
     });
 
     it("sendAndWait blocks until session.idle and returns final assistant message", async () => {
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
 
         const events: string[] = [];
         session.on((event) => {
@@ -409,7 +425,7 @@ describe("Send Blocking Behavior", async () => {
     // This test validates client-side timeout behavior.
     // The snapshot has no assistant response since we expect timeout before completion.
     it("sendAndWait throws on timeout", async () => {
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
 
         // Use a slow command to ensure timeout triggers before completion
         await expect(
