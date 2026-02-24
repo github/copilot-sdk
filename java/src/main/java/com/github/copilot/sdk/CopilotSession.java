@@ -373,24 +373,33 @@ public final class CopilotSession implements AutoCloseable {
             scheduler.shutdown();
         }, timeoutMs, TimeUnit.MILLISECONDS);
 
-        var resultFuture = future.whenComplete((result, ex) -> {
+        var result = new CompletableFuture<AssistantMessageEvent>();
+
+        // When inner future completes, run cleanup and propagate to result
+        future.whenComplete((r, ex) -> {
             try {
                 subscription.close();
             } catch (IOException e) {
                 LOG.log(Level.SEVERE, "Error closing subscription", e);
             }
             scheduler.shutdown();
-        });
-
-        // When the returned future is cancelled externally, propagate to the inner
-        // future so that cleanup (subscription close, scheduler shutdown) runs.
-        resultFuture.whenComplete((v, ex) -> {
-            if (resultFuture.isCancelled()) {
-                future.completeExceptionally(new java.util.concurrent.CancellationException());
+            if (!result.isDone()) {
+                if (ex != null) {
+                    result.completeExceptionally(ex);
+                } else {
+                    result.complete(r);
+                }
             }
         });
 
-        return resultFuture;
+        // When result is cancelled externally, cancel inner future to trigger cleanup
+        result.whenComplete((v, ex) -> {
+            if (result.isCancelled() && !future.isDone()) {
+                future.cancel(true);
+            }
+        });
+
+        return result;
     }
 
     /**
