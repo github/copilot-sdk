@@ -120,7 +120,7 @@ public class AgentAndCompactRpcTests(E2ETestFixture fixture, ITestOutputHelper o
     [Fact]
     public async Task Should_Return_Empty_List_When_No_Custom_Agents_Configured()
     {
-        var session = await Client.CreateSessionAsync();
+        var session = await CreateSessionAsync();
 
         var result = await session.Rpc.Agent.ListAsync();
         Assert.Empty(result.Agents);
@@ -129,7 +129,7 @@ public class AgentAndCompactRpcTests(E2ETestFixture fixture, ITestOutputHelper o
     [Fact]
     public async Task Should_Compact_Session_History_After_Messages()
     {
-        var session = await Client.CreateSessionAsync();
+        var session = await CreateSessionAsync();
 
         // Send a message to create some history
         await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" });
