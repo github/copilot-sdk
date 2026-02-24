@@ -511,7 +511,7 @@ export class CopilotClient {
     async createSession(config: SessionConfig): Promise<CopilotSession> {
         if (!config?.onPermissionRequest) {
             throw new Error(
-                'An onPermissionRequest handler is required when creating a session. For example, to allow all permissions, use { onPermissionRequest: approveAll }.'
+                "An onPermissionRequest handler is required when creating a session. For example, to allow all permissions, use { onPermissionRequest: approveAll }."
             );
         }
 
@@ -594,13 +594,10 @@ export class CopilotClient {
      * });
      * ```
      */
-    async resumeSession(
-        sessionId: string,
-        config: ResumeSessionConfig
-    ): Promise<CopilotSession> {
+    async resumeSession(sessionId: string, config: ResumeSessionConfig): Promise<CopilotSession> {
         if (!config?.onPermissionRequest) {
             throw new Error(
-                'An onPermissionRequest handler is required when resuming a session. For example, to allow all permissions, use { onPermissionRequest: approveAll }.'
+                "An onPermissionRequest handler is required when resuming a session. For example, to allow all permissions, use { onPermissionRequest: approveAll }."
             );
         }
 

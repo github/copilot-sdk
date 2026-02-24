@@ -8,7 +8,10 @@ describe("Sessions", async () => {
     const { copilotClient: client, openAiEndpoint, homeDir, env } = await createSdkTestContext();
 
     it("should create and destroy sessions", async () => {
-        const session = await client.createSession({ onPermissionRequest: approveAll, model: "fake-test-model" });
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            model: "fake-test-model",
+        });
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
 
         expect(await session.getMessages()).toMatchObject([
@@ -187,7 +190,9 @@ describe("Sessions", async () => {
         });
 
         onTestFinished(() => newClient.forceStop());
-        const session2 = await newClient.resumeSession(sessionId, { onPermissionRequest: approveAll });
+        const session2 = await newClient.resumeSession(sessionId, {
+            onPermissionRequest: approveAll,
+        });
         expect(session2.sessionId).toBe(sessionId);
 
         // TODO: There's an inconsistency here. When resuming with a new client, we don't see
@@ -199,7 +204,9 @@ describe("Sessions", async () => {
     });
 
     it("should throw error when resuming non-existent session", async () => {
-        await expect(client.resumeSession("non-existent-session-id", { onPermissionRequest: approveAll })).rejects.toThrow();
+        await expect(
+            client.resumeSession("non-existent-session-id", { onPermissionRequest: approveAll })
+        ).rejects.toThrow();
     });
 
     it("should create session with custom tool", async () => {

@@ -453,7 +453,8 @@ class CopilotClient:
         if not cfg.get("on_permission_request"):
             raise ValueError(
                 "An on_permission_request handler is required when creating a session. "
-                'For example, to allow all permissions, use {"on_permission_request": PermissionHandler.approve_all}.'
+                "For example, to allow all permissions, use "
+                '{"on_permission_request": PermissionHandler.approve_all}.'
             )
 
         tool_defs = []
@@ -623,7 +624,8 @@ class CopilotClient:
         if not cfg.get("on_permission_request"):
             raise ValueError(
                 "An on_permission_request handler is required when resuming a session. "
-                'For example, to allow all permissions, use {"on_permission_request": PermissionHandler.approve_all}.'
+                "For example, to allow all permissions, use "
+                '{"on_permission_request": PermissionHandler.approve_all}.'
             )
 
         tool_defs = []

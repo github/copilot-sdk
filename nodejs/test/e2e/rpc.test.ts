@@ -71,7 +71,10 @@ describe("Session RPC", async () => {
 
     // session.model.getCurrent is defined in schema but not yet implemented in CLI
     it.skip("should call session.rpc.model.getCurrent", async () => {
-        const session = await client.createSession({ onPermissionRequest: approveAll, model: "claude-sonnet-4.5" });
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            model: "claude-sonnet-4.5",
+        });
 
         const result = await session.rpc.model.getCurrent();
         expect(result.modelId).toBeDefined();
@@ -80,7 +83,10 @@ describe("Session RPC", async () => {
 
     // session.model.switchTo is defined in schema but not yet implemented in CLI
     it.skip("should call session.rpc.model.switchTo", async () => {
-        const session = await client.createSession({ onPermissionRequest: approveAll, model: "claude-sonnet-4.5" });
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            model: "claude-sonnet-4.5",
+        });
 
         // Get initial model
         const before = await session.rpc.model.getCurrent();
