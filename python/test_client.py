@@ -191,7 +191,9 @@ class TestSessionConfigForwarding:
                 return await original_request(method, params)
 
             client._client.request = mock_request
-            await client.create_session({"client_name": "my-app", "on_permission_request": PermissionHandler.approve_all})
+            await client.create_session(
+                {"client_name": "my-app", "on_permission_request": PermissionHandler.approve_all}
+            )
             assert captured["session.create"]["clientName"] == "my-app"
         finally:
             await client.force_stop()
@@ -202,7 +204,9 @@ class TestSessionConfigForwarding:
         await client.start()
 
         try:
-            session = await client.create_session({"on_permission_request": PermissionHandler.approve_all})
+            session = await client.create_session(
+                {"on_permission_request": PermissionHandler.approve_all}
+            )
 
             captured = {}
             original_request = client._client.request
@@ -212,7 +216,10 @@ class TestSessionConfigForwarding:
                 return await original_request(method, params)
 
             client._client.request = mock_request
-            await client.resume_session(session.session_id, {"client_name": "my-app", "on_permission_request": PermissionHandler.approve_all})
+            await client.resume_session(
+                session.session_id,
+                {"client_name": "my-app", "on_permission_request": PermissionHandler.approve_all},
+            )
             assert captured["session.resume"]["clientName"] == "my-app"
         finally:
             await client.force_stop()

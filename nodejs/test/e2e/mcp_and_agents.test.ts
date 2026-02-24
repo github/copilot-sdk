@@ -28,6 +28,7 @@ describe("MCP Servers and Custom Agents", async () => {
             };
 
             const session = await client.createSession({
+                onPermissionRequest: approveAll,
                 mcpServers,
             });
 
@@ -44,7 +45,7 @@ describe("MCP Servers and Custom Agents", async () => {
 
         it("should accept MCP server configuration on session resume", async () => {
             // Create a session first
-            const session1 = await client.createSession();
+            const session1 = await client.createSession({ onPermissionRequest: approveAll });
             const sessionId = session1.sessionId;
             await session1.sendAndWait({ prompt: "What is 1+1?" });
 
@@ -59,6 +60,7 @@ describe("MCP Servers and Custom Agents", async () => {
             };
 
             const session2 = await client.resumeSession(sessionId, {
+                onPermissionRequest: approveAll,
                 mcpServers,
             });
 
@@ -89,6 +91,7 @@ describe("MCP Servers and Custom Agents", async () => {
             };
 
             const session = await client.createSession({
+                onPermissionRequest: approveAll,
                 mcpServers,
             });
 
@@ -136,6 +139,7 @@ describe("MCP Servers and Custom Agents", async () => {
             ];
 
             const session = await client.createSession({
+                onPermissionRequest: approveAll,
                 customAgents,
             });
 
@@ -152,7 +156,7 @@ describe("MCP Servers and Custom Agents", async () => {
 
         it("should accept custom agent configuration on session resume", async () => {
             // Create a session first
-            const session1 = await client.createSession();
+            const session1 = await client.createSession({ onPermissionRequest: approveAll });
             const sessionId = session1.sessionId;
             await session1.sendAndWait({ prompt: "What is 1+1?" });
 
@@ -167,6 +171,7 @@ describe("MCP Servers and Custom Agents", async () => {
             ];
 
             const session2 = await client.resumeSession(sessionId, {
+                onPermissionRequest: approveAll,
                 customAgents,
             });
 
@@ -193,6 +198,7 @@ describe("MCP Servers and Custom Agents", async () => {
             ];
 
             const session = await client.createSession({
+                onPermissionRequest: approveAll,
                 customAgents,
             });
 
@@ -219,6 +225,7 @@ describe("MCP Servers and Custom Agents", async () => {
             ];
 
             const session = await client.createSession({
+                onPermissionRequest: approveAll,
                 customAgents,
             });
 
@@ -244,6 +251,7 @@ describe("MCP Servers and Custom Agents", async () => {
             ];
 
             const session = await client.createSession({
+                onPermissionRequest: approveAll,
                 customAgents,
             });
 
@@ -273,6 +281,7 @@ describe("MCP Servers and Custom Agents", async () => {
             ];
 
             const session = await client.createSession({
+                onPermissionRequest: approveAll,
                 mcpServers,
                 customAgents,
             });

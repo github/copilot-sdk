@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SessionEvent } from "../../src/index.js";
+import { SessionEvent, approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 describe("Compaction", async () => {
@@ -8,6 +8,7 @@ describe("Compaction", async () => {
     it("should trigger compaction with low threshold and emit events", async () => {
         // Create session with very low compaction thresholds to trigger compaction quickly
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             infiniteSessions: {
                 enabled: true,
                 // Trigger background compaction at 0.5% context usage (~1000 tokens)
@@ -63,6 +64,7 @@ describe("Compaction", async () => {
 
     it("should not emit compaction events when infinite sessions disabled", async () => {
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             infiniteSessions: {
                 enabled: false,
             },

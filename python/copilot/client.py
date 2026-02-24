@@ -585,9 +585,7 @@ class CopilotClient:
 
         return session
 
-    async def resume_session(
-        self, session_id: str, config: ResumeSessionConfig
-    ) -> CopilotSession:
+    async def resume_session(self, session_id: str, config: ResumeSessionConfig) -> CopilotSession:
         """
         Resume an existing conversation session by its ID.
 

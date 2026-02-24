@@ -26,6 +26,7 @@ describe("Custom tools", async () => {
 
     it("invokes custom tool", async () => {
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             tools: [
                 defineTool("encrypt_string", {
                     description: "Encrypts a string",
@@ -45,6 +46,7 @@ describe("Custom tools", async () => {
 
     it("handles tool calling errors", async () => {
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             tools: [
                 defineTool("get_user_location", {
                     description: "Gets the user's location",
@@ -85,6 +87,7 @@ describe("Custom tools", async () => {
 
     it("can receive and return complex types", async () => {
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             tools: [
                 defineTool("db_query", {
                     description: "Performs a database query",

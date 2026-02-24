@@ -50,6 +50,8 @@ conversations:
         content: Intent logged
       - role: tool
         tool_call_id: toolcall_1
-        content: Permission denied and could not request permission from user
+        content: |-
+          v22.19.0
+          <exited with exit code 0>
       - role: assistant
-        content: Permission was denied to run the command. I don't have access to execute shell commands in this environment.
+        content: Node.js version v22.19.0 is installed.
