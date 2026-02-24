@@ -41,7 +41,7 @@ public class CopilotClientOptions {
     private boolean autoStart = true;
     private boolean autoRestart = true;
     private Map<String, String> environment;
-    private String githubToken;
+    private String gitHubToken;
     private Boolean useLoggedInUser;
 
     /**
@@ -279,8 +279,8 @@ public class CopilotClientOptions {
      *
      * @return the GitHub token, or {@code null} to use other authentication methods
      */
-    public String getGithubToken() {
-        return githubToken;
+    public String getGitHubToken() {
+        return gitHubToken;
     }
 
     /**
@@ -289,12 +289,37 @@ public class CopilotClientOptions {
      * When provided, the token is passed to the CLI server via environment
      * variable. This takes priority over other authentication methods.
      *
-     * @param githubToken
+     * @param gitHubToken
      *            the GitHub token
      * @return this options instance for method chaining
      */
+    public CopilotClientOptions setGitHubToken(String gitHubToken) {
+        this.gitHubToken = gitHubToken;
+        return this;
+    }
+
+    /**
+     * Gets the GitHub token for authentication.
+     *
+     * @return the GitHub token, or {@code null} to use other authentication methods
+     * @deprecated Use {@link #getGitHubToken()} instead.
+     */
+    @Deprecated
+    public String getGithubToken() {
+        return gitHubToken;
+    }
+
+    /**
+     * Sets the GitHub token to use for authentication.
+     *
+     * @param githubToken
+     *            the GitHub token
+     * @return this options instance for method chaining
+     * @deprecated Use {@link #setGitHubToken(String)} instead.
+     */
+    @Deprecated
     public CopilotClientOptions setGithubToken(String githubToken) {
-        this.githubToken = githubToken;
+        this.gitHubToken = githubToken;
         return this;
     }
 
@@ -312,8 +337,8 @@ public class CopilotClientOptions {
      * Sets whether to use the logged-in user for authentication.
      * <p>
      * When true, the CLI server will attempt to use stored OAuth tokens or gh CLI
-     * auth. When false, only explicit tokens (githubToken or environment variables)
-     * are used. Default: true (but defaults to false when githubToken is provided).
+     * auth. When false, only explicit tokens (gitHubToken or environment variables)
+     * are used. Default: true (but defaults to false when gitHubToken is provided).
      *
      * @param useLoggedInUser
      *            {@code true} to use logged-in user auth, {@code false} otherwise
@@ -347,7 +372,7 @@ public class CopilotClientOptions {
         copy.autoStart = this.autoStart;
         copy.autoRestart = this.autoRestart;
         copy.environment = this.environment != null ? new java.util.HashMap<>(this.environment) : null;
-        copy.githubToken = this.githubToken;
+        copy.gitHubToken = this.gitHubToken;
         copy.useLoggedInUser = this.useLoggedInUser;
         return copy;
     }

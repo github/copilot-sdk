@@ -26,12 +26,16 @@ class ConfigCloneTest {
         original.setCliPath("/usr/local/bin/copilot");
         original.setLogLevel("debug");
         original.setPort(9000);
+        original.setGitHubToken("ghp_test");
+        original.setUseLoggedInUser(false);
 
         CopilotClientOptions cloned = original.clone();
 
         assertEquals(original.getCliPath(), cloned.getCliPath());
         assertEquals(original.getLogLevel(), cloned.getLogLevel());
         assertEquals(original.getPort(), cloned.getPort());
+        assertEquals(original.getGitHubToken(), cloned.getGitHubToken());
+        assertEquals(original.getUseLoggedInUser(), cloned.getUseLoggedInUser());
     }
 
     @Test

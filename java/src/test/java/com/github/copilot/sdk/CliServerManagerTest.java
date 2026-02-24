@@ -165,9 +165,9 @@ class CliServerManagerTest {
     }
 
     @Test
-    void startCliServerWithGithubToken() throws Exception {
+    void startCliServerWithGitHubToken() throws Exception {
         // Test the github token branch
-        var options = new CopilotClientOptions().setCliPath("/nonexistent/copilot").setGithubToken("ghp_test123")
+        var options = new CopilotClientOptions().setCliPath("/nonexistent/copilot").setGitHubToken("ghp_test123")
                 .setUseStdio(true);
         var manager = new CliServerManager(options);
 
@@ -187,9 +187,9 @@ class CliServerManagerTest {
     }
 
     @Test
-    void startCliServerWithGithubTokenAndNoExplicitUseLoggedInUser() throws Exception {
-        // When githubToken is set and useLoggedInUser is null, defaults to false
-        var options = new CopilotClientOptions().setCliPath("/nonexistent/copilot").setGithubToken("ghp_test123")
+    void startCliServerWithGitHubTokenAndNoExplicitUseLoggedInUser() throws Exception {
+        // When gitHubToken is set and useLoggedInUser is null, defaults to false
+        var options = new CopilotClientOptions().setCliPath("/nonexistent/copilot").setGitHubToken("ghp_test123")
                 .setUseStdio(true);
         var manager = new CliServerManager(options);
 

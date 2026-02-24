@@ -70,15 +70,15 @@ final class CliServerManager {
         }
 
         // Add auth-related flags
-        if (options.getGithubToken() != null && !options.getGithubToken().isEmpty()) {
+        if (options.getGitHubToken() != null && !options.getGitHubToken().isEmpty()) {
             args.add("--auth-token-env");
             args.add("COPILOT_SDK_AUTH_TOKEN");
         }
 
-        // Default UseLoggedInUser to false when GithubToken is provided
+        // Default UseLoggedInUser to false when GitHubToken is provided
         boolean useLoggedInUser = options.getUseLoggedInUser() != null
                 ? options.getUseLoggedInUser()
-                : (options.getGithubToken() == null || options.getGithubToken().isEmpty());
+                : (options.getGitHubToken() == null || options.getGitHubToken().isEmpty());
         if (!useLoggedInUser) {
             args.add("--no-auto-login");
         }
@@ -106,8 +106,8 @@ final class CliServerManager {
         pb.environment().remove("NODE_DEBUG");
 
         // Set auth token in environment if provided
-        if (options.getGithubToken() != null && !options.getGithubToken().isEmpty()) {
-            pb.environment().put("COPILOT_SDK_AUTH_TOKEN", options.getGithubToken());
+        if (options.getGitHubToken() != null && !options.getGitHubToken().isEmpty()) {
+            pb.environment().put("COPILOT_SDK_AUTH_TOKEN", options.getGitHubToken());
         }
 
         Process process = pb.start();

@@ -312,6 +312,12 @@ public final class CopilotSession implements AutoCloseable {
      * This method blocks until the assistant finishes processing the message or
      * until the timeout expires. It's suitable for simple request/response
      * interactions where you don't need to process streaming events.
+     * <p>
+     * The returned future can be cancelled via
+     * {@link java.util.concurrent.Future#cancel(boolean)}. If cancelled externally,
+     * the future completes with {@link java.util.concurrent.CancellationException}.
+     * If the timeout expires first, the future completes exceptionally with a
+     * {@link TimeoutException}.
      *
      * @param options
      *            the message options containing the prompt and attachments
@@ -320,7 +326,7 @@ public final class CopilotSession implements AutoCloseable {
      * @return a future that resolves with the final assistant message event, or
      *         {@code null} if no assistant message was received. The future
      *         completes exceptionally with a TimeoutException if the timeout
-     *         expires.
+     *         expires, or with CancellationException if cancelled externally.
      * @throws IllegalStateException
      *             if this session has been terminated
      * @see #sendAndWait(MessageOptions)
@@ -367,7 +373,7 @@ public final class CopilotSession implements AutoCloseable {
             scheduler.shutdown();
         }, timeoutMs, TimeUnit.MILLISECONDS);
 
-        return future.whenComplete((result, ex) -> {
+        var resultFuture = future.whenComplete((result, ex) -> {
             try {
                 subscription.close();
             } catch (IOException e) {
@@ -375,6 +381,16 @@ public final class CopilotSession implements AutoCloseable {
             }
             scheduler.shutdown();
         });
+
+        // When the returned future is cancelled externally, propagate to the inner
+        // future so that cleanup (subscription close, scheduler shutdown) runs.
+        resultFuture.whenComplete((v, ex) -> {
+            if (resultFuture.isCancelled()) {
+                future.completeExceptionally(new java.util.concurrent.CancellationException());
+            }
+        });
+
+        return resultFuture;
     }
 
     /**

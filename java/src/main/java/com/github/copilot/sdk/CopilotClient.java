@@ -110,9 +110,9 @@ public final class CopilotClient implements AutoCloseable {
 
         // Validate auth options with external server
         if (this.options.getCliUrl() != null && !this.options.getCliUrl().isEmpty()
-                && (this.options.getGithubToken() != null || this.options.getUseLoggedInUser() != null)) {
+                && (this.options.getGitHubToken() != null || this.options.getUseLoggedInUser() != null)) {
             throw new IllegalArgumentException(
-                    "GithubToken and UseLoggedInUser cannot be used with CliUrl (external server manages its own auth)");
+                    "GitHubToken and UseLoggedInUser cannot be used with CliUrl (external server manages its own auth)");
         }
 
         // Parse CliUrl if provided
