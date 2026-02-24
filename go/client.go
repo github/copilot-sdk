@@ -12,6 +12,7 @@
 //	defer client.Stop()
 //
 //	session, err := client.CreateSession(&copilot.SessionConfig{
+//	    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 //	    Model: "gpt-4",
 //	})
 //	if err != nil {
@@ -880,7 +881,9 @@ func (c *Client) handleLifecycleEvent(event SessionLifecycleEvent) {
 // Example:
 //
 //	if client.State() == copilot.StateConnected {
-//	    session, err := client.CreateSession(context.Background(), nil)
+//	    session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
+//	        OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+//	    })
 //	}
 func (c *Client) State() ConnectionState {
 	return c.state

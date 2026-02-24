@@ -91,7 +91,7 @@ function toJsonSchema(parameters: Tool["parameters"]): Record<string, unknown> |
  * const client = new CopilotClient({ cliUrl: "localhost:3000" });
  *
  * // Create a session
- * const session = await client.createSession({ model: "gpt-4" });
+ * const session = await client.createSession({ onPermissionRequest: approveAll, model: "gpt-4" });
  *
  * // Send messages and handle responses
  * session.on((event) => {
@@ -664,7 +664,7 @@ export class CopilotClient {
      * @example
      * ```typescript
      * if (client.getState() === "connected") {
-     *   const session = await client.createSession();
+     *   const session = await client.createSession({ onPermissionRequest: approveAll });
      * }
      * ```
      */
@@ -809,7 +809,7 @@ export class CopilotClient {
      * ```typescript
      * const lastId = await client.getLastSessionId();
      * if (lastId) {
-     *   const session = await client.resumeSession(lastId);
+     *   const session = await client.resumeSession(lastId, { onPermissionRequest: approveAll });
      * }
      * ```
      */
