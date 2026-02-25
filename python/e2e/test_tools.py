@@ -18,9 +18,7 @@ class TestTools:
         with open(readme_path, "w") as f:
             f.write("# ELIZA, the only chatbot you'll ever need")
 
-        session = await ctx.client.create_session(
-            {"on_permission_request": PermissionHandler.approve_all}
-        )
+        session = await ctx.client.create_session(PermissionHandler.approve_all)
 
         await session.send({"prompt": "What's the first line of README.md in this directory?"})
         assistant_message = await get_final_assistant_message(session)
@@ -35,7 +33,7 @@ class TestTools:
             return params.input.upper()
 
         session = await ctx.client.create_session(
-            {"tools": [encrypt_string], "on_permission_request": PermissionHandler.approve_all}
+            PermissionHandler.approve_all, tools=[encrypt_string]
         )
 
         await session.send({"prompt": "Use encrypt_string to encrypt this string: Hello"})
@@ -48,7 +46,7 @@ class TestTools:
             raise Exception("Melbourne")
 
         session = await ctx.client.create_session(
-            {"tools": [get_user_location], "on_permission_request": PermissionHandler.approve_all}
+            PermissionHandler.approve_all, tools=[get_user_location]
         )
 
         await session.send(
@@ -112,9 +110,7 @@ class TestTools:
                 City(countryId=12, cityName="San Lorenzo", population=204356),
             ]
 
-        session = await ctx.client.create_session(
-            {"tools": [db_query], "on_permission_request": PermissionHandler.approve_all}
-        )
+        session = await ctx.client.create_session(PermissionHandler.approve_all, tools=[db_query])
         expected_session_id = session.session_id
 
         await session.send(
@@ -147,12 +143,7 @@ class TestTools:
             permission_requests.append(request)
             return {"kind": "approved"}
 
-        session = await ctx.client.create_session(
-            {
-                "tools": [encrypt_string],
-                "on_permission_request": on_permission_request,
-            }
-        )
+        session = await ctx.client.create_session(on_permission_request, tools=[encrypt_string])
 
         await session.send({"prompt": "Use encrypt_string to encrypt this string: Hello"})
         assistant_message = await get_final_assistant_message(session)
@@ -178,12 +169,7 @@ class TestTools:
         def on_permission_request(request, invocation):
             return {"kind": "denied-interactively-by-user"}
 
-        session = await ctx.client.create_session(
-            {
-                "tools": [encrypt_string],
-                "on_permission_request": on_permission_request,
-            }
-        )
+        session = await ctx.client.create_session(on_permission_request, tools=[encrypt_string])
 
         await session.send({"prompt": "Use encrypt_string to encrypt this string: Hello"})
         await get_final_assistant_message(session)

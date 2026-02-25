@@ -46,16 +46,13 @@ await session.sendAndWait({ prompt: "Analyze my codebase" });
 ### Python
 
 ```python
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 
 client = CopilotClient()
 await client.start()
 
 # Create a session with a meaningful ID
-session = await client.create_session({
-    "session_id": "user-123-task-456",
-    "model": "gpt-5.2-codex",
-})
+session = await client.create_session(PermissionHandler.approve_all, "gpt-5.2-codex", session_id="user-123-task-456")
 
 # Do some work...
 await session.send_and_wait({"prompt": "Analyze my codebase"})

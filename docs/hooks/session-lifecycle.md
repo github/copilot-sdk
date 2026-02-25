@@ -113,6 +113,8 @@ Package manager: ${projectInfo.packageManager}
 <summary><strong>Python</strong></summary>
 
 ```python
+from copilot import PermissionHandler
+
 async def on_session_start(input_data, invocation):
     print(f"Session {invocation['session_id']} started ({input_data['source']})")
     
@@ -126,9 +128,7 @@ Package manager: {project_info['packageManager']}
         """.strip()
     }
 
-session = await client.create_session({
-    "hooks": {"on_session_start": on_session_start}
-})
+session = await client.create_session(PermissionHandler.approve_all, hooks={"on_session_start": on_session_start})
 ```
 
 </details>
@@ -309,6 +309,8 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
+from copilot import PermissionHandler
+
 session_start_times = {}
 
 async def on_session_start(input_data, invocation):
@@ -328,12 +330,10 @@ async def on_session_end(input_data, invocation):
     session_start_times.pop(invocation["session_id"], None)
     return None
 
-session = await client.create_session({
-    "hooks": {
+session = await client.create_session(PermissionHandler.approve_all, hooks={
         "on_session_start": on_session_start,
         "on_session_end": on_session_end,
-    }
-})
+    })
 ```
 
 </details>

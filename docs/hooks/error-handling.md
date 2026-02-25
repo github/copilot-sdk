@@ -107,15 +107,15 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
+from copilot import PermissionHandler
+
 async def on_error_occurred(input_data, invocation):
     print(f"[{invocation['session_id']}] Error: {input_data['error']}")
     print(f"  Context: {input_data['errorContext']}")
     print(f"  Recoverable: {input_data['recoverable']}")
     return None
 
-session = await client.create_session({
-    "hooks": {"on_error_occurred": on_error_occurred}
-})
+session = await client.create_session(PermissionHandler.approve_all, hooks={"on_error_occurred": on_error_occurred})
 ```
 
 </details>

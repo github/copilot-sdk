@@ -48,14 +48,14 @@ async def main():
     client = CopilotClient()
     await client.start()
 
-    session = await client.create_session({
-        "model": "gpt-4.1",
-        "skill_directories": [
+    session = await client.create_session(
+        lambda req: {"kind": "approved"},
+        "gpt-4.1",
+        skill_directories=[
             "./skills/code-review",
             "./skills/documentation",
         ],
-        "on_permission_request": lambda req: {"kind": "approved"},
-    })
+    )
 
     # Copilot now has access to skills in those directories
     await session.send_and_wait({"prompt": "Review this code for security issues"})
@@ -159,10 +159,13 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-session = await client.create_session({
-    "skill_directories": ["./skills"],
-    "disabled_skills": ["experimental-feature", "deprecated-tool"],
-})
+from copilot import PermissionHandler
+
+session = await client.create_session(
+    PermissionHandler.approve_all,
+    skill_directories=["./skills"],
+    disabled_skills=["experimental-feature", "deprecated-tool"],
+)
 ```
 
 </details>

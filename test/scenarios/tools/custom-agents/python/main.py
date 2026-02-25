@@ -1,6 +1,6 @@
 import asyncio
 import os
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 
 
 async def main():
@@ -11,18 +11,17 @@ async def main():
 
     try:
         session = await client.create_session(
-            {
-                "model": "claude-haiku-4.5",
-                "custom_agents": [
-                    {
-                        "name": "researcher",
-                        "display_name": "Research Agent",
-                        "description": "A research agent that can only read and search files, not modify them",
-                        "tools": ["grep", "glob", "view"],
-                        "prompt": "You are a research assistant. You can search and read files but cannot modify anything. When asked about your capabilities, list the tools you have access to.",
-                    },
-                ],
-            }
+            PermissionHandler.approve_all,
+            "claude-haiku-4.5",
+            custom_agents=[
+                {
+                    "name": "researcher",
+                    "display_name": "Research Agent",
+                    "description": "A research agent that can only read and search files, not modify them",
+                    "tools": ["grep", "glob", "view"],
+                    "prompt": "You are a research assistant. You can search and read files but cannot modify anything. When asked about your capabilities, list the tools you have access to.",
+                },
+            ],
         )
 
         response = await session.send_and_wait(

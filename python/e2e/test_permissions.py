@@ -27,7 +27,7 @@ class TestPermissions:
             # Approve the permission
             return {"kind": "approved"}
 
-        session = await ctx.client.create_session({"on_permission_request": on_permission_request})
+        session = await ctx.client.create_session(on_permission_request)
 
         write_file(ctx.work_dir, "test.txt", "original content")
 
@@ -53,7 +53,7 @@ class TestPermissions:
             # Deny all permissions
             return {"kind": "denied-interactively-by-user"}
 
-        session = await ctx.client.create_session({"on_permission_request": on_permission_request})
+        session = await ctx.client.create_session(on_permission_request)
 
         original_content = "protected content"
         write_file(ctx.work_dir, "protected.txt", original_content)
@@ -76,7 +76,7 @@ class TestPermissions:
         def deny_all(request, invocation):
             return {"kind": "denied-no-approval-rule-and-could-not-request-from-user"}
 
-        session = await ctx.client.create_session({"on_permission_request": deny_all})
+        session = await ctx.client.create_session(deny_all)
 
         denied_events = []
         done_event = asyncio.Event()
@@ -107,9 +107,7 @@ class TestPermissions:
         self, ctx: E2ETestContext
     ):
         """Test that tool operations are denied after resume when handler explicitly denies"""
-        session1 = await ctx.client.create_session(
-            {"on_permission_request": PermissionHandler.approve_all}
-        )
+        session1 = await ctx.client.create_session(PermissionHandler.approve_all)
         session_id = session1.session_id
         await session1.send_and_wait({"prompt": "What is 1+1?"})
 
@@ -145,9 +143,7 @@ class TestPermissions:
 
     async def test_should_work_with_approve_all_permission_handler(self, ctx: E2ETestContext):
         """Test that sessions work with approve-all permission handler"""
-        session = await ctx.client.create_session(
-            {"on_permission_request": PermissionHandler.approve_all}
-        )
+        session = await ctx.client.create_session(PermissionHandler.approve_all)
 
         message = await session.send_and_wait({"prompt": "What is 2+2?"})
 
@@ -168,7 +164,7 @@ class TestPermissions:
             await asyncio.sleep(0.01)
             return {"kind": "approved"}
 
-        session = await ctx.client.create_session({"on_permission_request": on_permission_request})
+        session = await ctx.client.create_session(on_permission_request)
 
         await session.send_and_wait({"prompt": "Run 'echo test' and tell me what happens"})
 
@@ -181,9 +177,7 @@ class TestPermissions:
         permission_requests = []
 
         # Create initial session
-        session1 = await ctx.client.create_session(
-            {"on_permission_request": PermissionHandler.approve_all}
-        )
+        session1 = await ctx.client.create_session(PermissionHandler.approve_all)
         session_id = session1.session_id
         await session1.send_and_wait({"prompt": "What is 1+1?"})
 
@@ -213,7 +207,7 @@ class TestPermissions:
         ) -> PermissionRequestResult:
             raise RuntimeError("Handler error")
 
-        session = await ctx.client.create_session({"on_permission_request": on_permission_request})
+        session = await ctx.client.create_session(on_permission_request)
 
         message = await session.send_and_wait(
             {"prompt": "Run 'echo test'. If you can't, say 'failed'."}
@@ -240,7 +234,7 @@ class TestPermissions:
                 assert len(request["toolCallId"]) > 0
             return {"kind": "approved"}
 
-        session = await ctx.client.create_session({"on_permission_request": on_permission_request})
+        session = await ctx.client.create_session(on_permission_request)
 
         await session.send_and_wait({"prompt": "Run 'echo test'"})
 

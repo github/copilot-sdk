@@ -129,13 +129,13 @@ Create `main.py`:
 
 ```python
 import asyncio
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 
 async def main():
     client = CopilotClient()
     await client.start()
 
-    session = await client.create_session({"model": "gpt-4.1"})
+    session = await client.create_session(PermissionHandler.approve_all, "gpt-4.1")
     response = await session.send_and_wait({"prompt": "What is 2 + 2?"})
 
     print(response.data.content)
@@ -274,17 +274,14 @@ Update `main.py`:
 ```python
 import asyncio
 import sys
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 from copilot.generated.session_events import SessionEventType
 
 async def main():
     client = CopilotClient()
     await client.start()
 
-    session = await client.create_session({
-        "model": "gpt-4.1",
-        "streaming": True,
-    })
+    session = await client.create_session(PermissionHandler.approve_all, "gpt-4.1", streaming=True)
 
     # Listen for response chunks
     def handle_event(event):
@@ -565,7 +562,7 @@ Update `main.py`:
 import asyncio
 import random
 import sys
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 from copilot.tools import define_tool
 from copilot.generated.session_events import SessionEventType
 from pydantic import BaseModel, Field
@@ -588,11 +585,7 @@ async def main():
     client = CopilotClient()
     await client.start()
 
-    session = await client.create_session({
-        "model": "gpt-4.1",
-        "streaming": True,
-        "tools": [get_weather],
-    })
+    session = await client.create_session(PermissionHandler.approve_all, "gpt-4.1", streaming=True, tools=[get_weather])
 
     def handle_event(event):
         if event.type == SessionEventType.ASSISTANT_MESSAGE_DELTA:
@@ -837,7 +830,7 @@ Create `weather_assistant.py`:
 import asyncio
 import random
 import sys
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 from copilot.tools import define_tool
 from copilot.generated.session_events import SessionEventType
 from pydantic import BaseModel, Field
@@ -857,11 +850,7 @@ async def main():
     client = CopilotClient()
     await client.start()
 
-    session = await client.create_session({
-        "model": "gpt-4.1",
-        "streaming": True,
-        "tools": [get_weather],
-    })
+    session = await client.create_session(PermissionHandler.approve_all, "gpt-4.1", streaming=True, tools=[get_weather])
 
     def handle_event(event):
         if event.type == SessionEventType.ASSISTANT_MESSAGE_DELTA:
@@ -1218,7 +1207,7 @@ client = CopilotClient({
 await client.start()
 
 # Use the client normally
-session = await client.create_session({"on_permission_request": PermissionHandler.approve_all})
+session = await client.create_session(PermissionHandler.approve_all)
 # ...
 ```
 

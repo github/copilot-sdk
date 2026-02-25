@@ -1,6 +1,6 @@
 import asyncio
 import os
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 
 
 async def main():
@@ -12,10 +12,9 @@ async def main():
     try:
         # 1. Create a session
         session = await client.create_session(
-            {
-                "model": "claude-haiku-4.5",
-                "available_tools": [],
-            }
+            PermissionHandler.approve_all,
+            "claude-haiku-4.5",
+            available_tools=[],
         )
 
         # 2. Send the secret word

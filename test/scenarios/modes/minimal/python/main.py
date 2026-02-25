@@ -1,6 +1,6 @@
 import asyncio
 import os
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 
 
 async def main():
@@ -10,14 +10,15 @@ async def main():
     client = CopilotClient(opts)
 
     try:
-        session = await client.create_session({
-            "model": "claude-haiku-4.5",
-            "available_tools": [],
-            "system_message": {
+        session = await client.create_session(
+            PermissionHandler.approve_all,
+            "claude-haiku-4.5",
+            available_tools=[],
+            system_message={
                 "mode": "replace",
                 "content": "You have no tools. Respond with text only.",
             },
-        })
+        )
 
         response = await session.send_and_wait({"prompt": "Use the grep tool to search for 'SDK' in README.md."})
         if response:

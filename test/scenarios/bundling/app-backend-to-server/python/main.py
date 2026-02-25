@@ -5,7 +5,7 @@ import sys
 import urllib.request
 
 from flask import Flask, request, jsonify
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 
 app = Flask(__name__)
 
@@ -16,7 +16,7 @@ async def ask_copilot(prompt: str) -> str:
     client = CopilotClient({"cli_url": CLI_URL})
 
     try:
-        session = await client.create_session({"model": "claude-haiku-4.5"})
+        session = await client.create_session(PermissionHandler.approve_all, "claude-haiku-4.5")
 
         response = await session.send_and_wait({"prompt": prompt})
 

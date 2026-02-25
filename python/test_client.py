@@ -16,8 +16,8 @@ class TestPermissionHandlerRequired:
         client = CopilotClient({"cli_path": CLI_PATH})
         await client.start()
         try:
-            with pytest.raises(ValueError, match="on_permission_request.*is required"):
-                await client.create_session({})
+            with pytest.raises(TypeError, match="on_permission_request"):
+                await client.create_session()  # type: ignore[call-arg]
         finally:
             await client.force_stop()
 
@@ -26,9 +26,7 @@ class TestPermissionHandlerRequired:
         client = CopilotClient({"cli_path": CLI_PATH})
         await client.start()
         try:
-            session = await client.create_session(
-                {"on_permission_request": PermissionHandler.approve_all}
-            )
+            session = await client.create_session(PermissionHandler.approve_all)
             with pytest.raises(ValueError, match="on_permission_request.*is required"):
                 await client.resume_session(session.session_id, {})
         finally:
@@ -42,9 +40,7 @@ class TestHandleToolCallRequest:
         await client.start()
 
         try:
-            session = await client.create_session(
-                {"on_permission_request": PermissionHandler.approve_all}
-            )
+            session = await client.create_session(PermissionHandler.approve_all)
 
             response = await client._handle_tool_call_request(
                 {
@@ -191,9 +187,7 @@ class TestSessionConfigForwarding:
                 return await original_request(method, params)
 
             client._client.request = mock_request
-            await client.create_session(
-                {"client_name": "my-app", "on_permission_request": PermissionHandler.approve_all}
-            )
+            await client.create_session(PermissionHandler.approve_all, client_name="my-app")
             assert captured["session.create"]["clientName"] == "my-app"
         finally:
             await client.force_stop()
@@ -204,9 +198,7 @@ class TestSessionConfigForwarding:
         await client.start()
 
         try:
-            session = await client.create_session(
-                {"on_permission_request": PermissionHandler.approve_all}
-            )
+            session = await client.create_session(PermissionHandler.approve_all)
 
             captured = {}
             original_request = client._client.request

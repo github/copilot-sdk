@@ -93,18 +93,15 @@ await client.stop();
 
 ```python
 import os
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 
 client = CopilotClient()
 await client.start()
 
-session = await client.create_session({
-    "model": "gpt-4.1",
-    "provider": {
-        "type": "openai",
-        "base_url": "https://api.openai.com/v1",
-        "api_key": os.environ["OPENAI_API_KEY"],
-    },
+session = await client.create_session(PermissionHandler.approve_all, "gpt-4.1", provider={
+    "type": "openai",
+    "base_url": "https://api.openai.com/v1",
+    "api_key": os.environ["OPENAI_API_KEY"],
 })
 
 response = await session.send_and_wait({"prompt": "Hello!"})
