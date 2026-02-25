@@ -264,6 +264,41 @@ func TestTools(t *testing.T) {
 		}
 	})
 
+	t.Run("overrides built-in tool with custom tool", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		type GrepParams struct {
+			Query string `json:"query" jsonschema:"Search query"`
+		}
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			Tools: []copilot.Tool{
+				copilot.DefineTool("grep", "A custom grep implementation that overrides the built-in",
+					func(params GrepParams, inv copilot.ToolInvocation) (string, error) {
+						return "CUSTOM_GREP_RESULT: " + params.Query, nil
+					}),
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "Use grep to search for the word 'hello'"})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get assistant message: %v", err)
+		}
+
+		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "CUSTOM_GREP_RESULT") {
+			t.Errorf("Expected answer to contain 'CUSTOM_GREP_RESULT', got %v", answer.Data.Content)
+		}
+	})
+
 	t.Run("invokes custom tool with permission handler", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 

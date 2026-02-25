@@ -152,6 +152,29 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
     [JsonSerializable(typeof(JsonElement))]
     private partial class ToolsTestsJsonContext : JsonSerializerContext;
 
+    [Fact]
+    public async Task Overrides_Built_In_Tool_With_Custom_Tool()
+    {
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            Tools = [AIFunctionFactory.Create(CustomGrep, "grep")],
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Use grep to search for the word 'hello'"
+        });
+
+        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        Assert.NotNull(assistantMessage);
+        Assert.Contains("CUSTOM_GREP_RESULT", assistantMessage!.Data.Content ?? string.Empty);
+
+        [Description("A custom grep implementation that overrides the built-in")]
+        static string CustomGrep([Description("Search query")] string query)
+            => $"CUSTOM_GREP_RESULT: {query}";
+    }
+
     [Fact(Skip = "Behaves as if no content was in the result. Likely that binary results aren't fully implemented yet.")]
     public async Task Can_Return_Binary_Result()
     {
