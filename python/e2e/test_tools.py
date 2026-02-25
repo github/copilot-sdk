@@ -147,10 +147,12 @@ class TestTools:
             permission_requests.append(request)
             return {"kind": "approved"}
 
-        session = await ctx.client.create_session({
-            "tools": [encrypt_string],
-            "on_permission_request": on_permission_request,
-        })
+        session = await ctx.client.create_session(
+            {
+                "tools": [encrypt_string],
+                "on_permission_request": on_permission_request,
+            }
+        )
 
         await session.send({"prompt": "Use encrypt_string to encrypt this string: Hello"})
         assistant_message = await get_final_assistant_message(session)
@@ -176,10 +178,12 @@ class TestTools:
         def on_permission_request(request, invocation):
             return {"kind": "denied-interactively-by-user"}
 
-        session = await ctx.client.create_session({
-            "tools": [encrypt_string],
-            "on_permission_request": on_permission_request,
-        })
+        session = await ctx.client.create_session(
+            {
+                "tools": [encrypt_string],
+                "on_permission_request": on_permission_request,
+            }
+        )
 
         await session.send({"prompt": "Use encrypt_string to encrypt this string: Hello"})
         await get_final_assistant_message(session)
