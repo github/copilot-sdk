@@ -7,6 +7,7 @@ import { join } from "path";
 import { assert, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { defineTool, approveAll } from "../../src/index.js";
+import type { PermissionRequest } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext";
 
 describe("Custom tools", async () => {
@@ -36,6 +37,7 @@ describe("Custom tools", async () => {
                     handler: ({ input }) => input.toUpperCase(),
                 }),
             ],
+            onPermissionRequest: approveAll,
         });
 
         const assistantMessage = await session.sendAndWait({
@@ -55,6 +57,7 @@ describe("Custom tools", async () => {
                     },
                 }),
             ],
+            onPermissionRequest: approveAll,
         });
 
         const answer = await session.sendAndWait({
@@ -111,6 +114,7 @@ describe("Custom tools", async () => {
                     },
                 }),
             ],
+            onPermissionRequest: approveAll,
         });
 
         const assistantMessage = await session.sendAndWait({
@@ -126,5 +130,64 @@ describe("Custom tools", async () => {
         expect(responseContent).toContain("San Lorenzo");
         expect(responseContent.replace(/,/g, "")).toContain("135460");
         expect(responseContent.replace(/,/g, "")).toContain("204356");
+    });
+
+    it("invokes custom tool with permission handler", async () => {
+        const permissionRequests: PermissionRequest[] = [];
+
+        const session = await client.createSession({
+            tools: [
+                defineTool("encrypt_string", {
+                    description: "Encrypts a string",
+                    parameters: z.object({
+                        input: z.string().describe("String to encrypt"),
+                    }),
+                    handler: ({ input }) => input.toUpperCase(),
+                }),
+            ],
+            onPermissionRequest: (request) => {
+                permissionRequests.push(request);
+                return { kind: "approved" };
+            },
+        });
+
+        const assistantMessage = await session.sendAndWait({
+            prompt: "Use encrypt_string to encrypt this string: Hello",
+        });
+        expect(assistantMessage?.data.content).toContain("HELLO");
+
+        // Should have received a custom-tool permission request
+        const customToolRequests = permissionRequests.filter((req) => req.kind === "custom-tool");
+        expect(customToolRequests.length).toBeGreaterThan(0);
+        expect(customToolRequests[0].toolName).toBe("encrypt_string");
+    });
+
+    it("denies custom tool when permission denied", async () => {
+        let toolHandlerCalled = false;
+
+        const session = await client.createSession({
+            tools: [
+                defineTool("encrypt_string", {
+                    description: "Encrypts a string",
+                    parameters: z.object({
+                        input: z.string().describe("String to encrypt"),
+                    }),
+                    handler: ({ input }) => {
+                        toolHandlerCalled = true;
+                        return input.toUpperCase();
+                    },
+                }),
+            ],
+            onPermissionRequest: () => {
+                return { kind: "denied-interactively-by-user" };
+            },
+        });
+
+        await session.sendAndWait({
+            prompt: "Use encrypt_string to encrypt this string: Hello",
+        });
+
+        // The tool handler should NOT have been called since permission was denied
+        expect(toolHandlerCalled).toBe(false);
     });
 });

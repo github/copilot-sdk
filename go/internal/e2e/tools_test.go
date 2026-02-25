@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	copilot "github.com/github/copilot-sdk/go"
@@ -260,6 +261,105 @@ func TestTools(t *testing.T) {
 		}
 		if receivedInvocation.SessionID != session.SessionID {
 			t.Errorf("Expected session ID '%s', got '%s'", session.SessionID, receivedInvocation.SessionID)
+		}
+	})
+
+	t.Run("invokes custom tool with permission handler", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		type EncryptParams struct {
+			Input string `json:"input" jsonschema:"String to encrypt"`
+		}
+
+		var permissionRequests []copilot.PermissionRequest
+		var mu sync.Mutex
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			Tools: []copilot.Tool{
+				copilot.DefineTool("encrypt_string", "Encrypts a string",
+					func(params EncryptParams, inv copilot.ToolInvocation) (string, error) {
+						return strings.ToUpper(params.Input), nil
+					}),
+			},
+			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+				mu.Lock()
+				permissionRequests = append(permissionRequests, request)
+				mu.Unlock()
+				return copilot.PermissionRequestResult{Kind: "approved"}, nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "Use encrypt_string to encrypt this string: Hello"})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get assistant message: %v", err)
+		}
+
+		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "HELLO") {
+			t.Errorf("Expected answer to contain 'HELLO', got %v", answer.Data.Content)
+		}
+
+		// Should have received a custom-tool permission request
+		mu.Lock()
+		customToolReqs := 0
+		for _, req := range permissionRequests {
+			if req.Kind == "custom-tool" {
+				customToolReqs++
+				if toolName, ok := req.Extra["toolName"].(string); !ok || toolName != "encrypt_string" {
+					t.Errorf("Expected toolName 'encrypt_string', got '%v'", req.Extra["toolName"])
+				}
+			}
+		}
+		mu.Unlock()
+		if customToolReqs == 0 {
+			t.Errorf("Expected at least one custom-tool permission request, got none")
+		}
+	})
+
+	t.Run("denies custom tool when permission denied", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		type EncryptParams struct {
+			Input string `json:"input" jsonschema:"String to encrypt"`
+		}
+
+		toolHandlerCalled := false
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			Tools: []copilot.Tool{
+				copilot.DefineTool("encrypt_string", "Encrypts a string",
+					func(params EncryptParams, inv copilot.ToolInvocation) (string, error) {
+						toolHandlerCalled = true
+						return strings.ToUpper(params.Input), nil
+					}),
+			},
+			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+				return copilot.PermissionRequestResult{Kind: "denied-interactively-by-user"}, nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "Use encrypt_string to encrypt this string: Hello"})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		_, err = testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get assistant message: %v", err)
+		}
+
+		if toolHandlerCalled {
+			t.Errorf("Tool handler should NOT have been called since permission was denied")
 		}
 	})
 }

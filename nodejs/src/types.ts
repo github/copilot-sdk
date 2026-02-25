@@ -211,7 +211,7 @@ export type SystemMessageConfig = SystemMessageAppendConfig | SystemMessageRepla
  * Permission request types from the server
  */
 export interface PermissionRequest {
-    kind: "shell" | "write" | "mcp" | "read" | "url";
+    kind: "shell" | "write" | "mcp" | "read" | "url" | "custom-tool";
     toolCallId?: string;
     [key: string]: unknown;
 }
