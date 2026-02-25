@@ -53,6 +53,7 @@ __all__ = [
     "CustomAgentConfig",
     "GetAuthStatusResponse",
     "GetStatusResponse",
+    "LogLevel",
     "MCPLocalServerConfig",
     "MCPRemoteServerConfig",
     "MCPServerConfig",
