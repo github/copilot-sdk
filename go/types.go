@@ -106,6 +106,32 @@ type PermissionRequest struct {
 	Extra      map[string]any `json:"-"` // Additional fields vary by kind
 }
 
+// UnmarshalJSON implements custom JSON unmarshaling for PermissionRequest
+// to capture additional fields (varying by kind) into the Extra map.
+func (p *PermissionRequest) UnmarshalJSON(data []byte) error {
+	// Unmarshal known fields via an alias to avoid infinite recursion
+	type Alias PermissionRequest
+	var alias Alias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return err
+	}
+	*p = PermissionRequest(alias)
+
+	// Unmarshal all fields into a generic map
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	// Remove known fields, keep the rest as Extra
+	delete(raw, "kind")
+	delete(raw, "toolCallId")
+	if len(raw) > 0 {
+		p.Extra = raw
+	}
+	return nil
+}
+
 // PermissionRequestResult represents the result of a permission request
 type PermissionRequestResult struct {
 	Kind  string `json:"kind"`

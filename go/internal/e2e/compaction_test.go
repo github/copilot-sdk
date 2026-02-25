@@ -45,7 +45,7 @@ func TestCompaction(t *testing.T) {
 		})
 
 		// Send multiple messages to fill up the context window
-		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Tell me a long story about a dragon. Be very detailed."})
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Tell me a story about a dragon. Be detailed."})
 		if err != nil {
 			t.Fatalf("Failed to send first message: %v", err)
 		}

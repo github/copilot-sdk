@@ -734,6 +734,7 @@ class Data:
     intent: Optional[str] = None
     reasoning_id: Optional[str] = None
     delta_content: Optional[str] = None
+    total_response_size_bytes: Optional[float] = None
     encrypted_content: Optional[str] = None
     message_id: Optional[str] = None
     parent_tool_call_id: Optional[str] = None
@@ -741,7 +742,6 @@ class Data:
     reasoning_opaque: Optional[str] = None
     reasoning_text: Optional[str] = None
     tool_requests: Optional[List[ToolRequest]] = None
-    total_response_size_bytes: Optional[float] = None
     api_call_id: Optional[str] = None
     cache_read_tokens: Optional[float] = None
     cache_write_tokens: Optional[float] = None
@@ -851,6 +851,7 @@ class Data:
         intent = from_union([from_str, from_none], obj.get("intent"))
         reasoning_id = from_union([from_str, from_none], obj.get("reasoningId"))
         delta_content = from_union([from_str, from_none], obj.get("deltaContent"))
+        total_response_size_bytes = from_union([from_float, from_none], obj.get("totalResponseSizeBytes"))
         encrypted_content = from_union([from_str, from_none], obj.get("encryptedContent"))
         message_id = from_union([from_str, from_none], obj.get("messageId"))
         parent_tool_call_id = from_union([from_str, from_none], obj.get("parentToolCallId"))
@@ -858,7 +859,6 @@ class Data:
         reasoning_opaque = from_union([from_str, from_none], obj.get("reasoningOpaque"))
         reasoning_text = from_union([from_str, from_none], obj.get("reasoningText"))
         tool_requests = from_union([lambda x: from_list(ToolRequest.from_dict, x), from_none], obj.get("toolRequests"))
-        total_response_size_bytes = from_union([from_float, from_none], obj.get("totalResponseSizeBytes"))
         api_call_id = from_union([from_str, from_none], obj.get("apiCallId"))
         cache_read_tokens = from_union([from_float, from_none], obj.get("cacheReadTokens"))
         cache_write_tokens = from_union([from_float, from_none], obj.get("cacheWriteTokens"))
@@ -892,7 +892,7 @@ class Data:
         output = obj.get("output")
         metadata = from_union([Metadata.from_dict, from_none], obj.get("metadata"))
         role = from_union([Role, from_none], obj.get("role"))
-        return Data(context, copilot_version, producer, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, title, info_type, warning_type, new_model, previous_model, new_mode, previous_mode, operation, path, handoff_time, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, current_model, error_reason, model_metrics, session_start_time, shutdown_type, total_api_duration_ms, total_premium_requests, branch, cwd, git_root, current_tokens, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, source, transformed_content, turn_id, intent, reasoning_id, delta_content, encrypted_content, message_id, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, total_response_size_bytes, api_call_id, cache_read_tokens, cache_write_tokens, cost, duration, initiator, input_tokens, model, output_tokens, quota_snapshots, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, name, agent_description, agent_display_name, agent_name, tools, hook_invocation_id, hook_type, input, output, metadata, role)
+        return Data(context, copilot_version, producer, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, title, info_type, warning_type, new_model, previous_model, new_mode, previous_mode, operation, path, handoff_time, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, current_model, error_reason, model_metrics, session_start_time, shutdown_type, total_api_duration_ms, total_premium_requests, branch, cwd, git_root, current_tokens, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, source, transformed_content, turn_id, intent, reasoning_id, delta_content, total_response_size_bytes, encrypted_content, message_id, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, api_call_id, cache_read_tokens, cache_write_tokens, cost, duration, initiator, input_tokens, model, output_tokens, quota_snapshots, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, name, agent_description, agent_display_name, agent_name, tools, hook_invocation_id, hook_type, input, output, metadata, role)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -1040,6 +1040,8 @@ class Data:
             result["reasoningId"] = from_union([from_str, from_none], self.reasoning_id)
         if self.delta_content is not None:
             result["deltaContent"] = from_union([from_str, from_none], self.delta_content)
+        if self.total_response_size_bytes is not None:
+            result["totalResponseSizeBytes"] = from_union([to_float, from_none], self.total_response_size_bytes)
         if self.encrypted_content is not None:
             result["encryptedContent"] = from_union([from_str, from_none], self.encrypted_content)
         if self.message_id is not None:
@@ -1054,8 +1056,6 @@ class Data:
             result["reasoningText"] = from_union([from_str, from_none], self.reasoning_text)
         if self.tool_requests is not None:
             result["toolRequests"] = from_union([lambda x: from_list(lambda x: to_class(ToolRequest, x), x), from_none], self.tool_requests)
-        if self.total_response_size_bytes is not None:
-            result["totalResponseSizeBytes"] = from_union([to_float, from_none], self.total_response_size_bytes)
         if self.api_call_id is not None:
             result["apiCallId"] = from_union([from_str, from_none], self.api_call_id)
         if self.cache_read_tokens is not None:
@@ -1132,6 +1132,7 @@ class SessionEventType(Enum):
     ASSISTANT_MESSAGE_DELTA = "assistant.message_delta"
     ASSISTANT_REASONING = "assistant.reasoning"
     ASSISTANT_REASONING_DELTA = "assistant.reasoning_delta"
+    ASSISTANT_STREAMING_DELTA = "assistant.streaming_delta"
     ASSISTANT_TURN_END = "assistant.turn_end"
     ASSISTANT_TURN_START = "assistant.turn_start"
     ASSISTANT_USAGE = "assistant.usage"
@@ -1152,6 +1153,7 @@ class SessionEventType(Enum):
     SESSION_SHUTDOWN = "session.shutdown"
     SESSION_SNAPSHOT_REWIND = "session.snapshot_rewind"
     SESSION_START = "session.start"
+    SESSION_TASK_COMPLETE = "session.task_complete"
     SESSION_TITLE_CHANGED = "session.title_changed"
     SESSION_TRUNCATION = "session.truncation"
     SESSION_USAGE_INFO = "session.usage_info"

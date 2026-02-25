@@ -41,9 +41,7 @@ class TestCompaction:
         session.on(on_event)
 
         # Send multiple messages to fill up the context window
-        await session.send_and_wait(
-            {"prompt": "Tell me a long story about a dragon. Be very detailed."}
-        )
+        await session.send_and_wait({"prompt": "Tell me a story about a dragon. Be detailed."})
         await session.send_and_wait(
             {"prompt": "Continue the story with more details about the dragon's castle."}
         )

@@ -286,6 +286,16 @@ export type SessionEvent =
       timestamp: string;
       parentId: string | null;
       ephemeral?: boolean;
+      type: "session.task_complete";
+      data: {
+        summary?: string;
+      };
+    }
+  | {
+      id: string;
+      timestamp: string;
+      parentId: string | null;
+      ephemeral?: boolean;
       type: "user.message";
       data: {
         content: string;
@@ -384,6 +394,16 @@ export type SessionEvent =
       id: string;
       timestamp: string;
       parentId: string | null;
+      ephemeral: true;
+      type: "assistant.streaming_delta";
+      data: {
+        totalResponseSizeBytes: number;
+      };
+    }
+  | {
+      id: string;
+      timestamp: string;
+      parentId: string | null;
       ephemeral?: boolean;
       type: "assistant.message";
       data: {
@@ -411,7 +431,6 @@ export type SessionEvent =
       data: {
         messageId: string;
         deltaContent: string;
-        totalResponseSizeBytes?: number;
         parentToolCallId?: string;
       };
     }

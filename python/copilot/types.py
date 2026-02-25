@@ -169,7 +169,7 @@ SystemMessageConfig = Union[SystemMessageAppendConfig, SystemMessageReplaceConfi
 class PermissionRequest(TypedDict, total=False):
     """Permission request from the server"""
 
-    kind: Literal["shell", "write", "mcp", "read", "url"]
+    kind: Literal["shell", "write", "mcp", "read", "url", "custom-tool"]
     toolCallId: str
     # Additional fields vary by kind
 

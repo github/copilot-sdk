@@ -724,6 +724,196 @@ class SessionFleetStartParams:
         return result
 
 
+@dataclass
+class AgentElement:
+    description: str
+    """Description of the agent's purpose"""
+
+    display_name: str
+    """Human-readable display name"""
+
+    name: str
+    """Unique identifier of the custom agent"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'AgentElement':
+        assert isinstance(obj, dict)
+        description = from_str(obj.get("description"))
+        display_name = from_str(obj.get("displayName"))
+        name = from_str(obj.get("name"))
+        return AgentElement(description, display_name, name)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["description"] = from_str(self.description)
+        result["displayName"] = from_str(self.display_name)
+        result["name"] = from_str(self.name)
+        return result
+
+
+@dataclass
+class SessionAgentListResult:
+    agents: List[AgentElement]
+    """Available custom agents"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionAgentListResult':
+        assert isinstance(obj, dict)
+        agents = from_list(AgentElement.from_dict, obj.get("agents"))
+        return SessionAgentListResult(agents)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["agents"] = from_list(lambda x: to_class(AgentElement, x), self.agents)
+        return result
+
+
+@dataclass
+class SessionAgentGetCurrentResultAgent:
+    description: str
+    """Description of the agent's purpose"""
+
+    display_name: str
+    """Human-readable display name"""
+
+    name: str
+    """Unique identifier of the custom agent"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionAgentGetCurrentResultAgent':
+        assert isinstance(obj, dict)
+        description = from_str(obj.get("description"))
+        display_name = from_str(obj.get("displayName"))
+        name = from_str(obj.get("name"))
+        return SessionAgentGetCurrentResultAgent(description, display_name, name)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["description"] = from_str(self.description)
+        result["displayName"] = from_str(self.display_name)
+        result["name"] = from_str(self.name)
+        return result
+
+
+@dataclass
+class SessionAgentGetCurrentResult:
+    agent: Optional[SessionAgentGetCurrentResultAgent] = None
+    """Currently selected custom agent, or null if using the default agent"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionAgentGetCurrentResult':
+        assert isinstance(obj, dict)
+        agent = from_union([SessionAgentGetCurrentResultAgent.from_dict, from_none], obj.get("agent"))
+        return SessionAgentGetCurrentResult(agent)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["agent"] = from_union([lambda x: to_class(SessionAgentGetCurrentResultAgent, x), from_none], self.agent)
+        return result
+
+
+@dataclass
+class SessionAgentSelectResultAgent:
+    """The newly selected custom agent"""
+
+    description: str
+    """Description of the agent's purpose"""
+
+    display_name: str
+    """Human-readable display name"""
+
+    name: str
+    """Unique identifier of the custom agent"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionAgentSelectResultAgent':
+        assert isinstance(obj, dict)
+        description = from_str(obj.get("description"))
+        display_name = from_str(obj.get("displayName"))
+        name = from_str(obj.get("name"))
+        return SessionAgentSelectResultAgent(description, display_name, name)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["description"] = from_str(self.description)
+        result["displayName"] = from_str(self.display_name)
+        result["name"] = from_str(self.name)
+        return result
+
+
+@dataclass
+class SessionAgentSelectResult:
+    agent: SessionAgentSelectResultAgent
+    """The newly selected custom agent"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionAgentSelectResult':
+        assert isinstance(obj, dict)
+        agent = SessionAgentSelectResultAgent.from_dict(obj.get("agent"))
+        return SessionAgentSelectResult(agent)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["agent"] = to_class(SessionAgentSelectResultAgent, self.agent)
+        return result
+
+
+@dataclass
+class SessionAgentSelectParams:
+    name: str
+    """Name of the custom agent to select"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionAgentSelectParams':
+        assert isinstance(obj, dict)
+        name = from_str(obj.get("name"))
+        return SessionAgentSelectParams(name)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["name"] = from_str(self.name)
+        return result
+
+
+@dataclass
+class SessionAgentDeselectResult:
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionAgentDeselectResult':
+        assert isinstance(obj, dict)
+        return SessionAgentDeselectResult()
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        return result
+
+
+@dataclass
+class SessionCompactionCompactResult:
+    messages_removed: float
+    """Number of messages removed during compaction"""
+
+    success: bool
+    """Whether compaction completed successfully"""
+
+    tokens_removed: float
+    """Number of tokens freed by compaction"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionCompactionCompactResult':
+        assert isinstance(obj, dict)
+        messages_removed = from_float(obj.get("messagesRemoved"))
+        success = from_bool(obj.get("success"))
+        tokens_removed = from_float(obj.get("tokensRemoved"))
+        return SessionCompactionCompactResult(messages_removed, success, tokens_removed)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["messagesRemoved"] = to_float(self.messages_removed)
+        result["success"] = from_bool(self.success)
+        result["tokensRemoved"] = to_float(self.tokens_removed)
+        return result
+
+
 def ping_result_from_dict(s: Any) -> PingResult:
     return PingResult.from_dict(s)
 
@@ -908,6 +1098,54 @@ def session_fleet_start_params_to_dict(x: SessionFleetStartParams) -> Any:
     return to_class(SessionFleetStartParams, x)
 
 
+def session_agent_list_result_from_dict(s: Any) -> SessionAgentListResult:
+    return SessionAgentListResult.from_dict(s)
+
+
+def session_agent_list_result_to_dict(x: SessionAgentListResult) -> Any:
+    return to_class(SessionAgentListResult, x)
+
+
+def session_agent_get_current_result_from_dict(s: Any) -> SessionAgentGetCurrentResult:
+    return SessionAgentGetCurrentResult.from_dict(s)
+
+
+def session_agent_get_current_result_to_dict(x: SessionAgentGetCurrentResult) -> Any:
+    return to_class(SessionAgentGetCurrentResult, x)
+
+
+def session_agent_select_result_from_dict(s: Any) -> SessionAgentSelectResult:
+    return SessionAgentSelectResult.from_dict(s)
+
+
+def session_agent_select_result_to_dict(x: SessionAgentSelectResult) -> Any:
+    return to_class(SessionAgentSelectResult, x)
+
+
+def session_agent_select_params_from_dict(s: Any) -> SessionAgentSelectParams:
+    return SessionAgentSelectParams.from_dict(s)
+
+
+def session_agent_select_params_to_dict(x: SessionAgentSelectParams) -> Any:
+    return to_class(SessionAgentSelectParams, x)
+
+
+def session_agent_deselect_result_from_dict(s: Any) -> SessionAgentDeselectResult:
+    return SessionAgentDeselectResult.from_dict(s)
+
+
+def session_agent_deselect_result_to_dict(x: SessionAgentDeselectResult) -> Any:
+    return to_class(SessionAgentDeselectResult, x)
+
+
+def session_compaction_compact_result_from_dict(s: Any) -> SessionCompactionCompactResult:
+    return SessionCompactionCompactResult.from_dict(s)
+
+
+def session_compaction_compact_result_to_dict(x: SessionCompactionCompactResult) -> Any:
+    return to_class(SessionCompactionCompactResult, x)
+
+
 class ModelsApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
@@ -1021,6 +1259,35 @@ class FleetApi:
         return SessionFleetStartResult.from_dict(await self._client.request("session.fleet.start", params_dict))
 
 
+class AgentApi:
+    def __init__(self, client: "JsonRpcClient", session_id: str):
+        self._client = client
+        self._session_id = session_id
+
+    async def list(self) -> SessionAgentListResult:
+        return SessionAgentListResult.from_dict(await self._client.request("session.agent.list", {"sessionId": self._session_id}))
+
+    async def get_current(self) -> SessionAgentGetCurrentResult:
+        return SessionAgentGetCurrentResult.from_dict(await self._client.request("session.agent.getCurrent", {"sessionId": self._session_id}))
+
+    async def select(self, params: SessionAgentSelectParams) -> SessionAgentSelectResult:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return SessionAgentSelectResult.from_dict(await self._client.request("session.agent.select", params_dict))
+
+    async def deselect(self) -> SessionAgentDeselectResult:
+        return SessionAgentDeselectResult.from_dict(await self._client.request("session.agent.deselect", {"sessionId": self._session_id}))
+
+
+class CompactionApi:
+    def __init__(self, client: "JsonRpcClient", session_id: str):
+        self._client = client
+        self._session_id = session_id
+
+    async def compact(self) -> SessionCompactionCompactResult:
+        return SessionCompactionCompactResult.from_dict(await self._client.request("session.compaction.compact", {"sessionId": self._session_id}))
+
+
 class SessionRpc:
     """Typed session-scoped RPC methods."""
     def __init__(self, client: "JsonRpcClient", session_id: str):
@@ -1031,4 +1298,6 @@ class SessionRpc:
         self.plan = PlanApi(client, session_id)
         self.workspace = WorkspaceApi(client, session_id)
         self.fleet = FleetApi(client, session_id)
+        self.agent = AgentApi(client, session_id)
+        self.compaction = CompactionApi(client, session_id)
 

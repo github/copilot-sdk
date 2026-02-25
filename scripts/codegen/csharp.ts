@@ -467,6 +467,14 @@ function singularPascal(s: string): string {
 }
 
 function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassName: string, propName: string, classes: string[]): string {
+    // Handle anyOf: [T, null] → T? (nullable typed property)
+    if (schema.anyOf) {
+        const hasNull = schema.anyOf.some((s) => typeof s === "object" && (s as JSONSchema7).type === "null");
+        const nonNull = schema.anyOf.filter((s) => typeof s === "object" && (s as JSONSchema7).type !== "null");
+        if (nonNull.length === 1) {
+            return resolveRpcType(nonNull[0] as JSONSchema7, isRequired && !hasNull, parentClassName, propName, classes);
+        }
+    }
     // Handle enums (string unions like "interactive" | "plan" | "autopilot")
     if (schema.enum && Array.isArray(schema.enum)) {
         const enumName = getOrCreateEnum(parentClassName, propName, schema.enum as string[], rpcEnumOutput);
@@ -621,7 +629,7 @@ function emitServerInstanceMethod(
 
     let requestClassName: string | null = null;
     if (paramEntries.length > 0) {
-        requestClassName = `${methodName}Request`;
+        requestClassName = `${typeToClassName(method.rpcMethod)}Request`;
         const reqClass = emitRpcClass(requestClassName, method.params!, "internal", classes);
         if (reqClass) classes.push(reqClass);
     }
@@ -685,7 +693,7 @@ function emitSessionApiClass(className: string, node: Record<string, unknown>, c
         const paramEntries = (method.params?.properties ? Object.entries(method.params.properties) : []).filter(([k]) => k !== "sessionId");
         const requiredSet = new Set(method.params?.required || []);
 
-        const requestClassName = `${methodName}Request`;
+        const requestClassName = `${typeToClassName(method.rpcMethod)}Request`;
         if (method.params) {
             const reqClass = emitRpcClass(requestClassName, method.params, "internal", classes);
             if (reqClass) classes.push(reqClass);
