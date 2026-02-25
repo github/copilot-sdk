@@ -93,9 +93,9 @@ await client.stop();
 
 ```python
 import os
-from copilot import CopilotClient
+import copilot
 
-client = CopilotClient()
+client = copilot.cli_client()
 await client.start()
 
 session = await client.create_session({

@@ -1,13 +1,11 @@
 import asyncio
 import os
 import sys
-from copilot import CopilotClient
+import copilot
 
 
 async def main():
-    client = CopilotClient({
-        "cli_url": os.environ.get("COPILOT_CLI_URL", "localhost:3000"),
-    })
+    client = copilot.network_client(os.environ.get("COPILOT_CLI_URL", "localhost:3000"))
 
     try:
         # First session

@@ -1,13 +1,14 @@
 import asyncio
 
-from copilot import CopilotClient, PermissionHandler
+import copilot
+from copilot import PermissionHandler
 
 BLUE = "\033[34m"
 RESET = "\033[0m"
 
 
 async def main():
-    client = CopilotClient()
+    client = copilot.cli_client()
     await client.start()
     session = await client.create_session(
         {

@@ -1,16 +1,13 @@
 import asyncio
 import os
-from copilot import CopilotClient
+import copilot
 
 PIRATE_PROMPT = "You are a pirate. Always say Arrr!"
 ROBOT_PROMPT = "You are a robot. Always say BEEP BOOP!"
 
 
 async def main():
-    opts = {"github_token": os.environ.get("GITHUB_TOKEN")}
-    if os.environ.get("COPILOT_CLI_PATH"):
-        opts["cli_path"] = os.environ["COPILOT_CLI_PATH"]
-    client = CopilotClient(opts)
+    client = copilot.cli_client(os.environ.get("COPILOT_CLI_PATH"), github_token=os.environ.get("GITHUB_TOKEN"))
 
     try:
         session1, session2 = await asyncio.gather(

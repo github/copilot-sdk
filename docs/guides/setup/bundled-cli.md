@@ -85,12 +85,10 @@ await client.stop();
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
+import copilot
 from pathlib import Path
 
-client = CopilotClient({
-    "cli_path": str(Path(__file__).parent / "vendor" / "copilot"),
-})
+client = copilot.cli_client(str(Path(__file__).parent / "vendor" / "copilot"))
 await client.start()
 
 session = await client.create_session({"model": "gpt-4.1"})

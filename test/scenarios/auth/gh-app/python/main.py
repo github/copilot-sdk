@@ -4,7 +4,7 @@ import os
 import time
 import urllib.request
 
-from copilot import CopilotClient
+import copilot
 
 
 DEVICE_CODE_URL = "https://github.com/login/device/code"
@@ -78,10 +78,7 @@ async def main():
     display_name = f" ({user.get('name')})" if user.get("name") else ""
     print(f"Authenticated as: {user.get('login')}{display_name}")
 
-    opts = {"github_token": token}
-    if os.environ.get("COPILOT_CLI_PATH"):
-        opts["cli_path"] = os.environ["COPILOT_CLI_PATH"]
-    client = CopilotClient(opts)
+    client = copilot.cli_client(os.environ.get("COPILOT_CLI_PATH"), github_token=token)
 
     try:
         session = await client.create_session({"model": "claude-haiku-4.5"})

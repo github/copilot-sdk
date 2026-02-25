@@ -1,7 +1,7 @@
 import asyncio
 import os
 import sys
-from copilot import CopilotClient
+import copilot
 
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2:3b")
@@ -12,10 +12,7 @@ COMPACT_SYSTEM_PROMPT = (
 
 
 async def main():
-    opts = {}
-    if os.environ.get("COPILOT_CLI_PATH"):
-        opts["cli_path"] = os.environ["COPILOT_CLI_PATH"]
-    client = CopilotClient(opts)
+    client = copilot.cli_client(os.environ.get("COPILOT_CLI_PATH"))
 
     try:
         session = await client.create_session({

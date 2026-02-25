@@ -2,7 +2,8 @@
 
 import pytest
 
-from copilot import CopilotClient, PermissionHandler
+import copilot
+from copilot import PermissionHandler
 from copilot.generated.rpc import SessionAgentSelectParams
 
 from .testharness import CLI_PATH, E2ETestContext
@@ -14,7 +15,7 @@ class TestAgentSelectionRpc:
     @pytest.mark.asyncio
     async def test_should_list_available_custom_agents(self):
         """Test listing available custom agents via RPC."""
-        client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": True})
+        client = copilot.cli_client(CLI_PATH)
 
         try:
             await client.start()
@@ -54,7 +55,7 @@ class TestAgentSelectionRpc:
     @pytest.mark.asyncio
     async def test_should_return_null_when_no_agent_is_selected(self):
         """Test getCurrent returns null when no agent is selected."""
-        client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": True})
+        client = copilot.cli_client(CLI_PATH)
 
         try:
             await client.start()
@@ -83,7 +84,7 @@ class TestAgentSelectionRpc:
     @pytest.mark.asyncio
     async def test_should_select_and_get_current_agent(self):
         """Test selecting an agent and verifying getCurrent returns it."""
-        client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": True})
+        client = copilot.cli_client(CLI_PATH)
 
         try:
             await client.start()
@@ -122,7 +123,7 @@ class TestAgentSelectionRpc:
     @pytest.mark.asyncio
     async def test_should_deselect_current_agent(self):
         """Test deselecting the current agent."""
-        client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": True})
+        client = copilot.cli_client(CLI_PATH)
 
         try:
             await client.start()
@@ -156,7 +157,7 @@ class TestAgentSelectionRpc:
     @pytest.mark.asyncio
     async def test_should_return_empty_list_when_no_custom_agents_configured(self):
         """Test listing agents returns empty when none configured."""
-        client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": True})
+        client = copilot.cli_client(CLI_PATH)
 
         try:
             await client.start()

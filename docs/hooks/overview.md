@@ -53,10 +53,10 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
+import copilot
 
 async def main():
-    client = CopilotClient()
+    client = copilot.cli_client()
     await client.start()
 
     async def on_pre_tool_use(input_data, invocation):

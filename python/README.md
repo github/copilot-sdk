@@ -25,11 +25,11 @@ python chat.py
 
 ```python
 import asyncio
-from copilot import CopilotClient
+import copilot
 
 async def main():
     # Create and start client
-    client = CopilotClient()
+    client = copilot.cli_client()
     await client.start()
 
     # Create a session
@@ -68,16 +68,54 @@ asyncio.run(main())
 
 ## API Reference
 
-### CopilotClient
+### Client Creation
+
+The SDK provides two factory functions to create a client:
+
+**`copilot.cli_client()`** — Spawns and manages a local CLI process:
 
 ```python
-client = CopilotClient({
-    "cli_path": "copilot",  # Optional: path to CLI executable
-    "cli_url": None,        # Optional: URL of existing server (e.g., "localhost:8080")
-    "log_level": "info",    # Optional: log level (default: "info")
-    "auto_start": True,     # Optional: auto-start server (default: True)
-    "auto_restart": True,   # Optional: auto-restart on crash (default: True)
-})
+import copilot
+
+# Default: uses bundled CLI binary with stdio transport
+client = copilot.cli_client()
+
+# Custom CLI path with extra arguments
+client = copilot.cli_client("/usr/local/bin/copilot", "--flag")
+
+# With authentication token
+client = copilot.cli_client(github_token="gho_xxx")
+```
+
+Parameters:
+- `path` (str, optional): Path to CLI executable (default: bundled binary).
+- `*args` (str): Extra arguments passed to the CLI executable.
+- `cwd` (str): Working directory for the CLI process (default: current directory).
+- `port` (int): Server port for TCP mode (default: `0` for random).
+- `use_stdio` (bool): Use stdio transport instead of TCP (default: `True`).
+- `log_level` (str): Log level for the CLI server (default: `"info"`).
+- `auto_start` (bool): Auto-connect on first use (default: `True`).
+- `auto_restart` (bool): Auto-restart on crash (default: `True`).
+- `env` (dict[str, str]): Environment variables for the CLI process.
+- `github_token` (str): GitHub token for authentication.
+- `use_logged_in_user` (bool): Use stored OAuth / gh CLI auth (default: `True`, `False` when `github_token` is set).
+
+**`copilot.network_client()`** — Connects to an existing CLI server:
+
+```python
+import copilot
+
+client = copilot.network_client("localhost:8080")
+client = copilot.network_client("http://127.0.0.1:9000")
+client = copilot.network_client("8080")  # defaults to localhost
+```
+
+Parameters:
+- `cli_url` (str, required): URL of the CLI server.
+- `log_level` (str): Log level (default: `"info"`).
+- `auto_start` (bool): Auto-connect on first use (default: `True`).
+
+```python
 await client.start()
 
 session = await client.create_session({"model": "gpt-5"})
@@ -93,31 +131,6 @@ await session.send({"prompt": "Hello!"})
 await session.destroy()
 await client.stop()
 ```
-
-**CopilotClient Options:**
-
-The client supports two connection modes: **spawning a local CLI process** (default) or **connecting to an existing server** via `cli_url`. Some options only apply to one mode.
-
-*General options (both modes):*
-
-- `auto_start` (bool): Automatically connect to the server when the first session is created, so you don't need to call `start()` explicitly (default: `True`).
-
-*Spawning a local CLI process (default):*
-
-- `cli_path` (str): Path to CLI executable (default: bundled binary, or `COPILOT_CLI_PATH` env var). Mutually exclusive with `cli_url`.
-- `cli_args` (list[str]): Extra arguments passed to the CLI executable (inserted before SDK-managed args).
-- `cwd` (str): Working directory for the CLI process (default: current working directory).
-- `port` (int): Server port for TCP mode (default: `0` for random).
-- `use_stdio` (bool): Use stdio transport instead of TCP (default: `True`). Mutually exclusive with `cli_url`.
-- `log_level` (str): Log level for the CLI server (default: `"info"`).
-- `auto_restart` (bool): Automatically restart the CLI server if it crashes (default: `True`).
-- `env` (dict[str, str]): Environment variables for the CLI process.
-- `github_token` (str): GitHub token for authentication. When provided, takes priority over other auth methods. Mutually exclusive with `cli_url`.
-- `use_logged_in_user` (bool): Whether to use logged-in user for authentication via stored OAuth tokens or `gh` CLI auth (default: `True`, but `False` when `github_token` is provided). Mutually exclusive with `cli_url`.
-
-*Connecting to an existing server:*
-
-- `cli_url` (str): URL of an existing CLI server (e.g., `"localhost:8080"`, `"http://127.0.0.1:9000"`, or just `"8080"`). When provided, the client connects over TCP instead of spawning a CLI process. The external server manages its own authentication.
 
 **SessionConfig Options (for `create_session`):**
 
@@ -167,7 +180,7 @@ Define tools with automatic JSON schema generation using the `@define_tool` deco
 
 ```python
 from pydantic import BaseModel, Field
-from copilot import CopilotClient, define_tool
+from copilot import define_tool
 
 class LookupIssueParams(BaseModel):
     id: str = Field(description="Issue identifier")
@@ -190,7 +203,7 @@ session = await client.create_session({
 For users who prefer manual schema definition:
 
 ```python
-from copilot import CopilotClient, Tool
+from copilot import Tool
 
 async def lookup_issue(invocation):
     issue_id = invocation["arguments"]["id"]
@@ -250,10 +263,10 @@ Enable streaming to receive assistant response chunks as they're generated:
 
 ```python
 import asyncio
-from copilot import CopilotClient
+import copilot
 
 async def main():
-    client = CopilotClient()
+    client = copilot.cli_client()
     await client.start()
 
     session = await client.create_session({

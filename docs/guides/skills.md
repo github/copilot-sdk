@@ -42,10 +42,10 @@ await session.sendAndWait({ prompt: "Review this code for security issues" });
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
+import copilot
 
 async def main():
-    client = CopilotClient()
+    client = copilot.cli_client()
     await client.start()
 
     session = await client.create_session({

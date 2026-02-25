@@ -1,6 +1,7 @@
 import asyncio
 import os
-from copilot import CopilotClient, define_tool
+import copilot
+from copilot import define_tool
 from pydantic import BaseModel, Field
 
 # In-memory virtual filesystem
@@ -46,10 +47,7 @@ async def auto_approve_tool(input_data, invocation):
 
 
 async def main():
-    opts = {"github_token": os.environ.get("GITHUB_TOKEN")}
-    if os.environ.get("COPILOT_CLI_PATH"):
-        opts["cli_path"] = os.environ["COPILOT_CLI_PATH"]
-    client = CopilotClient(opts)
+    client = copilot.cli_client(os.environ.get("COPILOT_CLI_PATH"), github_token=os.environ.get("GITHUB_TOKEN"))
 
     try:
         session = await client.create_session(

@@ -1,6 +1,6 @@
 import asyncio
 import os
-from copilot import CopilotClient
+import copilot
 
 SYSTEM_PROMPT = """You are a minimal assistant with no tools available.
 You cannot execute code, read files, edit files, search, or perform any actions.
@@ -9,10 +9,7 @@ If asked about your capabilities or tools, clearly state that you have no tools 
 
 
 async def main():
-    opts = {"github_token": os.environ.get("GITHUB_TOKEN")}
-    if os.environ.get("COPILOT_CLI_PATH"):
-        opts["cli_path"] = os.environ["COPILOT_CLI_PATH"]
-    client = CopilotClient(opts)
+    client = copilot.cli_client(os.environ.get("COPILOT_CLI_PATH"), github_token=os.environ.get("GITHUB_TOKEN"))
 
     try:
         session = await client.create_session(

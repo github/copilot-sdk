@@ -145,13 +145,13 @@ const response = await session.sendAndWait({ prompt: "Hello!" });
 <summary><strong>Python</strong></summary>
 
 ```python
+import copilot
 from copilot import CopilotClient
 
 def create_client_for_user(user_token: str) -> CopilotClient:
-    return CopilotClient({
-        "github_token": user_token,
-        "use_logged_in_user": False,
-    })
+    return copilot.cli_client(
+        github_token=user_token,
+    )
 
 # Usage
 client = create_client_for_user("gho_user_access_token")

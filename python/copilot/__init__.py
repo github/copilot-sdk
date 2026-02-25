@@ -4,7 +4,9 @@ Copilot SDK - Python Client for GitHub Copilot CLI
 JSON-RPC based SDK for programmatic control of GitHub Copilot CLI
 """
 
-from .client import CopilotClient
+from __future__ import annotations
+
+from .client import CopilotClient, cli_client, network_client
 from .session import CopilotSession
 from .tools import define_tool
 from .types import (
@@ -13,6 +15,7 @@ from .types import (
     CustomAgentConfig,
     GetAuthStatusResponse,
     GetStatusResponse,
+    LogLevel,
     MCPLocalServerConfig,
     MCPRemoteServerConfig,
     MCPServerConfig,
@@ -40,6 +43,7 @@ from .types import (
 )
 
 __version__ = "0.1.0"
+
 
 __all__ = [
     "AzureProviderOptions",
@@ -73,5 +77,7 @@ __all__ = [
     "ToolHandler",
     "ToolInvocation",
     "ToolResult",
+    "cli_client",
     "define_tool",
+    "network_client",
 ]

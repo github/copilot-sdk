@@ -38,10 +38,10 @@ const client = new CopilotClient();
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
+import copilot
 
 # Default: uses logged-in user credentials
-client = CopilotClient()
+client = copilot.cli_client()
 await client.start()
 ```
 
@@ -106,12 +106,11 @@ const client = new CopilotClient({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
+import copilot
 
-client = CopilotClient({
-    "github_token": user_access_token,  # Token from OAuth flow
-    "use_logged_in_user": False,        # Don't use stored CLI credentials
-})
+client = copilot.cli_client(
+    github_token=user_access_token,  # Token from OAuth flow
+)
 await client.start()
 ```
 
@@ -194,10 +193,10 @@ const client = new CopilotClient();
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
+import copilot
 
 # Token is read from environment variable automatically
-client = CopilotClient()
+client = copilot.cli_client()
 await client.start()
 ```
 
@@ -256,9 +255,7 @@ const client = new CopilotClient({
 
 <!-- docs-validate: skip -->
 ```python
-client = CopilotClient({
-    "use_logged_in_user": False,  # Only use explicit tokens
-})
+client = copilot.cli_client()
 ```
 
 </details>

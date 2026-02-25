@@ -2,7 +2,8 @@
 
 import pytest
 
-from copilot import CopilotClient, PermissionHandler
+import copilot
+from copilot import PermissionHandler
 from copilot.generated.rpc import PingParams
 
 from .testharness import CLI_PATH, E2ETestContext
@@ -14,7 +15,7 @@ class TestRpc:
     @pytest.mark.asyncio
     async def test_should_call_rpc_ping_with_typed_params(self):
         """Test calling rpc.ping with typed params and result"""
-        client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": True})
+        client = copilot.cli_client(CLI_PATH)
 
         try:
             await client.start()
@@ -30,7 +31,7 @@ class TestRpc:
     @pytest.mark.asyncio
     async def test_should_call_rpc_models_list(self):
         """Test calling rpc.models.list with typed result"""
-        client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": True})
+        client = copilot.cli_client(CLI_PATH)
 
         try:
             await client.start()
@@ -53,7 +54,7 @@ class TestRpc:
     @pytest.mark.asyncio
     async def test_should_call_rpc_account_get_quota(self):
         """Test calling rpc.account.getQuota when authenticated"""
-        client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": True})
+        client = copilot.cli_client(CLI_PATH)
 
         try:
             await client.start()
@@ -112,7 +113,7 @@ class TestSessionRpc:
         """Test getting and setting session mode"""
         from copilot.generated.rpc import Mode, SessionModeSetParams
 
-        client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": True})
+        client = copilot.cli_client(CLI_PATH)
 
         try:
             await client.start()
@@ -148,7 +149,7 @@ class TestSessionRpc:
         """Test reading, updating, and deleting plan"""
         from copilot.generated.rpc import SessionPlanUpdateParams
 
-        client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": True})
+        client = copilot.cli_client(CLI_PATH)
 
         try:
             await client.start()
@@ -191,7 +192,7 @@ class TestSessionRpc:
             SessionWorkspaceReadFileParams,
         )
 
-        client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": True})
+        client = copilot.cli_client(CLI_PATH)
 
         try:
             await client.start()

@@ -2,7 +2,8 @@
 
 import pytest
 
-from copilot import CopilotClient, PermissionHandler
+import copilot
+from copilot import PermissionHandler
 
 from .testharness import CLI_PATH
 
@@ -10,7 +11,7 @@ from .testharness import CLI_PATH
 class TestClient:
     @pytest.mark.asyncio
     async def test_should_start_and_connect_to_server_using_stdio(self):
-        client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": True})
+        client = copilot.cli_client(CLI_PATH)
 
         try:
             await client.start()
@@ -28,7 +29,7 @@ class TestClient:
 
     @pytest.mark.asyncio
     async def test_should_start_and_connect_to_server_using_tcp(self):
-        client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": False})
+        client = copilot.cli_client(CLI_PATH, use_stdio=False)
 
         try:
             await client.start()
@@ -48,7 +49,7 @@ class TestClient:
     async def test_should_return_errors_on_failed_cleanup(self):
         import asyncio
 
-        client = CopilotClient({"cli_path": CLI_PATH})
+        client = copilot.cli_client(CLI_PATH)
 
         try:
             await client.create_session({"on_permission_request": PermissionHandler.approve_all})
@@ -67,7 +68,7 @@ class TestClient:
 
     @pytest.mark.asyncio
     async def test_should_force_stop_without_cleanup(self):
-        client = CopilotClient({"cli_path": CLI_PATH})
+        client = copilot.cli_client(CLI_PATH)
 
         await client.create_session({"on_permission_request": PermissionHandler.approve_all})
         await client.force_stop()
@@ -75,7 +76,7 @@ class TestClient:
 
     @pytest.mark.asyncio
     async def test_should_get_status_with_version_and_protocol_info(self):
-        client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": True})
+        client = copilot.cli_client(CLI_PATH)
 
         try:
             await client.start()
@@ -93,7 +94,7 @@ class TestClient:
 
     @pytest.mark.asyncio
     async def test_should_get_auth_status(self):
-        client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": True})
+        client = copilot.cli_client(CLI_PATH)
 
         try:
             await client.start()
@@ -111,7 +112,7 @@ class TestClient:
 
     @pytest.mark.asyncio
     async def test_should_list_models_when_authenticated(self):
-        client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": True})
+        client = copilot.cli_client(CLI_PATH)
 
         try:
             await client.start()
@@ -139,7 +140,7 @@ class TestClient:
     @pytest.mark.asyncio
     async def test_should_cache_models_list(self):
         """Test that list_models caches results to avoid rate limiting"""
-        client = CopilotClient({"cli_path": CLI_PATH, "use_stdio": True})
+        client = copilot.cli_client(CLI_PATH)
 
         try:
             await client.start()
@@ -183,13 +184,7 @@ class TestClient:
     @pytest.mark.asyncio
     async def test_should_report_error_with_stderr_when_cli_fails_to_start(self):
         """Test that CLI startup errors include stderr output in the error message."""
-        client = CopilotClient(
-            {
-                "cli_path": CLI_PATH,
-                "cli_args": ["--nonexistent-flag-for-testing"],
-                "use_stdio": True,
-            }
-        )
+        client = copilot.cli_client(CLI_PATH, "--nonexistent-flag-for-testing")
 
         try:
             with pytest.raises(RuntimeError) as exc_info:

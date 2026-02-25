@@ -51,9 +51,9 @@ await client.stop();
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
+import copilot
 
-client = CopilotClient()
+client = copilot.cli_client()
 await client.start()
 
 session = await client.create_session({"model": "gpt-4.1"})

@@ -23,13 +23,13 @@ Azure AI Foundry (formerly Azure OpenAI) is a common BYOK deployment target for 
 ```python
 import asyncio
 import os
-from copilot import CopilotClient
+import copilot
 
 FOUNDRY_MODEL_URL = "https://your-resource.openai.azure.com/openai/v1/"
 # Set FOUNDRY_API_KEY environment variable
 
 async def main():
-    client = CopilotClient()
+    client = copilot.cli_client()
     await client.start()
 
     session = await client.create_session({

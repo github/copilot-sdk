@@ -42,7 +42,8 @@ import asyncio
 import os
 
 from azure.identity import DefaultAzureCredential
-from copilot import CopilotClient, ProviderConfig, SessionConfig
+import copilot
+from copilot import ProviderConfig, SessionConfig
 
 COGNITIVE_SERVICES_SCOPE = "https://cognitiveservices.azure.com/.default"
 
@@ -54,7 +55,7 @@ async def main():
 
     foundry_url = os.environ["AZURE_AI_FOUNDRY_RESOURCE_URL"]
 
-    client = CopilotClient()
+    client = copilot.cli_client()
     await client.start()
 
     session = await client.create_session(
@@ -84,7 +85,8 @@ Bearer tokens expire (typically after ~1 hour). For servers or long-running agen
 
 ```python
 from azure.identity import DefaultAzureCredential
-from copilot import CopilotClient, ProviderConfig, SessionConfig
+import copilot
+from copilot import ProviderConfig, SessionConfig
 
 COGNITIVE_SERVICES_SCOPE = "https://cognitiveservices.azure.com/.default"
 
@@ -96,7 +98,7 @@ class ManagedIdentityCopilotAgent:
         self.foundry_url = foundry_url.rstrip("/")
         self.model = model
         self.credential = DefaultAzureCredential()
-        self.client = CopilotClient()
+        self.client = copilot.cli_client()
 
     def _get_session_config(self) -> SessionConfig:
         """Build a SessionConfig with a fresh bearer token."""

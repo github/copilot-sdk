@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
+import copilot
 from copilot import CopilotClient
 
 from .proxy import CapiProxy
@@ -62,13 +63,11 @@ class E2ETestContext:
         # Create the shared client (like Node.js/Go do)
         # Use fake token in CI to allow cached responses without real auth
         github_token = "fake-token-for-e2e-tests" if os.environ.get("CI") == "true" else None
-        self._client = CopilotClient(
-            {
-                "cli_path": self.cli_path,
-                "cwd": self.work_dir,
-                "env": self.get_env(),
-                "github_token": github_token,
-            }
+        self._client = copilot.cli_client(
+            self.cli_path,
+            cwd=self.work_dir,
+            env=self.get_env(),
+            github_token=github_token,
         )
 
     async def teardown(self, test_failed: bool = False):

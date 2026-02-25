@@ -59,10 +59,10 @@ const session = await client.createSession({
 
 ```python
 import asyncio
-from copilot import CopilotClient
+import copilot
 
 async def main():
-    client = CopilotClient()
+    client = copilot.cli_client()
     await client.start()
 
     session = await client.create_session({

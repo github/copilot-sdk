@@ -68,35 +68,30 @@ class SelectionAttachment(TypedDict):
 Attachment = Union[FileAttachment, DirectoryAttachment, SelectionAttachment]
 
 
-# Options for creating a CopilotClient
-class CopilotClientOptions(TypedDict, total=False):
-    """Options for creating a CopilotClient"""
+@dataclass
+class _CLIClientConfig:
+    """Configuration for a CopilotClient that spawns and manages a CLI process."""
 
-    cli_path: str  # Path to the Copilot CLI executable (default: "copilot")
-    # Extra arguments to pass to the CLI executable (inserted before SDK-managed args)
-    cli_args: list[str]
-    # Working directory for the CLI process (default: current process's cwd)
-    cwd: str
-    port: int  # Port for the CLI server (TCP mode only, default: 0)
-    use_stdio: bool  # Use stdio transport instead of TCP (default: True)
-    cli_url: str  # URL of an existing Copilot CLI server to connect to over TCP
-    # Format: "host:port" or "http://host:port" or just "port" (defaults to localhost)
-    # Examples: "localhost:8080", "http://127.0.0.1:9000", "8080"
-    # Mutually exclusive with cli_path, use_stdio
-    log_level: LogLevel  # Log level
-    auto_start: bool  # Auto-start the CLI server on first use (default: True)
-    # Auto-restart the CLI server if it crashes (default: True)
-    auto_restart: bool
-    env: dict[str, str]  # Environment variables for the CLI process
-    # GitHub token to use for authentication.
-    # When provided, the token is passed to the CLI server via environment variable.
-    # This takes priority over other authentication methods.
-    github_token: str
-    # Whether to use the logged-in user for authentication.
-    # When True, the CLI server will attempt to use stored OAuth tokens or gh CLI auth.
-    # When False, only explicit tokens (github_token or environment variables) are used.
-    # Default: True (but defaults to False when github_token is provided)
-    use_logged_in_user: bool
+    cli_path: str | None = None
+    cli_args: list[str] | None = None
+    cwd: str | None = None
+    port: int = 0
+    use_stdio: bool = True
+    log_level: LogLevel = "info"
+    auto_start: bool = True
+    auto_restart: bool = True
+    env: dict[str, str] | None = None
+    github_token: str | None = None
+    use_logged_in_user: bool | None = None
+
+
+@dataclass
+class _NetworkClientConfig:
+    """Configuration for a CopilotClient that connects to an existing CLI server."""
+
+    cli_url: str
+    log_level: LogLevel = "info"
+    auto_start: bool = True
 
 
 ToolResultType = Literal["success", "failure", "rejected", "denied"]

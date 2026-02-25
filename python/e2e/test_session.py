@@ -4,7 +4,8 @@ import os
 
 import pytest
 
-from copilot import CopilotClient, PermissionHandler
+import copilot
+from copilot import PermissionHandler
 from copilot.types import Tool
 
 from .testharness import E2ETestContext, get_final_assistant_message, get_next_event_of_type
@@ -184,13 +185,11 @@ class TestSessions:
 
         # Resume using a new client
         github_token = "fake-token-for-e2e-tests" if os.environ.get("CI") == "true" else None
-        new_client = CopilotClient(
-            {
-                "cli_path": ctx.cli_path,
-                "cwd": ctx.work_dir,
-                "env": ctx.get_env(),
-                "github_token": github_token,
-            }
+        new_client = copilot.cli_client(
+            ctx.cli_path,
+            cwd=ctx.work_dir,
+            env=ctx.get_env(),
+            github_token=github_token,
         )
 
         try:

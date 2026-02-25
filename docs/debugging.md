@@ -34,9 +34,9 @@ const client = new CopilotClient({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
+import copilot
 
-client = CopilotClient({"log_level": "debug"})
+client = copilot.cli_client(log_level="debug")
 ```
 
 </details>
@@ -164,7 +164,7 @@ var client = new CopilotClient(new CopilotClientOptions
    <summary><strong>Python</strong></summary>
 
    ```python
-   client = CopilotClient({"cli_path": "/usr/local/bin/copilot"})
+   client = copilot.cli_client("/usr/local/bin/copilot")
    ```
    </details>
 
@@ -217,7 +217,7 @@ var client = new CopilotClient(new CopilotClientOptions
 
    ```python
    import os
-   client = CopilotClient({"github_token": os.environ.get("GITHUB_TOKEN")})
+   client = copilot.cli_client(github_token=os.environ.get("GITHUB_TOKEN"))
    ```
    </details>
 

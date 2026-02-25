@@ -111,11 +111,9 @@ res.json({ content: response?.data.content });
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
+import copilot
 
-client = CopilotClient({
-    "cli_url": "localhost:4321",
-})
+client = copilot.network_client("localhost:4321")
 await client.start()
 
 session = await client.create_session({

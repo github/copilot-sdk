@@ -129,10 +129,10 @@ Create `main.py`:
 
 ```python
 import asyncio
-from copilot import CopilotClient
+import copilot
 
 async def main():
-    client = CopilotClient()
+    client = copilot.cli_client()
     await client.start()
 
     session = await client.create_session({"model": "gpt-4.1"})
@@ -274,11 +274,11 @@ Update `main.py`:
 ```python
 import asyncio
 import sys
-from copilot import CopilotClient
+import copilot
 from copilot.generated.session_events import SessionEventType
 
 async def main():
-    client = CopilotClient()
+    client = copilot.cli_client()
     await client.start()
 
     session = await client.create_session({
@@ -565,7 +565,7 @@ Update `main.py`:
 import asyncio
 import random
 import sys
-from copilot import CopilotClient
+import copilot
 from copilot.tools import define_tool
 from copilot.generated.session_events import SessionEventType
 from pydantic import BaseModel, Field
@@ -585,7 +585,7 @@ async def get_weather(params: GetWeatherParams) -> dict:
     return {"city": city, "temperature": f"{temp}°F", "condition": condition}
 
 async def main():
-    client = CopilotClient()
+    client = copilot.cli_client()
     await client.start()
 
     session = await client.create_session({
@@ -837,7 +837,7 @@ Create `weather_assistant.py`:
 import asyncio
 import random
 import sys
-from copilot import CopilotClient
+import copilot
 from copilot.tools import define_tool
 from copilot.generated.session_events import SessionEventType
 from pydantic import BaseModel, Field
@@ -854,7 +854,7 @@ async def get_weather(params: GetWeatherParams) -> dict:
     return {"city": city, "temperature": f"{temp}°F", "condition": condition}
 
 async def main():
-    client = CopilotClient()
+    client = copilot.cli_client()
     await client.start()
 
     session = await client.create_session({
@@ -1210,11 +1210,10 @@ const session = await client.createSession({ onPermissionRequest: approveAll });
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient, PermissionHandler
+import copilot
+from copilot import PermissionHandler
 
-client = CopilotClient({
-    "cli_url": "localhost:4321"
-})
+client = copilot.network_client("localhost:4321")
 await client.start()
 
 # Use the client normally

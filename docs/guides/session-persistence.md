@@ -46,9 +46,9 @@ await session.sendAndWait({ prompt: "Analyze my codebase" });
 ### Python
 
 ```python
-from copilot import CopilotClient
+import copilot
 
-client = CopilotClient()
+client = copilot.cli_client()
 await client.start()
 
 # Create a session with a meaningful ID
