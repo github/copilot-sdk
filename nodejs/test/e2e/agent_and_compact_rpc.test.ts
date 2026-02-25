@@ -26,7 +26,10 @@ describe("Agent Selection RPC", async () => {
             },
         ];
 
-        const session = await client.createSession({ onPermissionRequest: approveAll, customAgents });
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            customAgents,
+        });
 
         const result = await session.rpc.agent.list();
         expect(result.agents).toBeDefined();
@@ -50,7 +53,10 @@ describe("Agent Selection RPC", async () => {
             },
         ];
 
-        const session = await client.createSession({ onPermissionRequest: approveAll, customAgents });
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            customAgents,
+        });
 
         const result = await session.rpc.agent.getCurrent();
         expect(result.agent).toBeNull();
@@ -68,7 +74,10 @@ describe("Agent Selection RPC", async () => {
             },
         ];
 
-        const session = await client.createSession({ onPermissionRequest: approveAll, customAgents });
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            customAgents,
+        });
 
         // Select the agent
         const selectResult = await session.rpc.agent.select({ name: "test-agent" });
@@ -94,7 +103,10 @@ describe("Agent Selection RPC", async () => {
             },
         ];
 
-        const session = await client.createSession({ onPermissionRequest: approveAll, customAgents });
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            customAgents,
+        });
 
         // Select then deselect
         await session.rpc.agent.select({ name: "test-agent" });
