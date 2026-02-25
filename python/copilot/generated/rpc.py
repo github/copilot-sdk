@@ -3,18 +3,10 @@ AUTO-GENERATED FILE - DO NOT EDIT
 Generated from: api.schema.json
 """
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..jsonrpc import JsonRpcClient
-
-
-
-def _timeout_kwargs(timeout: Optional[float]) -> dict:
-    """Build keyword arguments for optional timeout forwarding."""
-    if timeout is not None:
-        return {"timeout": timeout}
-    return {}
 
 
 from dataclasses import dataclass
@@ -1155,6 +1147,13 @@ def session_compaction_compact_result_from_dict(s: Any) -> SessionCompactionComp
 
 def session_compaction_compact_result_to_dict(x: SessionCompactionCompactResult) -> Any:
     return to_class(SessionCompactionCompactResult, x)
+
+
+def _timeout_kwargs(timeout: Optional[float]) -> dict:
+    """Build keyword arguments for optional timeout forwarding."""
+    if timeout is not None:
+        return {"timeout": timeout}
+    return {}
 
 
 class ModelsApi:

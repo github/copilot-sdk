@@ -221,13 +221,13 @@ AUTO-GENERATED FILE - DO NOT EDIT
 Generated from: api.schema.json
 """
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..jsonrpc import JsonRpcClient
 
 `);
-
+    lines.push(typesCode);
     lines.push(`
 def _timeout_kwargs(timeout: Optional[float]) -> dict:
     """Build keyword arguments for optional timeout forwarding."""
@@ -236,8 +236,6 @@ def _timeout_kwargs(timeout: Optional[float]) -> dict:
     return {}
 
 `);
-    lines.push(typesCode);
-    lines.push(``);
 
     // Emit RPC wrapper classes
     if (schema.server) {
