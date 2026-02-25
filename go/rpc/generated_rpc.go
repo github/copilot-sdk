@@ -200,6 +200,66 @@ type SessionFleetStartParams struct {
 	Prompt *string `json:"prompt,omitempty"`
 }
 
+type SessionAgentListResult struct {
+	// Available custom agents
+	Agents []AgentElement `json:"agents"`
+}
+
+type AgentElement struct {
+	// Description of the agent's purpose
+	Description string `json:"description"`
+	// Human-readable display name
+	DisplayName string `json:"displayName"`
+	// Unique identifier of the custom agent
+	Name string `json:"name"`
+}
+
+type SessionAgentGetCurrentResult struct {
+	// Currently selected custom agent, or null if using the default agent
+	Agent *SessionAgentGetCurrentResultAgent `json:"agent"`
+}
+
+type SessionAgentGetCurrentResultAgent struct {
+	// Description of the agent's purpose
+	Description string `json:"description"`
+	// Human-readable display name
+	DisplayName string `json:"displayName"`
+	// Unique identifier of the custom agent
+	Name string `json:"name"`
+}
+
+type SessionAgentSelectResult struct {
+	// The newly selected custom agent
+	Agent SessionAgentSelectResultAgent `json:"agent"`
+}
+
+// The newly selected custom agent
+type SessionAgentSelectResultAgent struct {
+	// Description of the agent's purpose
+	Description string `json:"description"`
+	// Human-readable display name
+	DisplayName string `json:"displayName"`
+	// Unique identifier of the custom agent
+	Name string `json:"name"`
+}
+
+type SessionAgentSelectParams struct {
+	// Name of the custom agent to select
+	Name string `json:"name"`
+}
+
+type SessionAgentDeselectResult struct {
+}
+
+type SessionCompactionCompactResult struct {
+	// Number of messages removed during compaction
+	MessagesRemoved float64 `json:"messagesRemoved"`
+	// Whether compaction completed successfully
+	Success bool `json:"success"`
+	// Number of tokens freed by compaction
+	TokensRemoved float64 `json:"tokensRemoved"`
+}
+
 // The current agent mode.
 //
 // The agent mode after switching.
@@ -472,23 +532,105 @@ func (a *FleetRpcApi) Start(ctx context.Context, params *SessionFleetStartParams
 	return &result, nil
 }
 
-// SessionRpc provides typed session-scoped RPC methods.
-type SessionRpc struct {
+type AgentRpcApi struct {
 	client    *jsonrpc2.Client
 	sessionID string
-	Model     *ModelRpcApi
-	Mode      *ModeRpcApi
-	Plan      *PlanRpcApi
-	Workspace *WorkspaceRpcApi
-	Fleet     *FleetRpcApi
+}
+
+func (a *AgentRpcApi) List(ctx context.Context) (*SessionAgentListResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.agent.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionAgentListResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *AgentRpcApi) GetCurrent(ctx context.Context) (*SessionAgentGetCurrentResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.agent.getCurrent", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionAgentGetCurrentResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *AgentRpcApi) Select(ctx context.Context, params *SessionAgentSelectParams) (*SessionAgentSelectResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["name"] = params.Name
+	}
+	raw, err := a.client.Request("session.agent.select", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionAgentSelectResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *AgentRpcApi) Deselect(ctx context.Context) (*SessionAgentDeselectResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.agent.deselect", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionAgentDeselectResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+type CompactionRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
+
+func (a *CompactionRpcApi) Compact(ctx context.Context) (*SessionCompactionCompactResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.compaction.compact", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionCompactionCompactResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// SessionRpc provides typed session-scoped RPC methods.
+type SessionRpc struct {
+	client     *jsonrpc2.Client
+	sessionID  string
+	Model      *ModelRpcApi
+	Mode       *ModeRpcApi
+	Plan       *PlanRpcApi
+	Workspace  *WorkspaceRpcApi
+	Fleet      *FleetRpcApi
+	Agent      *AgentRpcApi
+	Compaction *CompactionRpcApi
 }
 
 func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 	return &SessionRpc{client: client, sessionID: sessionID,
-		Model:     &ModelRpcApi{client: client, sessionID: sessionID},
-		Mode:      &ModeRpcApi{client: client, sessionID: sessionID},
-		Plan:      &PlanRpcApi{client: client, sessionID: sessionID},
-		Workspace: &WorkspaceRpcApi{client: client, sessionID: sessionID},
-		Fleet:     &FleetRpcApi{client: client, sessionID: sessionID},
+		Model:      &ModelRpcApi{client: client, sessionID: sessionID},
+		Mode:       &ModeRpcApi{client: client, sessionID: sessionID},
+		Plan:       &PlanRpcApi{client: client, sessionID: sessionID},
+		Workspace:  &WorkspaceRpcApi{client: client, sessionID: sessionID},
+		Fleet:      &FleetRpcApi{client: client, sessionID: sessionID},
+		Agent:      &AgentRpcApi{client: client, sessionID: sessionID},
+		Compaction: &CompactionRpcApi{client: client, sessionID: sessionID},
 	}
 }

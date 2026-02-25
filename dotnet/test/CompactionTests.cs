@@ -45,7 +45,7 @@ public class CompactionTests(E2ETestFixture fixture, ITestOutputHelper output) :
         // Send multiple messages to fill up the context window
         await session.SendAndWaitAsync(new MessageOptions
         {
-            Prompt = "Tell me a long story about a dragon. Be very detailed."
+            Prompt = "Tell me a story about a dragon. Be detailed."
         });
         await session.SendAndWaitAsync(new MessageOptions
         {

@@ -26,7 +26,7 @@ describe("Compaction", async () => {
         // Send multiple messages to fill up the context window
         // With such low thresholds, even a few messages should trigger compaction
         await session.sendAndWait({
-            prompt: "Tell me a long story about a dragon. Be very detailed.",
+            prompt: "Tell me a story about a dragon. Be detailed.",
         });
         await session.sendAndWait({
             prompt: "Continue the story with more details about the dragon's castle.",

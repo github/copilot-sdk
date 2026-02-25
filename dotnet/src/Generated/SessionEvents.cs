@@ -22,6 +22,7 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(AssistantMessageDeltaEvent), "assistant.message_delta")]
 [JsonDerivedType(typeof(AssistantReasoningEvent), "assistant.reasoning")]
 [JsonDerivedType(typeof(AssistantReasoningDeltaEvent), "assistant.reasoning_delta")]
+[JsonDerivedType(typeof(AssistantStreamingDeltaEvent), "assistant.streaming_delta")]
 [JsonDerivedType(typeof(AssistantTurnEndEvent), "assistant.turn_end")]
 [JsonDerivedType(typeof(AssistantTurnStartEvent), "assistant.turn_start")]
 [JsonDerivedType(typeof(AssistantUsageEvent), "assistant.usage")]
@@ -42,6 +43,7 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(SessionShutdownEvent), "session.shutdown")]
 [JsonDerivedType(typeof(SessionSnapshotRewindEvent), "session.snapshot_rewind")]
 [JsonDerivedType(typeof(SessionStartEvent), "session.start")]
+[JsonDerivedType(typeof(SessionTaskCompleteEvent), "session.task_complete")]
 [JsonDerivedType(typeof(SessionTitleChangedEvent), "session.title_changed")]
 [JsonDerivedType(typeof(SessionTruncationEvent), "session.truncation")]
 [JsonDerivedType(typeof(SessionUsageInfoEvent), "session.usage_info")]
@@ -316,6 +318,18 @@ public partial class SessionCompactionCompleteEvent : SessionEvent
 }
 
 /// <summary>
+/// Event: session.task_complete
+/// </summary>
+public partial class SessionTaskCompleteEvent : SessionEvent
+{
+    [JsonIgnore]
+    public override string Type => "session.task_complete";
+
+    [JsonPropertyName("data")]
+    public required SessionTaskCompleteData Data { get; set; }
+}
+
+/// <summary>
 /// Event: user.message
 /// </summary>
 public partial class UserMessageEvent : SessionEvent
@@ -385,6 +399,18 @@ public partial class AssistantReasoningDeltaEvent : SessionEvent
 
     [JsonPropertyName("data")]
     public required AssistantReasoningDeltaData Data { get; set; }
+}
+
+/// <summary>
+/// Event: assistant.streaming_delta
+/// </summary>
+public partial class AssistantStreamingDeltaEvent : SessionEvent
+{
+    [JsonIgnore]
+    public override string Type => "assistant.streaming_delta";
+
+    [JsonPropertyName("data")]
+    public required AssistantStreamingDeltaData Data { get; set; }
 }
 
 /// <summary>
@@ -899,6 +925,13 @@ public partial class SessionCompactionCompleteData
     public string? RequestId { get; set; }
 }
 
+public partial class SessionTaskCompleteData
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("summary")]
+    public string? Summary { get; set; }
+}
+
 public partial class UserMessageData
 {
     [JsonPropertyName("content")]
@@ -955,6 +988,12 @@ public partial class AssistantReasoningDeltaData
     public required string DeltaContent { get; set; }
 }
 
+public partial class AssistantStreamingDeltaData
+{
+    [JsonPropertyName("totalResponseSizeBytes")]
+    public required double TotalResponseSizeBytes { get; set; }
+}
+
 public partial class AssistantMessageData
 {
     [JsonPropertyName("messageId")]
@@ -995,10 +1034,6 @@ public partial class AssistantMessageDeltaData
 
     [JsonPropertyName("deltaContent")]
     public required string DeltaContent { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("totalResponseSizeBytes")]
-    public double? TotalResponseSizeBytes { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
@@ -1736,6 +1771,8 @@ public enum SystemMessageDataRole
 [JsonSerializable(typeof(AssistantReasoningDeltaData))]
 [JsonSerializable(typeof(AssistantReasoningDeltaEvent))]
 [JsonSerializable(typeof(AssistantReasoningEvent))]
+[JsonSerializable(typeof(AssistantStreamingDeltaData))]
+[JsonSerializable(typeof(AssistantStreamingDeltaEvent))]
 [JsonSerializable(typeof(AssistantTurnEndData))]
 [JsonSerializable(typeof(AssistantTurnEndEvent))]
 [JsonSerializable(typeof(AssistantTurnStartData))]
@@ -1783,6 +1820,8 @@ public enum SystemMessageDataRole
 [JsonSerializable(typeof(SessionStartData))]
 [JsonSerializable(typeof(SessionStartDataContext))]
 [JsonSerializable(typeof(SessionStartEvent))]
+[JsonSerializable(typeof(SessionTaskCompleteData))]
+[JsonSerializable(typeof(SessionTaskCompleteEvent))]
 [JsonSerializable(typeof(SessionTitleChangedData))]
 [JsonSerializable(typeof(SessionTitleChangedEvent))]
 [JsonSerializable(typeof(SessionTruncationData))]

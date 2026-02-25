@@ -314,6 +314,122 @@ export interface SessionFleetStartParams {
   prompt?: string;
 }
 
+export interface SessionAgentListResult {
+  /**
+   * Available custom agents
+   */
+  agents: {
+    /**
+     * Unique identifier of the custom agent
+     */
+    name: string;
+    /**
+     * Human-readable display name
+     */
+    displayName: string;
+    /**
+     * Description of the agent's purpose
+     */
+    description: string;
+  }[];
+}
+
+export interface SessionAgentListParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
+
+export interface SessionAgentGetCurrentResult {
+  /**
+   * Currently selected custom agent, or null if using the default agent
+   */
+  agent: {
+    /**
+     * Unique identifier of the custom agent
+     */
+    name: string;
+    /**
+     * Human-readable display name
+     */
+    displayName: string;
+    /**
+     * Description of the agent's purpose
+     */
+    description: string;
+  } | null;
+}
+
+export interface SessionAgentGetCurrentParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
+
+export interface SessionAgentSelectResult {
+  /**
+   * The newly selected custom agent
+   */
+  agent: {
+    /**
+     * Unique identifier of the custom agent
+     */
+    name: string;
+    /**
+     * Human-readable display name
+     */
+    displayName: string;
+    /**
+     * Description of the agent's purpose
+     */
+    description: string;
+  };
+}
+
+export interface SessionAgentSelectParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Name of the custom agent to select
+   */
+  name: string;
+}
+
+export interface SessionAgentDeselectResult {}
+
+export interface SessionAgentDeselectParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
+
+export interface SessionCompactionCompactResult {
+  /**
+   * Whether compaction completed successfully
+   */
+  success: boolean;
+  /**
+   * Number of tokens freed by compaction
+   */
+  tokensRemoved: number;
+  /**
+   * Number of messages removed during compaction
+   */
+  messagesRemoved: number;
+}
+
+export interface SessionCompactionCompactParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
+
 /** Create typed server-scoped RPC methods (no session required). */
 export function createServerRpc(connection: MessageConnection) {
     return {
@@ -368,6 +484,20 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         fleet: {
             start: async (params: Omit<SessionFleetStartParams, "sessionId">): Promise<SessionFleetStartResult> =>
                 connection.sendRequest("session.fleet.start", { sessionId, ...params }),
+        },
+        agent: {
+            list: async (): Promise<SessionAgentListResult> =>
+                connection.sendRequest("session.agent.list", { sessionId }),
+            getCurrent: async (): Promise<SessionAgentGetCurrentResult> =>
+                connection.sendRequest("session.agent.getCurrent", { sessionId }),
+            select: async (params: Omit<SessionAgentSelectParams, "sessionId">): Promise<SessionAgentSelectResult> =>
+                connection.sendRequest("session.agent.select", { sessionId, ...params }),
+            deselect: async (): Promise<SessionAgentDeselectResult> =>
+                connection.sendRequest("session.agent.deselect", { sessionId }),
+        },
+        compaction: {
+            compact: async (): Promise<SessionCompactionCompactResult> =>
+                connection.sendRequest("session.compaction.compact", { sessionId }),
         },
     };
 }

@@ -108,6 +108,7 @@ type Data struct {
 	Intent                          *string                  `json:"intent,omitempty"`
 	ReasoningID                     *string                  `json:"reasoningId,omitempty"`
 	DeltaContent                    *string                  `json:"deltaContent,omitempty"`
+	TotalResponseSizeBytes          *float64                 `json:"totalResponseSizeBytes,omitempty"`
 	EncryptedContent                *string                  `json:"encryptedContent,omitempty"`
 	MessageID                       *string                  `json:"messageId,omitempty"`
 	ParentToolCallID                *string                  `json:"parentToolCallId,omitempty"`
@@ -115,7 +116,6 @@ type Data struct {
 	ReasoningOpaque                 *string                  `json:"reasoningOpaque,omitempty"`
 	ReasoningText                   *string                  `json:"reasoningText,omitempty"`
 	ToolRequests                    []ToolRequest            `json:"toolRequests,omitempty"`
-	TotalResponseSizeBytes          *float64                 `json:"totalResponseSizeBytes,omitempty"`
 	APICallID                       *string                  `json:"apiCallId,omitempty"`
 	CacheReadTokens                 *float64                 `json:"cacheReadTokens,omitempty"`
 	CacheWriteTokens                *float64                 `json:"cacheWriteTokens,omitempty"`
@@ -368,6 +368,7 @@ const (
 	AssistantMessageDelta       SessionEventType = "assistant.message_delta"
 	AssistantReasoning          SessionEventType = "assistant.reasoning"
 	AssistantReasoningDelta     SessionEventType = "assistant.reasoning_delta"
+	AssistantStreamingDelta     SessionEventType = "assistant.streaming_delta"
 	AssistantTurnEnd            SessionEventType = "assistant.turn_end"
 	AssistantTurnStart          SessionEventType = "assistant.turn_start"
 	AssistantUsage              SessionEventType = "assistant.usage"
@@ -388,6 +389,7 @@ const (
 	SessionShutdown             SessionEventType = "session.shutdown"
 	SessionSnapshotRewind       SessionEventType = "session.snapshot_rewind"
 	SessionStart                SessionEventType = "session.start"
+	SessionTaskComplete         SessionEventType = "session.task_complete"
 	SessionTitleChanged         SessionEventType = "session.title_changed"
 	SessionTruncation           SessionEventType = "session.truncation"
 	SessionUsageInfo            SessionEventType = "session.usage_info"
