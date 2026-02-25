@@ -255,7 +255,7 @@ const client = new CopilotClient({
 
 <!-- docs-validate: skip -->
 ```python
-client = copilot.cli_client()
+client = copilot.cli_client(use_logged_in_user=False)  # Only use explicit tokens
 ```
 
 </details>
