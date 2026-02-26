@@ -21,7 +21,7 @@ import sys
 import threading
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional, cast
+from typing import Any, Callable, Optional, cast, overload
 
 from .generated.rpc import ServerRpc
 from .generated.session_events import session_event_from_dict
@@ -1006,9 +1006,16 @@ class CopilotClient:
             error = response.get("error", "Unknown error")
             raise RuntimeError(f"Failed to set foreground session: {error}")
 
+    @overload
+    def on(self, handler: SessionLifecycleHandler, /) -> ...: ...
+
+    @overload
+    def on(self, event_type: SessionLifecycleEventType, /, handler: ...) -> ...: ...
+
     def on(
         self,
         event_type_or_handler: SessionLifecycleEventType | SessionLifecycleHandler,
+        /,
         handler: Optional[SessionLifecycleHandler] = None,
     ) -> Callable[[], None]:
         """
