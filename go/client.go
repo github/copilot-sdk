@@ -1098,8 +1098,14 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 
 		// Monitor process exit to signal pending requests
 		c.processDone = make(chan struct{})
+		// Capturing a stable reference to the process for the goroutine prevents
+		// a race: c.process can be assigned nil in [Force]Stop() while the
+		// goroutine is starting. It's okay for this goroutine to Wait on the
+		// process in that case because [Force]Stop() kills the process, causing
+		// Wait to return immediately.
+		proc := c.process
 		go func() {
-			waitErr := c.process.Wait()
+			waitErr := proc.Wait()
 			if waitErr != nil {
 				c.processError = fmt.Errorf("CLI process exited: %v", waitErr)
 			} else {
