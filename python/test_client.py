@@ -114,7 +114,7 @@ class TestURLParsing:
 
     def test_use_stdio_false_when_cli_url(self):
         client = CopilotClient({"cli_url": "8080", "log_level": "error"})
-        assert not client.options["use_stdio"]
+        assert not client._options["use_stdio"]
 
     def test_is_external_server_true(self):
         client = CopilotClient({"cli_url": "localhost:8080", "log_level": "error"})
@@ -126,17 +126,17 @@ class TestAuthOptions:
         client = CopilotClient(
             {"cli_path": CLI_PATH, "github_token": "gho_test_token", "log_level": "error"}
         )
-        assert client.options.get("github_token") == "gho_test_token"
+        assert client._options.get("github_token") == "gho_test_token"
 
     def test_default_use_logged_in_user_true_without_token(self):
         client = CopilotClient({"cli_path": CLI_PATH, "log_level": "error"})
-        assert client.options.get("use_logged_in_user") is True
+        assert client._options.get("use_logged_in_user") is True
 
     def test_default_use_logged_in_user_false_with_token(self):
         client = CopilotClient(
             {"cli_path": CLI_PATH, "github_token": "gho_test_token", "log_level": "error"}
         )
-        assert client.options.get("use_logged_in_user") is False
+        assert client._options.get("use_logged_in_user") is False
 
     def test_explicit_use_logged_in_user_true_with_token(self):
         client = CopilotClient(
@@ -147,13 +147,13 @@ class TestAuthOptions:
                 "log_level": "error",
             }
         )
-        assert client.options.get("use_logged_in_user") is True
+        assert client._options.get("use_logged_in_user") is True
 
     def test_explicit_use_logged_in_user_false_without_token(self):
         client = CopilotClient(
             {"cli_path": CLI_PATH, "use_logged_in_user": False, "log_level": "error"}
         )
-        assert client.options.get("use_logged_in_user") is False
+        assert client._options.get("use_logged_in_user") is False
 
     def test_github_token_with_cli_url_raises(self):
         with pytest.raises(

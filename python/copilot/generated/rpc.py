@@ -480,9 +480,9 @@ class SessionModelSwitchToParams:
 
 class Mode(Enum):
     """The current agent mode.
-    
+
     The agent mode after switching.
-    
+
     The mode to switch to. Valid values: "interactive", "plan", "autopilot".
     """
     AUTOPILOT = "autopilot"
