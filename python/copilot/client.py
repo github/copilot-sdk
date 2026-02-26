@@ -1589,7 +1589,7 @@ class CopilotClient:
                 toolTelemetry={},
             )
 
-        return self._normalize_tool_result(result)
+        return self._normalize_tool_result(cast(ToolResult, result))
 
     def _normalize_tool_result(self, result: ToolResult) -> ToolResult:
         """
