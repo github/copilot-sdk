@@ -1,4 +1,5 @@
 """Tests for timeout parameter on generated RPC methods."""
+
 from unittest.mock import AsyncMock
 
 import pytest
