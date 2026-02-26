@@ -50,7 +50,6 @@ from .types import (
     ToolResult,
 )
 
-
 HandlerUnsubcribe = Callable[[], None]
 
 
@@ -1579,9 +1578,10 @@ class CopilotClient:
         }
 
         try:
-            result = handler(invocation)
-            if inspect.isawaitable(result):
-                result = await result
+            raw_result = handler(invocation)
+            if inspect.isawaitable(raw_result):
+                raw_result = await raw_result
+            result: ToolResult = cast(ToolResult, raw_result)
         except Exception as exc:  # pylint: disable=broad-except
             # Don't expose detailed error information to the LLM for security reasons.
             # The actual error is stored in the 'error' field for debugging.
