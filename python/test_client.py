@@ -22,6 +22,16 @@ class TestPermissionHandlerRequired:
             await client.force_stop()
 
     @pytest.mark.asyncio
+    async def test_create_session_raises_with_none_permission_handler(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+        try:
+            with pytest.raises(ValueError, match="on_permission_request handler is required"):
+                await client.create_session(None)  # type: ignore[arg-type]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
     async def test_resume_session_raises_without_permission_handler(self):
         client = CopilotClient({"cli_path": CLI_PATH})
         await client.start()
