@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"sync"
 	"testing"
 )
 
@@ -485,4 +486,45 @@ func TestClient_ResumeSession_RequiresPermissionHandler(t *testing.T) {
 			t.Errorf("Expected error about OnPermissionRequest being required, got: %v", err)
 		}
 	})
+}
+
+func TestClient_StartStopRace(t *testing.T) {
+	cliPath := findCLIPathForTest()
+	if cliPath == "" {
+		t.Skip("CLI not found")
+	}
+	client := NewClient(&ClientOptions{CLIPath: cliPath})
+	defer client.ForceStop()
+	errChan := make(chan error)
+	wg := sync.WaitGroup{}
+	for range 10 {
+		wg.Add(3)
+		go func() {
+			defer wg.Done()
+			if err := client.Start(t.Context()); err != nil {
+				select {
+				case errChan <- err:
+				default:
+				}
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			if err := client.Stop(); err != nil {
+				select {
+				case errChan <- err:
+				default:
+				}
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			client.ForceStop()
+		}()
+	}
+	wg.Wait()
+	close(errChan)
+	if err := <-errChan; err != nil {
+		t.Fatal(err)
+	}
 }
