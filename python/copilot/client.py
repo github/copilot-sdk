@@ -51,7 +51,7 @@ from .types import (
 )
 
 
-UnsubscribeHandler = Callable[[], None]
+HandlerUnsubcribe = Callable[[], None]
 
 
 def _get_bundled_cli_path() -> Optional[str]:
@@ -1010,19 +1010,19 @@ class CopilotClient:
             raise RuntimeError(f"Failed to set foreground session: {error}")
 
     @overload
-    def on(self, handler: SessionLifecycleHandler, /) -> UnsubscribeHandler: ...
+    def on(self, handler: SessionLifecycleHandler, /) -> HandlerUnsubcribe: ...
 
     @overload
     def on(
         self, event_type: SessionLifecycleEventType, /, handler: SessionLifecycleHandler
-    ) -> UnsubscribeHandler: ...
+    ) -> HandlerUnsubcribe: ...
 
     def on(
         self,
         event_type_or_handler: SessionLifecycleEventType | SessionLifecycleHandler,
         /,
         handler: Optional[SessionLifecycleHandler] = None,
-    ) -> UnsubscribeHandler:
+    ) -> HandlerUnsubcribe:
         """
         Subscribe to session lifecycle events.
 
