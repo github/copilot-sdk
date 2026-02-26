@@ -51,6 +51,9 @@ from .types import (
 )
 
 
+UnsubscribeHandler = Callable[[], None]
+
+
 def _get_bundled_cli_path() -> Optional[str]:
     """Get the path to the bundled CLI binary, if available."""
     # The binary is bundled in copilot/bin/ within the package
@@ -1007,17 +1010,19 @@ class CopilotClient:
             raise RuntimeError(f"Failed to set foreground session: {error}")
 
     @overload
-    def on(self, handler: SessionLifecycleHandler, /) -> ...: ...
+    def on(self, handler: SessionLifecycleHandler, /) -> UnsubscribeHandler: ...
 
     @overload
-    def on(self, event_type: SessionLifecycleEventType, /, handler: ...) -> ...: ...
+    def on(
+        self, event_type: SessionLifecycleEventType, /, handler: SessionLifecycleHandler
+    ) -> UnsubscribeHandler: ...
 
     def on(
         self,
         event_type_or_handler: SessionLifecycleEventType | SessionLifecycleHandler,
         /,
         handler: Optional[SessionLifecycleHandler] = None,
-    ) -> Callable[[], None]:
+    ) -> UnsubscribeHandler:
         """
         Subscribe to session lifecycle events.
 
