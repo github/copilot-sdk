@@ -1,0 +1,87 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Find all .ts files in this directory (recursively). List the filenames you found.
+      - role: assistant
+        content: I'll search for all TypeScript files recursively in the current directory.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Finding TypeScript files"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: glob
+              arguments: '{"pattern":"**/*.ts"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Find all .ts files in this directory (recursively). List the filenames you found.
+      - role: assistant
+        content: I'll search for all TypeScript files recursively in the current directory.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Finding TypeScript files"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: glob
+              arguments: '{"pattern":"**/*.ts"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: |-
+          ./src/index.ts
+          ./src/app.ts
+      - role: assistant
+        content: |-
+          Found 2 TypeScript files:
+          - `src/app.ts`
+          - `src/index.ts`
+  # Windows returns files in alphabetical order
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Find all .ts files in this directory (recursively). List the filenames you found.
+      - role: assistant
+        content: I'll search for all TypeScript files recursively in the current directory.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Finding TypeScript files"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: glob
+              arguments: '{"pattern":"**/*.ts"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: |-
+          ./src/app.ts
+          ./src/index.ts
+      - role: assistant
+        content: |-
+          Found 2 TypeScript files:
+          - `src/app.ts`
+          - `src/index.ts`

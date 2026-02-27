@@ -1,3 +1,4 @@
+import { rm } from "fs/promises";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { ParsedHttpExchange } from "../../../test/harness/replayingCapiProxy.js";
 import { CopilotClient, approveAll } from "../../src/index.js";
@@ -356,6 +357,9 @@ describe("Sessions", async () => {
 
     it("should create session with custom config dir", async () => {
         const customConfigDir = `${homeDir}/custom-config`;
+        onTestFinished(async () => {
+            await rm(customConfigDir, { recursive: true, force: true }).catch(() => {});
+        });
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             configDir: customConfigDir,

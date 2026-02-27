@@ -5,43 +5,47 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: Run 'echo test'. If you can't, say 'failed'.
+        content: Read the file 'secret.txt' and tell me what the magic number is.
       - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: report_intent
-              arguments: '{"intent":"Running echo command"}'
+              arguments: '{"intent":"Reading secret file"}'
       - role: assistant
         tool_calls:
           - id: toolcall_1
             type: function
             function:
-              name: ${shell}
-              arguments: '{"command":"echo test","description":"Run echo test"}'
+              name: view
+              arguments: '{"path":"${workdir}/secret.txt"}'
   - messages:
       - role: system
         content: ${system}
       - role: user
-        content: Run 'echo test'. If you can't, say 'failed'.
+        content: Read the file 'secret.txt' and tell me what the magic number is.
       - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: report_intent
-              arguments: '{"intent":"Running echo command"}'
+              arguments: '{"intent":"Reading secret file"}'
           - id: toolcall_1
             type: function
             function:
-              name: ${shell}
-              arguments: '{"command":"echo test","description":"Run echo test"}'
+              name: view
+              arguments: '{"path":"${workdir}/secret.txt"}'
       - role: tool
         tool_call_id: toolcall_0
         content: Intent logged
       - role: tool
         tool_call_id: toolcall_1
-        content: Permission denied and could not request permission from user
+        content: 1. The magic number is 42.
       - role: assistant
-        content: failed
+        content: The magic number is **42**.
+      - role: user
+        content: What is that magic number multiplied by 2?
+      - role: assistant
+        content: 42 × 2 = **84**

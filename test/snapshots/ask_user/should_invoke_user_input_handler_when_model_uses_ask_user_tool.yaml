@@ -18,4 +18,4 @@ conversations:
         tool_call_id: toolcall_0
         content: "User selected: Option A"
       - role: assistant
-        content: You selected **Option A**. How would you like to proceed?
+        content: You selected **Option A**. What would you like me to do next?

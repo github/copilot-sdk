@@ -44,4 +44,4 @@ conversations:
         tool_call_id: toolcall_1
         content: 1. Testing both hooks!
       - role: assistant
-        content: 'The file contains: "Testing both hooks!"'
+        content: 'The file contains a single line: "Testing both hooks!"'
