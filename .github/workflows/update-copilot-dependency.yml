@@ -35,6 +35,10 @@ jobs:
         working-directory: ./test/harness
         run: npm install @github/copilot@${{ inputs.version }}
 
+      - name: Refresh nodejs/samples lockfile
+        working-directory: ./nodejs/samples
+        run: npm install
+
       - name: Install codegen dependencies
         working-directory: ./scripts/codegen
         run: npm ci
