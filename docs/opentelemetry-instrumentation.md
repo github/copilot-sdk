@@ -49,12 +49,15 @@ tracer = trace.get_tracer(__name__)
 ### 2. Create Spans Around Agent Operations
 
 ```python
-from copilot import CopilotClient, SessionConfig
+from copilot import CopilotClient, PermissionHandler
+from copilot.generated.session_events import SessionEventType
 from opentelemetry import trace, context
 from opentelemetry.trace import SpanKind
 
-# Initialize client
-client = CopilotClient(SessionConfig(model="gpt-5"))
+# Initialize client and start the CLI server
+client = CopilotClient()
+await client.start()
+
 tracer = trace.get_tracer(__name__)
 
 # Create a span for the agent invocation
@@ -73,18 +76,34 @@ span = tracer.start_span(
 token = context.attach(trace.set_span_in_context(span))
 
 try:
-    # Your agent code here
-    async for event in session.send("Hello, world!"):
-        # Process events and add attributes
-        pass
+    # Create a session (model is set here, not on the client)
+    session = await client.create_session({
+        "model": "gpt-5",
+        "on_permission_request": PermissionHandler.approve_all,
+    })
+
+    # Subscribe to events via callback
+    def handle_event(event):
+        if event.type == SessionEventType.ASSISTANT_USAGE:
+            if event.data.model:
+                span.set_attribute("gen_ai.response.model", event.data.model)
+
+    unsubscribe = session.on(handle_event)
+
+    # Send a message (returns a message ID)
+    await session.send({"prompt": "Hello, world!"})
+
+    # Or send and wait for the session to become idle
+    response = await session.send_and_wait({"prompt": "Hello, world!"})
 finally:
     context.detach(token)
     span.end()
+    await client.stop()
 ```
 
 ## Copilot SDK Event to GenAI Attribute Mapping
 
-The Copilot SDK emits `SessionEventType` events during agent execution. Here's how to map these events to GenAI semantic convention attributes:
+The Copilot SDK emits `SessionEventType` events during agent execution. Subscribe to these events using `session.on(handler)`, which returns an unsubscribe function. Here's how to map these events to GenAI semantic convention attributes:
 
 ### Core Session Events
 
@@ -131,7 +150,7 @@ When you receive an `ASSISTANT_USAGE` event, extract token usage:
 ```python
 from copilot.generated.session_events import SessionEventType
 
-async for event in session.send("Hello"):
+def handle_usage(event):
     if event.type == SessionEventType.ASSISTANT_USAGE:
         data = event.data
         if data.model:
@@ -140,9 +159,13 @@ async for event in session.send("Hello"):
             span.set_attribute("gen_ai.usage.input_tokens", int(data.input_tokens))
         if data.output_tokens is not None:
             span.set_attribute("gen_ai.usage.output_tokens", int(data.output_tokens))
+
+unsubscribe = session.on(handle_usage)
+await session.send({"prompt": "Hello"})
 ```
 
 **Event Data Structure:**
+<!-- docs-validate: skip -->
 ```python
 @dataclass
 class Usage:
@@ -168,28 +191,28 @@ import json
 # Dictionary to track active tool spans
 tool_spans = {}
 
-async for event in session.send("What's the weather?"):
+def handle_tool_events(event):
     data = event.data
-    
+
     if event.type == SessionEventType.TOOL_EXECUTION_START and data:
         call_id = data.tool_call_id or str(uuid.uuid4())
         tool_name = data.tool_name or "unknown"
-        
+
         tool_attrs = {
             "gen_ai.tool.name": tool_name,
             "gen_ai.operation.name": "execute_tool",
         }
-        
+
         if call_id:
             tool_attrs["gen_ai.tool.call.id"] = call_id
-        
+
         # Optional: include tool arguments (may contain sensitive data)
         if data.arguments is not None:
             try:
                 tool_attrs["gen_ai.tool.call.arguments"] = json.dumps(data.arguments)
             except Exception:
                 tool_attrs["gen_ai.tool.call.arguments"] = str(data.arguments)
-        
+
         tool_span = tracer.start_span(
             name=f"execute_tool {tool_name}",
             kind=SpanKind.CLIENT,
@@ -197,14 +220,14 @@ async for event in session.send("What's the weather?"):
         )
         tool_token = context.attach(trace.set_span_in_context(tool_span))
         tool_spans[call_id] = (tool_span, tool_token)
-    
+
     elif event.type == SessionEventType.TOOL_EXECUTION_COMPLETE and data:
         call_id = data.tool_call_id
         entry = tool_spans.pop(call_id, None) if call_id else None
-        
+
         if entry:
             tool_span, tool_token = entry
-            
+
             # Optional: include tool result (may contain sensitive data)
             if data.result is not None:
                 try:
@@ -213,13 +236,16 @@ async for event in session.send("What's the weather?"):
                     result_str = str(data.result)
                 # Truncate to 512 chars to avoid huge spans
                 tool_span.set_attribute("gen_ai.tool.call.result", result_str[:512])
-            
+
             # Mark as error if tool failed
             if hasattr(data, "success") and data.success is False:
                 tool_span.set_attribute("error.type", "tool_error")
-            
+
             context.detach(tool_token)
             tool_span.end()
+
+unsubscribe = session.on(handle_tool_events)
+await session.send({"prompt": "What's the weather?"})
 ```
 
 **Tool Event Data:**
@@ -233,7 +259,7 @@ async for event in session.send("What's the weather?"):
 Capture the final message as a span event:
 
 ```python
-async for event in session.send("Tell me a joke"):
+def handle_message(event):
     if event.type == SessionEventType.ASSISTANT_MESSAGE and event.data:
         if event.data.content:
             # Add as a span event (opt-in for content recording)
@@ -246,6 +272,9 @@ async for event in session.send("Tell me a joke"):
                     })
                 }
             )
+
+unsubscribe = session.on(handle_message)
+await session.send({"prompt": "Tell me a joke"})
 ```
 
 ## Complete Example
@@ -254,7 +283,7 @@ async for event in session.send("Tell me a joke"):
 import asyncio
 import json
 import uuid
-from copilot import CopilotClient, SessionConfig
+from copilot import CopilotClient, PermissionHandler
 from copilot.generated.session_events import SessionEventType
 from opentelemetry import trace, context
 from opentelemetry.trace import SpanKind
@@ -269,7 +298,7 @@ tracer = trace.get_tracer(__name__)
 
 async def invoke_agent(prompt: str):
     """Invoke agent with full OpenTelemetry instrumentation."""
-    
+
     # Create main span
     span_attrs = {
         "gen_ai.operation.name": "invoke_agent",
@@ -277,7 +306,7 @@ async def invoke_agent(prompt: str):
         "gen_ai.agent.name": "example-agent",
         "gen_ai.request.model": "gpt-5",
     }
-    
+
     span = tracer.start_span(
         name="invoke_agent example-agent",
         kind=SpanKind.CLIENT,
@@ -285,56 +314,69 @@ async def invoke_agent(prompt: str):
     )
     token = context.attach(trace.set_span_in_context(span))
     tool_spans = {}
-    
+
     try:
-        client = CopilotClient(SessionConfig(model="gpt-5"))
-        async with client.create_session() as session:
-            async for event in session.send(prompt):
-                data = event.data
-                
-                # Handle usage events
-                if event.type == SessionEventType.ASSISTANT_USAGE and data:
-                    if data.model:
-                        span.set_attribute("gen_ai.response.model", data.model)
-                    if data.input_tokens is not None:
-                        span.set_attribute("gen_ai.usage.input_tokens", int(data.input_tokens))
-                    if data.output_tokens is not None:
-                        span.set_attribute("gen_ai.usage.output_tokens", int(data.output_tokens))
-                
-                # Handle tool execution
-                elif event.type == SessionEventType.TOOL_EXECUTION_START and data:
-                    call_id = data.tool_call_id or str(uuid.uuid4())
-                    tool_name = data.tool_name or "unknown"
-                    
-                    tool_attrs = {
-                        "gen_ai.tool.name": tool_name,
-                        "gen_ai.operation.name": "execute_tool",
-                        "gen_ai.tool.call.id": call_id,
-                    }
-                    
-                    tool_span = tracer.start_span(
-                        name=f"execute_tool {tool_name}",
-                        kind=SpanKind.CLIENT,
-                        attributes=tool_attrs
-                    )
-                    tool_token = context.attach(trace.set_span_in_context(tool_span))
-                    tool_spans[call_id] = (tool_span, tool_token)
-                
-                elif event.type == SessionEventType.TOOL_EXECUTION_COMPLETE and data:
-                    call_id = data.tool_call_id
-                    entry = tool_spans.pop(call_id, None) if call_id else None
-                    if entry:
-                        tool_span, tool_token = entry
-                        context.detach(tool_token)
-                        tool_span.end()
-                
-                # Capture final message
-                elif event.type == SessionEventType.ASSISTANT_MESSAGE and data:
-                    if data.content:
-                        print(f"Assistant: {data.content}")
-        
+        client = CopilotClient()
+        await client.start()
+
+        session = await client.create_session({
+            "model": "gpt-5",
+            "on_permission_request": PermissionHandler.approve_all,
+        })
+
+        # Subscribe to events via callback
+        def handle_event(event):
+            data = event.data
+
+            # Handle usage events
+            if event.type == SessionEventType.ASSISTANT_USAGE and data:
+                if data.model:
+                    span.set_attribute("gen_ai.response.model", data.model)
+                if data.input_tokens is not None:
+                    span.set_attribute("gen_ai.usage.input_tokens", int(data.input_tokens))
+                if data.output_tokens is not None:
+                    span.set_attribute("gen_ai.usage.output_tokens", int(data.output_tokens))
+
+            # Handle tool execution
+            elif event.type == SessionEventType.TOOL_EXECUTION_START and data:
+                call_id = data.tool_call_id or str(uuid.uuid4())
+                tool_name = data.tool_name or "unknown"
+
+                tool_attrs = {
+                    "gen_ai.tool.name": tool_name,
+                    "gen_ai.operation.name": "execute_tool",
+                    "gen_ai.tool.call.id": call_id,
+                }
+
+                tool_span = tracer.start_span(
+                    name=f"execute_tool {tool_name}",
+                    kind=SpanKind.CLIENT,
+                    attributes=tool_attrs
+                )
+                tool_token = context.attach(trace.set_span_in_context(tool_span))
+                tool_spans[call_id] = (tool_span, tool_token)
+
+            elif event.type == SessionEventType.TOOL_EXECUTION_COMPLETE and data:
+                call_id = data.tool_call_id
+                entry = tool_spans.pop(call_id, None) if call_id else None
+                if entry:
+                    tool_span, tool_token = entry
+                    context.detach(tool_token)
+                    tool_span.end()
+
+            # Capture final message
+            elif event.type == SessionEventType.ASSISTANT_MESSAGE and data:
+                if data.content:
+                    print(f"Assistant: {data.content}")
+
+        unsubscribe = session.on(handle_event)
+
+        # Send message and wait for completion
+        response = await session.send_and_wait({"prompt": prompt})
+
         span.set_attribute("gen_ai.response.finish_reasons", ["stop"])
-    
+        unsubscribe()
+
     except Exception as e:
         span.set_attribute("error.type", type(e).__name__)
         raise
@@ -344,9 +386,10 @@ async def invoke_agent(prompt: str):
             tool_span.set_attribute("error.type", "stream_aborted")
             context.detach(tool_token)
             tool_span.end()
-        
+
         context.detach(token)
         span.end()
+        await client.stop()
 
 # Run
 asyncio.run(invoke_agent("What's 2+2?"))
@@ -388,6 +431,7 @@ export OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true
 
 ### Checking at Runtime
 
+<!-- docs-validate: skip -->
 ```python
 import os
 
@@ -403,6 +447,7 @@ if should_record_content() and event.data.content:
 
 For MCP-based tools, add these additional attributes following the [OpenTelemetry MCP semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/mcp/):
 
+<!-- docs-validate: skip -->
 ```python
 tool_attrs = {
     # Required
@@ -507,6 +552,7 @@ View traces in the Azure Portal under your Application Insights resource → Tra
 ### Tool spans not showing as children
 
 Make sure to attach the tool span to the parent context:
+<!-- docs-validate: skip -->
 ```python
 tool_token = context.attach(trace.set_span_in_context(tool_span))
 ```
