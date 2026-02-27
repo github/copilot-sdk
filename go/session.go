@@ -511,17 +511,21 @@ func (s *Session) GetMessages(ctx context.Context) ([]SessionEvent, error) {
 	return response.Events, nil
 }
 
-// Destroy destroys this session and releases all associated resources.
+// Destroy closes this session and releases all in-memory resources (event
+// handlers, tool handlers, permission handlers).
 //
-// After calling this method, the session can no longer be used. All event
-// handlers and tool handlers are cleared. To continue the conversation,
-// use [Client.ResumeSession] with the session ID.
+// Session state on disk (conversation history, planning state, artifacts) is
+// preserved, so the conversation can be resumed later by calling
+// [Client.ResumeSession] with the session ID. To permanently remove all
+// session data including files on disk, use [Client.DeleteSession] instead.
+//
+// After calling this method, the session object can no longer be used.
 //
 // Returns an error if the connection fails.
 //
 // Example:
 //
-//	// Clean up when done
+//	// Clean up when done — session can still be resumed later
 //	if err := session.Destroy(); err != nil {
 //	    log.Printf("Failed to destroy session: %v", err)
 //	}

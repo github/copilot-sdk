@@ -499,18 +499,23 @@ export class CopilotSession {
     }
 
     /**
-     * Destroys this session and releases all associated resources.
+     * Closes this session and releases all in-memory resources (event handlers,
+     * tool handlers, permission handlers).
      *
-     * After calling this method, the session can no longer be used. All event
-     * handlers and tool handlers are cleared. To continue the conversation,
-     * use {@link CopilotClient.resumeSession} with the session ID.
+     * Session state on disk (conversation history, planning state, artifacts) is
+     * preserved, so the conversation can be resumed later by calling
+     * {@link CopilotClient.resumeSession} with the session ID. To permanently
+     * remove all session data including files on disk, use
+     * {@link CopilotClient.deleteSession} instead.
      *
-     * @returns A promise that resolves when the session is destroyed
+     * After calling this method, the session object can no longer be used.
+     *
+     * @returns A promise that resolves when the session is closed
      * @throws Error if the connection fails
      *
      * @example
      * ```typescript
-     * // Clean up when done
+     * // Clean up when done — session can still be resumed later
      * await session.destroy();
      * ```
      */

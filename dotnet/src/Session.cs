@@ -541,22 +541,25 @@ public partial class CopilotSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// Disposes the <see cref="CopilotSession"/> and releases all associated resources.
+    /// Closes this session and releases all in-memory resources (event handlers,
+    /// tool handlers, permission handlers).
     /// </summary>
     /// <returns>A task representing the dispose operation.</returns>
     /// <remarks>
     /// <para>
-    /// After calling this method, the session can no longer be used. All event handlers
-    /// and tool handlers are cleared.
+    /// Session state on disk (conversation history, planning state, artifacts) is
+    /// preserved, so the conversation can be resumed later by calling
+    /// <see cref="CopilotClient.ResumeSessionAsync"/> with the session ID. To
+    /// permanently remove all session data including files on disk, use
+    /// <see cref="CopilotClient.DeleteSessionAsync"/> instead.
     /// </para>
     /// <para>
-    /// To continue the conversation, use <see cref="CopilotClient.ResumeSessionAsync"/>
-    /// with the session ID.
+    /// After calling this method, the session object can no longer be used.
     /// </para>
     /// </remarks>
     /// <example>
     /// <code>
-    /// // Using 'await using' for automatic disposal
+    /// // Using 'await using' for automatic disposal — session can still be resumed later
     /// await using var session = await client.CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll });
     ///
     /// // Or manually dispose

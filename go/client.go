@@ -293,9 +293,13 @@ func (c *Client) Start(ctx context.Context) error {
 // Stop stops the CLI server and closes all active sessions.
 //
 // This method performs graceful cleanup:
-//  1. Destroys all active sessions
+//  1. Closes all active sessions (releases in-memory resources)
 //  2. Closes the JSON-RPC connection
 //  3. Terminates the CLI server process (if spawned by this client)
+//
+// Note: session data on disk is preserved, so sessions can be resumed later.
+// To permanently remove session data before stopping, call [Client.DeleteSession]
+// for each session first.
 //
 // Returns an error that aggregates all errors encountered during cleanup.
 //
@@ -685,8 +689,11 @@ func (c *Client) ListSessions(ctx context.Context, filter *SessionListFilter) ([
 	return response.Sessions, nil
 }
 
-// DeleteSession permanently deletes a session and all its conversation history.
+// DeleteSession permanently deletes a session and all its data from disk,
+// including conversation history, planning state, and artifacts.
 //
+// Unlike [Session.Destroy], which only releases in-memory resources and
+// preserves session data for later resumption, DeleteSession is irreversible.
 // The session cannot be resumed after deletion. If the session is in the local
 // sessions map, it will be removed.
 //

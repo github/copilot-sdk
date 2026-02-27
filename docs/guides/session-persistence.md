@@ -325,16 +325,16 @@ async function cleanupExpiredSessions(maxAgeMs: number) {
 await cleanupExpiredSessions(24 * 60 * 60 * 1000);
 ```
 
-### Explicit Session Destruction
+### Closing a Session (`destroy`)
 
-When a task completes, destroy the session explicitly rather than waiting for timeouts:
+When a task completes, close the session explicitly rather than waiting for timeouts. This releases in-memory resources but **preserves session data on disk**, so the session can still be resumed later:
 
 ```typescript
 try {
   // Do work...
   await session.sendAndWait({ prompt: "Complete the task" });
   
-  // Task complete - clean up
+  // Task complete — release in-memory resources (session can be resumed later)
   await session.destroy();
 } catch (error) {
   // Clean up even on error
@@ -342,6 +342,17 @@ try {
   throw error;
 }
 ```
+
+### Permanently Deleting a Session (`deleteSession`)
+
+To permanently remove a session and all its data from disk (conversation history, planning state, artifacts), use `deleteSession`. This is irreversible — the session **cannot** be resumed after deletion:
+
+```typescript
+// Permanently remove session data
+await client.deleteSession("user-123-task-456");
+```
+
+> **`destroy()` vs `deleteSession()`:** `destroy()` releases in-memory resources but keeps session data on disk for later resumption. `deleteSession()` permanently removes everything, including files on disk.
 
 ## Automatic Cleanup: Idle Timeout
 
@@ -526,8 +537,8 @@ await withSessionLock("user-123-task-456", async () => {
 | **Resume session** | `client.resumeSession(sessionId)` |
 | **BYOK resume** | Re-provide `provider` config |
 | **List sessions** | `client.listSessions(filter?)` |
-| **Delete session** | `client.deleteSession(sessionId)` |
-| **Destroy active session** | `session.destroy()` |
+| **Close active session** | `session.destroy()` — releases in-memory resources; session data on disk is preserved for resumption |
+| **Delete session permanently** | `client.deleteSession(sessionId)` — permanently removes all session data from disk; cannot be resumed |
 | **Containerized deployment** | Mount `~/.copilot/session-state/` to persistent storage |
 
 ## Next Steps

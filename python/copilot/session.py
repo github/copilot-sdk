@@ -476,17 +476,22 @@ class CopilotSession:
 
     async def destroy(self) -> None:
         """
-        Destroy this session and release all associated resources.
+        Close this session and release all in-memory resources (event handlers,
+        tool handlers, permission handlers).
 
-        After calling this method, the session can no longer be used. All event
-        handlers and tool handlers are cleared. To continue the conversation,
-        use :meth:`CopilotClient.resume_session` with the session ID.
+        Session state on disk (conversation history, planning state, artifacts)
+        is preserved, so the conversation can be resumed later by calling
+        :meth:`CopilotClient.resume_session` with the session ID. To
+        permanently remove all session data including files on disk, use
+        :meth:`CopilotClient.delete_session` instead.
+
+        After calling this method, the session object can no longer be used.
 
         Raises:
             Exception: If the connection fails.
 
         Example:
-            >>> # Clean up when done
+            >>> # Clean up when done — session can still be resumed later
             >>> await session.destroy()
         """
         await self._client.request("session.destroy", {"sessionId": self.session_id})

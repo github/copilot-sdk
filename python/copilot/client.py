@@ -320,9 +320,13 @@ class CopilotClient:
         Stop the CLI server and close all active sessions.
 
         This method performs graceful cleanup:
-        1. Destroys all active sessions
+        1. Closes all active sessions (releases in-memory resources)
         2. Closes the JSON-RPC connection
         3. Terminates the CLI server process (if spawned by this client)
+
+        Note: session data on disk is preserved, so sessions can be resumed
+        later. To permanently remove session data before stopping, call
+        :meth:`delete_session` for each session first.
 
         Returns:
             A list of StopError objects containing error messages that occurred
@@ -928,10 +932,12 @@ class CopilotClient:
 
     async def delete_session(self, session_id: str) -> None:
         """
-        Delete a session permanently.
+        Permanently delete a session and all its data from disk, including
+        conversation history, planning state, and artifacts.
 
-        This permanently removes the session and all its conversation history.
-        The session cannot be resumed after deletion.
+        Unlike :meth:`CopilotSession.destroy`, which only releases in-memory
+        resources and preserves session data for later resumption, this method
+        is irreversible. The session cannot be resumed after deletion.
 
         Args:
             session_id: The ID of the session to delete.
