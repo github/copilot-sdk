@@ -36,6 +36,10 @@ describe("Error Resilience", async () => {
     });
 
     it("should throw when resuming non-existent session", async () => {
-        await expect(client.resumeSession("non-existent-session-id-12345", { onPermissionRequest: approveAll })).rejects.toThrow();
+        await expect(
+            client.resumeSession("non-existent-session-id-12345", {
+                onPermissionRequest: approveAll,
+            })
+        ).rejects.toThrow();
     });
 });

@@ -294,7 +294,8 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           ) {
             const streamingIsRequested =
               options.body &&
-              (JSON.parse(options.body) as { stream?: boolean }).stream === true;
+              (JSON.parse(options.body) as { stream?: boolean }).stream ===
+                true;
             const headers = {
               "content-type": streamingIsRequested
                 ? "text/event-stream"
