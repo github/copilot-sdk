@@ -1353,7 +1353,6 @@ func buildFailedToolResult(internalError string) ToolResult {
 	}
 }
 
-// buildUnsupportedToolResult creates a failure ToolResult for an unsupported tool.
 // mergeExcludedTools returns a deduplicated list combining excludedTools with
 // the names of any SDK-registered tools, so the CLI won't handle them.
 func mergeExcludedTools(excludedTools []string, tools []Tool) []string {
@@ -1377,6 +1376,7 @@ func mergeExcludedTools(excludedTools []string, tools []Tool) []string {
 	return merged
 }
 
+// buildUnsupportedToolResult creates a failure ToolResult for an unsupported tool.
 func buildUnsupportedToolResult(toolName string) ToolResult {
 	return ToolResult{
 		TextResultForLLM: fmt.Sprintf("Tool '%s' is not supported by this client instance.", toolName),
