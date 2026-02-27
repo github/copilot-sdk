@@ -77,7 +77,10 @@ class E2ETestContext:
             test_failed: If True, skip writing snapshots to avoid corruption.
         """
         if self._client:
-            await self._client.stop()
+            try:
+                await self._client.stop()
+            except ExceptionGroup:
+                pass  # stop() completes all cleanup before raising; safe to ignore in teardown
             self._client = None
 
         if self._proxy:

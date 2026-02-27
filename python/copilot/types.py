@@ -619,10 +619,13 @@ class PingResponse:
 
 # Error information from client stop
 @dataclass
-class StopError:
-    """Error information from client stop"""
+class StopError(Exception):
+    """Error that occurred during client stop cleanup."""
 
     message: str  # Error message describing what failed during cleanup
+
+    def __post_init__(self) -> None:
+        Exception.__init__(self, self.message)
 
     @staticmethod
     def from_dict(obj: Any) -> StopError:

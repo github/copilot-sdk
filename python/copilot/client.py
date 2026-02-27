@@ -315,7 +315,7 @@ class CopilotClient:
                         ) from e
             raise
 
-    async def stop(self) -> list["StopError"]:
+    async def stop(self) -> None:
         """
         Stop the CLI server and close all active sessions.
 
@@ -324,14 +324,14 @@ class CopilotClient:
         2. Closes the JSON-RPC connection
         3. Terminates the CLI server process (if spawned by this client)
 
-        Returns:
-            A list of StopError objects containing error messages that occurred
-            during cleanup. An empty list indicates all cleanup succeeded.
+        Raises:
+            ExceptionGroup[StopError]: If any errors occurred during cleanup.
 
         Example:
-            >>> errors = await client.stop()
-            >>> if errors:
-            ...     for error in errors:
+            >>> try:
+            ...     await client.stop()
+            ... except* StopError as eg:
+            ...     for error in eg.exceptions:
             ...         print(f"Cleanup error: {error.message}")
         """
         errors: list[StopError] = []
@@ -360,7 +360,6 @@ class CopilotClient:
         async with self._models_cache_lock:
             self._models_cache = None
 
-        # Kill CLI process
         # Kill CLI process (only if we spawned it)
         if self._process and not self._is_external_server:
             self._process.terminate()
@@ -374,7 +373,8 @@ class CopilotClient:
         if not self._is_external_server:
             self._actual_port = None
 
-        return errors
+        if errors:
+            raise ExceptionGroup("errors during CopilotClient.stop()", errors)
 
     async def force_stop(self) -> None:
         """

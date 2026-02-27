@@ -2,7 +2,7 @@
 
 import pytest
 
-from copilot import CopilotClient, PermissionHandler
+from copilot import CopilotClient, PermissionHandler, StopError
 
 from .testharness import CLI_PATH
 
@@ -20,8 +20,7 @@ class TestClient:
             assert pong.message == "pong: test message"
             assert pong.timestamp >= 0
 
-            errors = await client.stop()
-            assert len(errors) == 0
+            await client.stop()
             assert client.get_state() == "disconnected"
         finally:
             await client.force_stop()
@@ -38,14 +37,13 @@ class TestClient:
             assert pong.message == "pong: test message"
             assert pong.timestamp >= 0
 
-            errors = await client.stop()
-            assert len(errors) == 0
+            await client.stop()
             assert client.get_state() == "disconnected"
         finally:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_should_return_errors_on_failed_cleanup(self):
+    async def test_should_raise_exception_group_on_failed_cleanup(self):
         import asyncio
 
         client = CopilotClient({"cli_path": CLI_PATH})
@@ -59,9 +57,11 @@ class TestClient:
             process.kill()
             await asyncio.sleep(0.1)
 
-            errors = await client.stop()
-            assert len(errors) > 0
-            assert "Failed to destroy session" in errors[0].message
+            with pytest.raises(ExceptionGroup) as exc_info:
+                await client.stop()
+            assert len(exc_info.value.exceptions) > 0
+            assert isinstance(exc_info.value.exceptions[0], StopError)
+            assert "Failed to destroy session" in exc_info.value.exceptions[0].message
         finally:
             await client.force_stop()
 
