@@ -41,8 +41,11 @@ dev = [
     "httpx>=0.24.0",
 ]
 
-[tool.setuptools]
-packages = ["copilot"]
+# Use find with a glob so that the copilot.bin subpackage (created dynamically
+# by scripts/build-wheels.mjs during publishing) is included in platform wheels.
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["copilot*"]
 
 [tool.ruff]
 line-length = 100
