@@ -3,15 +3,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from "vitest";
-import { SessionEvent } from "../../src/index.js";
+import { SessionEvent, approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext";
 
 describe("Session Lifecycle", async () => {
     const { copilotClient: client } = await createSdkTestContext();
 
     it("should list created sessions after sending a message", async () => {
-        const session1 = await client.createSession();
-        const session2 = await client.createSession();
+        const session1 = await client.createSession({ onPermissionRequest: approveAll });
+        const session2 = await client.createSession({ onPermissionRequest: approveAll });
 
         // Sessions must have activity to be persisted to disk
         await session1.sendAndWait({ prompt: "Say hello" });
@@ -31,7 +31,7 @@ describe("Session Lifecycle", async () => {
     });
 
     it("should delete session permanently", async () => {
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
         const sessionId = session.sessionId;
 
         // Send a message so the session is persisted
@@ -53,7 +53,7 @@ describe("Session Lifecycle", async () => {
     });
 
     it("should return events via getMessages after conversation", async () => {
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
 
         await session.sendAndWait({
             prompt: "What is 2+2? Reply with just the number.",
@@ -72,8 +72,8 @@ describe("Session Lifecycle", async () => {
     });
 
     it("should support multiple concurrent sessions", async () => {
-        const session1 = await client.createSession();
-        const session2 = await client.createSession();
+        const session1 = await client.createSession({ onPermissionRequest: approveAll });
+        const session2 = await client.createSession({ onPermissionRequest: approveAll });
 
         // Send to both sessions
         const [msg1, msg2] = await Promise.all([

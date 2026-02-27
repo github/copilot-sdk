@@ -3,27 +3,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from "vitest";
+import { approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext";
 
 describe("Error Resilience", async () => {
     const { copilotClient: client } = await createSdkTestContext();
 
     it("should throw when sending to destroyed session", async () => {
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
         await session.destroy();
 
         await expect(session.sendAndWait({ prompt: "Hello" })).rejects.toThrow();
     });
 
     it("should throw when getting messages from destroyed session", async () => {
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
         await session.destroy();
 
         await expect(session.getMessages()).rejects.toThrow();
     });
 
     it("should handle double abort without error", async () => {
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
 
         // First abort should be fine
         await session.abort();
@@ -35,6 +36,6 @@ describe("Error Resilience", async () => {
     });
 
     it("should throw when resuming non-existent session", async () => {
-        await expect(client.resumeSession("non-existent-session-id-12345")).rejects.toThrow();
+        await expect(client.resumeSession("non-existent-session-id-12345", { onPermissionRequest: approveAll })).rejects.toThrow();
     });
 });

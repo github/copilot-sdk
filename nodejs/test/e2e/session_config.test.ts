@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
+import { approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 describe("Session Configuration", async () => {
@@ -12,6 +13,7 @@ describe("Session Configuration", async () => {
         await writeFile(join(subDir, "marker.txt"), "I am in the subdirectory");
 
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             workingDirectory: subDir,
         });
 
@@ -25,6 +27,7 @@ describe("Session Configuration", async () => {
 
     it("should create session with custom provider config", async () => {
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             provider: {
                 baseUrl: "https://api.example.com/v1",
                 apiKey: "test-key",
@@ -43,7 +46,7 @@ describe("Session Configuration", async () => {
     it("should accept message attachments", async () => {
         await writeFile(join(workDir, "attached.txt"), "This file is attached");
 
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
 
         await session.send({
             prompt: "Summarize the attached file",

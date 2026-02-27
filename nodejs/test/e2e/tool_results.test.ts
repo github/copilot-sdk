@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import type { ToolResultObject } from "../../src/index.js";
-import { defineTool } from "../../src/index.js";
+import { approveAll, defineTool } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext";
 
 describe("Tool Results", async () => {
@@ -13,6 +13,7 @@ describe("Tool Results", async () => {
 
     it("should handle structured ToolResultObject from custom tool", async () => {
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             tools: [
                 defineTool("get_weather", {
                     description: "Gets weather for a city",
@@ -39,6 +40,7 @@ describe("Tool Results", async () => {
 
     it("should handle tool result with failure resultType", async () => {
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             tools: [
                 defineTool("check_status", {
                     description: "Checks the status of a service",
@@ -55,14 +57,15 @@ describe("Tool Results", async () => {
             prompt: "Check the status of the service using check_status. If it fails, say 'service is down'.",
         });
 
-        expect(assistantMessage).not.toBeNull();
-        expect(assistantMessage?.data.content).toBeTruthy();
+        const failureContent = assistantMessage?.data.content ?? "";
+        expect(failureContent).toMatch(/service is down/i);
 
         await session.destroy();
     });
 
     it("should pass validated Zod parameters to tool handler", async () => {
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             tools: [
                 defineTool("calculate", {
                     description: "Calculates a math expression",

@@ -5,7 +5,7 @@
 import { writeFile } from "fs/promises";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
-import { SessionEvent } from "../../src/index.js";
+import { SessionEvent, approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext";
 
 describe("Event Fidelity", async () => {
@@ -14,7 +14,7 @@ describe("Event Fidelity", async () => {
     it("should emit events in correct order for tool-using conversation", async () => {
         await writeFile(join(workDir, "hello.txt"), "Hello World");
 
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
         const events: SessionEvent[] = [];
         session.on((event) => {
             events.push(event);
@@ -43,7 +43,7 @@ describe("Event Fidelity", async () => {
     });
 
     it("should include valid fields on all events", async () => {
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
         const events: SessionEvent[] = [];
         session.on((event) => {
             events.push(event);
@@ -80,7 +80,7 @@ describe("Event Fidelity", async () => {
     it("should emit tool execution events with correct fields", async () => {
         await writeFile(join(workDir, "data.txt"), "test data");
 
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
         const events: SessionEvent[] = [];
         session.on((event) => {
             events.push(event);
@@ -110,7 +110,7 @@ describe("Event Fidelity", async () => {
     });
 
     it("should emit assistant.message with messageId", async () => {
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
         const events: SessionEvent[] = [];
         session.on((event) => {
             events.push(event);

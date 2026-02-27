@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from "vitest";
+import { approveAll } from "../../src/index.js";
 import type {
     ErrorOccurredHookInput,
     SessionEndHookInput,
@@ -18,6 +19,7 @@ describe("Extended session hooks", async () => {
         const sessionStartInputs: SessionStartHookInput[] = [];
 
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             hooks: {
                 onSessionStart: async (input, invocation) => {
                     sessionStartInputs.push(input);
@@ -42,6 +44,7 @@ describe("Extended session hooks", async () => {
         const userPromptInputs: UserPromptSubmittedHookInput[] = [];
 
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             hooks: {
                 onUserPromptSubmitted: async (input, invocation) => {
                     userPromptInputs.push(input);
@@ -66,6 +69,7 @@ describe("Extended session hooks", async () => {
         const sessionEndInputs: SessionEndHookInput[] = [];
 
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             hooks: {
                 onSessionEnd: async (input, invocation) => {
                     sessionEndInputs.push(input);
@@ -90,6 +94,7 @@ describe("Extended session hooks", async () => {
         const errorInputs: ErrorOccurredHookInput[] = [];
 
         const session = await client.createSession({
+            onPermissionRequest: approveAll,
             hooks: {
                 onErrorOccurred: async (input, invocation) => {
                     errorInputs.push(input);

@@ -292,13 +292,18 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
               state.toolResultNormalizers,
             )
           ) {
+            const streamingIsRequested =
+              options.body &&
+              (JSON.parse(options.body) as { stream?: boolean }).stream === true;
             const headers = {
-              "content-type": "text/event-stream",
+              "content-type": streamingIsRequested
+                ? "text/event-stream"
+                : "application/json",
               ...commonResponseHeaders,
             };
             options.onResponseStart(200, headers);
-            // Never call onResponseEnd - hang indefinitely for timeout tests
-            await new Promise(() => {});
+            // Never call onResponseEnd - hang indefinitely for timeout tests.
+            // Returning here keeps the HTTP response open without leaking a pending Promise.
             return;
           }
         }

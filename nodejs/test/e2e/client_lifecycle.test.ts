@@ -3,14 +3,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from "vitest";
-import { SessionLifecycleEvent } from "../../src/index.js";
+import { SessionLifecycleEvent, approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext";
 
 describe("Client Lifecycle", async () => {
     const { copilotClient: client } = await createSdkTestContext();
 
     it("should return last session id after sending a message", async () => {
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
 
         await session.sendAndWait({ prompt: "Say hello" });
 
@@ -26,7 +26,7 @@ describe("Client Lifecycle", async () => {
     it("should return undefined for getLastSessionId with no sessions", async () => {
         // On a fresh client this may return undefined or an older session ID
         const lastSessionId = await client.getLastSessionId();
-        expect(() => lastSessionId).not.toThrow();
+        expect(lastSessionId === undefined || typeof lastSessionId === "string").toBe(true);
     });
 
     it("should emit session lifecycle events", async () => {
@@ -36,7 +36,7 @@ describe("Client Lifecycle", async () => {
         });
 
         try {
-            const session = await client.createSession();
+            const session = await client.createSession({ onPermissionRequest: approveAll });
 
             await session.sendAndWait({ prompt: "Say hello" });
 

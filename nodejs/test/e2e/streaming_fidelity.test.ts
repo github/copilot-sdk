@@ -3,14 +3,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from "vitest";
-import { SessionEvent } from "../../src/index.js";
+import { SessionEvent, approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext";
 
 describe("Streaming Fidelity", async () => {
     const { copilotClient: client } = await createSdkTestContext();
 
     it("should produce delta events when streaming is enabled", async () => {
-        const session = await client.createSession({ streaming: true });
+        const session = await client.createSession({ onPermissionRequest: approveAll, streaming: true });
         const events: SessionEvent[] = [];
         session.on((event) => {
             events.push(event);
@@ -44,7 +44,7 @@ describe("Streaming Fidelity", async () => {
     });
 
     it("should not produce deltas when streaming is disabled", async () => {
-        const session = await client.createSession({ streaming: false });
+        const session = await client.createSession({ onPermissionRequest: approveAll, streaming: false });
         const events: SessionEvent[] = [];
         session.on((event) => {
             events.push(event);

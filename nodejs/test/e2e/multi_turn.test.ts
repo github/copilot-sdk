@@ -5,6 +5,7 @@
 import { writeFile } from "fs/promises";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
+import { approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext";
 
 describe("Multi-turn Tool Usage", async () => {
@@ -13,7 +14,7 @@ describe("Multi-turn Tool Usage", async () => {
     it("should use tool results from previous turns", async () => {
         // Write a file, then ask the model to read it and reason about its content
         await writeFile(join(workDir, "secret.txt"), "The magic number is 42.");
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
 
         const msg1 = await session.sendAndWait({
             prompt: "Read the file 'secret.txt' and tell me what the magic number is.",
@@ -28,7 +29,7 @@ describe("Multi-turn Tool Usage", async () => {
     });
 
     it("should handle file creation then reading across turns", async () => {
-        const session = await client.createSession();
+        const session = await client.createSession({ onPermissionRequest: approveAll });
 
         // First turn: create a file
         await session.sendAndWait({
