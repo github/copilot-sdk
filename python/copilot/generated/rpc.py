@@ -162,22 +162,24 @@ class Limits:
 
 @dataclass
 class Supports:
-    reasoning_effort: bool
+    reasoning_effort: bool | None = None
     """Whether this model supports reasoning effort configuration"""
 
-    vision: bool
+    vision: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'Supports':
         assert isinstance(obj, dict)
-        reasoning_effort = from_bool(obj.get("reasoningEffort"))
-        vision = from_bool(obj.get("vision"))
+        reasoning_effort = from_union([from_bool, from_none], obj.get("reasoningEffort"))
+        vision = from_union([from_bool, from_none], obj.get("vision"))
         return Supports(reasoning_effort, vision)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["reasoningEffort"] = from_bool(self.reasoning_effort)
-        result["vision"] = from_bool(self.vision)
+        if self.reasoning_effort is not None:
+            result["reasoningEffort"] = from_union([from_bool, from_none], self.reasoning_effort)
+        if self.vision is not None:
+            result["vision"] = from_union([from_bool, from_none], self.vision)
         return result
 
 

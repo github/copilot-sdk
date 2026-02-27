@@ -35,11 +35,11 @@ internal class PingRequest
 public class ModelCapabilitiesSupports
 {
     [JsonPropertyName("vision")]
-    public bool Vision { get; set; }
+    public bool? Vision { get; set; }
 
     /// <summary>Whether this model supports reasoning effort configuration</summary>
     [JsonPropertyName("reasoningEffort")]
-    public bool ReasoningEffort { get; set; }
+    public bool? ReasoningEffort { get; set; }
 }
 
 public class ModelCapabilitiesLimits

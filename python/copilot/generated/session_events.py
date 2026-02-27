@@ -105,6 +105,12 @@ class LineRange:
         return result
 
 
+class ReferenceType(Enum):
+    DISCUSSION = "discussion"
+    ISSUE = "issue"
+    PR = "pr"
+
+
 @dataclass
 class End:
     character: float
@@ -165,35 +171,47 @@ class Selection:
 class AttachmentType(Enum):
     DIRECTORY = "directory"
     FILE = "file"
+    GITHUB_REFERENCE = "github_reference"
     SELECTION = "selection"
 
 
 @dataclass
 class Attachment:
-    display_name: str
     type: AttachmentType
+    display_name: str | None = None
     line_range: LineRange | None = None
     path: str | None = None
     file_path: str | None = None
     selection: Selection | None = None
     text: str | None = None
+    number: float | None = None
+    reference_type: ReferenceType | None = None
+    state: str | None = None
+    title: str | None = None
+    url: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'Attachment':
         assert isinstance(obj, dict)
-        display_name = from_str(obj.get("displayName"))
         type = AttachmentType(obj.get("type"))
+        display_name = from_union([from_str, from_none], obj.get("displayName"))
         line_range = from_union([LineRange.from_dict, from_none], obj.get("lineRange"))
         path = from_union([from_str, from_none], obj.get("path"))
         file_path = from_union([from_str, from_none], obj.get("filePath"))
         selection = from_union([Selection.from_dict, from_none], obj.get("selection"))
         text = from_union([from_str, from_none], obj.get("text"))
-        return Attachment(display_name, type, line_range, path, file_path, selection, text)
+        number = from_union([from_float, from_none], obj.get("number"))
+        reference_type = from_union([ReferenceType, from_none], obj.get("referenceType"))
+        state = from_union([from_str, from_none], obj.get("state"))
+        title = from_union([from_str, from_none], obj.get("title"))
+        url = from_union([from_str, from_none], obj.get("url"))
+        return Attachment(type, display_name, line_range, path, file_path, selection, text, number, reference_type, state, title, url)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["displayName"] = from_str(self.display_name)
         result["type"] = to_enum(AttachmentType, self.type)
+        if self.display_name is not None:
+            result["displayName"] = from_union([from_str, from_none], self.display_name)
         if self.line_range is not None:
             result["lineRange"] = from_union([lambda x: to_class(LineRange, x), from_none], self.line_range)
         if self.path is not None:
@@ -204,6 +222,16 @@ class Attachment:
             result["selection"] = from_union([lambda x: to_class(Selection, x), from_none], self.selection)
         if self.text is not None:
             result["text"] = from_union([from_str, from_none], self.text)
+        if self.number is not None:
+            result["number"] = from_union([to_float, from_none], self.number)
+        if self.reference_type is not None:
+            result["referenceType"] = from_union([lambda x: to_enum(ReferenceType, x), from_none], self.reference_type)
+        if self.state is not None:
+            result["state"] = from_union([from_str, from_none], self.state)
+        if self.title is not None:
+            result["title"] = from_union([from_str, from_none], self.title)
+        if self.url is not None:
+            result["url"] = from_union([from_str, from_none], self.url)
         return result
 
 
@@ -276,6 +304,50 @@ class ContextClass:
             result["gitRoot"] = from_union([from_str, from_none], self.git_root)
         if self.repository is not None:
             result["repository"] = from_union([from_str, from_none], self.repository)
+        return result
+
+
+@dataclass
+class TokenDetail:
+    batch_size: float
+    cost_per_batch: float
+    token_count: float
+    token_type: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'TokenDetail':
+        assert isinstance(obj, dict)
+        batch_size = from_float(obj.get("batchSize"))
+        cost_per_batch = from_float(obj.get("costPerBatch"))
+        token_count = from_float(obj.get("tokenCount"))
+        token_type = from_str(obj.get("tokenType"))
+        return TokenDetail(batch_size, cost_per_batch, token_count, token_type)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["batchSize"] = to_float(self.batch_size)
+        result["costPerBatch"] = to_float(self.cost_per_batch)
+        result["tokenCount"] = to_float(self.token_count)
+        result["tokenType"] = from_str(self.token_type)
+        return result
+
+
+@dataclass
+class CopilotUsage:
+    token_details: list[TokenDetail]
+    total_nano_aiu: float
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CopilotUsage':
+        assert isinstance(obj, dict)
+        token_details = from_list(TokenDetail.from_dict, obj.get("tokenDetails"))
+        total_nano_aiu = from_float(obj.get("totalNanoAiu"))
+        return CopilotUsage(token_details, total_nano_aiu)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["tokenDetails"] = from_list(lambda x: to_class(TokenDetail, x), self.token_details)
+        result["totalNanoAiu"] = to_float(self.total_nano_aiu)
         return result
 
 
@@ -729,6 +801,7 @@ class Data:
     agent_mode: AgentMode | None = None
     attachments: list[Attachment] | None = None
     content: str | None = None
+    interaction_id: str | None = None
     source: str | None = None
     transformed_content: str | None = None
     turn_id: str | None = None
@@ -746,6 +819,7 @@ class Data:
     api_call_id: str | None = None
     cache_read_tokens: float | None = None
     cache_write_tokens: float | None = None
+    copilot_usage: CopilotUsage | None = None
     cost: float | None = None
     duration: float | None = None
     initiator: str | None = None
@@ -766,6 +840,8 @@ class Data:
     tool_telemetry: dict[str, Any] | None = None
     allowed_tools: list[str] | None = None
     name: str | None = None
+    plugin_name: str | None = None
+    plugin_version: str | None = None
     agent_description: str | None = None
     agent_display_name: str | None = None
     agent_name: str | None = None
@@ -846,6 +922,7 @@ class Data:
         agent_mode = from_union([AgentMode, from_none], obj.get("agentMode"))
         attachments = from_union([lambda x: from_list(Attachment.from_dict, x), from_none], obj.get("attachments"))
         content = from_union([from_str, from_none], obj.get("content"))
+        interaction_id = from_union([from_str, from_none], obj.get("interactionId"))
         source = from_union([from_str, from_none], obj.get("source"))
         transformed_content = from_union([from_str, from_none], obj.get("transformedContent"))
         turn_id = from_union([from_str, from_none], obj.get("turnId"))
@@ -863,6 +940,7 @@ class Data:
         api_call_id = from_union([from_str, from_none], obj.get("apiCallId"))
         cache_read_tokens = from_union([from_float, from_none], obj.get("cacheReadTokens"))
         cache_write_tokens = from_union([from_float, from_none], obj.get("cacheWriteTokens"))
+        copilot_usage = from_union([CopilotUsage.from_dict, from_none], obj.get("copilotUsage"))
         cost = from_union([from_float, from_none], obj.get("cost"))
         duration = from_union([from_float, from_none], obj.get("duration"))
         initiator = from_union([from_str, from_none], obj.get("initiator"))
@@ -883,6 +961,8 @@ class Data:
         tool_telemetry = from_union([lambda x: from_dict(lambda x: x, x), from_none], obj.get("toolTelemetry"))
         allowed_tools = from_union([lambda x: from_list(from_str, x), from_none], obj.get("allowedTools"))
         name = from_union([from_str, from_none], obj.get("name"))
+        plugin_name = from_union([from_str, from_none], obj.get("pluginName"))
+        plugin_version = from_union([from_str, from_none], obj.get("pluginVersion"))
         agent_description = from_union([from_str, from_none], obj.get("agentDescription"))
         agent_display_name = from_union([from_str, from_none], obj.get("agentDisplayName"))
         agent_name = from_union([from_str, from_none], obj.get("agentName"))
@@ -893,7 +973,7 @@ class Data:
         output = obj.get("output")
         metadata = from_union([Metadata.from_dict, from_none], obj.get("metadata"))
         role = from_union([Role, from_none], obj.get("role"))
-        return Data(context, copilot_version, producer, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, title, info_type, warning_type, new_model, previous_model, new_mode, previous_mode, operation, path, handoff_time, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, current_model, error_reason, model_metrics, session_start_time, shutdown_type, total_api_duration_ms, total_premium_requests, branch, cwd, git_root, current_tokens, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, source, transformed_content, turn_id, intent, reasoning_id, delta_content, total_response_size_bytes, encrypted_content, message_id, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, api_call_id, cache_read_tokens, cache_write_tokens, cost, duration, initiator, input_tokens, model, output_tokens, quota_snapshots, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, name, agent_description, agent_display_name, agent_name, tools, hook_invocation_id, hook_type, input, output, metadata, role)
+        return Data(context, copilot_version, producer, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, title, info_type, warning_type, new_model, previous_model, new_mode, previous_mode, operation, path, handoff_time, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, current_model, error_reason, model_metrics, session_start_time, shutdown_type, total_api_duration_ms, total_premium_requests, branch, cwd, git_root, current_tokens, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, interaction_id, source, transformed_content, turn_id, intent, reasoning_id, delta_content, total_response_size_bytes, encrypted_content, message_id, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, api_call_id, cache_read_tokens, cache_write_tokens, copilot_usage, cost, duration, initiator, input_tokens, model, output_tokens, quota_snapshots, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, name, plugin_name, plugin_version, agent_description, agent_display_name, agent_name, tools, hook_invocation_id, hook_type, input, output, metadata, role)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -1029,6 +1109,8 @@ class Data:
             result["attachments"] = from_union([lambda x: from_list(lambda x: to_class(Attachment, x), x), from_none], self.attachments)
         if self.content is not None:
             result["content"] = from_union([from_str, from_none], self.content)
+        if self.interaction_id is not None:
+            result["interactionId"] = from_union([from_str, from_none], self.interaction_id)
         if self.source is not None:
             result["source"] = from_union([from_str, from_none], self.source)
         if self.transformed_content is not None:
@@ -1063,6 +1145,8 @@ class Data:
             result["cacheReadTokens"] = from_union([to_float, from_none], self.cache_read_tokens)
         if self.cache_write_tokens is not None:
             result["cacheWriteTokens"] = from_union([to_float, from_none], self.cache_write_tokens)
+        if self.copilot_usage is not None:
+            result["copilotUsage"] = from_union([lambda x: to_class(CopilotUsage, x), from_none], self.copilot_usage)
         if self.cost is not None:
             result["cost"] = from_union([to_float, from_none], self.cost)
         if self.duration is not None:
@@ -1103,6 +1187,10 @@ class Data:
             result["allowedTools"] = from_union([lambda x: from_list(from_str, x), from_none], self.allowed_tools)
         if self.name is not None:
             result["name"] = from_union([from_str, from_none], self.name)
+        if self.plugin_name is not None:
+            result["pluginName"] = from_union([from_str, from_none], self.plugin_name)
+        if self.plugin_version is not None:
+            result["pluginVersion"] = from_union([from_str, from_none], self.plugin_version)
         if self.agent_description is not None:
             result["agentDescription"] = from_union([from_str, from_none], self.agent_description)
         if self.agent_display_name is not None:
@@ -1162,6 +1250,7 @@ class SessionEventType(Enum):
     SESSION_WORKSPACE_FILE_CHANGED = "session.workspace_file_changed"
     SKILL_INVOKED = "skill.invoked"
     SUBAGENT_COMPLETED = "subagent.completed"
+    SUBAGENT_DESELECTED = "subagent.deselected"
     SUBAGENT_FAILED = "subagent.failed"
     SUBAGENT_SELECTED = "subagent.selected"
     SUBAGENT_STARTED = "subagent.started"

@@ -45,11 +45,11 @@ export interface ModelsListResult {
      */
     capabilities: {
       supports: {
-        vision: boolean;
+        vision?: boolean;
         /**
          * Whether this model supports reasoning effort configuration
          */
-        reasoningEffort: boolean;
+        reasoningEffort?: boolean;
       };
       limits: {
         max_prompt_tokens?: number;
