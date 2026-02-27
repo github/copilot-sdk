@@ -244,7 +244,7 @@ class TestExcludedToolsFromRegisteredTools:
                 return await original_request(method, params)
 
             client._client.request = mock_request
-            await client.create_session()
+            await client.create_session({})
             assert "excludedTools" not in captured["session.create"]
         finally:
             await client.force_stop()
@@ -255,7 +255,7 @@ class TestExcludedToolsFromRegisteredTools:
         await client.start()
 
         try:
-            session = await client.create_session()
+            session = await client.create_session({})
 
             captured = {}
             original_request = client._client.request
