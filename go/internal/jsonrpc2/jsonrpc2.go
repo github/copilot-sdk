@@ -59,8 +59,7 @@ type Client struct {
 	stopChan        chan struct{}
 	wg              sync.WaitGroup
 	processDone     chan struct{} // closed when the underlying process exits
-	processError    error         // set before processDone is closed
-	processErrorMu  sync.RWMutex  // protects processError
+	processErrorPtr *error        // points to error set before processDone is closed
 }
 
 // NewClient creates a new JSON-RPC client
@@ -78,22 +77,17 @@ func NewClient(stdin io.WriteCloser, stdout io.ReadCloser) *Client {
 // and stores the error that should be returned to pending/future requests.
 func (c *Client) SetProcessDone(done chan struct{}, errPtr *error) {
 	c.processDone = done
-	// Monitor the channel and copy the error when it closes
-	go func() {
-		<-done
-		if errPtr != nil {
-			c.processErrorMu.Lock()
-			c.processError = *errPtr
-			c.processErrorMu.Unlock()
-		}
-	}()
+	c.processErrorPtr = errPtr
 }
 
-// getProcessError returns the process exit error if the process has exited
+// getProcessError returns the process exit error if the process has exited.
+// Must only be called after <-c.processDone to ensure visibility of the error
+// written before close(done) in the monitor goroutine.
 func (c *Client) getProcessError() error {
-	c.processErrorMu.RLock()
-	defer c.processErrorMu.RUnlock()
-	return c.processError
+	if c.processErrorPtr != nil {
+		return *c.processErrorPtr
+	}
+	return nil
 }
 
 // Start begins listening for messages in a background goroutine

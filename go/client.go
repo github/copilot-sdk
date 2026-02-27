@@ -1345,19 +1345,10 @@ func (c *Client) monitorProcess(stderr io.ReadCloser) {
 	go func() {
 		waitErr := proc.Wait()
 		<-stderrDone
-		stderr := c.getStderrOutput()
 		if waitErr != nil {
-			if stderr != "" {
-				processError = fmt.Errorf("CLI process exited: %w\nstderr: %s", waitErr, stderr)
-			} else {
-				processError = fmt.Errorf("CLI process exited: %w", waitErr)
-			}
+			processError = fmt.Errorf("CLI process exited: %w", waitErr)
 		} else {
-			if stderr != "" {
-				processError = fmt.Errorf("CLI process exited unexpectedly\nstderr: %s", stderr)
-			} else {
-				processError = errors.New("CLI process exited unexpectedly")
-			}
+			processError = errors.New("CLI process exited unexpectedly")
 		}
 		close(done)
 	}()
