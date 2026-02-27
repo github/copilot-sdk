@@ -497,7 +497,7 @@ class CopilotClient:
         if available_tools is not None:
             payload["availableTools"] = available_tools
         excluded_tools = cfg.get("excluded_tools")
-        if excluded_tools:
+        if excluded_tools is not None:
             payload["excludedTools"] = excluded_tools
 
         # Always enable permission request callback (deny by default if no handler provided)
@@ -675,7 +675,7 @@ class CopilotClient:
             payload["availableTools"] = available_tools
 
         excluded_tools = cfg.get("excluded_tools")
-        if excluded_tools:
+        if excluded_tools is not None:
             payload["excludedTools"] = excluded_tools
 
         provider = cfg.get("provider")
