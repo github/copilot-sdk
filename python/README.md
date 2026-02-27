@@ -401,11 +401,11 @@ async def handle_user_input(request, invocation):
     # request["question"] - The question to ask
     # request.get("choices") - Optional list of choices for multiple choice
     # request.get("allowFreeform", True) - Whether freeform input is allowed
-    
+
     print(f"Agent asks: {request['question']}")
     if request.get("choices"):
         print(f"Choices: {', '.join(request['choices'])}")
-    
+
     # Return the user's response
     return {
         "answer": "User's answer here",
@@ -483,5 +483,5 @@ session = await client.create_session({
 
 ## Requirements
 
-- Python 3.9+
+- Python 3.11+
 - GitHub Copilot CLI installed and accessible

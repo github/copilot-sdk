@@ -9,7 +9,7 @@ import os
 import platform
 import re
 import subprocess
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 
@@ -18,8 +18,8 @@ class CapiProxy:
     """Manages a replaying proxy server for E2E tests."""
 
     def __init__(self):
-        self._process: Optional[subprocess.Popen] = None
-        self._proxy_url: Optional[str] = None
+        self._process: subprocess.Popen | None = None
+        self._proxy_url: str | None = None
 
     async def start(self) -> str:
         """Launch the proxy server and return its URL."""
@@ -107,6 +107,6 @@ class CapiProxy:
             return resp.json()
 
     @property
-    def url(self) -> Optional[str]:
+    def url(self) -> str | None:
         """Return the proxy URL, or None if not started."""
         return self._proxy_url

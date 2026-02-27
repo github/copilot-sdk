@@ -444,7 +444,7 @@ class TestSessions:
         # Wait for completion
         try:
             await asyncio.wait_for(done_event.wait(), timeout=60)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("Timed out waiting for session.idle")
 
         # Should have received delta events
@@ -498,7 +498,7 @@ class TestSessions:
         # Wait for session to become idle
         try:
             await asyncio.wait_for(idle_event.wait(), timeout=60)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("Timed out waiting for session.idle")
 
         # Should have received multiple events

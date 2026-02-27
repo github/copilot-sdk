@@ -5,7 +5,8 @@ Generated from: session-events.schema.json
 
 from enum import Enum
 from dataclasses import dataclass
-from typing import Any, Optional, List, Dict, Union, TypeVar, Type, cast, Callable
+from typing import Any, TypeVar, cast
+from collections.abc import Callable
 from datetime import datetime
 from uuid import UUID
 import dateutil.parser
@@ -25,7 +26,7 @@ def to_float(x: Any) -> float:
     return x
 
 
-def to_class(c: Type[T], x: Any) -> dict:
+def to_class(c: type[T], x: Any) -> dict:
     assert isinstance(x, c)
     return cast(Any, x).to_dict()
 
@@ -49,17 +50,17 @@ def from_union(fs, x):
     assert False
 
 
-def to_enum(c: Type[EnumT], x: Any) -> EnumT:
+def to_enum(c: type[EnumT], x: Any) -> EnumT:
     assert isinstance(x, c)
     return x.value
 
 
-def from_list(f: Callable[[Any], T], x: Any) -> List[T]:
+def from_list(f: Callable[[Any], T], x: Any) -> list[T]:
     assert isinstance(x, list)
     return [f(y) for y in x]
 
 
-def from_dict(f: Callable[[Any], T], x: Any) -> Dict[str, T]:
+def from_dict(f: Callable[[Any], T], x: Any) -> dict[str, T]:
     assert isinstance(x, dict)
     return { k: f(v) for (k, v) in x.items() }
 
@@ -171,11 +172,11 @@ class AttachmentType(Enum):
 class Attachment:
     display_name: str
     type: AttachmentType
-    line_range: Optional[LineRange] = None
-    path: Optional[str] = None
-    file_path: Optional[str] = None
-    selection: Optional[Selection] = None
-    text: Optional[str] = None
+    line_range: LineRange | None = None
+    path: str | None = None
+    file_path: str | None = None
+    selection: Selection | None = None
+    text: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'Attachment':
@@ -208,7 +209,7 @@ class Attachment:
 
 @dataclass
 class CodeChanges:
-    files_modified: List[str]
+    files_modified: list[str]
     lines_added: float
     lines_removed: float
 
@@ -253,9 +254,9 @@ class CompactionTokensUsed:
 @dataclass
 class ContextClass:
     cwd: str
-    branch: Optional[str] = None
-    git_root: Optional[str] = None
-    repository: Optional[str] = None
+    branch: str | None = None
+    git_root: str | None = None
+    repository: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'ContextClass':
@@ -281,8 +282,8 @@ class ContextClass:
 @dataclass
 class ErrorClass:
     message: str
-    code: Optional[str] = None
-    stack: Optional[str] = None
+    code: str | None = None
+    stack: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'ErrorClass':
@@ -304,8 +305,8 @@ class ErrorClass:
 
 @dataclass
 class Metadata:
-    prompt_version: Optional[str] = None
-    variables: Optional[Dict[str, Any]] = None
+    prompt_version: str | None = None
+    variables: dict[str, Any] | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'Metadata':
@@ -401,7 +402,7 @@ class QuotaSnapshot:
     remaining_percentage: float
     usage_allowed_with_exhausted_quota: bool
     used_requests: float
-    reset_date: Optional[datetime] = None
+    reset_date: datetime | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'QuotaSnapshot':
@@ -434,7 +435,7 @@ class QuotaSnapshot:
 class RepositoryClass:
     name: str
     owner: str
-    branch: Optional[str] = None
+    branch: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'RepositoryClass':
@@ -461,9 +462,9 @@ class Theme(Enum):
 @dataclass
 class Icon:
     src: str
-    mime_type: Optional[str] = None
-    sizes: Optional[List[str]] = None
-    theme: Optional[Theme] = None
+    mime_type: str | None = None
+    sizes: list[str] | None = None
+    theme: Theme | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'Icon':
@@ -489,9 +490,9 @@ class Icon:
 @dataclass
 class Resource:
     uri: str
-    mime_type: Optional[str] = None
-    text: Optional[str] = None
-    blob: Optional[str] = None
+    mime_type: str | None = None
+    text: str | None = None
+    blob: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'Resource':
@@ -526,18 +527,18 @@ class ContentType(Enum):
 @dataclass
 class Content:
     type: ContentType
-    text: Optional[str] = None
-    cwd: Optional[str] = None
-    exit_code: Optional[float] = None
-    data: Optional[str] = None
-    mime_type: Optional[str] = None
-    description: Optional[str] = None
-    icons: Optional[List[Icon]] = None
-    name: Optional[str] = None
-    size: Optional[float] = None
-    title: Optional[str] = None
-    uri: Optional[str] = None
-    resource: Optional[Resource] = None
+    text: str | None = None
+    cwd: str | None = None
+    exit_code: float | None = None
+    data: str | None = None
+    mime_type: str | None = None
+    description: str | None = None
+    icons: list[Icon] | None = None
+    name: str | None = None
+    size: float | None = None
+    title: str | None = None
+    uri: str | None = None
+    resource: Resource | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'Content':
@@ -590,8 +591,8 @@ class Content:
 @dataclass
 class Result:
     content: str
-    contents: Optional[List[Content]] = None
-    detailed_content: Optional[str] = None
+    contents: list[Content] | None = None
+    detailed_content: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'Result':
@@ -636,7 +637,7 @@ class ToolRequest:
     name: str
     tool_call_id: str
     arguments: Any = None
-    type: Optional[ToolRequestType] = None
+    type: ToolRequestType | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'ToolRequest':
@@ -660,121 +661,121 @@ class ToolRequest:
 
 @dataclass
 class Data:
-    context: Optional[Union[ContextClass, str]] = None
-    copilot_version: Optional[str] = None
-    producer: Optional[str] = None
-    selected_model: Optional[str] = None
-    session_id: Optional[str] = None
-    start_time: Optional[datetime] = None
-    version: Optional[float] = None
-    event_count: Optional[float] = None
-    resume_time: Optional[datetime] = None
-    error_type: Optional[str] = None
-    message: Optional[str] = None
-    provider_call_id: Optional[str] = None
-    stack: Optional[str] = None
-    status_code: Optional[int] = None
-    title: Optional[str] = None
-    info_type: Optional[str] = None
-    warning_type: Optional[str] = None
-    new_model: Optional[str] = None
-    previous_model: Optional[str] = None
-    new_mode: Optional[str] = None
-    previous_mode: Optional[str] = None
-    operation: Optional[Operation] = None
-    path: Optional[str] = None
+    context: ContextClass | str | None = None
+    copilot_version: str | None = None
+    producer: str | None = None
+    selected_model: str | None = None
+    session_id: str | None = None
+    start_time: datetime | None = None
+    version: float | None = None
+    event_count: float | None = None
+    resume_time: datetime | None = None
+    error_type: str | None = None
+    message: str | None = None
+    provider_call_id: str | None = None
+    stack: str | None = None
+    status_code: int | None = None
+    title: str | None = None
+    info_type: str | None = None
+    warning_type: str | None = None
+    new_model: str | None = None
+    previous_model: str | None = None
+    new_mode: str | None = None
+    previous_mode: str | None = None
+    operation: Operation | None = None
+    path: str | None = None
     """Relative path within the workspace files directory"""
 
-    handoff_time: Optional[datetime] = None
-    remote_session_id: Optional[str] = None
-    repository: Optional[Union[RepositoryClass, str]] = None
-    source_type: Optional[SourceType] = None
-    summary: Optional[str] = None
-    messages_removed_during_truncation: Optional[float] = None
-    performed_by: Optional[str] = None
-    post_truncation_messages_length: Optional[float] = None
-    post_truncation_tokens_in_messages: Optional[float] = None
-    pre_truncation_messages_length: Optional[float] = None
-    pre_truncation_tokens_in_messages: Optional[float] = None
-    token_limit: Optional[float] = None
-    tokens_removed_during_truncation: Optional[float] = None
-    events_removed: Optional[float] = None
-    up_to_event_id: Optional[str] = None
-    code_changes: Optional[CodeChanges] = None
-    current_model: Optional[str] = None
-    error_reason: Optional[str] = None
-    model_metrics: Optional[Dict[str, ModelMetric]] = None
-    session_start_time: Optional[float] = None
-    shutdown_type: Optional[ShutdownType] = None
-    total_api_duration_ms: Optional[float] = None
-    total_premium_requests: Optional[float] = None
-    branch: Optional[str] = None
-    cwd: Optional[str] = None
-    git_root: Optional[str] = None
-    current_tokens: Optional[float] = None
-    messages_length: Optional[float] = None
-    checkpoint_number: Optional[float] = None
-    checkpoint_path: Optional[str] = None
-    compaction_tokens_used: Optional[CompactionTokensUsed] = None
-    error: Optional[Union[ErrorClass, str]] = None
-    messages_removed: Optional[float] = None
-    post_compaction_tokens: Optional[float] = None
-    pre_compaction_messages_length: Optional[float] = None
-    pre_compaction_tokens: Optional[float] = None
-    request_id: Optional[str] = None
-    success: Optional[bool] = None
-    summary_content: Optional[str] = None
-    tokens_removed: Optional[float] = None
-    agent_mode: Optional[AgentMode] = None
-    attachments: Optional[List[Attachment]] = None
-    content: Optional[str] = None
-    source: Optional[str] = None
-    transformed_content: Optional[str] = None
-    turn_id: Optional[str] = None
-    intent: Optional[str] = None
-    reasoning_id: Optional[str] = None
-    delta_content: Optional[str] = None
-    total_response_size_bytes: Optional[float] = None
-    encrypted_content: Optional[str] = None
-    message_id: Optional[str] = None
-    parent_tool_call_id: Optional[str] = None
-    phase: Optional[str] = None
-    reasoning_opaque: Optional[str] = None
-    reasoning_text: Optional[str] = None
-    tool_requests: Optional[List[ToolRequest]] = None
-    api_call_id: Optional[str] = None
-    cache_read_tokens: Optional[float] = None
-    cache_write_tokens: Optional[float] = None
-    cost: Optional[float] = None
-    duration: Optional[float] = None
-    initiator: Optional[str] = None
-    input_tokens: Optional[float] = None
-    model: Optional[str] = None
-    output_tokens: Optional[float] = None
-    quota_snapshots: Optional[Dict[str, QuotaSnapshot]] = None
-    reason: Optional[str] = None
+    handoff_time: datetime | None = None
+    remote_session_id: str | None = None
+    repository: RepositoryClass | str | None = None
+    source_type: SourceType | None = None
+    summary: str | None = None
+    messages_removed_during_truncation: float | None = None
+    performed_by: str | None = None
+    post_truncation_messages_length: float | None = None
+    post_truncation_tokens_in_messages: float | None = None
+    pre_truncation_messages_length: float | None = None
+    pre_truncation_tokens_in_messages: float | None = None
+    token_limit: float | None = None
+    tokens_removed_during_truncation: float | None = None
+    events_removed: float | None = None
+    up_to_event_id: str | None = None
+    code_changes: CodeChanges | None = None
+    current_model: str | None = None
+    error_reason: str | None = None
+    model_metrics: dict[str, ModelMetric] | None = None
+    session_start_time: float | None = None
+    shutdown_type: ShutdownType | None = None
+    total_api_duration_ms: float | None = None
+    total_premium_requests: float | None = None
+    branch: str | None = None
+    cwd: str | None = None
+    git_root: str | None = None
+    current_tokens: float | None = None
+    messages_length: float | None = None
+    checkpoint_number: float | None = None
+    checkpoint_path: str | None = None
+    compaction_tokens_used: CompactionTokensUsed | None = None
+    error: ErrorClass | str | None = None
+    messages_removed: float | None = None
+    post_compaction_tokens: float | None = None
+    pre_compaction_messages_length: float | None = None
+    pre_compaction_tokens: float | None = None
+    request_id: str | None = None
+    success: bool | None = None
+    summary_content: str | None = None
+    tokens_removed: float | None = None
+    agent_mode: AgentMode | None = None
+    attachments: list[Attachment] | None = None
+    content: str | None = None
+    source: str | None = None
+    transformed_content: str | None = None
+    turn_id: str | None = None
+    intent: str | None = None
+    reasoning_id: str | None = None
+    delta_content: str | None = None
+    total_response_size_bytes: float | None = None
+    encrypted_content: str | None = None
+    message_id: str | None = None
+    parent_tool_call_id: str | None = None
+    phase: str | None = None
+    reasoning_opaque: str | None = None
+    reasoning_text: str | None = None
+    tool_requests: list[ToolRequest] | None = None
+    api_call_id: str | None = None
+    cache_read_tokens: float | None = None
+    cache_write_tokens: float | None = None
+    cost: float | None = None
+    duration: float | None = None
+    initiator: str | None = None
+    input_tokens: float | None = None
+    model: str | None = None
+    output_tokens: float | None = None
+    quota_snapshots: dict[str, QuotaSnapshot] | None = None
+    reason: str | None = None
     arguments: Any = None
-    tool_call_id: Optional[str] = None
-    tool_name: Optional[str] = None
-    mcp_server_name: Optional[str] = None
-    mcp_tool_name: Optional[str] = None
-    partial_output: Optional[str] = None
-    progress_message: Optional[str] = None
-    is_user_requested: Optional[bool] = None
-    result: Optional[Result] = None
-    tool_telemetry: Optional[Dict[str, Any]] = None
-    allowed_tools: Optional[List[str]] = None
-    name: Optional[str] = None
-    agent_description: Optional[str] = None
-    agent_display_name: Optional[str] = None
-    agent_name: Optional[str] = None
-    tools: Optional[List[str]] = None
-    hook_invocation_id: Optional[str] = None
-    hook_type: Optional[str] = None
+    tool_call_id: str | None = None
+    tool_name: str | None = None
+    mcp_server_name: str | None = None
+    mcp_tool_name: str | None = None
+    partial_output: str | None = None
+    progress_message: str | None = None
+    is_user_requested: bool | None = None
+    result: Result | None = None
+    tool_telemetry: dict[str, Any] | None = None
+    allowed_tools: list[str] | None = None
+    name: str | None = None
+    agent_description: str | None = None
+    agent_display_name: str | None = None
+    agent_name: str | None = None
+    tools: list[str] | None = None
+    hook_invocation_id: str | None = None
+    hook_type: str | None = None
     input: Any = None
     output: Any = None
-    metadata: Optional[Metadata] = None
-    role: Optional[Role] = None
+    metadata: Metadata | None = None
+    role: Role | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'Data':
@@ -1187,8 +1188,8 @@ class SessionEvent:
     id: UUID
     timestamp: datetime
     type: SessionEventType
-    ephemeral: Optional[bool] = None
-    parent_id: Optional[UUID] = None
+    ephemeral: bool | None = None
+    parent_id: UUID | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'SessionEvent':

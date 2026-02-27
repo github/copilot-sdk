@@ -19,9 +19,10 @@ import re
 import subprocess
 import sys
 import threading
+from collections.abc import Callable
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional, cast
+from typing import Any, cast
 
 from .generated.rpc import ServerRpc
 from .generated.session_events import session_event_from_dict
@@ -51,7 +52,7 @@ from .types import (
 )
 
 
-def _get_bundled_cli_path() -> Optional[str]:
+def _get_bundled_cli_path() -> str | None:
     """Get the path to the bundled CLI binary, if available."""
     # The binary is bundled in copilot/bin/ within the package
     bin_dir = Path(__file__).parent / "bin"
@@ -106,7 +107,7 @@ class CopilotClient:
         >>> client = CopilotClient({"cli_url": "localhost:3000"})
     """
 
-    def __init__(self, options: Optional[CopilotClientOptions] = None):
+    def __init__(self, options: CopilotClientOptions | None = None):
         """
         Initialize a new CopilotClient.
 
@@ -151,7 +152,7 @@ class CopilotClient:
         self._is_external_server: bool = False
         if opts.get("cli_url"):
             self._actual_host, actual_port = self._parse_cli_url(opts["cli_url"])
-            self._actual_port: Optional[int] = actual_port
+            self._actual_port: int | None = actual_port
             self._is_external_server = True
         else:
             self._actual_port = None
@@ -197,19 +198,19 @@ class CopilotClient:
         if github_token:
             self.options["github_token"] = github_token
 
-        self._process: Optional[subprocess.Popen] = None
-        self._client: Optional[JsonRpcClient] = None
+        self._process: subprocess.Popen | None = None
+        self._client: JsonRpcClient | None = None
         self._state: ConnectionState = "disconnected"
         self._sessions: dict[str, CopilotSession] = {}
         self._sessions_lock = threading.Lock()
-        self._models_cache: Optional[list[ModelInfo]] = None
+        self._models_cache: list[ModelInfo] | None = None
         self._models_cache_lock = asyncio.Lock()
         self._lifecycle_handlers: list[SessionLifecycleHandler] = []
         self._typed_lifecycle_handlers: dict[
             SessionLifecycleEventType, list[SessionLifecycleHandler]
         ] = {}
         self._lifecycle_handlers_lock = threading.Lock()
-        self._rpc: Optional[ServerRpc] = None
+        self._rpc: ServerRpc | None = None
 
     @property
     def rpc(self) -> ServerRpc:
@@ -786,7 +787,7 @@ class CopilotClient:
         """
         return self._state
 
-    async def ping(self, message: Optional[str] = None) -> "PingResponse":
+    async def ping(self, message: str | None = None) -> "PingResponse":
         """
         Send a ping request to the server to verify connectivity.
 
@@ -956,7 +957,7 @@ class CopilotClient:
             if session_id in self._sessions:
                 del self._sessions[session_id]
 
-    async def get_foreground_session_id(self) -> Optional[str]:
+    async def get_foreground_session_id(self) -> str | None:
         """
         Get the ID of the session currently displayed in the TUI.
 
@@ -1009,7 +1010,7 @@ class CopilotClient:
     def on(
         self,
         event_type_or_handler: SessionLifecycleEventType | SessionLifecycleHandler,
-        handler: Optional[SessionLifecycleHandler] = None,
+        handler: SessionLifecycleHandler | None = None,
     ) -> Callable[[], None]:
         """
         Subscribe to session lifecycle events.
@@ -1267,7 +1268,7 @@ class CopilotClient:
 
         try:
             await asyncio.wait_for(read_port(), timeout=10.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise RuntimeError("Timeout waiting for CLI server to start")
 
     async def _connect_to_server(self) -> None:

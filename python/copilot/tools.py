@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import inspect
 import json
-from typing import Any, Callable, TypeVar, get_type_hints, overload
+from collections.abc import Callable
+from typing import Any, TypeVar, get_type_hints, overload
 
 from pydantic import BaseModel
 

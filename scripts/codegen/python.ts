@@ -21,6 +21,54 @@ import {
 
 // ── Utilities ───────────────────────────────────────────────────────────────
 
+/**
+ * Modernize quicktype's Python 3.7 output to Python 3.11+ syntax:
+ * - Optional[T] → T | None
+ * - List[T] → list[T]
+ * - Dict[K, V] → dict[K, V]
+ * - Type[T] → type[T]
+ * - Callable from collections.abc instead of typing
+ * - Clean up unused typing imports
+ */
+function modernizePython(code: string): string {
+    // Replace Optional[X] with X | None (handles nested brackets)
+    code = code.replace(/Optional\[([^\[\]]*(?:\[[^\[\]]*\])*[^\[\]]*)\]/g, "$1 | None");
+
+    // Replace Union[X, Y] with X | Y
+    code = code.replace(/Union\[([^\[\]]*(?:\[[^\[\]]*\])*[^\[\]]*)\]/g, (_match, inner: string) => {
+        return inner.split(",").map((s: string) => s.trim()).join(" | ");
+    });
+
+    // Replace List[X] with list[X]
+    code = code.replace(/\bList\[/g, "list[");
+
+    // Replace Dict[K, V] with dict[K, V]
+    code = code.replace(/\bDict\[/g, "dict[");
+
+    // Replace Type[T] with type[T]
+    code = code.replace(/\bType\[/g, "type[");
+
+    // Move Callable from typing to collections.abc
+    code = code.replace(
+        /from typing import (.*), Callable$/m,
+        "from typing import $1\nfrom collections.abc import Callable"
+    );
+    code = code.replace(
+        /from typing import Callable, (.*)$/m,
+        "from typing import $1\nfrom collections.abc import Callable"
+    );
+
+    // Remove now-unused imports from typing (Optional, List, Dict, Type)
+    code = code.replace(/from typing import (.+)$/m, (_match, imports: string) => {
+        const items = imports.split(",").map((s: string) => s.trim());
+        const remove = new Set(["Optional", "List", "Dict", "Type", "Union"]);
+        const kept = items.filter((i: string) => !remove.has(i));
+        return `from typing import ${kept.join(", ")}`;
+    });
+
+    return code;
+}
+
 function toSnakeCase(s: string): string {
     return s
         .replace(/([a-z])([A-Z])/g, "$1_$2")
@@ -75,6 +123,8 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
     code = code.replace(/: Any$/gm, ": Any = None");
     // Fix bare except: to use Exception (required by ruff/pylint)
     code = code.replace(/except:/g, "except Exception:");
+    // Modernize to Python 3.11+ syntax
+    code = modernizePython(code);
 
     // Add UNKNOWN enum value for forward compatibility
     code = code.replace(
@@ -162,6 +212,8 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     typesCode = typesCode.replace(/except:/g, "except Exception:");
     // Remove unnecessary pass when class has methods (quicktype generates pass for empty schemas)
     typesCode = typesCode.replace(/^(\s*)pass\n\n(\s*@staticmethod)/gm, "$2");
+    // Modernize to Python 3.11+ syntax
+    typesCode = modernizePython(typesCode);
 
     const lines: string[] = [];
     lines.push(`"""

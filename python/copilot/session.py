@@ -8,7 +8,8 @@ conversation sessions with the Copilot CLI.
 import asyncio
 import inspect
 import threading
-from typing import Any, Callable, Optional, cast
+from collections.abc import Callable
+from typing import Any, cast
 
 from .generated.rpc import SessionRpc
 from .generated.session_events import SessionEvent, SessionEventType, session_event_from_dict
@@ -55,7 +56,7 @@ class CopilotSession:
         ...     unsubscribe()
     """
 
-    def __init__(self, session_id: str, client: Any, workspace_path: Optional[str] = None):
+    def __init__(self, session_id: str, client: Any, workspace_path: str | None = None):
         """
         Initialize a new CopilotSession.
 
@@ -76,13 +77,13 @@ class CopilotSession:
         self._event_handlers_lock = threading.Lock()
         self._tool_handlers: dict[str, ToolHandler] = {}
         self._tool_handlers_lock = threading.Lock()
-        self._permission_handler: Optional[_PermissionHandlerFn] = None
+        self._permission_handler: _PermissionHandlerFn | None = None
         self._permission_handler_lock = threading.Lock()
-        self._user_input_handler: Optional[UserInputHandler] = None
+        self._user_input_handler: UserInputHandler | None = None
         self._user_input_handler_lock = threading.Lock()
-        self._hooks: Optional[SessionHooks] = None
+        self._hooks: SessionHooks | None = None
         self._hooks_lock = threading.Lock()
-        self._rpc: Optional[SessionRpc] = None
+        self._rpc: SessionRpc | None = None
 
     @property
     def rpc(self) -> SessionRpc:
@@ -92,7 +93,7 @@ class CopilotSession:
         return self._rpc
 
     @property
-    def workspace_path(self) -> Optional[str]:
+    def workspace_path(self) -> str | None:
         """
         Path to the session workspace directory when infinite sessions are enabled.
 
@@ -137,8 +138,8 @@ class CopilotSession:
         return response["messageId"]
 
     async def send_and_wait(
-        self, options: MessageOptions, timeout: Optional[float] = None
-    ) -> Optional[SessionEvent]:
+        self, options: MessageOptions, timeout: float | None = None
+    ) -> SessionEvent | None:
         """
         Send a message to this session and wait until the session becomes idle.
 
@@ -157,7 +158,7 @@ class CopilotSession:
             The final assistant message event, or None if none was received.
 
         Raises:
-            asyncio.TimeoutError: If the timeout is reached before session becomes idle.
+            TimeoutError: If the timeout is reached before session becomes idle.
             Exception: If the session has been destroyed or the connection fails.
 
         Example:
@@ -168,8 +169,8 @@ class CopilotSession:
         effective_timeout = timeout if timeout is not None else 60.0
 
         idle_event = asyncio.Event()
-        error_event: Optional[Exception] = None
-        last_assistant_message: Optional[SessionEvent] = None
+        error_event: Exception | None = None
+        last_assistant_message: SessionEvent | None = None
 
         def handler(event: SessionEventTypeAlias) -> None:
             nonlocal last_assistant_message, error_event
@@ -190,10 +191,8 @@ class CopilotSession:
             if error_event:
                 raise error_event
             return last_assistant_message
-        except asyncio.TimeoutError:
-            raise asyncio.TimeoutError(
-                f"Timeout after {effective_timeout}s waiting for session.idle"
-            )
+        except TimeoutError:
+            raise TimeoutError(f"Timeout after {effective_timeout}s waiting for session.idle")
         finally:
             unsubscribe()
 
@@ -252,7 +251,7 @@ class CopilotSession:
             except Exception as e:
                 print(f"Error in session event handler: {e}")
 
-    def _register_tools(self, tools: Optional[list[Tool]]) -> None:
+    def _register_tools(self, tools: list[Tool] | None) -> None:
         """
         Register custom tool handlers for this session.
 
@@ -276,7 +275,7 @@ class CopilotSession:
                     continue
                 self._tool_handlers[tool.name] = tool.handler
 
-    def _get_tool_handler(self, name: str) -> Optional[ToolHandler]:
+    def _get_tool_handler(self, name: str) -> ToolHandler | None:
         """
         Retrieve a registered tool handler by name.
 
@@ -293,7 +292,7 @@ class CopilotSession:
         with self._tool_handlers_lock:
             return self._tool_handlers.get(name)
 
-    def _register_permission_handler(self, handler: Optional[_PermissionHandlerFn]) -> None:
+    def _register_permission_handler(self, handler: _PermissionHandlerFn | None) -> None:
         """
         Register a handler for permission requests.
 
@@ -341,7 +340,7 @@ class CopilotSession:
             # Handler failed, deny permission
             return {"kind": "denied-no-approval-rule-and-could-not-request-from-user"}
 
-    def _register_user_input_handler(self, handler: Optional[UserInputHandler]) -> None:
+    def _register_user_input_handler(self, handler: UserInputHandler | None) -> None:
         """
         Register a handler for user input requests.
 
@@ -392,7 +391,7 @@ class CopilotSession:
         except Exception:
             raise
 
-    def _register_hooks(self, hooks: Optional[SessionHooks]) -> None:
+    def _register_hooks(self, hooks: SessionHooks | None) -> None:
         """
         Register hook handlers for session lifecycle events.
 

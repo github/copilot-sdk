@@ -7,7 +7,7 @@ name = "github-copilot-sdk"
 version = "0.1.0"
 description = "Python SDK for GitHub Copilot CLI"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 license = "MIT"
 # license-files is set by scripts/build-wheels.mjs for bundled CLI wheels
 authors = [
@@ -17,15 +17,14 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
     "python-dateutil>=2.9.0.post0",
     "pydantic>=2.0",
-    "typing-extensions>=4.0.0",
 ]
 
 [project.urls]
@@ -47,7 +46,7 @@ packages = ["copilot"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py311"
 exclude = [
     "generated",
     "copilot/generated",
@@ -60,9 +59,6 @@ select = [
     "F",  # pyflakes
     "I",  # isort
     "UP", # pyupgrade
-]
-ignore = [
-    "UP006",
 ]
 
 [tool.ruff.format]

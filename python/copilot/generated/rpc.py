@@ -10,7 +10,8 @@ if TYPE_CHECKING:
 
 
 from dataclasses import dataclass
-from typing import Any, Optional, List, Dict, TypeVar, Type, cast, Callable
+from typing import Any, TypeVar, cast
+from collections.abc import Callable
 from enum import Enum
 
 
@@ -52,22 +53,22 @@ def from_bool(x: Any) -> bool:
     return x
 
 
-def to_class(c: Type[T], x: Any) -> dict:
+def to_class(c: type[T], x: Any) -> dict:
     assert isinstance(x, c)
     return cast(Any, x).to_dict()
 
 
-def from_list(f: Callable[[Any], T], x: Any) -> List[T]:
+def from_list(f: Callable[[Any], T], x: Any) -> list[T]:
     assert isinstance(x, list)
     return [f(y) for y in x]
 
 
-def from_dict(f: Callable[[Any], T], x: Any) -> Dict[str, T]:
+def from_dict(f: Callable[[Any], T], x: Any) -> dict[str, T]:
     assert isinstance(x, dict)
     return { k: f(v) for (k, v) in x.items() }
 
 
-def to_enum(c: Type[EnumT], x: Any) -> EnumT:
+def to_enum(c: type[EnumT], x: Any) -> EnumT:
     assert isinstance(x, c)
     return x.value
 
@@ -101,7 +102,7 @@ class PingResult:
 
 @dataclass
 class PingParams:
-    message: Optional[str] = None
+    message: str | None = None
     """Optional message to echo back"""
 
     @staticmethod
@@ -138,8 +139,8 @@ class Billing:
 @dataclass
 class Limits:
     max_context_window_tokens: float
-    max_output_tokens: Optional[float] = None
-    max_prompt_tokens: Optional[float] = None
+    max_output_tokens: float | None = None
+    max_prompt_tokens: float | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'Limits':
@@ -233,16 +234,16 @@ class Model:
     name: str
     """Display name"""
 
-    billing: Optional[Billing] = None
+    billing: Billing | None = None
     """Billing information"""
 
-    default_reasoning_effort: Optional[str] = None
+    default_reasoning_effort: str | None = None
     """Default reasoning effort level (only present if model supports reasoning effort)"""
 
-    policy: Optional[Policy] = None
+    policy: Policy | None = None
     """Policy state (if applicable)"""
 
-    supported_reasoning_efforts: Optional[List[str]] = None
+    supported_reasoning_efforts: list[str] | None = None
     """Supported reasoning effort levels (only present if model supports reasoning effort)"""
 
     @staticmethod
@@ -275,7 +276,7 @@ class Model:
 
 @dataclass
 class ModelsListResult:
-    models: List[Model]
+    models: list[Model]
     """List of available models with full metadata"""
 
     @staticmethod
@@ -298,14 +299,14 @@ class Tool:
     name: str
     """Tool identifier (e.g., "bash", "grep", "str_replace_editor")"""
 
-    instructions: Optional[str] = None
+    instructions: str | None = None
     """Optional instructions for how to use this tool effectively"""
 
-    namespaced_name: Optional[str] = None
+    namespaced_name: str | None = None
     """Optional namespaced name for declarative filtering (e.g., "playwright/navigate" for MCP
     tools)
     """
-    parameters: Optional[Dict[str, Any]] = None
+    parameters: dict[str, Any] | None = None
     """JSON Schema for the tool's input parameters"""
 
     @staticmethod
@@ -333,7 +334,7 @@ class Tool:
 
 @dataclass
 class ToolsListResult:
-    tools: List[Tool]
+    tools: list[Tool]
     """List of available built-in tools with metadata"""
 
     @staticmethod
@@ -350,7 +351,7 @@ class ToolsListResult:
 
 @dataclass
 class ToolsListParams:
-    model: Optional[str] = None
+    model: str | None = None
     """Optional model ID — when provided, the returned tool list reflects model-specific
     overrides
     """
@@ -385,7 +386,7 @@ class QuotaSnapshot:
     used_requests: float
     """Number of requests used so far this period"""
 
-    reset_date: Optional[str] = None
+    reset_date: str | None = None
     """Date when the quota resets (ISO 8601)"""
 
     @staticmethod
@@ -413,7 +414,7 @@ class QuotaSnapshot:
 
 @dataclass
 class AccountGetQuotaResult:
-    quota_snapshots: Dict[str, QuotaSnapshot]
+    quota_snapshots: dict[str, QuotaSnapshot]
     """Quota snapshots keyed by type (e.g., chat, completions, premium_interactions)"""
 
     @staticmethod
@@ -430,7 +431,7 @@ class AccountGetQuotaResult:
 
 @dataclass
 class SessionModelGetCurrentResult:
-    model_id: Optional[str] = None
+    model_id: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'SessionModelGetCurrentResult':
@@ -447,7 +448,7 @@ class SessionModelGetCurrentResult:
 
 @dataclass
 class SessionModelSwitchToResult:
-    model_id: Optional[str] = None
+    model_id: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'SessionModelSwitchToResult':
@@ -546,7 +547,7 @@ class SessionPlanReadResult:
     exists: bool
     """Whether plan.md exists in the workspace"""
 
-    content: Optional[str] = None
+    content: str | None = None
     """The content of plan.md, or null if it does not exist"""
 
     @staticmethod
@@ -606,7 +607,7 @@ class SessionPlanDeleteResult:
 
 @dataclass
 class SessionWorkspaceListFilesResult:
-    files: List[str]
+    files: list[str]
     """Relative file paths in the workspace files directory"""
 
     @staticmethod
@@ -708,7 +709,7 @@ class SessionFleetStartResult:
 
 @dataclass
 class SessionFleetStartParams:
-    prompt: Optional[str] = None
+    prompt: str | None = None
     """Optional user prompt to combine with fleet instructions"""
 
     @staticmethod
@@ -753,7 +754,7 @@ class AgentElement:
 
 @dataclass
 class SessionAgentListResult:
-    agents: List[AgentElement]
+    agents: list[AgentElement]
     """Available custom agents"""
 
     @staticmethod
@@ -797,7 +798,7 @@ class SessionAgentGetCurrentResultAgent:
 
 @dataclass
 class SessionAgentGetCurrentResult:
-    agent: Optional[SessionAgentGetCurrentResultAgent] = None
+    agent: SessionAgentGetCurrentResultAgent | None = None
     """Currently selected custom agent, or null if using the default agent"""
 
     @staticmethod

@@ -9,7 +9,6 @@ import re
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 from copilot import CopilotClient
 
@@ -46,8 +45,8 @@ class E2ETestContext:
         self.home_dir: str = ""
         self.work_dir: str = ""
         self.proxy_url: str = ""
-        self._proxy: Optional[CapiProxy] = None
-        self._client: Optional[CopilotClient] = None
+        self._proxy: CapiProxy | None = None
+        self._client: CopilotClient | None = None
 
     async def setup(self):
         """Set up the test context with a shared client."""
