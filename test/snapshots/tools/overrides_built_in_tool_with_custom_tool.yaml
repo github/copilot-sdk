@@ -5,7 +5,7 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: "Use grep to search for the word 'hello'"
+        content: Use grep to search for the word 'hello'
       - role: assistant
         tool_calls:
           - id: toolcall_0
