@@ -21,7 +21,7 @@ describe("Built-in Tools", async () => {
             expect(msg?.data.content).toContain("world");
         });
 
-        it("should capture stderr output", async () => {
+        it.skipIf(process.platform === "win32")("should capture stderr output", async () => {
             const session = await client.createSession({ onPermissionRequest: approveAll });
             const msg = await session.sendAndWait({
                 prompt: "Run 'echo error_msg >&2; echo ok' and tell me what stderr said. Reply with just the stderr content.",
