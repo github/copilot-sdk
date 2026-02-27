@@ -25,6 +25,7 @@ go run chat.go
 package main
 
 import (
+	"context"
     "fmt"
     "log"
 
@@ -285,6 +286,7 @@ Enable streaming to receive assistant response chunks as they're generated:
 package main
 
 import (
+	"context"
     "fmt"
     "log"
 
