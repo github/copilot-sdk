@@ -35,120 +35,120 @@ type SessionEvent struct {
 }
 
 type Data struct {
-	Context                                              *ContextUnion            `json:"context"`
-	CopilotVersion                                       *string                  `json:"copilotVersion,omitempty"`
-	Producer                                             *string                  `json:"producer,omitempty"`
-	SelectedModel                                        *string                  `json:"selectedModel,omitempty"`
-	SessionID                                            *string                  `json:"sessionId,omitempty"`
-	StartTime                                            *time.Time               `json:"startTime,omitempty"`
-	Version                                              *float64                 `json:"version,omitempty"`
-	EventCount                                           *float64                 `json:"eventCount,omitempty"`
-	ResumeTime                                           *time.Time               `json:"resumeTime,omitempty"`
-	ErrorType                                            *string                  `json:"errorType,omitempty"`
-	Message                                              *string                  `json:"message,omitempty"`
-	ProviderCallID                                       *string                  `json:"providerCallId,omitempty"`
-	Stack                                                *string                  `json:"stack,omitempty"`
-	StatusCode                                           *int64                   `json:"statusCode,omitempty"`
-	Title                                                *string                  `json:"title,omitempty"`
-	InfoType                                             *string                  `json:"infoType,omitempty"`
-	WarningType                                          *string                  `json:"warningType,omitempty"`
-	NewModel                                             *string                  `json:"newModel,omitempty"`
-	PreviousModel                                        *string                  `json:"previousModel,omitempty"`
-	NewMode                                              *string                  `json:"newMode,omitempty"`
-	PreviousMode                                         *string                  `json:"previousMode,omitempty"`
-	Operation                                            *Operation               `json:"operation,omitempty"`
-	// Relative path within the workspace files directory                         
-	Path                                                 *string                  `json:"path,omitempty"`
-	HandoffTime                                          *time.Time               `json:"handoffTime,omitempty"`
-	RemoteSessionID                                      *string                  `json:"remoteSessionId,omitempty"`
-	Repository                                           *RepositoryUnion         `json:"repository"`
-	SourceType                                           *SourceType              `json:"sourceType,omitempty"`
-	Summary                                              *string                  `json:"summary,omitempty"`
-	MessagesRemovedDuringTruncation                      *float64                 `json:"messagesRemovedDuringTruncation,omitempty"`
-	PerformedBy                                          *string                  `json:"performedBy,omitempty"`
-	PostTruncationMessagesLength                         *float64                 `json:"postTruncationMessagesLength,omitempty"`
-	PostTruncationTokensInMessages                       *float64                 `json:"postTruncationTokensInMessages,omitempty"`
-	PreTruncationMessagesLength                          *float64                 `json:"preTruncationMessagesLength,omitempty"`
-	PreTruncationTokensInMessages                        *float64                 `json:"preTruncationTokensInMessages,omitempty"`
-	TokenLimit                                           *float64                 `json:"tokenLimit,omitempty"`
-	TokensRemovedDuringTruncation                        *float64                 `json:"tokensRemovedDuringTruncation,omitempty"`
-	EventsRemoved                                        *float64                 `json:"eventsRemoved,omitempty"`
-	UpToEventID                                          *string                  `json:"upToEventId,omitempty"`
-	CodeChanges                                          *CodeChanges             `json:"codeChanges,omitempty"`
-	CurrentModel                                         *string                  `json:"currentModel,omitempty"`
-	ErrorReason                                          *string                  `json:"errorReason,omitempty"`
-	ModelMetrics                                         map[string]ModelMetric   `json:"modelMetrics,omitempty"`
-	SessionStartTime                                     *float64                 `json:"sessionStartTime,omitempty"`
-	ShutdownType                                         *ShutdownType            `json:"shutdownType,omitempty"`
-	TotalAPIDurationMS                                   *float64                 `json:"totalApiDurationMs,omitempty"`
-	TotalPremiumRequests                                 *float64                 `json:"totalPremiumRequests,omitempty"`
-	Branch                                               *string                  `json:"branch,omitempty"`
-	Cwd                                                  *string                  `json:"cwd,omitempty"`
-	GitRoot                                              *string                  `json:"gitRoot,omitempty"`
-	CurrentTokens                                        *float64                 `json:"currentTokens,omitempty"`
-	MessagesLength                                       *float64                 `json:"messagesLength,omitempty"`
-	CheckpointNumber                                     *float64                 `json:"checkpointNumber,omitempty"`
-	CheckpointPath                                       *string                  `json:"checkpointPath,omitempty"`
-	CompactionTokensUsed                                 *CompactionTokensUsed    `json:"compactionTokensUsed,omitempty"`
-	Error                                                *ErrorUnion              `json:"error"`
-	MessagesRemoved                                      *float64                 `json:"messagesRemoved,omitempty"`
-	PostCompactionTokens                                 *float64                 `json:"postCompactionTokens,omitempty"`
-	PreCompactionMessagesLength                          *float64                 `json:"preCompactionMessagesLength,omitempty"`
-	PreCompactionTokens                                  *float64                 `json:"preCompactionTokens,omitempty"`
-	RequestID                                            *string                  `json:"requestId,omitempty"`
-	Success                                              *bool                    `json:"success,omitempty"`
-	SummaryContent                                       *string                  `json:"summaryContent,omitempty"`
-	TokensRemoved                                        *float64                 `json:"tokensRemoved,omitempty"`
-	AgentMode                                            *AgentMode               `json:"agentMode,omitempty"`
-	Attachments                                          []Attachment             `json:"attachments,omitempty"`
-	Content                                              *string                  `json:"content,omitempty"`
-	Source                                               *string                  `json:"source,omitempty"`
-	TransformedContent                                   *string                  `json:"transformedContent,omitempty"`
-	TurnID                                               *string                  `json:"turnId,omitempty"`
-	Intent                                               *string                  `json:"intent,omitempty"`
-	ReasoningID                                          *string                  `json:"reasoningId,omitempty"`
-	DeltaContent                                         *string                  `json:"deltaContent,omitempty"`
-	TotalResponseSizeBytes                               *float64                 `json:"totalResponseSizeBytes,omitempty"`
-	EncryptedContent                                     *string                  `json:"encryptedContent,omitempty"`
-	MessageID                                            *string                  `json:"messageId,omitempty"`
-	ParentToolCallID                                     *string                  `json:"parentToolCallId,omitempty"`
-	Phase                                                *string                  `json:"phase,omitempty"`
-	ReasoningOpaque                                      *string                  `json:"reasoningOpaque,omitempty"`
-	ReasoningText                                        *string                  `json:"reasoningText,omitempty"`
-	ToolRequests                                         []ToolRequest            `json:"toolRequests,omitempty"`
-	APICallID                                            *string                  `json:"apiCallId,omitempty"`
-	CacheReadTokens                                      *float64                 `json:"cacheReadTokens,omitempty"`
-	CacheWriteTokens                                     *float64                 `json:"cacheWriteTokens,omitempty"`
-	Cost                                                 *float64                 `json:"cost,omitempty"`
-	Duration                                             *float64                 `json:"duration,omitempty"`
-	Initiator                                            *string                  `json:"initiator,omitempty"`
-	InputTokens                                          *float64                 `json:"inputTokens,omitempty"`
-	Model                                                *string                  `json:"model,omitempty"`
-	OutputTokens                                         *float64                 `json:"outputTokens,omitempty"`
-	QuotaSnapshots                                       map[string]QuotaSnapshot `json:"quotaSnapshots,omitempty"`
-	Reason                                               *string                  `json:"reason,omitempty"`
-	Arguments                                            interface{}              `json:"arguments"`
-	ToolCallID                                           *string                  `json:"toolCallId,omitempty"`
-	ToolName                                             *string                  `json:"toolName,omitempty"`
-	MCPServerName                                        *string                  `json:"mcpServerName,omitempty"`
-	MCPToolName                                          *string                  `json:"mcpToolName,omitempty"`
-	PartialOutput                                        *string                  `json:"partialOutput,omitempty"`
-	ProgressMessage                                      *string                  `json:"progressMessage,omitempty"`
-	IsUserRequested                                      *bool                    `json:"isUserRequested,omitempty"`
-	Result                                               *Result                  `json:"result,omitempty"`
-	ToolTelemetry                                        map[string]interface{}   `json:"toolTelemetry,omitempty"`
-	AllowedTools                                         []string                 `json:"allowedTools,omitempty"`
-	Name                                                 *string                  `json:"name,omitempty"`
-	AgentDescription                                     *string                  `json:"agentDescription,omitempty"`
-	AgentDisplayName                                     *string                  `json:"agentDisplayName,omitempty"`
-	AgentName                                            *string                  `json:"agentName,omitempty"`
-	Tools                                                []string                 `json:"tools"`
-	HookInvocationID                                     *string                  `json:"hookInvocationId,omitempty"`
-	HookType                                             *string                  `json:"hookType,omitempty"`
-	Input                                                interface{}              `json:"input"`
-	Output                                               interface{}              `json:"output"`
-	Metadata                                             *Metadata                `json:"metadata,omitempty"`
-	Role                                                 *Role                    `json:"role,omitempty"`
+	Context        *ContextUnion `json:"context"`
+	CopilotVersion *string       `json:"copilotVersion,omitempty"`
+	Producer       *string       `json:"producer,omitempty"`
+	SelectedModel  *string       `json:"selectedModel,omitempty"`
+	SessionID      *string       `json:"sessionId,omitempty"`
+	StartTime      *time.Time    `json:"startTime,omitempty"`
+	Version        *float64      `json:"version,omitempty"`
+	EventCount     *float64      `json:"eventCount,omitempty"`
+	ResumeTime     *time.Time    `json:"resumeTime,omitempty"`
+	ErrorType      *string       `json:"errorType,omitempty"`
+	Message        *string       `json:"message,omitempty"`
+	ProviderCallID *string       `json:"providerCallId,omitempty"`
+	Stack          *string       `json:"stack,omitempty"`
+	StatusCode     *int64        `json:"statusCode,omitempty"`
+	Title          *string       `json:"title,omitempty"`
+	InfoType       *string       `json:"infoType,omitempty"`
+	WarningType    *string       `json:"warningType,omitempty"`
+	NewModel       *string       `json:"newModel,omitempty"`
+	PreviousModel  *string       `json:"previousModel,omitempty"`
+	NewMode        *string       `json:"newMode,omitempty"`
+	PreviousMode   *string       `json:"previousMode,omitempty"`
+	Operation      *Operation    `json:"operation,omitempty"`
+	// Relative path within the workspace files directory
+	Path                            *string                  `json:"path,omitempty"`
+	HandoffTime                     *time.Time               `json:"handoffTime,omitempty"`
+	RemoteSessionID                 *string                  `json:"remoteSessionId,omitempty"`
+	Repository                      *RepositoryUnion         `json:"repository"`
+	SourceType                      *SourceType              `json:"sourceType,omitempty"`
+	Summary                         *string                  `json:"summary,omitempty"`
+	MessagesRemovedDuringTruncation *float64                 `json:"messagesRemovedDuringTruncation,omitempty"`
+	PerformedBy                     *string                  `json:"performedBy,omitempty"`
+	PostTruncationMessagesLength    *float64                 `json:"postTruncationMessagesLength,omitempty"`
+	PostTruncationTokensInMessages  *float64                 `json:"postTruncationTokensInMessages,omitempty"`
+	PreTruncationMessagesLength     *float64                 `json:"preTruncationMessagesLength,omitempty"`
+	PreTruncationTokensInMessages   *float64                 `json:"preTruncationTokensInMessages,omitempty"`
+	TokenLimit                      *float64                 `json:"tokenLimit,omitempty"`
+	TokensRemovedDuringTruncation   *float64                 `json:"tokensRemovedDuringTruncation,omitempty"`
+	EventsRemoved                   *float64                 `json:"eventsRemoved,omitempty"`
+	UpToEventID                     *string                  `json:"upToEventId,omitempty"`
+	CodeChanges                     *CodeChanges             `json:"codeChanges,omitempty"`
+	CurrentModel                    *string                  `json:"currentModel,omitempty"`
+	ErrorReason                     *string                  `json:"errorReason,omitempty"`
+	ModelMetrics                    map[string]ModelMetric   `json:"modelMetrics,omitempty"`
+	SessionStartTime                *float64                 `json:"sessionStartTime,omitempty"`
+	ShutdownType                    *ShutdownType            `json:"shutdownType,omitempty"`
+	TotalAPIDurationMS              *float64                 `json:"totalApiDurationMs,omitempty"`
+	TotalPremiumRequests            *float64                 `json:"totalPremiumRequests,omitempty"`
+	Branch                          *string                  `json:"branch,omitempty"`
+	Cwd                             *string                  `json:"cwd,omitempty"`
+	GitRoot                         *string                  `json:"gitRoot,omitempty"`
+	CurrentTokens                   *float64                 `json:"currentTokens,omitempty"`
+	MessagesLength                  *float64                 `json:"messagesLength,omitempty"`
+	CheckpointNumber                *float64                 `json:"checkpointNumber,omitempty"`
+	CheckpointPath                  *string                  `json:"checkpointPath,omitempty"`
+	CompactionTokensUsed            *CompactionTokensUsed    `json:"compactionTokensUsed,omitempty"`
+	Error                           *ErrorUnion              `json:"error"`
+	MessagesRemoved                 *float64                 `json:"messagesRemoved,omitempty"`
+	PostCompactionTokens            *float64                 `json:"postCompactionTokens,omitempty"`
+	PreCompactionMessagesLength     *float64                 `json:"preCompactionMessagesLength,omitempty"`
+	PreCompactionTokens             *float64                 `json:"preCompactionTokens,omitempty"`
+	RequestID                       *string                  `json:"requestId,omitempty"`
+	Success                         *bool                    `json:"success,omitempty"`
+	SummaryContent                  *string                  `json:"summaryContent,omitempty"`
+	TokensRemoved                   *float64                 `json:"tokensRemoved,omitempty"`
+	AgentMode                       *AgentMode               `json:"agentMode,omitempty"`
+	Attachments                     []Attachment             `json:"attachments,omitempty"`
+	Content                         *string                  `json:"content,omitempty"`
+	Source                          *string                  `json:"source,omitempty"`
+	TransformedContent              *string                  `json:"transformedContent,omitempty"`
+	TurnID                          *string                  `json:"turnId,omitempty"`
+	Intent                          *string                  `json:"intent,omitempty"`
+	ReasoningID                     *string                  `json:"reasoningId,omitempty"`
+	DeltaContent                    *string                  `json:"deltaContent,omitempty"`
+	TotalResponseSizeBytes          *float64                 `json:"totalResponseSizeBytes,omitempty"`
+	EncryptedContent                *string                  `json:"encryptedContent,omitempty"`
+	MessageID                       *string                  `json:"messageId,omitempty"`
+	ParentToolCallID                *string                  `json:"parentToolCallId,omitempty"`
+	Phase                           *string                  `json:"phase,omitempty"`
+	ReasoningOpaque                 *string                  `json:"reasoningOpaque,omitempty"`
+	ReasoningText                   *string                  `json:"reasoningText,omitempty"`
+	ToolRequests                    []ToolRequest            `json:"toolRequests,omitempty"`
+	APICallID                       *string                  `json:"apiCallId,omitempty"`
+	CacheReadTokens                 *float64                 `json:"cacheReadTokens,omitempty"`
+	CacheWriteTokens                *float64                 `json:"cacheWriteTokens,omitempty"`
+	Cost                            *float64                 `json:"cost,omitempty"`
+	Duration                        *float64                 `json:"duration,omitempty"`
+	Initiator                       *string                  `json:"initiator,omitempty"`
+	InputTokens                     *float64                 `json:"inputTokens,omitempty"`
+	Model                           *string                  `json:"model,omitempty"`
+	OutputTokens                    *float64                 `json:"outputTokens,omitempty"`
+	QuotaSnapshots                  map[string]QuotaSnapshot `json:"quotaSnapshots,omitempty"`
+	Reason                          *string                  `json:"reason,omitempty"`
+	Arguments                       interface{}              `json:"arguments"`
+	ToolCallID                      *string                  `json:"toolCallId,omitempty"`
+	ToolName                        *string                  `json:"toolName,omitempty"`
+	MCPServerName                   *string                  `json:"mcpServerName,omitempty"`
+	MCPToolName                     *string                  `json:"mcpToolName,omitempty"`
+	PartialOutput                   *string                  `json:"partialOutput,omitempty"`
+	ProgressMessage                 *string                  `json:"progressMessage,omitempty"`
+	IsUserRequested                 *bool                    `json:"isUserRequested,omitempty"`
+	Result                          *Result                  `json:"result,omitempty"`
+	ToolTelemetry                   map[string]interface{}   `json:"toolTelemetry,omitempty"`
+	AllowedTools                    []string                 `json:"allowedTools,omitempty"`
+	Name                            *string                  `json:"name,omitempty"`
+	AgentDescription                *string                  `json:"agentDescription,omitempty"`
+	AgentDisplayName                *string                  `json:"agentDisplayName,omitempty"`
+	AgentName                       *string                  `json:"agentName,omitempty"`
+	Tools                           []string                 `json:"tools"`
+	HookInvocationID                *string                  `json:"hookInvocationId,omitempty"`
+	HookType                        *string                  `json:"hookType,omitempty"`
+	Input                           interface{}              `json:"input"`
+	Output                          interface{}              `json:"output"`
+	Metadata                        *Metadata                `json:"metadata,omitempty"`
+	Role                            *Role                    `json:"role,omitempty"`
 }
 
 type Attachment struct {
@@ -477,113 +477,113 @@ func (x *RepositoryUnion) MarshalJSON() ([]byte, error) {
 
 func unmarshalUnion(data []byte, pi **int64, pf **float64, pb **bool, ps **string, haveArray bool, pa interface{}, haveObject bool, pc interface{}, haveMap bool, pm interface{}, haveEnum bool, pe interface{}, nullable bool) (bool, error) {
 	if pi != nil {
-			*pi = nil
+		*pi = nil
 	}
 	if pf != nil {
-			*pf = nil
+		*pf = nil
 	}
 	if pb != nil {
-			*pb = nil
+		*pb = nil
 	}
 	if ps != nil {
-			*ps = nil
+		*ps = nil
 	}
 
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
 	tok, err := dec.Token()
 	if err != nil {
-			return false, err
+		return false, err
 	}
 
 	switch v := tok.(type) {
 	case json.Number:
-			if pi != nil {
-					i, err := v.Int64()
-					if err == nil {
-							*pi = &i
-							return false, nil
-					}
+		if pi != nil {
+			i, err := v.Int64()
+			if err == nil {
+				*pi = &i
+				return false, nil
 			}
-			if pf != nil {
-					f, err := v.Float64()
-					if err == nil {
-							*pf = &f
-							return false, nil
-					}
-					return false, errors.New("Unparsable number")
+		}
+		if pf != nil {
+			f, err := v.Float64()
+			if err == nil {
+				*pf = &f
+				return false, nil
 			}
-			return false, errors.New("Union does not contain number")
+			return false, errors.New("Unparsable number")
+		}
+		return false, errors.New("Union does not contain number")
 	case float64:
-			return false, errors.New("Decoder should not return float64")
+		return false, errors.New("Decoder should not return float64")
 	case bool:
-			if pb != nil {
-					*pb = &v
-					return false, nil
-			}
-			return false, errors.New("Union does not contain bool")
+		if pb != nil {
+			*pb = &v
+			return false, nil
+		}
+		return false, errors.New("Union does not contain bool")
 	case string:
-			if haveEnum {
-					return false, json.Unmarshal(data, pe)
-			}
-			if ps != nil {
-					*ps = &v
-					return false, nil
-			}
-			return false, errors.New("Union does not contain string")
+		if haveEnum {
+			return false, json.Unmarshal(data, pe)
+		}
+		if ps != nil {
+			*ps = &v
+			return false, nil
+		}
+		return false, errors.New("Union does not contain string")
 	case nil:
-			if nullable {
-					return false, nil
-			}
-			return false, errors.New("Union does not contain null")
+		if nullable {
+			return false, nil
+		}
+		return false, errors.New("Union does not contain null")
 	case json.Delim:
-			if v == '{' {
-					if haveObject {
-							return true, json.Unmarshal(data, pc)
-					}
-					if haveMap {
-							return false, json.Unmarshal(data, pm)
-					}
-					return false, errors.New("Union does not contain object")
+		if v == '{' {
+			if haveObject {
+				return true, json.Unmarshal(data, pc)
 			}
-			if v == '[' {
-					if haveArray {
-							return false, json.Unmarshal(data, pa)
-					}
-					return false, errors.New("Union does not contain array")
+			if haveMap {
+				return false, json.Unmarshal(data, pm)
 			}
-			return false, errors.New("Cannot handle delimiter")
+			return false, errors.New("Union does not contain object")
+		}
+		if v == '[' {
+			if haveArray {
+				return false, json.Unmarshal(data, pa)
+			}
+			return false, errors.New("Union does not contain array")
+		}
+		return false, errors.New("Cannot handle delimiter")
 	}
 	return false, errors.New("Cannot unmarshal union")
 }
 
 func marshalUnion(pi *int64, pf *float64, pb *bool, ps *string, haveArray bool, pa interface{}, haveObject bool, pc interface{}, haveMap bool, pm interface{}, haveEnum bool, pe interface{}, nullable bool) ([]byte, error) {
 	if pi != nil {
-			return json.Marshal(*pi)
+		return json.Marshal(*pi)
 	}
 	if pf != nil {
-			return json.Marshal(*pf)
+		return json.Marshal(*pf)
 	}
 	if pb != nil {
-			return json.Marshal(*pb)
+		return json.Marshal(*pb)
 	}
 	if ps != nil {
-			return json.Marshal(*ps)
+		return json.Marshal(*ps)
 	}
 	if haveArray {
-			return json.Marshal(pa)
+		return json.Marshal(pa)
 	}
 	if haveObject {
-			return json.Marshal(pc)
+		return json.Marshal(pc)
 	}
 	if haveMap {
-			return json.Marshal(pm)
+		return json.Marshal(pm)
 	}
 	if haveEnum {
-			return json.Marshal(pe)
+		return json.Marshal(pe)
 	}
 	if nullable {
-			return json.Marshal(nil)
+		return json.Marshal(nil)
 	}
 	return nil, errors.New("Union must not be null")
 }
