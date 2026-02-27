@@ -15,7 +15,7 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
     {
         var permissionRequests = new List<PermissionRequest>();
         CopilotSession? session = null;
-        session = await Client.CreateSessionAsync(new SessionConfig
+        session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = (request, invocation) =>
             {
@@ -44,7 +44,7 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
     [Fact]
     public async Task Should_Deny_Permission_When_Handler_Returns_Denied()
     {
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = (request, invocation) =>
             {
@@ -71,10 +71,37 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
-    public async Task Should_Work_Without_Permission_Handler__Default_Behavior_()
+    public async Task Should_Deny_Tool_Operations_When_Handler_Explicitly_Denies()
     {
-        // Create session without permission handler
-        var session = await Client.CreateSessionAsync(new SessionConfig());
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = (_, _) =>
+                Task.FromResult(new PermissionRequestResult { Kind = "denied-no-approval-rule-and-could-not-request-from-user" })
+        });
+        var permissionDenied = false;
+
+        session.On(evt =>
+        {
+            if (evt is ToolExecutionCompleteEvent toolEvt &&
+                !toolEvt.Data.Success &&
+                toolEvt.Data.Error?.Message.Contains("Permission denied") == true)
+            {
+                permissionDenied = true;
+            }
+        });
+
+        await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Run 'node --version'"
+        });
+
+        Assert.True(permissionDenied, "Expected a tool.execution_complete event with Permission denied result");
+    }
+
+    [Fact]
+    public async Task Should_Work_With_Approve_All_Permission_Handler()
+    {
+        var session = await CreateSessionAsync(new SessionConfig());
 
         await session.SendAsync(new MessageOptions
         {
@@ -89,7 +116,7 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
     public async Task Should_Handle_Async_Permission_Handler()
     {
         var permissionRequestReceived = false;
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = async (request, invocation) =>
             {
@@ -116,12 +143,12 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
         var permissionRequestReceived = false;
 
         // Create session without permission handler
-        var session1 = await Client.CreateSessionAsync();
+        var session1 = await CreateSessionAsync();
         var sessionId = session1.SessionId;
         await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
 
         // Resume with permission handler
-        var session2 = await Client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = (request, invocation) =>
             {
@@ -141,7 +168,7 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
     [Fact]
     public async Task Should_Handle_Permission_Handler_Errors_Gracefully()
     {
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = (request, invocation) =>
             {
@@ -162,10 +189,45 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
+    public async Task Should_Deny_Tool_Operations_When_Handler_Explicitly_Denies_After_Resume()
+    {
+        var session1 = await CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        });
+        var sessionId = session1.SessionId;
+        await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
+
+        var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        {
+            OnPermissionRequest = (_, _) =>
+                Task.FromResult(new PermissionRequestResult { Kind = "denied-no-approval-rule-and-could-not-request-from-user" })
+        });
+        var permissionDenied = false;
+
+        session2.On(evt =>
+        {
+            if (evt is ToolExecutionCompleteEvent toolEvt &&
+                !toolEvt.Data.Success &&
+                toolEvt.Data.Error?.Message.Contains("Permission denied") == true)
+            {
+                permissionDenied = true;
+            }
+        });
+
+        await session2.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Run 'node --version'"
+        });
+
+        Assert.True(permissionDenied, "Expected a tool.execution_complete event with Permission denied result");
+    }
+
+    [Fact]
     public async Task Should_Receive_ToolCallId_In_Permission_Requests()
     {
         var receivedToolCallId = false;
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = (request, invocation) =>
             {

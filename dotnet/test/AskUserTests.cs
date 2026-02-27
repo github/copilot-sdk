@@ -15,7 +15,7 @@ public class AskUserTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     {
         var userInputRequests = new List<UserInputRequest>();
         CopilotSession? session = null;
-        session = await Client.CreateSessionAsync(new SessionConfig
+        session = await CreateSessionAsync(new SessionConfig
         {
             OnUserInputRequest = (request, invocation) =>
             {
@@ -49,7 +49,7 @@ public class AskUserTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     {
         var userInputRequests = new List<UserInputRequest>();
 
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             OnUserInputRequest = (request, invocation) =>
             {
@@ -82,7 +82,7 @@ public class AskUserTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         var userInputRequests = new List<UserInputRequest>();
         var freeformAnswer = "This is my custom freeform answer that was not in the choices";
 
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             OnUserInputRequest = (request, invocation) =>
             {

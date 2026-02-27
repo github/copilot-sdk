@@ -7,6 +7,7 @@ using StreamJsonRpc;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using GitHub.Copilot.SDK.Rpc;
 
 namespace GitHub.Copilot.SDK;
 
@@ -26,7 +27,7 @@ namespace GitHub.Copilot.SDK;
 /// </remarks>
 /// <example>
 /// <code>
-/// await using var session = await client.CreateSessionAsync(new SessionConfig { Model = "gpt-4" });
+/// await using var session = await client.CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll, Model = "gpt-4" });
 ///
 /// // Subscribe to events
 /// using var subscription = session.On(evt =>
@@ -46,18 +47,25 @@ public partial class CopilotSession : IAsyncDisposable
     private readonly HashSet<SessionEventHandler> _eventHandlers = new();
     private readonly Dictionary<string, AIFunction> _toolHandlers = new();
     private readonly JsonRpc _rpc;
-    private PermissionHandler? _permissionHandler;
+    private PermissionRequestHandler? _permissionHandler;
     private readonly SemaphoreSlim _permissionHandlerLock = new(1, 1);
     private UserInputHandler? _userInputHandler;
     private readonly SemaphoreSlim _userInputHandlerLock = new(1, 1);
     private SessionHooks? _hooks;
     private readonly SemaphoreSlim _hooksLock = new(1, 1);
+    private SessionRpc? _sessionRpc;
+    private int _isDisposed;
 
     /// <summary>
     /// Gets the unique identifier for this session.
     /// </summary>
     /// <value>A string that uniquely identifies this session.</value>
     public string SessionId { get; }
+
+    /// <summary>
+    /// Gets the typed RPC client for session-scoped methods.
+    /// </summary>
+    public SessionRpc Rpc => _sessionRpc ??= new SessionRpc(_rpc, SessionId);
 
     /// <summary>
     /// Gets the path to the session workspace directory when infinite sessions are enabled.
@@ -139,6 +147,7 @@ public partial class CopilotSession : IAsyncDisposable
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
     /// <returns>A task that resolves with the final assistant message event, or null if none was received.</returns>
     /// <exception cref="TimeoutException">Thrown if the timeout is reached before the session becomes idle.</exception>
+    /// <exception cref="OperationCanceledException">Thrown if the <paramref name="cancellationToken"/> is cancelled.</exception>
     /// <exception cref="InvalidOperationException">Thrown if the session has been disposed.</exception>
     /// <remarks>
     /// <para>
@@ -193,7 +202,12 @@ public partial class CopilotSession : IAsyncDisposable
         cts.CancelAfter(effectiveTimeout);
 
         using var registration = cts.Token.Register(() =>
-            tcs.TrySetException(new TimeoutException($"SendAndWaitAsync timed out after {effectiveTimeout}")));
+        {
+            if (cancellationToken.IsCancellationRequested)
+                tcs.TrySetCanceled(cancellationToken);
+            else
+                tcs.TrySetException(new TimeoutException($"SendAndWaitAsync timed out after {effectiveTimeout}"));
+        });
         return await tcs.Task;
     }
 
@@ -284,7 +298,7 @@ public partial class CopilotSession : IAsyncDisposable
     /// When the assistant needs permission to perform certain actions (e.g., file operations),
     /// this handler is called to approve or deny the request.
     /// </remarks>
-    internal void RegisterPermissionHandler(PermissionHandler handler)
+    internal void RegisterPermissionHandler(PermissionRequestHandler handler)
     {
         _permissionHandlerLock.Wait();
         try
@@ -305,7 +319,7 @@ public partial class CopilotSession : IAsyncDisposable
     internal async Task<PermissionRequestResult> HandlePermissionRequestAsync(JsonElement permissionRequestData)
     {
         await _permissionHandlerLock.WaitAsync();
-        PermissionHandler? handler;
+        PermissionRequestHandler? handler;
         try
         {
             handler = _permissionHandler;
@@ -543,18 +557,34 @@ public partial class CopilotSession : IAsyncDisposable
     /// <example>
     /// <code>
     /// // Using 'await using' for automatic disposal
-    /// await using var session = await client.CreateSessionAsync();
+    /// await using var session = await client.CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll });
     ///
     /// // Or manually dispose
-    /// var session2 = await client.CreateSessionAsync();
+    /// var session2 = await client.CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll });
     /// // ... use the session ...
     /// await session2.DisposeAsync();
     /// </code>
     /// </example>
     public async ValueTask DisposeAsync()
     {
-        await InvokeRpcAsync<object>(
-            "session.destroy", [new SessionDestroyRequest() { SessionId = SessionId }], CancellationToken.None);
+        if (Interlocked.Exchange(ref _isDisposed, 1) == 1)
+        {
+            return;
+        }
+
+        try
+        {
+            await InvokeRpcAsync<object>(
+                "session.destroy", [new SessionDestroyRequest() { SessionId = SessionId }], CancellationToken.None);
+        }
+        catch (ObjectDisposedException)
+        {
+            // Connection was already disposed (e.g., client.StopAsync() was called first)
+        }
+        catch (IOException)
+        {
+            // Connection is broken or closed
+        }
 
         _eventHandlers.Clear();
         _toolHandlers.Clear();

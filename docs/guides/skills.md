@@ -1,13 +1,10 @@
 # Custom Skills
 
-Skills are reusable collections of prompts, tools, and configuration that extend Copilot's capabilities. Load skills from directories to give Copilot specialized abilities for specific domains or workflows.
+Skills are reusable prompt modules that extend Copilot's capabilities. Load skills from directories to give Copilot specialized abilities for specific domains or workflows.
 
 ## Overview
 
-A skill is a directory containing:
-- **Prompt files** - Instructions that guide Copilot's behavior
-- **Tool definitions** - Custom tools the skill provides
-- **Configuration** - Metadata about the skill
+A skill is a named directory containing a `SKILL.md` file — a markdown document that provides instructions to Copilot. When loaded, the skill's content is injected into the session context.
 
 Skills allow you to:
 - Package domain expertise into reusable modules
@@ -31,8 +28,8 @@ const session = await client.createSession({
     skillDirectories: [
         "./skills/code-review",
         "./skills/documentation",
-        "~/.copilot/skills",  // User-level skills
     ],
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 // Copilot now has access to skills in those directories
@@ -56,8 +53,8 @@ async def main():
         "skill_directories": [
             "./skills/code-review",
             "./skills/documentation",
-            "~/.copilot/skills",  # User-level skills
         ],
+        "on_permission_request": lambda req: {"kind": "approved"},
     })
 
     # Copilot now has access to skills in those directories
@@ -93,7 +90,9 @@ func main() {
         SkillDirectories: []string{
             "./skills/code-review",
             "./skills/documentation",
-            "~/.copilot/skills",  // User-level skills
+        },
+        OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+            return copilot.PermissionRequestResult{Kind: "approved"}, nil
         },
     })
     if err != nil {
@@ -126,8 +125,9 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
     {
         "./skills/code-review",
         "./skills/documentation",
-        "~/.copilot/skills",  // User-level skills
     },
+    OnPermissionRequest = (req, inv) =>
+        Task.FromResult(new PermissionRequestResult { Kind = "approved" }),
 });
 
 // Copilot now has access to skills in those directories
@@ -196,41 +196,28 @@ var session = await client.CreateSessionAsync(new SessionConfig
 
 ## Skill Directory Structure
 
-A typical skill directory contains:
+Each skill is a named subdirectory containing a `SKILL.md` file:
 
 ```
 skills/
-└── code-review/
-    ├── skill.json          # Skill metadata and configuration
-    ├── prompts/
-    │   ├── system.md       # System prompt additions
-    │   └── examples.md     # Few-shot examples
-    └── tools/
-        └── lint.json       # Tool definitions
+├── code-review/
+│   └── SKILL.md
+└── documentation/
+    └── SKILL.md
 ```
 
-### skill.json
+The `skillDirectories` option points to the parent directory (e.g., `./skills`). The CLI discovers all `SKILL.md` files in immediate subdirectories.
 
-The skill manifest file:
+### SKILL.md Format
 
-```json
-{
-  "name": "code-review",
-  "displayName": "Code Review Assistant",
-  "description": "Specialized code review capabilities",
-  "version": "1.0.0",
-  "author": "Your Team",
-  "prompts": ["prompts/system.md"],
-  "tools": ["tools/lint.json"]
-}
-```
-
-### Prompt Files
-
-Markdown files that provide context to Copilot:
+A `SKILL.md` file is a markdown document with optional YAML frontmatter:
 
 ```markdown
-<!-- prompts/system.md -->
+---
+name: code-review
+description: Specialized code review capabilities
+---
+
 # Code Review Guidelines
 
 When reviewing code, always check for:
@@ -242,6 +229,12 @@ When reviewing code, always check for:
 
 Provide specific line-number references and suggested fixes.
 ```
+
+The frontmatter fields:
+- **`name`** — The skill's identifier (used with `disabledSkills` to selectively disable it). If omitted, the directory name is used.
+- **`description`** — A short description of what the skill does.
+
+The markdown body contains the instructions that are injected into the session context when the skill is loaded.
 
 ## Configuration Options
 
@@ -262,7 +255,7 @@ Provide specific line-number references and suggested fixes.
 
 1. **Organize by domain** - Group related skills together (e.g., `skills/security/`, `skills/testing/`)
 
-2. **Version your skills** - Include version numbers in `skill.json` for compatibility tracking
+2. **Use frontmatter** - Include `name` and `description` in YAML frontmatter for clarity
 
 3. **Document dependencies** - Note any tools or MCP servers a skill requires
 
@@ -284,6 +277,7 @@ const session = await client.createSession({
         description: "Security-focused code reviewer",
         prompt: "Focus on OWASP Top 10 vulnerabilities",
     }],
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -302,6 +296,7 @@ const session = await client.createSession({
             tools: ["*"],
         },
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -309,16 +304,16 @@ const session = await client.createSession({
 
 ### Skills Not Loading
 
-1. **Check path exists** - Verify the directory path is correct
+1. **Check path exists** - Verify the skill directory path is correct and contains subdirectories with `SKILL.md` files
 2. **Check permissions** - Ensure the SDK can read the directory
-3. **Validate skill.json** - Check for JSON syntax errors
+3. **Check SKILL.md format** - Verify the markdown is well-formed and any YAML frontmatter uses valid syntax
 4. **Enable debug logging** - Set `logLevel: "debug"` to see skill loading logs
 
 ### Skill Conflicts
 
-If multiple skills define the same tool:
-- Later directories in the array take precedence
+If multiple skills provide conflicting instructions:
 - Use `disabledSkills` to exclude conflicting skills
+- Reorganize skill directories to avoid overlaps
 
 ## See Also
 

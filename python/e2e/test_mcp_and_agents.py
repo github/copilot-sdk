@@ -2,11 +2,18 @@
 Tests for MCP servers and custom agents functionality
 """
 
+from pathlib import Path
+
 import pytest
 
-from copilot import CustomAgentConfig, MCPServerConfig
+from copilot import CustomAgentConfig, MCPServerConfig, PermissionHandler
 
 from .testharness import E2ETestContext, get_final_assistant_message
+
+TEST_MCP_SERVER = str(
+    (Path(__file__).parents[2] / "test" / "harness" / "test-mcp-server.mjs").resolve()
+)
+TEST_HARNESS_DIR = str((Path(__file__).parents[2] / "test" / "harness").resolve())
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -25,7 +32,9 @@ class TestMCPServers:
             }
         }
 
-        session = await ctx.client.create_session({"mcp_servers": mcp_servers})
+        session = await ctx.client.create_session(
+            {"mcp_servers": mcp_servers, "on_permission_request": PermissionHandler.approve_all}
+        )
 
         assert session.session_id is not None
 
@@ -41,7 +50,9 @@ class TestMCPServers:
     ):
         """Test that MCP server configuration is accepted on session resume"""
         # Create a session first
-        session1 = await ctx.client.create_session()
+        session1 = await ctx.client.create_session(
+            {"on_permission_request": PermissionHandler.approve_all}
+        )
         session_id = session1.session_id
         await session1.send_and_wait({"prompt": "What is 1+1?"})
 
@@ -55,7 +66,10 @@ class TestMCPServers:
             }
         }
 
-        session2 = await ctx.client.resume_session(session_id, {"mcp_servers": mcp_servers})
+        session2 = await ctx.client.resume_session(
+            session_id,
+            {"mcp_servers": mcp_servers, "on_permission_request": PermissionHandler.approve_all},
+        )
 
         assert session2.session_id == session_id
 
@@ -64,6 +78,41 @@ class TestMCPServers:
         assert "6" in message.data.content
 
         await session2.destroy()
+
+    async def test_should_pass_literal_env_values_to_mcp_server_subprocess(
+        self, ctx: E2ETestContext
+    ):
+        """Test that env values are passed as literals to MCP server subprocess"""
+        mcp_servers: dict[str, MCPServerConfig] = {
+            "env-echo": {
+                "type": "local",
+                "command": "node",
+                "args": [TEST_MCP_SERVER],
+                "tools": ["*"],
+                "env": {"TEST_SECRET": "hunter2"},
+                "cwd": TEST_HARNESS_DIR,
+            }
+        }
+
+        session = await ctx.client.create_session(
+            {
+                "mcp_servers": mcp_servers,
+                "on_permission_request": PermissionHandler.approve_all,
+            }
+        )
+
+        assert session.session_id is not None
+
+        message = await session.send_and_wait(
+            {
+                "prompt": "Use the env-echo/get_env tool to read the TEST_SECRET "
+                "environment variable. Reply with just the value, nothing else."
+            }
+        )
+        assert message is not None
+        assert "hunter2" in message.data.content
+
+        await session.destroy()
 
 
 class TestCustomAgents:
@@ -81,7 +130,9 @@ class TestCustomAgents:
             }
         ]
 
-        session = await ctx.client.create_session({"custom_agents": custom_agents})
+        session = await ctx.client.create_session(
+            {"custom_agents": custom_agents, "on_permission_request": PermissionHandler.approve_all}
+        )
 
         assert session.session_id is not None
 
@@ -97,7 +148,9 @@ class TestCustomAgents:
     ):
         """Test that custom agent configuration is accepted on session resume"""
         # Create a session first
-        session1 = await ctx.client.create_session()
+        session1 = await ctx.client.create_session(
+            {"on_permission_request": PermissionHandler.approve_all}
+        )
         session_id = session1.session_id
         await session1.send_and_wait({"prompt": "What is 1+1?"})
 
@@ -111,7 +164,13 @@ class TestCustomAgents:
             }
         ]
 
-        session2 = await ctx.client.resume_session(session_id, {"custom_agents": custom_agents})
+        session2 = await ctx.client.resume_session(
+            session_id,
+            {
+                "custom_agents": custom_agents,
+                "on_permission_request": PermissionHandler.approve_all,
+            },
+        )
 
         assert session2.session_id == session_id
 
@@ -144,7 +203,11 @@ class TestCombinedConfiguration:
         ]
 
         session = await ctx.client.create_session(
-            {"mcp_servers": mcp_servers, "custom_agents": custom_agents}
+            {
+                "mcp_servers": mcp_servers,
+                "custom_agents": custom_agents,
+                "on_permission_request": PermissionHandler.approve_all,
+            }
         )
 
         assert session.session_id is not None

@@ -1,0 +1,117 @@
+<Project>
+  <!-- These targets run in consuming projects when they build -->
+  <!-- CopilotCliVersion is imported from GitHub.Copilot.SDK.props (generated at SDK build time, packaged alongside) -->
+  <Import Project="$(MSBuildThisFileDirectory)GitHub.Copilot.SDK.props" Condition="'$(CopilotCliVersion)' == '' And Exists('$(MSBuildThisFileDirectory)GitHub.Copilot.SDK.props')" />
+
+  <!-- Resolve portable RID from explicit RuntimeIdentifier or build host -->
+  <PropertyGroup>
+    <!-- Determine OS: from RID prefix if set, otherwise from build host -->
+    <_CopilotOs Condition="'$(RuntimeIdentifier)' != '' And $(RuntimeIdentifier.StartsWith('win'))">win</_CopilotOs>
+    <_CopilotOs Condition="'$(_CopilotOs)' == '' And '$(RuntimeIdentifier)' != '' And $(RuntimeIdentifier.StartsWith('osx'))">osx</_CopilotOs>
+    <_CopilotOs Condition="'$(_CopilotOs)' == '' And '$(RuntimeIdentifier)' != '' And $(RuntimeIdentifier.StartsWith('maccatalyst'))">osx</_CopilotOs>
+    <_CopilotOs Condition="'$(_CopilotOs)' == '' And '$(RuntimeIdentifier)' != ''">linux</_CopilotOs>
+
+    <!-- Determine arch: from RID suffix if set, otherwise from build host -->
+    <_CopilotArch Condition="'$(RuntimeIdentifier)' != '' And $(RuntimeIdentifier.EndsWith('-x64'))">x64</_CopilotArch>
+    <_CopilotArch Condition="'$(_CopilotArch)' == '' And '$(RuntimeIdentifier)' != '' And $(RuntimeIdentifier.EndsWith('-arm64'))">arm64</_CopilotArch>
+
+    <!-- When no RuntimeIdentifier is set, use the SDK's portable RID for the build host -->
+    <_CopilotRid Condition="'$(_CopilotOs)' != '' And '$(_CopilotArch)' != ''">$(_CopilotOs)-$(_CopilotArch)</_CopilotRid>
+    <_CopilotRid Condition="'$(_CopilotRid)' == '' And '$(RuntimeIdentifier)' == ''">$(NETCoreSdkPortableRuntimeIdentifier)</_CopilotRid>
+  </PropertyGroup>
+
+  <!-- Fail if we couldn't determine a portable RID from the given RuntimeIdentifier -->
+  <Target Name="_ValidateCopilotRid" BeforeTargets="BeforeBuild" Condition="'$(RuntimeIdentifier)' != '' And '$(_CopilotRid)' == ''">
+    <Error Text="Could not determine a supported portable RID from RuntimeIdentifier '$(RuntimeIdentifier)'. Supported RIDs: win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64." />
+  </Target>
+
+  <!-- Map RID to platform name used in npm packages -->
+  <PropertyGroup>
+    <_CopilotPlatform Condition="'$(_CopilotRid)' == 'win-x64'">win32-x64</_CopilotPlatform>
+    <_CopilotPlatform Condition="'$(_CopilotRid)' == 'win-arm64'">win32-arm64</_CopilotPlatform>
+    <_CopilotPlatform Condition="'$(_CopilotRid)' == 'linux-x64'">linux-x64</_CopilotPlatform>
+    <_CopilotPlatform Condition="'$(_CopilotRid)' == 'linux-arm64'">linux-arm64</_CopilotPlatform>
+    <_CopilotPlatform Condition="'$(_CopilotRid)' == 'osx-x64'">darwin-x64</_CopilotPlatform>
+    <_CopilotPlatform Condition="'$(_CopilotRid)' == 'osx-arm64'">darwin-arm64</_CopilotPlatform>
+    <_CopilotBinary Condition="$(_CopilotRid.StartsWith('win-'))">copilot.exe</_CopilotBinary>
+    <_CopilotBinary Condition="'$(_CopilotBinary)' == ''">copilot</_CopilotBinary>
+  </PropertyGroup>
+
+  <!-- Allow customization of the npm registry URL used to download the Copilot CLI.
+       This is primarily for organizations using private or mirrored npm registries.
+       Set CopilotNpmRegistryUrl in your .csproj or Directory.Build.props, for example:
+       <PropertyGroup>
+         <CopilotNpmRegistryUrl>https://your-private-registry.example.com</CopilotNpmRegistryUrl>
+       </PropertyGroup>
+       If not set, this defaults to https://registry.npmjs.org. -->
+  <PropertyGroup>
+    <CopilotNpmRegistryUrl Condition="'$(CopilotNpmRegistryUrl)' == ''">https://registry.npmjs.org</CopilotNpmRegistryUrl>
+  </PropertyGroup>
+
+  <!-- Timeout in seconds for downloading the Copilot CLI tarball.
+       Override CopilotCliDownloadTimeout in your .csproj or Directory.Build.props if needed.
+       Default is 600 seconds (10 minutes) to handle slow or unreliable network conditions. -->
+  <PropertyGroup>
+    <CopilotCliDownloadTimeout Condition="'$(CopilotCliDownloadTimeout)' == ''">600</CopilotCliDownloadTimeout>
+  </PropertyGroup>
+
+  <!-- Download and extract CLI binary. Set CopilotSkipCliDownload=true to skip if you install the CLI separately. -->
+  <Target Name="_DownloadCopilotCli" BeforeTargets="BeforeBuild" Condition="'$(CopilotSkipCliDownload)' != 'true' And '$(_CopilotPlatform)' != ''">
+    <Error Condition="'$(CopilotCliVersion)' == ''" Text="CopilotCliVersion is not set. The GitHub.Copilot.SDK.props file may be missing from the NuGet package." />
+
+    <!-- Compute paths using version (now available) -->
+    <PropertyGroup>
+      <_CopilotCacheDir>$(IntermediateOutputPath)copilot-cli\$(CopilotCliVersion)\$(_CopilotPlatform)</_CopilotCacheDir>
+      <_CopilotCliBinaryPath>$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
+      <_CopilotArchivePath>$(_CopilotCacheDir)\copilot.tgz</_CopilotArchivePath>
+      <_CopilotNormalizedRegistryUrl>$([System.String]::Copy('$(CopilotNpmRegistryUrl)').TrimEnd('/'))</_CopilotNormalizedRegistryUrl>
+      <_CopilotDownloadUrl>$(_CopilotNormalizedRegistryUrl)/@github/copilot-$(_CopilotPlatform)/-/copilot-$(_CopilotPlatform)-$(CopilotCliVersion).tgz</_CopilotDownloadUrl>
+      <!-- DownloadFile Timeout is in milliseconds; convert from user-facing seconds -->
+      <_CopilotCliDownloadTimeoutMs>$([System.Convert]::ToInt32($([MSBuild]::Multiply($(CopilotCliDownloadTimeout), 1000))))</_CopilotCliDownloadTimeoutMs>
+    </PropertyGroup>
+
+    <!-- Delete archive if binary missing (handles partial/corrupted downloads) -->
+    <Delete Files="$(_CopilotArchivePath)" Condition="!Exists('$(_CopilotCliBinaryPath)') And Exists('$(_CopilotArchivePath)')" />
+
+    <!-- Download if not cached -->
+    <MakeDir Directories="$(_CopilotCacheDir)" Condition="!Exists('$(_CopilotCliBinaryPath)')" />
+    <Message Importance="high" Text="Downloading Copilot CLI $(CopilotCliVersion) for $(_CopilotPlatform)..." Condition="!Exists('$(_CopilotCliBinaryPath)')" />
+    <DownloadFile SourceUrl="$(_CopilotDownloadUrl)" DestinationFolder="$(_CopilotCacheDir)" DestinationFileName="copilot.tgz"
+                  Timeout="$(_CopilotCliDownloadTimeoutMs)"
+                  Condition="!Exists('$(_CopilotCliBinaryPath)')" />
+
+    <!-- Extract using tar (use Windows system tar explicitly to avoid Git bash tar issues) -->
+    <PropertyGroup>
+      <_TarCommand Condition="$([MSBuild]::IsOSPlatform('Windows'))">$(SystemRoot)\System32\tar.exe</_TarCommand>
+      <_TarCommand Condition="'$(_TarCommand)' == ''">tar</_TarCommand>
+    </PropertyGroup>
+    <Exec Command="&quot;$(_TarCommand)&quot; -xzf &quot;$(_CopilotArchivePath)&quot; --strip-components=1 -C &quot;$(_CopilotCacheDir)&quot;"
+          Condition="!Exists('$(_CopilotCliBinaryPath)')" />
+
+    <Error Condition="!Exists('$(_CopilotCliBinaryPath)')" Text="Failed to extract Copilot CLI binary to $(_CopilotCliBinaryPath)" />
+  </Target>
+
+  <!-- Copy CLI binary to output runtimes folder and register for transitive copy -->
+  <Target Name="_CopyCopilotCliToOutput" AfterTargets="Build" DependsOnTargets="_DownloadCopilotCli" Condition="'$(CopilotSkipCliDownload)' != 'true' And '$(_CopilotPlatform)' != ''">
+    <PropertyGroup>
+      <_CopilotCacheDir>$(IntermediateOutputPath)copilot-cli\$(CopilotCliVersion)\$(_CopilotPlatform)</_CopilotCacheDir>
+      <_CopilotCliBinaryPath>$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
+      <_CopilotOutputDir>$(OutDir)runtimes\$(_CopilotRid)\native</_CopilotOutputDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(_CopilotOutputDir)" />
+    <Copy SourceFiles="$(_CopilotCliBinaryPath)" DestinationFolder="$(_CopilotOutputDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- Register CLI binary as content so it flows through project references -->
+  <Target Name="_RegisterCopilotCliForCopy" BeforeTargets="GetCopyToOutputDirectoryItems" DependsOnTargets="_DownloadCopilotCli" Condition="'$(CopilotSkipCliDownload)' != 'true' And '$(_CopilotPlatform)' != ''">
+    <PropertyGroup>
+      <_CopilotCacheDir>$(IntermediateOutputPath)copilot-cli\$(CopilotCliVersion)\$(_CopilotPlatform)</_CopilotCacheDir>
+      <_CopilotCliBinaryPath>$(_CopilotCacheDir)\$(_CopilotBinary)</_CopilotCliBinaryPath>
+    </PropertyGroup>
+    <ItemGroup>
+      <ContentWithTargetPath Include="$(_CopilotCliBinaryPath)" 
+                             TargetPath="runtimes\$(_CopilotRid)\native\$(_CopilotBinary)"
+                             CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
+</Project>

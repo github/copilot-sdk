@@ -21,6 +21,7 @@ func TestCompaction(t *testing.T) {
 		bufferThreshold := 0.01      // 1%
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			InfiniteSessions: &copilot.InfiniteSessionConfig{
 				Enabled:                       &enabled,
 				BackgroundCompactionThreshold: &backgroundThreshold,
@@ -44,7 +45,7 @@ func TestCompaction(t *testing.T) {
 		})
 
 		// Send multiple messages to fill up the context window
-		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Tell me a long story about a dragon. Be very detailed."})
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Tell me a story about a dragon. Be detailed."})
 		if err != nil {
 			t.Fatalf("Failed to send first message: %v", err)
 		}
@@ -93,6 +94,7 @@ func TestCompaction(t *testing.T) {
 
 		enabled := false
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			InfiniteSessions: &copilot.InfiniteSessionConfig{
 				Enabled: &enabled,
 			},

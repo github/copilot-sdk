@@ -10,12 +10,22 @@ A Go SDK for programmatic access to the GitHub Copilot CLI.
 go get github.com/github/copilot-sdk/go
 ```
 
+## Run the Sample
+
+Try the interactive chat sample (from the repo root):
+
+```bash
+cd go/samples
+go run chat.go
+```
+
 ## Quick Start
 
 ```go
 package main
 
 import (
+	"context"
     "fmt"
     "log"
 
@@ -69,6 +79,18 @@ func main() {
 }
 ```
 
+## Distributing your application with an embedded GitHub Copilot CLI
+
+The SDK supports bundling, using Go's `embed` package, the Copilot CLI binary within your application's distribution.
+This allows you to bundle a specific CLI version and avoid external dependencies on the user's system.
+
+Follow these steps to embed the CLI:
+
+1. Run `go get -tool github.com/github/copilot-sdk/go/cmd/bundler`. This is a one-time setup step per project.
+2. Run `go tool bundler` in your build environment just before building your application.
+
+That's it! When your application calls `copilot.NewClient` without a `CLIPath` nor the `COPILOT_CLI_PATH` environment variable, the SDK will automatically install the embedded CLI to a cache directory and use it for all operations.
+
 ## API Reference
 
 ### Client
@@ -78,9 +100,9 @@ func main() {
 - `Stop() error` - Stop the CLI server
 - `ForceStop()` - Forcefully stop without graceful cleanup
 - `CreateSession(config *SessionConfig) (*Session, error)` - Create a new session
-- `ResumeSession(sessionID string) (*Session, error)` - Resume an existing session
+- `ResumeSession(sessionID string, config *ResumeSessionConfig) (*Session, error)` - Resume an existing session
 - `ResumeSessionWithOptions(sessionID string, config *ResumeSessionConfig) (*Session, error)` - Resume with additional configuration
-- `ListSessions() ([]SessionMetadata, error)` - List all sessions known to the server
+- `ListSessions(filter *SessionListFilter) ([]SessionMetadata, error)` - List sessions (with optional filter)
 - `DeleteSession(sessionID string) error` - Delete a session permanently
 - `GetState() ConnectionState` - Get connection state
 - `Ping(message string) (*PingResponse, error)` - Ping the server
@@ -117,8 +139,8 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `AutoStart` (\*bool): Auto-start server on first use (default: true). Use `Bool(false)` to disable.
 - `AutoRestart` (\*bool): Auto-restart on crash (default: true). Use `Bool(false)` to disable.
 - `Env` ([]string): Environment variables for CLI process (default: inherits from current process)
-- `GithubToken` (string): GitHub token for authentication. When provided, takes priority over other auth methods.
-- `UseLoggedInUser` (\*bool): Whether to use logged-in user for authentication (default: true, but false when `GithubToken` is provided). Cannot be used with `CLIUrl`.
+- `GitHubToken` (string): GitHub token for authentication. When provided, takes priority over other auth methods.
+- `UseLoggedInUser` (\*bool): Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `CLIUrl`.
 
 **SessionConfig:**
 
@@ -253,6 +275,7 @@ Enable streaming to receive assistant response chunks as they're generated:
 package main
 
 import (
+	"context"
     "fmt"
     "log"
 

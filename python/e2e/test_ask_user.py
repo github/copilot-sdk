@@ -4,6 +4,8 @@ Tests for user input (ask_user) functionality
 
 import pytest
 
+from copilot import PermissionHandler
+
 from .testharness import E2ETestContext
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
@@ -27,7 +29,12 @@ class TestAskUser:
                 "wasFreeform": not bool(choices),
             }
 
-        session = await ctx.client.create_session({"on_user_input_request": on_user_input_request})
+        session = await ctx.client.create_session(
+            {
+                "on_user_input_request": on_user_input_request,
+                "on_permission_request": PermissionHandler.approve_all,
+            }
+        )
 
         await session.send_and_wait(
             {
@@ -61,7 +68,12 @@ class TestAskUser:
                 "wasFreeform": False,
             }
 
-        session = await ctx.client.create_session({"on_user_input_request": on_user_input_request})
+        session = await ctx.client.create_session(
+            {
+                "on_user_input_request": on_user_input_request,
+                "on_permission_request": PermissionHandler.approve_all,
+            }
+        )
 
         await session.send_and_wait(
             {
@@ -97,7 +109,12 @@ class TestAskUser:
                 "wasFreeform": True,
             }
 
-        session = await ctx.client.create_session({"on_user_input_request": on_user_input_request})
+        session = await ctx.client.create_session(
+            {
+                "on_user_input_request": on_user_input_request,
+                "on_permission_request": PermissionHandler.approve_all,
+            }
+        )
 
         response = await session.send_and_wait(
             {

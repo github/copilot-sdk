@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 
-from copilot import PermissionRequest, PermissionRequestResult
+from copilot import PermissionHandler, PermissionRequest, PermissionRequestResult
 
 from .testharness import E2ETestContext
 from .testharness.helper import read_file, write_file
@@ -68,12 +68,86 @@ class TestPermissions:
 
         await session.destroy()
 
-    async def test_should_work_without_permission_handler__default_behavior_(
+    async def test_should_deny_tool_operations_when_handler_explicitly_denies(
         self, ctx: E2ETestContext
     ):
-        """Test that sessions work without permission handler (default behavior)"""
-        # Create session without on_permission_request handler
-        session = await ctx.client.create_session()
+        """Test that tool operations are denied when handler explicitly denies"""
+
+        def deny_all(request, invocation):
+            return {"kind": "denied-no-approval-rule-and-could-not-request-from-user"}
+
+        session = await ctx.client.create_session({"on_permission_request": deny_all})
+
+        denied_events = []
+        done_event = asyncio.Event()
+
+        def on_event(event):
+            if event.type.value == "tool.execution_complete" and event.data.success is False:
+                error = event.data.error
+                msg = (
+                    error
+                    if isinstance(error, str)
+                    else (getattr(error, "message", None) if error is not None else None)
+                )
+                if msg and "Permission denied" in msg:
+                    denied_events.append(event)
+            elif event.type.value == "session.idle":
+                done_event.set()
+
+        session.on(on_event)
+
+        await session.send({"prompt": "Run 'node --version'"})
+        await asyncio.wait_for(done_event.wait(), timeout=60)
+
+        assert len(denied_events) > 0
+
+        await session.destroy()
+
+    async def test_should_deny_tool_operations_when_handler_explicitly_denies_after_resume(
+        self, ctx: E2ETestContext
+    ):
+        """Test that tool operations are denied after resume when handler explicitly denies"""
+        session1 = await ctx.client.create_session(
+            {"on_permission_request": PermissionHandler.approve_all}
+        )
+        session_id = session1.session_id
+        await session1.send_and_wait({"prompt": "What is 1+1?"})
+
+        def deny_all(request, invocation):
+            return {"kind": "denied-no-approval-rule-and-could-not-request-from-user"}
+
+        session2 = await ctx.client.resume_session(session_id, {"on_permission_request": deny_all})
+
+        denied_events = []
+        done_event = asyncio.Event()
+
+        def on_event(event):
+            if event.type.value == "tool.execution_complete" and event.data.success is False:
+                error = event.data.error
+                msg = (
+                    error
+                    if isinstance(error, str)
+                    else (getattr(error, "message", None) if error is not None else None)
+                )
+                if msg and "Permission denied" in msg:
+                    denied_events.append(event)
+            elif event.type.value == "session.idle":
+                done_event.set()
+
+        session2.on(on_event)
+
+        await session2.send({"prompt": "Run 'node --version'"})
+        await asyncio.wait_for(done_event.wait(), timeout=60)
+
+        assert len(denied_events) > 0
+
+        await session2.destroy()
+
+    async def test_should_work_with_approve_all_permission_handler(self, ctx: E2ETestContext):
+        """Test that sessions work with approve-all permission handler"""
+        session = await ctx.client.create_session(
+            {"on_permission_request": PermissionHandler.approve_all}
+        )
 
         message = await session.send_and_wait({"prompt": "What is 2+2?"})
 
@@ -106,8 +180,10 @@ class TestPermissions:
         """Test resuming session with permission handler"""
         permission_requests = []
 
-        # Create session without permission handler
-        session1 = await ctx.client.create_session()
+        # Create initial session
+        session1 = await ctx.client.create_session(
+            {"on_permission_request": PermissionHandler.approve_all}
+        )
         session_id = session1.session_id
         await session1.send_and_wait({"prompt": "What is 1+1?"})
 

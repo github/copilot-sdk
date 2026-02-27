@@ -17,13 +17,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const SNAPSHOTS_DIR = resolve(__dirname, "../../../../test/snapshots");
 
-export const CLI_PATH =
-    process.env.COPILOT_CLI_PATH ||
-    resolve(__dirname, "../../../node_modules/@github/copilot/index.js");
-
 export async function createSdkTestContext({
     logLevel,
-}: { logLevel?: "error" | "none" | "warning" | "info" | "debug" | "all" } = {}) {
+}: { logLevel?: "error" | "none" | "warning" | "info" | "debug" | "all"; cliPath?: string } = {}) {
     const homeDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-config-")));
     const workDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-work-")));
 
@@ -41,10 +37,10 @@ export async function createSdkTestContext({
     };
 
     const copilotClient = new CopilotClient({
-        cliPath: CLI_PATH,
         cwd: workDir,
         env,
         logLevel: logLevel || "error",
+        cliPath: process.env.COPILOT_CLI_PATH,
         // Use fake token in CI to allow cached responses without real auth
         githubToken: process.env.CI === "true" ? "fake-token-for-e2e-tests" : undefined,
     });

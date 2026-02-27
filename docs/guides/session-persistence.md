@@ -164,6 +164,37 @@ var session = await client.ResumeSessionAsync("user-123-task-456");
 await session.SendAndWaitAsync(new MessageOptions { Prompt = "What did we discuss earlier?" });
 ```
 
+## Resume Options
+
+When resuming a session, you can optionally reconfigure many settings. This is useful when you need to change the model, update tool configurations, or modify behavior.
+
+| Option | Description |
+|--------|-------------|
+| `model` | Change the model for the resumed session |
+| `systemMessage` | Override or extend the system prompt |
+| `availableTools` | Restrict which tools are available |
+| `excludedTools` | Disable specific tools |
+| `provider` | Re-provide BYOK credentials (required for BYOK sessions) |
+| `reasoningEffort` | Adjust reasoning effort level |
+| `streaming` | Enable/disable streaming responses |
+| `workingDirectory` | Change the working directory |
+| `configDir` | Override configuration directory |
+| `mcpServers` | Configure MCP servers |
+| `customAgents` | Configure custom agents |
+| `skillDirectories` | Directories to load skills from |
+| `disabledSkills` | Skills to disable |
+| `infiniteSessions` | Configure infinite session behavior |
+
+### Example: Changing Model on Resume
+
+```typescript
+// Resume with a different model
+const session = await client.resumeSession("user-123-task-456", {
+  model: "claude-sonnet-4",  // Switch to a different model
+  reasoningEffort: "high",   // Increase reasoning effort
+});
+```
+
 ## Using BYOK (Bring Your Own Key) with Resumed Sessions
 
 When using your own API keys, you must re-provide the provider configuration when resuming. API keys are never persisted to disk for security reasons.
@@ -262,12 +293,16 @@ session_id = create_session_id("alice", "code-review")
 ### Listing Active Sessions
 
 ```typescript
+// List all sessions
 const sessions = await client.listSessions();
 console.log(`Found ${sessions.length} sessions`);
 
 for (const session of sessions) {
   console.log(`- ${session.sessionId} (created: ${session.createdAt})`);
 }
+
+// Filter sessions by repository
+const repoSessions = await client.listSessions({ repository: "owner/repo" });
 ```
 
 ### Cleaning Up Old Sessions
@@ -490,7 +525,7 @@ await withSessionLock("user-123-task-456", async () => {
 | **Create resumable session** | Provide your own `sessionId` |
 | **Resume session** | `client.resumeSession(sessionId)` |
 | **BYOK resume** | Re-provide `provider` config |
-| **List sessions** | `client.listSessions()` |
+| **List sessions** | `client.listSessions(filter?)` |
 | **Delete session** | `client.deleteSession(sessionId)` |
 | **Destroy active session** | `session.destroy()` |
 | **Containerized deployment** | Mount `~/.copilot/session-state/` to persistent storage |

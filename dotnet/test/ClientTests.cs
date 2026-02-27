@@ -8,37 +8,12 @@ namespace GitHub.Copilot.SDK.Test;
 
 // These tests bypass E2ETestBase because they are about how the CLI subprocess is started
 // Other test classes should instead inherit from E2ETestBase
-public class ClientTests : IAsyncLifetime
+public class ClientTests
 {
-    private string _cliPath = null!;
-
-    public Task InitializeAsync()
-    {
-        _cliPath = GetCliPath();
-        return Task.CompletedTask;
-    }
-
-    public Task DisposeAsync() => Task.CompletedTask;
-
-    private static string GetCliPath()
-    {
-        var envPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
-        if (!string.IsNullOrEmpty(envPath)) return envPath;
-
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null)
-        {
-            var path = Path.Combine(dir.FullName, "nodejs/node_modules/@github/copilot/index.js");
-            if (File.Exists(path)) return path;
-            dir = dir.Parent;
-        }
-        throw new InvalidOperationException("CLI not found. Run 'npm install' in the nodejs directory first.");
-    }
-
     [Fact]
     public async Task Should_Start_And_Connect_To_Server_Using_Stdio()
     {
-        using var client = new CopilotClient(new CopilotClientOptions { CliPath = _cliPath, UseStdio = true });
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = true });
 
         try
         {
@@ -61,7 +36,7 @@ public class ClientTests : IAsyncLifetime
     [Fact]
     public async Task Should_Start_And_Connect_To_Server_Using_Tcp()
     {
-        using var client = new CopilotClient(new CopilotClientOptions { CliPath = _cliPath, UseStdio = false });
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = false });
 
         try
         {
@@ -82,9 +57,9 @@ public class ClientTests : IAsyncLifetime
     [Fact]
     public async Task Should_Force_Stop_Without_Cleanup()
     {
-        using var client = new CopilotClient(new CopilotClientOptions { CliPath = _cliPath });
+        using var client = new CopilotClient(new CopilotClientOptions());
 
-        await client.CreateSessionAsync();
+        await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
         await client.ForceStopAsync();
 
         Assert.Equal(ConnectionState.Disconnected, client.State);
@@ -93,7 +68,7 @@ public class ClientTests : IAsyncLifetime
     [Fact]
     public async Task Should_Get_Status_With_Version_And_Protocol_Info()
     {
-        using var client = new CopilotClient(new CopilotClientOptions { CliPath = _cliPath, UseStdio = true });
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = true });
 
         try
         {
@@ -115,7 +90,7 @@ public class ClientTests : IAsyncLifetime
     [Fact]
     public async Task Should_Get_Auth_Status()
     {
-        using var client = new CopilotClient(new CopilotClientOptions { CliPath = _cliPath, UseStdio = true });
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = true });
 
         try
         {
@@ -140,7 +115,7 @@ public class ClientTests : IAsyncLifetime
     [Fact]
     public async Task Should_List_Models_When_Authenticated()
     {
-        using var client = new CopilotClient(new CopilotClientOptions { CliPath = _cliPath, UseStdio = true });
+        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = true });
 
         try
         {
@@ -174,21 +149,20 @@ public class ClientTests : IAsyncLifetime
     }
 
     [Fact]
-    public void Should_Accept_GithubToken_Option()
+    public void Should_Accept_GitHubToken_Option()
     {
         var options = new CopilotClientOptions
         {
-            CliPath = _cliPath,
-            GithubToken = "gho_test_token"
+            GitHubToken = "gho_test_token"
         };
 
-        Assert.Equal("gho_test_token", options.GithubToken);
+        Assert.Equal("gho_test_token", options.GitHubToken);
     }
 
     [Fact]
     public void Should_Default_UseLoggedInUser_To_Null()
     {
-        var options = new CopilotClientOptions { CliPath = _cliPath };
+        var options = new CopilotClientOptions();
 
         Assert.Null(options.UseLoggedInUser);
     }
@@ -198,7 +172,6 @@ public class ClientTests : IAsyncLifetime
     {
         var options = new CopilotClientOptions
         {
-            CliPath = _cliPath,
             UseLoggedInUser = false
         };
 
@@ -206,12 +179,11 @@ public class ClientTests : IAsyncLifetime
     }
 
     [Fact]
-    public void Should_Allow_Explicit_UseLoggedInUser_True_With_GithubToken()
+    public void Should_Allow_Explicit_UseLoggedInUser_True_With_GitHubToken()
     {
         var options = new CopilotClientOptions
         {
-            CliPath = _cliPath,
-            GithubToken = "gho_test_token",
+            GitHubToken = "gho_test_token",
             UseLoggedInUser = true
         };
 
@@ -219,14 +191,14 @@ public class ClientTests : IAsyncLifetime
     }
 
     [Fact]
-    public void Should_Throw_When_GithubToken_Used_With_CliUrl()
+    public void Should_Throw_When_GitHubToken_Used_With_CliUrl()
     {
         Assert.Throws<ArgumentException>(() =>
         {
             _ = new CopilotClient(new CopilotClientOptions
             {
                 CliUrl = "localhost:8080",
-                GithubToken = "gho_test_token"
+                GitHubToken = "gho_test_token"
             });
         });
     }
@@ -242,5 +214,73 @@ public class ClientTests : IAsyncLifetime
                 UseLoggedInUser = false
             });
         });
+    }
+
+    [Fact]
+    public async Task Should_Not_Throw_When_Disposing_Session_After_Stopping_Client()
+    {
+        await using var client = new CopilotClient(new CopilotClientOptions());
+        await using var session = await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
+
+        await client.StopAsync();
+    }
+
+    [Fact]
+    public async Task Should_Report_Error_With_Stderr_When_CLI_Fails_To_Start()
+    {
+        var client = new CopilotClient(new CopilotClientOptions
+        {
+            CliArgs = new[] { "--nonexistent-flag-for-testing" },
+            UseStdio = true
+        });
+
+        var ex = await Assert.ThrowsAsync<IOException>(async () =>
+        {
+            await client.StartAsync();
+        });
+
+        var errorMessage = ex.Message;
+        // Verify we get the stderr output in the error message
+        Assert.Contains("stderr", errorMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("nonexistent", errorMessage, StringComparison.OrdinalIgnoreCase);
+
+        // Verify subsequent calls also fail (don't hang)
+        var ex2 = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        {
+            var session = await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
+            await session.SendAsync(new MessageOptions { Prompt = "test" });
+        });
+        Assert.Contains("exited", ex2.Message, StringComparison.OrdinalIgnoreCase);
+
+        // Cleanup - ForceStop should handle the disconnected state gracefully
+        try { await client.ForceStopAsync(); } catch (Exception) { /* Expected */ }
+    }
+
+    [Fact]
+    public async Task Should_Throw_When_CreateSession_Called_Without_PermissionHandler()
+    {
+        using var client = new CopilotClient(new CopilotClientOptions());
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(async () =>
+        {
+            await client.CreateSessionAsync(new SessionConfig());
+        });
+
+        Assert.Contains("OnPermissionRequest", ex.Message);
+        Assert.Contains("is required", ex.Message);
+    }
+
+    [Fact]
+    public async Task Should_Throw_When_ResumeSession_Called_Without_PermissionHandler()
+    {
+        using var client = new CopilotClient(new CopilotClientOptions());
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(async () =>
+        {
+            await client.ResumeSessionAsync("some-session-id", new ResumeSessionConfig());
+        });
+
+        Assert.Contains("OnPermissionRequest", ex.Message);
+        Assert.Contains("is required", ex.Message);
     }
 }

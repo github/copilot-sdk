@@ -5,6 +5,7 @@
 using GitHub.Copilot.SDK.Test.Harness;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Xunit;
@@ -21,7 +22,10 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
             Path.Combine(Ctx.WorkDir, "README.md"),
             "# ELIZA, the only chatbot you'll ever need");
 
-        var session = await Client.CreateSessionAsync();
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
 
         await session.SendAsync(new MessageOptions
         {
@@ -36,9 +40,10 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
     [Fact]
     public async Task Invokes_Custom_Tool()
     {
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             Tools = [AIFunctionFactory.Create(EncryptString, "encrypt_string")],
+            OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
         await session.SendAsync(new MessageOptions
@@ -61,9 +66,10 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
         var getUserLocation = AIFunctionFactory.Create(
             () => { throw new Exception("Melbourne"); }, "get_user_location", "Gets the user's location");
 
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
-            Tools = [getUserLocation]
+            Tools = [getUserLocation],
+            OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
         await session.SendAsync(new MessageOptions { Prompt = "What is my location? If you can't find out, just say 'unknown'." });
@@ -102,9 +108,10 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
     public async Task Can_Receive_And_Return_Complex_Types()
     {
         ToolInvocation? receivedInvocation = null;
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             Tools = [AIFunctionFactory.Create(PerformDbQuery, "db_query", serializerOptions: ToolsTestsJsonContext.Default.Options)],
+            OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
         await session.SendAsync(new MessageOptions
@@ -148,9 +155,10 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
     [Fact(Skip = "Behaves as if no content was in the result. Likely that binary results aren't fully implemented yet.")]
     public async Task Can_Return_Binary_Result()
     {
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             Tools = [AIFunctionFactory.Create(GetImage, "get_image")],
+            OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
         await session.SendAsync(new MessageOptions
@@ -173,5 +181,73 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
             }],
             SessionLog = "Returned an image",
         });
+    }
+
+    [Fact]
+    public async Task Invokes_Custom_Tool_With_Permission_Handler()
+    {
+        var permissionRequests = new List<PermissionRequest>();
+
+        var session = await Client.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [AIFunctionFactory.Create(EncryptStringForPermission, "encrypt_string")],
+            OnPermissionRequest = (request, invocation) =>
+            {
+                permissionRequests.Add(request);
+                return Task.FromResult(new PermissionRequestResult { Kind = "approved" });
+            },
+        });
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Use encrypt_string to encrypt this string: Hello"
+        });
+
+        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        Assert.NotNull(assistantMessage);
+        Assert.Contains("HELLO", assistantMessage!.Data.Content ?? string.Empty);
+
+        // Should have received a custom-tool permission request with the correct tool name
+        var customToolRequest = permissionRequests.FirstOrDefault(r => r.Kind == "custom-tool");
+        Assert.NotNull(customToolRequest);
+        Assert.True(customToolRequest!.ExtensionData?.ContainsKey("toolName") ?? false);
+        var toolName = ((JsonElement)customToolRequest.ExtensionData!["toolName"]).GetString();
+        Assert.Equal("encrypt_string", toolName);
+
+        [Description("Encrypts a string")]
+        static string EncryptStringForPermission([Description("String to encrypt")] string input)
+            => input.ToUpperInvariant();
+    }
+
+    [Fact]
+    public async Task Denies_Custom_Tool_When_Permission_Denied()
+    {
+        var toolHandlerCalled = false;
+
+        var session = await Client.CreateSessionAsync(new SessionConfig
+        {
+            Tools = [AIFunctionFactory.Create(EncryptStringDenied, "encrypt_string")],
+            OnPermissionRequest = (request, invocation) =>
+            {
+                return Task.FromResult(new PermissionRequestResult { Kind = "denied-interactively-by-user" });
+            },
+        });
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Use encrypt_string to encrypt this string: Hello"
+        });
+
+        await TestHelper.GetFinalAssistantMessageAsync(session);
+
+        // The tool handler should NOT have been called since permission was denied
+        Assert.False(toolHandlerCalled);
+
+        [Description("Encrypts a string")]
+        string EncryptStringDenied([Description("String to encrypt")] string input)
+        {
+            toolHandlerCalled = true;
+            return input.ToUpperInvariant();
+        }
     }
 }

@@ -15,8 +15,9 @@ public class HooksTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ET
     {
         var preToolUseInputs = new List<PreToolUseHookInput>();
         CopilotSession? session = null;
-        session = await Client.CreateSessionAsync(new SessionConfig
+        session = await CreateSessionAsync(new SessionConfig
         {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
             Hooks = new SessionHooks
             {
                 OnPreToolUse = (input, invocation) =>
@@ -50,8 +51,9 @@ public class HooksTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ET
     {
         var postToolUseInputs = new List<PostToolUseHookInput>();
         CopilotSession? session = null;
-        session = await Client.CreateSessionAsync(new SessionConfig
+        session = await CreateSessionAsync(new SessionConfig
         {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
             Hooks = new SessionHooks
             {
                 OnPostToolUse = (input, invocation) =>
@@ -87,8 +89,9 @@ public class HooksTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ET
         var preToolUseInputs = new List<PreToolUseHookInput>();
         var postToolUseInputs = new List<PostToolUseHookInput>();
 
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
             Hooks = new SessionHooks
             {
                 OnPreToolUse = (input, invocation) =>
@@ -128,8 +131,9 @@ public class HooksTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ET
     {
         var preToolUseInputs = new List<PreToolUseHookInput>();
 
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
             Hooks = new SessionHooks
             {
                 OnPreToolUse = (input, invocation) =>

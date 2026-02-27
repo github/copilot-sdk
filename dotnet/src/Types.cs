@@ -24,6 +24,37 @@ public enum ConnectionState
 
 public class CopilotClientOptions
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CopilotClientOptions"/> class.
+    /// </summary>
+    public CopilotClientOptions() { }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CopilotClientOptions"/> class
+    /// by copying the properties of the specified instance.
+    /// </summary>
+    protected CopilotClientOptions(CopilotClientOptions? other)
+    {
+        if (other is null) return;
+
+        AutoRestart = other.AutoRestart;
+        AutoStart = other.AutoStart;
+        CliArgs = (string[]?)other.CliArgs?.Clone();
+        CliPath = other.CliPath;
+        CliUrl = other.CliUrl;
+        Cwd = other.Cwd;
+        Environment = other.Environment;
+        GitHubToken = other.GitHubToken;
+        Logger = other.Logger;
+        LogLevel = other.LogLevel;
+        Port = other.Port;
+        UseLoggedInUser = other.UseLoggedInUser;
+        UseStdio = other.UseStdio;
+    }
+
+    /// <summary>
+    /// Path to the Copilot CLI executable. If not specified, uses the bundled CLI from the SDK.
+    /// </summary>
     public string? CliPath { get; set; }
     public string[]? CliArgs { get; set; }
     public string? Cwd { get; set; }
@@ -41,15 +72,36 @@ public class CopilotClientOptions
     /// When provided, the token is passed to the CLI server via environment variable.
     /// This takes priority over other authentication methods.
     /// </summary>
-    public string? GithubToken { get; set; }
+    public string? GitHubToken { get; set; }
+
+    /// <summary>
+    /// Obsolete. Use <see cref="GitHubToken"/> instead.
+    /// </summary>
+    [Obsolete("Use GitHubToken instead.", error: false)]
+    public string? GithubToken
+    {
+        get => GitHubToken;
+        set => GitHubToken = value;
+    }
 
     /// <summary>
     /// Whether to use the logged-in user for authentication.
     /// When true, the CLI server will attempt to use stored OAuth tokens or gh CLI auth.
-    /// When false, only explicit tokens (GithubToken or environment variables) are used.
-    /// Default: true (but defaults to false when GithubToken is provided).
+    /// When false, only explicit tokens (GitHubToken or environment variables) are used.
+    /// Default: true (but defaults to false when GitHubToken is provided).
     /// </summary>
     public bool? UseLoggedInUser { get; set; }
+
+    /// <summary>
+    /// Creates a shallow clone of this <see cref="CopilotClientOptions"/> instance.
+    /// </summary>
+    /// <remarks>
+    /// Mutable collection properties are copied into new collection instances so that modifications
+    /// to those collections on the clone do not affect the original.
+    /// Other reference-type properties (for example delegates and the logger) are not
+    /// deep-cloned; the original and the clone will share those objects.
+    /// </remarks>
+    public virtual CopilotClientOptions Clone() => new(this);
 }
 
 public class ToolBinaryResult
@@ -124,7 +176,7 @@ public class PermissionInvocation
     public string SessionId { get; set; } = string.Empty;
 }
 
-public delegate Task<PermissionRequestResult> PermissionHandler(PermissionRequest request, PermissionInvocation invocation);
+public delegate Task<PermissionRequestResult> PermissionRequestHandler(PermissionRequest request, PermissionInvocation invocation);
 
 // ============================================================================
 // User Input Handler Types
@@ -689,7 +741,51 @@ public class InfiniteSessionConfig
 
 public class SessionConfig
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SessionConfig"/> class.
+    /// </summary>
+    public SessionConfig() { }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SessionConfig"/> class
+    /// by copying the properties of the specified instance.
+    /// </summary>
+    protected SessionConfig(SessionConfig? other)
+    {
+        if (other is null) return;
+
+        AvailableTools = other.AvailableTools is not null ? [.. other.AvailableTools] : null;
+        ClientName = other.ClientName;
+        ConfigDir = other.ConfigDir;
+        CustomAgents = other.CustomAgents is not null ? [.. other.CustomAgents] : null;
+        DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
+        ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
+        Hooks = other.Hooks;
+        InfiniteSessions = other.InfiniteSessions;
+        McpServers = other.McpServers is not null
+            ? new Dictionary<string, object>(other.McpServers, other.McpServers.Comparer)
+            : null;
+        Model = other.Model;
+        OnPermissionRequest = other.OnPermissionRequest;
+        OnUserInputRequest = other.OnUserInputRequest;
+        Provider = other.Provider;
+        ReasoningEffort = other.ReasoningEffort;
+        SessionId = other.SessionId;
+        SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
+        Streaming = other.Streaming;
+        SystemMessage = other.SystemMessage;
+        Tools = other.Tools is not null ? [.. other.Tools] : null;
+        WorkingDirectory = other.WorkingDirectory;
+    }
+
     public string? SessionId { get; set; }
+
+    /// <summary>
+    /// Client name to identify the application using the SDK.
+    /// Included in the User-Agent header for API requests.
+    /// </summary>
+    public string? ClientName { get; set; }
+
     public string? Model { get; set; }
 
     /// <summary>
@@ -715,7 +811,7 @@ public class SessionConfig
     /// Handler for permission requests from the server.
     /// When provided, the server will call this handler to request permission for operations.
     /// </summary>
-    public PermissionHandler? OnPermissionRequest { get; set; }
+    public PermissionRequestHandler? OnPermissionRequest { get; set; }
 
     /// <summary>
     /// Handler for user input requests from the agent.
@@ -766,11 +862,89 @@ public class SessionConfig
     /// When enabled (default), sessions automatically manage context limits and persist state.
     /// </summary>
     public InfiniteSessionConfig? InfiniteSessions { get; set; }
+
+    /// <summary>
+    /// Creates a shallow clone of this <see cref="SessionConfig"/> instance.
+    /// </summary>
+    /// <remarks>
+    /// Mutable collection properties are copied into new collection instances so that modifications
+    /// to those collections on the clone do not affect the original.
+    /// Other reference-type properties (for example provider configuration, system messages,
+    /// hooks, infinite session configuration, and delegates) are not deep-cloned; the original
+    /// and the clone will share those nested objects, and changes to them may affect both.
+    /// </remarks>
+    public virtual SessionConfig Clone() => new(this);
 }
 
 public class ResumeSessionConfig
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ResumeSessionConfig"/> class.
+    /// </summary>
+    public ResumeSessionConfig() { }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ResumeSessionConfig"/> class
+    /// by copying the properties of the specified instance.
+    /// </summary>
+    protected ResumeSessionConfig(ResumeSessionConfig? other)
+    {
+        if (other is null) return;
+
+        AvailableTools = other.AvailableTools is not null ? [.. other.AvailableTools] : null;
+        ClientName = other.ClientName;
+        ConfigDir = other.ConfigDir;
+        CustomAgents = other.CustomAgents is not null ? [.. other.CustomAgents] : null;
+        DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
+        DisableResume = other.DisableResume;
+        ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
+        Hooks = other.Hooks;
+        InfiniteSessions = other.InfiniteSessions;
+        McpServers = other.McpServers is not null
+            ? new Dictionary<string, object>(other.McpServers, other.McpServers.Comparer)
+            : null;
+        Model = other.Model;
+        OnPermissionRequest = other.OnPermissionRequest;
+        OnUserInputRequest = other.OnUserInputRequest;
+        Provider = other.Provider;
+        ReasoningEffort = other.ReasoningEffort;
+        SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
+        Streaming = other.Streaming;
+        SystemMessage = other.SystemMessage;
+        Tools = other.Tools is not null ? [.. other.Tools] : null;
+        WorkingDirectory = other.WorkingDirectory;
+    }
+
+    /// <summary>
+    /// Client name to identify the application using the SDK.
+    /// Included in the User-Agent header for API requests.
+    /// </summary>
+    public string? ClientName { get; set; }
+
+    /// <summary>
+    /// Model to use for this session. Can change the model when resuming.
+    /// </summary>
+    public string? Model { get; set; }
+
     public ICollection<AIFunction>? Tools { get; set; }
+
+    /// <summary>
+    /// System message configuration.
+    /// </summary>
+    public SystemMessageConfig? SystemMessage { get; set; }
+
+    /// <summary>
+    /// List of tool names to allow. When specified, only these tools will be available.
+    /// Takes precedence over ExcludedTools.
+    /// </summary>
+    public List<string>? AvailableTools { get; set; }
+
+    /// <summary>
+    /// List of tool names to disable. All other tools remain available.
+    /// Ignored if AvailableTools is specified.
+    /// </summary>
+    public List<string>? ExcludedTools { get; set; }
+
     public ProviderConfig? Provider { get; set; }
 
     /// <summary>
@@ -783,7 +957,7 @@ public class ResumeSessionConfig
     /// Handler for permission requests from the server.
     /// When provided, the server will call this handler to request permission for operations.
     /// </summary>
-    public PermissionHandler? OnPermissionRequest { get; set; }
+    public PermissionRequestHandler? OnPermissionRequest { get; set; }
 
     /// <summary>
     /// Handler for user input requests from the agent.
@@ -800,6 +974,11 @@ public class ResumeSessionConfig
     /// Working directory for the session.
     /// </summary>
     public string? WorkingDirectory { get; set; }
+
+    /// <summary>
+    /// Override the default configuration directory location.
+    /// </summary>
+    public string? ConfigDir { get; set; }
 
     /// <summary>
     /// When true, the session.resume event is not emitted.
@@ -834,16 +1013,92 @@ public class ResumeSessionConfig
     /// List of skill names to disable.
     /// </summary>
     public List<string>? DisabledSkills { get; set; }
+
+    /// <summary>
+    /// Infinite session configuration for persistent workspaces and automatic compaction.
+    /// </summary>
+    public InfiniteSessionConfig? InfiniteSessions { get; set; }
+
+    /// <summary>
+    /// Creates a shallow clone of this <see cref="ResumeSessionConfig"/> instance.
+    /// </summary>
+    /// <remarks>
+    /// Mutable collection properties are copied into new collection instances so that modifications
+    /// to those collections on the clone do not affect the original.
+    /// Other reference-type properties (for example provider configuration, system messages,
+    /// hooks, infinite session configuration, and delegates) are not deep-cloned; the original
+    /// and the clone will share those nested objects, and changes to them may affect both.
+    /// </remarks>
+    public virtual ResumeSessionConfig Clone() => new(this);
 }
 
 public class MessageOptions
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MessageOptions"/> class.
+    /// </summary>
+    public MessageOptions() { }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MessageOptions"/> class
+    /// by copying the properties of the specified instance.
+    /// </summary>
+    protected MessageOptions(MessageOptions? other)
+    {
+        if (other is null) return;
+
+        Attachments = other.Attachments is not null ? [.. other.Attachments] : null;
+        Mode = other.Mode;
+        Prompt = other.Prompt;
+    }
+
     public string Prompt { get; set; } = string.Empty;
     public List<UserMessageDataAttachmentsItem>? Attachments { get; set; }
     public string? Mode { get; set; }
+
+    /// <summary>
+    /// Creates a shallow clone of this <see cref="MessageOptions"/> instance.
+    /// </summary>
+    /// <remarks>
+    /// Mutable collection properties are copied into new collection instances so that modifications
+    /// to those collections on the clone do not affect the original.
+    /// Other reference-type properties (for example attachment items) are not deep-cloned;
+    /// the original and the clone will share those nested objects.
+    /// </remarks>
+    public virtual MessageOptions Clone() => new(this);
 }
 
 public delegate void SessionEventHandler(SessionEvent sessionEvent);
+
+/// <summary>
+/// Working directory context for a session.
+/// </summary>
+public class SessionContext
+{
+    /// <summary>Working directory where the session was created.</summary>
+    public string Cwd { get; set; } = string.Empty;
+    /// <summary>Git repository root (if in a git repo).</summary>
+    public string? GitRoot { get; set; }
+    /// <summary>GitHub repository in "owner/repo" format.</summary>
+    public string? Repository { get; set; }
+    /// <summary>Current git branch.</summary>
+    public string? Branch { get; set; }
+}
+
+/// <summary>
+/// Filter options for listing sessions.
+/// </summary>
+public class SessionListFilter
+{
+    /// <summary>Filter by exact cwd match.</summary>
+    public string? Cwd { get; set; }
+    /// <summary>Filter by git root.</summary>
+    public string? GitRoot { get; set; }
+    /// <summary>Filter by repository (owner/repo format).</summary>
+    public string? Repository { get; set; }
+    /// <summary>Filter by branch.</summary>
+    public string? Branch { get; set; }
+}
 
 public class SessionMetadata
 {
@@ -852,6 +1107,8 @@ public class SessionMetadata
     public DateTime ModifiedTime { get; set; }
     public string? Summary { get; set; }
     public bool IsRemote { get; set; }
+    /// <summary>Working directory context (cwd, git info) from session creation.</summary>
+    public SessionContext? Context { get; set; }
 }
 
 internal class PingRequest
@@ -1123,8 +1380,10 @@ public class SetForegroundSessionResponse
 [JsonSerializable(typeof(PingRequest))]
 [JsonSerializable(typeof(PingResponse))]
 [JsonSerializable(typeof(ProviderConfig))]
+[JsonSerializable(typeof(SessionContext))]
 [JsonSerializable(typeof(SessionLifecycleEvent))]
 [JsonSerializable(typeof(SessionLifecycleEventMetadata))]
+[JsonSerializable(typeof(SessionListFilter))]
 [JsonSerializable(typeof(SessionMetadata))]
 [JsonSerializable(typeof(SetForegroundSessionResponse))]
 [JsonSerializable(typeof(SystemMessageConfig))]

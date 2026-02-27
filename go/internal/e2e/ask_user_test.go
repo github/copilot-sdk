@@ -20,6 +20,7 @@ func TestAskUser(t *testing.T) {
 		var mu sync.Mutex
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			OnUserInputRequest: func(request copilot.UserInputRequest, invocation copilot.UserInputInvocation) (copilot.UserInputResponse, error) {
 				mu.Lock()
 				userInputRequests = append(userInputRequests, request)
@@ -80,6 +81,7 @@ func TestAskUser(t *testing.T) {
 		var mu sync.Mutex
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			OnUserInputRequest: func(request copilot.UserInputRequest, invocation copilot.UserInputInvocation) (copilot.UserInputResponse, error) {
 				mu.Lock()
 				userInputRequests = append(userInputRequests, request)
@@ -135,6 +137,7 @@ func TestAskUser(t *testing.T) {
 		freeformAnswer := "This is my custom freeform answer that was not in the choices"
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			OnUserInputRequest: func(request copilot.UserInputRequest, invocation copilot.UserInputInvocation) (copilot.UserInputResponse, error) {
 				mu.Lock()
 				userInputRequests = append(userInputRequests, request)

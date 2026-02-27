@@ -52,7 +52,7 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
     public async Task Should_Load_And_Apply_Skill_From_SkillDirectories()
     {
         var skillsDir = CreateSkillDir();
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             SkillDirectories = [skillsDir]
         });
@@ -71,7 +71,7 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
     public async Task Should_Not_Apply_Skill_When_Disabled_Via_DisabledSkills()
     {
         var skillsDir = CreateSkillDir();
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             SkillDirectories = [skillsDir],
             DisabledSkills = ["test-skill"]
@@ -93,7 +93,7 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
         var skillsDir = CreateSkillDir();
 
         // Create a session without skills first
-        var session1 = await Client.CreateSessionAsync();
+        var session1 = await CreateSessionAsync();
         var sessionId = session1.SessionId;
 
         // First message without skill - marker should not appear
@@ -102,7 +102,7 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
         Assert.DoesNotContain(SkillMarker, message1!.Data.Content);
 
         // Resume with skillDirectories - skill should now be active
-        var session2 = await Client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
             SkillDirectories = [skillsDir]
         });

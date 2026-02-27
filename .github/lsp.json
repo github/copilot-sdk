@@ -15,7 +15,7 @@
       "rootUri": "dotnet"
     },
     "go": {
-      "command": "${HOME}/go/bin/gopls",
+      "command": "gopls",
       "args": ["serve"],
       "fileExtensions": {
         ".go": "go"

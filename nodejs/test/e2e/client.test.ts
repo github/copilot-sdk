@@ -1,7 +1,6 @@
 import { ChildProcess } from "child_process";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { CopilotClient } from "../../src/index.js";
-import { CLI_PATH } from "./harness/sdkTestContext.js";
+import { CopilotClient, approveAll } from "../../src/index.js";
 
 function onTestFinishedForceStop(client: CopilotClient) {
     onTestFinished(async () => {
@@ -15,7 +14,7 @@ function onTestFinishedForceStop(client: CopilotClient) {
 
 describe("Client", () => {
     it("should start and connect to server using stdio", async () => {
-        const client = new CopilotClient({ cliPath: CLI_PATH, useStdio: true });
+        const client = new CopilotClient({ useStdio: true });
         onTestFinishedForceStop(client);
 
         await client.start();
@@ -30,7 +29,7 @@ describe("Client", () => {
     });
 
     it("should start and connect to server using tcp", async () => {
-        const client = new CopilotClient({ cliPath: CLI_PATH, useStdio: false });
+        const client = new CopilotClient({ useStdio: false });
         onTestFinishedForceStop(client);
 
         await client.start();
@@ -50,11 +49,11 @@ describe("Client", () => {
         // saying "Cannot call write after a stream was destroyed"
         // because the JSON-RPC logic is still trying to write to stdin after
         // the process has exited.
-        const client = new CopilotClient({ cliPath: CLI_PATH, useStdio: false });
+        const client = new CopilotClient({ useStdio: false });
 
-        await client.createSession();
+        await client.createSession({ onPermissionRequest: approveAll });
 
-        // Kill the server process to force cleanup to fail
+        // Kill the server processto force cleanup to fail
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const cliProcess = (client as any).cliProcess as ChildProcess;
         expect(cliProcess).toBeDefined();
@@ -67,16 +66,16 @@ describe("Client", () => {
     });
 
     it("should forceStop without cleanup", async () => {
-        const client = new CopilotClient({ cliPath: CLI_PATH });
+        const client = new CopilotClient({});
         onTestFinishedForceStop(client);
 
-        await client.createSession();
+        await client.createSession({ onPermissionRequest: approveAll });
         await client.forceStop();
         expect(client.getState()).toBe("disconnected");
     });
 
     it("should get status with version and protocol info", async () => {
-        const client = new CopilotClient({ cliPath: CLI_PATH, useStdio: true });
+        const client = new CopilotClient({ useStdio: true });
         onTestFinishedForceStop(client);
 
         await client.start();
@@ -92,7 +91,7 @@ describe("Client", () => {
     });
 
     it("should get auth status", async () => {
-        const client = new CopilotClient({ cliPath: CLI_PATH, useStdio: true });
+        const client = new CopilotClient({ useStdio: true });
         onTestFinishedForceStop(client);
 
         await client.start();
@@ -108,7 +107,7 @@ describe("Client", () => {
     });
 
     it("should list models when authenticated", async () => {
-        const client = new CopilotClient({ cliPath: CLI_PATH, useStdio: true });
+        const client = new CopilotClient({ useStdio: true });
         onTestFinishedForceStop(client);
 
         await client.start();
@@ -132,5 +131,32 @@ describe("Client", () => {
         }
 
         await client.stop();
+    });
+
+    it("should report error with stderr when CLI fails to start", async () => {
+        const client = new CopilotClient({
+            cliArgs: ["--nonexistent-flag-for-testing"],
+            useStdio: true,
+        });
+        onTestFinishedForceStop(client);
+
+        let initialError: Error | undefined;
+        try {
+            await client.start();
+            expect.fail("Expected start() to throw an error");
+        } catch (error) {
+            initialError = error as Error;
+            expect(initialError.message).toContain("stderr");
+            expect(initialError.message).toContain("nonexistent");
+        }
+
+        // Verify subsequent calls also fail (don't hang)
+        try {
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            await session.send("test");
+            expect.fail("Expected send() to throw an error after CLI exit");
+        } catch (error) {
+            expect((error as Error).message).toContain("Connection is closed");
+        }
     });
 });

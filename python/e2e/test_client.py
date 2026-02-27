@@ -2,7 +2,7 @@
 
 import pytest
 
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 
 from .testharness import CLI_PATH
 
@@ -51,7 +51,7 @@ class TestClient:
         client = CopilotClient({"cli_path": CLI_PATH})
 
         try:
-            await client.create_session()
+            await client.create_session({"on_permission_request": PermissionHandler.approve_all})
 
             # Kill the server process to force cleanup to fail
             process = client._process
@@ -69,7 +69,7 @@ class TestClient:
     async def test_should_force_stop_without_cleanup(self):
         client = CopilotClient({"cli_path": CLI_PATH})
 
-        await client.create_session()
+        await client.create_session({"on_permission_request": PermissionHandler.approve_all})
         await client.force_stop()
         assert client.get_state() == "disconnected"
 
@@ -177,5 +177,41 @@ class TestClient:
             assert models3 is not models1, "Cache should be cleared after disconnect"
 
             await client.stop()
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_should_report_error_with_stderr_when_cli_fails_to_start(self):
+        """Test that CLI startup errors include stderr output in the error message."""
+        client = CopilotClient(
+            {
+                "cli_path": CLI_PATH,
+                "cli_args": ["--nonexistent-flag-for-testing"],
+                "use_stdio": True,
+            }
+        )
+
+        try:
+            with pytest.raises(RuntimeError) as exc_info:
+                await client.start()
+
+            error_message = str(exc_info.value)
+            # Verify we get the stderr output in the error message
+            assert "stderr" in error_message, (
+                f"Expected error to contain 'stderr', got: {error_message}"
+            )
+            assert "nonexistent" in error_message, (
+                f"Expected error to contain 'nonexistent', got: {error_message}"
+            )
+
+            # Verify subsequent calls also fail (don't hang)
+            with pytest.raises(Exception) as exc_info2:
+                session = await client.create_session(
+                    {"on_permission_request": PermissionHandler.approve_all}
+                )
+                await session.send("test")
+            # Error message varies by platform (EINVAL on Windows, EPIPE on Linux)
+            error_msg = str(exc_info2.value).lower()
+            assert "invalid" in error_msg or "pipe" in error_msg or "closed" in error_msg
         finally:
             await client.force_stop()

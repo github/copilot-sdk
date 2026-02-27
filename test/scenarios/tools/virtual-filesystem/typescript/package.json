@@ -1,0 +1,19 @@
+{
+  "name": "tools-virtual-filesystem-typescript",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Config sample — virtual filesystem sandbox with auto-approved permissions",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\"",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@github/copilot-sdk": "file:../../../../../nodejs",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "esbuild": "^0.24.0"
+  }
+}
