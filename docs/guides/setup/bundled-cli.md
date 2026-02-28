@@ -72,7 +72,7 @@ const client = new CopilotClient({
     cliPath: path.join(__dirname, "vendor", "copilot"),
 });
 
-const session = await client.createSession({ model: "gpt-4.1" }, onPermissionRequest: async () => ({ kind: "approved" }),);
+const session = await client.createSession({ model: "gpt-4.1", onPermissionRequest: async () => ({ kind: "approved" }) });
 const response = await session.sendAndWait({ prompt: "Hello!" });
 console.log(response?.data.content);
 

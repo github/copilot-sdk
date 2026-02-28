@@ -446,7 +446,7 @@ By default, sessions use **infinite sessions** which automatically manage contex
 
 ```typescript
 // Default: infinite sessions enabled with default thresholds
-const session = await client.createSession({ model: "gpt-5" }, onPermissionRequest: async () => ({ kind: "approved" }) );
+const session = await client.createSession({ model: "gpt-5", onPermissionRequest: async () => ({ kind: "approved" }) });
 
 // Access the workspace path for checkpoints and files
 console.log(session.workspacePath);
@@ -479,7 +479,7 @@ When enabled, sessions emit compaction events:
 ### Multiple Sessions
 
 ```typescript
-const session1 = await client.createSession({ model: "gpt-5" }, onPermissionRequest: async () => ({ kind: "approved" }) );
+const session1 = await client.createSession({ model: "gpt-5", onPermissionRequest: async () => ({ kind: "approved" }) });
 const session2 = await client.createSession({ model: "claude-sonnet-4.5", onPermissionRequest: async () => ({ kind: "approved" }) });
 
 // Both sessions are independent
