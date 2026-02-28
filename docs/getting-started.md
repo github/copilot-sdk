@@ -20,7 +20,7 @@ Before you begin, make sure you have:
 
 - **GitHub Copilot CLI** installed and authenticated ([Installation guide](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli))
 - Your preferred language runtime:
-  - **Node.js** 18+ or **Python** 3.8+ or **Go** 1.21+ or **.NET** 8.0+
+  - **Node.js** 22.13.0+ / 23.5.0+ / 24+ or **Python** 3.8+ or **Go** 1.21+ or **.NET** 8.0+
 
 Verify the CLI is working:
 
