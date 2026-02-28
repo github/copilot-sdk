@@ -225,7 +225,7 @@ const session = await client.createSession({
 
 // User closes app...
 // Later, resume where they left off
-const resumed = await client.resumeSession(sessionId);
+const resumed = await client.resumeSession(sessionId, { onPermissionRequest: async () => ({ kind: "approved" }) });
 ```
 
 Session state persists at `~/.copilot/session-state/{sessionId}/`.

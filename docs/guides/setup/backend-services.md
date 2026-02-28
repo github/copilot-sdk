@@ -283,7 +283,7 @@ app.post("/api/chat", async (req, res) => {
     // Create or resume session
     let session;
     try {
-        session = await client.resumeSession(sessionId);
+        session = await client.resumeSession(sessionId, { onPermissionRequest: async () => ({ kind: "approved" }) });
     } catch {
         session = await client.createSession({
             sessionId,

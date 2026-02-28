@@ -334,6 +334,7 @@ const resumed = await client.resumeSession("task-123", {
         baseUrl: "https://api.openai.com/v1",
         apiKey: process.env.OPENAI_API_KEY,  // Required again
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 

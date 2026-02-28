@@ -177,7 +177,7 @@ const session = await client.createSession({
 });
 
 // Later, resume it
-const resumed = await client.resumeSession("my-project-analysis");
+const resumed = await client.resumeSession("my-project-analysis", { onPermissionRequest: async () => ({ kind: "approved" }) });
 ```
 
 Session state is stored locally at `~/.copilot/session-state/{sessionId}/`.

@@ -125,7 +125,7 @@ flowchart LR
 
 ```typescript
 // Resume from a different client instance (or after restart)
-const session = await client.resumeSession("user-123-task-456");
+const session = await client.resumeSession("user-123-task-456", { onPermissionRequest: async () => ({ kind: "approved" }) });
 
 // Continue where you left off
 await session.sendAndWait({ prompt: "What did we discuss earlier?" });
@@ -193,6 +193,7 @@ When resuming a session, you can optionally reconfigure many settings. This is u
 const session = await client.resumeSession("user-123-task-456", {
   model: "claude-sonnet-4",  // Switch to a different model
   reasoningEffort: "high",   // Increase reasoning effort
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -222,6 +223,7 @@ const resumed = await client.resumeSession("user-123-task-456", {
     apiKey: process.env.AZURE_OPENAI_KEY,  // Required again
     deploymentId: "my-gpt-deployment",
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -415,7 +417,7 @@ async function resumeSessionWithAuth(
     throw new Error("Access denied: session belongs to another user");
   }
 
-  return client.resumeSession(sessionId);
+  return client.resumeSession(sessionId, { onPermissionRequest: async () => ({ kind: "approved" }) });
 }
 ```
 
@@ -516,7 +518,7 @@ async function withSessionLock<T>(
 
 // Usage
 await withSessionLock("user-123-task-456", async () => {
-  const session = await client.resumeSession("user-123-task-456");
+  const session = await client.resumeSession("user-123-task-456", { onPermissionRequest: async () => ({ kind: "approved" }) });
   await session.sendAndWait({ prompt: "Continue the task" });
 });
 ```
