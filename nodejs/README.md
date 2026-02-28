@@ -107,7 +107,7 @@ Create a new conversation session.
 - `systemMessage?: SystemMessageConfig` - System message customization (see below)
 - `infiniteSessions?: InfiniteSessionConfig` - Configure automatic context compaction (see below)
 - `provider?: ProviderConfig` - Custom API provider configuration (BYOK - Bring Your Own Key). See [Custom Providers](#custom-providers) section.
-- `onPermissionRequest: PermissionRequest` - Handler for permission requests from the server. See [Permission Control](../docs/compatibility.md#permission-control) section.
+- `onPermissionRequest: PermissionHandler` - Handler for permission requests from the server. See [Permission Control](../docs/compatibility.md#permission-control) section.
 - `onUserInputRequest?: UserInputHandler` - Handler for user input requests from the agent. Enables the `ask_user` tool. See [User Input Requests](#user-input-requests) section.
 - `hooks?: SessionHooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
