@@ -78,6 +78,7 @@ const session = await client.createSession({
         baseUrl: "https://api.openai.com/v1",
         apiKey: process.env.OPENAI_API_KEY,
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 const response = await session.sendAndWait({ prompt: "Hello!" });
@@ -255,6 +256,7 @@ app.post("/chat", authMiddleware, async (req, res) => {
             baseUrl: "https://api.openai.com/v1",
             apiKey: process.env.OPENAI_API_KEY,  // Your key, your billing
         },
+        onPermissionRequest: async () => ({ kind: "approved" }),
     });
 
     const response = await session.sendAndWait({ prompt: req.body.message });
@@ -303,6 +305,7 @@ async function createSessionForCustomer(customerId: string) {
             baseUrl: config.baseUrl,
             apiKey: config.apiKey,
         },
+        onPermissionRequest: async () => ({ kind: "approved" }),
     });
 }
 ```
@@ -321,6 +324,7 @@ const session = await client.createSession({
         baseUrl: "https://api.openai.com/v1",
         apiKey: process.env.OPENAI_API_KEY,
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 // Resume later — must re-provide provider config

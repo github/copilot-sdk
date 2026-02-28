@@ -105,7 +105,7 @@ Create `index.ts`:
 import { CopilotClient } from "@github/copilot-sdk";
 
 const client = new CopilotClient();
-const session = await client.createSession({ model: "gpt-4.1" });
+const session = await client.createSession({ model: "gpt-4.1", onPermissionRequest: async () => ({ kind: "approved" }) });
 
 const response = await session.sendAndWait({ prompt: "What is 2 + 2?" });
 console.log(response?.data.content);
@@ -248,6 +248,7 @@ const client = new CopilotClient();
 const session = await client.createSession({
     model: "gpt-4.1",
     streaming: true,
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 // Listen for response chunks
@@ -624,6 +625,7 @@ const session = await client.createSession({
     model: "gpt-4.1",
     streaming: true,
     tools: [getWeather],
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 session.on("assistant.message_delta", (event) => {
@@ -876,6 +878,7 @@ const session = await client.createSession({
     model: "gpt-4.1",
     streaming: true,
     tools: [getWeather],
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 session.on("assistant.message_delta", (event) => {
@@ -1221,6 +1224,7 @@ const session = await client.createSession({
             url: "https://api.githubcopilot.com/mcp/",
         },
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -1238,6 +1242,7 @@ const session = await client.createSession({
         description: "Reviews pull requests for best practices",
         prompt: "You are an expert code reviewer. Focus on security, performance, and maintainability.",
     }],
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -1250,6 +1255,7 @@ const session = await client.createSession({
     systemMessage: {
         content: "You are a helpful assistant for our engineering team. Always be concise.",
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 

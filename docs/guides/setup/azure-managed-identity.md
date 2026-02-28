@@ -145,6 +145,7 @@ const session = await client.createSession({
     bearerToken: tokenResponse.token,
     wireApi: "responses",
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 const response = await session.sendAndWait({ prompt: "Hello!" });

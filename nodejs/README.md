@@ -35,6 +35,7 @@ await client.start();
 // Create a session
 const session = await client.createSession({
     model: "gpt-5",
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 // Wait for response using typed event handlers
@@ -106,6 +107,7 @@ Create a new conversation session.
 - `systemMessage?: SystemMessageConfig` - System message customization (see below)
 - `infiniteSessions?: InfiniteSessionConfig` - Configure automatic context compaction (see below)
 - `provider?: ProviderConfig` - Custom API provider configuration (BYOK - Bring Your Own Key). See [Custom Providers](#custom-providers) section.
+- `onPermissionRequest: PermissionRequest` - Handler for permission requests from the server. See [Permission Control](../docs/compatibility.md#permission-control) section.
 - `onUserInputRequest?: UserInputHandler` - Handler for user input requests from the agent. Enables the `ask_user` tool. See [User Input Requests](#user-input-requests) section.
 - `hooks?: SessionHooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
@@ -314,6 +316,7 @@ Enable streaming to receive assistant response chunks as they're generated:
 const session = await client.createSession({
     model: "gpt-5",
     streaming: true,
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 // Wait for completion using typed event handlers
@@ -397,6 +400,7 @@ const session = await client.createSession({
             },
         }),
     ],
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -417,6 +421,7 @@ const session = await client.createSession({
 </workflow_rules>
 `,
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -431,6 +436,7 @@ const session = await client.createSession({
         mode: "replace",
         content: "You are a helpful assistant.",
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -440,7 +446,7 @@ By default, sessions use **infinite sessions** which automatically manage contex
 
 ```typescript
 // Default: infinite sessions enabled with default thresholds
-const session = await client.createSession({ model: "gpt-5" });
+const session = await client.createSession({ model: "gpt-5" }, onPermissionRequest: async () => ({ kind: "approved" }) );
 
 // Access the workspace path for checkpoints and files
 console.log(session.workspacePath);
@@ -454,12 +460,14 @@ const session = await client.createSession({
         backgroundCompactionThreshold: 0.80, // Start compacting at 80% context usage
         bufferExhaustionThreshold: 0.95, // Block at 95% until compaction completes
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 // Disable infinite sessions
 const session = await client.createSession({
     model: "gpt-5",
     infiniteSessions: { enabled: false },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -471,8 +479,8 @@ When enabled, sessions emit compaction events:
 ### Multiple Sessions
 
 ```typescript
-const session1 = await client.createSession({ model: "gpt-5" });
-const session2 = await client.createSession({ model: "claude-sonnet-4.5" });
+const session1 = await client.createSession({ model: "gpt-5" }, onPermissionRequest: async () => ({ kind: "approved" }) );
+const session2 = await client.createSession({ model: "claude-sonnet-4.5", onPermissionRequest: async () => ({ kind: "approved" }) });
 
 // Both sessions are independent
 await session1.sendAndWait({ prompt: "Hello from session 1" });
@@ -485,6 +493,7 @@ await session2.sendAndWait({ prompt: "Hello from session 2" });
 const session = await client.createSession({
     sessionId: "my-custom-session-id",
     model: "gpt-5",
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -526,6 +535,7 @@ const session = await client.createSession({
         baseUrl: "http://localhost:11434/v1", // Ollama endpoint
         // apiKey not required for Ollama
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 await session.sendAndWait({ prompt: "Hello!" });
@@ -541,6 +551,7 @@ const session = await client.createSession({
         baseUrl: "https://my-api.example.com/v1",
         apiKey: process.env.MY_API_KEY,
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -557,6 +568,7 @@ const session = await client.createSession({
             apiVersion: "2024-10-21",
         },
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -588,6 +600,7 @@ const session = await client.createSession({
             wasFreeform: true, // Whether the answer was freeform (not from choices)
         };
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -648,6 +661,7 @@ const session = await client.createSession({
             };
         },
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -664,7 +678,7 @@ const session = await client.createSession({
 
 ```typescript
 try {
-    const session = await client.createSession();
+    const session = await client.createSession({ onPermissionRequest: async () => ({ kind: "approved" }) });
     await session.send({ prompt: "Hello" });
 } catch (error) {
     console.error("Error:", error.message);

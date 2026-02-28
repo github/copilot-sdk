@@ -79,6 +79,7 @@ const session = await client.createSession({
         wireApi: "responses",  // Use "completions" for older models
         apiKey: process.env.FOUNDRY_API_KEY,
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 session.on("assistant.message", (event) => {
@@ -350,12 +351,14 @@ When using BYOK, the `model` parameter is **required**:
 // ❌ Error: Model required with custom provider
 const session = await client.createSession({
     provider: { type: "openai", baseUrl: "..." },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 // ✅ Correct: Model specified
 const session = await client.createSession({
     model: "gpt-4",  // Required!
     provider: { type: "openai", baseUrl: "..." },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 

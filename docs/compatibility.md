@@ -158,6 +158,7 @@ const session = await client.createSession({
     backgroundCompactionThreshold: 0.80,  // Start background compaction at 80% context utilization
     bufferExhaustionThreshold: 0.95,      // Block and compact at 95% context utilization
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 

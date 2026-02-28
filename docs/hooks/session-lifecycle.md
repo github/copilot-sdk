@@ -92,9 +92,9 @@ const session = await client.createSession({
   hooks: {
     onSessionStart: async (input, invocation) => {
       console.log(`Session ${invocation.sessionId} started (${input.source})`);
-      
+
       const projectInfo = await detectProjectType(input.cwd);
-      
+
       return {
         additionalContext: `
 This is a ${projectInfo.type} project.
@@ -104,6 +104,7 @@ Package manager: ${projectInfo.packageManager}
       };
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -115,9 +116,9 @@ Package manager: ${projectInfo.packageManager}
 ```python
 async def on_session_start(input_data, invocation):
     print(f"Session {invocation['session_id']} started ({input_data['source']})")
-    
+
     project_info = await detect_project_type(input_data["cwd"])
-    
+
     return {
         "additionalContext": f"""
 This is a {project_info['type']} project.
@@ -142,7 +143,7 @@ const session = await client.createSession({
       if (input.source === "resume") {
         // Load previous session state
         const previousState = await loadSessionState(invocation.sessionId);
-        
+
         return {
           additionalContext: `
 Session resumed. Previous context:
@@ -154,6 +155,7 @@ Session resumed. Previous context:
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -164,9 +166,9 @@ const session = await client.createSession({
   hooks: {
     onSessionStart: async () => {
       const preferences = await loadUserPreferences();
-      
+
       const contextParts = [];
-      
+
       if (preferences.language) {
         contextParts.push(`Preferred language: ${preferences.language}`);
       }
@@ -176,12 +178,13 @@ const session = await client.createSession({
       if (preferences.verbosity === "concise") {
         contextParts.push("Keep responses brief and to the point.");
       }
-      
+
       return {
         additionalContext: contextParts.join("\n"),
       };
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -289,17 +292,18 @@ const session = await client.createSession({
     onSessionEnd: async (input, invocation) => {
       const startTime = sessionStartTimes.get(invocation.sessionId);
       const duration = startTime ? input.timestamp - startTime : 0;
-      
+
       await recordMetrics({
         sessionId: invocation.sessionId,
         duration,
         endReason: input.reason,
       });
-      
+
       sessionStartTimes.delete(invocation.sessionId);
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -318,13 +322,13 @@ async def on_session_start(input_data, invocation):
 async def on_session_end(input_data, invocation):
     start_time = session_start_times.get(invocation["session_id"])
     duration = input_data["timestamp"] - start_time if start_time else 0
-    
+
     await record_metrics({
         "session_id": invocation["session_id"],
         "duration": duration,
         "end_reason": input_data["reason"],
     })
-    
+
     session_start_times.pop(invocation["session_id"], None)
     return None
 
@@ -351,7 +355,7 @@ const session = await client.createSession({
     },
     onSessionEnd: async (input, invocation) => {
       const resources = sessionResources.get(invocation.sessionId);
-      
+
       if (resources) {
         // Clean up temp files
         for (const file of resources.tempFiles) {
@@ -359,11 +363,12 @@ const session = await client.createSession({
         }
         sessionResources.delete(invocation.sessionId);
       }
-      
+
       console.log(`Session ${invocation.sessionId} ended: ${input.reason}`);
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -384,6 +389,7 @@ const session = await client.createSession({
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -395,10 +401,10 @@ const sessionData: Record<string, { prompts: number; tools: number; startTime: n
 const session = await client.createSession({
   hooks: {
     onSessionStart: async (input, invocation) => {
-      sessionData[invocation.sessionId] = { 
-        prompts: 0, 
-        tools: 0, 
-        startTime: input.timestamp 
+      sessionData[invocation.sessionId] = {
+        prompts: 0,
+        tools: 0,
+        startTime: input.timestamp
       };
       return null;
     },
@@ -420,11 +426,12 @@ Session Summary:
   Tool calls: ${data.tools}
   End reason: ${input.reason}
       `.trim());
-      
+
       delete sessionData[invocation.sessionId];
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 

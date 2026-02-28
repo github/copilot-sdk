@@ -52,6 +52,7 @@ const session = await client.createSession({
             tools: ["*"],
         },
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -180,6 +181,7 @@ async function main() {
                 tools: ["*"],
             },
         },
+        onPermissionRequest: async () => ({ kind: "approved" }),
     });
 
     console.log("Session created:", session.sessionId);
