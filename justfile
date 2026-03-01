@@ -83,7 +83,7 @@ install-go: install-nodejs install-test-harness
 # Install Python dependencies and prerequisites for tests
 install-python: install-nodejs install-test-harness
     @echo "=== Installing Python dependencies ==="
-    @cd python && uv pip install -e ".[dev]"
+    @cd python && uv venv && uv pip install -e ".[dev]"
 
 # Install .NET dependencies and prerequisites for tests
 install-dotnet: install-nodejs install-test-harness
