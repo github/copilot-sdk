@@ -553,8 +553,7 @@ public partial class CopilotSession : IAsyncDisposable
     /// </example>
     public async Task SetModelAsync(string model, CancellationToken cancellationToken = default)
     {
-        await InvokeRpcAsync<object>(
-            "session.setModel", [new SetModelRequest { SessionId = SessionId, Model = model }], cancellationToken);
+        await Rpc.Model.SwitchToAsync(model, cancellationToken);
     }
 
     /// <summary>
@@ -655,12 +654,6 @@ public partial class CopilotSession : IAsyncDisposable
         public string SessionId { get; init; } = string.Empty;
     }
 
-    internal record SetModelRequest
-    {
-        public string SessionId { get; init; } = string.Empty;
-        public string Model { get; init; } = string.Empty;
-    }
-
     [JsonSourceGenerationOptions(
         JsonSerializerDefaults.Web,
         AllowOutOfOrderMetadataProperties = true,
@@ -673,7 +666,6 @@ public partial class CopilotSession : IAsyncDisposable
     [JsonSerializable(typeof(SendMessageResponse))]
     [JsonSerializable(typeof(SessionAbortRequest))]
     [JsonSerializable(typeof(SessionDestroyRequest))]
-    [JsonSerializable(typeof(SetModelRequest))]
     [JsonSerializable(typeof(UserMessageDataAttachmentsItem))]
     [JsonSerializable(typeof(PreToolUseHookInput))]
     [JsonSerializable(typeof(PreToolUseHookOutput))]

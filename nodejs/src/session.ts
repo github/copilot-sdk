@@ -562,9 +562,6 @@ export class CopilotSession {
      * ```
      */
     async setModel(model: string): Promise<void> {
-        await this.connection.sendRequest("session.setModel", {
-            sessionId: this.sessionId,
-            model,
-        });
+        await this.rpc.model.switchTo({ modelId: model });
     }
 }

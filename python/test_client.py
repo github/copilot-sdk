@@ -242,13 +242,13 @@ class TestSessionConfigForwarding:
 
             async def mock_request(method, params):
                 captured[method] = params
-                if method == "session.setModel":
+                if method == "session.model.switchTo":
                     return {}
                 return await original_request(method, params)
 
             client._client.request = mock_request
             await session.set_model("gpt-4.1")
-            assert captured["session.setModel"]["sessionId"] == session.session_id
-            assert captured["session.setModel"]["model"] == "gpt-4.1"
+            assert captured["session.model.switchTo"]["sessionId"] == session.session_id
+            assert captured["session.model.switchTo"]["modelId"] == "gpt-4.1"
         finally:
             await client.force_stop()

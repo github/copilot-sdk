@@ -11,7 +11,7 @@ import threading
 from collections.abc import Callable
 from typing import Any, cast
 
-from .generated.rpc import SessionRpc
+from .generated.rpc import SessionModelSwitchToParams, SessionRpc
 from .generated.session_events import SessionEvent, SessionEventType, session_event_from_dict
 from .types import (
     MessageOptions,
@@ -537,7 +537,4 @@ class CopilotSession:
         Example:
             >>> await session.set_model("gpt-4.1")
         """
-        await self._client.request(
-            "session.setModel",
-            {"sessionId": self.session_id, "model": model},
-        )
+        await self.rpc.model.switch_to(SessionModelSwitchToParams(model_id=model))

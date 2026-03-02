@@ -586,10 +586,7 @@ func (s *Session) Abort(ctx context.Context) error {
 //	    log.Printf("Failed to set model: %v", err)
 //	}
 func (s *Session) SetModel(ctx context.Context, model string) error {
-	_, err := s.client.Request("session.setModel", sessionSetModelRequest{
-		SessionID: s.SessionID,
-		Model:     model,
-	})
+	_, err := s.RPC.Model.SwitchTo(ctx, &rpc.SessionModelSwitchToParams{ModelID: model})
 	if err != nil {
 		return fmt.Errorf("failed to set model: %w", err)
 	}
