@@ -447,12 +447,13 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     {
         var session = await CreateSessionAsync();
 
-        // SetModel should not throw
+        // Subscribe for the model change event before calling SetModelAsync
+        var modelChangedTask = TestHelper.GetNextEventOfTypeAsync<SessionModelChangeEvent>(session);
+
         await session.SetModelAsync("gpt-4.1");
 
-        // Session should still be usable after model change
-        await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
-        Assert.NotNull(assistantMessage);
+        // Verify a model_change event was emitted with the new model
+        var modelChanged = await modelChangedTask;
+        Assert.Equal("gpt-4.1", modelChanged.Data.NewModel);
     }
 }

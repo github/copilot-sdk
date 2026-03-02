@@ -89,7 +89,7 @@ describe("CopilotClient", () => {
 
         // Mock sendRequest to capture the call without hitting the runtime
         const spy = vi.spyOn((client as any).connection!, "sendRequest")
-            .mockImplementation(async (method: string, params: any) => {
+            .mockImplementation(async (method: string, _params: any) => {
                 if (method === "session.model.switchTo") return {};
                 // Fall through for other methods (shouldn't be called)
                 throw new Error(`Unexpected method: ${method}`);
