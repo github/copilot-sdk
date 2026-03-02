@@ -204,6 +204,33 @@ describe("Sessions", async () => {
         expect(messages).toContainEqual(expect.objectContaining({ type: "session.resume" }));
     });
 
+    it("should not receive duplicate events after resume", async () => {
+        // Regression test for https://github.com/github/copilot-sdk/issues/567
+        // Each resumeSession call was adding an additional event listener without
+        // removing the previous one, causing events to be delivered N+1 times after N resumes.
+
+        // Create session and do a turn, then let the session handle go away ungracefully
+        const session1 = await client.createSession({ onPermissionRequest: approveAll });
+        const sessionId = session1.sessionId;
+        await session1.sendAndWait({ prompt: "What is 1+1?" });
+
+        // Resume twice (simulating two reconnects) without cleaning up previous handles.
+        // The old session handles just go away as they would in a real disconnect.
+        await client.resumeSession(sessionId, { onPermissionRequest: approveAll });
+        const session3 = await client.resumeSession(sessionId, { onPermissionRequest: approveAll });
+
+        // Now send on the latest resumed session and collect events
+        const receivedEvents: Array<{ type: string }> = [];
+        session3.on((event) => {
+            receivedEvents.push({ type: event.type });
+        });
+        await session3.sendAndWait({ prompt: "What is 3+3?" });
+
+        // Each assistant.message should arrive exactly once, not duplicated
+        const assistantMessages = receivedEvents.filter((e) => e.type === "assistant.message");
+        expect(assistantMessages).toHaveLength(1);
+    });
+
     it("should throw error when resuming non-existent session", async () => {
         await expect(
             client.resumeSession("non-existent-session-id", { onPermissionRequest: approveAll })
