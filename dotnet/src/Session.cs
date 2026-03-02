@@ -246,7 +246,7 @@ public partial class CopilotSession : IAsyncDisposable
     public IDisposable On(SessionEventHandler handler)
     {
         _eventHandlers.Add(handler);
-        return new OnDisposeCall(() => _eventHandlers.Remove(handler));
+        return new ActionDisposable(() => _eventHandlers.Remove(handler));
     }
 
     /// <summary>
@@ -598,11 +598,6 @@ public partial class CopilotSession : IAsyncDisposable
         {
             _permissionHandlerLock.Release();
         }
-    }
-
-    private class OnDisposeCall(Action callback) : IDisposable
-    {
-        public void Dispose() => callback();
     }
 
     internal record SendMessageRequest
