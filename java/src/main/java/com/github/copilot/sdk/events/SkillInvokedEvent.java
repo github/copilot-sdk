@@ -40,6 +40,7 @@ public final class SkillInvokedEvent extends AbstractSessionEvent {
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record SkillInvokedData(@JsonProperty("name") String name, @JsonProperty("path") String path,
-            @JsonProperty("content") String content, @JsonProperty("allowedTools") List<String> allowedTools) {
+            @JsonProperty("content") String content, @JsonProperty("allowedTools") List<String> allowedTools,
+            @JsonProperty("pluginName") String pluginName, @JsonProperty("pluginVersion") String pluginVersion) {
     }
 }

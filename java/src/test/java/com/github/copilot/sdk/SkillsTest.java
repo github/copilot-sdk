@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.events.AssistantMessageEvent;
 import com.github.copilot.sdk.json.MessageOptions;
+import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.SessionConfig;
 
 /**
@@ -105,7 +106,8 @@ public class SkillsTest {
 
         Path skillsDir = createSkillDir();
 
-        SessionConfig config = new SessionConfig().setSkillDirectories(List.of(skillsDir.toString()));
+        SessionConfig config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                .setSkillDirectories(List.of(skillsDir.toString()));
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession(config).get();
@@ -136,8 +138,8 @@ public class SkillsTest {
 
         Path skillsDir = createSkillDir();
 
-        SessionConfig config = new SessionConfig().setSkillDirectories(List.of(skillsDir.toString()))
-                .setDisabledSkills(List.of("test-skill"));
+        SessionConfig config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                .setSkillDirectories(List.of(skillsDir.toString())).setDisabledSkills(List.of("test-skill"));
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession(config).get();

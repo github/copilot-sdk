@@ -73,6 +73,7 @@ public final class AssistantMessageEvent extends AbstractSessionEvent {
     public record AssistantMessageData(@JsonProperty("messageId") String messageId,
             @JsonProperty("content") String content, @JsonProperty("toolRequests") List<ToolRequest> toolRequests,
             @JsonProperty("parentToolCallId") String parentToolCallId,
+            @JsonProperty("interactionId") String interactionId,
             @JsonProperty("reasoningOpaque") String reasoningOpaque,
             @JsonProperty("reasoningText") String reasoningText,
             @JsonProperty("encryptedContent") String encryptedContent) {

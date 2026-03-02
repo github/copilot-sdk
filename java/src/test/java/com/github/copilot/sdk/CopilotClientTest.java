@@ -8,7 +8,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.json.CopilotClientOptions;
+import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.PingResponse;
+import com.github.copilot.sdk.json.SessionConfig;
 import com.github.copilot.sdk.json.SessionLifecycleEvent;
 import com.github.copilot.sdk.json.SessionLifecycleEventTypes;
 
@@ -195,7 +197,7 @@ public class CopilotClientTest {
         }
 
         try (var client = new CopilotClient(new CopilotClientOptions().setCliPath(cliPath))) {
-            client.createSession().get();
+            client.createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             client.forceStop().get();
 
             assertEquals(ConnectionState.DISCONNECTED, client.getState());
@@ -452,7 +454,8 @@ public class CopilotClientTest {
         }
 
         try (var client = new CopilotClient(new CopilotClientOptions().setCliPath(cliPath))) {
-            var session = client.createSession().get();
+            var session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             // Stop the client first (which closes the RPC connection)
             client.stop().get();

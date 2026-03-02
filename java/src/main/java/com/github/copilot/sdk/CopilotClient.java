@@ -47,7 +47,10 @@ import com.github.copilot.sdk.json.SessionMetadata;
  * try (var client = new CopilotClient()) {
  * 	client.start().get();
  *
- * 	var session = client.createSession(new SessionConfig().setModel("gpt-5")).get();
+ * 	var session = client
+ * 			.createSession(
+ * 					new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setModel("gpt-5"))
+ * 			.get();
  *
  * 	session.on(AssistantMessageEvent.class, msg -> {
  * 		System.out.println(msg.getData().content());
@@ -273,14 +276,37 @@ public final class CopilotClient implements AutoCloseable {
      * <p>
      * The session maintains conversation state and can be used to send messages and
      * receive responses. Remember to close the session when done.
+     * <p>
+     * A permission handler is required when creating a session. Use
+     * {@link com.github.copilot.sdk.json.PermissionHandler#APPROVE_ALL} to approve
+     * all permission requests, or provide a custom handler to control permissions
+     * selectively.
+     *
+     * <p>
+     * Example:
+     *
+     * <pre>{@code
+     * var session = client.createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+     * }</pre>
      *
      * @param config
-     *            configuration for the session (model, tools, etc.)
+     *            configuration for the session, including the required
+     *            {@link SessionConfig#setOnPermissionRequest(com.github.copilot.sdk.json.PermissionHandler)}
+     *            handler
      * @return a future that resolves with the created CopilotSession
-     * @see #createSession()
+     * @throws IllegalArgumentException
+     *             if {@code config} is {@code null} or does not have a permission
+     *             handler set
      * @see SessionConfig
+     * @see com.github.copilot.sdk.json.PermissionHandler#APPROVE_ALL
      */
     public CompletableFuture<CopilotSession> createSession(SessionConfig config) {
+        if (config == null || config.getOnPermissionRequest() == null) {
+            return CompletableFuture.failedFuture(
+                    new IllegalArgumentException("An onPermissionRequest handler is required when creating a session. "
+                            + "For example, to allow all permissions, use: "
+                            + "new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)"));
+        }
         return ensureConnected().thenCompose(connection -> {
             var request = SessionRequestBuilder.buildCreateRequest(config);
 
@@ -294,31 +320,37 @@ public final class CopilotClient implements AutoCloseable {
     }
 
     /**
-     * Creates a new Copilot session with default configuration.
-     *
-     * @return a future that resolves with the created CopilotSession
-     * @see #createSession(SessionConfig)
-     */
-    public CompletableFuture<CopilotSession> createSession() {
-        return createSession(null);
-    }
-
-    /**
      * Resumes an existing Copilot session.
      * <p>
      * This restores a previously saved session, allowing you to continue a
      * conversation. The session's history is preserved.
+     * <p>
+     * A permission handler is required when resuming a session. Use
+     * {@link com.github.copilot.sdk.json.PermissionHandler#APPROVE_ALL} to approve
+     * all permission requests, or provide a custom handler to control permissions
+     * selectively.
      *
      * @param sessionId
      *            the ID of the session to resume
      * @param config
-     *            configuration for the resumed session
+     *            configuration for the resumed session, including the required
+     *            {@link ResumeSessionConfig#setOnPermissionRequest(com.github.copilot.sdk.json.PermissionHandler)}
+     *            handler
      * @return a future that resolves with the resumed CopilotSession
-     * @see #resumeSession(String)
+     * @throws IllegalArgumentException
+     *             if {@code config} is {@code null} or does not have a permission
+     *             handler set
      * @see #listSessions()
      * @see #getLastSessionId()
+     * @see com.github.copilot.sdk.json.PermissionHandler#APPROVE_ALL
      */
     public CompletableFuture<CopilotSession> resumeSession(String sessionId, ResumeSessionConfig config) {
+        if (config == null || config.getOnPermissionRequest() == null) {
+            return CompletableFuture.failedFuture(
+                    new IllegalArgumentException("An onPermissionRequest handler is required when resuming a session. "
+                            + "For example, to allow all permissions, use: "
+                            + "new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)"));
+        }
         return ensureConnected().thenCompose(connection -> {
             var request = SessionRequestBuilder.buildResumeRequest(sessionId, config);
 
@@ -329,18 +361,6 @@ public final class CopilotClient implements AutoCloseable {
                 return session;
             });
         });
-    }
-
-    /**
-     * Resumes an existing session with default configuration.
-     *
-     * @param sessionId
-     *            the ID of the session to resume
-     * @return a future that resolves with the resumed CopilotSession
-     * @see #resumeSession(String, ResumeSessionConfig)
-     */
-    public CompletableFuture<CopilotSession> resumeSession(String sessionId) {
-        return resumeSession(sessionId, null);
     }
 
     /**

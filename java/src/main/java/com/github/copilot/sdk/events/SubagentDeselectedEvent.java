@@ -8,31 +8,30 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * Event: assistant.turn_start
+ * Event: subagent.deselected
  *
- * @since 1.0.0
+ * @since 1.0.11
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public final class AssistantTurnStartEvent extends AbstractSessionEvent {
+public final class SubagentDeselectedEvent extends AbstractSessionEvent {
 
     @JsonProperty("data")
-    private AssistantTurnStartData data;
+    private SubagentDeselectedData data;
 
     @Override
     public String getType() {
-        return "assistant.turn_start";
+        return "subagent.deselected";
     }
 
-    public AssistantTurnStartData getData() {
+    public SubagentDeselectedData getData() {
         return data;
     }
 
-    public void setData(AssistantTurnStartData data) {
+    public void setData(SubagentDeselectedData data) {
         this.data = data;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record AssistantTurnStartData(@JsonProperty("turnId") String turnId,
-            @JsonProperty("interactionId") String interactionId) {
+    public record SubagentDeselectedData() {
     }
 }

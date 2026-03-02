@@ -44,7 +44,8 @@ import com.github.copilot.sdk.json.CopilotClientOptions;
  * 	ctx.configureForTest("tools", "my_test_name");
  *
  * 	try (CopilotClient client = ctx.createClient()) {
- * 		CopilotSession session = client.createSession().get();
+ * 		CopilotSession session = client
+ * 				.createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
  * 		// ... run test ...
  * 	}
  * }

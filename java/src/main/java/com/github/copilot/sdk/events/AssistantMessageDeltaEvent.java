@@ -34,7 +34,6 @@ public final class AssistantMessageDeltaEvent extends AbstractSessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record AssistantMessageDeltaData(@JsonProperty("messageId") String messageId,
             @JsonProperty("deltaContent") String deltaContent,
-            @JsonProperty("totalResponseSizeBytes") Double totalResponseSizeBytes,
             @JsonProperty("parentToolCallId") String parentToolCallId) {
     }
 }

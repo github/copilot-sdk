@@ -127,17 +127,17 @@ public class PermissionsTest {
     }
 
     /**
-     * Verifies that sessions work without a permission handler.
+     * Verifies that sessions work with the approve-all permission handler.
      *
-     * @see Snapshot: permissions/without_permission_handler
+     * @see Snapshot: permissions/should_work_with_approve_all_permission_handler
      */
     @Test
-    void testWithoutPermissionHandler(TestInfo testInfo) throws Exception {
-        ctx.configureForTest("permissions", "without_permission_handler");
+    void testShouldWorkWithApproveAllPermissionHandler(TestInfo testInfo) throws Exception {
+        ctx.configureForTest("permissions", "should_work_with_approve_all_permission_handler");
 
         try (CopilotClient client = ctx.createClient()) {
-            // Create session without onPermissionRequest handler
-            CopilotSession session = client.createSession().get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt("What is 2+2?")).get(60,
                     TimeUnit.SECONDS);
@@ -200,8 +200,9 @@ public class PermissionsTest {
         var permissionRequests = new ArrayList<PermissionRequest>();
 
         try (CopilotClient client = ctx.createClient()) {
-            // Create session without permission handler
-            CopilotSession session1 = client.createSession().get();
+            // Create session with approve-all handler for initial exchange
+            CopilotSession session1 = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             String sessionId = session1.getSessionId();
             session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60, TimeUnit.SECONDS);
 
@@ -290,18 +291,22 @@ public class PermissionsTest {
     }
 
     /**
-     * Verifies that tool operations are denied by default when no handler is
-     * provided.
+     * Verifies that tool operations are denied when the handler explicitly denies.
      *
      * @see Snapshot:
-     *      permissions/should_deny_tool_operations_by_default_when_no_handler_is_provided
+     *      permissions/should_deny_tool_operations_when_handler_explicitly_denies
      */
     @Test
-    void testShouldDenyToolOperationsByDefaultWhenNoHandlerIsProvided(TestInfo testInfo) throws Exception {
-        ctx.configureForTest("permissions", "should_deny_tool_operations_by_default_when_no_handler_is_provided");
+    void testShouldDenyToolOperationsWhenHandlerExplicitlyDenies(TestInfo testInfo) throws Exception {
+        ctx.configureForTest("permissions", "should_deny_tool_operations_when_handler_explicitly_denies");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession().get();
+            CopilotSession session = client
+                    .createSession(
+                            new SessionConfig().setOnPermissionRequest((request,
+                                    invocation) -> CompletableFuture.completedFuture(new PermissionRequestResult()
+                                            .setKind("denied-no-approval-rule-and-could-not-request-from-user"))))
+                    .get();
 
             final boolean[] permissionDenied = {false};
             session.on(ToolExecutionCompleteEvent.class, evt -> {
@@ -320,16 +325,15 @@ public class PermissionsTest {
     }
 
     /**
-     * Verifies that tool operations are denied by default when no handler is
-     * provided after resuming a session.
+     * Verifies that tool operations are denied when the handler explicitly denies
+     * after resuming a session.
      *
      * @see Snapshot:
-     *      permissions/should_deny_tool_operations_by_default_when_no_handler_is_provided_after_resume
+     *      permissions/should_deny_tool_operations_when_handler_explicitly_denies_after_resume
      */
     @Test
-    void testShouldDenyToolOperationsByDefaultWhenNoHandlerIsProvidedAfterResume(TestInfo testInfo) throws Exception {
-        ctx.configureForTest("permissions",
-                "should_deny_tool_operations_by_default_when_no_handler_is_provided_after_resume");
+    void testShouldDenyToolOperationsWhenHandlerExplicitlyDeniesAfterResume(TestInfo testInfo) throws Exception {
+        ctx.configureForTest("permissions", "should_deny_tool_operations_when_handler_explicitly_denies_after_resume");
 
         try (CopilotClient client = ctx.createClient()) {
             var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
@@ -337,7 +341,12 @@ public class PermissionsTest {
             String sessionId = session1.getSessionId();
             session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60, TimeUnit.SECONDS);
 
-            CopilotSession session2 = client.resumeSession(sessionId).get();
+            CopilotSession session2 = client
+                    .resumeSession(sessionId,
+                            new ResumeSessionConfig().setOnPermissionRequest((request,
+                                    invocation) -> CompletableFuture.completedFuture(new PermissionRequestResult()
+                                            .setKind("denied-no-approval-rule-and-could-not-request-from-user"))))
+                    .get();
 
             final boolean[] permissionDenied = {false};
             session2.on(ToolExecutionCompleteEvent.class, evt -> {

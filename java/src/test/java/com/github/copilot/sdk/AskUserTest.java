@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.json.MessageOptions;
 import com.github.copilot.sdk.json.SessionConfig;
+import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.UserInputRequest;
 import com.github.copilot.sdk.json.UserInputResponse;
 
@@ -56,19 +57,20 @@ public class AskUserTest {
         var userInputRequests = new ArrayList<UserInputRequest>();
         final String[] sessionIdHolder = new String[1];
 
-        var config = new SessionConfig().setOnUserInputRequest((request, invocation) -> {
-            userInputRequests.add(request);
-            assertEquals(sessionIdHolder[0], invocation.getSessionId());
+        var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                .setOnUserInputRequest((request, invocation) -> {
+                    userInputRequests.add(request);
+                    assertEquals(sessionIdHolder[0], invocation.getSessionId());
 
-            // Return the first choice if available, otherwise a freeform answer
-            String answer = (request.getChoices() != null && !request.getChoices().isEmpty())
-                    ? request.getChoices().get(0)
-                    : "freeform answer";
-            boolean wasFreeform = request.getChoices() == null || request.getChoices().isEmpty();
+                    // Return the first choice if available, otherwise a freeform answer
+                    String answer = (request.getChoices() != null && !request.getChoices().isEmpty())
+                            ? request.getChoices().get(0)
+                            : "freeform answer";
+                    boolean wasFreeform = request.getChoices() == null || request.getChoices().isEmpty();
 
-            return CompletableFuture
-                    .completedFuture(new UserInputResponse().setAnswer(answer).setWasFreeform(wasFreeform));
-        });
+                    return CompletableFuture
+                            .completedFuture(new UserInputResponse().setAnswer(answer).setWasFreeform(wasFreeform));
+                });
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession(config).get();
@@ -98,16 +100,18 @@ public class AskUserTest {
 
         var userInputRequests = new ArrayList<UserInputRequest>();
 
-        var config = new SessionConfig().setOnUserInputRequest((request, invocation) -> {
-            userInputRequests.add(request);
+        var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                .setOnUserInputRequest((request, invocation) -> {
+                    userInputRequests.add(request);
 
-            // Pick the first choice
-            String answer = (request.getChoices() != null && !request.getChoices().isEmpty())
-                    ? request.getChoices().get(0)
-                    : "default";
+                    // Pick the first choice
+                    String answer = (request.getChoices() != null && !request.getChoices().isEmpty())
+                            ? request.getChoices().get(0)
+                            : "default";
 
-            return CompletableFuture.completedFuture(new UserInputResponse().setAnswer(answer).setWasFreeform(false));
-        });
+                    return CompletableFuture
+                            .completedFuture(new UserInputResponse().setAnswer(answer).setWasFreeform(false));
+                });
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession(config).get();
@@ -137,13 +141,14 @@ public class AskUserTest {
         final var userInputRequests = new ArrayList<UserInputRequest>();
         String freeformAnswer = "This is my custom freeform answer that was not in the choices";
 
-        var config = new SessionConfig().setOnUserInputRequest((request, invocation) -> {
-            userInputRequests.add(request);
+        var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                .setOnUserInputRequest((request, invocation) -> {
+                    userInputRequests.add(request);
 
-            // Return a freeform answer (not from choices)
-            return CompletableFuture
-                    .completedFuture(new UserInputResponse().setAnswer(freeformAnswer).setWasFreeform(true));
-        });
+                    // Return a freeform answer (not from choices)
+                    return CompletableFuture
+                            .completedFuture(new UserInputResponse().setAnswer(freeformAnswer).setWasFreeform(true));
+                });
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession(config).get();

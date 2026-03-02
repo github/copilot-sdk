@@ -7,6 +7,7 @@ package com.github.copilot.sdk;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -20,6 +21,8 @@ import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.sdk.events.AbstractSessionEvent;
@@ -27,6 +30,7 @@ import com.github.copilot.sdk.events.AssistantMessageEvent;
 import com.github.copilot.sdk.events.SessionErrorEvent;
 import com.github.copilot.sdk.events.SessionEventParser;
 import com.github.copilot.sdk.events.SessionIdleEvent;
+import com.github.copilot.sdk.json.AgentInfo;
 import com.github.copilot.sdk.json.GetMessagesResponse;
 import com.github.copilot.sdk.json.HookInvocation;
 import com.github.copilot.sdk.json.MessageOptions;
@@ -58,8 +62,10 @@ import com.github.copilot.sdk.json.UserPromptSubmittedHookInput;
  * <h2>Example Usage</h2>
  *
  * <pre>{@code
- * // Create a session
- * var session = client.createSession(new SessionConfig().setModel("gpt-5")).get();
+ * // Create a session with a permission handler (required)
+ * var session = client
+ * 		.createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setModel("gpt-5"))
+ * 		.get();
  *
  * // Register type-safe event handlers
  * session.on(AssistantMessageEvent.class, msg -> {
@@ -803,6 +809,84 @@ public final class CopilotSession implements AutoCloseable {
     }
 
     /**
+     * Lists the custom agents available for selection in this session.
+     *
+     * @return a future that resolves with the list of available agents
+     * @throws IllegalStateException
+     *             if this session has been terminated
+     * @since 1.0.11
+     */
+    public CompletableFuture<List<AgentInfo>> listAgents() {
+        ensureNotTerminated();
+        return rpc.invoke("session.agent.list", Map.of("sessionId", sessionId), AgentListResponse.class)
+                .thenApply(response -> response.agents() != null
+                        ? Collections.unmodifiableList(response.agents())
+                        : Collections.emptyList());
+    }
+
+    /**
+     * Gets the currently selected custom agent for this session, or {@code null} if
+     * no custom agent is selected.
+     *
+     * @return a future that resolves with the current agent, or {@code null} if
+     *         using the default agent
+     * @throws IllegalStateException
+     *             if this session has been terminated
+     * @since 1.0.11
+     */
+    public CompletableFuture<AgentInfo> getCurrentAgent() {
+        ensureNotTerminated();
+        return rpc.invoke("session.agent.getCurrent", Map.of("sessionId", sessionId), AgentGetCurrentResponse.class)
+                .thenApply(AgentGetCurrentResponse::agent);
+    }
+
+    /**
+     * Selects a custom agent for this session.
+     *
+     * @param agentName
+     *            the name/identifier of the agent to select
+     * @return a future that resolves with the selected agent information
+     * @throws IllegalStateException
+     *             if this session has been terminated
+     * @since 1.0.11
+     */
+    public CompletableFuture<AgentInfo> selectAgent(String agentName) {
+        ensureNotTerminated();
+        return rpc.invoke("session.agent.select", Map.of("sessionId", sessionId, "name", agentName),
+                AgentSelectResponse.class).thenApply(AgentSelectResponse::agent);
+    }
+
+    /**
+     * Deselects the currently selected custom agent, returning to the default
+     * agent.
+     *
+     * @return a future that completes when the agent is deselected
+     * @throws IllegalStateException
+     *             if this session has been terminated
+     * @since 1.0.11
+     */
+    public CompletableFuture<Void> deselectAgent() {
+        ensureNotTerminated();
+        return rpc.invoke("session.agent.deselect", Map.of("sessionId", sessionId), Void.class);
+    }
+
+    /**
+     * Compacts the session context to reduce token usage.
+     * <p>
+     * This triggers an immediate session compaction, summarizing the conversation
+     * history to free up context window space.
+     *
+     * @return a future that completes when compaction finishes
+     * @throws IllegalStateException
+     *             if this session has been terminated
+     * @since 1.0.11
+     */
+    public CompletableFuture<Void> compact() {
+        ensureNotTerminated();
+        return rpc.invoke("session.compaction.compact", Map.of("sessionId", sessionId), Void.class);
+    }
+
+    /**
      * Verifies that this session has not yet been terminated.
      *
      * @throws IllegalStateException
@@ -841,6 +925,20 @@ public final class CopilotSession implements AutoCloseable {
         permissionHandler.set(null);
         userInputHandler.set(null);
         hooksHandler.set(null);
+    }
+
+    // ===== Internal response types for agent API =====
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record AgentListResponse(@JsonProperty("agents") List<AgentInfo> agents) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record AgentGetCurrentResponse(@JsonProperty("agent") AgentInfo agent) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record AgentSelectResponse(@JsonProperty("agent") AgentInfo agent) {
     }
 
 }

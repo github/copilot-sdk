@@ -65,6 +65,7 @@ public class SessionEventParser {
         TYPE_MAP.put("session.compaction_start", SessionCompactionStartEvent.class);
         TYPE_MAP.put("session.compaction_complete", SessionCompactionCompleteEvent.class);
         TYPE_MAP.put("session.context_changed", SessionContextChangedEvent.class);
+        TYPE_MAP.put("session.task_complete", SessionTaskCompleteEvent.class);
         TYPE_MAP.put("user.message", UserMessageEvent.class);
         TYPE_MAP.put("pending_messages.modified", PendingMessagesModifiedEvent.class);
         TYPE_MAP.put("assistant.turn_start", AssistantTurnStartEvent.class);
@@ -73,6 +74,7 @@ public class SessionEventParser {
         TYPE_MAP.put("assistant.reasoning_delta", AssistantReasoningDeltaEvent.class);
         TYPE_MAP.put("assistant.message", AssistantMessageEvent.class);
         TYPE_MAP.put("assistant.message_delta", AssistantMessageDeltaEvent.class);
+        TYPE_MAP.put("assistant.streaming_delta", AssistantStreamingDeltaEvent.class);
         TYPE_MAP.put("assistant.turn_end", AssistantTurnEndEvent.class);
         TYPE_MAP.put("assistant.usage", AssistantUsageEvent.class);
         TYPE_MAP.put("abort", AbortEvent.class);
@@ -85,6 +87,7 @@ public class SessionEventParser {
         TYPE_MAP.put("subagent.completed", SubagentCompletedEvent.class);
         TYPE_MAP.put("subagent.failed", SubagentFailedEvent.class);
         TYPE_MAP.put("subagent.selected", SubagentSelectedEvent.class);
+        TYPE_MAP.put("subagent.deselected", SubagentDeselectedEvent.class);
         TYPE_MAP.put("hook.start", HookStartEvent.class);
         TYPE_MAP.put("hook.end", HookEndEvent.class);
         TYPE_MAP.put("system.message", SystemMessageEvent.class);

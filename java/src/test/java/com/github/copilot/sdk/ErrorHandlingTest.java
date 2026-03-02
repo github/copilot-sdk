@@ -20,6 +20,7 @@ import com.github.copilot.sdk.events.AbstractSessionEvent;
 import com.github.copilot.sdk.events.AssistantMessageEvent;
 import com.github.copilot.sdk.events.SessionErrorEvent;
 import com.github.copilot.sdk.json.MessageOptions;
+import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.SessionConfig;
 import com.github.copilot.sdk.json.ToolDefinition;
 
@@ -69,7 +70,8 @@ public class ErrorHandlingTest {
                 });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(errorTool))).get();
+            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(errorTool))
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             session.on(event -> allEvents.add(event));
 
@@ -107,7 +109,8 @@ public class ErrorHandlingTest {
                 });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(failTool))).get();
+            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(failTool))
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             AssistantMessageEvent response = session
                     .sendAndWait(new MessageOptions()
@@ -216,7 +219,8 @@ public class ErrorHandlingTest {
                 });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(errorTool))).get();
+            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(errorTool))
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             // First request that will cause tool error
             AssistantMessageEvent response = session

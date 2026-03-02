@@ -20,6 +20,7 @@ import com.github.copilot.sdk.events.SessionCompactionCompleteEvent;
 import com.github.copilot.sdk.events.SessionCompactionStartEvent;
 import com.github.copilot.sdk.json.InfiniteSessionConfig;
 import com.github.copilot.sdk.json.MessageOptions;
+import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.SessionConfig;
 
 /**
@@ -66,7 +67,8 @@ public class CompactionTest {
                 // Block at 1% to ensure compaction runs
                 .setBufferExhaustionThreshold(0.01);
 
-        var config = new SessionConfig().setInfiniteSessions(infiniteConfig);
+        var config = new SessionConfig().setInfiniteSessions(infiniteConfig)
+                .setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
 
         var events = new ArrayList<AbstractSessionEvent>();
 
@@ -132,7 +134,8 @@ public class CompactionTest {
 
         var infiniteConfig = new InfiniteSessionConfig().setEnabled(false);
 
-        var config = new SessionConfig().setInfiniteSessions(infiniteConfig);
+        var config = new SessionConfig().setInfiniteSessions(infiniteConfig)
+                .setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
 
         var compactionEvents = new ArrayList<AbstractSessionEvent>();
 

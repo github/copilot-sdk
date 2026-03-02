@@ -65,7 +65,8 @@ public class SessionEventsE2ETest {
         var allEvents = new ArrayList<AbstractSessionEvent>();
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession().get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             session.on(event -> allEvents.add(event));
 
@@ -106,7 +107,8 @@ public class SessionEventsE2ETest {
         var userMessages = new ArrayList<UserMessageEvent>();
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession().get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             session.on(UserMessageEvent.class, userMessages::add);
 
@@ -171,7 +173,8 @@ public class SessionEventsE2ETest {
         var usageEvents = new ArrayList<AssistantUsageEvent>();
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession().get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             session.on(AssistantUsageEvent.class, usageEvents::add);
 
@@ -197,7 +200,8 @@ public class SessionEventsE2ETest {
         var allEvents = new ArrayList<AbstractSessionEvent>();
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession().get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             session.on(event -> allEvents.add(event));
 

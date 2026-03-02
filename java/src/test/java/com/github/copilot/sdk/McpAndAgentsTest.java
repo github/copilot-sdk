@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import com.github.copilot.sdk.events.AssistantMessageEvent;
 import com.github.copilot.sdk.json.CustomAgentConfig;
 import com.github.copilot.sdk.json.MessageOptions;
+import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.ResumeSessionConfig;
 import com.github.copilot.sdk.json.SessionConfig;
 
@@ -71,7 +72,9 @@ public class McpAndAgentsTest {
         mcpServers.put("test-server", createLocalMcpServer("echo", List.of("hello")));
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig().setMcpServers(mcpServers)).get();
+            CopilotSession session = client.createSession(
+                    new SessionConfig().setMcpServers(mcpServers).setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                    .get();
 
             assertNotNull(session.getSessionId());
 
@@ -99,7 +102,8 @@ public class McpAndAgentsTest {
 
         try (CopilotClient client = ctx.createClient()) {
             // Create a session first
-            CopilotSession session1 = client.createSession().get();
+            CopilotSession session1 = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             String sessionId = session1.getSessionId();
             session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60, TimeUnit.SECONDS);
 
@@ -107,8 +111,8 @@ public class McpAndAgentsTest {
             var mcpServers = new HashMap<String, Object>();
             mcpServers.put("test-server", createLocalMcpServer("echo", List.of("hello")));
 
-            CopilotSession session2 = client
-                    .resumeSession(sessionId, new ResumeSessionConfig().setMcpServers(mcpServers)).get();
+            CopilotSession session2 = client.resumeSession(sessionId, new ResumeSessionConfig()
+                    .setMcpServers(mcpServers).setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             assertEquals(sessionId, session2.getSessionId());
 
@@ -140,7 +144,9 @@ public class McpAndAgentsTest {
         mcpServers.put("server2", createLocalMcpServer("echo", List.of("server2")));
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig().setMcpServers(mcpServers)).get();
+            CopilotSession session = client.createSession(
+                    new SessionConfig().setMcpServers(mcpServers).setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                    .get();
 
             assertNotNull(session.getSessionId());
             session.close();
@@ -164,7 +170,8 @@ public class McpAndAgentsTest {
                 .setPrompt("You are a helpful test agent.").setInfer(true));
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig().setCustomAgents(customAgents)).get();
+            CopilotSession session = client.createSession(new SessionConfig().setCustomAgents(customAgents)
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             assertNotNull(session.getSessionId());
 
@@ -192,7 +199,8 @@ public class McpAndAgentsTest {
 
         try (CopilotClient client = ctx.createClient()) {
             // Create a session first
-            CopilotSession session1 = client.createSession().get();
+            CopilotSession session1 = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             String sessionId = session1.getSessionId();
             session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60, TimeUnit.SECONDS);
 
@@ -201,8 +209,8 @@ public class McpAndAgentsTest {
                     .of(new CustomAgentConfig().setName("resume-agent").setDisplayName("Resume Agent")
                             .setDescription("An agent added on resume").setPrompt("You are a resume test agent."));
 
-            CopilotSession session2 = client
-                    .resumeSession(sessionId, new ResumeSessionConfig().setCustomAgents(customAgents)).get();
+            CopilotSession session2 = client.resumeSession(sessionId, new ResumeSessionConfig()
+                    .setCustomAgents(customAgents).setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             assertEquals(sessionId, session2.getSessionId());
 
@@ -234,7 +242,8 @@ public class McpAndAgentsTest {
                 .setPrompt("You are an agent with specific tools.").setTools(List.of("bash", "edit")).setInfer(true));
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig().setCustomAgents(customAgents)).get();
+            CopilotSession session = client.createSession(new SessionConfig().setCustomAgents(customAgents)
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             assertNotNull(session.getSessionId());
             session.close();
@@ -260,7 +269,8 @@ public class McpAndAgentsTest {
                 .setPrompt("You are an agent with MCP servers.").setMcpServers(agentMcpServers));
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig().setCustomAgents(customAgents)).get();
+            CopilotSession session = client.createSession(new SessionConfig().setCustomAgents(customAgents)
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             assertNotNull(session.getSessionId());
             session.close();
@@ -285,7 +295,8 @@ public class McpAndAgentsTest {
                         .setPrompt("You are agent two.").setInfer(false));
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig().setCustomAgents(customAgents)).get();
+            CopilotSession session = client.createSession(new SessionConfig().setCustomAgents(customAgents)
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             assertNotNull(session.getSessionId());
             session.close();
@@ -312,8 +323,8 @@ public class McpAndAgentsTest {
                 .setPrompt("You are a combined test agent."));
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client
-                    .createSession(new SessionConfig().setMcpServers(mcpServers).setCustomAgents(customAgents)).get();
+            CopilotSession session = client.createSession(new SessionConfig().setMcpServers(mcpServers)
+                    .setCustomAgents(customAgents).setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             assertNotNull(session.getSessionId());
 

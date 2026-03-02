@@ -36,9 +36,10 @@ public final class ToolExecutionCompleteEvent extends AbstractSessionEvent {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record ToolExecutionCompleteData(@JsonProperty("toolCallId") String toolCallId,
-            @JsonProperty("success") boolean success, @JsonProperty("isUserRequested") Boolean isUserRequested,
-            @JsonProperty("result") Result result, @JsonProperty("error") Error error,
-            @JsonProperty("toolTelemetry") Map<String, Object> toolTelemetry,
+            @JsonProperty("success") boolean success, @JsonProperty("model") String model,
+            @JsonProperty("interactionId") String interactionId,
+            @JsonProperty("isUserRequested") Boolean isUserRequested, @JsonProperty("result") Result result,
+            @JsonProperty("error") Error error, @JsonProperty("toolTelemetry") Map<String, Object> toolTelemetry,
             @JsonProperty("parentToolCallId") String parentToolCallId) {
 
         /** Returns a defensive copy of the tool telemetry map. */

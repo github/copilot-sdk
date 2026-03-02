@@ -1377,7 +1377,6 @@ public class SessionEventParserTest {
                     "data": {
                         "messageId": "msg-delta-1",
                         "deltaContent": "partial text",
-                        "totalResponseSizeBytes": 4096.0,
                         "parentToolCallId": "ptc-1"
                     }
                 }
@@ -1388,7 +1387,6 @@ public class SessionEventParserTest {
         var data = event.getData();
         assertEquals("msg-delta-1", data.messageId());
         assertEquals("partial text", data.deltaContent());
-        assertEquals(4096.0, data.totalResponseSizeBytes());
         assertEquals("ptc-1", data.parentToolCallId());
     }
 

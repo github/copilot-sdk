@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +23,8 @@ import org.junit.jupiter.api.TestInfo;
 import com.github.copilot.sdk.events.AssistantMessageEvent;
 import com.github.copilot.sdk.json.MessageOptions;
 import com.github.copilot.sdk.json.PermissionHandler;
+import com.github.copilot.sdk.json.PermissionRequest;
+import com.github.copilot.sdk.json.PermissionRequestResult;
 import com.github.copilot.sdk.json.SessionConfig;
 import com.github.copilot.sdk.json.ToolDefinition;
 
@@ -107,7 +110,8 @@ public class ToolsTest {
                 });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(encryptTool))).get();
+            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(encryptTool))
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             AssistantMessageEvent response = session
                     .sendAndWait(new MessageOptions().setPrompt("Use encrypt_string to encrypt this string: Hello"))
@@ -143,7 +147,8 @@ public class ToolsTest {
                 });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(errorTool))).get();
+            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(errorTool))
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             AssistantMessageEvent response = session
                     .sendAndWait(new MessageOptions()
@@ -204,7 +209,8 @@ public class ToolsTest {
                 });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(dbQueryTool))).get();
+            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(dbQueryTool))
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             AssistantMessageEvent response = session
                     .sendAndWait(new MessageOptions().setPrompt(
@@ -216,6 +222,100 @@ public class ToolsTest {
             String content = response.getData().content();
             assertTrue(content.contains("Passos"), "Response should contain Passos: " + content);
             assertTrue(content.contains("San Lorenzo"), "Response should contain San Lorenzo: " + content);
+
+            session.close();
+        }
+    }
+
+    /**
+     * Verifies that a custom tool is invoked with the permission handler being
+     * called and can inspect the tool name.
+     *
+     * @see Snapshot: tools/invokes_custom_tool_with_permission_handler
+     */
+    @Test
+    void testInvokesCustomToolWithPermissionHandler(TestInfo testInfo) throws Exception {
+        ctx.configureForTest("tools", "invokes_custom_tool_with_permission_handler");
+
+        var permissionRequests = new ArrayList<PermissionRequest>();
+
+        var parameters = new HashMap<String, Object>();
+        parameters.put("type", "object");
+        var props = new HashMap<String, Object>();
+        props.put("input", Map.of("type", "string"));
+        parameters.put("properties", props);
+        parameters.put("required", List.of("input"));
+
+        ToolDefinition encryptTool = ToolDefinition.create("encrypt_string", "Encrypts a string", parameters,
+                (invocation) -> {
+                    Map<String, Object> args = invocation.getArguments();
+                    String input = (String) args.get("input");
+                    return CompletableFuture.completedFuture(input.toUpperCase());
+                });
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession(
+                    new SessionConfig().setTools(List.of(encryptTool)).setOnPermissionRequest((request, invocation) -> {
+                        permissionRequests.add(request);
+                        return CompletableFuture.completedFuture(new PermissionRequestResult().setKind("approved"));
+                    })).get();
+
+            AssistantMessageEvent response = session
+                    .sendAndWait(new MessageOptions().setPrompt("Use encrypt_string to encrypt this string: Hello"))
+                    .get(60, TimeUnit.SECONDS);
+
+            assertNotNull(response);
+            assertTrue(response.getData().content().contains("HELLO"),
+                    "Response should contain HELLO: " + response.getData().content());
+
+            // Should have received a custom-tool permission request
+            boolean hasCustomToolRequest = permissionRequests.stream()
+                    .anyMatch(req -> "custom-tool".equals(req.getKind()));
+            assertTrue(hasCustomToolRequest, "Should have received a custom-tool permission request");
+
+            session.close();
+        }
+    }
+
+    /**
+     * Verifies that a custom tool is denied when the permission handler denies it.
+     *
+     * @see Snapshot: tools/denies_custom_tool_when_permission_denied
+     */
+    @Test
+    void testDeniesCustomToolWhenPermissionDenied(TestInfo testInfo) throws Exception {
+        ctx.configureForTest("tools", "denies_custom_tool_when_permission_denied");
+
+        final boolean[] toolHandlerCalled = {false};
+
+        var parameters = new HashMap<String, Object>();
+        parameters.put("type", "object");
+        var props = new HashMap<String, Object>();
+        props.put("input", Map.of("type", "string"));
+        parameters.put("properties", props);
+        parameters.put("required", List.of("input"));
+
+        ToolDefinition encryptTool = ToolDefinition.create("encrypt_string", "Encrypts a string", parameters,
+                (invocation) -> {
+                    toolHandlerCalled[0] = true;
+                    Map<String, Object> args = invocation.getArguments();
+                    String input = (String) args.get("input");
+                    return CompletableFuture.completedFuture(input.toUpperCase());
+                });
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client
+                    .createSession(
+                            new SessionConfig().setTools(List.of(encryptTool))
+                                    .setOnPermissionRequest((request, invocation) -> CompletableFuture.completedFuture(
+                                            new PermissionRequestResult().setKind("denied-interactively-by-user"))))
+                    .get();
+
+            session.sendAndWait(new MessageOptions().setPrompt("Use encrypt_string to encrypt this string: Hello"))
+                    .get(60, TimeUnit.SECONDS);
+
+            // The tool handler should NOT have been called since permission was denied
+            assertFalse(toolHandlerCalled[0], "Tool handler should not be called when permission is denied");
 
             session.close();
         }

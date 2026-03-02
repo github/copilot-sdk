@@ -31,6 +31,7 @@ import com.github.copilot.sdk.events.ToolExecutionStartEvent;
 import com.github.copilot.sdk.events.UserMessageEvent;
 import com.github.copilot.sdk.json.MessageOptions;
 import com.github.copilot.sdk.json.PermissionHandler;
+import com.github.copilot.sdk.json.ResumeSessionConfig;
 import com.github.copilot.sdk.json.SessionConfig;
 import com.github.copilot.sdk.json.SystemMessageConfig;
 import com.github.copilot.sdk.json.ToolDefinition;
@@ -69,7 +70,8 @@ public class CopilotSessionTest {
         ctx.configureForTest("session", "should_receive_session_events");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(new SessionConfig().setModel("fake-test-model")).get();
+            CopilotSession session = client.createSession(new SessionConfig()
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setModel("fake-test-model")).get();
 
             assertNotNull(session.getSessionId());
             assertTrue(session.getSessionId().matches("^[a-f0-9-]+$"));
@@ -105,7 +107,8 @@ public class CopilotSessionTest {
         ctx.configureForTest("session", "should_have_stateful_conversation");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession().get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             AssistantMessageEvent response1 = session.sendAndWait(new MessageOptions().setPrompt("What is 1+1?"), 60000)
                     .get(90, TimeUnit.SECONDS);
@@ -137,7 +140,8 @@ public class CopilotSessionTest {
         ctx.configureForTest("session", "should_receive_session_events");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession().get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             List<AbstractSessionEvent> receivedEvents = new ArrayList<>();
             CompletableFuture<Void> idleReceived = new CompletableFuture<>();
@@ -229,7 +233,8 @@ public class CopilotSessionTest {
         ctx.configureForTest("session", "sendandwait_blocks_until_session_idle_and_returns_final_assistant_message");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession().get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             var events = new ArrayList<String>();
             session.on(evt -> events.add(evt.getType()));
@@ -259,7 +264,8 @@ public class CopilotSessionTest {
 
         try (CopilotClient client = ctx.createClient()) {
             // Create initial session
-            CopilotSession session1 = client.createSession().get();
+            CopilotSession session1 = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             String sessionId = session1.getSessionId();
 
             AssistantMessageEvent answer = session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60,
@@ -269,7 +275,8 @@ public class CopilotSessionTest {
                     "Response should contain 2: " + answer.getData().content());
 
             // Resume using the same client
-            CopilotSession session2 = client.resumeSession(sessionId).get();
+            CopilotSession session2 = client.resumeSession(sessionId,
+                    new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             assertEquals(sessionId, session2.getSessionId());
 
@@ -296,7 +303,8 @@ public class CopilotSessionTest {
         // throughout the test, matching the behavior of other SDK implementations
         try (CopilotClient client1 = ctx.createClient()) {
             // Create initial session
-            CopilotSession session1 = client1.createSession().get();
+            CopilotSession session1 = client1
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             String sessionId = session1.getSessionId();
 
             AssistantMessageEvent answer = session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60,
@@ -307,7 +315,8 @@ public class CopilotSessionTest {
 
             // Resume using a new client (keeping client1 alive)
             try (CopilotClient client2 = ctx.createClient()) {
-                CopilotSession session2 = client2.resumeSession(sessionId).get();
+                CopilotSession session2 = client2.resumeSession(sessionId,
+                        new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
                 assertEquals(sessionId, session2.getSessionId());
 
@@ -335,8 +344,9 @@ public class CopilotSessionTest {
 
         try (CopilotClient client = ctx.createClient()) {
             String systemMessageSuffix = "End each response with the phrase 'Have a nice day!'";
-            SessionConfig config = new SessionConfig().setSystemMessage(
-                    new SystemMessageConfig().setContent(systemMessageSuffix).setMode(SystemMessageMode.APPEND));
+            SessionConfig config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .setSystemMessage(new SystemMessageConfig().setContent(systemMessageSuffix)
+                            .setMode(SystemMessageMode.APPEND));
 
             CopilotSession session = client.createSession(config).get();
 
@@ -366,8 +376,9 @@ public class CopilotSessionTest {
 
         try (CopilotClient client = ctx.createClient()) {
             String testSystemMessage = "You are an assistant called Testy McTestface. Reply succinctly.";
-            SessionConfig config = new SessionConfig().setSystemMessage(
-                    new SystemMessageConfig().setContent(testSystemMessage).setMode(SystemMessageMode.REPLACE));
+            SessionConfig config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .setSystemMessage(
+                            new SystemMessageConfig().setContent(testSystemMessage).setMode(SystemMessageMode.REPLACE));
 
             CopilotSession session = client.createSession(config).get();
 
@@ -394,7 +405,8 @@ public class CopilotSessionTest {
         ctx.configureForTest("session", "should_receive_streaming_delta_events_when_streaming_is_enabled");
 
         try (CopilotClient client = ctx.createClient()) {
-            SessionConfig config = new SessionConfig().setStreaming(true);
+            SessionConfig config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .setStreaming(true);
 
             CopilotSession session = client.createSession(config).get();
 
@@ -430,7 +442,8 @@ public class CopilotSessionTest {
         ctx.configureForTest("session", "should_abort_a_session");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession().get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             assertNotNull(session.getSessionId());
 
             // Set up wait for tool execution to start BEFORE sending
@@ -487,7 +500,8 @@ public class CopilotSessionTest {
         ctx.configureForTest("session", "should_create_a_session_with_availabletools");
 
         try (CopilotClient client = ctx.createClient()) {
-            SessionConfig config = new SessionConfig().setAvailableTools(List.of("view", "edit"));
+            SessionConfig config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .setAvailableTools(List.of("view", "edit"));
 
             CopilotSession session = client.createSession(config).get();
 
@@ -511,7 +525,8 @@ public class CopilotSessionTest {
         ctx.configureForTest("session", "should_create_a_session_with_excludedtools");
 
         try (CopilotClient client = ctx.createClient()) {
-            SessionConfig config = new SessionConfig().setExcludedTools(List.of("view"));
+            SessionConfig config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .setExcludedTools(List.of("view"));
 
             CopilotSession session = client.createSession(config).get();
 
@@ -538,7 +553,9 @@ public class CopilotSessionTest {
 
         try (CopilotClient client = ctx.createClient()) {
             try {
-                client.resumeSession("non-existent-session-id").get(30, TimeUnit.SECONDS);
+                client.resumeSession("non-existent-session-id",
+                        new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                        .get(30, TimeUnit.SECONDS);
                 fail("Expected exception when resuming non-existent session");
             } catch (Exception e) {
                 // Should throw an error
@@ -559,7 +576,8 @@ public class CopilotSessionTest {
         try (CopilotClient client = ctx.createClient()) {
             String customConfigDir = ctx.getWorkDir().resolve("custom-config").toString();
 
-            SessionConfig config = new SessionConfig().setConfigDir(customConfigDir);
+            SessionConfig config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .setConfigDir(customConfigDir);
             CopilotSession session = client.createSession(config).get();
 
             assertNotNull(session.getSessionId());
@@ -591,7 +609,8 @@ public class CopilotSessionTest {
         ctx.configureForTest("session", "sendandwait_throws_on_timeout");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession().get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             // Use a short timeout that will trigger before any response
             try {
@@ -626,10 +645,12 @@ public class CopilotSessionTest {
 
         try (CopilotClient client = ctx.createClient()) {
             // Create two sessions and send one message to each (matches snapshot format)
-            CopilotSession session1 = client.createSession().get();
+            CopilotSession session1 = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session1.sendAndWait(new MessageOptions().setPrompt("Say hello")).get(60, TimeUnit.SECONDS);
 
-            CopilotSession session2 = client.createSession().get();
+            CopilotSession session2 = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             session2.sendAndWait(new MessageOptions().setPrompt("Say goodbye")).get(60, TimeUnit.SECONDS);
 
             // Small delay to ensure session files are written to disk
@@ -663,7 +684,8 @@ public class CopilotSessionTest {
 
         try (CopilotClient client = ctx.createClient()) {
             // Create a session
-            CopilotSession session = client.createSession().get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             String sessionId = session.getSessionId();
 
             session.sendAndWait(new MessageOptions().setPrompt("Hello")).get(60, TimeUnit.SECONDS);
@@ -683,7 +705,9 @@ public class CopilotSessionTest {
 
             // Trying to resume the deleted session should fail
             try {
-                client.resumeSession(sessionId).get(30, TimeUnit.SECONDS);
+                client.resumeSession(sessionId,
+                        new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                        .get(30, TimeUnit.SECONDS);
                 fail("Expected exception when resuming deleted session");
             } catch (Exception e) {
                 // Should throw an error indicating session not found
@@ -723,7 +747,9 @@ public class CopilotSessionTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(new SessionConfig().setTools(java.util.List.of(getSecretNumberTool))).get();
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                            .setTools(java.util.List.of(getSecretNumberTool)))
+                    .get();
 
             AssistantMessageEvent response = session
                     .sendAndWait(new MessageOptions().setPrompt("What is the secret number for key ALPHA?"))
@@ -748,7 +774,8 @@ public class CopilotSessionTest {
 
         try (CopilotClient client = ctx.createClient()) {
             // Verify that the streaming option is accepted without errors
-            CopilotSession session = client.createSession(new SessionConfig().setStreaming(true)).get();
+            CopilotSession session = client.createSession(
+                    new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setStreaming(true)).get();
 
             assertNotNull(session.getSessionId());
             assertTrue(session.getSessionId().matches("^[a-f0-9-]+$"));
@@ -776,7 +803,8 @@ public class CopilotSessionTest {
         ctx.configureForTest("session", "should_list_sessions");
 
         try (CopilotClient client = ctx.createClient()) {
-            var session = client.createSession().get();
+            var session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             var sessions = client.listSessions().get(30, TimeUnit.SECONDS);
             assertNotNull(sessions);
@@ -804,7 +832,8 @@ public class CopilotSessionTest {
         ctx.configureForTest("session", "should_list_sessions");
 
         try (CopilotClient client = ctx.createClient()) {
-            var session = client.createSession().get();
+            var session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             var filter = new com.github.copilot.sdk.json.SessionListFilter().setCwd("/test/path")
                     .setRepository("owner/repo").setBranch("main").setGitRoot("/test");
