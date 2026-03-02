@@ -215,8 +215,10 @@ _PermissionHandlerFn = Callable[
 
 class PermissionHandler:
     @staticmethod
-    def approve_all(request: Any, invocation: Any) -> dict:
-        return {"kind": "approved"}
+    def approve_all(
+        request: PermissionRequest, invocation: dict[str, str]
+    ) -> PermissionRequestResult:
+        return PermissionRequestResult(kind="approved")
 
 
 # ============================================================================
