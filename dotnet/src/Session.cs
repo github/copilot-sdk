@@ -47,10 +47,8 @@ public partial class CopilotSession : IAsyncDisposable
     private readonly HashSet<SessionEventHandler> _eventHandlers = new();
     private readonly Dictionary<string, AIFunction> _toolHandlers = new();
     private readonly JsonRpc _rpc;
-    private PermissionRequestHandler? _permissionHandler;
-    private readonly SemaphoreSlim _permissionHandlerLock = new(1, 1);
-    private UserInputHandler? _userInputHandler;
-    private readonly SemaphoreSlim _userInputHandlerLock = new(1, 1);
+    private volatile PermissionRequestHandler? _permissionHandler;
+    private volatile UserInputHandler? _userInputHandler;
     private SessionHooks? _hooks;
     private readonly SemaphoreSlim _hooksLock = new(1, 1);
     private SessionRpc? _sessionRpc;
@@ -300,15 +298,7 @@ public partial class CopilotSession : IAsyncDisposable
     /// </remarks>
     internal void RegisterPermissionHandler(PermissionRequestHandler handler)
     {
-        _permissionHandlerLock.Wait();
-        try
-        {
-            _permissionHandler = handler;
-        }
-        finally
-        {
-            _permissionHandlerLock.Release();
-        }
+        _permissionHandler = handler;
     }
 
     /// <summary>
@@ -318,16 +308,7 @@ public partial class CopilotSession : IAsyncDisposable
     /// <returns>A task that resolves with the permission decision.</returns>
     internal async Task<PermissionRequestResult> HandlePermissionRequestAsync(JsonElement permissionRequestData)
     {
-        await _permissionHandlerLock.WaitAsync();
-        PermissionRequestHandler? handler;
-        try
-        {
-            handler = _permissionHandler;
-        }
-        finally
-        {
-            _permissionHandlerLock.Release();
-        }
+        var handler = _permissionHandler;
 
         if (handler == null)
         {
@@ -354,15 +335,7 @@ public partial class CopilotSession : IAsyncDisposable
     /// <param name="handler">The handler to invoke when user input is requested.</param>
     internal void RegisterUserInputHandler(UserInputHandler handler)
     {
-        _userInputHandlerLock.Wait();
-        try
-        {
-            _userInputHandler = handler;
-        }
-        finally
-        {
-            _userInputHandlerLock.Release();
-        }
+        _userInputHandler = handler;
     }
 
     /// <summary>
@@ -372,16 +345,7 @@ public partial class CopilotSession : IAsyncDisposable
     /// <returns>A task that resolves with the user's response.</returns>
     internal async Task<UserInputResponse> HandleUserInputRequestAsync(UserInputRequest request)
     {
-        await _userInputHandlerLock.WaitAsync();
-        UserInputHandler? handler;
-        try
-        {
-            handler = _userInputHandler;
-        }
-        finally
-        {
-            _userInputHandlerLock.Release();
-        }
+        var handler = _userInputHandler;
 
         if (handler == null)
         {
@@ -589,15 +553,7 @@ public partial class CopilotSession : IAsyncDisposable
         _eventHandlers.Clear();
         _toolHandlers.Clear();
 
-        await _permissionHandlerLock.WaitAsync();
-        try
-        {
-            _permissionHandler = null;
-        }
-        finally
-        {
-            _permissionHandlerLock.Release();
-        }
+        _permissionHandler = null;
     }
 
     private class OnDisposeCall(Action callback) : IDisposable
