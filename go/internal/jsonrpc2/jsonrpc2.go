@@ -333,7 +333,10 @@ func (c *Client) readLoop() {
 		// Read message body
 		body := make([]byte, contentLength)
 		if _, err := io.ReadFull(reader, body); err != nil {
-			fmt.Printf("Error reading body: %v\n", err)
+			// Only log unexpected errors (not EOF or closed pipe during shutdown)
+			if err != io.EOF && !errors.Is(err, os.ErrClosed) && c.running.Load() {
+				fmt.Printf("Error reading body: %v\n", err)
+			}
 			return
 		}
 
