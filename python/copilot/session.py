@@ -520,3 +520,24 @@ class CopilotSession:
             >>> await session.abort()
         """
         await self._client.request("session.abort", {"sessionId": self.session_id})
+
+    async def set_model(self, model: str) -> None:
+        """
+        Change the model for this session.
+
+        The new model takes effect for the next message. Conversation history
+        is preserved.
+
+        Args:
+            model: Model ID to switch to (e.g., "gpt-4.1", "claude-sonnet-4").
+
+        Raises:
+            Exception: If the session has been destroyed or the connection fails.
+
+        Example:
+            >>> await session.set_model("gpt-4.1")
+        """
+        await self._client.request(
+            "session.setModel",
+            {"sessionId": self.session_id, "model": model},
+        )

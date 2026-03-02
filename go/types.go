@@ -828,6 +828,12 @@ type sessionAbortRequest struct {
 	SessionID string `json:"sessionId"`
 }
 
+// sessionSetModelRequest is the request for session.setModel
+type sessionSetModelRequest struct {
+	SessionID string `json:"sessionId"`
+	Model     string `json:"model"`
+}
+
 type sessionSendRequest struct {
 	SessionID   string       `json:"sessionId"`
 	Prompt      string       `json:"prompt"`

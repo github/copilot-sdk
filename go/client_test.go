@@ -448,6 +448,26 @@ func TestResumeSessionRequest_ClientName(t *testing.T) {
 	})
 }
 
+func TestSetModelRequest(t *testing.T) {
+	t.Run("includes sessionId and model in JSON", func(t *testing.T) {
+		req := sessionSetModelRequest{SessionID: "s1", Model: "gpt-4.1"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["sessionId"] != "s1" {
+			t.Errorf("Expected sessionId 's1', got %v", m["sessionId"])
+		}
+		if m["model"] != "gpt-4.1" {
+			t.Errorf("Expected model 'gpt-4.1', got %v", m["model"])
+		}
+	})
+}
+
 func TestClient_CreateSession_RequiresPermissionHandler(t *testing.T) {
 	t.Run("returns error when config is nil", func(t *testing.T) {
 		client := NewClient(nil)

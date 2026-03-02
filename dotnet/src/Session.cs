@@ -541,6 +541,23 @@ public partial class CopilotSession : IAsyncDisposable
     }
 
     /// <summary>
+    /// Changes the model for this session.
+    /// The new model takes effect for the next message. Conversation history is preserved.
+    /// </summary>
+    /// <param name="model">Model ID to switch to (e.g., "gpt-4.1").</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    /// <example>
+    /// <code>
+    /// await session.SetModelAsync("gpt-4.1");
+    /// </code>
+    /// </example>
+    public async Task SetModelAsync(string model, CancellationToken cancellationToken = default)
+    {
+        await InvokeRpcAsync<object>(
+            "session.setModel", [new SetModelRequest { SessionId = SessionId, Model = model }], cancellationToken);
+    }
+
+    /// <summary>
     /// Disposes the <see cref="CopilotSession"/> and releases all associated resources.
     /// </summary>
     /// <returns>A task representing the dispose operation.</returns>
@@ -638,6 +655,12 @@ public partial class CopilotSession : IAsyncDisposable
         public string SessionId { get; init; } = string.Empty;
     }
 
+    internal record SetModelRequest
+    {
+        public string SessionId { get; init; } = string.Empty;
+        public string Model { get; init; } = string.Empty;
+    }
+
     [JsonSourceGenerationOptions(
         JsonSerializerDefaults.Web,
         AllowOutOfOrderMetadataProperties = true,
@@ -650,6 +673,7 @@ public partial class CopilotSession : IAsyncDisposable
     [JsonSerializable(typeof(SendMessageResponse))]
     [JsonSerializable(typeof(SessionAbortRequest))]
     [JsonSerializable(typeof(SessionDestroyRequest))]
+    [JsonSerializable(typeof(SetModelRequest))]
     [JsonSerializable(typeof(UserMessageDataAttachmentsItem))]
     [JsonSerializable(typeof(PreToolUseHookInput))]
     [JsonSerializable(typeof(PreToolUseHookOutput))]

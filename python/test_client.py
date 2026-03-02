@@ -226,3 +226,29 @@ class TestSessionConfigForwarding:
             assert captured["session.resume"]["clientName"] == "my-app"
         finally:
             await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_set_model_sends_correct_rpc(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            session = await client.create_session(
+                {"on_permission_request": PermissionHandler.approve_all}
+            )
+
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.setModel":
+                    return {}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            await session.set_model("gpt-4.1")
+            assert captured["session.setModel"]["sessionId"] == session.session_id
+            assert captured["session.setModel"]["model"] == "gpt-4.1"
+        finally:
+            await client.force_stop()

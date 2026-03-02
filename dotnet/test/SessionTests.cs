@@ -441,4 +441,18 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         Assert.NotNull(assistantMessage);
         Assert.Contains("2", assistantMessage!.Data.Content);
     }
+
+    [Fact]
+    public async Task Should_Set_Model_On_Existing_Session()
+    {
+        var session = await CreateSessionAsync();
+
+        // SetModel should not throw
+        await session.SetModelAsync("gpt-4.1");
+
+        // Session should still be usable after model change
+        await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
+        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        Assert.NotNull(assistantMessage);
+    }
 }

@@ -80,6 +80,31 @@ describe("CopilotClient", () => {
         );
     });
 
+    it("sends session.setModel RPC with correct params", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        // Mock sendRequest to capture the call without hitting the runtime
+        const spy = vi.spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.setModel") return {};
+                // Fall through for other methods (shouldn't be called)
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await session.setModel("gpt-4.1");
+
+        expect(spy).toHaveBeenCalledWith(
+            "session.setModel",
+            { sessionId: session.sessionId, model: "gpt-4.1" }
+        );
+
+        spy.mockRestore();
+    });
+
     describe("URL parsing", () => {
         it("should parse port-only URL format", () => {
             const client = new CopilotClient({
