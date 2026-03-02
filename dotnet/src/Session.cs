@@ -44,7 +44,13 @@ namespace GitHub.Copilot.SDK;
 /// </example>
 public partial class CopilotSession : IAsyncDisposable
 {
-    private readonly HashSet<SessionEventHandler> _eventHandlers = new();
+    /// <summary>
+    /// Multicast delegate used as a thread-safe, insertion-ordered handler list.
+    /// The compiler-generated add/remove accessors use a lock-free CAS loop over the backing field.
+    /// Dispatch reads the field once (inherent snapshot, no allocation).
+    /// Expected handler count is small (typically 1–3), so Delegate.Combine/Remove cost is negligible.
+    /// </summary>
+    private event SessionEventHandler? _eventHandlers;
     private readonly Dictionary<string, AIFunction> _toolHandlers = new();
     private readonly JsonRpc _rpc;
     private volatile PermissionRequestHandler? _permissionHandler;
@@ -243,8 +249,8 @@ public partial class CopilotSession : IAsyncDisposable
     /// </example>
     public IDisposable On(SessionEventHandler handler)
     {
-        _eventHandlers.Add(handler);
-        return new ActionDisposable(() => _eventHandlers.Remove(handler));
+        _eventHandlers += handler;
+        return new ActionDisposable(() => _eventHandlers -= handler);
     }
 
     /// <summary>
@@ -256,11 +262,8 @@ public partial class CopilotSession : IAsyncDisposable
     /// </remarks>
     internal void DispatchEvent(SessionEvent sessionEvent)
     {
-        foreach (var handler in _eventHandlers.ToArray())
-        {
-            // We allow handler exceptions to propagate so they are not lost
-            handler(sessionEvent);
-        }
+        // Reading the field once gives us a snapshot; delegates are immutable.
+        _eventHandlers?.Invoke(sessionEvent);
     }
 
     /// <summary>
@@ -550,7 +553,7 @@ public partial class CopilotSession : IAsyncDisposable
             // Connection is broken or closed
         }
 
-        _eventHandlers.Clear();
+        _eventHandlers = null;
         _toolHandlers.Clear();
 
         _permissionHandler = null;
