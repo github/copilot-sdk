@@ -36,9 +36,12 @@ internal static class OpenTelemetryConsts
 
     public static class GenAI
     {
-        public const string Chat = "chat";
-        public const string InvokeAgent = "invoke_agent";
-        public const string ExecuteTool = "execute_tool";
+        public static class OperationNames
+        {
+            public const string Chat = "chat";
+            public const string InvokeAgent = "invoke_agent";
+            public const string ExecuteTool = "execute_tool";
+        }
 
         public static class Operation
         {

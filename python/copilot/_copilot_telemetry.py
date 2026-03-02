@@ -1532,12 +1532,10 @@ class AgentTurnTracker:
         if event.type == SessionEventType.ASSISTANT_USAGE:
             data = event.data
             model = getattr(data, "model", None)
-            subagent.response_model = model
-
             if model:
+                subagent.response_model = model
                 if subagent.chat_span is not None:
                     subagent.chat_span.set_attribute(ATTR_GEN_AI_RESPONSE_MODEL, model)
-                subagent.invoke_agent_span.set_attribute(ATTR_GEN_AI_RESPONSE_MODEL, model)
 
             api_call_id = getattr(data, "api_call_id", None)
             provider_call_id = getattr(data, "provider_call_id", None)

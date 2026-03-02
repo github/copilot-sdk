@@ -106,12 +106,12 @@ internal sealed class CopilotTelemetry : IDisposable
         }
 
         string displayName = string.IsNullOrWhiteSpace(agentName)
-            ? OpenTelemetryConsts.GenAI.InvokeAgent
-            : $"{OpenTelemetryConsts.GenAI.InvokeAgent} {agentName}";
+            ? OpenTelemetryConsts.GenAI.OperationNames.InvokeAgent
+            : $"{OpenTelemetryConsts.GenAI.OperationNames.InvokeAgent} {agentName}";
 
         ActivityTagsCollection tags = new()
         {
-            { OpenTelemetryConsts.GenAI.Operation.Name, OpenTelemetryConsts.GenAI.InvokeAgent },
+            { OpenTelemetryConsts.GenAI.Operation.Name, OpenTelemetryConsts.GenAI.OperationNames.InvokeAgent },
             { OpenTelemetryConsts.GenAI.Provider.Name, providerName },
             { OpenTelemetryConsts.GenAI.Agent.Id, sessionId },
             { OpenTelemetryConsts.GenAI.Conversation.Id, sessionId },
@@ -159,12 +159,12 @@ internal sealed class CopilotTelemetry : IDisposable
         }
 
         string displayName = string.IsNullOrWhiteSpace(model)
-            ? OpenTelemetryConsts.GenAI.Chat
-            : $"{OpenTelemetryConsts.GenAI.Chat} {model}";
+            ? OpenTelemetryConsts.GenAI.OperationNames.Chat
+            : $"{OpenTelemetryConsts.GenAI.OperationNames.Chat} {model}";
 
         ActivityTagsCollection tags = new()
         {
-            { OpenTelemetryConsts.GenAI.Operation.Name, OpenTelemetryConsts.GenAI.Chat },
+            { OpenTelemetryConsts.GenAI.Operation.Name, OpenTelemetryConsts.GenAI.OperationNames.Chat },
             { OpenTelemetryConsts.GenAI.Provider.Name, providerName },
         };
 
@@ -198,11 +198,11 @@ internal sealed class CopilotTelemetry : IDisposable
             return null;
         }
 
-        string displayName = $"{OpenTelemetryConsts.GenAI.ExecuteTool} {toolName}";
+        string displayName = $"{OpenTelemetryConsts.GenAI.OperationNames.ExecuteTool} {toolName}";
 
         ActivityTagsCollection tags = new()
         {
-            { OpenTelemetryConsts.GenAI.Operation.Name, OpenTelemetryConsts.GenAI.ExecuteTool },
+            { OpenTelemetryConsts.GenAI.Operation.Name, OpenTelemetryConsts.GenAI.OperationNames.ExecuteTool },
             { OpenTelemetryConsts.GenAI.Tool.Name, toolName },
             { OpenTelemetryConsts.GenAI.Tool.CallId, toolCallId },
             { OpenTelemetryConsts.GenAI.Tool.Type, "function" },
@@ -297,7 +297,7 @@ internal sealed class CopilotTelemetry : IDisposable
             TimeToFirstChunkHistogram.Record(
                 durationSeconds,
                 CreateMetricTags(
-                    OpenTelemetryConsts.GenAI.Chat,
+                    OpenTelemetryConsts.GenAI.OperationNames.Chat,
                     requestModel,
                     responseModel,
                     providerName,
@@ -319,7 +319,7 @@ internal sealed class CopilotTelemetry : IDisposable
             TimePerOutputChunkHistogram.Record(
                 durationSeconds,
                 CreateMetricTags(
-                    OpenTelemetryConsts.GenAI.Chat,
+                    OpenTelemetryConsts.GenAI.OperationNames.Chat,
                     requestModel,
                     responseModel,
                     providerName,
@@ -1152,7 +1152,7 @@ internal sealed class CopilotTelemetry : IDisposable
                 ServerAddress,
                 ServerPort,
                 error,
-                OpenTelemetryConsts.GenAI.Chat);
+                OpenTelemetryConsts.GenAI.OperationNames.Chat);
 
             // Per-turn operation duration
             if (_telemetry.OperationDurationHistogram.Enabled)
@@ -1165,7 +1165,7 @@ internal sealed class CopilotTelemetry : IDisposable
                     ServerAddress,
                     ServerPort,
                     error: error,
-                    operationName: OpenTelemetryConsts.GenAI.Chat);
+                    operationName: OpenTelemetryConsts.GenAI.OperationNames.Chat);
             }
 
             _firstOutputChunkRecorded = false;
@@ -1310,7 +1310,7 @@ internal sealed class CopilotTelemetry : IDisposable
                     ServerAddress,
                     ServerPort,
                     error: error,
-                    operationName: OpenTelemetryConsts.GenAI.InvokeAgent);
+                    operationName: OpenTelemetryConsts.GenAI.OperationNames.InvokeAgent);
             }
 
             activity.Dispose();
@@ -1324,7 +1324,7 @@ internal sealed class CopilotTelemetry : IDisposable
         {
             Debug.Assert(Monitor.IsEntered(_lock));
 
-            if (!_isStreaming)
+            if (!_isStreaming || _turnTimestamp == 0)
             {
                 return;
             }
@@ -1433,12 +1433,11 @@ internal sealed class CopilotTelemetry : IDisposable
                 case AssistantUsageEvent usageEvent:
                     subagent.ResponseModel = usageEvent.Data.Model;
 
-                    // Update response model on both spans if the subagent is using
+                    // Update response model on chat span if the subagent is using
                     // a different model than what was set at span creation time.
                     if (!string.IsNullOrWhiteSpace(usageEvent.Data.Model))
                     {
                         subagent.ChatActivity?.SetTag(OpenTelemetryConsts.GenAI.Response.Model, usageEvent.Data.Model);
-                        subagent.InvokeAgentActivity?.SetTag(OpenTelemetryConsts.GenAI.Response.Model, usageEvent.Data.Model);
                     }
 
                     if (!string.IsNullOrWhiteSpace(usageEvent.Data.ApiCallId))
@@ -1637,7 +1636,7 @@ internal sealed class CopilotTelemetry : IDisposable
                     ServerAddress,
                     ServerPort,
                     error,
-                    OpenTelemetryConsts.GenAI.Chat);
+                    OpenTelemetryConsts.GenAI.OperationNames.Chat);
 
                 chatActivity.Dispose();
             }
@@ -1706,7 +1705,7 @@ internal sealed class CopilotTelemetry : IDisposable
                         ServerAddress,
                         ServerPort,
                         error: error,
-                        operationName: OpenTelemetryConsts.GenAI.InvokeAgent);
+                        operationName: OpenTelemetryConsts.GenAI.OperationNames.InvokeAgent);
                 }
 
                 invokeActivity.Dispose();

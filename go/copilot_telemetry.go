@@ -1438,7 +1438,6 @@ func (t *agentTurnTracker) processSubagentEventLocked(sub *subagentState, event 
 			if sub.chatSpan != nil {
 				sub.chatSpan.SetAttributes(attribute.String(otelGenAIResponseModel, *event.Data.Model))
 			}
-			sub.invokeAgentSpan.SetAttributes(attribute.String(otelGenAIResponseModel, *event.Data.Model))
 		}
 		if event.Data.APICallID != nil && *event.Data.APICallID != "" {
 			sub.responseID = *event.Data.APICallID

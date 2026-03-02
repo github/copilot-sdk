@@ -1590,11 +1590,9 @@ export class AgentTurnTracker {
         switch (event.type) {
             case "assistant.usage": {
                 const data = (event as Extract<SessionEvent, { type: "assistant.usage" }>).data;
-                subagent.responseModel = data.model;
-
                 if (data.model) {
+                    subagent.responseModel = data.model;
                     subagent.chatSpan?.setAttribute(ATTR.GEN_AI_RESPONSE_MODEL, data.model);
-                    subagent.invokeAgentSpan.setAttribute(ATTR.GEN_AI_RESPONSE_MODEL, data.model);
                 }
 
                 if (data.apiCallId) {

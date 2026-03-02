@@ -1337,7 +1337,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
                         serverAddress: session.TelemetryServerAddress,
                         serverPort: session.TelemetryServerPort,
                         error: operationError,
-                        operationName: OpenTelemetryConsts.GenAI.ExecuteTool);
+                        operationName: OpenTelemetryConsts.GenAI.OperationNames.ExecuteTool);
                 }
             }
         }
