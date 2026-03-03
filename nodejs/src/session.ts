@@ -549,4 +549,19 @@ export class CopilotSession {
             sessionId: this.sessionId,
         });
     }
+
+    /**
+     * Change the model for this session.
+     * The new model takes effect for the next message. Conversation history is preserved.
+     *
+     * @param model - Model ID to switch to
+     *
+     * @example
+     * ```typescript
+     * await session.setModel("gpt-4.1");
+     * ```
+     */
+    async setModel(model: string): Promise<void> {
+        await this.rpc.model.switchTo({ modelId: model });
+    }
 }
