@@ -1,15 +1,12 @@
 ---
-description: Generates a changelog from merged PRs/commits when a stable release is published, and opens a PR to update CHANGELOG.md
+description: Generates release notes from merged PRs/commits. Triggered by the publish workflow or manually via workflow_dispatch.
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       tag:
         description: "Release tag to generate changelog for (e.g., v0.1.30)"
         required: true
         type: string
-if: ${{ github.event.release.prerelease == false || github.event_name == 'workflow_dispatch' }}
 permissions:
   contents: read
   actions: read
@@ -31,23 +28,30 @@ timeout-minutes: 15
 
 # Release Changelog Generator
 
-You are an AI agent that generates a well-formatted changelog when a new stable release of the Copilot SDK is published. You update `CHANGELOG.md` in the repository and create a PR with the changes.
+You are an AI agent that generates well-formatted release notes when a release of the Copilot SDK is published.
+
+- **For stable releases** (tag has no prerelease suffix like `-preview`): update `CHANGELOG.md` via a PR AND update the GitHub Release notes.
+- **For prerelease releases** (tag contains `-preview` or similar suffix): update the GitHub Release notes ONLY. Do NOT modify `CHANGELOG.md` or create a PR.
+
+Determine which type of release this is by inspecting the tag or fetching the release metadata.
 
 ## Context
 
 - Repository: ${{ github.repository }}
-- Release tag: ${{ github.event.release.tag_name || inputs.tag }}
-- Release name: ${{ github.event.release.name || inputs.tag }}
+- Release tag: ${{ github.event.inputs.tag }}
 
-For `workflow_dispatch` runs, the `github.event.release.*` fields will be empty. In that case, use the GitHub API to fetch the release corresponding to `inputs.tag` to get its name, publish date, and other metadata.
+Use the GitHub API to fetch the release corresponding to `${{ github.event.inputs.tag }}` to get its name, publish date, prerelease status, and other metadata.
 
 ## Your Task
 
 ### Step 1: Identify the version range
 
-1. The **new version** is the release tag: `${{ github.event.release.tag_name || inputs.tag }}`
-2. Read `CHANGELOG.md` and find the **most recent version heading** (a line matching `## [vX.Y.Z](...)`). Extract that version tag — this is the last documented release.
-3. If `CHANGELOG.md` has no version entries yet, find the previous stable release by listing releases and picking the most recent non-prerelease release before this one. If none exist, use the first commit in the repo as the starting point.
+1. The **new version** is the release tag: `${{ github.event.inputs.tag }}`
+2. Fetch the release metadata to determine if this is a **stable** or **prerelease** release.
+3. Determine the **previous version** to diff against:
+   - **For stable releases**: find the previous **stable** release (skip prereleases). Check `CHANGELOG.md` for the most recent version heading (`## [vX.Y.Z](...)`), or fall back to listing releases via the API. This means stable changelogs include ALL changes since the last stable release, even if some were already mentioned in prerelease notes.
+   - **For prerelease releases**: find the most recent release of **any kind** (stable or prerelease) that precedes this one. This way prerelease notes only cover what's new since the last release.
+4. If no previous release exists at all, use the first commit in the repo as the starting point.
 
 ### Step 2: Gather changes
 
@@ -72,7 +76,9 @@ Only include changes that are **user-visible in the published SDK packages**. Sk
 
 Additionally, identify **new contributors** — anyone whose first merged PR to this repo falls within this release range. You can determine this by checking whether the author has any earlier merged PRs in the repository.
 
-### Step 4: Update CHANGELOG.md
+### Step 4: Update CHANGELOG.md (stable releases only)
+
+**Skip this step entirely for prerelease releases.**
 
 1. Read the current `CHANGELOG.md` file.
 2. Add the new version entry **at the top** of the file, right after the title/header.
@@ -90,7 +96,9 @@ Additionally, identify **new contributors** — anyone whose first merged PR to 
    Omit this section if there are no new contributors.
 5. Make sure the existing content below is preserved exactly as-is.
 
-### Step 5: Create a Pull Request
+### Step 5: Create a Pull Request (stable releases only)
+
+**Skip this step entirely for prerelease releases.**
 
 Use the `create-pull-request` output to submit your changes. The PR should:
 - Have a clear title like "Add changelog for vX.Y.Z"

@@ -22,6 +22,7 @@ on:
 permissions:
   contents: write
   id-token: write # Required for OIDC
+  actions: write # Required to trigger changelog workflow
 
 concurrency:
   group: publish
@@ -211,6 +212,10 @@ jobs:
             --title "v${{ needs.version.outputs.version }}" \
             --generate-notes $NOTES_FLAG \
             --target ${{ github.sha }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Trigger changelog generation
+        run: gh workflow run release-changelog.lock.yml -f tag="v${{ needs.version.outputs.version }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Tag Go SDK submodule

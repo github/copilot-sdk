@@ -21,15 +21,12 @@
 #
 # For more information: https://github.github.com/gh-aw/introduction/overview/
 #
-# Generates a changelog from merged PRs/commits when a stable release is published, and opens a PR to update CHANGELOG.md
+# Generates release notes from merged PRs/commits. Triggered by the publish workflow or manually via workflow_dispatch.
 #
-# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"14c83637f3833e511979886eb24004402e15a29d5563e46c966b010678875b9e","compiler_version":"v0.52.1"}
+# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"c06cce5802b74e1280963eef2e92515d84870d76d9cfdefa84b56c038e2b8da1","compiler_version":"v0.52.1"}
 
 name: "Release Changelog Generator"
 "on":
-  release:
-    types:
-    - published
   workflow_dispatch:
     inputs:
       tag:
@@ -46,9 +43,6 @@ run-name: "Release Changelog Generator"
 
 jobs:
   activation:
-    needs: pre_activation
-    if: >
-      (needs.pre_activation.outputs.activated == 'true') && (github.event.release.prerelease == false || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-slim
     permissions:
       contents: read
@@ -113,11 +107,10 @@ jobs:
         env:
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
           GH_AW_SAFE_OUTPUTS: ${{ env.GH_AW_SAFE_OUTPUTS }}
-          GH_AW_EXPR_5E147A2A: ${{ github.event.release.tag_name || inputs.tag }}
-          GH_AW_EXPR_611D9200: ${{ github.event.release.name || inputs.tag }}
           GH_AW_GITHUB_ACTOR: ${{ github.actor }}
           GH_AW_GITHUB_EVENT_COMMENT_ID: ${{ github.event.comment.id }}
           GH_AW_GITHUB_EVENT_DISCUSSION_NUMBER: ${{ github.event.discussion.number }}
+          GH_AW_GITHUB_EVENT_INPUTS_TAG: ${{ github.event.inputs.tag }}
           GH_AW_GITHUB_EVENT_ISSUE_NUMBER: ${{ github.event.issue.number }}
           GH_AW_GITHUB_EVENT_PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
           GH_AW_GITHUB_REPOSITORY: ${{ github.repository }}
@@ -180,8 +173,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
-          GH_AW_EXPR_611D9200: ${{ github.event.release.name || inputs.tag }}
-          GH_AW_EXPR_5E147A2A: ${{ github.event.release.tag_name || inputs.tag }}
+          GH_AW_GITHUB_EVENT_INPUTS_TAG: ${{ github.event.inputs.tag }}
           GH_AW_GITHUB_REPOSITORY: ${{ github.repository }}
         with:
           script: |
@@ -193,17 +185,15 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
-          GH_AW_EXPR_5E147A2A: ${{ github.event.release.tag_name || inputs.tag }}
-          GH_AW_EXPR_611D9200: ${{ github.event.release.name || inputs.tag }}
           GH_AW_GITHUB_ACTOR: ${{ github.actor }}
           GH_AW_GITHUB_EVENT_COMMENT_ID: ${{ github.event.comment.id }}
           GH_AW_GITHUB_EVENT_DISCUSSION_NUMBER: ${{ github.event.discussion.number }}
+          GH_AW_GITHUB_EVENT_INPUTS_TAG: ${{ github.event.inputs.tag }}
           GH_AW_GITHUB_EVENT_ISSUE_NUMBER: ${{ github.event.issue.number }}
           GH_AW_GITHUB_EVENT_PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
           GH_AW_GITHUB_REPOSITORY: ${{ github.repository }}
           GH_AW_GITHUB_RUN_ID: ${{ github.run_id }}
           GH_AW_GITHUB_WORKSPACE: ${{ github.workspace }}
-          GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_ACTIVATED: ${{ needs.pre_activation.outputs.activated }}
         with:
           script: |
             const { setupGlobals } = require('/opt/gh-aw/actions/setup_globals.cjs');
@@ -215,17 +205,15 @@ jobs:
             return await substitutePlaceholders({
               file: process.env.GH_AW_PROMPT,
               substitutions: {
-                GH_AW_EXPR_5E147A2A: process.env.GH_AW_EXPR_5E147A2A,
-                GH_AW_EXPR_611D9200: process.env.GH_AW_EXPR_611D9200,
                 GH_AW_GITHUB_ACTOR: process.env.GH_AW_GITHUB_ACTOR,
                 GH_AW_GITHUB_EVENT_COMMENT_ID: process.env.GH_AW_GITHUB_EVENT_COMMENT_ID,
                 GH_AW_GITHUB_EVENT_DISCUSSION_NUMBER: process.env.GH_AW_GITHUB_EVENT_DISCUSSION_NUMBER,
+                GH_AW_GITHUB_EVENT_INPUTS_TAG: process.env.GH_AW_GITHUB_EVENT_INPUTS_TAG,
                 GH_AW_GITHUB_EVENT_ISSUE_NUMBER: process.env.GH_AW_GITHUB_EVENT_ISSUE_NUMBER,
                 GH_AW_GITHUB_EVENT_PULL_REQUEST_NUMBER: process.env.GH_AW_GITHUB_EVENT_PULL_REQUEST_NUMBER,
                 GH_AW_GITHUB_REPOSITORY: process.env.GH_AW_GITHUB_REPOSITORY,
                 GH_AW_GITHUB_RUN_ID: process.env.GH_AW_GITHUB_RUN_ID,
-                GH_AW_GITHUB_WORKSPACE: process.env.GH_AW_GITHUB_WORKSPACE,
-                GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_ACTIVATED: process.env.GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_ACTIVATED
+                GH_AW_GITHUB_WORKSPACE: process.env.GH_AW_GITHUB_WORKSPACE
               }
             });
       - name: Validate prompt placeholders
@@ -254,8 +242,6 @@ jobs:
       contents: read
       issues: read
       pull-requests: read
-    concurrency:
-      group: "gh-aw-copilot-${{ github.workflow }}"
     env:
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       GH_AW_ASSETS_ALLOWED_EXTS: ""
@@ -910,7 +896,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           WORKFLOW_NAME: "Release Changelog Generator"
-          WORKFLOW_DESCRIPTION: "Generates a changelog from merged PRs/commits when a stable release is published, and opens a PR to update CHANGELOG.md"
+          WORKFLOW_DESCRIPTION: "Generates release notes from merged PRs/commits. Triggered by the publish workflow or manually via workflow_dispatch."
           HAS_PATCH: ${{ steps.collect_output.outputs.has_patch }}
         with:
           script: |
@@ -1101,30 +1087,6 @@ jobs:
             const { setupGlobals } = require('/opt/gh-aw/actions/setup_globals.cjs');
             setupGlobals(core, github, context, exec, io);
             const { main } = require('/opt/gh-aw/actions/handle_create_pr_error.cjs');
-            await main();
-
-  pre_activation:
-    if: ${{ github.event.release.prerelease == false || github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-slim
-    outputs:
-      activated: ${{ steps.check_membership.outputs.is_team_member == 'true' }}
-      matched_command: ''
-    steps:
-      - name: Setup Scripts
-        uses: github/gh-aw/actions/setup@a86e657586e4ac5f549a790628971ec02f6a4a8f # v0.52.1
-        with:
-          destination: /opt/gh-aw/actions
-      - name: Check team membership for workflow
-        id: check_membership
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
-        env:
-          GH_AW_REQUIRED_ROLES: admin,maintainer,write
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const { setupGlobals } = require('/opt/gh-aw/actions/setup_globals.cjs');
-            setupGlobals(core, github, context, exec, io);
-            const { main } = require('/opt/gh-aw/actions/check_membership.cjs');
             await main();
 
   safe_outputs:
