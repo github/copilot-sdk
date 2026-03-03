@@ -70,6 +70,8 @@ Separate the changes into two groups:
 
 Only include changes that are **user-visible in the published SDK packages**. Skip anything that only affects docs, CI, build tooling, GitHub workflows, test infrastructure, or other internal-only concerns.
 
+Additionally, identify **new contributors** — anyone whose first merged PR to this repo falls within this release range. You can determine this by checking whether the author has any earlier merged PRs in the repository.
+
 ### Step 4: Update CHANGELOG.md
 
 1. Read the current `CHANGELOG.md` file.
@@ -77,10 +79,16 @@ Only include changes that are **user-visible in the published SDK packages**. Sk
 
 **Format for each highlighted feature** — use an `### Feature:` or `### Fix:` heading, a 1-2 sentence description explaining what it does and why it matters, and at least one short code snippet (max 3 lines). Focus on **TypeScript** and **C#** as the primary languages. Only show Go/Python when giving a list of one-liner equivalents across all languages, or when their usage pattern is meaningfully different.
 
-**Format for other changes** — a single `### Other changes` section with a flat bulleted list. Each bullet has a lowercase prefix (`feature:`, `bugfix:`, `improvement:`) and a one-line description linking to the PR.
+**Format for other changes** — a single `### Other changes` section with a flat bulleted list. Each bullet has a lowercase prefix (`feature:`, `bugfix:`, `improvement:`) and a one-line description linking to the PR. **However, if there are no highlighted features above it, omit the `### Other changes` heading entirely** — just list the bullets directly under the version heading.
 
 3. Use the release's publish date (from the GitHub Release metadata), not today's date. For `workflow_dispatch` runs, fetch the release by tag to get the date.
-4. Make sure the existing content below is preserved exactly as-is.
+4. If there are new contributors, add a `### New contributors` section at the end listing each with a link to their first PR:
+   ```
+   ### New contributors
+   - @username made their first contribution in [#123](https://github.com/github/copilot-sdk/pull/123)
+   ```
+   Omit this section if there are no new contributors.
+5. Make sure the existing content below is preserved exactly as-is.
 
 ### Step 5: Create a Pull Request
 
@@ -90,7 +98,7 @@ Use the `create-pull-request` output to submit your changes. The PR should:
 
 ### Step 6: Update the GitHub Release
 
-Use the `update-release` output to replace the auto-generated release notes with your nicely formatted changelog (same content you put in CHANGELOG.md, minus the header).
+Use the `update-release` output to replace the auto-generated release notes with your nicely formatted changelog. **Do not include the version heading** (`## [vX.Y.Z](...) (date)`) in the release notes — the release already has a title showing the version. Start directly with the feature sections or other changes list.
 
 ## Example Output
 
@@ -130,6 +138,11 @@ While `session.rpc.models.setModel()` already worked, there is now a convenience
 - improvement: **[C#]** use event delegate for thread-safe, insertion-ordered event handler dispatch ([#624](https://github.com/github/copilot-sdk/pull/624))
 - improvement: **[C#]** deduplicate `OnDisposeCall` and improve implementation ([#626](https://github.com/github/copilot-sdk/pull/626))
 - improvement: **[C#]** remove unnecessary `SemaphoreSlim` locks for handler fields ([#625](https://github.com/github/copilot-sdk/pull/625))
+
+### New contributors
+
+- @chlowell made their first contribution in [#586](https://github.com/github/copilot-sdk/pull/586)
+- @feici02 made their first contribution in [#566](https://github.com/github/copilot-sdk/pull/566)
 ````
 
 **Key rules visible in the example:**
