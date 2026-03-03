@@ -557,6 +557,22 @@ public partial class CopilotSession : IAsyncDisposable
     }
 
     /// <summary>
+    /// Changes the model for this session.
+    /// The new model takes effect for the next message. Conversation history is preserved.
+    /// </summary>
+    /// <param name="model">Model ID to switch to (e.g., "gpt-4.1").</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    /// <example>
+    /// <code>
+    /// await session.SetModelAsync("gpt-4.1");
+    /// </code>
+    /// </example>
+    public async Task SetModelAsync(string model, CancellationToken cancellationToken = default)
+    {
+        await Rpc.Model.SwitchToAsync(model, cancellationToken);
+    }
+
+    /// <summary>
     /// Disposes the <see cref="CopilotSession"/> and releases all associated resources.
     /// </summary>
     /// <returns>A task representing the dispose operation.</returns>

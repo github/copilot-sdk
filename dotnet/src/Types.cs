@@ -837,6 +837,7 @@ public class SessionConfig
     public string? ConfigDir { get; set; }
 
     public ICollection<AIFunction>? Tools { get; set; }
+
     public SystemMessageConfig? SystemMessage { get; set; }
     public List<string>? AvailableTools { get; set; }
     public List<string>? ExcludedTools { get; set; }

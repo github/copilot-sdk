@@ -441,4 +441,19 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         Assert.NotNull(assistantMessage);
         Assert.Contains("2", assistantMessage!.Data.Content);
     }
+
+    [Fact]
+    public async Task Should_Set_Model_On_Existing_Session()
+    {
+        var session = await CreateSessionAsync();
+
+        // Subscribe for the model change event before calling SetModelAsync
+        var modelChangedTask = TestHelper.GetNextEventOfTypeAsync<SessionModelChangeEvent>(session);
+
+        await session.SetModelAsync("gpt-4.1");
+
+        // Verify a model_change event was emitted with the new model
+        var modelChanged = await modelChangedTask;
+        Assert.Equal("gpt-4.1", modelChanged.Data.NewModel);
+    }
 }

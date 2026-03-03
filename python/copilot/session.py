@@ -12,7 +12,7 @@ from collections.abc import Callable
 from typing import Any, cast
 
 from ._copilot_telemetry import AgentTurnTracker
-from .generated.rpc import SessionRpc
+from .generated.rpc import SessionModelSwitchToParams, SessionRpc
 from .generated.session_events import SessionEvent, SessionEventType, session_event_from_dict
 from .types import (
     MessageOptions,
@@ -620,3 +620,21 @@ class CopilotSession:
             >>> await session.abort()
         """
         await self._client.request("session.abort", {"sessionId": self.session_id})
+
+    async def set_model(self, model: str) -> None:
+        """
+        Change the model for this session.
+
+        The new model takes effect for the next message. Conversation history
+        is preserved.
+
+        Args:
+            model: Model ID to switch to (e.g., "gpt-4.1", "claude-sonnet-4").
+
+        Raises:
+            Exception: If the session has been destroyed or the connection fails.
+
+        Example:
+            >>> await session.set_model("gpt-4.1")
+        """
+        await self.rpc.model.switch_to(SessionModelSwitchToParams(model_id=model))
