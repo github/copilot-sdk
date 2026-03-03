@@ -410,10 +410,11 @@ type SessionConfig struct {
 
 // Tool describes a caller-implemented tool that can be invoked by Copilot
 type Tool struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description,omitempty"`
-	Parameters  map[string]any `json:"parameters,omitempty"`
-	Handler     ToolHandler    `json:"-"`
+	Name                 string         `json:"name"`
+	Description          string         `json:"description,omitempty"`
+	Parameters           map[string]any `json:"parameters,omitempty"`
+	OverridesBuiltInTool bool           `json:"overridesBuiltInTool,omitempty"`
+	Handler              ToolHandler    `json:"-"`
 }
 
 // ToolInvocation describes a tool call initiated by Copilot

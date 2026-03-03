@@ -267,6 +267,18 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 
 When the model selects a tool, the SDK automatically runs your handler (in parallel with other calls) and responds to the CLI's `tool.call` with the handler's result.
 
+#### Overriding Built-in Tools
+
+If you register a tool with the same name as a built-in CLI tool (e.g. `edit_file`, `read_file`), the SDK will throw an error unless you explicitly opt in by setting `OverridesBuiltInTool = true`. This flag signals that you intend to replace the built-in tool with your custom implementation.
+
+```go
+editFile := copilot.DefineTool("edit_file", "Custom file editor with project-specific validation",
+    func(params EditFileParams, inv copilot.ToolInvocation) (any, error) {
+        // your logic
+    })
+editFile.OverridesBuiltInTool = true
+```
+
 ## Streaming
 
 Enable streaming to receive assistant response chunks as they're generated:

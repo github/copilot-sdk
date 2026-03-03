@@ -1416,10 +1416,15 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     internal record ToolDefinition(
         string Name,
         string? Description,
-        JsonElement Parameters /* JSON schema */)
+        JsonElement Parameters, /* JSON schema */
+        bool? OverridesBuiltInTool = null)
     {
         public static ToolDefinition FromAIFunction(AIFunction function)
-            => new ToolDefinition(function.Name, function.Description, function.JsonSchema);
+        {
+            var overrides = function.AdditionalProperties.TryGetValue("is_override", out var val) && val is true;
+            return new ToolDefinition(function.Name, function.Description, function.JsonSchema,
+                overrides ? true : null);
+        }
     }
 
     internal record CreateSessionResponse(

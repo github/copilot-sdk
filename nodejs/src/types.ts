@@ -146,6 +146,12 @@ export interface Tool<TArgs = unknown> {
     description?: string;
     parameters?: ZodSchema<TArgs> | Record<string, unknown>;
     handler: ToolHandler<TArgs>;
+    /**
+     * When true, explicitly indicates this tool is intended to override a built-in tool
+     * of the same name. If not set and the name clashes with a built-in tool, the runtime
+     * will return an error.
+     */
+    overridesBuiltInTool?: boolean;
 }
 
 /**
@@ -158,6 +164,7 @@ export function defineTool<T = unknown>(
         description?: string;
         parameters?: ZodSchema<T> | Record<string, unknown>;
         handler: ToolHandler<T>;
+        overridesBuiltInTool?: boolean;
     }
 ): Tool<T> {
     return { name, ...config };

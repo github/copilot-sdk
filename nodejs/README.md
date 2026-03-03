@@ -402,6 +402,19 @@ const session = await client.createSession({
 
 When Copilot invokes `lookup_issue`, the client automatically runs your handler and responds to the CLI. Handlers can return any JSON-serializable value (automatically wrapped), a simple string, or a `ToolResultObject` for full control over result metadata. Raw JSON schemas are also supported if Zod isn't desired.
 
+#### Overriding Built-in Tools
+
+If you register a tool with the same name as a built-in CLI tool (e.g. `edit_file`, `read_file`), the SDK will throw an error unless you explicitly opt in by setting `overridesBuiltInTool: true`. This flag signals that you intend to replace the built-in tool with your custom implementation.
+
+```ts
+defineTool("edit_file", {
+    description: "Custom file editor with project-specific validation",
+    parameters: z.object({ path: z.string(), content: z.string() }),
+    overridesBuiltInTool: true,
+    handler: async ({ path, content }) => { /* your logic */ },
+})
+```
+
 ### System Message Customization
 
 Control the system prompt using `systemMessage` in session config:

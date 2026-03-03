@@ -134,6 +134,7 @@ class Tool:
     description: str
     handler: ToolHandler
     parameters: dict[str, Any] | None = None
+    overrides_built_in_tool: bool = False
 
 
 # System message configuration (discriminated union)

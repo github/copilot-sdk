@@ -293,4 +293,55 @@ describe("CopilotClient", () => {
             }).toThrow(/githubToken and useLoggedInUser cannot be used with cliUrl/);
         });
     });
+
+    describe("overridesBuiltInTool in tool definitions", () => {
+        it("sends overridesBuiltInTool in tool definition on session.create", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            await client.createSession({
+                onPermissionRequest: approveAll,
+                tools: [
+                    {
+                        name: "grep",
+                        description: "custom grep",
+                        handler: async () => "ok",
+                        overridesBuiltInTool: true,
+                    },
+                ],
+            });
+
+            const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
+            expect(payload.tools).toEqual([
+                expect.objectContaining({ name: "grep", overridesBuiltInTool: true }),
+            ]);
+        });
+
+        it("sends overridesBuiltInTool in tool definition on session.resume", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            await client.resumeSession(session.sessionId, {
+                onPermissionRequest: approveAll,
+                tools: [
+                    {
+                        name: "grep",
+                        description: "custom grep",
+                        handler: async () => "ok",
+                        overridesBuiltInTool: true,
+                    },
+                ],
+            });
+
+            const payload = spy.mock.calls.find((c) => c[0] === "session.resume")![1] as any;
+            expect(payload.tools).toEqual([
+                expect.objectContaining({ name: "grep", overridesBuiltInTool: true }),
+            ]);
+        });
+    });
 });

@@ -162,6 +162,27 @@ describe("Custom tools", async () => {
         expect(customToolRequests[0].toolName).toBe("encrypt_string");
     });
 
+    it("overrides built-in tool with custom tool", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            tools: [
+                defineTool("grep", {
+                    description: "A custom grep implementation that overrides the built-in",
+                    parameters: z.object({
+                        query: z.string().describe("Search query"),
+                    }),
+                    handler: ({ query }) => `CUSTOM_GREP_RESULT: ${query}`,
+                    overridesBuiltInTool: true,
+                }),
+            ],
+        });
+
+        const assistantMessage = await session.sendAndWait({
+            prompt: "Use grep to search for the word 'hello'",
+        });
+        expect(assistantMessage?.data.content).toContain("CUSTOM_GREP_RESULT");
+    });
+
     it("denies custom tool when permission denied", async () => {
         let toolHandlerCalled = false;
 

@@ -133,6 +133,26 @@ class TestTools:
         assert "135460" in response_content.replace(",", "")
         assert "204356" in response_content.replace(",", "")
 
+    async def test_overrides_built_in_tool_with_custom_tool(self, ctx: E2ETestContext):
+        class GrepParams(BaseModel):
+            query: str = Field(description="Search query")
+
+        @define_tool(
+            "grep",
+            description="A custom grep implementation that overrides the built-in",
+            overrides_built_in_tool=True,
+        )
+        def custom_grep(params: GrepParams, invocation: ToolInvocation) -> str:
+            return f"CUSTOM_GREP_RESULT: {params.query}"
+
+        session = await ctx.client.create_session(
+            {"tools": [custom_grep], "on_permission_request": PermissionHandler.approve_all}
+        )
+
+        await session.send({"prompt": "Use grep to search for the word 'hello'"})
+        assistant_message = await get_final_assistant_message(session)
+        assert "CUSTOM_GREP_RESULT" in assistant_message.data.content
+
     async def test_invokes_custom_tool_with_permission_handler(self, ctx: E2ETestContext):
         class EncryptParams(BaseModel):
             input: str = Field(description="String to encrypt")

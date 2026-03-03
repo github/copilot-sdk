@@ -467,12 +467,14 @@ class CopilotClient:
         tools = cfg.get("tools")
         if tools:
             for tool in tools:
-                definition = {
+                definition: dict[str, Any] = {
                     "name": tool.name,
                     "description": tool.description,
                 }
                 if tool.parameters:
                     definition["parameters"] = tool.parameters
+                if tool.overrides_built_in_tool:
+                    definition["overridesBuiltInTool"] = True
                 tool_defs.append(definition)
 
         payload: dict[str, Any] = {}
@@ -639,12 +641,14 @@ class CopilotClient:
         tools = cfg.get("tools")
         if tools:
             for tool in tools:
-                definition = {
+                definition: dict[str, Any] = {
                     "name": tool.name,
                     "description": tool.description,
                 }
                 if tool.parameters:
                     definition["parameters"] = tool.parameters
+                if tool.overrides_built_in_tool:
+                    definition["overridesBuiltInTool"] = True
                 tool_defs.append(definition)
 
         payload: dict[str, Any] = {"sessionId": session_id}

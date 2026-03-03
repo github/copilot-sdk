@@ -448,6 +448,47 @@ func TestResumeSessionRequest_ClientName(t *testing.T) {
 	})
 }
 
+func TestOverridesBuiltInTool(t *testing.T) {
+	t.Run("OverridesBuiltInTool is serialized in tool definition", func(t *testing.T) {
+		tool := Tool{
+			Name:                 "grep",
+			Description:          "Custom grep",
+			OverridesBuiltInTool: true,
+			Handler:              func(_ ToolInvocation) (ToolResult, error) { return ToolResult{}, nil },
+		}
+		data, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("failed to unmarshal: %v", err)
+		}
+		if v, ok := m["overridesBuiltInTool"]; !ok || v != true {
+			t.Errorf("expected overridesBuiltInTool=true, got %v", m)
+		}
+	})
+
+	t.Run("OverridesBuiltInTool omitted when false", func(t *testing.T) {
+		tool := Tool{
+			Name:        "custom_tool",
+			Description: "A custom tool",
+			Handler:     func(_ ToolInvocation) (ToolResult, error) { return ToolResult{}, nil },
+		}
+		data, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("failed to unmarshal: %v", err)
+		}
+		if _, ok := m["overridesBuiltInTool"]; ok {
+			t.Errorf("expected overridesBuiltInTool to be omitted, got %v", m)
+		}
+	})
+}
+
 func TestClient_CreateSession_RequiresPermissionHandler(t *testing.T) {
 	t.Run("returns error when config is nil", func(t *testing.T) {
 		client := NewClient(nil)
