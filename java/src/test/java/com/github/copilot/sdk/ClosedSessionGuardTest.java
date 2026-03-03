@@ -352,4 +352,23 @@ public class ClosedSessionGuardTest {
             });
         }
     }
+
+    /**
+     * Verifies that setModel() throws IllegalStateException after session is
+     * terminated.
+     */
+    @Test
+    void testSetModelThrowsAfterTermination() throws Exception {
+        ctx.configureForTest("session", "should_receive_session_events");
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession(new SessionConfig()
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setModel("fake-test-model")).get();
+            session.close();
+
+            assertThrows(IllegalStateException.class, () -> {
+                session.setModel("gpt-4.1");
+            });
+        }
+    }
 }

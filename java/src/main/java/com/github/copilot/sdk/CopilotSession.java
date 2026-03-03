@@ -809,6 +809,28 @@ public final class CopilotSession implements AutoCloseable {
     }
 
     /**
+     * Changes the model for this session.
+     * <p>
+     * The new model takes effect for the next message. Conversation history is
+     * preserved.
+     *
+     * <pre>{@code
+     * session.setModel("gpt-4.1").get();
+     * }</pre>
+     *
+     * @param model
+     *            the model ID to switch to (e.g., {@code "gpt-4.1"})
+     * @return a future that completes when the model switch is acknowledged
+     * @throws IllegalStateException
+     *             if this session has been terminated
+     * @since 1.0.11
+     */
+    public CompletableFuture<Void> setModel(String model) {
+        ensureNotTerminated();
+        return rpc.invoke("session.model.switchTo", Map.of("sessionId", sessionId, "modelId", model), Void.class);
+    }
+
+    /**
      * Lists the custom agents available for selection in this session.
      *
      * @return a future that resolves with the list of available agents
