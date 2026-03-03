@@ -320,4 +320,44 @@ public class ToolsTest {
             session.close();
         }
     }
+
+    /**
+     * Verifies that a custom tool can override a built-in CLI tool with the same
+     * name when {@code overridesBuiltInTool} is set to {@code true}.
+     *
+     * @see Snapshot: tools/overrides_built_in_tool_with_custom_tool
+     */
+    @Test
+    void testOverridesBuiltInToolWithCustomTool(TestInfo testInfo) throws Exception {
+        ctx.configureForTest("tools", "overrides_built_in_tool_with_custom_tool");
+
+        var parameters = new HashMap<String, Object>();
+        var properties = new HashMap<String, Object>();
+        properties.put("query", Map.of("type", "string", "description", "Search query"));
+        parameters.put("type", "object");
+        parameters.put("properties", properties);
+        parameters.put("required", List.of("query"));
+
+        ToolDefinition customGrep = ToolDefinition.createOverride("grep", "A custom grep implementation", parameters,
+                (invocation) -> {
+                    Map<String, Object> args = invocation.getArguments();
+                    String query = (String) args.get("query");
+                    return CompletableFuture.completedFuture("CUSTOM_GREP_RESULT: " + query);
+                });
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(customGrep))
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+
+            AssistantMessageEvent response = session
+                    .sendAndWait(new MessageOptions().setPrompt("Use grep to search for the word 'hello'"))
+                    .get(60, TimeUnit.SECONDS);
+
+            assertNotNull(response);
+            assertTrue(response.getData().content().contains("CUSTOM_GREP_RESULT"),
+                    "Response should contain CUSTOM_GREP_RESULT: " + response.getData().content());
+
+            session.close();
+        }
+    }
 }
