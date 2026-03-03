@@ -137,7 +137,8 @@ class DocumentationSamplesTest {
         files.add(root.resolve("jbang-example.java"));
 
         try (Stream<Path> markdownFiles = Files.walk(root.resolve("src/site/markdown"))) {
-            markdownFiles.filter(Files::isRegularFile).filter(path -> path.toString().endsWith(".md")).forEach(files::add);
+            markdownFiles.filter(Files::isRegularFile).filter(path -> path.toString().endsWith(".md"))
+                    .forEach(files::add);
         }
         return files;
     }
