@@ -15,7 +15,7 @@ class CopilotSDK {
 
             // Create a session
             var session = client.createSession(
-                new SessionConfig().setModel("claude-sonnet-4.5")).get();
+                new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setModel("claude-sonnet-4.5")).get();
 
             // Handle assistant message events
             session.on(AssistantMessageEvent.class, msg -> {
