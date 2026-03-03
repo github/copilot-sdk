@@ -79,9 +79,8 @@ public class CompactionTest {
 
             // Send multiple messages to fill up the context window
             // With such low thresholds, even a few messages should trigger compaction
-            session.sendAndWait(
-                    new MessageOptions().setPrompt("Tell me a long story about a dragon. Be very detailed."))
-                    .get(60, TimeUnit.SECONDS);
+            session.sendAndWait(new MessageOptions().setPrompt("Tell me a story about a dragon. Be detailed.")).get(60,
+                    TimeUnit.SECONDS);
             session.sendAndWait(
                     new MessageOptions().setPrompt("Continue the story with more details about the dragon's castle."))
                     .get(60, TimeUnit.SECONDS);
