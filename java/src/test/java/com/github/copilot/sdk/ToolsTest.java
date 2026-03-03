@@ -328,7 +328,7 @@ public class ToolsTest {
      * @see Snapshot: tools/overrides_built_in_tool_with_custom_tool
      */
     @Test
-    void testOverridesBuiltInToolWithCustomTool(TestInfo testInfo) throws Exception {
+    void testOverridesBuiltInToolWithCustomTool() throws Exception {
         ctx.configureForTest("tools", "overrides_built_in_tool_with_custom_tool");
 
         var parameters = new HashMap<String, Object>();
