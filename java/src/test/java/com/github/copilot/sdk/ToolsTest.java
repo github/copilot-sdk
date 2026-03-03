@@ -229,7 +229,7 @@ public class ToolsTest {
 
     /**
      * Verifies that a custom tool is invoked with the permission handler being
-     * called and can inspect the tool name.
+     * called and can inspect the permission request kind.
      *
      * @see Snapshot: tools/invokes_custom_tool_with_permission_handler
      */
@@ -257,7 +257,7 @@ public class ToolsTest {
             CopilotSession session = client.createSession(
                     new SessionConfig().setTools(List.of(encryptTool)).setOnPermissionRequest((request, invocation) -> {
                         permissionRequests.add(request);
-                        return CompletableFuture.completedFuture(new PermissionRequestResult().setKind("approved"));
+                        return PermissionHandler.APPROVE_ALL.handle(request, invocation);
                     })).get();
 
             AssistantMessageEvent response = session

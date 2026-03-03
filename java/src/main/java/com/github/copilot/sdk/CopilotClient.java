@@ -460,7 +460,7 @@ public final class CopilotClient implements AutoCloseable {
      *
      * @return a future that resolves with the last session ID, or {@code null} if
      *         no sessions exist
-     * @see #resumeSession(String)
+     * @see #resumeSession(String, com.github.copilot.sdk.json.ResumeSessionConfig)
      */
     public CompletableFuture<String> getLastSessionId() {
         return ensureConnected().thenCompose(
@@ -498,7 +498,7 @@ public final class CopilotClient implements AutoCloseable {
      *
      * @return a future that resolves with a list of session metadata
      * @see SessionMetadata
-     * @see #resumeSession(String)
+     * @see #resumeSession(String, com.github.copilot.sdk.json.ResumeSessionConfig)
      */
     public CompletableFuture<List<SessionMetadata>> listSessions() {
         return listSessions(null);
@@ -528,7 +528,7 @@ public final class CopilotClient implements AutoCloseable {
      * @return a future that resolves with a list of session metadata
      * @see SessionMetadata
      * @see SessionListFilter
-     * @see #resumeSession(String)
+     * @see #resumeSession(String, com.github.copilot.sdk.json.ResumeSessionConfig)
      */
     public CompletableFuture<List<SessionMetadata>> listSessions(SessionListFilter filter) {
         return ensureConnected().thenCompose(connection -> {
