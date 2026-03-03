@@ -25,6 +25,7 @@ def define_tool(
     name: str | None = None,
     *,
     description: str | None = None,
+    overrides_built_in_tool: bool = False,
 ) -> Callable[[Callable[..., Any]], Tool]: ...
 
 
@@ -35,6 +36,7 @@ def define_tool(
     description: str | None = None,
     handler: Callable[[T, ToolInvocation], R],
     params_type: type[T],
+    overrides_built_in_tool: bool = False,
 ) -> Tool: ...
 
 
