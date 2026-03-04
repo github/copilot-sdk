@@ -183,7 +183,7 @@ class TestSessions:
         assert "2" in answer.data.content
 
         # Resume using a new client
-        github_token = "fake-token-for-e2e-tests" if os.environ.get("CI") == "true" else None
+        github_token = "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
         new_client = CopilotClient(
             {
                 "cli_path": ctx.cli_path,

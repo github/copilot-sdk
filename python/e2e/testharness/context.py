@@ -60,7 +60,7 @@ class E2ETestContext:
 
         # Create the shared client (like Node.js/Go do)
         # Use fake token in CI to allow cached responses without real auth
-        github_token = "fake-token-for-e2e-tests" if os.environ.get("CI") == "true" else None
+        github_token = "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
         self._client = CopilotClient(
             {
                 "cli_path": self.cli_path,
