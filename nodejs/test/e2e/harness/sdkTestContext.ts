@@ -13,8 +13,7 @@ import { CopilotClient } from "../../../src";
 import { CapiProxy } from "./CapiProxy";
 import { retry } from "./sdkTestHelper";
 
-// Unfortunately the VS Code Vitest extension sets CI=true in all non-debug runs, so we have to exclude that
-export const isCI = process.env.CI === "true" && !process.env.VITEST_VSCODE;
+export const isCI = process.env.GITHUB_ACTIONS === "true";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

@@ -311,8 +311,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
 
         // Fallback to normal proxying if no cached response found
         // This implicitly captures the new exchange too
-        // The VS Code Vitest extension always sets CI=true in non-debug mode, so we have to exclude that case
-        const isCI = process.env.CI === "true" && !process.env.VITEST_VSCODE;
+        const isCI = process.env.GITHUB_ACTIONS === "true";
         if (isCI) {
           await exitWithNoMatchingRequestError(
             options,
