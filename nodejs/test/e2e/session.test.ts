@@ -2,7 +2,7 @@ import { rm } from "fs/promises";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { ParsedHttpExchange } from "../../../test/harness/replayingCapiProxy.js";
 import { CopilotClient, approveAll } from "../../src/index.js";
-import { createSdkTestContext } from "./harness/sdkTestContext.js";
+import { createSdkTestContext, isCI } from "./harness/sdkTestContext.js";
 import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
 
 describe("Sessions", async () => {
@@ -187,7 +187,7 @@ describe("Sessions", async () => {
         // Resume using a new client
         const newClient = new CopilotClient({
             env,
-            githubToken: process.env.CI === "true" ? "fake-token-for-e2e-tests" : undefined,
+            githubToken: isCI ? "fake-token-for-e2e-tests" : undefined,
         });
 
         onTestFinished(() => newClient.forceStop());

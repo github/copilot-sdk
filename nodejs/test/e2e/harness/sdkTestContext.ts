@@ -13,6 +13,9 @@ import { CopilotClient } from "../../../src";
 import { CapiProxy } from "./CapiProxy";
 import { retry } from "./sdkTestHelper";
 
+// Unfortunately the VS Code Vitest extension sets CI=true in all non-debug runs, so we have to exclude that
+export const isCI = process.env.CI === "true" && !process.env.VITEST_VSCODE;
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const SNAPSHOTS_DIR = resolve(__dirname, "../../../../test/snapshots");
@@ -42,7 +45,7 @@ export async function createSdkTestContext({
         logLevel: logLevel || "error",
         cliPath: process.env.COPILOT_CLI_PATH,
         // Use fake token in CI to allow cached responses without real auth
-        githubToken: process.env.CI === "true" ? "fake-token-for-e2e-tests" : undefined,
+        githubToken: isCI ? "fake-token-for-e2e-tests" : undefined,
     });
 
     const harness = { homeDir, workDir, openAiEndpoint, copilotClient, env };
