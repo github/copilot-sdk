@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { CopilotClient, SessionEvent, approveAll } from "../../src/index.js";
 import { createSdkTestContext, isCI } from "./harness/sdkTestContext";
 
@@ -85,6 +85,7 @@ describe("Streaming Fidelity", async () => {
             env,
             githubToken: isCI ? "fake-token-for-e2e-tests" : undefined,
         });
+        onTestFinished(() => newClient.forceStop());
         const session2 = await newClient.resumeSession(session.sessionId, {
             onPermissionRequest: approveAll,
             streaming: true,

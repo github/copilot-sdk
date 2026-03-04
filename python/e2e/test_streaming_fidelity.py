@@ -12,9 +12,7 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
 class TestStreamingFidelity:
-    async def test_should_produce_delta_events_when_streaming_is_enabled(
-        self, ctx: E2ETestContext
-    ):
+    async def test_should_produce_delta_events_when_streaming_is_enabled(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
             {"streaming": True, "on_permission_request": PermissionHandler.approve_all}
         )
@@ -22,9 +20,7 @@ class TestStreamingFidelity:
         events = []
         session.on(lambda event: events.append(event))
 
-        answer = await session.send_and_wait(
-            {"prompt": "Count from 1 to 5, separated by commas."}
-        )
+        await session.send_and_wait({"prompt": "Count from 1 to 5, separated by commas."})
 
         types = [e.type.value for e in events]
 
@@ -48,9 +44,7 @@ class TestStreamingFidelity:
 
         await session.destroy()
 
-    async def test_should_not_produce_deltas_when_streaming_is_disabled(
-        self, ctx: E2ETestContext
-    ):
+    async def test_should_not_produce_deltas_when_streaming_is_disabled(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
             {"streaming": False, "on_permission_request": PermissionHandler.approve_all}
         )

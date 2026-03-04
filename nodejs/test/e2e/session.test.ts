@@ -296,56 +296,6 @@ describe("Sessions", async () => {
         expect(answer?.data.content).toContain("4");
     });
 
-    it("should receive streaming delta events when streaming is enabled", async () => {
-        const session = await client.createSession({
-            onPermissionRequest: approveAll,
-            streaming: true,
-        });
-
-        const deltaContents: string[] = [];
-        let _finalMessage: string | undefined;
-
-        // Set up event listener before sending
-        const unsubscribe = session.on((event) => {
-            if (event.type === "assistant.message_delta") {
-                const delta = (event.data as { deltaContent?: string }).deltaContent;
-                if (delta) {
-                    deltaContents.push(delta);
-                }
-            } else if (event.type === "assistant.message") {
-                _finalMessage = event.data.content;
-            }
-        });
-
-        const assistantMessage = await session.sendAndWait({ prompt: "What is 2+2?" });
-
-        unsubscribe();
-
-        // Should have received delta events
-        expect(deltaContents.length).toBeGreaterThan(0);
-
-        // Accumulated deltas should equal the final message
-        const accumulated = deltaContents.join("");
-        expect(accumulated).toBe(assistantMessage?.data.content);
-
-        // Final message should contain the answer
-        expect(assistantMessage?.data.content).toContain("4");
-    });
-
-    it("should pass streaming option to session creation", async () => {
-        // Verify that the streaming option is accepted without errors
-        const session = await client.createSession({
-            onPermissionRequest: approveAll,
-            streaming: true,
-        });
-
-        expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
-
-        // Session should still work normally
-        const assistantMessage = await session.sendAndWait({ prompt: "What is 1+1?" });
-        expect(assistantMessage?.data.content).toContain("2");
-    });
-
     it("should receive session events", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
         const receivedEvents: Array<{ type: string }> = [];
