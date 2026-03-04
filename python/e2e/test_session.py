@@ -172,6 +172,13 @@ class TestSessions:
         answer2 = await get_final_assistant_message(session2)
         assert "2" in answer2.data.content
 
+        # Can continue the conversation statefully
+        answer3 = await session2.send_and_wait(
+            {"prompt": "Now if you double that, what do you get?"}
+        )
+        assert answer3 is not None
+        assert "4" in answer3.data.content
+
     async def test_should_resume_a_session_using_a_new_client(self, ctx: E2ETestContext):
         # Create initial session
         session1 = await ctx.client.create_session(
@@ -201,13 +208,17 @@ class TestSessions:
             )
             assert session2.session_id == session_id
 
-            # TODO: There's an inconsistency here. When resuming with a new client,
-            # we don't see the session.idle message in the history, which means we
-            # can't use get_final_assistant_message.
             messages = await session2.get_messages()
             message_types = [m.type.value for m in messages]
             assert "user.message" in message_types
             assert "session.resume" in message_types
+
+            # Can continue the conversation statefully
+            answer2 = await session2.send_and_wait(
+                {"prompt": "Now if you double that, what do you get?"}
+            )
+            assert answer2 is not None
+            assert "4" in answer2.data.content
         finally:
             await new_client.force_stop()
 
@@ -418,65 +429,6 @@ class TestSessions:
         # We should be able to send another message
         answer = await session.send_and_wait({"prompt": "What is 2+2?"})
         assert "4" in answer.data.content
-
-    async def test_should_receive_streaming_delta_events_when_streaming_is_enabled(
-        self, ctx: E2ETestContext
-    ):
-        import asyncio
-
-        session = await ctx.client.create_session(
-            {"streaming": True, "on_permission_request": PermissionHandler.approve_all}
-        )
-
-        delta_contents = []
-        done_event = asyncio.Event()
-
-        def on_event(event):
-            if event.type.value == "assistant.message_delta":
-                delta = getattr(event.data, "delta_content", None)
-                if delta:
-                    delta_contents.append(delta)
-            elif event.type.value == "session.idle":
-                done_event.set()
-
-        session.on(on_event)
-
-        await session.send({"prompt": "What is 2+2?"})
-
-        # Wait for completion
-        try:
-            await asyncio.wait_for(done_event.wait(), timeout=60)
-        except TimeoutError:
-            pytest.fail("Timed out waiting for session.idle")
-
-        # Should have received delta events
-        assert len(delta_contents) > 0, "Expected to receive delta events"
-
-        # Get the final message to compare
-        assistant_message = await get_final_assistant_message(session)
-
-        # Accumulated deltas should equal the final message
-        accumulated = "".join(delta_contents)
-        assert accumulated == assistant_message.data.content, (
-            f"Accumulated deltas don't match final message.\n"
-            f"Accumulated: {accumulated!r}\nFinal: {assistant_message.data.content!r}"
-        )
-
-        # Final message should contain the answer
-        assert "4" in assistant_message.data.content
-
-    async def test_should_pass_streaming_option_to_session_creation(self, ctx: E2ETestContext):
-        # Verify that the streaming option is accepted without errors
-        session = await ctx.client.create_session(
-            {"streaming": True, "on_permission_request": PermissionHandler.approve_all}
-        )
-
-        assert session.session_id
-
-        # Session should still work normally
-        await session.send({"prompt": "What is 1+1?"})
-        assistant_message = await get_final_assistant_message(session)
-        assert "2" in assistant_message.data.content
 
     async def test_should_receive_session_events(self, ctx: E2ETestContext):
         import asyncio

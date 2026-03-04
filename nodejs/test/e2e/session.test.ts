@@ -175,6 +175,12 @@ describe("Sessions", async () => {
         const messages = await session2.getMessages();
         const assistantMessages = messages.filter((m) => m.type === "assistant.message");
         expect(assistantMessages[assistantMessages.length - 1].data.content).toContain("2");
+
+        // Can continue the conversation statefully
+        const secondAssistantMessage = await session2.sendAndWait({
+            prompt: "Now if you double that, what do you get?",
+        });
+        expect(secondAssistantMessage?.data.content).toContain("4");
     });
 
     it("should resume a session using a new client", async () => {
@@ -202,6 +208,12 @@ describe("Sessions", async () => {
         const messages = await session2.getMessages();
         expect(messages).toContainEqual(expect.objectContaining({ type: "user.message" }));
         expect(messages).toContainEqual(expect.objectContaining({ type: "session.resume" }));
+
+        // Can continue the conversation statefully
+        const secondAssistantMessage = await session2.sendAndWait({
+            prompt: "Now if you double that, what do you get?",
+        });
+        expect(secondAssistantMessage?.data.content).toContain("4");
     });
 
     it("should throw error when resuming non-existent session", async () => {
@@ -282,56 +294,6 @@ describe("Sessions", async () => {
         // We should be able to send another message
         const answer = await session.sendAndWait({ prompt: "What is 2+2?" });
         expect(answer?.data.content).toContain("4");
-    });
-
-    it("should receive streaming delta events when streaming is enabled", async () => {
-        const session = await client.createSession({
-            onPermissionRequest: approveAll,
-            streaming: true,
-        });
-
-        const deltaContents: string[] = [];
-        let _finalMessage: string | undefined;
-
-        // Set up event listener before sending
-        const unsubscribe = session.on((event) => {
-            if (event.type === "assistant.message_delta") {
-                const delta = (event.data as { deltaContent?: string }).deltaContent;
-                if (delta) {
-                    deltaContents.push(delta);
-                }
-            } else if (event.type === "assistant.message") {
-                _finalMessage = event.data.content;
-            }
-        });
-
-        const assistantMessage = await session.sendAndWait({ prompt: "What is 2+2?" });
-
-        unsubscribe();
-
-        // Should have received delta events
-        expect(deltaContents.length).toBeGreaterThan(0);
-
-        // Accumulated deltas should equal the final message
-        const accumulated = deltaContents.join("");
-        expect(accumulated).toBe(assistantMessage?.data.content);
-
-        // Final message should contain the answer
-        expect(assistantMessage?.data.content).toContain("4");
-    });
-
-    it("should pass streaming option to session creation", async () => {
-        // Verify that the streaming option is accepted without errors
-        const session = await client.createSession({
-            onPermissionRequest: approveAll,
-            streaming: true,
-        });
-
-        expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
-
-        // Session should still work normally
-        const assistantMessage = await session.sendAndWait({ prompt: "What is 1+1?" });
-        expect(assistantMessage?.data.content).toContain("2");
     });
 
     it("should receive session events", async () => {

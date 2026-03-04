@@ -368,6 +368,15 @@ func TestSession(t *testing.T) {
 		if answer2.Data.Content == nil || !strings.Contains(*answer2.Data.Content, "2") {
 			t.Errorf("Expected resumed session answer to contain '2', got %v", answer2.Data.Content)
 		}
+
+		// Can continue the conversation statefully
+		answer3, err := session2.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Now if you double that, what do you get?"})
+		if err != nil {
+			t.Fatalf("Failed to send follow-up message: %v", err)
+		}
+		if answer3 == nil || answer3.Data.Content == nil || !strings.Contains(*answer3.Data.Content, "4") {
+			t.Errorf("Expected follow-up answer to contain '4', got %v", answer3)
+		}
 	})
 
 	t.Run("should resume a session using a new client", func(t *testing.T) {
@@ -431,6 +440,15 @@ func TestSession(t *testing.T) {
 		}
 		if !hasSessionResume {
 			t.Error("Expected messages to contain 'session.resume'")
+		}
+
+		// Can continue the conversation statefully
+		answer3, err := session2.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Now if you double that, what do you get?"})
+		if err != nil {
+			t.Fatalf("Failed to send follow-up message: %v", err)
+		}
+		if answer3 == nil || answer3.Data.Content == nil || !strings.Contains(*answer3.Data.Content, "4") {
+			t.Errorf("Expected follow-up answer to contain '4', got %v", answer3)
 		}
 	})
 
@@ -562,99 +580,6 @@ func TestSession(t *testing.T) {
 
 		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "4") {
 			t.Errorf("Expected answer to contain '4', got %v", answer.Data.Content)
-		}
-	})
-
-	t.Run("should receive streaming delta events when streaming is enabled", func(t *testing.T) {
-		ctx.ConfigureForTest(t)
-
-		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Streaming:           true,
-		})
-		if err != nil {
-			t.Fatalf("Failed to create session with streaming: %v", err)
-		}
-
-		var deltaContents []string
-		done := make(chan bool)
-
-		session.On(func(event copilot.SessionEvent) {
-			switch event.Type {
-			case "assistant.message_delta":
-				if event.Data.DeltaContent != nil {
-					deltaContents = append(deltaContents, *event.Data.DeltaContent)
-				}
-			case "session.idle":
-				close(done)
-			}
-		})
-
-		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 2+2?"})
-		if err != nil {
-			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		// Wait for completion
-		select {
-		case <-done:
-		case <-time.After(60 * time.Second):
-			t.Fatal("Timed out waiting for session.idle")
-		}
-
-		// Should have received delta events
-		if len(deltaContents) == 0 {
-			t.Error("Expected to receive delta events, got none")
-		}
-
-		// Get the final message to compare
-		assistantMessage, err := testharness.GetFinalAssistantMessage(t.Context(), session)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
-		}
-
-		// Accumulated deltas should equal the final message
-		accumulated := strings.Join(deltaContents, "")
-		if assistantMessage.Data.Content != nil && accumulated != *assistantMessage.Data.Content {
-			t.Errorf("Accumulated deltas don't match final message.\nAccumulated: %q\nFinal: %q", accumulated, *assistantMessage.Data.Content)
-		}
-
-		// Final message should contain the answer
-		if assistantMessage.Data.Content == nil || !strings.Contains(*assistantMessage.Data.Content, "4") {
-			t.Errorf("Expected assistant message to contain '4', got %v", assistantMessage.Data.Content)
-		}
-	})
-
-	t.Run("should pass streaming option to session creation", func(t *testing.T) {
-		ctx.ConfigureForTest(t)
-
-		// Verify that the streaming option is accepted without errors
-		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Streaming:           true,
-		})
-		if err != nil {
-			t.Fatalf("Failed to create session with streaming: %v", err)
-		}
-
-		matched, _ := regexp.MatchString(`^[a-f0-9-]+$`, session.SessionID)
-		if !matched {
-			t.Errorf("Expected session ID to match UUID pattern, got %q", session.SessionID)
-		}
-
-		// Session should still work normally
-		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
-		if err != nil {
-			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		assistantMessage, err := testharness.GetFinalAssistantMessage(t.Context(), session)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
-		}
-
-		if assistantMessage.Data.Content == nil || !strings.Contains(*assistantMessage.Data.Content, "2") {
-			t.Errorf("Expected assistant message to contain '2', got %v", assistantMessage.Data.Content)
 		}
 	})
 

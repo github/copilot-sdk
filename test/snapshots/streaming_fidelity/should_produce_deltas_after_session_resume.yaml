@@ -5,10 +5,10 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: What is 1+1?
+        content: What is 3 + 6?
       - role: assistant
-        content: 1 + 1 = 2
+        content: 3 + 6 = 9
       - role: user
         content: Now if you double that, what do you get?
       - role: assistant
-        content: If you double 2, you get 4.
+        content: 9 × 2 = 18
