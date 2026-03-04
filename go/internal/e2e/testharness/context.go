@@ -166,7 +166,7 @@ func (c *TestContext) NewClient() *copilot.Client {
 	}
 
 	// Use fake token in CI to allow cached responses without real auth
-	if os.Getenv("CI") == "true" {
+	if os.Getenv("GITHUB_ACTIONS") == "true" {
 		options.GitHubToken = "fake-token-for-e2e-tests"
 	}
 

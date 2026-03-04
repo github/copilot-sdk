@@ -94,13 +94,13 @@ public class E2ETestContext : IAsyncDisposable
         Cwd = WorkDir,
         CliPath = GetCliPath(_repoRoot),
         Environment = GetEnvironment(),
-        GitHubToken = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CI")) ? "fake-token-for-e2e-tests" : null,
+        GitHubToken = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")) ? "fake-token-for-e2e-tests" : null,
     });
 
     public async ValueTask DisposeAsync()
     {
         // Skip writing snapshots in CI to avoid corrupting them on test failures
-        var isCI = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CI"));
+        var isCI = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"));
         await _proxy.StopAsync(skipWritingCache: isCI);
 
         try { if (Directory.Exists(HomeDir)) Directory.Delete(HomeDir, true); } catch { }
