@@ -221,6 +221,9 @@ class TestOverridesBuiltInTool:
 
             async def mock_request(method, params):
                 captured[method] = params
+                if method == "session.resume":
+                    # Return a fake response to avoid needing real auth
+                    return {"sessionId": session.session_id}
                 return await original_request(method, params)
 
             client._client.request = mock_request

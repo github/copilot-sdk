@@ -327,7 +327,9 @@ describe("CopilotClient", () => {
             onTestFinished(() => client.forceStop());
 
             const session = await client.createSession({ onPermissionRequest: approveAll });
-            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            const spy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockResolvedValueOnce({ sessionId: session.sessionId });
             await client.resumeSession(session.sessionId, {
                 onPermissionRequest: approveAll,
                 tools: [
