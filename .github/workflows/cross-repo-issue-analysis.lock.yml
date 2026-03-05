@@ -23,7 +23,7 @@
 #
 # Analyzes copilot-sdk issues to determine if a fix is needed in copilot-agent-runtime, then opens a linked issue and suggested-fix PR there
 #
-# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"17d2fc87cf910e159b28c42965413c89e3e4831269573517b855db8b5ac2d89a","compiler_version":"v0.50.5"}
+# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"3ac598e24f9b393d6d2adefae925950b6b1a02a186ccb7f3e17672cf29525596","compiler_version":"v0.50.5"}
 
 name: "SDK Runtime Triage"
 "on":
@@ -130,7 +130,7 @@ jobs:
           cat "/opt/gh-aw/prompts/safe_outputs_prompt.md"
           cat << 'GH_AW_PROMPT_EOF'
           <safe-output-tools>
-          Tools: add_comment, create_issue, create_pull_request, add_labels, missing_tool, missing_data
+          Tools: create_issue, create_pull_request, add_labels, missing_tool, missing_data
           GH_AW_PROMPT_EOF
           cat "/opt/gh-aw/prompts/safe_outputs_create_pull_request.md"
           cat << 'GH_AW_PROMPT_EOF'
@@ -371,7 +371,7 @@ jobs:
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
           cat > /opt/gh-aw/safeoutputs/config.json << 'GH_AW_SAFE_OUTPUTS_CONFIG_EOF'
-          {"add_comment":{"max":1,"target":"triggering"},"add_labels":{"allowed":["runtime-fix-needed","sdk-fix-only","needs-investigation"],"max":3,"target":"triggering"},"create_issue":{"max":1},"create_pull_request":{"max":1},"missing_data":{},"missing_tool":{},"noop":{"max":1}}
+          {"add_labels":{"allowed":["runtime-fix-needed","sdk-fix-only","needs-investigation"],"max":3,"target":"triggering"},"create_issue":{"max":1},"create_pull_request":{"max":1},"missing_data":{},"missing_tool":{},"noop":{"max":1}}
           GH_AW_SAFE_OUTPUTS_CONFIG_EOF
           cat > /opt/gh-aw/safeoutputs/tools.json << 'GH_AW_SAFE_OUTPUTS_TOOLS_EOF'
           [
@@ -415,27 +415,6 @@ jobs:
                 "type": "object"
               },
               "name": "create_issue"
-            },
-            {
-              "description": "Add a comment to an existing GitHub issue, pull request, or discussion. Use this to provide feedback, answer questions, or add information to an existing conversation. For creating new items, use create_issue, create_discussion, or create_pull_request instead. IMPORTANT: Comments are subject to validation constraints enforced by the MCP server - maximum 65536 characters for the complete comment (including footer which is added automatically), 10 mentions (@username), and 50 links. Exceeding these limits will result in an immediate error with specific guidance. NOTE: By default, this tool requires discussions:write permission. If your GitHub App lacks Discussions permission, set 'discussions: false' in the workflow's safe-outputs.add-comment configuration to exclude this permission. CONSTRAINTS: Maximum 1 comment(s) can be added. Target: triggering.",
-              "inputSchema": {
-                "additionalProperties": false,
-                "properties": {
-                  "body": {
-                    "description": "The comment text in Markdown format. This is the 'body' field - do not use 'comment_body' or other variations. Provide helpful, relevant information that adds value to the conversation. CONSTRAINTS: The complete comment (your body text + automatically added footer) must not exceed 65536 characters total. Maximum 10 mentions (@username), maximum 50 links (http/https URLs). A footer (~200-500 characters) is automatically appended with workflow attribution, so leave adequate space. If these limits are exceeded, the tool call will fail with a detailed error message indicating which constraint was violated.",
-                    "type": "string"
-                  },
-                  "item_number": {
-                    "description": "The issue, pull request, or discussion number to comment on. This is the numeric ID from the GitHub URL (e.g., 123 in github.com/owner/repo/issues/123). If omitted, the tool auto-targets the issue, PR, or discussion that triggered this workflow. Auto-targeting only works for issue, pull_request, discussion, and comment event triggers — it does NOT work for schedule, workflow_dispatch, push, or workflow_run triggers. For those trigger types, always provide item_number explicitly, or the comment will be silently discarded.",
-                    "type": "number"
-                  }
-                },
-                "required": [
-                  "body"
-                ],
-                "type": "object"
-              },
-              "name": "add_comment"
             },
             {
               "description": "Create a new GitHub pull request to propose code changes. Use this after making file edits to submit them for review and merging. The PR will be created from the current branch with your committed changes. For code review comments on an existing PR, use create_pull_request_review_comment instead. CONSTRAINTS: Maximum 1 pull request(s) can be created. Title will be prefixed with \"[copilot-sdk] \". Labels [upstream-from-sdk ai-suggested-fix] will be automatically added. PRs will be created as drafts.",
@@ -568,24 +547,6 @@ jobs:
           GH_AW_SAFE_OUTPUTS_TOOLS_EOF
           cat > /opt/gh-aw/safeoutputs/validation.json << 'GH_AW_SAFE_OUTPUTS_VALIDATION_EOF'
           {
-            "add_comment": {
-              "defaultMax": 1,
-              "fields": {
-                "body": {
-                  "required": true,
-                  "type": "string",
-                  "sanitize": true,
-                  "maxLength": 65000
-                },
-                "item_number": {
-                  "issueOrPRNumber": true
-                },
-                "repo": {
-                  "type": "string",
-                  "maxLength": 256
-                }
-              }
-            },
             "add_labels": {
               "defaultMax": 5,
               "fields": {
@@ -1160,7 +1121,6 @@ jobs:
     runs-on: ubuntu-slim
     permissions:
       contents: write
-      discussions: write
       issues: write
       pull-requests: write
     outputs:
@@ -1295,7 +1255,6 @@ jobs:
     runs-on: ubuntu-slim
     permissions:
       contents: write
-      discussions: write
       issues: write
       pull-requests: write
     timeout-minutes: 15
@@ -1360,7 +1319,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
-          GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG: "{\"add_comment\":{\"max\":1,\"target\":\"triggering\"},\"add_labels\":{\"allowed\":[\"runtime-fix-needed\",\"sdk-fix-only\",\"needs-investigation\"],\"max\":3,\"target\":\"triggering\"},\"create_issue\":{\"labels\":[\"upstream-from-sdk\",\"ai-triaged\"],\"max\":1,\"target-repo\":\"github/copilot-agent-runtime\",\"title_prefix\":\"[copilot-sdk] \"},\"create_pull_request\":{\"base_branch\":\"${{ github.base_ref || github.ref_name }}\",\"draft\":true,\"labels\":[\"upstream-from-sdk\",\"ai-suggested-fix\"],\"max\":1,\"max_patch_size\":1024,\"target-repo\":\"github/copilot-agent-runtime\",\"title_prefix\":\"[copilot-sdk] \"},\"missing_data\":{},\"missing_tool\":{}}"
+          GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG: "{\"add_labels\":{\"allowed\":[\"runtime-fix-needed\",\"sdk-fix-only\",\"needs-investigation\"],\"max\":3,\"target\":\"triggering\"},\"create_issue\":{\"labels\":[\"upstream-from-sdk\",\"ai-triaged\"],\"max\":1,\"target-repo\":\"github/copilot-agent-runtime\",\"title_prefix\":\"[copilot-sdk] \"},\"create_pull_request\":{\"base_branch\":\"${{ github.base_ref || github.ref_name }}\",\"draft\":true,\"labels\":[\"upstream-from-sdk\",\"ai-suggested-fix\"],\"max\":1,\"max_patch_size\":1024,\"target-repo\":\"github/copilot-agent-runtime\",\"title_prefix\":\"[copilot-sdk] \"},\"missing_data\":{},\"missing_tool\":{}}"
           GH_AW_CI_TRIGGER_TOKEN: ${{ secrets.GH_AW_CI_TRIGGER_TOKEN }}
         with:
           github-token: ${{ secrets.RUNTIME_TRIAGE_TOKEN }}
