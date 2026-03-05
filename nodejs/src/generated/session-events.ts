@@ -751,4 +751,138 @@ export type SessionEvent =
           };
         };
       };
+    }
+  | {
+      id: string;
+      timestamp: string;
+      parentId: string | null;
+      ephemeral: true;
+      type: "permission.requested";
+      data: {
+        requestId: string;
+        permissionRequest:
+          | {
+              kind: "shell";
+              toolCallId?: string;
+              fullCommandText: string;
+              intention: string;
+              commands: {
+                identifier: string;
+                readOnly: boolean;
+              }[];
+              possiblePaths: string[];
+              possibleUrls: {
+                url: string;
+              }[];
+              hasWriteFileRedirection: boolean;
+              canOfferSessionApproval: boolean;
+              warning?: string;
+            }
+          | {
+              kind: "write";
+              toolCallId?: string;
+              intention: string;
+              fileName: string;
+              diff: string;
+              newFileContents?: string;
+            }
+          | {
+              kind: "read";
+              toolCallId?: string;
+              intention: string;
+              path: string;
+            }
+          | {
+              kind: "mcp";
+              toolCallId?: string;
+              serverName: string;
+              toolName: string;
+              toolTitle: string;
+              args?: unknown;
+              readOnly: boolean;
+            }
+          | {
+              kind: "url";
+              toolCallId?: string;
+              intention: string;
+              url: string;
+            }
+          | {
+              kind: "memory";
+              toolCallId?: string;
+              subject: string;
+              fact: string;
+              citations: string;
+            }
+          | {
+              kind: "custom-tool";
+              toolCallId?: string;
+              toolName: string;
+              toolDescription: string;
+              args?: unknown;
+            };
+      };
+    }
+  | {
+      id: string;
+      timestamp: string;
+      parentId: string | null;
+      ephemeral: true;
+      type: "permission.completed";
+      data: {
+        requestId: string;
+      };
+    }
+  | {
+      id: string;
+      timestamp: string;
+      parentId: string | null;
+      ephemeral: true;
+      type: "user_input.requested";
+      data: {
+        requestId: string;
+        question: string;
+        choices?: string[];
+        allowFreeform?: boolean;
+      };
+    }
+  | {
+      id: string;
+      timestamp: string;
+      parentId: string | null;
+      ephemeral: true;
+      type: "user_input.completed";
+      data: {
+        requestId: string;
+      };
+    }
+  | {
+      id: string;
+      timestamp: string;
+      parentId: string | null;
+      ephemeral: true;
+      type: "elicitation.requested";
+      data: {
+        requestId: string;
+        message: string;
+        mode?: "form";
+        requestedSchema: {
+          type: "object";
+          properties: {
+            [k: string]: unknown;
+          };
+          required?: string[];
+        };
+        [k: string]: unknown;
+      };
+    }
+  | {
+      id: string;
+      timestamp: string;
+      parentId: string | null;
+      ephemeral: true;
+      type: "elicitation.completed";
+      data: {
+        requestId: string;
+      };
     };
