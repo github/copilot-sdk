@@ -12,6 +12,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./extension": {
+      "import": "./dist/extension.js",
+      "types": "./dist/extension.d.ts"
     }
   },
   "type": "module",

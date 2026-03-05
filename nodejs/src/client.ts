@@ -42,7 +42,6 @@ import type {
     SessionListFilter,
     SessionMetadata,
     Tool,
-    ToolHandler,
     TypedSessionLifecycleHandler,
 } from "./types.js";
 
@@ -192,6 +191,12 @@ export class CopilotClient {
             throw new Error("cliUrl is mutually exclusive with useStdio and cliPath");
         }
 
+        if (options.isChildProcess && (options.cliUrl || options.useStdio === false)) {
+            throw new Error(
+                "isChildProcess must be used in conjunction with useStdio and not with cliUrl"
+            );
+        }
+
         // Validate auth options with external server
         if (options.cliUrl && (options.githubToken || options.useLoggedInUser !== undefined)) {
             throw new Error(
@@ -207,12 +212,17 @@ export class CopilotClient {
             this.isExternalServer = true;
         }
 
+        if (options.isChildProcess) {
+            this.isExternalServer = true;
+        }
+
         this.options = {
             cliPath: options.cliPath || getBundledCliPath(),
             cliArgs: options.cliArgs ?? [],
             cwd: options.cwd ?? process.cwd(),
             port: options.port || 0,
             useStdio: options.cliUrl ? false : (options.useStdio ?? true), // Default to stdio unless cliUrl is provided
+            isChildProcess: options.isChildProcess ?? false,
             cliUrl: options.cliUrl,
             logLevel: options.logLevel || "debug",
             autoStart: options.autoStart ?? true,
@@ -1206,17 +1216,19 @@ export class CopilotClient {
      * Connect to the CLI server (via socket or stdio)
      */
     private async connectToServer(): Promise<void> {
-        if (this.options.useStdio) {
-            return this.connectViaStdio();
+        if (this.options.isChildProcess) {
+            return this.connectToParentProcessViaStdio();
+        } else if (this.options.useStdio) {
+            return this.connectToChildProcessViaStdio();
         } else {
             return this.connectViaTcp();
         }
     }
 
     /**
-     * Connect via stdio pipes
+     * Connect to child via stdio pipes
      */
-    private async connectViaStdio(): Promise<void> {
+    private async connectToChildProcessViaStdio(): Promise<void> {
         if (!this.cliProcess) {
             throw new Error("CLI process not started");
         }
@@ -1232,6 +1244,24 @@ export class CopilotClient {
         this.connection = createMessageConnection(
             new StreamMessageReader(this.cliProcess.stdout!),
             new StreamMessageWriter(this.cliProcess.stdin!)
+        );
+
+        this.attachConnectionHandlers();
+        this.connection.listen();
+    }
+
+    /**
+     * Connect to parent via stdio pipes
+     */
+    private async connectToParentProcessViaStdio(): Promise<void> {
+        if (this.cliProcess) {
+            throw new Error("CLI child process was unexpectedly started in parent process mode");
+        }
+
+        // Create JSON-RPC connection over stdin/stdout
+        this.connection = createMessageConnection(
+            new StreamMessageReader(process.stdin),
+            new StreamMessageWriter(process.stdout)
         );
 
         this.attachConnectionHandlers();

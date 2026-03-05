@@ -45,6 +45,13 @@ export interface CopilotClientOptions {
     useStdio?: boolean;
 
     /**
+     * When true, indicates the SDK is running as a child process of the Copilot CLI server, and should
+     * use its own stdio for communicating with the existing parent process. Can only be used in combination
+     * with useStdio: true.
+     */
+    isChildProcess?: boolean;
+
+    /**
      * URL of an existing Copilot CLI server to connect to over TCP
      * When provided, the client will not spawn a CLI process
      * Format: "host:port" or "http://host:port" or just "port" (defaults to localhost)
