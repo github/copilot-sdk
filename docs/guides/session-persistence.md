@@ -325,23 +325,45 @@ async function cleanupExpiredSessions(maxAgeMs: number) {
 await cleanupExpiredSessions(24 * 60 * 60 * 1000);
 ```
 
-### Explicit Session Destruction
+### Disconnecting from a Session (`disconnect`)
 
-When a task completes, destroy the session explicitly rather than waiting for timeouts:
+When a task completes, disconnect from the session explicitly rather than waiting for timeouts. This releases in-memory resources but **preserves session data on disk**, so the session can still be resumed later:
 
 ```typescript
 try {
   // Do work...
   await session.sendAndWait({ prompt: "Complete the task" });
   
-  // Task complete - clean up
-  await session.destroy();
+  // Task complete — release in-memory resources (session can be resumed later)
+  await session.disconnect();
 } catch (error) {
   // Clean up even on error
-  await session.destroy();
+  await session.disconnect();
   throw error;
 }
 ```
+
+Each SDK also provides idiomatic automatic cleanup patterns:
+
+| Language | Pattern | Example |
+|----------|---------|---------|
+| **TypeScript** | `Symbol.asyncDispose` | `await using session = await client.createSession(config);` |
+| **Python** | `async with` context manager | `async with await client.create_session(config) as session:` |
+| **C#** | `IAsyncDisposable` | `await using var session = await client.CreateSessionAsync(config);` |
+| **Go** | `defer` | `defer session.Disconnect()` |
+
+> **Note:** `destroy()` is deprecated in favor of `disconnect()`. Existing code using `destroy()` will continue to work but should be migrated.
+
+### Permanently Deleting a Session (`deleteSession`)
+
+To permanently remove a session and all its data from disk (conversation history, planning state, artifacts), use `deleteSession`. This is irreversible — the session **cannot** be resumed after deletion:
+
+```typescript
+// Permanently remove session data
+await client.deleteSession("user-123-task-456");
+```
+
+> **`disconnect()` vs `deleteSession()`:** `disconnect()` releases in-memory resources but keeps session data on disk for later resumption. `deleteSession()` permanently removes everything, including files on disk.
 
 ## Automatic Cleanup: Idle Timeout
 
@@ -526,8 +548,8 @@ await withSessionLock("user-123-task-456", async () => {
 | **Resume session** | `client.resumeSession(sessionId)` |
 | **BYOK resume** | Re-provide `provider` config |
 | **List sessions** | `client.listSessions(filter?)` |
-| **Delete session** | `client.deleteSession(sessionId)` |
-| **Destroy active session** | `session.destroy()` |
+| **Disconnect from active session** | `session.disconnect()` — releases in-memory resources; session data on disk is preserved for resumption |
+| **Delete session permanently** | `client.deleteSession(sessionId)` — permanently removes all session data from disk; cannot be resumed |
 | **Containerized deployment** | Mount `~/.copilot/session-state/` to persistent storage |
 
 ## Next Steps

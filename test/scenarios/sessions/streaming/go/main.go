@@ -27,7 +27,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer session.Destroy()
+	defer session.Disconnect()
 
 	chunkCount := 0
 	session.On(func(event copilot.SessionEvent) {

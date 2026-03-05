@@ -54,7 +54,7 @@ async def main():
     await session.send({"prompt": "What is 2+2?"})
     await done.wait()
 
-    await session.destroy()
+    await session.disconnect()
     await client.stop()
 
 asyncio.run(main())

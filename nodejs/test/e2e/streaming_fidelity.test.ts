@@ -43,7 +43,7 @@ describe("Streaming Fidelity", async () => {
         const lastAssistantIdx = types.lastIndexOf("assistant.message");
         expect(firstDeltaIdx).toBeLessThan(lastAssistantIdx);
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should not produce deltas when streaming is disabled", async () => {
@@ -69,7 +69,7 @@ describe("Streaming Fidelity", async () => {
         const assistantEvents = events.filter((e) => e.type === "assistant.message");
         expect(assistantEvents.length).toBeGreaterThanOrEqual(1);
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should produce deltas after session resume", async () => {
@@ -78,7 +78,7 @@ describe("Streaming Fidelity", async () => {
             streaming: false,
         });
         await session.sendAndWait({ prompt: "What is 3 + 6?" });
-        await session.destroy();
+        await session.disconnect();
 
         // Resume using a new client
         const newClient = new CopilotClient({
@@ -108,6 +108,6 @@ describe("Streaming Fidelity", async () => {
             expect(typeof delta.data.deltaContent).toBe("string");
         }
 
-        await session2.destroy();
+        await session2.disconnect();
     });
 });

@@ -211,17 +211,22 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
-    /// Disconnects from the Copilot server and stops all active sessions.
+    /// Disconnects from the Copilot server and closes all active sessions.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     /// <remarks>
     /// <para>
     /// This method performs graceful cleanup:
     /// <list type="number">
-    ///     <item>Destroys all active sessions</item>
+    ///     <item>Closes all active sessions (releases in-memory resources)</item>
     ///     <item>Closes the JSON-RPC connection</item>
     ///     <item>Terminates the CLI server process (if spawned by this client)</item>
     /// </list>
+    /// </para>
+    /// <para>
+    /// Note: session data on disk is preserved, so sessions can be resumed later.
+    /// To permanently remove session data before stopping, call
+    /// <see cref="DeleteSessionAsync"/> for each session first.
     /// </para>
     /// </remarks>
     /// <exception cref="AggregateException">Thrown when multiple errors occur during cleanup.</exception>
@@ -242,7 +247,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             }
             catch (Exception ex)
             {
-                errors.Add(new IOException($"Failed to destroy session {session.SessionId}: {ex.Message}", ex));
+                errors.Add(new Exception($"Failed to dispose session {session.SessionId}: {ex.Message}", ex));
             }
         }
 
@@ -656,15 +661,17 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
-    /// Deletes a Copilot session by its ID.
+    /// Permanently deletes a session and all its data from disk, including
+    /// conversation history, planning state, and artifacts.
     /// </summary>
     /// <param name="sessionId">The ID of the session to delete.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
     /// <returns>A task that represents the asynchronous delete operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the session does not exist or deletion fails.</exception>
     /// <remarks>
-    /// This permanently removes the session and all its conversation history.
-    /// The session cannot be resumed after deletion.
+    /// Unlike <see cref="CopilotSession.DisposeAsync"/>, which only releases in-memory
+    /// resources and preserves session data for later resumption, this method is
+    /// irreversible. The session cannot be resumed after deletion.
     /// </remarks>
     /// <example>
     /// <code>

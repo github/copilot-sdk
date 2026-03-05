@@ -34,7 +34,7 @@ type sessionHandler struct {
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
-//	defer session.Destroy()
+//	defer session.Disconnect()
 //
 //	// Subscribe to events
 //	unsubscribe := session.On(func(event copilot.SessionEvent) {
@@ -97,7 +97,7 @@ func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string)
 //   - options: The message options including the prompt and optional attachments.
 //
 // Returns the message ID of the response, which can be used to correlate events,
-// or an error if the session has been destroyed or the connection fails.
+// or an error if the session has been disconnected or the connection fails.
 //
 // Example:
 //
@@ -483,7 +483,7 @@ func (s *Session) dispatchEvent(event SessionEvent) {
 // assistant responses, tool executions, and other session events in
 // chronological order.
 //
-// Returns an error if the session has been destroyed or the connection fails.
+// Returns an error if the session has been disconnected or the connection fails.
 //
 // Example:
 //
@@ -511,24 +511,28 @@ func (s *Session) GetMessages(ctx context.Context) ([]SessionEvent, error) {
 	return response.Events, nil
 }
 
-// Destroy destroys this session and releases all associated resources.
+// Disconnect closes this session and releases all in-memory resources (event
+// handlers, tool handlers, permission handlers).
 //
-// After calling this method, the session can no longer be used. All event
-// handlers and tool handlers are cleared. To continue the conversation,
-// use [Client.ResumeSession] with the session ID.
+// Session state on disk (conversation history, planning state, artifacts) is
+// preserved, so the conversation can be resumed later by calling
+// [Client.ResumeSession] with the session ID. To permanently remove all
+// session data including files on disk, use [Client.DeleteSession] instead.
+//
+// After calling this method, the session object can no longer be used.
 //
 // Returns an error if the connection fails.
 //
 // Example:
 //
-//	// Clean up when done
-//	if err := session.Destroy(); err != nil {
-//	    log.Printf("Failed to destroy session: %v", err)
+//	// Clean up when done — session can still be resumed later
+//	if err := session.Disconnect(); err != nil {
+//	    log.Printf("Failed to disconnect session: %v", err)
 //	}
-func (s *Session) Destroy() error {
+func (s *Session) Disconnect() error {
 	_, err := s.client.Request("session.destroy", sessionDestroyRequest{SessionID: s.SessionID})
 	if err != nil {
-		return fmt.Errorf("failed to destroy session: %w", err)
+		return fmt.Errorf("failed to disconnect session: %w", err)
 	}
 
 	// Clear handlers
@@ -547,12 +551,20 @@ func (s *Session) Destroy() error {
 	return nil
 }
 
+// Deprecated: Use [Session.Disconnect] instead. Destroy will be removed in a future release.
+//
+// Destroy closes this session and releases all in-memory resources.
+// Session data on disk is preserved for later resumption.
+func (s *Session) Destroy() error {
+	return s.Disconnect()
+}
+
 // Abort aborts the currently processing message in this session.
 //
 // Use this to cancel a long-running request. The session remains valid
 // and can continue to be used for new messages.
 //
-// Returns an error if the session has been destroyed or the connection fails.
+// Returns an error if the session has been disconnected or the connection fails.
 //
 // Example:
 //

@@ -34,7 +34,7 @@ async def main():
             print(response.data.content)
         print(f"\nStreaming chunks received: {chunk_count}")
 
-        await session.destroy()
+        await session.disconnect()
     finally:
         await client.stop()
 

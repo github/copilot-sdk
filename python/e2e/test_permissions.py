@@ -42,7 +42,7 @@ class TestPermissions:
         write_requests = [req for req in permission_requests if req.get("kind") == "write"]
         assert len(write_requests) > 0
 
-        await session.destroy()
+        await session.disconnect()
 
     async def test_should_deny_permission_when_handler_returns_denied(self, ctx: E2ETestContext):
         """Test denying permissions"""
@@ -66,7 +66,7 @@ class TestPermissions:
         content = read_file(ctx.work_dir, "protected.txt")
         assert content == original_content
 
-        await session.destroy()
+        await session.disconnect()
 
     async def test_should_deny_tool_operations_when_handler_explicitly_denies(
         self, ctx: E2ETestContext
@@ -101,7 +101,7 @@ class TestPermissions:
 
         assert len(denied_events) > 0
 
-        await session.destroy()
+        await session.disconnect()
 
     async def test_should_deny_tool_operations_when_handler_explicitly_denies_after_resume(
         self, ctx: E2ETestContext
@@ -141,7 +141,7 @@ class TestPermissions:
 
         assert len(denied_events) > 0
 
-        await session2.destroy()
+        await session2.disconnect()
 
     async def test_should_work_with_approve_all_permission_handler(self, ctx: E2ETestContext):
         """Test that sessions work with approve-all permission handler"""
@@ -154,7 +154,7 @@ class TestPermissions:
         assert message is not None
         assert "4" in message.data.content
 
-        await session.destroy()
+        await session.disconnect()
 
     async def test_should_handle_async_permission_handler(self, ctx: E2ETestContext):
         """Test async permission handler"""
@@ -174,7 +174,7 @@ class TestPermissions:
 
         assert len(permission_requests) > 0
 
-        await session.destroy()
+        await session.disconnect()
 
     async def test_should_resume_session_with_permission_handler(self, ctx: E2ETestContext):
         """Test resuming session with permission handler"""
@@ -203,7 +203,7 @@ class TestPermissions:
         # Should have permission requests from resumed session
         assert len(permission_requests) > 0
 
-        await session2.destroy()
+        await session2.disconnect()
 
     async def test_should_handle_permission_handler_errors_gracefully(self, ctx: E2ETestContext):
         """Test that permission handler errors are handled gracefully"""
@@ -224,7 +224,7 @@ class TestPermissions:
         content_lower = message.data.content.lower()
         assert any(word in content_lower for word in ["fail", "cannot", "unable", "permission"])
 
-        await session.destroy()
+        await session.disconnect()
 
     async def test_should_receive_toolcallid_in_permission_requests(self, ctx: E2ETestContext):
         """Test that toolCallId is included in permission requests"""
@@ -246,4 +246,4 @@ class TestPermissions:
 
         assert received_tool_call_id
 
-        await session.destroy()
+        await session.disconnect()

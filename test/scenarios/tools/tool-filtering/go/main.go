@@ -33,7 +33,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer session.Destroy()
+	defer session.Disconnect()
 
 	response, err := session.SendAndWait(ctx, copilot.MessageOptions{
 		Prompt: "What tools do you have available? List each one by name.",

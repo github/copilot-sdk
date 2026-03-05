@@ -61,7 +61,7 @@ class TestClient:
                 await client.stop()
             assert len(exc_info.value.exceptions) > 0
             assert isinstance(exc_info.value.exceptions[0], StopError)
-            assert "Failed to destroy session" in exc_info.value.exceptions[0].message
+            assert "Failed to disconnect session" in exc_info.value.exceptions[0].message
         finally:
             await client.force_stop()
 

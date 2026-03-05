@@ -132,7 +132,7 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
-    defer session.Destroy()
+    defer session.Disconnect()
 
     // Use the session...
 }
@@ -191,7 +191,7 @@ async function main() {
 
     console.log("Response:", result?.data?.content);
 
-    await session.destroy();
+    await session.disconnect();
     await client.stop();
 }
 

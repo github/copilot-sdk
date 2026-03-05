@@ -31,7 +31,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer session.Destroy()
+	defer session.Disconnect()
 
 	response, err := session.SendAndWait(ctx, copilot.MessageOptions{
 		Prompt: "Use the grep tool to search for 'SDK' in README.md.",

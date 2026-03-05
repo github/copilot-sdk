@@ -219,7 +219,17 @@ Get all events/messages from this session.
 
 ##### `DisposeAsync(): ValueTask`
 
-Dispose the session and free resources.
+Close the session and release in-memory resources. Session data on disk is preserved — the conversation can be resumed later via `ResumeSessionAsync()`. To permanently delete session data, use `client.DeleteSessionAsync()`.
+
+```csharp
+// Preferred: automatic cleanup via await using
+await using var session = await client.CreateSessionAsync(config);
+// session is automatically disposed when leaving scope
+
+// Alternative: explicit dispose
+var session2 = await client.CreateSessionAsync(config);
+await session2.DisposeAsync();
+```
 
 ---
 

@@ -39,7 +39,7 @@ describe("Event Fidelity", async () => {
         const idleIdx = types.lastIndexOf("session.idle");
         expect(idleIdx).toBe(types.length - 1);
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should include valid fields on all events", async () => {
@@ -74,7 +74,7 @@ describe("Event Fidelity", async () => {
         expect(assistantEvent?.data.messageId).toBeDefined();
         expect(assistantEvent?.data.content).toBeDefined();
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should emit tool execution events with correct fields", async () => {
@@ -106,7 +106,7 @@ describe("Event Fidelity", async () => {
         const firstComplete = toolCompletes[0]!;
         expect(firstComplete.data.toolCallId).toBeDefined();
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should emit assistant.message with messageId", async () => {
@@ -129,6 +129,6 @@ describe("Event Fidelity", async () => {
         expect(typeof msg.data.messageId).toBe("string");
         expect(msg.data.content).toContain("pong");
 
-        await session.destroy();
+        await session.disconnect();
     });
 });

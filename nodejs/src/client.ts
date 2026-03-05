@@ -102,7 +102,7 @@ function toJsonSchema(parameters: Tool["parameters"]): Record<string, unknown> |
  * await session.send({ prompt: "Hello!" });
  *
  * // Clean up
- * await session.destroy();
+ * await session.disconnect();
  * await client.stop();
  * ```
  */
@@ -307,9 +307,13 @@ export class CopilotClient {
      * Stops the CLI server and closes all active sessions.
      *
      * This method performs graceful cleanup:
-     * 1. Destroys all active sessions with retry logic
+     * 1. Closes all active sessions (releases in-memory resources)
      * 2. Closes the JSON-RPC connection
      * 3. Terminates the CLI server process (if spawned by this client)
+     *
+     * Note: session data on disk is preserved, so sessions can be resumed later.
+     * To permanently remove session data before stopping, call
+     * {@link deleteSession} for each session first.
      *
      * @returns A promise that resolves with an array of errors encountered during cleanup.
      *          An empty array indicates all cleanup succeeded.
@@ -325,7 +329,7 @@ export class CopilotClient {
     async stop(): Promise<Error[]> {
         const errors: Error[] = [];
 
-        // Destroy all active sessions with retry logic
+        // Disconnect all active sessions with retry logic
         for (const session of this.sessions.values()) {
             const sessionId = session.sessionId;
             let lastError: Error | null = null;
@@ -333,7 +337,7 @@ export class CopilotClient {
             // Try up to 3 times with exponential backoff
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
-                    await session.destroy();
+                    await session.disconnect();
                     lastError = null;
                     break; // Success
                 } catch (error) {
@@ -350,7 +354,7 @@ export class CopilotClient {
             if (lastError) {
                 errors.push(
                     new Error(
-                        `Failed to destroy session ${sessionId} after 3 attempts: ${lastError.message}`
+                        `Failed to disconnect session ${sessionId} after 3 attempts: ${lastError.message}`
                     )
                 );
             }
@@ -825,10 +829,12 @@ export class CopilotClient {
     }
 
     /**
-     * Deletes a session and its data from disk.
+     * Permanently deletes a session and all its data from disk, including
+     * conversation history, planning state, and artifacts.
      *
-     * This permanently removes the session and all its conversation history.
-     * The session cannot be resumed after deletion.
+     * Unlike {@link CopilotSession.disconnect}, which only releases in-memory
+     * resources and preserves session data for later resumption, this method
+     * is irreversible. The session cannot be resumed after deletion.
      *
      * @param sessionId - The ID of the session to delete
      * @returns A promise that resolves when the session is deleted

@@ -13,7 +13,7 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
 class TestSessions:
-    async def test_should_create_and_destroy_sessions(self, ctx: E2ETestContext):
+    async def test_should_create_and_disconnect_sessions(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
             {"model": "fake-test-model", "on_permission_request": PermissionHandler.approve_all}
         )
@@ -25,7 +25,7 @@ class TestSessions:
         assert messages[0].data.session_id == session.session_id
         assert messages[0].data.selected_model == "fake-test-model"
 
-        await session.destroy()
+        await session.disconnect()
 
         with pytest.raises(Exception, match="Session not found"):
             await session.get_messages()
@@ -148,8 +148,8 @@ class TestSessions:
             assert messages[0].type.value == "session.start"
             assert messages[0].data.session_id == s.session_id
 
-        # All can be destroyed
-        await asyncio.gather(s1.destroy(), s2.destroy(), s3.destroy())
+        # All can be disconnected
+        await asyncio.gather(s1.disconnect(), s2.disconnect(), s3.disconnect())
         for s in [s1, s2, s3]:
             with pytest.raises(Exception, match="Session not found"):
                 await s.get_messages()
@@ -318,7 +318,7 @@ class TestSessions:
         last_session_id = await ctx.client.get_last_session_id()
         assert last_session_id == session.session_id
 
-        await session.destroy()
+        await session.disconnect()
 
     async def test_should_create_session_with_custom_tool(self, ctx: E2ETestContext):
         # This test uses the low-level Tool() API to show that Pydantic is optional

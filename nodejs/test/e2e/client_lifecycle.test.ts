@@ -20,7 +20,7 @@ describe("Client Lifecycle", async () => {
         const lastSessionId = await client.getLastSessionId();
         expect(lastSessionId).toBe(session.sessionId);
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should return undefined for getLastSessionId with no sessions", async () => {
@@ -49,7 +49,7 @@ describe("Client Lifecycle", async () => {
                 expect(sessionEvents.length).toBeGreaterThan(0);
             }
 
-            await session.destroy();
+            await session.disconnect();
         } finally {
             unsubscribe();
         }

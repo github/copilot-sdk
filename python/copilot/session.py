@@ -118,7 +118,7 @@ class CopilotSession:
             The message ID of the response, which can be used to correlate events.
 
         Raises:
-            Exception: If the session has been destroyed or the connection fails.
+            Exception: If the session has been disconnected or the connection fails.
 
         Example:
             >>> message_id = await session.send({
@@ -159,7 +159,7 @@ class CopilotSession:
 
         Raises:
             TimeoutError: If the timeout is reached before session becomes idle.
-            Exception: If the session has been destroyed or the connection fails.
+            Exception: If the session has been disconnected or the connection fails.
 
         Example:
             >>> response = await session.send_and_wait({"prompt": "What is 2+2?"})
@@ -461,7 +461,7 @@ class CopilotSession:
             A list of all session events in chronological order.
 
         Raises:
-            Exception: If the session has been destroyed or the connection fails.
+            Exception: If the session has been disconnected or the connection fails.
 
         Example:
             >>> events = await session.get_messages()
@@ -474,20 +474,25 @@ class CopilotSession:
         events_dicts = response["events"]
         return [session_event_from_dict(event_dict) for event_dict in events_dicts]
 
-    async def destroy(self) -> None:
+    async def disconnect(self) -> None:
         """
-        Destroy this session and release all associated resources.
+        Disconnect this session and release all in-memory resources (event handlers,
+        tool handlers, permission handlers).
 
-        After calling this method, the session can no longer be used. All event
-        handlers and tool handlers are cleared. To continue the conversation,
-        use :meth:`CopilotClient.resume_session` with the session ID.
+        Session state on disk (conversation history, planning state, artifacts)
+        is preserved, so the conversation can be resumed later by calling
+        :meth:`CopilotClient.resume_session` with the session ID. To
+        permanently remove all session data including files on disk, use
+        :meth:`CopilotClient.delete_session` instead.
+
+        After calling this method, the session object can no longer be used.
 
         Raises:
             Exception: If the connection fails.
 
         Example:
-            >>> # Clean up when done
-            >>> await session.destroy()
+            >>> # Clean up when done — session can still be resumed later
+            >>> await session.disconnect()
         """
         await self._client.request("session.destroy", {"sessionId": self.session_id})
         with self._event_handlers_lock:
@@ -497,6 +502,34 @@ class CopilotSession:
         with self._permission_handler_lock:
             self._permission_handler = None
 
+    async def destroy(self) -> None:
+        """
+        .. deprecated::
+            Use :meth:`disconnect` instead. This method will be removed in a future release.
+
+        Disconnect this session and release all in-memory resources.
+        Session data on disk is preserved for later resumption.
+
+        Raises:
+            Exception: If the connection fails.
+        """
+        import warnings
+
+        warnings.warn(
+            "destroy() is deprecated, use disconnect() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        await self.disconnect()
+
+    async def __aenter__(self) -> "CopilotSession":
+        """Enable use as an async context manager."""
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Disconnect the session when exiting the context manager."""
+        await self.disconnect()
+
     async def abort(self) -> None:
         """
         Abort the currently processing message in this session.
@@ -505,7 +538,7 @@ class CopilotSession:
         and can continue to be used for new messages.
 
         Raises:
-            Exception: If the session has been destroyed or the connection fails.
+            Exception: If the session has been disconnected or the connection fails.
 
         Example:
             >>> import asyncio

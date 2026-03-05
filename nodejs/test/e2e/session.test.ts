@@ -8,7 +8,7 @@ import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestH
 describe("Sessions", async () => {
     const { copilotClient: client, openAiEndpoint, homeDir, env } = await createSdkTestContext();
 
-    it("should create and destroy sessions", async () => {
+    it("should create and disconnect sessions", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             model: "fake-test-model",
@@ -22,7 +22,7 @@ describe("Sessions", async () => {
             },
         ]);
 
-        await session.destroy();
+        await session.disconnect();
         await expect(() => session.getMessages()).rejects.toThrow(/Session not found/);
     });
 
@@ -155,8 +155,8 @@ describe("Sessions", async () => {
             ]);
         }
 
-        // All can be destroyed
-        await Promise.all([s1.destroy(), s2.destroy(), s3.destroy()]);
+        // All can be disconnected
+        await Promise.all([s1.disconnect(), s2.disconnect(), s3.disconnect()]);
         for (const s of [s1, s2, s3]) {
             await expect(() => s.getMessages()).rejects.toThrow(/Session not found/);
         }

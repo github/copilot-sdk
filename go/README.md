@@ -51,7 +51,7 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
-    defer session.Destroy()
+    defer session.Disconnect()
 
     // Set up event handler
     done := make(chan bool)
@@ -169,7 +169,8 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `On(handler SessionEventHandler) func()` - Subscribe to events (returns unsubscribe function)
 - `Abort(ctx context.Context) error` - Abort the currently processing message
 - `GetMessages(ctx context.Context) ([]SessionEvent, error)` - Get message history
-- `Destroy() error` - Destroy the session
+- `Disconnect() error` - Disconnect the session (releases in-memory resources, preserves disk state)
+- `Destroy() error` - *(Deprecated)* Use `Disconnect()` instead
 
 ### Helper Functions
 
@@ -310,7 +311,7 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
-    defer session.Destroy()
+    defer session.Disconnect()
 
     done := make(chan bool)
 

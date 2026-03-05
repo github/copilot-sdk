@@ -15,7 +15,7 @@ func TestSession(t *testing.T) {
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
 
-	t.Run("should create and destroy sessions", func(t *testing.T) {
+	t.Run("should create and disconnect sessions", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{OnPermissionRequest: copilot.PermissionHandler.ApproveAll, Model: "fake-test-model"})
@@ -45,13 +45,13 @@ func TestSession(t *testing.T) {
 			t.Errorf("Expected selectedModel to be 'fake-test-model', got %v", messages[0].Data.SelectedModel)
 		}
 
-		if err := session.Destroy(); err != nil {
-			t.Fatalf("Failed to destroy session: %v", err)
+		if err := session.Disconnect(); err != nil {
+			t.Fatalf("Failed to disconnect session: %v", err)
 		}
 
 		_, err = session.GetMessages(t.Context())
 		if err == nil || !strings.Contains(err.Error(), "not found") {
-			t.Errorf("Expected GetMessages to fail with 'not found' after destroy, got %v", err)
+			t.Errorf("Expected GetMessages to fail with 'not found' after disconnect, got %v", err)
 		}
 	})
 
@@ -858,7 +858,7 @@ func TestSession(t *testing.T) {
 			t.Errorf("Expected last session ID to be %s, got %s", session.SessionID, *lastSessionID)
 		}
 
-		if err := session.Destroy(); err != nil {
+		if err := session.Disconnect(); err != nil {
 			t.Fatalf("Failed to destroy session: %v", err)
 		}
 	})

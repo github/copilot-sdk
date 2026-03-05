@@ -118,7 +118,7 @@ class ManagedIdentityCopilotAgent:
         session = await self.client.create_session(config)
 
         response = await session.send_and_wait({"prompt": prompt})
-        await session.destroy()
+        await session.disconnect()
 
         return response.data.content if response else ""
 ```

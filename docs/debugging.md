@@ -248,9 +248,9 @@ var client = new CopilotClient(new CopilotClientOptions
 
 **Solution:**
 
-1. Ensure you're not calling methods after `destroy()`:
+1. Ensure you're not calling methods after `disconnect()`:
    ```typescript
-   await session.destroy();
+   await session.disconnect();
    // Don't use session after this!
    ```
 

@@ -46,7 +46,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer session.Destroy()
+	defer session.Disconnect()
 
 	response, err := session.SendAndWait(ctx, copilot.MessageOptions{
 		Prompt: "I want to learn about a city. Use the ask_user tool to ask me " +

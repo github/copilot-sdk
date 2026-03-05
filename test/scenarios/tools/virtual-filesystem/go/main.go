@@ -100,7 +100,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer session.Destroy()
+	defer session.Disconnect()
 
 	response, err := session.SendAndWait(ctx, copilot.MessageOptions{
 		Prompt: "Create a file called plan.md with a brief 3-item project plan " +

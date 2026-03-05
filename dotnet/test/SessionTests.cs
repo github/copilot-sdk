@@ -13,7 +13,7 @@ namespace GitHub.Copilot.SDK.Test;
 public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "session", output)
 {
     [Fact]
-    public async Task ShouldCreateAndDestroySessions()
+    public async Task ShouldCreateAndDisconnectSessions()
     {
         var session = await CreateSessionAsync(new SessionConfig { Model = "fake-test-model" });
 

@@ -319,7 +319,7 @@ async function processJob(job: Job) {
     });
 
     await saveResult(job.id, response?.data.content);
-    await session.destroy();  // Clean up after job completes
+    await session.disconnect();  // Clean up after job completes
 }
 ```
 

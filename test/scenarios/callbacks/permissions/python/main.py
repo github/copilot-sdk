@@ -39,7 +39,7 @@ async def main():
         if response:
             print(response.data.content)
 
-        await session.destroy()
+        await session.disconnect()
 
         print("\n--- Permission request log ---")
         for entry in permission_log:

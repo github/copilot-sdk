@@ -15,7 +15,8 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | **Session Management** | | |
 | Create session | `createSession()` | Full config support |
 | Resume session | `resumeSession()` | With infinite session workspaces |
-| Destroy session | `destroy()` | Clean up resources |
+| Disconnect session | `disconnect()` | Release in-memory resources |
+| Destroy session *(deprecated)* | `destroy()` | Use `disconnect()` instead |
 | Delete session | `deleteSession()` | Remove from storage |
 | List sessions | `listSessions()` | All stored sessions |
 | Get last session | `getLastSessionId()` | For quick resume |
