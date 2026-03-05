@@ -370,11 +370,7 @@ export class CopilotSession {
         } catch (error) {
             const message =
                 error instanceof Error ? error.message : String(error);
-            try {
-                await this.rpc.tools.handlePendingToolCall({ requestId, error: message });
-            } catch {
-                // Connection may have been disposed; nothing more we can do.
-            }
+            await this.rpc.tools.handlePendingToolCall({ requestId, error: message });
         }
     }
 
@@ -392,16 +388,12 @@ export class CopilotSession {
             });
             await this.rpc.permissions.handlePendingPermissionRequest({ requestId, result });
         } catch (_error) {
-            try {
-                await this.rpc.permissions.handlePendingPermissionRequest({
-                    requestId,
-                    result: {
-                        kind: "denied-no-approval-rule-and-could-not-request-from-user",
-                    },
-                });
-            } catch {
-                // Connection may have been disposed; nothing more we can do.
-            }
+            await this.rpc.permissions.handlePendingPermissionRequest({
+                requestId,
+                result: {
+                    kind: "denied-no-approval-rule-and-could-not-request-from-user",
+                },
+            });
         }
     }
 
