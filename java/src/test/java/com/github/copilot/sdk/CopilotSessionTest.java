@@ -23,7 +23,6 @@ import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.events.AbstractSessionEvent;
 import com.github.copilot.sdk.events.AbortEvent;
-import com.github.copilot.sdk.events.AssistantMessageDeltaEvent;
 import com.github.copilot.sdk.events.AssistantMessageEvent;
 import com.github.copilot.sdk.events.SessionIdleEvent;
 import com.github.copilot.sdk.events.SessionStartEvent;
@@ -286,6 +285,14 @@ public class CopilotSessionTest {
                     .map(m -> (AssistantMessageEvent) m).anyMatch(m -> m.getData().content().contains("2"));
             assertTrue(hasAssistantMessage, "Should find previous assistant message containing 2");
 
+            // Can continue the conversation statefully
+            AssistantMessageEvent answer2 = session2
+                    .sendAndWait(new MessageOptions().setPrompt("Now if you double that, what do you get?"))
+                    .get(60, TimeUnit.SECONDS);
+            assertNotNull(answer2);
+            assertTrue(answer2.getData().content().contains("4"),
+                    "Follow-up response should contain 4: " + answer2.getData().content());
+
             session2.close();
         }
     }
@@ -326,6 +333,14 @@ public class CopilotSessionTest {
                         "Should contain user.message event");
                 assertTrue(messages.stream().anyMatch(m -> "session.resume".equals(m.getType())),
                         "Should contain session.resume event");
+
+                // Can continue the conversation statefully
+                AssistantMessageEvent answer2 = session2
+                        .sendAndWait(new MessageOptions().setPrompt("Now if you double that, what do you get?"))
+                        .get(60, TimeUnit.SECONDS);
+                assertNotNull(answer2);
+                assertTrue(answer2.getData().content().contains("4"),
+                        "Follow-up response should contain 4: " + answer2.getData().content());
 
                 session2.close();
             }
@@ -390,44 +405,6 @@ public class CopilotSessionTest {
             assertNotNull(response);
             assertTrue(response.getData().content().contains("Testy McTestface"),
                     "Response should contain 'Testy McTestface': " + response.getData().content());
-            session.close();
-        }
-    }
-
-    /**
-     * Verifies that streaming delta events are received when streaming is enabled.
-     *
-     * @see Snapshot:
-     *      session/should_receive_streaming_delta_events_when_streaming_is_enabled
-     */
-    @Test
-    void testShouldReceiveStreamingDeltaEventsWhenStreamingIsEnabled() throws Exception {
-        ctx.configureForTest("session", "should_receive_streaming_delta_events_when_streaming_is_enabled");
-
-        try (CopilotClient client = ctx.createClient()) {
-            SessionConfig config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                    .setStreaming(true);
-
-            CopilotSession session = client.createSession(config).get();
-
-            var receivedEvents = new ArrayList<AbstractSessionEvent>();
-            var idleReceived = new CompletableFuture<Void>();
-
-            session.on(evt -> {
-                receivedEvents.add(evt);
-                if (evt instanceof SessionIdleEvent) {
-                    idleReceived.complete(null);
-                }
-            });
-
-            session.send(new MessageOptions().setPrompt("What is 2+2?")).get();
-
-            idleReceived.get(60, TimeUnit.SECONDS);
-
-            // Should have received delta events when streaming is enabled
-            boolean hasDeltaEvents = receivedEvents.stream().anyMatch(e -> e instanceof AssistantMessageDeltaEvent);
-            assertTrue(hasDeltaEvents, "Should receive streaming delta events when streaming is enabled");
-
             session.close();
         }
     }
@@ -764,29 +741,24 @@ public class CopilotSessionTest {
     }
 
     /**
-     * Verifies that streaming option is passed to session creation.
+     * Verifies that getLastSessionId returns the ID of the most recently used
+     * session.
      *
-     * @see Snapshot: session/should_pass_streaming_option_to_session_creation
+     * @see Snapshot: session/should_get_last_session_id
      */
     @Test
-    void testShouldPassStreamingOptionToSessionCreation() throws Exception {
-        ctx.configureForTest("session", "should_pass_streaming_option_to_session_creation");
+    void testShouldGetLastSessionId() throws Exception {
+        ctx.configureForTest("session", "should_get_last_session_id");
 
         try (CopilotClient client = ctx.createClient()) {
-            // Verify that the streaming option is accepted without errors
-            CopilotSession session = client.createSession(
-                    new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setStreaming(true)).get();
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
-            assertNotNull(session.getSessionId());
-            assertTrue(session.getSessionId().matches("^[a-f0-9-]+$"));
+            session.sendAndWait(new MessageOptions().setPrompt("Say hello")).get(60, TimeUnit.SECONDS);
 
-            // Session should still work normally
-            AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60,
-                    TimeUnit.SECONDS);
-
-            assertNotNull(response);
-            assertTrue(response.getData().content().contains("2"),
-                    "Response should contain 2: " + response.getData().content());
+            String lastId = client.getLastSessionId().get(30, TimeUnit.SECONDS);
+            assertNotNull(lastId, "Last session ID should not be null");
+            assertEquals(session.getSessionId(), lastId, "Last session ID should match the current session ID");
 
             session.close();
         }

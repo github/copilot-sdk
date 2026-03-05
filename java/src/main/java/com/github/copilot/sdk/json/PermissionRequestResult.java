@@ -17,13 +17,17 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  *
  * <h2>Common Result Kinds</h2>
  * <ul>
- * <li>"user-approved" - User approved the permission request</li>
- * <li>"user-denied" - User denied the permission request</li>
- * <li>"denied-no-approval-rule-and-could-not-request-from-user" - No handler
- * and couldn't ask user</li>
+ * <li>{@link PermissionRequestResultKind#APPROVED} — approved</li>
+ * <li>{@link PermissionRequestResultKind#DENIED_BY_RULES} — denied by
+ * rules</li>
+ * <li>{@link PermissionRequestResultKind#DENIED_COULD_NOT_REQUEST_FROM_USER} —
+ * no handler and couldn't ask user</li>
+ * <li>{@link PermissionRequestResultKind#DENIED_INTERACTIVELY_BY_USER} — denied
+ * by the user interactively</li>
  * </ul>
  *
  * @see PermissionHandler
+ * @see PermissionRequestResultKind
  * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -36,7 +40,7 @@ public final class PermissionRequestResult {
     private List<Object> rules;
 
     /**
-     * Gets the result kind.
+     * Gets the result kind as a string.
      *
      * @return the result kind indicating approval or denial
      */
@@ -45,10 +49,23 @@ public final class PermissionRequestResult {
     }
 
     /**
-     * Sets the result kind.
+     * Sets the result kind using a {@link PermissionRequestResultKind} value.
      *
      * @param kind
      *            the result kind
+     * @return this result for method chaining
+     * @since 1.1.0
+     */
+    public PermissionRequestResult setKind(PermissionRequestResultKind kind) {
+        this.kind = kind != null ? kind.getValue() : null;
+        return this;
+    }
+
+    /**
+     * Sets the result kind using a raw string value.
+     *
+     * @param kind
+     *            the result kind string
      * @return this result for method chaining
      */
     public PermissionRequestResult setKind(String kind) {
