@@ -1149,29 +1149,36 @@ def session_compaction_compact_result_to_dict(x: SessionCompactionCompactResult)
     return to_class(SessionCompactionCompactResult, x)
 
 
+def _timeout_kwargs(timeout: float | None) -> dict:
+    """Build keyword arguments for optional timeout forwarding."""
+    if timeout is not None:
+        return {"timeout": timeout}
+    return {}
+
+
 class ModelsApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
-    async def list(self) -> ModelsListResult:
-        return ModelsListResult.from_dict(await self._client.request("models.list", {}))
+    async def list(self, *, timeout: float | None = None) -> ModelsListResult:
+        return ModelsListResult.from_dict(await self._client.request("models.list", {}, **_timeout_kwargs(timeout)))
 
 
 class ToolsApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
-    async def list(self, params: ToolsListParams) -> ToolsListResult:
+    async def list(self, params: ToolsListParams, *, timeout: float | None = None) -> ToolsListResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
-        return ToolsListResult.from_dict(await self._client.request("tools.list", params_dict))
+        return ToolsListResult.from_dict(await self._client.request("tools.list", params_dict, **_timeout_kwargs(timeout)))
 
 
 class AccountApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
-    async def get_quota(self) -> AccountGetQuotaResult:
-        return AccountGetQuotaResult.from_dict(await self._client.request("account.getQuota", {}))
+    async def get_quota(self, *, timeout: float | None = None) -> AccountGetQuotaResult:
+        return AccountGetQuotaResult.from_dict(await self._client.request("account.getQuota", {}, **_timeout_kwargs(timeout)))
 
 
 class ServerRpc:
@@ -1182,9 +1189,9 @@ class ServerRpc:
         self.tools = ToolsApi(client)
         self.account = AccountApi(client)
 
-    async def ping(self, params: PingParams) -> PingResult:
+    async def ping(self, params: PingParams, *, timeout: float | None = None) -> PingResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
-        return PingResult.from_dict(await self._client.request("ping", params_dict))
+        return PingResult.from_dict(await self._client.request("ping", params_dict, **_timeout_kwargs(timeout)))
 
 
 class ModelApi:
@@ -1192,13 +1199,13 @@ class ModelApi:
         self._client = client
         self._session_id = session_id
 
-    async def get_current(self) -> SessionModelGetCurrentResult:
-        return SessionModelGetCurrentResult.from_dict(await self._client.request("session.model.getCurrent", {"sessionId": self._session_id}))
+    async def get_current(self, *, timeout: float | None = None) -> SessionModelGetCurrentResult:
+        return SessionModelGetCurrentResult.from_dict(await self._client.request("session.model.getCurrent", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
-    async def switch_to(self, params: SessionModelSwitchToParams) -> SessionModelSwitchToResult:
+    async def switch_to(self, params: SessionModelSwitchToParams, *, timeout: float | None = None) -> SessionModelSwitchToResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return SessionModelSwitchToResult.from_dict(await self._client.request("session.model.switchTo", params_dict))
+        return SessionModelSwitchToResult.from_dict(await self._client.request("session.model.switchTo", params_dict, **_timeout_kwargs(timeout)))
 
 
 class ModeApi:
@@ -1206,13 +1213,13 @@ class ModeApi:
         self._client = client
         self._session_id = session_id
 
-    async def get(self) -> SessionModeGetResult:
-        return SessionModeGetResult.from_dict(await self._client.request("session.mode.get", {"sessionId": self._session_id}))
+    async def get(self, *, timeout: float | None = None) -> SessionModeGetResult:
+        return SessionModeGetResult.from_dict(await self._client.request("session.mode.get", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
-    async def set(self, params: SessionModeSetParams) -> SessionModeSetResult:
+    async def set(self, params: SessionModeSetParams, *, timeout: float | None = None) -> SessionModeSetResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return SessionModeSetResult.from_dict(await self._client.request("session.mode.set", params_dict))
+        return SessionModeSetResult.from_dict(await self._client.request("session.mode.set", params_dict, **_timeout_kwargs(timeout)))
 
 
 class PlanApi:
@@ -1220,16 +1227,16 @@ class PlanApi:
         self._client = client
         self._session_id = session_id
 
-    async def read(self) -> SessionPlanReadResult:
-        return SessionPlanReadResult.from_dict(await self._client.request("session.plan.read", {"sessionId": self._session_id}))
+    async def read(self, *, timeout: float | None = None) -> SessionPlanReadResult:
+        return SessionPlanReadResult.from_dict(await self._client.request("session.plan.read", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
-    async def update(self, params: SessionPlanUpdateParams) -> SessionPlanUpdateResult:
+    async def update(self, params: SessionPlanUpdateParams, *, timeout: float | None = None) -> SessionPlanUpdateResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return SessionPlanUpdateResult.from_dict(await self._client.request("session.plan.update", params_dict))
+        return SessionPlanUpdateResult.from_dict(await self._client.request("session.plan.update", params_dict, **_timeout_kwargs(timeout)))
 
-    async def delete(self) -> SessionPlanDeleteResult:
-        return SessionPlanDeleteResult.from_dict(await self._client.request("session.plan.delete", {"sessionId": self._session_id}))
+    async def delete(self, *, timeout: float | None = None) -> SessionPlanDeleteResult:
+        return SessionPlanDeleteResult.from_dict(await self._client.request("session.plan.delete", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
 class WorkspaceApi:
@@ -1237,18 +1244,18 @@ class WorkspaceApi:
         self._client = client
         self._session_id = session_id
 
-    async def list_files(self) -> SessionWorkspaceListFilesResult:
-        return SessionWorkspaceListFilesResult.from_dict(await self._client.request("session.workspace.listFiles", {"sessionId": self._session_id}))
+    async def list_files(self, *, timeout: float | None = None) -> SessionWorkspaceListFilesResult:
+        return SessionWorkspaceListFilesResult.from_dict(await self._client.request("session.workspace.listFiles", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
-    async def read_file(self, params: SessionWorkspaceReadFileParams) -> SessionWorkspaceReadFileResult:
+    async def read_file(self, params: SessionWorkspaceReadFileParams, *, timeout: float | None = None) -> SessionWorkspaceReadFileResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return SessionWorkspaceReadFileResult.from_dict(await self._client.request("session.workspace.readFile", params_dict))
+        return SessionWorkspaceReadFileResult.from_dict(await self._client.request("session.workspace.readFile", params_dict, **_timeout_kwargs(timeout)))
 
-    async def create_file(self, params: SessionWorkspaceCreateFileParams) -> SessionWorkspaceCreateFileResult:
+    async def create_file(self, params: SessionWorkspaceCreateFileParams, *, timeout: float | None = None) -> SessionWorkspaceCreateFileResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return SessionWorkspaceCreateFileResult.from_dict(await self._client.request("session.workspace.createFile", params_dict))
+        return SessionWorkspaceCreateFileResult.from_dict(await self._client.request("session.workspace.createFile", params_dict, **_timeout_kwargs(timeout)))
 
 
 class FleetApi:
@@ -1256,10 +1263,10 @@ class FleetApi:
         self._client = client
         self._session_id = session_id
 
-    async def start(self, params: SessionFleetStartParams) -> SessionFleetStartResult:
+    async def start(self, params: SessionFleetStartParams, *, timeout: float | None = None) -> SessionFleetStartResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return SessionFleetStartResult.from_dict(await self._client.request("session.fleet.start", params_dict))
+        return SessionFleetStartResult.from_dict(await self._client.request("session.fleet.start", params_dict, **_timeout_kwargs(timeout)))
 
 
 class AgentApi:
@@ -1267,19 +1274,19 @@ class AgentApi:
         self._client = client
         self._session_id = session_id
 
-    async def list(self) -> SessionAgentListResult:
-        return SessionAgentListResult.from_dict(await self._client.request("session.agent.list", {"sessionId": self._session_id}))
+    async def list(self, *, timeout: float | None = None) -> SessionAgentListResult:
+        return SessionAgentListResult.from_dict(await self._client.request("session.agent.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
-    async def get_current(self) -> SessionAgentGetCurrentResult:
-        return SessionAgentGetCurrentResult.from_dict(await self._client.request("session.agent.getCurrent", {"sessionId": self._session_id}))
+    async def get_current(self, *, timeout: float | None = None) -> SessionAgentGetCurrentResult:
+        return SessionAgentGetCurrentResult.from_dict(await self._client.request("session.agent.getCurrent", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
-    async def select(self, params: SessionAgentSelectParams) -> SessionAgentSelectResult:
+    async def select(self, params: SessionAgentSelectParams, *, timeout: float | None = None) -> SessionAgentSelectResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return SessionAgentSelectResult.from_dict(await self._client.request("session.agent.select", params_dict))
+        return SessionAgentSelectResult.from_dict(await self._client.request("session.agent.select", params_dict, **_timeout_kwargs(timeout)))
 
-    async def deselect(self) -> SessionAgentDeselectResult:
-        return SessionAgentDeselectResult.from_dict(await self._client.request("session.agent.deselect", {"sessionId": self._session_id}))
+    async def deselect(self, *, timeout: float | None = None) -> SessionAgentDeselectResult:
+        return SessionAgentDeselectResult.from_dict(await self._client.request("session.agent.deselect", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
 class CompactionApi:
@@ -1287,8 +1294,8 @@ class CompactionApi:
         self._client = client
         self._session_id = session_id
 
-    async def compact(self) -> SessionCompactionCompactResult:
-        return SessionCompactionCompactResult.from_dict(await self._client.request("session.compaction.compact", {"sessionId": self._session_id}))
+    async def compact(self, *, timeout: float | None = None) -> SessionCompactionCompactResult:
+        return SessionCompactionCompactResult.from_dict(await self._client.request("session.compaction.compact", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
 class SessionRpc:

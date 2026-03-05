@@ -977,7 +977,8 @@ class CopilotClient:
         Example:
             >>> last_id = await client.get_last_session_id()
             >>> if last_id:
-            ...     session = await client.resume_session(last_id, {"on_permission_request": PermissionHandler.approve_all})
+            ...     config = {"on_permission_request": PermissionHandler.approve_all}
+            ...     session = await client.resume_session(last_id, config)
         """
         if not self._client:
             raise RuntimeError("Client not connected")
