@@ -1,6 +1,7 @@
 package copilot
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -527,6 +528,32 @@ func TestClient_ResumeSession_RequiresPermissionHandler(t *testing.T) {
 			t.Errorf("Expected error about OnPermissionRequest being required, got: %v", err)
 		}
 	})
+}
+
+func TestClient_StartContextCancellationDoesNotKillProcess(t *testing.T) {
+	cliPath := findCLIPathForTest()
+	if cliPath == "" {
+		t.Skip("CLI not found")
+	}
+
+	client := NewClient(&ClientOptions{CLIPath: cliPath})
+	t.Cleanup(func() { client.ForceStop() })
+
+	// Start with a context, then cancel it after the client is connected.
+	ctx, cancel := context.WithCancel(t.Context())
+	if err := client.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	cancel() // cancel the context that was used for Start
+
+	// The CLI process should still be alive and responsive.
+	resp, err := client.Ping(t.Context(), "still alive")
+	if err != nil {
+		t.Fatalf("Ping after context cancellation failed: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("expected non-nil ping response")
+	}
 }
 
 func TestClient_StartStopRace(t *testing.T) {
