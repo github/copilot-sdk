@@ -50,7 +50,7 @@ namespace GitHub.Copilot.SDK;
 /// await session.SendAndWaitAsync(new MessageOptions { Prompt = "Hello, world!" });
 /// </code>
 /// </example>
-public partial class CopilotSession : IAsyncDisposable
+public sealed partial class CopilotSession : IAsyncDisposable
 {
     /// <summary>
     /// Multicast delegate used as a thread-safe, insertion-ordered handler list.
@@ -58,8 +58,8 @@ public partial class CopilotSession : IAsyncDisposable
     /// Dispatch reads the field once (inherent snapshot, no allocation).
     /// Expected handler count is small (typically 1–3), so Delegate.Combine/Remove cost is negligible.
     /// </summary>
-    private event SessionEventHandler? _eventHandlers;
-    private readonly Dictionary<string, AIFunction> _toolHandlers = new();
+    private event SessionEventHandler? EventHandlers;
+    private readonly Dictionary<string, AIFunction> _toolHandlers = [];
     private readonly JsonRpc _rpc;
     private volatile PermissionRequestHandler? _permissionHandler;
     private volatile UserInputHandler? _userInputHandler;
@@ -104,8 +104,10 @@ public partial class CopilotSession : IAsyncDisposable
         WorkspacePath = workspacePath;
     }
 
-    private Task<T> InvokeRpcAsync<T>(string method, object?[]? args, CancellationToken cancellationToken) =>
-        CopilotClient.InvokeRpcAsync<T>(_rpc, method, args, cancellationToken);
+    private Task<T> InvokeRpcAsync<T>(string method, object?[]? args, CancellationToken cancellationToken)
+    {
+        return CopilotClient.InvokeRpcAsync<T>(_rpc, method, args, cancellationToken);
+    }
 
     /// <summary>
     /// Sends a message to the Copilot session and waits for the response.
@@ -257,8 +259,8 @@ public partial class CopilotSession : IAsyncDisposable
     /// </example>
     public IDisposable On(SessionEventHandler handler)
     {
-        _eventHandlers += handler;
-        return new ActionDisposable(() => _eventHandlers -= handler);
+        EventHandlers += handler;
+        return new ActionDisposable(() => EventHandlers -= handler);
     }
 
     /// <summary>
@@ -271,7 +273,7 @@ public partial class CopilotSession : IAsyncDisposable
     internal void DispatchEvent(SessionEvent sessionEvent)
     {
         // Reading the field once gives us a snapshot; delegates are immutable.
-        _eventHandlers?.Invoke(sessionEvent);
+        EventHandlers?.Invoke(sessionEvent);
     }
 
     /// <summary>
@@ -296,8 +298,10 @@ public partial class CopilotSession : IAsyncDisposable
     /// </summary>
     /// <param name="name">The name of the tool to retrieve.</param>
     /// <returns>The tool if found; otherwise, <c>null</c>.</returns>
-    internal AIFunction? GetTool(string name) =>
-        _toolHandlers.TryGetValue(name, out var tool) ? tool : null;
+    internal AIFunction? GetTool(string name)
+    {
+        return _toolHandlers.TryGetValue(name, out var tool) ? tool : null;
+    }
 
     /// <summary>
     /// Registers a handler for permission requests.
@@ -356,13 +360,7 @@ public partial class CopilotSession : IAsyncDisposable
     /// <returns>A task that resolves with the user's response.</returns>
     internal async Task<UserInputResponse> HandleUserInputRequestAsync(UserInputRequest request)
     {
-        var handler = _userInputHandler;
-
-        if (handler == null)
-        {
-            throw new InvalidOperationException("No user input handler registered");
-        }
-
+        var handler = _userInputHandler ?? throw new InvalidOperationException("No user input handler registered");
         var invocation = new UserInputInvocation
         {
             SessionId = SessionId
@@ -579,7 +577,7 @@ public partial class CopilotSession : IAsyncDisposable
             // Connection is broken or closed
         }
 
-        _eventHandlers = null;
+        EventHandlers = null;
         _toolHandlers.Clear();
 
         _permissionHandler = null;
@@ -632,7 +630,7 @@ public partial class CopilotSession : IAsyncDisposable
 
     internal record GetMessagesResponse
     {
-        public List<JsonObject> Events { get; init; } = new();
+        public List<JsonObject> Events { get; init; } = [];
     }
 
     internal record SessionAbortRequest

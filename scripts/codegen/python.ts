@@ -228,7 +228,14 @@ if TYPE_CHECKING:
 
 `);
     lines.push(typesCode);
-    lines.push(``);
+    lines.push(`
+def _timeout_kwargs(timeout: float | None) -> dict:
+    """Build keyword arguments for optional timeout forwarding."""
+    if timeout is not None:
+        return {"timeout": timeout}
+    return {}
+
+`);
 
     // Emit RPC wrapper classes
     if (schema.server) {
@@ -307,10 +314,10 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
     const hasParams = isSession ? nonSessionParams.length > 0 : Object.keys(paramProps).length > 0;
     const paramsType = toPascalCase(method.rpcMethod) + "Params";
 
-    // Build signature with typed params
+    // Build signature with typed params + optional timeout
     const sig = hasParams
-        ? `    async def ${methodName}(self, params: ${paramsType}) -> ${resultType}:`
-        : `    async def ${methodName}(self) -> ${resultType}:`;
+        ? `    async def ${methodName}(self, params: ${paramsType}, *, timeout: float | None = None) -> ${resultType}:`
+        : `    async def ${methodName}(self, *, timeout: float | None = None) -> ${resultType}:`;
 
     lines.push(sig);
 
@@ -319,16 +326,16 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
         if (hasParams) {
             lines.push(`        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}`);
             lines.push(`        params_dict["sessionId"] = self._session_id`);
-            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", params_dict))`);
+            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", params_dict, **_timeout_kwargs(timeout)))`);
         } else {
-            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", {"sessionId": self._session_id}))`);
+            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))`);
         }
     } else {
         if (hasParams) {
             lines.push(`        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}`);
-            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", params_dict))`);
+            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", params_dict, **_timeout_kwargs(timeout)))`);
         } else {
-            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", {}))`);
+            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", {}, **_timeout_kwargs(timeout)))`);
         }
     }
     lines.push(``);

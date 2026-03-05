@@ -95,7 +95,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     {
         var session = await CreateSessionAsync(new SessionConfig
         {
-            AvailableTools = new List<string> { "view", "edit" }
+            AvailableTools = ["view", "edit"]
         });
 
         await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
@@ -115,7 +115,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     {
         var session = await CreateSessionAsync(new SessionConfig
         {
-            ExcludedTools = new List<string> { "view" }
+            ExcludedTools = ["view"]
         });
 
         await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });

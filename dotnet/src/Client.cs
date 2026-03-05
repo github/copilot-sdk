@@ -16,6 +16,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using GitHub.Copilot.SDK.Rpc;
+using System.Globalization;
 
 namespace GitHub.Copilot.SDK;
 
@@ -51,7 +52,7 @@ namespace GitHub.Copilot.SDK;
 /// await session.SendAsync(new MessageOptions { Prompt = "Hello!" });
 /// </code>
 /// </example>
-public partial class CopilotClient : IDisposable, IAsyncDisposable
+public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 {
     private readonly ConcurrentDictionary<string, CopilotSession> _sessions = new();
     private readonly CopilotClientOptions _options;
@@ -62,8 +63,8 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     private readonly string? _optionsHost;
     private List<ModelInfo>? _modelsCache;
     private readonly SemaphoreSlim _modelsCacheLock = new(1, 1);
-    private readonly List<Action<SessionLifecycleEvent>> _lifecycleHandlers = new();
-    private readonly Dictionary<string, List<Action<SessionLifecycleEvent>>> _typedLifecycleHandlers = new();
+    private readonly List<Action<SessionLifecycleEvent>> _lifecycleHandlers = [];
+    private readonly Dictionary<string, List<Action<SessionLifecycleEvent>>> _typedLifecycleHandlers = [];
     private readonly object _lifecycleHandlersLock = new();
     private ServerRpc? _rpc;
 
@@ -616,7 +617,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
             // Check cache (already inside lock)
             if (_modelsCache is not null)
             {
-                return new List<ModelInfo>(_modelsCache); // Return a copy to prevent cache mutation
+                return [.. _modelsCache]; // Return a copy to prevent cache mutation
             }
 
             // Cache miss - fetch from backend while holding lock
@@ -626,7 +627,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
             // Update cache before releasing lock
             _modelsCache = response.Models;
 
-            return new List<ModelInfo>(response.Models); // Return a copy to prevent cache mutation
+            return [.. response.Models]; // Return a copy to prevent cache mutation
         }
         finally
         {
@@ -827,7 +828,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             if (!_typedLifecycleHandlers.TryGetValue(eventType, out var handlers))
             {
-                handlers = new List<Action<SessionLifecycleEvent>>();
+                handlers = [];
                 _typedLifecycleHandlers[eventType] = handlers;
             }
             handlers.Add(handler);
@@ -853,9 +854,9 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         lock (_lifecycleHandlersLock)
         {
             typedHandlers = _typedLifecycleHandlers.TryGetValue(evt.Type, out var handlers)
-                ? new List<Action<SessionLifecycleEvent>>(handlers)
-                : new List<Action<SessionLifecycleEvent>>();
-            wildcardHandlers = new List<Action<SessionLifecycleEvent>>(_lifecycleHandlers);
+                ? [.. handlers]
+                : [];
+            wildcardHandlers = [.. _lifecycleHandlers];
         }
 
         foreach (var handler in typedHandlers)
@@ -914,7 +915,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         return (Task<Connection>)StartAsync(cancellationToken);
     }
 
-    private async Task VerifyProtocolVersionAsync(Connection connection, CancellationToken cancellationToken)
+    private static async Task VerifyProtocolVersionAsync(Connection connection, CancellationToken cancellationToken)
     {
         var expectedVersion = SdkProtocolVersion.GetVersion();
         var pingResponse = await InvokeRpcAsync<PingResponse>(
@@ -957,7 +958,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         else if (options.Port > 0)
         {
-            args.AddRange(["--port", options.Port.ToString()]);
+            args.AddRange(["--port", options.Port.ToString(CultureInfo.InvariantCulture)]);
         }
 
         // Add auth-related flags
@@ -1020,7 +1021,11 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
                     {
                         stderrBuffer.AppendLine(line);
                     }
-                    logger.LogDebug("[CLI] {Line}", line);
+
+                    if (logger.IsEnabled(LogLevel.Debug))
+                    {
+                        logger.LogDebug("[CLI] {Line}", line);
+                    }
                 }
             }
         }, cancellationToken);
@@ -1034,13 +1039,10 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
 
             while (!cts.Token.IsCancellationRequested)
             {
-                var line = await cliProcess.StandardOutput.ReadLineAsync(cts.Token);
-                if (line == null) throw new Exception("CLI process exited unexpectedly");
-
-                var match = Regex.Match(line, @"listening on port (\d+)", RegexOptions.IgnoreCase);
-                if (match.Success)
+                var line = await cliProcess.StandardOutput.ReadLineAsync(cts.Token) ?? throw new IOException("CLI process exited unexpectedly");
+                if (ListeningOnPortRegex().Match(line) is { Success: true } match)
                 {
-                    detectedLocalhostTcpPort = int.Parse(match.Groups[1].Value);
+                    detectedLocalhostTcpPort = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
                     break;
                 }
             }
@@ -1140,8 +1142,10 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
 
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Using happy path from https://microsoft.github.io/vs-streamjsonrpc/docs/nativeAOT.html")]
     [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Using happy path from https://microsoft.github.io/vs-streamjsonrpc/docs/nativeAOT.html")]
-    private static SystemTextJsonFormatter CreateSystemTextJsonFormatter() =>
-        new SystemTextJsonFormatter() { JsonSerializerOptions = SerializerOptionsForMessageFormatter };
+    private static SystemTextJsonFormatter CreateSystemTextJsonFormatter()
+    {
+        return new() { JsonSerializerOptions = SerializerOptionsForMessageFormatter };
+    }
 
     private static JsonSerializerOptions SerializerOptionsForMessageFormatter { get; } = CreateSerializerOptions();
 
@@ -1164,8 +1168,10 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
         return options;
     }
 
-    internal CopilotSession? GetSession(string sessionId) =>
-        _sessions.TryGetValue(sessionId, out var session) ? session : null;
+    internal CopilotSession? GetSession(string sessionId)
+    {
+        return _sessions.TryGetValue(sessionId, out var session) ? session : null;
+    }
 
     /// <summary>
     /// Disposes the <see cref="CopilotClient"/> synchronously.
@@ -1175,7 +1181,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </remarks>
     public void Dispose()
     {
-        DisposeAsync().GetAwaiter().GetResult();
+        DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
 
     /// <summary>
@@ -1230,12 +1236,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
             string toolName,
             object? arguments)
         {
-            var session = client.GetSession(sessionId);
-            if (session == null)
-            {
-                throw new ArgumentException($"Unknown session {sessionId}");
-            }
-
+            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
             if (session.GetTool(toolName) is not { } tool)
             {
                 return new ToolCallResponse(new ToolResultObject
@@ -1342,12 +1343,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
 
         public async Task<UserInputRequestResponse> OnUserInputRequest(string sessionId, string question, List<string>? choices = null, bool? allowFreeform = null)
         {
-            var session = client.GetSession(sessionId);
-            if (session == null)
-            {
-                throw new ArgumentException($"Unknown session {sessionId}");
-            }
-
+            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
             var request = new UserInputRequest
             {
                 Question = question,
@@ -1361,12 +1357,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
 
         public async Task<HooksInvokeResponse> OnHooksInvoke(string sessionId, string hookType, JsonElement input)
         {
-            var session = client.GetSession(sessionId);
-            if (session == null)
-            {
-                throw new ArgumentException($"Unknown session {sessionId}");
-            }
-
+            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
             var output = await session.HandleHooksInvokeAsync(hookType, input);
             return new HooksInvokeResponse(output);
         }
@@ -1506,33 +1497,70 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
 
         private sealed class LoggerTraceListener(ILogger logger) : TraceListener
         {
-            public override void TraceEvent(TraceEventCache? eventCache, string source, TraceEventType eventType, int id, string? message) =>
-                logger.Log(MapLevel(eventType), "[{Source}] {Message}", source, message);
-
-            public override void TraceEvent(TraceEventCache? eventCache, string source, TraceEventType eventType, int id, string? format, params object?[]? args) =>
-                logger.Log(MapLevel(eventType), "[{Source}] {Message}", source, args is null || args.Length == 0 ? format : string.Format(format ?? "", args));
-
-            public override void TraceData(TraceEventCache? eventCache, string source, TraceEventType eventType, int id, object? data) =>
-                logger.Log(MapLevel(eventType), "[{Source}] {Data}", source, data);
-
-            public override void TraceData(TraceEventCache? eventCache, string source, TraceEventType eventType, int id, params object?[]? data) =>
-                logger.Log(MapLevel(eventType), "[{Source}] {Data}", source, data is null ? null : string.Join(", ", data));
-
-            public override void Write(string? message) =>
-                logger.LogTrace("{Message}", message);
-
-            public override void WriteLine(string? message) =>
-                logger.LogTrace("{Message}", message);
-
-            private static LogLevel MapLevel(TraceEventType eventType) => eventType switch
+            public override void TraceEvent(TraceEventCache? eventCache, string source, TraceEventType eventType, int id, string? message)
             {
-                TraceEventType.Critical => LogLevel.Critical,
-                TraceEventType.Error => LogLevel.Error,
-                TraceEventType.Warning => LogLevel.Warning,
-                TraceEventType.Information => LogLevel.Information,
-                TraceEventType.Verbose => LogLevel.Debug,
-                _ => LogLevel.Trace
-            };
+                LogLevel level = MapLevel(eventType);
+                if (logger.IsEnabled(level))
+                {
+                    logger.Log(level, "[{Source}] {Message}", source, message);
+                }
+            }
+
+            public override void TraceEvent(TraceEventCache? eventCache, string source, TraceEventType eventType, int id, string? format, params object?[]? args)
+            {
+                LogLevel level = MapLevel(eventType);
+                if (logger.IsEnabled(level))
+                {
+                    logger.Log(level, "[{Source}] {Message}", source, args is null || args.Length == 0 ? format : string.Format(CultureInfo.InvariantCulture, format ?? "", args));
+                }
+            }
+
+            public override void TraceData(TraceEventCache? eventCache, string source, TraceEventType eventType, int id, object? data)
+            {
+                LogLevel level = MapLevel(eventType);
+                if (logger.IsEnabled(level))
+                {
+                    logger.Log(level, "[{Source}] {Data}", source, data);
+                }
+            }
+
+            public override void TraceData(TraceEventCache? eventCache, string source, TraceEventType eventType, int id, params object?[]? data)
+            {
+                LogLevel level = MapLevel(eventType);
+                if (logger.IsEnabled(level))
+                {
+                    logger.Log(level, "[{Source}] {Data}", source, data is null ? null : string.Join(", ", data));
+                }
+            }
+
+            public override void Write(string? message)
+            {
+                if (logger.IsEnabled(LogLevel.Trace))
+                {
+                    logger.LogTrace("{Message}", message);
+                }
+            }
+
+            public override void WriteLine(string? message)
+            {
+                if (logger.IsEnabled(LogLevel.Trace))
+                {
+                    logger.LogTrace("{Message}", message);
+                }
+            }
+
+            private static LogLevel MapLevel(TraceEventType eventType)
+            {
+                return eventType switch
+                {
+                    TraceEventType.Critical => LogLevel.Critical,
+                    TraceEventType.Error => LogLevel.Error,
+                    TraceEventType.Warning => LogLevel.Warning,
+                    TraceEventType.Information => LogLevel.Information,
+                    TraceEventType.Verbose => LogLevel.Debug,
+                    _ => LogLevel.Trace
+                };
+            }
         }
     }
 
@@ -1565,11 +1593,20 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(UserInputRequest))]
     [JsonSerializable(typeof(UserInputResponse))]
     internal partial class ClientJsonContext : JsonSerializerContext;
+
+    [GeneratedRegex(@"listening on port ([0-9]+)", RegexOptions.IgnoreCase)]
+    private static partial Regex ListeningOnPortRegex();
 }
 
-// Must inherit from AIContent as a signal to MEAI to avoid JSON-serializing the
-// value before passing it back to us
+/// <summary>
+/// Wraps a <see cref="ToolResultObject"/> as <see cref="AIContent"/> to pass structured tool results
+/// back through Microsoft.Extensions.AI without JSON serialization.
+/// </summary>
+/// <param name="toolResult">The tool result to wrap.</param>
 public class ToolResultAIContent(ToolResultObject toolResult) : AIContent
 {
+    /// <summary>
+    /// Gets the underlying <see cref="ToolResultObject"/>.
+    /// </summary>
     public ToolResultObject Result => toolResult;
 }

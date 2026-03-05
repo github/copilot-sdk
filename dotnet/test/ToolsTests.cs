@@ -137,7 +137,7 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
         City[] PerformDbQuery(DbQueryOptions query, AIFunctionArguments rawArgs)
         {
             Assert.Equal("cities", query.Table);
-            Assert.Equal(new[] { 12, 19 }, query.Ids);
+            Assert.Equal([12, 19], query.Ids);
             Assert.True(query.SortAscending);
             receivedInvocation = (ToolInvocation)rawArgs.Context![typeof(ToolInvocation)]!;
             return [new(19, "Passos", 135460), new(12, "San Lorenzo", 204356)];
@@ -200,7 +200,7 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
 
         Assert.Contains("yellow", assistantMessage!.Data.Content?.ToLowerInvariant() ?? string.Empty);
 
-        static ToolResultAIContent GetImage() => new ToolResultAIContent(new()
+        static ToolResultAIContent GetImage() => new(new()
         {
             BinaryResultsForLlm = [new() {
                 // 2x2 yellow square
@@ -256,10 +256,7 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
         var session = await Client.CreateSessionAsync(new SessionConfig
         {
             Tools = [AIFunctionFactory.Create(EncryptStringDenied, "encrypt_string")],
-            OnPermissionRequest = (request, invocation) =>
-            {
-                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.DeniedInteractivelyByUser });
-            },
+            OnPermissionRequest = async (request, invocation) => new() { Kind = PermissionRequestResultKind.DeniedInteractivelyByUser },
         });
 
         await session.SendAsync(new MessageOptions

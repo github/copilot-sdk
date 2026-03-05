@@ -153,6 +153,12 @@ type Data struct {
 	Output                          interface{}              `json:"output"`
 	Metadata                        *Metadata                `json:"metadata,omitempty"`
 	Role                            *Role                    `json:"role,omitempty"`
+	PermissionRequest               *PermissionRequest       `json:"permissionRequest,omitempty"`
+	AllowFreeform                   *bool                    `json:"allowFreeform,omitempty"`
+	Choices                         []string                 `json:"choices,omitempty"`
+	Question                        *string                  `json:"question,omitempty"`
+	Mode                            *Mode                    `json:"mode,omitempty"`
+	RequestedSchema                 *RequestedSchema         `json:"requestedSchema,omitempty"`
 }
 
 type Attachment struct {
@@ -249,6 +255,42 @@ type Usage struct {
 	OutputTokens     float64 `json:"outputTokens"`
 }
 
+type PermissionRequest struct {
+	CanOfferSessionApproval *bool         `json:"canOfferSessionApproval,omitempty"`
+	Commands                []Command     `json:"commands,omitempty"`
+	FullCommandText         *string       `json:"fullCommandText,omitempty"`
+	HasWriteFileRedirection *bool         `json:"hasWriteFileRedirection,omitempty"`
+	Intention               *string       `json:"intention,omitempty"`
+	Kind                    Kind          `json:"kind"`
+	PossiblePaths           []string      `json:"possiblePaths,omitempty"`
+	PossibleUrls            []PossibleURL `json:"possibleUrls,omitempty"`
+	ToolCallID              *string       `json:"toolCallId,omitempty"`
+	Warning                 *string       `json:"warning,omitempty"`
+	Diff                    *string       `json:"diff,omitempty"`
+	FileName                *string       `json:"fileName,omitempty"`
+	NewFileContents         *string       `json:"newFileContents,omitempty"`
+	Path                    *string       `json:"path,omitempty"`
+	Args                    interface{}   `json:"args"`
+	ReadOnly                *bool         `json:"readOnly,omitempty"`
+	ServerName              *string       `json:"serverName,omitempty"`
+	ToolName                *string       `json:"toolName,omitempty"`
+	ToolTitle               *string       `json:"toolTitle,omitempty"`
+	URL                     *string       `json:"url,omitempty"`
+	Citations               *string       `json:"citations,omitempty"`
+	Fact                    *string       `json:"fact,omitempty"`
+	Subject                 *string       `json:"subject,omitempty"`
+	ToolDescription         *string       `json:"toolDescription,omitempty"`
+}
+
+type Command struct {
+	Identifier string `json:"identifier"`
+	ReadOnly   bool   `json:"readOnly"`
+}
+
+type PossibleURL struct {
+	URL string `json:"url"`
+}
+
 type QuotaSnapshot struct {
 	EntitlementRequests              float64    `json:"entitlementRequests"`
 	IsUnlimitedEntitlement           bool       `json:"isUnlimitedEntitlement"`
@@ -264,6 +306,12 @@ type RepositoryClass struct {
 	Branch *string `json:"branch,omitempty"`
 	Name   string  `json:"name"`
 	Owner  string  `json:"owner"`
+}
+
+type RequestedSchema struct {
+	Properties map[string]interface{} `json:"properties"`
+	Required   []string               `json:"required,omitempty"`
+	Type       RequestedSchemaType    `json:"type"`
 }
 
 type Result struct {
@@ -312,10 +360,10 @@ type ToolRequest struct {
 type AgentMode string
 
 const (
-	Autopilot   AgentMode = "autopilot"
-	Interactive AgentMode = "interactive"
-	Plan        AgentMode = "plan"
-	Shell       AgentMode = "shell"
+	AgentModeShell AgentMode = "shell"
+	Autopilot      AgentMode = "autopilot"
+	Interactive    AgentMode = "interactive"
+	Plan           AgentMode = "plan"
 )
 
 type ReferenceType string
@@ -335,12 +383,36 @@ const (
 	Selection       AttachmentType = "selection"
 )
 
+type Mode string
+
+const (
+	Form Mode = "form"
+)
+
 type Operation string
 
 const (
 	Create Operation = "create"
 	Delete Operation = "delete"
 	Update Operation = "update"
+)
+
+type Kind string
+
+const (
+	CustomTool Kind = "custom-tool"
+	KindShell  Kind = "shell"
+	MCP        Kind = "mcp"
+	Memory     Kind = "memory"
+	Read       Kind = "read"
+	URL        Kind = "url"
+	Write      Kind = "write"
+)
+
+type RequestedSchemaType string
+
+const (
+	Object RequestedSchemaType = "object"
 )
 
 type Theme string
@@ -402,9 +474,13 @@ const (
 	AssistantTurnEnd            SessionEventType = "assistant.turn_end"
 	AssistantTurnStart          SessionEventType = "assistant.turn_start"
 	AssistantUsage              SessionEventType = "assistant.usage"
+	ElicitationCompleted        SessionEventType = "elicitation.completed"
+	ElicitationRequested        SessionEventType = "elicitation.requested"
 	HookEnd                     SessionEventType = "hook.end"
 	HookStart                   SessionEventType = "hook.start"
 	PendingMessagesModified     SessionEventType = "pending_messages.modified"
+	PermissionCompleted         SessionEventType = "permission.completed"
+	PermissionRequested         SessionEventType = "permission.requested"
 	SessionCompactionComplete   SessionEventType = "session.compaction_complete"
 	SessionCompactionStart      SessionEventType = "session.compaction_start"
 	SessionContextChanged       SessionEventType = "session.context_changed"
@@ -437,6 +513,8 @@ const (
 	ToolExecutionProgress       SessionEventType = "tool.execution_progress"
 	ToolExecutionStart          SessionEventType = "tool.execution_start"
 	ToolUserRequested           SessionEventType = "tool.user_requested"
+	UserInputCompleted          SessionEventType = "user_input.completed"
+	UserInputRequested          SessionEventType = "user_input.requested"
 	UserMessage                 SessionEventType = "user.message"
 )
 

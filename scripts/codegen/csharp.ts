@@ -393,6 +393,9 @@ function generateSessionEventsCode(schema: JSONSchema7): string {
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: session-events.schema.json
 
+// Generated code does not have XML doc comments; suppress CS1591 to avoid warnings.
+#pragma warning disable CS1591
+
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -532,7 +535,8 @@ function emitRpcClass(className: string, schema: JSONSchema7, visibility: "publi
         let defaultVal = "";
         if (isReq && !csharpType.endsWith("?")) {
             if (csharpType === "string") defaultVal = " = string.Empty;";
-            else if (csharpType.startsWith("List<") || csharpType.startsWith("Dictionary<") || emittedRpcClasses.has(csharpType)) defaultVal = " = new();";
+            else if (csharpType.startsWith("List<") || csharpType.startsWith("Dictionary<")) defaultVal = " = [];";
+            else if (emittedRpcClasses.has(csharpType)) defaultVal = " = new();";
         }
         lines.push(`    public ${csharpType} ${csharpName} { get; set; }${defaultVal}`);
         if (i < props.length - 1) lines.push("");
@@ -737,6 +741,9 @@ function generateRpcCode(schema: ApiSchema): string {
 
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: api.schema.json
+
+// Generated code does not have XML doc comments; suppress CS1591 to avoid warnings.
+#pragma warning disable CS1591
 
 using System.Text.Json;
 using System.Text.Json.Serialization;

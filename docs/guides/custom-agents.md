@@ -121,7 +121,7 @@ session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
         },
     },
     OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-        return copilot.PermissionRequestResult{Kind: "approved"}, nil
+        return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
     },
 })
 ```
@@ -158,7 +158,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
         },
     },
     OnPermissionRequest = (req, inv) =>
-        Task.FromResult(new PermissionRequestResult { Kind = "approved" }),
+        Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
 });
 ```
 
