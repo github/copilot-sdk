@@ -17,6 +17,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.sdk.events.AbstractSessionEvent;
 import com.github.copilot.sdk.events.SessionEventParser;
 import com.github.copilot.sdk.json.PermissionRequestResult;
+import com.github.copilot.sdk.json.PermissionRequestResultKind;
 import com.github.copilot.sdk.json.SessionLifecycleEvent;
 import com.github.copilot.sdk.json.SessionLifecycleEventMetadata;
 import com.github.copilot.sdk.json.ToolDefinition;
@@ -183,7 +184,7 @@ final class RpcHandlerDispatcher {
                 CopilotSession session = sessions.get(sessionId);
                 if (session == null) {
                     var result = new PermissionRequestResult()
-                            .setKind("denied-no-approval-rule-and-could-not-request-from-user");
+                            .setKind(PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER);
                     rpc.sendResponse(Long.parseLong(requestId), Map.of("result", result));
                     return;
                 }
@@ -197,7 +198,7 @@ final class RpcHandlerDispatcher {
                 }).exceptionally(ex -> {
                     try {
                         var result = new PermissionRequestResult()
-                                .setKind("denied-no-approval-rule-and-could-not-request-from-user");
+                                .setKind(PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER);
                         rpc.sendResponse(Long.parseLong(requestId), Map.of("result", result));
                     } catch (IOException e) {
                         LOG.log(Level.SEVERE, "Error sending permission denied", e);
