@@ -23,7 +23,7 @@
 #
 # Analyzes copilot-sdk issues to determine if a fix is needed in copilot-agent-runtime, then opens a linked issue and suggested-fix PR there
 #
-# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"3ac598e24f9b393d6d2adefae925950b6b1a02a186ccb7f3e17672cf29525596","compiler_version":"v0.50.5"}
+# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"553bdce55a05e3f846f312d711680323ba79effef8a001bd23cb72c1c0459413","compiler_version":"v0.50.5"}
 
 name: "SDK Runtime Triage"
 "on":
@@ -371,7 +371,7 @@ jobs:
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
           cat > /opt/gh-aw/safeoutputs/config.json << 'GH_AW_SAFE_OUTPUTS_CONFIG_EOF'
-          {"add_labels":{"allowed":["runtime-fix-needed","sdk-fix-only","needs-investigation"],"max":3,"target":"triggering"},"create_issue":{"max":1},"create_pull_request":{"max":1},"missing_data":{},"missing_tool":{},"noop":{"max":1}}
+          {"add_labels":{"allowed":["runtime","sdk-fix-only","needs-investigation"],"max":3,"target":"triggering"},"create_issue":{"max":1},"create_pull_request":{"max":1},"missing_data":{},"missing_tool":{},"noop":{"max":1}}
           GH_AW_SAFE_OUTPUTS_CONFIG_EOF
           cat > /opt/gh-aw/safeoutputs/tools.json << 'GH_AW_SAFE_OUTPUTS_TOOLS_EOF'
           [
@@ -454,7 +454,7 @@ jobs:
               "name": "create_pull_request"
             },
             {
-              "description": "Add labels to an existing GitHub issue or pull request for categorization and filtering. Labels must already exist in the repository. For creating new issues with labels, use create_issue with the labels property instead. CONSTRAINTS: Maximum 3 label(s) can be added. Only these labels are allowed: [runtime-fix-needed sdk-fix-only needs-investigation]. Target: triggering.",
+              "description": "Add labels to an existing GitHub issue or pull request for categorization and filtering. Labels must already exist in the repository. For creating new issues with labels, use create_issue with the labels property instead. CONSTRAINTS: Maximum 3 label(s) can be added. Only these labels are allowed: [runtime sdk-fix-only needs-investigation]. Target: triggering.",
               "inputSchema": {
                 "additionalProperties": false,
                 "properties": {
@@ -1319,7 +1319,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
-          GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG: "{\"add_labels\":{\"allowed\":[\"runtime-fix-needed\",\"sdk-fix-only\",\"needs-investigation\"],\"max\":3,\"target\":\"triggering\"},\"create_issue\":{\"labels\":[\"upstream-from-sdk\",\"ai-triaged\"],\"max\":1,\"target-repo\":\"github/copilot-agent-runtime\",\"title_prefix\":\"[copilot-sdk] \"},\"create_pull_request\":{\"base_branch\":\"${{ github.base_ref || github.ref_name }}\",\"draft\":true,\"labels\":[\"upstream-from-sdk\",\"ai-suggested-fix\"],\"max\":1,\"max_patch_size\":1024,\"target-repo\":\"github/copilot-agent-runtime\",\"title_prefix\":\"[copilot-sdk] \"},\"missing_data\":{},\"missing_tool\":{}}"
+          GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG: "{\"add_labels\":{\"allowed\":[\"runtime\",\"sdk-fix-only\",\"needs-investigation\"],\"max\":3,\"target\":\"triggering\"},\"create_issue\":{\"labels\":[\"upstream-from-sdk\",\"ai-triaged\"],\"max\":1,\"target-repo\":\"github/copilot-agent-runtime\",\"title_prefix\":\"[copilot-sdk] \"},\"create_pull_request\":{\"base_branch\":\"${{ github.base_ref || github.ref_name }}\",\"draft\":true,\"labels\":[\"upstream-from-sdk\",\"ai-suggested-fix\"],\"max\":1,\"max_patch_size\":1024,\"target-repo\":\"github/copilot-agent-runtime\",\"title_prefix\":\"[copilot-sdk] \"},\"missing_data\":{},\"missing_tool\":{}}"
           GH_AW_CI_TRIGGER_TOKEN: ${{ secrets.GH_AW_CI_TRIGGER_TOKEN }}
         with:
           github-token: ${{ secrets.RUNTIME_TRIAGE_TOKEN }}

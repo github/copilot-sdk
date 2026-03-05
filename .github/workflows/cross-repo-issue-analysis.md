@@ -34,7 +34,7 @@ safe-outputs:
   github-token: ${{ secrets.RUNTIME_TRIAGE_TOKEN }}
   allowed-github-references: ["repo", "github/copilot-agent-runtime"]
   add-labels:
-    allowed: [runtime-fix-needed, sdk-fix-only, needs-investigation]
+    allowed: [runtime, sdk-fix-only, needs-investigation]
     max: 3
     target: triggering
   create-issue:
@@ -99,8 +99,8 @@ Classify the issue into one of these categories:
 
 1. **SDK-fix-only**: The bug/feature is entirely in the SDK code. Label the issue `sdk-fix-only`.
 
-2. **Runtime-fix-needed**: The root cause is in copilot-agent-runtime. Do ALL of the following:
-   - Label the original issue `runtime-fix-needed`
+2. **Runtime**: The root cause is in copilot-agent-runtime. Do ALL of the following:
+   - Label the original issue `runtime`
    - Create an issue in `github/copilot-agent-runtime` that:
      - Clearly describes the problem and root cause
      - References the original SDK issue (e.g., `github/copilot-sdk#123`)
