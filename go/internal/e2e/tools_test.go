@@ -350,8 +350,8 @@ func TestTools(t *testing.T) {
 		for _, req := range permissionRequests {
 			if req.Kind == "custom-tool" {
 				customToolReqs++
-				if toolName, ok := req.Extra["toolName"].(string); !ok || toolName != "encrypt_string" {
-					t.Errorf("Expected toolName 'encrypt_string', got '%v'", req.Extra["toolName"])
+				if req.ToolName == nil || *req.ToolName != "encrypt_string" {
+					t.Errorf("Expected toolName 'encrypt_string', got '%v'", req.ToolName)
 				}
 			}
 		}

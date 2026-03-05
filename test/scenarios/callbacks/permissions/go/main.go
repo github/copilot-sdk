@@ -30,7 +30,10 @@ func main() {
 		Model: "claude-haiku-4.5",
 		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
 			permissionLogMu.Lock()
-			toolName, _ := req.Extra["toolName"].(string)
+			toolName := ""
+			if req.ToolName != nil {
+				toolName = *req.ToolName
+			}
 			permissionLog = append(permissionLog, fmt.Sprintf("approved:%s", toolName))
 			permissionLogMu.Unlock()
 			return copilot.PermissionRequestResult{Kind: "approved"}, nil

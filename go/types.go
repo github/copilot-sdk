@@ -99,39 +99,6 @@ type SystemMessageConfig struct {
 	Content string `json:"content,omitempty"`
 }
 
-// PermissionRequest represents a permission request from the server
-type PermissionRequest struct {
-	Kind       string         `json:"kind"`
-	ToolCallID string         `json:"toolCallId,omitempty"`
-	Extra      map[string]any `json:"-"` // Additional fields vary by kind
-}
-
-// UnmarshalJSON implements custom JSON unmarshaling for PermissionRequest
-// to capture additional fields (varying by kind) into the Extra map.
-func (p *PermissionRequest) UnmarshalJSON(data []byte) error {
-	// Unmarshal known fields via an alias to avoid infinite recursion
-	type Alias PermissionRequest
-	var alias Alias
-	if err := json.Unmarshal(data, &alias); err != nil {
-		return err
-	}
-	*p = PermissionRequest(alias)
-
-	// Unmarshal all fields into a generic map
-	var raw map[string]any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-
-	// Remove known fields, keep the rest as Extra
-	delete(raw, "kind")
-	delete(raw, "toolCallId")
-	if len(raw) > 0 {
-		p.Extra = raw
-	}
-	return nil
-}
-
 // PermissionRequestResultKind represents the kind of a permission request result.
 type PermissionRequestResultKind string
 
