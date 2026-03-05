@@ -343,6 +343,15 @@ try {
 }
 ```
 
+Each SDK also provides idiomatic automatic cleanup patterns:
+
+| Language | Pattern | Example |
+|----------|---------|---------|
+| **TypeScript** | `Symbol.asyncDispose` | `await using session = await client.createSession(config);` |
+| **Python** | `async with` context manager | `async with await client.create_session(config) as session:` |
+| **C#** | `IAsyncDisposable` | `await using var session = await client.CreateSessionAsync(config);` |
+| **Go** | `defer` | `defer session.Disconnect()` |
+
 > **Note:** `destroy()` is deprecated in favor of `disconnect()`. Existing code using `destroy()` will continue to work but should be migrated.
 
 ### Permanently Deleting a Session (`deleteSession`)

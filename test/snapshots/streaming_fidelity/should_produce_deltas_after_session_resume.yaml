@@ -1,0 +1,14 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: What is 3 + 6?
+      - role: assistant
+        content: 3 + 6 = 9
+      - role: user
+        content: Now if you double that, what do you get?
+      - role: assistant
+        content: 9 × 2 = 18

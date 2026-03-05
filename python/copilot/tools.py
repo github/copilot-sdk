@@ -25,6 +25,7 @@ def define_tool(
     name: str | None = None,
     *,
     description: str | None = None,
+    overrides_built_in_tool: bool = False,
 ) -> Callable[[Callable[..., Any]], Tool]: ...
 
 
@@ -35,6 +36,7 @@ def define_tool(
     description: str | None = None,
     handler: Callable[[T, ToolInvocation], R],
     params_type: type[T],
+    overrides_built_in_tool: bool = False,
 ) -> Tool: ...
 
 
@@ -44,6 +46,7 @@ def define_tool(
     description: str | None = None,
     handler: Callable[[Any, ToolInvocation], Any] | None = None,
     params_type: type[BaseModel] | None = None,
+    overrides_built_in_tool: bool = False,
 ) -> Tool | Callable[[Callable[[Any, ToolInvocation], Any]], Tool]:
     """
     Define a tool with automatic JSON schema generation from Pydantic models.
@@ -150,6 +153,7 @@ def define_tool(
             description=description or "",
             parameters=schema,
             handler=wrapped_handler,
+            overrides_built_in_tool=overrides_built_in_tool,
         )
 
     # If handler is provided, call decorator immediately

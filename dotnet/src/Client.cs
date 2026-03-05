@@ -1321,7 +1321,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
             {
                 return new PermissionRequestResponse(new PermissionRequestResult
                 {
-                    Kind = "denied-no-approval-rule-and-could-not-request-from-user"
+                    Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser
                 });
             }
 
@@ -1335,7 +1335,7 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
                 // If permission handler fails, deny the permission
                 return new PermissionRequestResponse(new PermissionRequestResult
                 {
-                    Kind = "denied-no-approval-rule-and-could-not-request-from-user"
+                    Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser
                 });
             }
         }
@@ -1423,10 +1423,15 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
     internal record ToolDefinition(
         string Name,
         string? Description,
-        JsonElement Parameters /* JSON schema */)
+        JsonElement Parameters, /* JSON schema */
+        bool? OverridesBuiltInTool = null)
     {
         public static ToolDefinition FromAIFunction(AIFunction function)
-            => new ToolDefinition(function.Name, function.Description, function.JsonSchema);
+        {
+            var overrides = function.AdditionalProperties.TryGetValue("is_override", out var val) && val is true;
+            return new ToolDefinition(function.Name, function.Description, function.JsonSchema,
+                overrides ? true : null);
+        }
     }
 
     internal record CreateSessionResponse(
@@ -1567,23 +1572,4 @@ public partial class CopilotClient : IDisposable, IAsyncDisposable
 public class ToolResultAIContent(ToolResultObject toolResult) : AIContent
 {
     public ToolResultObject Result => toolResult;
-}
-
-/// <summary>
-/// A disposable that invokes an action when disposed.
-/// </summary>
-internal sealed class ActionDisposable : IDisposable
-{
-    private Action? _action;
-
-    public ActionDisposable(Action action)
-    {
-        _action = action;
-    }
-
-    public void Dispose()
-    {
-        var action = Interlocked.Exchange(ref _action, null);
-        action?.Invoke();
-    }
 }

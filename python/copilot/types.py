@@ -134,6 +134,7 @@ class Tool:
     description: str
     handler: ToolHandler
     parameters: dict[str, Any] | None = None
+    overrides_built_in_tool: bool = False
 
 
 # System message configuration (discriminated union)
@@ -192,8 +193,10 @@ _PermissionHandlerFn = Callable[
 
 class PermissionHandler:
     @staticmethod
-    def approve_all(request: Any, invocation: Any) -> dict:
-        return {"kind": "approved"}
+    def approve_all(
+        request: PermissionRequest, invocation: dict[str, str]
+    ) -> PermissionRequestResult:
+        return PermissionRequestResult(kind="approved")
 
 
 # ============================================================================
@@ -619,10 +622,13 @@ class PingResponse:
 
 # Error information from client stop
 @dataclass
-class StopError:
-    """Error information from client stop"""
+class StopError(Exception):
+    """Error that occurred during client stop cleanup."""
 
     message: str  # Error message describing what failed during cleanup
+
+    def __post_init__(self) -> None:
+        Exception.__init__(self, self.message)
 
     @staticmethod
     def from_dict(obj: Any) -> StopError:

@@ -1,0 +1,117 @@
+name: "Update @github/copilot Dependency"
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Target version of @github/copilot (e.g. 0.0.420)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    name: "Update @github/copilot to ${{ inputs.version }}"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate version input
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9._-]+)?$ ]]; then
+            echo "::error::Invalid version format '$VERSION'. Expected semver (e.g. 0.0.420)."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Update @github/copilot in nodejs
+        env:
+          VERSION: ${{ inputs.version }}
+        working-directory: ./nodejs
+        run: npm install "@github/copilot@$VERSION"
+
+      - name: Update @github/copilot in test harness
+        env:
+          VERSION: ${{ inputs.version }}
+        working-directory: ./test/harness
+        run: npm install "@github/copilot@$VERSION"
+
+      - name: Refresh nodejs/samples lockfile
+        working-directory: ./nodejs/samples
+        run: npm install
+
+      - name: Install codegen dependencies
+        working-directory: ./scripts/codegen
+        run: npm ci
+
+      - name: Run codegen
+        working-directory: ./scripts/codegen
+        run: npm run generate
+
+      - name: Format generated code
+        run: |
+          cd nodejs && npx prettier --write "src/generated/**/*.ts"
+          cd ../dotnet && dotnet format src/GitHub.Copilot.SDK.csproj
+
+      - name: Create pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          BRANCH="update-copilot-$VERSION"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git rev-parse --verify "origin/$BRANCH" >/dev/null 2>&1; then
+            git checkout "$BRANCH"
+            git reset --hard HEAD
+          else
+            git checkout -b "$BRANCH"
+          fi
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No changes detected; skipping commit and PR creation."
+            exit 0
+          fi
+
+          git commit -m "Update @github/copilot to $VERSION
+
+          - Updated nodejs and test harness dependencies
+          - Re-ran code generators
+          - Formatted generated code"
+          git push origin "$BRANCH" --force-with-lease
+
+          if gh pr view "$BRANCH" >/dev/null 2>&1; then
+            echo "Pull request for branch '$BRANCH' already exists; updated branch only."
+          else
+            gh pr create \
+              --title "Update @github/copilot to $VERSION" \
+              --body "Automated update of \`@github/copilot\` to version \`$VERSION\`.
+
+          ### Changes
+          - Updated \`@github/copilot\` in \`nodejs/package.json\` and \`test/harness/package.json\`
+          - Re-ran all code generators (\`scripts/codegen\`)
+          - Formatted generated output
+
+          > Created by the **Update @github/copilot Dependency** workflow." \
+              --base main \
+              --head "$BRANCH"
+          fi

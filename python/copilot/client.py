@@ -315,7 +315,7 @@ class CopilotClient:
                         ) from e
             raise
 
-    async def stop(self) -> list["StopError"]:
+    async def stop(self) -> None:
         """
         Stop the CLI server and close all active sessions.
 
@@ -328,14 +328,14 @@ class CopilotClient:
         later. To permanently remove session data before stopping, call
         :meth:`delete_session` for each session first.
 
-        Returns:
-            A list of StopError objects containing error messages that occurred
-            during cleanup. An empty list indicates all cleanup succeeded.
+        Raises:
+            ExceptionGroup[StopError]: If any errors occurred during cleanup.
 
         Example:
-            >>> errors = await client.stop()
-            >>> if errors:
-            ...     for error in errors:
+            >>> try:
+            ...     await client.stop()
+            ... except* StopError as eg:
+            ...     for error in eg.exceptions:
             ...         print(f"Cleanup error: {error.message}")
         """
         errors: list[StopError] = []
@@ -364,7 +364,6 @@ class CopilotClient:
         async with self._models_cache_lock:
             self._models_cache = None
 
-        # Kill CLI process
         # Kill CLI process (only if we spawned it)
         if self._process and not self._is_external_server:
             self._process.terminate()
@@ -378,7 +377,8 @@ class CopilotClient:
         if not self._is_external_server:
             self._actual_port = None
 
-        return errors
+        if errors:
+            raise ExceptionGroup("errors during CopilotClient.stop()", errors)
 
     async def force_stop(self) -> None:
         """
@@ -471,12 +471,14 @@ class CopilotClient:
         tools = cfg.get("tools")
         if tools:
             for tool in tools:
-                definition = {
+                definition: dict[str, Any] = {
                     "name": tool.name,
                     "description": tool.description,
                 }
                 if tool.parameters:
                     definition["parameters"] = tool.parameters
+                if tool.overrides_built_in_tool:
+                    definition["overridesBuiltInTool"] = True
                 tool_defs.append(definition)
 
         payload: dict[str, Any] = {}
@@ -643,12 +645,14 @@ class CopilotClient:
         tools = cfg.get("tools")
         if tools:
             for tool in tools:
-                definition = {
+                definition: dict[str, Any] = {
                     "name": tool.name,
                     "description": tool.description,
                 }
                 if tool.parameters:
                     definition["parameters"] = tool.parameters
+                if tool.overrides_built_in_tool:
+                    definition["overridesBuiltInTool"] = True
                 tool_defs.append(definition)
 
         payload: dict[str, Any] = {"sessionId": session_id}
@@ -962,6 +966,30 @@ class CopilotClient:
         with self._sessions_lock:
             if session_id in self._sessions:
                 del self._sessions[session_id]
+
+    async def get_last_session_id(self) -> str | None:
+        """
+        Get the ID of the most recently updated session.
+
+        This is useful for resuming the last conversation when the session ID
+        was not stored.
+
+        Returns:
+            The session ID, or None if no sessions exist.
+
+        Raises:
+            RuntimeError: If the client is not connected.
+
+        Example:
+            >>> last_id = await client.get_last_session_id()
+            >>> if last_id:
+            ...     session = await client.resume_session(last_id, {"on_permission_request": PermissionHandler.approve_all})
+        """
+        if not self._client:
+            raise RuntimeError("Client not connected")
+
+        response = await self._client.request("session.getLastId", {})
+        return response.get("sessionId")
 
     async def get_foreground_session_id(self) -> str | None:
         """

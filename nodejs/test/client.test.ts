@@ -68,7 +68,9 @@ describe("CopilotClient", () => {
         onTestFinished(() => client.forceStop());
 
         const session = await client.createSession({ onPermissionRequest: approveAll });
-        const spy = vi.spyOn((client as any).connection!, "sendRequest");
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockResolvedValue({ sessionId: session.sessionId });
         await client.resumeSession(session.sessionId, {
             clientName: "my-app",
             onPermissionRequest: approveAll,
@@ -78,6 +80,32 @@ describe("CopilotClient", () => {
             "session.resume",
             expect.objectContaining({ clientName: "my-app", sessionId: session.sessionId })
         );
+    });
+
+    it("sends session.model.switchTo RPC with correct params", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        // Mock sendRequest to capture the call without hitting the runtime
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, _params: any) => {
+                if (method === "session.model.switchTo") return {};
+                // Fall through for other methods (shouldn't be called)
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await session.setModel("gpt-4.1");
+
+        expect(spy).toHaveBeenCalledWith("session.model.switchTo", {
+            sessionId: session.sessionId,
+            modelId: "gpt-4.1",
+        });
+
+        spy.mockRestore();
     });
 
     describe("URL parsing", () => {
@@ -265,6 +293,57 @@ describe("CopilotClient", () => {
                     logLevel: "error",
                 });
             }).toThrow(/githubToken and useLoggedInUser cannot be used with cliUrl/);
+        });
+    });
+
+    describe("overridesBuiltInTool in tool definitions", () => {
+        it("sends overridesBuiltInTool in tool definition on session.create", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            await client.createSession({
+                onPermissionRequest: approveAll,
+                tools: [
+                    {
+                        name: "grep",
+                        description: "custom grep",
+                        handler: async () => "ok",
+                        overridesBuiltInTool: true,
+                    },
+                ],
+            });
+
+            const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
+            expect(payload.tools).toEqual([
+                expect.objectContaining({ name: "grep", overridesBuiltInTool: true }),
+            ]);
+        });
+
+        it("sends overridesBuiltInTool in tool definition on session.resume", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            await client.resumeSession(session.sessionId, {
+                onPermissionRequest: approveAll,
+                tools: [
+                    {
+                        name: "grep",
+                        description: "custom grep",
+                        handler: async () => "ok",
+                        overridesBuiltInTool: true,
+                    },
+                ],
+            });
+
+            const payload = spy.mock.calls.find((c) => c[0] === "session.resume")![1] as any;
+            expect(payload.tools).toEqual([
+                expect.objectContaining({ name: "grep", overridesBuiltInTool: true }),
+            ]);
         });
     });
 });

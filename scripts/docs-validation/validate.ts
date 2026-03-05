@@ -465,6 +465,15 @@ async function main() {
     console.log("  3. Re-run: npm run validate");
     console.log("\nTo skip a code block, add before it:");
     console.log("  <!-- docs-validate: skip -->");
+    console.log("\nTo validate a complete version while showing a snippet:");
+    console.log("  <!-- docs-validate: hidden -->");
+    console.log("  ```lang");
+    console.log("  // full compilable code");
+    console.log("  ```");
+    console.log("  <!-- /docs-validate: hidden -->");
+    console.log("  ```lang");
+    console.log("  // visible snippet (auto-skipped)");
+    console.log("  ```");
     process.exit(1);
   }
 

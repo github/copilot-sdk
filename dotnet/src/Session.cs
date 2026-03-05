@@ -24,6 +24,14 @@ namespace GitHub.Copilot.SDK;
 /// The session provides methods to send messages, subscribe to events, retrieve
 /// conversation history, and manage the session lifecycle.
 /// </para>
+/// <para>
+/// <see cref="CopilotSession"/> implements <see cref="IAsyncDisposable"/>. Use the
+/// <c>await using</c> pattern for automatic cleanup, or call <see cref="DisconnectAsync"/>
+/// explicitly. Disposing a session releases in-memory resources but preserves session data
+/// on disk — the conversation can be resumed later via
+/// <see cref="CopilotClient.ResumeSessionAsync"/>. To permanently delete session data,
+/// use <see cref="CopilotClient.DeleteSessionAsync"/>.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -44,13 +52,17 @@ namespace GitHub.Copilot.SDK;
 /// </example>
 public partial class CopilotSession : IAsyncDisposable
 {
-    private readonly HashSet<SessionEventHandler> _eventHandlers = new();
+    /// <summary>
+    /// Multicast delegate used as a thread-safe, insertion-ordered handler list.
+    /// The compiler-generated add/remove accessors use a lock-free CAS loop over the backing field.
+    /// Dispatch reads the field once (inherent snapshot, no allocation).
+    /// Expected handler count is small (typically 1–3), so Delegate.Combine/Remove cost is negligible.
+    /// </summary>
+    private event SessionEventHandler? _eventHandlers;
     private readonly Dictionary<string, AIFunction> _toolHandlers = new();
     private readonly JsonRpc _rpc;
-    private PermissionRequestHandler? _permissionHandler;
-    private readonly SemaphoreSlim _permissionHandlerLock = new(1, 1);
-    private UserInputHandler? _userInputHandler;
-    private readonly SemaphoreSlim _userInputHandlerLock = new(1, 1);
+    private volatile PermissionRequestHandler? _permissionHandler;
+    private volatile UserInputHandler? _userInputHandler;
     private SessionHooks? _hooks;
     private readonly SemaphoreSlim _hooksLock = new(1, 1);
     private SessionRpc? _sessionRpc;
@@ -245,8 +257,8 @@ public partial class CopilotSession : IAsyncDisposable
     /// </example>
     public IDisposable On(SessionEventHandler handler)
     {
-        _eventHandlers.Add(handler);
-        return new OnDisposeCall(() => _eventHandlers.Remove(handler));
+        _eventHandlers += handler;
+        return new ActionDisposable(() => _eventHandlers -= handler);
     }
 
     /// <summary>
@@ -258,11 +270,8 @@ public partial class CopilotSession : IAsyncDisposable
     /// </remarks>
     internal void DispatchEvent(SessionEvent sessionEvent)
     {
-        foreach (var handler in _eventHandlers.ToArray())
-        {
-            // We allow handler exceptions to propagate so they are not lost
-            handler(sessionEvent);
-        }
+        // Reading the field once gives us a snapshot; delegates are immutable.
+        _eventHandlers?.Invoke(sessionEvent);
     }
 
     /// <summary>
@@ -300,15 +309,7 @@ public partial class CopilotSession : IAsyncDisposable
     /// </remarks>
     internal void RegisterPermissionHandler(PermissionRequestHandler handler)
     {
-        _permissionHandlerLock.Wait();
-        try
-        {
-            _permissionHandler = handler;
-        }
-        finally
-        {
-            _permissionHandlerLock.Release();
-        }
+        _permissionHandler = handler;
     }
 
     /// <summary>
@@ -318,22 +319,13 @@ public partial class CopilotSession : IAsyncDisposable
     /// <returns>A task that resolves with the permission decision.</returns>
     internal async Task<PermissionRequestResult> HandlePermissionRequestAsync(JsonElement permissionRequestData)
     {
-        await _permissionHandlerLock.WaitAsync();
-        PermissionRequestHandler? handler;
-        try
-        {
-            handler = _permissionHandler;
-        }
-        finally
-        {
-            _permissionHandlerLock.Release();
-        }
+        var handler = _permissionHandler;
 
         if (handler == null)
         {
             return new PermissionRequestResult
             {
-                Kind = "denied-no-approval-rule-and-could-not-request-from-user"
+                Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser
             };
         }
 
@@ -354,15 +346,7 @@ public partial class CopilotSession : IAsyncDisposable
     /// <param name="handler">The handler to invoke when user input is requested.</param>
     internal void RegisterUserInputHandler(UserInputHandler handler)
     {
-        _userInputHandlerLock.Wait();
-        try
-        {
-            _userInputHandler = handler;
-        }
-        finally
-        {
-            _userInputHandlerLock.Release();
-        }
+        _userInputHandler = handler;
     }
 
     /// <summary>
@@ -372,16 +356,7 @@ public partial class CopilotSession : IAsyncDisposable
     /// <returns>A task that resolves with the user's response.</returns>
     internal async Task<UserInputResponse> HandleUserInputRequestAsync(UserInputRequest request)
     {
-        await _userInputHandlerLock.WaitAsync();
-        UserInputHandler? handler;
-        try
-        {
-            handler = _userInputHandler;
-        }
-        finally
-        {
-            _userInputHandlerLock.Release();
-        }
+        var handler = _userInputHandler;
 
         if (handler == null)
         {
@@ -541,6 +516,22 @@ public partial class CopilotSession : IAsyncDisposable
     }
 
     /// <summary>
+    /// Changes the model for this session.
+    /// The new model takes effect for the next message. Conversation history is preserved.
+    /// </summary>
+    /// <param name="model">Model ID to switch to (e.g., "gpt-4.1").</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    /// <example>
+    /// <code>
+    /// await session.SetModelAsync("gpt-4.1");
+    /// </code>
+    /// </example>
+    public async Task SetModelAsync(string model, CancellationToken cancellationToken = default)
+    {
+        await Rpc.Model.SwitchToAsync(model, cancellationToken);
+    }
+
+    /// <summary>
     /// Disconnects this session and releases all in-memory resources (event handlers,
     /// tool handlers, permission handlers).
     /// </summary>
@@ -588,18 +579,10 @@ public partial class CopilotSession : IAsyncDisposable
             // Connection is broken or closed
         }
 
-        _eventHandlers.Clear();
+        _eventHandlers = null;
         _toolHandlers.Clear();
 
-        await _permissionHandlerLock.WaitAsync(cancellationToken);
-        try
-        {
-            _permissionHandler = null;
-        }
-        finally
-        {
-            _permissionHandlerLock.Release();
-        }
+        _permissionHandler = null;
     }
 
     /// <summary>
@@ -627,11 +610,6 @@ public partial class CopilotSession : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await DisconnectAsync();
-    }
-
-    private class OnDisposeCall(Action callback) : IDisposable
-    {
-        public void Dispose() => callback();
     }
 
     internal record SendMessageRequest

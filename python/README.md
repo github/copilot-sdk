@@ -57,6 +57,14 @@ async def main():
 asyncio.run(main())
 ```
 
+Sessions also support the `async with` context manager pattern for automatic cleanup:
+
+```python
+async with await client.create_session({"model": "gpt-5"}) as session:
+    await session.send({"prompt": "What is 2+2?"})
+    # session is automatically disconnected when leaving the block
+```
+
 ## Features
 
 - ✅ Full JSON-RPC protocol support
@@ -209,6 +217,20 @@ session = await client.create_session({
 ```
 
 The SDK automatically handles `tool.call`, executes your handler (sync or async), and responds with the final result when the tool completes.
+
+#### Overriding Built-in Tools
+
+If you register a tool with the same name as a built-in CLI tool (e.g. `edit_file`, `read_file`), the SDK will throw an error unless you explicitly opt in by setting `overrides_built_in_tool=True`. This flag signals that you intend to replace the built-in tool with your custom implementation.
+
+```python
+class EditFileParams(BaseModel):
+    path: str = Field(description="File path")
+    content: str = Field(description="New file content")
+
+@define_tool(name="edit_file", description="Custom file editor with project-specific validation", overrides_built_in_tool=True)
+async def edit_file(params: EditFileParams) -> str:
+    # your logic
+```
 
 ## Image Support
 

@@ -51,6 +51,7 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(SessionWorkspaceFileChangedEvent), "session.workspace_file_changed")]
 [JsonDerivedType(typeof(SkillInvokedEvent), "skill.invoked")]
 [JsonDerivedType(typeof(SubagentCompletedEvent), "subagent.completed")]
+[JsonDerivedType(typeof(SubagentDeselectedEvent), "subagent.deselected")]
 [JsonDerivedType(typeof(SubagentFailedEvent), "subagent.failed")]
 [JsonDerivedType(typeof(SubagentSelectedEvent), "subagent.selected")]
 [JsonDerivedType(typeof(SubagentStartedEvent), "subagent.started")]
@@ -594,6 +595,18 @@ public partial class SubagentSelectedEvent : SessionEvent
 }
 
 /// <summary>
+/// Event: subagent.deselected
+/// </summary>
+public partial class SubagentDeselectedEvent : SessionEvent
+{
+    [JsonIgnore]
+    public override string Type => "subagent.deselected";
+
+    [JsonPropertyName("data")]
+    public required SubagentDeselectedData Data { get; set; }
+}
+
+/// <summary>
 /// Event: hook.start
 /// </summary>
 public partial class HookStartEvent : SessionEvent
@@ -952,6 +965,10 @@ public partial class UserMessageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("agentMode")]
     public UserMessageDataAgentMode? AgentMode { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("interactionId")]
+    public string? InteractionId { get; set; }
 }
 
 public partial class PendingMessagesModifiedData
@@ -962,6 +979,10 @@ public partial class AssistantTurnStartData
 {
     [JsonPropertyName("turnId")]
     public required string TurnId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("interactionId")]
+    public string? InteractionId { get; set; }
 }
 
 public partial class AssistantIntentData
@@ -1021,6 +1042,10 @@ public partial class AssistantMessageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("phase")]
     public string? Phase { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("interactionId")]
+    public string? InteractionId { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
@@ -1094,6 +1119,10 @@ public partial class AssistantUsageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("quotaSnapshots")]
     public Dictionary<string, object>? QuotaSnapshots { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("copilotUsage")]
+    public AssistantUsageDataCopilotUsage? CopilotUsage { get; set; }
 }
 
 public partial class AbortData
@@ -1167,6 +1196,14 @@ public partial class ToolExecutionCompleteData
     public required bool Success { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("interactionId")]
+    public string? InteractionId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("isUserRequested")]
     public bool? IsUserRequested { get; set; }
 
@@ -1201,6 +1238,14 @@ public partial class SkillInvokedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("allowedTools")]
     public string[]? AllowedTools { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("pluginName")]
+    public string? PluginName { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("pluginVersion")]
+    public string? PluginVersion { get; set; }
 }
 
 public partial class SubagentStartedData
@@ -1255,6 +1300,10 @@ public partial class SubagentSelectedData
 
     [JsonPropertyName("tools")]
     public string[]? Tools { get; set; }
+}
+
+public partial class SubagentDeselectedData
+{
 }
 
 public partial class HookStartData
@@ -1475,12 +1524,34 @@ public partial class UserMessageDataAttachmentsItemSelection : UserMessageDataAt
     public required UserMessageDataAttachmentsItemSelectionSelection Selection { get; set; }
 }
 
+public partial class UserMessageDataAttachmentsItemGithubReference : UserMessageDataAttachmentsItem
+{
+    [JsonIgnore]
+    public override string Type => "github_reference";
+
+    [JsonPropertyName("number")]
+    public required double Number { get; set; }
+
+    [JsonPropertyName("title")]
+    public required string Title { get; set; }
+
+    [JsonPropertyName("referenceType")]
+    public required UserMessageDataAttachmentsItemGithubReferenceReferenceType ReferenceType { get; set; }
+
+    [JsonPropertyName("state")]
+    public required string State { get; set; }
+
+    [JsonPropertyName("url")]
+    public required string Url { get; set; }
+}
+
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
 [JsonDerivedType(typeof(UserMessageDataAttachmentsItemFile), "file")]
 [JsonDerivedType(typeof(UserMessageDataAttachmentsItemDirectory), "directory")]
 [JsonDerivedType(typeof(UserMessageDataAttachmentsItemSelection), "selection")]
+[JsonDerivedType(typeof(UserMessageDataAttachmentsItemGithubReference), "github_reference")]
 public partial class UserMessageDataAttachmentsItem
 {
     [JsonPropertyName("type")]
@@ -1503,6 +1574,30 @@ public partial class AssistantMessageDataToolRequestsItem
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("type")]
     public AssistantMessageDataToolRequestsItemType? Type { get; set; }
+}
+
+public partial class AssistantUsageDataCopilotUsageTokenDetailsItem
+{
+    [JsonPropertyName("batchSize")]
+    public required double BatchSize { get; set; }
+
+    [JsonPropertyName("costPerBatch")]
+    public required double CostPerBatch { get; set; }
+
+    [JsonPropertyName("tokenCount")]
+    public required double TokenCount { get; set; }
+
+    [JsonPropertyName("tokenType")]
+    public required string TokenType { get; set; }
+}
+
+public partial class AssistantUsageDataCopilotUsage
+{
+    [JsonPropertyName("tokenDetails")]
+    public required AssistantUsageDataCopilotUsageTokenDetailsItem[] TokenDetails { get; set; }
+
+    [JsonPropertyName("totalNanoAiu")]
+    public required double TotalNanoAiu { get; set; }
 }
 
 public partial class ToolExecutionCompleteDataResultContentsItemText : ToolExecutionCompleteDataResultContentsItem
@@ -1713,6 +1808,17 @@ public enum SessionShutdownDataShutdownType
     Error,
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter<UserMessageDataAttachmentsItemGithubReferenceReferenceType>))]
+public enum UserMessageDataAttachmentsItemGithubReferenceReferenceType
+{
+    [JsonStringEnumMemberName("issue")]
+    Issue,
+    [JsonStringEnumMemberName("pr")]
+    Pr,
+    [JsonStringEnumMemberName("discussion")]
+    Discussion,
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<UserMessageDataAgentMode>))]
 public enum UserMessageDataAgentMode
 {
@@ -1778,6 +1884,8 @@ public enum SystemMessageDataRole
 [JsonSerializable(typeof(AssistantTurnStartData))]
 [JsonSerializable(typeof(AssistantTurnStartEvent))]
 [JsonSerializable(typeof(AssistantUsageData))]
+[JsonSerializable(typeof(AssistantUsageDataCopilotUsage))]
+[JsonSerializable(typeof(AssistantUsageDataCopilotUsageTokenDetailsItem))]
 [JsonSerializable(typeof(AssistantUsageEvent))]
 [JsonSerializable(typeof(HookEndData))]
 [JsonSerializable(typeof(HookEndDataError))]
@@ -1836,6 +1944,8 @@ public enum SystemMessageDataRole
 [JsonSerializable(typeof(SkillInvokedEvent))]
 [JsonSerializable(typeof(SubagentCompletedData))]
 [JsonSerializable(typeof(SubagentCompletedEvent))]
+[JsonSerializable(typeof(SubagentDeselectedData))]
+[JsonSerializable(typeof(SubagentDeselectedEvent))]
 [JsonSerializable(typeof(SubagentFailedData))]
 [JsonSerializable(typeof(SubagentFailedEvent))]
 [JsonSerializable(typeof(SubagentSelectedData))]
@@ -1871,6 +1981,7 @@ public enum SystemMessageDataRole
 [JsonSerializable(typeof(UserMessageDataAttachmentsItemDirectoryLineRange))]
 [JsonSerializable(typeof(UserMessageDataAttachmentsItemFile))]
 [JsonSerializable(typeof(UserMessageDataAttachmentsItemFileLineRange))]
+[JsonSerializable(typeof(UserMessageDataAttachmentsItemGithubReference))]
 [JsonSerializable(typeof(UserMessageDataAttachmentsItemSelection))]
 [JsonSerializable(typeof(UserMessageDataAttachmentsItemSelectionSelection))]
 [JsonSerializable(typeof(UserMessageDataAttachmentsItemSelectionSelectionEnd))]

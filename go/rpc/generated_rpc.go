@@ -65,8 +65,8 @@ type Limits struct {
 
 type Supports struct {
 	// Whether this model supports reasoning effort configuration
-	ReasoningEffort bool `json:"reasoningEffort"`
-	Vision          bool `json:"vision"`
+	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
+	Vision          *bool `json:"vision,omitempty"`
 }
 
 // Policy state (if applicable)
