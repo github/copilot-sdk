@@ -7,25 +7,32 @@ updates:
   - package-ecosystem: 'github-actions'
     directory: '/'
     multi-ecosystem-group: 'all'
+    patterns: ['*']
   - package-ecosystem: 'devcontainers'
     directory: '/'
     multi-ecosystem-group: 'all'
+    patterns: ['*']
   # Node.js dependencies
   - package-ecosystem: 'npm'
     directory: '/nodejs'
     multi-ecosystem-group: 'all'
+    patterns: ['*']
   - package-ecosystem: 'npm'
     directory: '/test/harness'
     multi-ecosystem-group: 'all'
+    patterns: ['*']
   # Python dependencies
   - package-ecosystem: 'pip'
     directory: '/python'
     multi-ecosystem-group: 'all'
+    patterns: ['*']
   # Go dependencies
   - package-ecosystem: 'gomod'
     directory: '/go'
     multi-ecosystem-group: 'all'
+    patterns: ['*']
   # .NET dependencies
   - package-ecosystem: 'nuget'
     directory: '/dotnet'
     multi-ecosystem-group: 'all'
+    patterns: ['*']
