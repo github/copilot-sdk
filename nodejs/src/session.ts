@@ -13,7 +13,6 @@ import type {
     MessageOptions,
     PermissionHandler,
     PermissionRequest,
-    PermissionRequestResult,
     SessionEvent,
     SessionEventHandler,
     SessionEventPayload,
@@ -284,11 +283,15 @@ export class CopilotSession {
 
     /**
      * Dispatches an event to all registered handlers.
+     * Also handles broadcast request events internally (external tool calls, permissions).
      *
      * @param event - The session event to dispatch
      * @internal This method is for internal use by the SDK.
      */
     _dispatchEvent(event: SessionEvent): void {
+        // Handle broadcast request events internally (fire-and-forget)
+        this._handleBroadcastEvent(event);
+
         // Dispatch to typed handlers for this specific event type
         const typedHandlers = this.typedEventHandlers.get(event.type);
         if (typedHandlers) {
@@ -308,6 +311,89 @@ export class CopilotSession {
             } catch (_error) {
                 // Handler error
             }
+        }
+    }
+
+    /**
+     * Handles broadcast request events by executing local handlers and responding via RPC.
+     * @internal
+     */
+    private _handleBroadcastEvent(event: SessionEvent): void {
+        if (event.type === "external_tool.requested") {
+            const { requestId, toolName } = event.data as {
+                requestId: string;
+                toolName: string;
+                arguments: unknown;
+                toolCallId: string;
+                sessionId: string;
+            };
+            const args = (event.data as { arguments: unknown }).arguments;
+            const toolCallId = (event.data as { toolCallId: string }).toolCallId;
+            const handler = this.toolHandlers.get(toolName);
+            if (handler) {
+                void this._executeToolAndRespond(requestId, toolName, toolCallId, args, handler);
+            }
+        } else if (event.type === "permission.requested") {
+            const { requestId, permissionRequest } = event.data as {
+                requestId: string;
+                permissionRequest: PermissionRequest;
+            };
+            if (this.permissionHandler) {
+                void this._executePermissionAndRespond(requestId, permissionRequest);
+            }
+        }
+    }
+
+    /**
+     * Executes a tool handler and sends the result back via RPC.
+     * @internal
+     */
+    private async _executeToolAndRespond(
+        requestId: string,
+        toolName: string,
+        toolCallId: string,
+        args: unknown,
+        handler: ToolHandler
+    ): Promise<void> {
+        try {
+            const rawResult = await handler(args, {
+                sessionId: this.sessionId,
+                toolCallId,
+                toolName,
+                arguments: args,
+            });
+            const result =
+                typeof rawResult === "string"
+                    ? rawResult
+                    : JSON.stringify(rawResult ?? "");
+            await this.rpc.tools.handlePendingToolCall({ requestId, result });
+        } catch (error) {
+            const message =
+                error instanceof Error ? error.message : String(error);
+            await this.rpc.tools.handlePendingToolCall({ requestId, error: message });
+        }
+    }
+
+    /**
+     * Executes a permission handler and sends the result back via RPC.
+     * @internal
+     */
+    private async _executePermissionAndRespond(
+        requestId: string,
+        permissionRequest: PermissionRequest
+    ): Promise<void> {
+        try {
+            const result = await this.permissionHandler!(permissionRequest, {
+                sessionId: this.sessionId,
+            });
+            await this.rpc.permissions.handlePendingPermissionRequest({ requestId, result });
+        } catch (_error) {
+            await this.rpc.permissions.handlePendingPermissionRequest({
+                requestId,
+                result: {
+                    kind: "denied-no-approval-rule-and-could-not-request-from-user",
+                },
+            });
         }
     }
 
@@ -379,30 +465,6 @@ export class CopilotSession {
      */
     registerHooks(hooks?: SessionHooks): void {
         this.hooks = hooks;
-    }
-
-    /**
-     * Handles a permission request from the Copilot CLI.
-     *
-     * @param request - The permission request data from the CLI
-     * @returns A promise that resolves with the permission decision
-     * @internal This method is for internal use by the SDK.
-     */
-    async _handlePermissionRequest(request: unknown): Promise<PermissionRequestResult> {
-        if (!this.permissionHandler) {
-            // No handler registered, deny permission
-            return { kind: "denied-no-approval-rule-and-could-not-request-from-user" };
-        }
-
-        try {
-            const result = await this.permissionHandler(request as PermissionRequest, {
-                sessionId: this.sessionId,
-            });
-            return result;
-        } catch (_error) {
-            // Handler failed, deny permission
-            return { kind: "denied-no-approval-rule-and-could-not-request-from-user" };
-        }
     }
 
     /**

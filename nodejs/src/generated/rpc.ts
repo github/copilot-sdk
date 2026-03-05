@@ -209,13 +209,17 @@ export interface SessionModeSetParams {
 
 export interface SessionPlanReadResult {
   /**
-   * Whether plan.md exists in the workspace
+   * Whether the plan file exists in the workspace
    */
   exists: boolean;
   /**
-   * The content of plan.md, or null if it does not exist
+   * The content of the plan file, or null if it does not exist
    */
   content: string | null;
+  /**
+   * Absolute file path of the plan file, or null if workspace is not enabled
+   */
+  path: string | null;
 }
 
 export interface SessionPlanReadParams {
@@ -233,7 +237,7 @@ export interface SessionPlanUpdateParams {
    */
   sessionId: string;
   /**
-   * The new content for plan.md
+   * The new content for the plan file
    */
   content: string;
 }
@@ -430,6 +434,40 @@ export interface SessionCompactionCompactParams {
   sessionId: string;
 }
 
+export interface SessionToolsHandlePendingToolCallResult {
+  success: boolean;
+}
+
+export interface SessionToolsHandlePendingToolCallParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  requestId: string;
+  result?: string;
+  error?: string;
+}
+
+export interface SessionPermissionsHandlePendingPermissionRequestResult {
+  success: boolean;
+}
+
+export interface SessionPermissionsHandlePendingPermissionRequestParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  requestId: string;
+  result: {
+    kind:
+      | "approved"
+      | "denied-by-rules"
+      | "denied-no-approval-rule-and-could-not-request-from-user"
+      | "denied-interactively-by-user";
+    rules?: unknown[];
+  };
+}
+
 /** Create typed server-scoped RPC methods (no session required). */
 export function createServerRpc(connection: MessageConnection) {
     return {
@@ -498,6 +536,14 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         compaction: {
             compact: async (): Promise<SessionCompactionCompactResult> =>
                 connection.sendRequest("session.compaction.compact", { sessionId }),
+        },
+        tools: {
+            handlePendingToolCall: async (params: Omit<SessionToolsHandlePendingToolCallParams, "sessionId">): Promise<SessionToolsHandlePendingToolCallResult> =>
+                connection.sendRequest("session.tools.handlePendingToolCall", { sessionId, ...params }),
+        },
+        permissions: {
+            handlePendingPermissionRequest: async (params: Omit<SessionPermissionsHandlePendingPermissionRequestParams, "sessionId">): Promise<SessionPermissionsHandlePendingPermissionRequestResult> =>
+                connection.sendRequest("session.permissions.handlePendingPermissionRequest", { sessionId, ...params }),
         },
     };
 }
