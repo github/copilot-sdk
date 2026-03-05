@@ -23,13 +23,13 @@
 #
 # Analyzes copilot-sdk issues to determine if a fix is needed in copilot-agent-runtime, then opens a linked issue and suggested-fix PR there
 #
-# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"067feb8b9d0762a67a2601351b53b40d404cadfda759e2ae77b3c941f48568dc","compiler_version":"v0.50.5"}
+# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"17d2fc87cf910e159b28c42965413c89e3e4831269573517b855db8b5ac2d89a","compiler_version":"v0.50.5"}
 
 name: "SDK Runtime Triage"
 "on":
   issues:
     types:
-    - opened
+    - labeled
   workflow_dispatch:
     inputs:
       issue_number:
@@ -47,7 +47,8 @@ run-name: "SDK Runtime Triage"
 jobs:
   activation:
     needs: pre_activation
-    if: needs.pre_activation.outputs.activated == 'true'
+    if: >
+      (needs.pre_activation.outputs.activated == 'true') && (github.event_name == 'workflow_dispatch' || github.event.label.name == 'runtime triage')
     runs-on: ubuntu-slim
     permissions:
       contents: read
@@ -1263,6 +1264,7 @@ jobs:
             await main();
 
   pre_activation:
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'runtime triage'
     runs-on: ubuntu-slim
     outputs:
       activated: ${{ steps.check_membership.outputs.is_team_member == 'true' }}

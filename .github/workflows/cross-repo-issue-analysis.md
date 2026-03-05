@@ -2,13 +2,14 @@
 description: Analyzes copilot-sdk issues to determine if a fix is needed in copilot-agent-runtime, then opens a linked issue and suggested-fix PR there
 on:
   issues:
-    types: [opened]
+    types: [labeled]
   workflow_dispatch:
     inputs:
       issue_number:
         description: "Issue number to analyze"
         required: true
         type: string
+if: "github.event_name == 'workflow_dispatch' || github.event.label.name == 'runtime triage'"
 permissions:
   contents: read
   issues: read
