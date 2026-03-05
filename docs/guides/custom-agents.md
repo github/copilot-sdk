@@ -313,6 +313,44 @@ _, err := session.SendAndWait(ctx, copilot.MessageOptions{
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot.SDK;
+
+public static class SubAgentEventsExample
+{
+    public static async Task Example(CopilotSession session)
+    {
+        using var subscription = session.On(evt =>
+        {
+            switch (evt)
+            {
+                case SubagentStartedEvent started:
+                    Console.WriteLine($"▶ Sub-agent started: {started.Data.AgentDisplayName}");
+                    Console.WriteLine($"  Description: {started.Data.AgentDescription}");
+                    Console.WriteLine($"  Tool call ID: {started.Data.ToolCallId}");
+                    break;
+                case SubagentCompletedEvent completed:
+                    Console.WriteLine($"✅ Sub-agent completed: {completed.Data.AgentDisplayName}");
+                    break;
+                case SubagentFailedEvent failed:
+                    Console.WriteLine($"❌ Sub-agent failed: {failed.Data.AgentDisplayName} — {failed.Data.Error}");
+                    break;
+                case SubagentSelectedEvent selected:
+                    Console.WriteLine($"🎯 Agent selected: {selected.Data.AgentDisplayName}");
+                    break;
+            }
+        });
+
+        await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Research how authentication works in this codebase"
+        });
+    }
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```csharp
 using var subscription = session.On(evt =>
 {
