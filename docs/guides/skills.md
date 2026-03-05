@@ -92,7 +92,7 @@ func main() {
             "./skills/documentation",
         },
         OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-            return copilot.PermissionRequestResult{Kind: "approved"}, nil
+            return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
         },
     })
     if err != nil {
@@ -127,7 +127,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
         "./skills/documentation",
     },
     OnPermissionRequest = (req, inv) =>
-        Task.FromResult(new PermissionRequestResult { Kind = "approved" }),
+        Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
 });
 
 // Copilot now has access to skills in those directories

@@ -223,7 +223,7 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
             OnPermissionRequest = (request, invocation) =>
             {
                 permissionRequests.Add(request);
-                return Task.FromResult(new PermissionRequestResult { Kind = "approved" });
+                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
             },
         });
 
@@ -258,7 +258,7 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
             Tools = [AIFunctionFactory.Create(EncryptStringDenied, "encrypt_string")],
             OnPermissionRequest = (request, invocation) =>
             {
-                return Task.FromResult(new PermissionRequestResult { Kind = "denied-interactively-by-user" });
+                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.DeniedInteractivelyByUser });
             },
         });
 

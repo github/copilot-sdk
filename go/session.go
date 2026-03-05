@@ -310,7 +310,7 @@ func (s *Session) handlePermissionRequest(request PermissionRequest) (Permission
 
 	if handler == nil {
 		return PermissionRequestResult{
-			Kind: "denied-no-approval-rule-and-could-not-request-from-user",
+			Kind: PermissionRequestResultKindDeniedCouldNotRequestFromUser,
 		}, nil
 	}
 

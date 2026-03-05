@@ -132,10 +132,28 @@ func (p *PermissionRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// PermissionRequestResultKind represents the kind of a permission request result.
+type PermissionRequestResultKind string
+
+const (
+	// PermissionRequestResultKindApproved indicates the permission was approved.
+	PermissionRequestResultKindApproved PermissionRequestResultKind = "approved"
+
+	// PermissionRequestResultKindDeniedByRules indicates the permission was denied by rules.
+	PermissionRequestResultKindDeniedByRules PermissionRequestResultKind = "denied-by-rules"
+
+	// PermissionRequestResultKindDeniedCouldNotRequestFromUser indicates the permission was denied because
+	// no approval rule was found and the user could not be prompted.
+	PermissionRequestResultKindDeniedCouldNotRequestFromUser PermissionRequestResultKind = "denied-no-approval-rule-and-could-not-request-from-user"
+
+	// PermissionRequestResultKindDeniedInteractivelyByUser indicates the permission was denied interactively by the user.
+	PermissionRequestResultKindDeniedInteractivelyByUser PermissionRequestResultKind = "denied-interactively-by-user"
+)
+
 // PermissionRequestResult represents the result of a permission request
 type PermissionRequestResult struct {
-	Kind  string `json:"kind"`
-	Rules []any  `json:"rules,omitempty"`
+	Kind  PermissionRequestResultKind `json:"kind"`
+	Rules []any                       `json:"rules,omitempty"`
 }
 
 // PermissionHandlerFunc executes a permission request

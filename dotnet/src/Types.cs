@@ -2,6 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.AI;
@@ -162,10 +165,82 @@ public class PermissionRequest
     public Dictionary<string, object>? ExtensionData { get; set; }
 }
 
+/// <summary>Describes the kind of a permission request result.</summary>
+[JsonConverter(typeof(PermissionRequestResultKind.Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PermissionRequestResultKind : IEquatable<PermissionRequestResultKind>
+{
+    /// <summary>Gets the kind indicating the permission was approved.</summary>
+    public static PermissionRequestResultKind Approved { get; } = new("approved");
+
+    /// <summary>Gets the kind indicating the permission was denied by rules.</summary>
+    public static PermissionRequestResultKind DeniedByRules { get; } = new("denied-by-rules");
+
+    /// <summary>Gets the kind indicating the permission was denied because no approval rule was found and the user could not be prompted.</summary>
+    public static PermissionRequestResultKind DeniedCouldNotRequestFromUser { get; } = new("denied-no-approval-rule-and-could-not-request-from-user");
+
+    /// <summary>Gets the kind indicating the permission was denied interactively by the user.</summary>
+    public static PermissionRequestResultKind DeniedInteractivelyByUser { get; } = new("denied-interactively-by-user");
+
+    /// <summary>Gets the underlying string value of this <see cref="PermissionRequestResultKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PermissionRequestResultKind"/> struct.</summary>
+    /// <param name="value">The string value for this kind.</param>
+    [JsonConstructor]
+    public PermissionRequestResultKind(string value) => _value = value;
+
+    /// <inheritdoc/>
+    public static bool operator ==(PermissionRequestResultKind left, PermissionRequestResultKind right) => left.Equals(right);
+
+    /// <inheritdoc/>
+    public static bool operator !=(PermissionRequestResultKind left, PermissionRequestResultKind right) => !left.Equals(right);
+
+    /// <inheritdoc/>
+    public override bool Equals([NotNullWhen(true)] object? obj) => obj is PermissionRequestResultKind other && Equals(other);
+
+    /// <inheritdoc/>
+    public bool Equals(PermissionRequestResultKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc/>
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc/>
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PermissionRequestResultKind}"/> for serializing <see cref="PermissionRequestResultKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PermissionRequestResultKind>
+    {
+        /// <inheritdoc/>
+        public override PermissionRequestResultKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType != JsonTokenType.String)
+            {
+                throw new JsonException("Expected string for PermissionRequestResultKind.");
+            }
+
+            var value = reader.GetString();
+            if (value is null)
+            {
+                throw new JsonException("PermissionRequestResultKind value cannot be null.");
+            }
+
+            return new PermissionRequestResultKind(value);
+        }
+
+        /// <inheritdoc/>
+        public override void Write(Utf8JsonWriter writer, PermissionRequestResultKind value, JsonSerializerOptions options) =>
+            writer.WriteStringValue(value.Value);
+    }
+}
+
 public class PermissionRequestResult
 {
     [JsonPropertyName("kind")]
-    public string Kind { get; set; } = string.Empty;
+    public PermissionRequestResultKind Kind { get; set; }
 
     [JsonPropertyName("rules")]
     public List<object>? Rules { get; set; }
