@@ -316,6 +316,8 @@ export class CopilotSession {
 
     /**
      * Handles broadcast request events by executing local handlers and responding via RPC.
+     * Handlers are dispatched as fire-and-forget — rejections propagate as unhandled promise
+     * rejections, consistent with standard EventEmitter / event handler semantics.
      * @internal
      */
     private _handleBroadcastEvent(event: SessionEvent): void {
@@ -362,10 +364,14 @@ export class CopilotSession {
                 toolName,
                 arguments: args,
             });
-            const result =
-                typeof rawResult === "string"
-                    ? rawResult
-                    : JSON.stringify(rawResult ?? "");
+            let result: string;
+            if (rawResult == null) {
+                result = "";
+            } else if (typeof rawResult === "string") {
+                result = rawResult;
+            } else {
+                result = JSON.stringify(rawResult);
+            }
             await this.rpc.tools.handlePendingToolCall({ requestId, result });
         } catch (error) {
             const message =

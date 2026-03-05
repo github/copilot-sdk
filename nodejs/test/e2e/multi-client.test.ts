@@ -255,7 +255,7 @@ describe("Multi-client broadcast", async () => {
         });
 
         // Client 2 resumes with ephemeral_tool
-        const session2 = await client2.resumeSession(session1.sessionId, {
+        await client2.resumeSession(session1.sessionId, {
             onPermissionRequest: approveAll,
             tools: [toolB],
         });

@@ -1313,7 +1313,8 @@ export class CopilotClient {
         // External tool calls and permission requests are now handled via broadcast events:
         // the server sends external_tool.requested / permission.requested as session event
         // notifications, and CopilotSession._dispatchEvent handles them internally by
-        // executing the handler and responding via session.tools.respond / session.permissions.respond RPC.
+        // executing the handler and responding via session.tools.handlePendingToolCall /
+        // session.permissions.handlePendingPermissionRequest RPC.
 
         this.connection.onRequest(
             "userInput.request",
