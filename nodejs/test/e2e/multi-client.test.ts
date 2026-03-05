@@ -94,10 +94,10 @@ describe("Multi-client broadcast", async () => {
             },
         });
 
-        // Client 2 resumes the same session — no permission handler needed,
-        // it just observes the broadcast events
+        // Client 2 resumes the same session — its handler never resolves,
+        // so only client 1's approval takes effect (no race)
         const session2 = await client2.resumeSession(session1.sessionId, {
-            onPermissionRequest: approveAll,
+            onPermissionRequest: () => new Promise(() => {}),
         });
 
         // Track events seen by each client
