@@ -396,6 +396,10 @@ class Metadata:
         return result
 
 
+class Mode(Enum):
+    FORM = "form"
+
+
 @dataclass
 class Requests:
     cost: float
@@ -466,6 +470,159 @@ class Operation(Enum):
 
 
 @dataclass
+class Command:
+    identifier: str
+    read_only: bool
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'Command':
+        assert isinstance(obj, dict)
+        identifier = from_str(obj.get("identifier"))
+        read_only = from_bool(obj.get("readOnly"))
+        return Command(identifier, read_only)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["identifier"] = from_str(self.identifier)
+        result["readOnly"] = from_bool(self.read_only)
+        return result
+
+
+class Kind(Enum):
+    CUSTOM_TOOL = "custom-tool"
+    MCP = "mcp"
+    MEMORY = "memory"
+    READ = "read"
+    SHELL = "shell"
+    URL = "url"
+    WRITE = "write"
+
+
+@dataclass
+class PossibleURL:
+    url: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PossibleURL':
+        assert isinstance(obj, dict)
+        url = from_str(obj.get("url"))
+        return PossibleURL(url)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["url"] = from_str(self.url)
+        return result
+
+
+@dataclass
+class PermissionRequest:
+    kind: Kind
+    can_offer_session_approval: bool | None = None
+    commands: list[Command] | None = None
+    full_command_text: str | None = None
+    has_write_file_redirection: bool | None = None
+    intention: str | None = None
+    possible_paths: list[str] | None = None
+    possible_urls: list[PossibleURL] | None = None
+    tool_call_id: str | None = None
+    warning: str | None = None
+    diff: str | None = None
+    file_name: str | None = None
+    new_file_contents: str | None = None
+    path: str | None = None
+    args: Any = None
+    read_only: bool | None = None
+    server_name: str | None = None
+    tool_name: str | None = None
+    tool_title: str | None = None
+    url: str | None = None
+    citations: str | None = None
+    fact: str | None = None
+    subject: str | None = None
+    tool_description: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionRequest':
+        assert isinstance(obj, dict)
+        kind = Kind(obj.get("kind"))
+        can_offer_session_approval = from_union([from_bool, from_none], obj.get("canOfferSessionApproval"))
+        commands = from_union([lambda x: from_list(Command.from_dict, x), from_none], obj.get("commands"))
+        full_command_text = from_union([from_str, from_none], obj.get("fullCommandText"))
+        has_write_file_redirection = from_union([from_bool, from_none], obj.get("hasWriteFileRedirection"))
+        intention = from_union([from_str, from_none], obj.get("intention"))
+        possible_paths = from_union([lambda x: from_list(from_str, x), from_none], obj.get("possiblePaths"))
+        possible_urls = from_union([lambda x: from_list(PossibleURL.from_dict, x), from_none], obj.get("possibleUrls"))
+        tool_call_id = from_union([from_str, from_none], obj.get("toolCallId"))
+        warning = from_union([from_str, from_none], obj.get("warning"))
+        diff = from_union([from_str, from_none], obj.get("diff"))
+        file_name = from_union([from_str, from_none], obj.get("fileName"))
+        new_file_contents = from_union([from_str, from_none], obj.get("newFileContents"))
+        path = from_union([from_str, from_none], obj.get("path"))
+        args = obj.get("args")
+        read_only = from_union([from_bool, from_none], obj.get("readOnly"))
+        server_name = from_union([from_str, from_none], obj.get("serverName"))
+        tool_name = from_union([from_str, from_none], obj.get("toolName"))
+        tool_title = from_union([from_str, from_none], obj.get("toolTitle"))
+        url = from_union([from_str, from_none], obj.get("url"))
+        citations = from_union([from_str, from_none], obj.get("citations"))
+        fact = from_union([from_str, from_none], obj.get("fact"))
+        subject = from_union([from_str, from_none], obj.get("subject"))
+        tool_description = from_union([from_str, from_none], obj.get("toolDescription"))
+        return PermissionRequest(kind, can_offer_session_approval, commands, full_command_text, has_write_file_redirection, intention, possible_paths, possible_urls, tool_call_id, warning, diff, file_name, new_file_contents, path, args, read_only, server_name, tool_name, tool_title, url, citations, fact, subject, tool_description)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(Kind, self.kind)
+        if self.can_offer_session_approval is not None:
+            result["canOfferSessionApproval"] = from_union([from_bool, from_none], self.can_offer_session_approval)
+        if self.commands is not None:
+            result["commands"] = from_union([lambda x: from_list(lambda x: to_class(Command, x), x), from_none], self.commands)
+        if self.full_command_text is not None:
+            result["fullCommandText"] = from_union([from_str, from_none], self.full_command_text)
+        if self.has_write_file_redirection is not None:
+            result["hasWriteFileRedirection"] = from_union([from_bool, from_none], self.has_write_file_redirection)
+        if self.intention is not None:
+            result["intention"] = from_union([from_str, from_none], self.intention)
+        if self.possible_paths is not None:
+            result["possiblePaths"] = from_union([lambda x: from_list(from_str, x), from_none], self.possible_paths)
+        if self.possible_urls is not None:
+            result["possibleUrls"] = from_union([lambda x: from_list(lambda x: to_class(PossibleURL, x), x), from_none], self.possible_urls)
+        if self.tool_call_id is not None:
+            result["toolCallId"] = from_union([from_str, from_none], self.tool_call_id)
+        if self.warning is not None:
+            result["warning"] = from_union([from_str, from_none], self.warning)
+        if self.diff is not None:
+            result["diff"] = from_union([from_str, from_none], self.diff)
+        if self.file_name is not None:
+            result["fileName"] = from_union([from_str, from_none], self.file_name)
+        if self.new_file_contents is not None:
+            result["newFileContents"] = from_union([from_str, from_none], self.new_file_contents)
+        if self.path is not None:
+            result["path"] = from_union([from_str, from_none], self.path)
+        if self.args is not None:
+            result["args"] = self.args
+        if self.read_only is not None:
+            result["readOnly"] = from_union([from_bool, from_none], self.read_only)
+        if self.server_name is not None:
+            result["serverName"] = from_union([from_str, from_none], self.server_name)
+        if self.tool_name is not None:
+            result["toolName"] = from_union([from_str, from_none], self.tool_name)
+        if self.tool_title is not None:
+            result["toolTitle"] = from_union([from_str, from_none], self.tool_title)
+        if self.url is not None:
+            result["url"] = from_union([from_str, from_none], self.url)
+        if self.citations is not None:
+            result["citations"] = from_union([from_str, from_none], self.citations)
+        if self.fact is not None:
+            result["fact"] = from_union([from_str, from_none], self.fact)
+        if self.subject is not None:
+            result["subject"] = from_union([from_str, from_none], self.subject)
+        if self.tool_description is not None:
+            result["toolDescription"] = from_union([from_str, from_none], self.tool_description)
+        return result
+
+
+@dataclass
 class QuotaSnapshot:
     entitlement_requests: float
     is_unlimited_entitlement: bool
@@ -523,6 +680,33 @@ class RepositoryClass:
         result["owner"] = from_str(self.owner)
         if self.branch is not None:
             result["branch"] = from_union([from_str, from_none], self.branch)
+        return result
+
+
+class RequestedSchemaType(Enum):
+    OBJECT = "object"
+
+
+@dataclass
+class RequestedSchema:
+    properties: dict[str, Any]
+    type: RequestedSchemaType
+    required: list[str] | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'RequestedSchema':
+        assert isinstance(obj, dict)
+        properties = from_dict(lambda x: x, obj.get("properties"))
+        type = RequestedSchemaType(obj.get("type"))
+        required = from_union([lambda x: from_list(from_str, x), from_none], obj.get("required"))
+        return RequestedSchema(properties, type, required)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["properties"] = from_dict(lambda x: x, self.properties)
+        result["type"] = to_enum(RequestedSchemaType, self.type)
+        if self.required is not None:
+            result["required"] = from_union([lambda x: from_list(from_str, x), from_none], self.required)
         return result
 
 
@@ -852,6 +1036,12 @@ class Data:
     output: Any = None
     metadata: Metadata | None = None
     role: Role | None = None
+    permission_request: PermissionRequest | None = None
+    allow_freeform: bool | None = None
+    choices: list[str] | None = None
+    question: str | None = None
+    mode: Mode | None = None
+    requested_schema: RequestedSchema | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'Data':
@@ -973,7 +1163,13 @@ class Data:
         output = obj.get("output")
         metadata = from_union([Metadata.from_dict, from_none], obj.get("metadata"))
         role = from_union([Role, from_none], obj.get("role"))
-        return Data(context, copilot_version, producer, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, title, info_type, warning_type, new_model, previous_model, new_mode, previous_mode, operation, path, handoff_time, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, current_model, error_reason, model_metrics, session_start_time, shutdown_type, total_api_duration_ms, total_premium_requests, branch, cwd, git_root, current_tokens, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, interaction_id, source, transformed_content, turn_id, intent, reasoning_id, delta_content, total_response_size_bytes, encrypted_content, message_id, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, api_call_id, cache_read_tokens, cache_write_tokens, copilot_usage, cost, duration, initiator, input_tokens, model, output_tokens, quota_snapshots, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, name, plugin_name, plugin_version, agent_description, agent_display_name, agent_name, tools, hook_invocation_id, hook_type, input, output, metadata, role)
+        permission_request = from_union([PermissionRequest.from_dict, from_none], obj.get("permissionRequest"))
+        allow_freeform = from_union([from_bool, from_none], obj.get("allowFreeform"))
+        choices = from_union([lambda x: from_list(from_str, x), from_none], obj.get("choices"))
+        question = from_union([from_str, from_none], obj.get("question"))
+        mode = from_union([Mode, from_none], obj.get("mode"))
+        requested_schema = from_union([RequestedSchema.from_dict, from_none], obj.get("requestedSchema"))
+        return Data(context, copilot_version, producer, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, title, info_type, warning_type, new_model, previous_model, new_mode, previous_mode, operation, path, handoff_time, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, current_model, error_reason, model_metrics, session_start_time, shutdown_type, total_api_duration_ms, total_premium_requests, branch, cwd, git_root, current_tokens, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, interaction_id, source, transformed_content, turn_id, intent, reasoning_id, delta_content, total_response_size_bytes, encrypted_content, message_id, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, api_call_id, cache_read_tokens, cache_write_tokens, copilot_usage, cost, duration, initiator, input_tokens, model, output_tokens, quota_snapshots, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, name, plugin_name, plugin_version, agent_description, agent_display_name, agent_name, tools, hook_invocation_id, hook_type, input, output, metadata, role, permission_request, allow_freeform, choices, question, mode, requested_schema)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -1211,6 +1407,18 @@ class Data:
             result["metadata"] = from_union([lambda x: to_class(Metadata, x), from_none], self.metadata)
         if self.role is not None:
             result["role"] = from_union([lambda x: to_enum(Role, x), from_none], self.role)
+        if self.permission_request is not None:
+            result["permissionRequest"] = from_union([lambda x: to_class(PermissionRequest, x), from_none], self.permission_request)
+        if self.allow_freeform is not None:
+            result["allowFreeform"] = from_union([from_bool, from_none], self.allow_freeform)
+        if self.choices is not None:
+            result["choices"] = from_union([lambda x: from_list(from_str, x), from_none], self.choices)
+        if self.question is not None:
+            result["question"] = from_union([from_str, from_none], self.question)
+        if self.mode is not None:
+            result["mode"] = from_union([lambda x: to_enum(Mode, x), from_none], self.mode)
+        if self.requested_schema is not None:
+            result["requestedSchema"] = from_union([lambda x: to_class(RequestedSchema, x), from_none], self.requested_schema)
         return result
 
 
@@ -1225,9 +1433,13 @@ class SessionEventType(Enum):
     ASSISTANT_TURN_END = "assistant.turn_end"
     ASSISTANT_TURN_START = "assistant.turn_start"
     ASSISTANT_USAGE = "assistant.usage"
+    ELICITATION_COMPLETED = "elicitation.completed"
+    ELICITATION_REQUESTED = "elicitation.requested"
     HOOK_END = "hook.end"
     HOOK_START = "hook.start"
     PENDING_MESSAGES_MODIFIED = "pending_messages.modified"
+    PERMISSION_COMPLETED = "permission.completed"
+    PERMISSION_REQUESTED = "permission.requested"
     SESSION_COMPACTION_COMPLETE = "session.compaction_complete"
     SESSION_COMPACTION_START = "session.compaction_start"
     SESSION_CONTEXT_CHANGED = "session.context_changed"
@@ -1260,6 +1472,8 @@ class SessionEventType(Enum):
     TOOL_EXECUTION_PROGRESS = "tool.execution_progress"
     TOOL_EXECUTION_START = "tool.execution_start"
     TOOL_USER_REQUESTED = "tool.user_requested"
+    USER_INPUT_COMPLETED = "user_input.completed"
+    USER_INPUT_REQUESTED = "user_input.requested"
     USER_MESSAGE = "user.message"
     # UNKNOWN is used for forward compatibility
     UNKNOWN = "unknown"
