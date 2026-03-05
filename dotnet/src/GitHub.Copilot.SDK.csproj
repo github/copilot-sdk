@@ -1,20 +1,26 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <Version>0.1.0</Version>
         <Description>SDK for programmatic control of GitHub Copilot CLI</Description>
         <Authors>GitHub</Authors>
         <Company>GitHub</Company>
         <Copyright>Copyright (c) Microsoft Corporation. All rights reserved.</Copyright>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/github/copilot-sdk</PackageProjectUrl>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <RepositoryUrl>https://github.com/github/copilot-sdk</RepositoryUrl>
         <PackageTags>github;copilot;sdk;jsonrpc;agent</PackageTags>
         <IsAotCompatible>true</IsAotCompatible>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(CI)' == 'true' or '$(TF_BUILD)' == 'true'">
+        <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
     </PropertyGroup>
 
     <ItemGroup>
@@ -22,10 +28,11 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="10.2.0" />
-        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
-        <PackageReference Include="StreamJsonRpc" Version="2.24.84" PrivateAssets="compile" />
-        <PackageReference Include="System.Text.Json" Version="10.0.2" />
+        <PackageReference Include="Microsoft.Extensions.AI.Abstractions" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+        <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" />
+        <PackageReference Include="StreamJsonRpc" PrivateAssets="compile" />
+        <PackageReference Include="System.Text.Json" />
     </ItemGroup>
 
     <!-- Generate version props file at build time (gitignored) -->

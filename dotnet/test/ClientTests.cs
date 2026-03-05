@@ -230,14 +230,11 @@ public class ClientTests
     {
         var client = new CopilotClient(new CopilotClientOptions
         {
-            CliArgs = new[] { "--nonexistent-flag-for-testing" },
+            CliArgs = ["--nonexistent-flag-for-testing"],
             UseStdio = true
         });
 
-        var ex = await Assert.ThrowsAsync<IOException>(async () =>
-        {
-            await client.StartAsync();
-        });
+        var ex = await Assert.ThrowsAsync<IOException>(() => client.StartAsync());
 
         var errorMessage = ex.Message;
         // Verify we get the stderr output in the error message
@@ -261,10 +258,7 @@ public class ClientTests
     {
         using var client = new CopilotClient(new CopilotClientOptions());
 
-        var ex = await Assert.ThrowsAsync<ArgumentException>(async () =>
-        {
-            await client.CreateSessionAsync(new SessionConfig());
-        });
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => client.CreateSessionAsync(new SessionConfig()));
 
         Assert.Contains("OnPermissionRequest", ex.Message);
         Assert.Contains("is required", ex.Message);
@@ -275,10 +269,7 @@ public class ClientTests
     {
         using var client = new CopilotClient(new CopilotClientOptions());
 
-        var ex = await Assert.ThrowsAsync<ArgumentException>(async () =>
-        {
-            await client.ResumeSessionAsync("some-session-id", new ResumeSessionConfig());
-        });
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => client.ResumeSessionAsync("some-session-id", new()));
 
         Assert.Contains("OnPermissionRequest", ex.Message);
         Assert.Contains("is required", ex.Message);

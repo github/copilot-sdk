@@ -11,10 +11,13 @@ internal static class SdkProtocolVersion
     /// <summary>
     /// The SDK protocol version.
     /// </summary>
-    public const int Version = 2;
+    private const int Version = 2;
 
     /// <summary>
     /// Gets the SDK protocol version.
     /// </summary>
-    public static int GetVersion() => Version;
+    public static int GetVersion()
+    {
+        return Version;
+    }
 }

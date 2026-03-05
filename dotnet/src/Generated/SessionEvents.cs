@@ -5,6 +5,9 @@
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: session-events.schema.json
 
+// Generated code does not have XML doc comments; suppress CS1591 to avoid warnings.
+#pragma warning disable CS1591
+
 using System.Text.Json;
 using System.Text.Json.Serialization;
 

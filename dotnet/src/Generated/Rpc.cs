@@ -5,6 +5,9 @@
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: api.schema.json
 
+// Generated code does not have XML doc comments; suppress CS1591 to avoid warnings.
+#pragma warning disable CS1591
+
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using StreamJsonRpc;
@@ -116,7 +119,7 @@ public class ModelsListResult
 {
     /// <summary>List of available models with full metadata</summary>
     [JsonPropertyName("models")]
-    public List<Model> Models { get; set; } = new();
+    public List<Model> Models { get; set; } = [];
 }
 
 public class Tool
@@ -146,7 +149,7 @@ public class ToolsListResult
 {
     /// <summary>List of available built-in tools with metadata</summary>
     [JsonPropertyName("tools")]
-    public List<Tool> Tools { get; set; } = new();
+    public List<Tool> Tools { get; set; } = [];
 }
 
 internal class ToolsListRequest
@@ -186,7 +189,7 @@ public class AccountGetQuotaResult
 {
     /// <summary>Quota snapshots keyed by type (e.g., chat, completions, premium_interactions)</summary>
     [JsonPropertyName("quotaSnapshots")]
-    public Dictionary<string, AccountGetQuotaResultQuotaSnapshotsValue> QuotaSnapshots { get; set; } = new();
+    public Dictionary<string, AccountGetQuotaResultQuotaSnapshotsValue> QuotaSnapshots { get; set; } = [];
 }
 
 public class SessionModelGetCurrentResult
@@ -289,7 +292,7 @@ public class SessionWorkspaceListFilesResult
 {
     /// <summary>Relative file paths in the workspace files directory</summary>
     [JsonPropertyName("files")]
-    public List<string> Files { get; set; } = new();
+    public List<string> Files { get; set; } = [];
 }
 
 internal class SessionWorkspaceListFilesRequest
@@ -365,7 +368,7 @@ public class SessionAgentListResult
 {
     /// <summary>Available custom agents</summary>
     [JsonPropertyName("agents")]
-    public List<Agent> Agents { get; set; } = new();
+    public List<Agent> Agents { get; set; } = [];
 }
 
 internal class SessionAgentListRequest

@@ -68,9 +68,13 @@ describe("CopilotClient", () => {
         onTestFinished(() => client.forceStop());
 
         const session = await client.createSession({ onPermissionRequest: approveAll });
+        // Mock sendRequest to capture the call without hitting the runtime
         const spy = vi
             .spyOn((client as any).connection!, "sendRequest")
-            .mockResolvedValue({ sessionId: session.sessionId });
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
         await client.resumeSession(session.sessionId, {
             clientName: "my-app",
             onPermissionRequest: approveAll,
@@ -80,6 +84,7 @@ describe("CopilotClient", () => {
             "session.resume",
             expect.objectContaining({ clientName: "my-app", sessionId: session.sessionId })
         );
+        spy.mockRestore();
     });
 
     it("sends session.model.switchTo RPC with correct params", async () => {
@@ -327,7 +332,13 @@ describe("CopilotClient", () => {
             onTestFinished(() => client.forceStop());
 
             const session = await client.createSession({ onPermissionRequest: approveAll });
-            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            // Mock sendRequest to capture the call without hitting the runtime
+            const spy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (method: string, params: any) => {
+                    if (method === "session.resume") return { sessionId: params.sessionId };
+                    throw new Error(`Unexpected method: ${method}`);
+                });
             await client.resumeSession(session.sessionId, {
                 onPermissionRequest: approveAll,
                 tools: [
@@ -344,6 +355,7 @@ describe("CopilotClient", () => {
             expect(payload.tools).toEqual([
                 expect.objectContaining({ name: "grep", overridesBuiltInTool: true }),
             ]);
+            spy.mockRestore();
         });
     });
 });
