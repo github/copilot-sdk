@@ -14,6 +14,7 @@ on:
         options:
           - latest
           - prerelease
+          - unstable
       version:
         description: "Version override (optional, e.g., 1.0.0). If empty, auto-increments."
         type: string
@@ -66,8 +67,8 @@ jobs:
               fi
             else
               if [[ "$VERSION" != *-* ]]; then
-                echo "❌ Error: Version '$VERSION' has no prerelease suffix but dist-tag is 'prerelease'" >> $GITHUB_STEP_SUMMARY
-                echo "Use a version with suffix (e.g., '1.0.0-preview.0') for prerelease"
+                echo "❌ Error: Version '$VERSION' has no prerelease suffix but dist-tag is '${{ github.event.inputs.dist-tag }}'" >> $GITHUB_STEP_SUMMARY
+                echo "Use a version with suffix (e.g., '1.0.0-preview.0') for prerelease/unstable"
                 exit 1
               fi
             fi
@@ -112,6 +113,7 @@ jobs:
 
   publish-dotnet:
     name: Publish .NET SDK
+    if: github.event.inputs.dist-tag != 'unstable'
     needs: version
     runs-on: ubuntu-latest
     defaults:
@@ -147,6 +149,7 @@ jobs:
 
   publish-python:
     name: Publish Python SDK
+    if: github.event.inputs.dist-tag != 'unstable'
     needs: version
     runs-on: ubuntu-latest
     defaults:
@@ -183,7 +186,7 @@ jobs:
   github-release:
     name: Create GitHub Release
     needs: [version, publish-nodejs, publish-dotnet, publish-python]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event.inputs.dist-tag != 'unstable'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
