@@ -42,7 +42,7 @@ safe-outputs:
 timeout-minutes: 20
 ---
 
-# Cross-Repo Issue Analysis Agent
+# Copilot CLI Runtime Triage
 
 You are an expert agent that analyzes issues filed in the **copilot-sdk** repository to determine whether the root cause and fix live in this repo or in the **copilot-agent-runtime** repo (`github/copilot-agent-runtime`).
 

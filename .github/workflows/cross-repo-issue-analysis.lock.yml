@@ -25,7 +25,7 @@
 #
 # gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"991be1f4acef9136f7a012c1255fd6f0ae2a9e8e8b34e9c21a66026d7e8c3cd8","compiler_version":"v0.50.5"}
 
-name: "Cross-Repo Issue Analysis Agent"
+name: "Copilot CLI Runtime Triage"
 "on":
   issues:
     types:
@@ -42,7 +42,7 @@ permissions: {}
 concurrency:
   group: "gh-aw-${{ github.workflow }}-${{ github.event.issue.number }}"
 
-run-name: "Cross-Repo Issue Analysis Agent"
+run-name: "Copilot CLI Runtime Triage"
 
 jobs:
   activation:
@@ -314,7 +314,7 @@ jobs:
               version: "",
               agent_version: "0.0.418",
               cli_version: "v0.50.5",
-              workflow_name: "Cross-Repo Issue Analysis Agent",
+              workflow_name: "Copilot CLI Runtime Triage",
               experimental: false,
               supports_tools_allowlist: true,
               run_id: context.runId,
@@ -1036,7 +1036,7 @@ jobs:
         if: always() && steps.detection_guard.outputs.run_detection == 'true'
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
-          WORKFLOW_NAME: "Cross-Repo Issue Analysis Agent"
+          WORKFLOW_NAME: "Copilot CLI Runtime Triage"
           WORKFLOW_DESCRIPTION: "Analyzes copilot-sdk issues to determine if a fix is needed in copilot-agent-runtime, then opens a linked issue and suggested-fix PR there"
           HAS_PATCH: ${{ steps.collect_output.outputs.has_patch }}
         with:
@@ -1155,7 +1155,7 @@ jobs:
         env:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
           GH_AW_NOOP_MAX: "1"
-          GH_AW_WORKFLOW_NAME: "Cross-Repo Issue Analysis Agent"
+          GH_AW_WORKFLOW_NAME: "Copilot CLI Runtime Triage"
         with:
           github-token: ${{ secrets.RUNTIME_TRIAGE_TOKEN }}
           script: |
@@ -1168,7 +1168,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
-          GH_AW_WORKFLOW_NAME: "Cross-Repo Issue Analysis Agent"
+          GH_AW_WORKFLOW_NAME: "Copilot CLI Runtime Triage"
         with:
           github-token: ${{ secrets.RUNTIME_TRIAGE_TOKEN }}
           script: |
@@ -1181,7 +1181,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
-          GH_AW_WORKFLOW_NAME: "Cross-Repo Issue Analysis Agent"
+          GH_AW_WORKFLOW_NAME: "Copilot CLI Runtime Triage"
           GH_AW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           GH_AW_AGENT_CONCLUSION: ${{ needs.agent.result }}
           GH_AW_WORKFLOW_ID: "cross-repo-issue-analysis"
@@ -1202,7 +1202,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
-          GH_AW_WORKFLOW_NAME: "Cross-Repo Issue Analysis Agent"
+          GH_AW_WORKFLOW_NAME: "Copilot CLI Runtime Triage"
           GH_AW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           GH_AW_AGENT_CONCLUSION: ${{ needs.agent.result }}
           GH_AW_NOOP_MESSAGE: ${{ steps.noop.outputs.noop_message }}
@@ -1219,7 +1219,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
-          GH_AW_WORKFLOW_NAME: "Cross-Repo Issue Analysis Agent"
+          GH_AW_WORKFLOW_NAME: "Copilot CLI Runtime Triage"
           GH_AW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           github-token: ${{ secrets.RUNTIME_TRIAGE_TOKEN }}
@@ -1267,7 +1267,7 @@ jobs:
     env:
       GH_AW_ENGINE_ID: "copilot"
       GH_AW_WORKFLOW_ID: "cross-repo-issue-analysis"
-      GH_AW_WORKFLOW_NAME: "Cross-Repo Issue Analysis Agent"
+      GH_AW_WORKFLOW_NAME: "Copilot CLI Runtime Triage"
     outputs:
       code_push_failure_count: ${{ steps.process_safe_outputs.outputs.code_push_failure_count }}
       code_push_failure_errors: ${{ steps.process_safe_outputs.outputs.code_push_failure_errors }}
