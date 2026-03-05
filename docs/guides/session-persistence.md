@@ -34,6 +34,7 @@ const client = new CopilotClient();
 const session = await client.createSession({
   sessionId: "user-123-task-456",
   model: "gpt-5.2-codex",
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 // Do some work...
@@ -111,10 +112,10 @@ flowchart LR
     subgraph Day1["Day 1"]
         A1[Client A:<br/>createSession] --> A2[Work...]
     end
-    
+
     A2 --> S[(💾 Storage:<br/>~/.copilot/session-state/)]
     S --> B1
-    
+
     subgraph Day2["Day 2"]
         B1[Client B:<br/>resumeSession] --> B2[Continue]
     end
@@ -124,7 +125,7 @@ flowchart LR
 
 ```typescript
 // Resume from a different client instance (or after restart)
-const session = await client.resumeSession("user-123-task-456");
+const session = await client.resumeSession("user-123-task-456", { onPermissionRequest: async () => ({ kind: "approved" }) });
 
 // Continue where you left off
 await session.sendAndWait({ prompt: "What did we discuss earlier?" });
@@ -192,6 +193,7 @@ When resuming a session, you can optionally reconfigure many settings. This is u
 const session = await client.resumeSession("user-123-task-456", {
   model: "claude-sonnet-4",  // Switch to a different model
   reasoningEffort: "high",   // Increase reasoning effort
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -210,6 +212,7 @@ const session = await client.createSession({
     apiKey: process.env.AZURE_OPENAI_KEY,
     deploymentId: "my-gpt-deployment",
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 // When resuming, you MUST re-provide the provider config
@@ -220,6 +223,7 @@ const resumed = await client.resumeSession("user-123-task-456", {
     apiKey: process.env.AZURE_OPENAI_KEY,  // Required again
     deploymentId: "my-gpt-deployment",
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -311,7 +315,7 @@ const repoSessions = await client.listSessions({ repository: "owner/repo" });
 async function cleanupExpiredSessions(maxAgeMs: number) {
   const sessions = await client.listSessions();
   const now = Date.now();
-  
+
   for (const session of sessions) {
     const age = now - new Date(session.createdAt).getTime();
     if (age > maxAgeMs) {
@@ -333,7 +337,7 @@ When a task completes, destroy the session explicitly rather than waiting for ti
 try {
   // Do work...
   await session.sendAndWait({ prompt: "Complete the task" });
-  
+
   // Task complete - clean up
   await session.destroy();
 } catch (error) {
@@ -408,12 +412,12 @@ async function resumeSessionWithAuth(
 ): Promise<Session> {
   // Parse user from session ID
   const [sessionUserId] = sessionId.split("-");
-  
+
   if (sessionUserId !== currentUserId) {
     throw new Error("Access denied: session belongs to another user");
   }
-  
-  return client.resumeSession(sessionId);
+
+  return client.resumeSession(sessionId, { onPermissionRequest: async () => ({ kind: "approved" }) });
 }
 ```
 
@@ -446,10 +450,10 @@ flowchart LR
     subgraph Before["Container A"]
         CLI1[CLI + Session X]
     end
-    
+
     CLI1 --> |persist| Azure[(☁️ Azure File Share)]
     Azure --> |restore| CLI2
-    
+
     subgraph After["Container B (restart)"]
         CLI2[CLI + Session X]
     end
@@ -469,6 +473,7 @@ const session = await client.createSession({
     backgroundCompactionThreshold: 0.80,  // Start compaction at 80% context
     bufferExhaustionThreshold: 0.95,      // Block at 95% if needed
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -499,11 +504,11 @@ async function withSessionLock<T>(
 ): Promise<T> {
   const lockKey = `session-lock:${sessionId}`;
   const acquired = await redis.set(lockKey, "locked", "NX", "EX", 300);
-  
+
   if (!acquired) {
     throw new Error("Session is in use by another client");
   }
-  
+
   try {
     return await fn();
   } finally {
@@ -513,7 +518,7 @@ async function withSessionLock<T>(
 
 // Usage
 await withSessionLock("user-123-task-456", async () => {
-  const session = await client.resumeSession("user-123-task-456");
+  const session = await client.resumeSession("user-123-task-456", { onPermissionRequest: async () => ({ kind: "approved" }) });
   await session.sendAndWait({ prompt: "Continue the task" });
 });
 ```

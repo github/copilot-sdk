@@ -376,8 +376,9 @@ const client = new CopilotClient({
    ```typescript
    const session = await client.createSession({
      tools: [myTool],
+     onPermissionRequest: async () => ({ kind: "approved" }),
    });
-   
+
    // Check registered tools
    console.log("Registered tools:", session.getTools?.());
    ```

@@ -150,6 +150,7 @@ Disable specific skills while keeping others active:
 const session = await client.createSession({
     skillDirectories: ["./skills"],
     disabledSkills: ["experimental-feature", "deprecated-tool"],
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 

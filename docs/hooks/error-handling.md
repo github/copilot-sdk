@@ -98,6 +98,7 @@ const session = await client.createSession({
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -180,10 +181,11 @@ const session = await client.createSession({
           cwd: input.cwd,
         },
       });
-      
+
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -201,16 +203,17 @@ const session = await client.createSession({
   hooks: {
     onErrorOccurred: async (input) => {
       const friendlyMessage = ERROR_MESSAGES[input.errorContext];
-      
+
       if (friendlyMessage) {
         return {
           userNotification: friendlyMessage,
         };
       }
-      
+
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -228,6 +231,7 @@ const session = await client.createSession({
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -247,7 +251,7 @@ The tool failed. Here are some recovery suggestions:
           `.trim(),
         };
       }
-      
+
       if (input.errorContext === "model_call" && input.error.includes("rate")) {
         return {
           errorHandling: "retry",
@@ -255,10 +259,11 @@ The tool failed. Here are some recovery suggestions:
           userNotification: "Rate limit hit. Retrying...",
         };
       }
-      
+
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -277,27 +282,28 @@ const session = await client.createSession({
   hooks: {
     onErrorOccurred: async (input, invocation) => {
       const key = `${input.errorContext}:${input.error.substring(0, 50)}`;
-      
+
       const existing = errorStats.get(key) || {
         count: 0,
         lastOccurred: 0,
         contexts: [],
       };
-      
+
       existing.count++;
       existing.lastOccurred = input.timestamp;
       existing.contexts.push(invocation.sessionId);
-      
+
       errorStats.set(key, existing);
-      
+
       // Alert if error is recurring
       if (existing.count >= 5) {
         console.warn(`Recurring error detected: ${key} (${existing.count} times)`);
       }
-      
+
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -318,10 +324,11 @@ const session = await client.createSession({
           timestamp: new Date(input.timestamp).toISOString(),
         });
       }
-      
+
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -338,17 +345,17 @@ const session = await client.createSession({
       sessionContext.set(invocation.sessionId, ctx);
       return { permissionDecision: "allow" };
     },
-    
+
     onUserPromptSubmitted: async (input, invocation) => {
       const ctx = sessionContext.get(invocation.sessionId) || {};
       ctx.lastPrompt = input.prompt.substring(0, 100);
       sessionContext.set(invocation.sessionId, ctx);
       return null;
     },
-    
+
     onErrorOccurred: async (input, invocation) => {
       const ctx = sessionContext.get(invocation.sessionId);
-      
+
       console.error(`Error in session ${invocation.sessionId}:`);
       console.error(`  Error: ${input.error}`);
       console.error(`  Context: ${input.errorContext}`);
@@ -358,10 +365,11 @@ const session = await client.createSession({
       if (ctx?.lastPrompt) {
         console.error(`  Last prompt: ${ctx.lastPrompt}...`);
       }
-      
+
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 

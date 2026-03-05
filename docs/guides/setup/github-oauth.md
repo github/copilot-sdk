@@ -134,6 +134,7 @@ const client = createClientForUser("gho_user_access_token");
 const session = await client.createSession({
     sessionId: `user-${userId}-session`,
     model: "gpt-4.1",
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 const response = await session.sendAndWait({ prompt: "Hello!" });

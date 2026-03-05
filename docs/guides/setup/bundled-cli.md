@@ -72,7 +72,7 @@ const client = new CopilotClient({
     cliPath: path.join(__dirname, "vendor", "copilot"),
 });
 
-const session = await client.createSession({ model: "gpt-4.1" });
+const session = await client.createSession({ model: "gpt-4.1", onPermissionRequest: async () => ({ kind: "approved" }) });
 const response = await session.sendAndWait({ prompt: "Hello!" });
 console.log(response?.data.content);
 
@@ -200,6 +200,7 @@ const session = await client.createSession({
         baseUrl: "https://api.openai.com/v1",
         apiKey: process.env.OPENAI_API_KEY,
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -219,11 +220,12 @@ const sessionId = `project-${projectName}`;
 const session = await client.createSession({
     sessionId,
     model: "gpt-4.1",
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 // User closes app...
 // Later, resume where they left off
-const resumed = await client.resumeSession(sessionId);
+const resumed = await client.resumeSession(sessionId, { onPermissionRequest: async () => ({ kind: "approved" }) });
 ```
 
 Session state persists at `~/.copilot/session-state/{sessionId}/`.

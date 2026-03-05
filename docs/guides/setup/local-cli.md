@@ -37,7 +37,7 @@ The default configuration requires no options at all:
 import { CopilotClient } from "@github/copilot-sdk";
 
 const client = new CopilotClient();
-const session = await client.createSession({ model: "gpt-4.1" });
+const session = await client.createSession({ model: "gpt-4.1", onPermissionRequest: async () => ({ kind: "approved" }) });
 
 const response = await session.sendAndWait({ prompt: "Hello!" });
 console.log(response?.data.content);
@@ -173,10 +173,11 @@ With the local CLI, sessions default to ephemeral. To create resumable sessions,
 const session = await client.createSession({
     sessionId: "my-project-analysis",
     model: "gpt-4.1",
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 // Later, resume it
-const resumed = await client.resumeSession("my-project-analysis");
+const resumed = await client.resumeSession("my-project-analysis", { onPermissionRequest: async () => ({ kind: "approved" }) });
 ```
 
 Session state is stored locally at `~/.copilot/session-state/{sessionId}/`.

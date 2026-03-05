@@ -44,6 +44,7 @@ const session = await client.createSession({
       return { additionalContext: "User prefers concise answers." };
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -183,6 +184,7 @@ const session = await client.createSession({
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -203,6 +205,7 @@ const session = await client.createSession({
       return { permissionDecision: "allow" };
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -218,6 +221,7 @@ const session = await client.createSession({
       };
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 

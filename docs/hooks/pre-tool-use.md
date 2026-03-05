@@ -105,6 +105,7 @@ const session = await client.createSession({
       return { permissionDecision: "allow" };
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -186,6 +187,7 @@ const session = await client.createSession({
       return { permissionDecision: "allow" };
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -209,6 +211,7 @@ const session = await client.createSession({
       return { permissionDecision: "allow" };
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -222,10 +225,10 @@ const session = await client.createSession({
     onPreToolUse: async (input) => {
       if (input.toolName === "read_file" || input.toolName === "write_file") {
         const args = input.toolArgs as { path: string };
-        const isAllowed = ALLOWED_DIRECTORIES.some(dir => 
+        const isAllowed = ALLOWED_DIRECTORIES.some(dir =>
           args.path.startsWith(dir)
         );
-        
+
         if (!isAllowed) {
           return {
             permissionDecision: "deny",
@@ -236,6 +239,7 @@ const session = await client.createSession({
       return { permissionDecision: "allow" };
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -253,6 +257,7 @@ const session = await client.createSession({
       };
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -271,6 +276,7 @@ const session = await client.createSession({
       return { permissionDecision: "allow" };
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 

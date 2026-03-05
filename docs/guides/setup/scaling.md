@@ -153,7 +153,7 @@ async function resumeSessionWithAuth(
     if (sessionUserId !== currentUserId) {
         throw new Error("Access denied: session belongs to another user");
     }
-    return sharedClient.resumeSession(sessionId);
+    return sharedClient.resumeSession(sessionId, { onPermissionRequest: async () => ({ kind: "approved" }) });
 }
 ```
 
@@ -227,7 +227,7 @@ async function withSessionLock<T>(
 // Usage: serialize access to shared session
 app.post("/team-chat", authMiddleware, async (req, res) => {
     const result = await withSessionLock("team-project-review", async () => {
-        const session = await client.resumeSession("team-project-review");
+        const session = await client.resumeSession("team-project-review", { onPermissionRequest: async () => ({ kind: "approved" }) });
         return session.sendAndWait({ prompt: req.body.message });
     });
 
@@ -323,6 +323,7 @@ app.post("/chat", async (req, res) => {
     const session = await client.createSession({
         sessionId: `user-${req.user.id}-chat`,
         model: "gpt-4.1",
+        onPermissionRequest: async () => ({ kind: "approved" }),
     });
 
     const response = await session.sendAndWait({ prompt: req.body.message });
@@ -403,6 +404,7 @@ class SessionManager {
         const session = await client.createSession({
             sessionId,
             model: "gpt-4.1",
+            onPermissionRequest: async () => ({ kind: "approved" }),
         });
 
         this.activeSessions.set(sessionId, session);
@@ -449,6 +451,7 @@ For stateless API endpoints where each request is independent:
 app.post("/api/analyze", async (req, res) => {
     const session = await client.createSession({
         model: "gpt-4.1",
+        onPermissionRequest: async () => ({ kind: "approved" }),
     });
 
     try {
@@ -478,6 +481,7 @@ app.post("/api/chat/start", async (req, res) => {
             enabled: true,
             backgroundCompactionThreshold: 0.80,
         },
+        onPermissionRequest: async () => ({ kind: "approved" }),
     });
 
     res.json({ sessionId });
@@ -485,7 +489,7 @@ app.post("/api/chat/start", async (req, res) => {
 
 // Continue the conversation
 app.post("/api/chat/message", async (req, res) => {
-    const session = await client.resumeSession(req.body.sessionId);
+    const session = await client.resumeSession(req.body.sessionId, { onPermissionRequest: async () => ({ kind: "approved" }) });
     const response = await session.sendAndWait({ prompt: req.body.message });
 
     res.json({ content: response?.data.content });
