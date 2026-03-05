@@ -13,11 +13,22 @@ permissions:
   contents: read
   issues: read
   pull-requests: read
+steps:
+  - name: Clone copilot-agent-runtime
+    run: git clone --depth 1 https://x-access-token:${{ secrets.RUNTIME_TRIAGE_TOKEN }}@github.com/github/copilot-agent-runtime.git /home/runner/work/copilot-agent-runtime
 tools:
   github:
     toolsets: [default]
     github-token: ${{ secrets.RUNTIME_TRIAGE_TOKEN }}
   edit:
+  bash:
+    - "grep:*"
+    - "find:*"
+    - "cat:*"
+    - "head:*"
+    - "tail:*"
+    - "wc:*"
+    - "ls:*"
 safe-outputs:
   github-token: ${{ secrets.RUNTIME_TRIAGE_TOKEN }}
   allowed-github-references: ["repo", "github/copilot-agent-runtime"]
@@ -42,7 +53,7 @@ safe-outputs:
 timeout-minutes: 20
 ---
 
-# Copilot CLI Runtime Triage
+# SDK Runtime Triage
 
 You are an expert agent that analyzes issues filed in the **copilot-sdk** repository to determine whether the root cause and fix live in this repo or in the **copilot-agent-runtime** repo (`github/copilot-agent-runtime`).
 
@@ -62,17 +73,17 @@ Use GitHub tools to fetch the full issue body, comments, and any linked referenc
 
 ### Step 2: Analyze Against copilot-sdk
 
-Search the copilot-sdk codebase (this repo) to understand whether the reported problem could originate here:
+Search the copilot-sdk codebase on disk to understand whether the reported problem could originate here. The repo is checked out at the default working directory.
 
-- Check the relevant SDK language implementation (`nodejs/src/`, `python/copilot/`, `go/`, `dotnet/src/`)
+- Use bash tools (`grep`, `find`, `cat`) to search the relevant SDK language implementation (`nodejs/src/`, `python/copilot/`, `go/`, `dotnet/src/`)
 - Look at the JSON-RPC client layer, session management, event handling, and tool definitions
 - Check if the issue relates to SDK-side logic (type generation, streaming, event parsing, client options, etc.)
 
 ### Step 3: Investigate copilot-agent-runtime
 
-If the issue does NOT appear to be caused by SDK code, or you suspect the runtime is involved, investigate the **copilot-agent-runtime** repo:
+If the issue does NOT appear to be caused by SDK code, or you suspect the runtime is involved, investigate the **copilot-agent-runtime** repo. It has been cloned to `/home/runner/work/copilot-agent-runtime`.
 
-- Use GitHub tools to read relevant files from `github/copilot-agent-runtime`
+- Use bash tools (`grep`, `find`, `cat`) to search the runtime codebase directly on disk
 - Look at the server-side JSON-RPC handling, session management, tool execution, and response generation
 - Focus on the areas that correspond to the reported issue (e.g., if the issue is about streaming, look at the runtime's streaming implementation)
 
