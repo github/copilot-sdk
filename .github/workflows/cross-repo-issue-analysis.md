@@ -16,6 +16,7 @@ permissions:
 tools:
   github:
     toolsets: [default]
+    github-token: ${{ secrets.RUNTIME_TRIAGE_TOKEN }}
   edit:
 safe-outputs:
   github-token: ${{ secrets.RUNTIME_TRIAGE_TOKEN }}
