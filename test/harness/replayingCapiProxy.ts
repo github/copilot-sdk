@@ -311,7 +311,8 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
 
         // Fallback to normal proxying if no cached response found
         // This implicitly captures the new exchange too
-        if (process.env.CI === "true") {
+        const isCI = process.env.GITHUB_ACTIONS === "true";
+        if (isCI) {
           await exitWithNoMatchingRequestError(
             options,
             state.testInfo,

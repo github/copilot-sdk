@@ -21,7 +21,7 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
             {
                 permissionRequests.Add(request);
                 Assert.Equal(session!.SessionId, invocation.SessionId);
-                return Task.FromResult(new PermissionRequestResult { Kind = "approved" });
+                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
             }
         });
 
@@ -50,7 +50,7 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
             {
                 return Task.FromResult(new PermissionRequestResult
                 {
-                    Kind = "denied-interactively-by-user"
+                    Kind = PermissionRequestResultKind.DeniedInteractivelyByUser
                 });
             }
         });
@@ -76,7 +76,7 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
         var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = (_, _) =>
-                Task.FromResult(new PermissionRequestResult { Kind = "denied-no-approval-rule-and-could-not-request-from-user" })
+                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser })
         });
         var permissionDenied = false;
 
@@ -123,7 +123,7 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
                 permissionRequestReceived = true;
                 // Simulate async permission check
                 await Task.Delay(10);
-                return new PermissionRequestResult { Kind = "approved" };
+                return new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved };
             }
         });
 
@@ -153,7 +153,7 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
             OnPermissionRequest = (request, invocation) =>
             {
                 permissionRequestReceived = true;
-                return Task.FromResult(new PermissionRequestResult { Kind = "approved" });
+                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
             }
         });
 
@@ -201,7 +201,7 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
         var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = (_, _) =>
-                Task.FromResult(new PermissionRequestResult { Kind = "denied-no-approval-rule-and-could-not-request-from-user" })
+                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser })
         });
         var permissionDenied = false;
 
@@ -235,7 +235,7 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
                 {
                     receivedToolCallId = true;
                 }
-                return Task.FromResult(new PermissionRequestResult { Kind = "approved" });
+                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
             }
         });
 

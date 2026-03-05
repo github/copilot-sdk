@@ -6,6 +6,6 @@ var PermissionHandler = struct {
 	ApproveAll PermissionHandlerFunc
 }{
 	ApproveAll: func(_ PermissionRequest, _ PermissionInvocation) (PermissionRequestResult, error) {
-		return PermissionRequestResult{Kind: "approved"}, nil
+		return PermissionRequestResult{Kind: PermissionRequestResultKindApproved}, nil
 	},
 }

@@ -16,7 +16,7 @@ try
     {
         Model = "claude-haiku-4.5",
         OnPermissionRequest = (request, invocation) =>
-            Task.FromResult(new PermissionRequestResult { Kind = "approved" }),
+            Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
         Hooks = new SessionHooks
         {
             OnSessionStart = (input, invocation) =>

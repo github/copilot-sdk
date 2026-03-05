@@ -323,7 +323,7 @@ func TestTools(t *testing.T) {
 				mu.Lock()
 				permissionRequests = append(permissionRequests, request)
 				mu.Unlock()
-				return copilot.PermissionRequestResult{Kind: "approved"}, nil
+				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
 			},
 		})
 		if err != nil {
@@ -379,7 +379,7 @@ func TestTools(t *testing.T) {
 					}),
 			},
 			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-				return copilot.PermissionRequestResult{Kind: "denied-interactively-by-user"}, nil
+				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindDeniedInteractivelyByUser}, nil
 			},
 		})
 		if err != nil {

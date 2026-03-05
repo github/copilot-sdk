@@ -223,7 +223,7 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
             OnPermissionRequest = (request, invocation) =>
             {
                 permissionRequests.Add(request);
-                return Task.FromResult(new PermissionRequestResult { Kind = "approved" });
+                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
             },
         });
 
@@ -256,7 +256,7 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
         var session = await Client.CreateSessionAsync(new SessionConfig
         {
             Tools = [AIFunctionFactory.Create(EncryptStringDenied, "encrypt_string")],
-            OnPermissionRequest = async (request, invocation) => new() { Kind = "denied-interactively-by-user" },
+            OnPermissionRequest = async (request, invocation) => new() { Kind = PermissionRequestResultKind.DeniedInteractivelyByUser },
         });
 
         await session.SendAsync(new MessageOptions

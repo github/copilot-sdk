@@ -1315,7 +1315,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             {
                 return new PermissionRequestResponse(new PermissionRequestResult
                 {
-                    Kind = "denied-no-approval-rule-and-could-not-request-from-user"
+                    Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser
                 });
             }
 
@@ -1329,7 +1329,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 // If permission handler fails, deny the permission
                 return new PermissionRequestResponse(new PermissionRequestResult
                 {
-                    Kind = "denied-no-approval-rule-and-could-not-request-from-user"
+                    Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser
                 });
             }
         }

@@ -132,10 +132,28 @@ func (p *PermissionRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// PermissionRequestResultKind represents the kind of a permission request result.
+type PermissionRequestResultKind string
+
+const (
+	// PermissionRequestResultKindApproved indicates the permission was approved.
+	PermissionRequestResultKindApproved PermissionRequestResultKind = "approved"
+
+	// PermissionRequestResultKindDeniedByRules indicates the permission was denied by rules.
+	PermissionRequestResultKindDeniedByRules PermissionRequestResultKind = "denied-by-rules"
+
+	// PermissionRequestResultKindDeniedCouldNotRequestFromUser indicates the permission was denied because
+	// no approval rule was found and the user could not be prompted.
+	PermissionRequestResultKindDeniedCouldNotRequestFromUser PermissionRequestResultKind = "denied-no-approval-rule-and-could-not-request-from-user"
+
+	// PermissionRequestResultKindDeniedInteractivelyByUser indicates the permission was denied interactively by the user.
+	PermissionRequestResultKindDeniedInteractivelyByUser PermissionRequestResultKind = "denied-interactively-by-user"
+)
+
 // PermissionRequestResult represents the result of a permission request
 type PermissionRequestResult struct {
-	Kind  string `json:"kind"`
-	Rules []any  `json:"rules,omitempty"`
+	Kind  PermissionRequestResultKind `json:"kind"`
+	Rules []any                       `json:"rules,omitempty"`
 }
 
 // PermissionHandlerFunc executes a permission request
@@ -747,6 +765,14 @@ type deleteSessionRequest struct {
 type deleteSessionResponse struct {
 	Success bool    `json:"success"`
 	Error   *string `json:"error,omitempty"`
+}
+
+// getLastSessionIDRequest is the request for session.getLastId
+type getLastSessionIDRequest struct{}
+
+// getLastSessionIDResponse is the response from session.getLastId
+type getLastSessionIDResponse struct {
+	SessionID *string `json:"sessionId,omitempty"`
 }
 
 // getForegroundSessionRequest is the request for session.getForeground

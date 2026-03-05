@@ -7,14 +7,9 @@ namespace GitHub.Copilot.SDK;
 /// <summary>
 /// A disposable that invokes an action when disposed.
 /// </summary>
-internal sealed class ActionDisposable : IDisposable
+internal sealed class ActionDisposable(Action action) : IDisposable
 {
-    private Action? _action;
-
-    public ActionDisposable(Action action)
-    {
-        _action = action;
-    }
+    private Action? _action = action;
 
     public void Dispose()
     {

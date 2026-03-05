@@ -321,7 +321,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         {
             return new PermissionRequestResult
             {
-                Kind = "denied-no-approval-rule-and-could-not-request-from-user"
+                Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser
             };
         }
 

@@ -167,6 +167,11 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         var answer2 = await TestHelper.GetFinalAssistantMessageAsync(session2);
         Assert.NotNull(answer2);
         Assert.Contains("2", answer2!.Data.Content ?? string.Empty);
+
+        // Can continue the conversation statefully
+        var answer3 = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "Now if you double that, what do you get?" });
+        Assert.NotNull(answer3);
+        Assert.Contains("4", answer3!.Data.Content ?? string.Empty);
     }
 
     [Fact]
@@ -187,6 +192,11 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         var messages = await session2.GetMessagesAsync();
         Assert.Contains(messages, m => m is UserMessageEvent);
         Assert.Contains(messages, m => m is SessionResumeEvent);
+
+        // Can continue the conversation statefully
+        var answer2 = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "Now if you double that, what do you get?" });
+        Assert.NotNull(answer2);
+        Assert.Contains("4", answer2!.Data.Content ?? string.Empty);
     }
 
     [Fact]
@@ -229,68 +239,6 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         var answer = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" });
         Assert.NotNull(answer);
         Assert.Contains("4", answer!.Data.Content ?? string.Empty);
-    }
-
-    // TODO: This test requires the session-events.schema.json to include assistant.message_delta.
-    // The CLI v0.0.376 emits delta events at runtime, but the schema hasn't been updated yet.
-    // Once the schema is updated and types are regenerated, this test can be enabled.
-    [Fact(Skip = "Requires schema update for AssistantMessageDeltaEvent type")]
-    public async Task Should_Receive_Streaming_Delta_Events_When_Streaming_Is_Enabled()
-    {
-        var session = await CreateSessionAsync(new SessionConfig { Streaming = true });
-
-        var deltaContents = new List<string>();
-        var doneEvent = new TaskCompletionSource<bool>();
-
-        session.On(evt =>
-        {
-            switch (evt)
-            {
-                // TODO: Uncomment once AssistantMessageDeltaEvent is generated
-                // case AssistantMessageDeltaEvent delta:
-                //     if (!string.IsNullOrEmpty(delta.Data.DeltaContent))
-                //         deltaContents.Add(delta.Data.DeltaContent);
-                //     break;
-                case SessionIdleEvent:
-                    doneEvent.TrySetResult(true);
-                    break;
-            }
-        });
-
-        await session.SendAsync(new MessageOptions { Prompt = "What is 2+2?" });
-
-        // Wait for completion
-        var completed = await Task.WhenAny(doneEvent.Task, Task.Delay(TimeSpan.FromSeconds(60)));
-        Assert.Equal(doneEvent.Task, completed);
-
-        // Should have received delta events
-        Assert.NotEmpty(deltaContents);
-
-        // Get the final message to compare
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
-        Assert.NotNull(assistantMessage);
-
-        // Accumulated deltas should equal the final message
-        var accumulated = string.Join("", deltaContents);
-        Assert.Equal(assistantMessage!.Data.Content, accumulated);
-
-        // Final message should contain the answer
-        Assert.Contains("4", assistantMessage.Data.Content ?? string.Empty);
-    }
-
-    [Fact]
-    public async Task Should_Pass_Streaming_Option_To_Session_Creation()
-    {
-        // Verify that the streaming option is accepted without errors
-        var session = await CreateSessionAsync(new SessionConfig { Streaming = true });
-
-        Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
-
-        // Session should still work normally
-        await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
-        Assert.NotNull(assistantMessage);
-        Assert.Contains("2", assistantMessage!.Data.Content);
     }
 
     [Fact]

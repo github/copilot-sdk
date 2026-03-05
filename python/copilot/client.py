@@ -961,6 +961,30 @@ class CopilotClient:
             if session_id in self._sessions:
                 del self._sessions[session_id]
 
+    async def get_last_session_id(self) -> str | None:
+        """
+        Get the ID of the most recently updated session.
+
+        This is useful for resuming the last conversation when the session ID
+        was not stored.
+
+        Returns:
+            The session ID, or None if no sessions exist.
+
+        Raises:
+            RuntimeError: If the client is not connected.
+
+        Example:
+            >>> last_id = await client.get_last_session_id()
+            >>> if last_id:
+            ...     session = await client.resume_session(last_id, {"on_permission_request": PermissionHandler.approve_all})
+        """
+        if not self._client:
+            raise RuntimeError("Client not connected")
+
+        response = await self._client.request("session.getLastId", {})
+        return response.get("sessionId")
+
     async def get_foreground_session_id(self) -> str | None:
         """
         Get the ID of the session currently displayed in the TUI.
