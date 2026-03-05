@@ -828,6 +828,40 @@ func TestSession(t *testing.T) {
 			t.Error("Expected error when resuming deleted session")
 		}
 	})
+	t.Run("should get last session id", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		// Create a session and send a message to persist it
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{OnPermissionRequest: copilot.PermissionHandler.ApproveAll})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Say hello"})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		// Small delay to ensure session data is flushed to disk
+		time.Sleep(500 * time.Millisecond)
+
+		lastSessionID, err := client.GetLastSessionID(t.Context())
+		if err != nil {
+			t.Fatalf("Failed to get last session ID: %v", err)
+		}
+
+		if lastSessionID == nil {
+			t.Fatal("Expected last session ID to be non-nil")
+		}
+
+		if *lastSessionID != session.SessionID {
+			t.Errorf("Expected last session ID to be %s, got %s", session.SessionID, *lastSessionID)
+		}
+
+		if err := session.Destroy(); err != nil {
+			t.Fatalf("Failed to destroy session: %v", err)
+		}
+	})
 }
 
 func getSystemMessage(exchange testharness.ParsedHttpExchange) string {

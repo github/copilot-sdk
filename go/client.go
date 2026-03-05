@@ -726,6 +726,40 @@ func (c *Client) DeleteSession(ctx context.Context, sessionID string) error {
 	return nil
 }
 
+// GetLastSessionID returns the ID of the most recently updated session.
+//
+// This is useful for resuming the last conversation when the session ID
+// was not stored. Returns nil if no sessions exist.
+//
+// Example:
+//
+//	lastID, err := client.GetLastSessionID(context.Background())
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	if lastID != nil {
+//	    session, err := client.ResumeSession(context.Background(), *lastID, &copilot.ResumeSessionConfig{
+//	        OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+//	    })
+//	}
+func (c *Client) GetLastSessionID(ctx context.Context) (*string, error) {
+	if err := c.ensureConnected(); err != nil {
+		return nil, err
+	}
+
+	result, err := c.client.Request("session.getLastId", getLastSessionIDRequest{})
+	if err != nil {
+		return nil, err
+	}
+
+	var response getLastSessionIDResponse
+	if err := json.Unmarshal(result, &response); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal getLastId response: %w", err)
+	}
+
+	return response.SessionID, nil
+}
+
 // GetForegroundSessionID returns the ID of the session currently displayed in the TUI.
 //
 // This is only available when connecting to a server running in TUI+server mode

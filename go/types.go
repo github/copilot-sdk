@@ -749,6 +749,14 @@ type deleteSessionResponse struct {
 	Error   *string `json:"error,omitempty"`
 }
 
+// getLastSessionIDRequest is the request for session.getLastId
+type getLastSessionIDRequest struct{}
+
+// getLastSessionIDResponse is the response from session.getLastId
+type getLastSessionIDResponse struct {
+	SessionID *string `json:"sessionId,omitempty"`
+}
+
 // getForegroundSessionRequest is the request for session.getForeground
 type getForegroundSessionRequest struct{}
 

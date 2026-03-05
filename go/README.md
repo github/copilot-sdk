@@ -104,6 +104,7 @@ That's it! When your application calls `copilot.NewClient` without a `CLIPath` n
 - `ResumeSessionWithOptions(sessionID string, config *ResumeSessionConfig) (*Session, error)` - Resume with additional configuration
 - `ListSessions(filter *SessionListFilter) ([]SessionMetadata, error)` - List sessions (with optional filter)
 - `DeleteSession(sessionID string) error` - Delete a session permanently
+- `GetLastSessionID(ctx context.Context) (*string, error)` - Get the ID of the most recently updated session
 - `GetState() ConnectionState` - Get connection state
 - `Ping(message string) (*PingResponse, error)` - Ping the server
 - `GetForegroundSessionID(ctx context.Context) (*string, error)` - Get the session ID currently displayed in TUI (TUI+server mode only)

@@ -303,6 +303,23 @@ class TestSessions:
                 session_id, {"on_permission_request": PermissionHandler.approve_all}
             )
 
+    async def test_should_get_last_session_id(self, ctx: E2ETestContext):
+        import asyncio
+
+        # Create a session and send a message to persist it
+        session = await ctx.client.create_session(
+            {"on_permission_request": PermissionHandler.approve_all}
+        )
+        await session.send_and_wait({"prompt": "Say hello"})
+
+        # Small delay to ensure session data is flushed to disk
+        await asyncio.sleep(0.5)
+
+        last_session_id = await ctx.client.get_last_session_id()
+        assert last_session_id == session.session_id
+
+        await session.destroy()
+
     async def test_should_create_session_with_custom_tool(self, ctx: E2ETestContext):
         # This test uses the low-level Tool() API to show that Pydantic is optional
         def get_secret_number_handler(invocation):
