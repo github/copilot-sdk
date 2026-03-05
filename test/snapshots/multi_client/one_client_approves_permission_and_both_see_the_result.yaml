@@ -1,0 +1,50 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Create a file called hello.txt containing the text 'hello world'
+      - role: assistant
+        content: I'll create the hello.txt file with "hello world" content for you.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Creating hello.txt file"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: create
+              arguments: '{"file_text":"hello world","path":"${workdir}/hello.txt"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Create a file called hello.txt containing the text 'hello world'
+      - role: assistant
+        content: I'll create the hello.txt file with "hello world" content for you.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Creating hello.txt file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: create
+              arguments: '{"file_text":"hello world","path":"${workdir}/hello.txt"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Created file ${workdir}/hello.txt with 11 characters
+      - role: assistant
+        content: Done! I've created hello.txt containing "hello world" in your current directory.
