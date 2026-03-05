@@ -23,7 +23,7 @@
 #
 # Analyzes copilot-sdk issues to determine if a fix is needed in copilot-agent-runtime, then opens a linked issue and suggested-fix PR there
 #
-# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"ad2c6ce7fd500408b5336b159faef574b9411e71954455cc1310b1cf7b481074","compiler_version":"v0.50.5"}
+# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"067feb8b9d0762a67a2601351b53b40d404cadfda759e2ae77b3c941f48568dc","compiler_version":"v0.50.5"}
 
 name: "SDK Runtime Triage"
 "on":
@@ -275,7 +275,7 @@ jobs:
       - name: Create gh-aw temp directory
         run: bash /opt/gh-aw/actions/create_gh_aw_tmp_dir.sh
       - name: Clone copilot-agent-runtime
-        run: git clone --depth 1 https://x-access-token:${{ secrets.RUNTIME_TRIAGE_TOKEN }}@github.com/github/copilot-agent-runtime.git /home/runner/work/copilot-agent-runtime
+        run: git clone --depth 1 https://x-access-token:${{ secrets.RUNTIME_TRIAGE_TOKEN }}@github.com/github/copilot-agent-runtime.git ${{ github.workspace }}/copilot-agent-runtime
 
       - name: Configure Git credentials
         env:

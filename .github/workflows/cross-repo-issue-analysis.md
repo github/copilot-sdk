@@ -15,7 +15,7 @@ permissions:
   pull-requests: read
 steps:
   - name: Clone copilot-agent-runtime
-    run: git clone --depth 1 https://x-access-token:${{ secrets.RUNTIME_TRIAGE_TOKEN }}@github.com/github/copilot-agent-runtime.git /home/runner/work/copilot-agent-runtime
+    run: git clone --depth 1 https://x-access-token:${{ secrets.RUNTIME_TRIAGE_TOKEN }}@github.com/github/copilot-agent-runtime.git ${{ github.workspace }}/copilot-agent-runtime
 tools:
   github:
     toolsets: [default]
@@ -81,9 +81,9 @@ Search the copilot-sdk codebase on disk to understand whether the reported probl
 
 ### Step 3: Investigate copilot-agent-runtime
 
-If the issue does NOT appear to be caused by SDK code, or you suspect the runtime is involved, investigate the **copilot-agent-runtime** repo. It has been cloned to `/home/runner/work/copilot-agent-runtime`.
+If the issue does NOT appear to be caused by SDK code, or you suspect the runtime is involved, investigate the **copilot-agent-runtime** repo. It has been cloned to `./copilot-agent-runtime/` in the current working directory.
 
-- Use bash tools (`grep`, `find`, `cat`) to search the runtime codebase directly on disk
+- Use bash tools (`grep`, `find`, `cat`) to search the runtime codebase at `./copilot-agent-runtime/`
 - Look at the server-side JSON-RPC handling, session management, tool execution, and response generation
 - Focus on the areas that correspond to the reported issue (e.g., if the issue is about streaming, look at the runtime's streaming implementation)
 
