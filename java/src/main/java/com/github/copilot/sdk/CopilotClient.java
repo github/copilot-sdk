@@ -208,7 +208,18 @@ public final class CopilotClient implements AutoCloseable {
     }
 
     /**
-     * Stops the client and closes all sessions.
+     * Disconnects from the Copilot server and closes all active sessions.
+     * <p>
+     * This method performs graceful cleanup:
+     * <ol>
+     * <li>Closes all active sessions (releases in-memory resources)</li>
+     * <li>Closes the JSON-RPC connection</li>
+     * <li>Terminates the CLI server process (if spawned by this client)</li>
+     * </ol>
+     * <p>
+     * Note: session data on disk is preserved, so sessions can be resumed later. To
+     * permanently remove session data before stopping, call
+     * {@link #deleteSession(String)} for each session first.
      *
      * @return A future that completes when the client is stopped
      */
@@ -469,9 +480,12 @@ public final class CopilotClient implements AutoCloseable {
     }
 
     /**
-     * Deletes a session by ID.
+     * Permanently deletes a session and all its data from disk, including
+     * conversation history, planning state, and artifacts.
      * <p>
-     * This permanently removes the session and its conversation history.
+     * Unlike {@link CopilotSession#close()}, which only releases in-memory
+     * resources and preserves session data for later resumption, this method is
+     * irreversible. The session cannot be resumed after deletion.
      *
      * @param sessionId
      *            the ID of the session to delete

@@ -58,6 +58,13 @@ import com.github.copilot.sdk.json.UserPromptSubmittedHookInput;
  * A session maintains conversation state, handles events, and manages tool
  * execution. Sessions are created via {@link CopilotClient#createSession} or
  * resumed via {@link CopilotClient#resumeSession}.
+ * <p>
+ * {@code CopilotSession} implements {@link AutoCloseable}. Use the
+ * try-with-resources pattern for automatic cleanup, or call {@link #close()}
+ * explicitly. Closing a session releases in-memory resources but preserves
+ * session data on disk — the conversation can be resumed later via
+ * {@link CopilotClient#resumeSession}. To permanently delete session data, use
+ * {@link CopilotClient#deleteSession}.
  *
  * <h2>Example Usage</h2>
  *
