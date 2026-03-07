@@ -22,7 +22,11 @@ const SNAPSHOTS_DIR = resolve(__dirname, "../../../../test/snapshots");
 export async function createSdkTestContext({
     logLevel,
     useStdio,
-}: { logLevel?: "error" | "none" | "warning" | "info" | "debug" | "all"; cliPath?: string; useStdio?: boolean } = {}) {
+}: {
+    logLevel?: "error" | "none" | "warning" | "info" | "debug" | "all";
+    cliPath?: string;
+    useStdio?: boolean;
+} = {}) {
     const homeDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-config-")));
     const workDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-work-")));
 

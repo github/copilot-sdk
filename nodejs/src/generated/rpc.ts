@@ -444,7 +444,16 @@ export interface SessionToolsHandlePendingToolCallParams {
    */
   sessionId: string;
   requestId: string;
-  result?: string;
+  result?:
+    | string
+    | {
+        textResultForLlm: string;
+        resultType?: string;
+        error?: string;
+        toolTelemetry?: {
+          [k: string]: unknown;
+        };
+      };
   error?: string;
 }
 
@@ -458,14 +467,26 @@ export interface SessionPermissionsHandlePendingPermissionRequestParams {
    */
   sessionId: string;
   requestId: string;
-  result: {
-    kind:
-      | "approved"
-      | "denied-by-rules"
-      | "denied-no-approval-rule-and-could-not-request-from-user"
-      | "denied-interactively-by-user";
-    rules?: unknown[];
-  };
+  result:
+    | {
+        kind: "approved";
+      }
+    | {
+        kind: "denied-by-rules";
+        rules: unknown[];
+      }
+    | {
+        kind: "denied-no-approval-rule-and-could-not-request-from-user";
+      }
+    | {
+        kind: "denied-interactively-by-user";
+        feedback?: string;
+      }
+    | {
+        kind: "denied-by-content-exclusion-policy";
+        path: string;
+        message: string;
+      };
 }
 
 /** Create typed server-scoped RPC methods (no session required). */

@@ -35,32 +35,6 @@ class TestPermissionHandlerRequired:
             await client.force_stop()
 
 
-class TestHandleToolCallRequest:
-    @pytest.mark.asyncio
-    async def test_returns_failure_when_tool_not_registered(self):
-        client = CopilotClient({"cli_path": CLI_PATH})
-        await client.start()
-
-        try:
-            session = await client.create_session(
-                {"on_permission_request": PermissionHandler.approve_all}
-            )
-
-            response = await client._handle_tool_call_request(
-                {
-                    "sessionId": session.session_id,
-                    "toolCallId": "123",
-                    "toolName": "missing_tool",
-                    "arguments": {},
-                }
-            )
-
-            assert response["result"]["resultType"] == "failure"
-            assert response["result"]["error"] == "tool 'missing_tool' not supported"
-        finally:
-            await client.force_stop()
-
-
 class TestURLParsing:
     def test_parse_port_only_url(self):
         client = CopilotClient({"cli_url": "8080", "log_level": "error"})

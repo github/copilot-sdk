@@ -15,6 +15,6 @@ conversations:
               arguments: "{}"
       - role: tool
         tool_call_id: toolcall_0
-        content: Service unavailable
+        content: '{"error":"API timeout","resultType":"failure","textResultForLlm":"Service unavailable"}'
       - role: assistant
         content: service is down

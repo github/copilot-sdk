@@ -5,16 +5,16 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: Use the stable_tool with input 'test1' and the ephemeral_tool with input 'test2'. Tell me both results.
+        content: Use the stable_tool with input 'test1' and tell me the result.
       - role: assistant
-        content: I'll call both tools for you and report the results.
+        content: I'll call the stable_tool with input 'test1' for you.
       - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: report_intent
-              arguments: '{"intent":"Testing stable and ephemeral tools"}'
+              arguments: '{"intent":"Testing stable_tool"}'
       - role: assistant
         tool_calls:
           - id: toolcall_1
@@ -22,9 +22,46 @@ conversations:
             function:
               name: stable_tool
               arguments: '{"input":"test1"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the stable_tool with input 'test1' and tell me the result.
+      - role: assistant
+        content: I'll call the stable_tool with input 'test1' for you.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Testing stable_tool"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: stable_tool
+              arguments: '{"input":"test1"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: STABLE_test1
+      - role: assistant
+        content: "The stable_tool returned: **STABLE_test1**"
+      - role: user
+        content: Use the ephemeral_tool with input 'test2' and tell me the result.
+      - role: assistant
+        content: I'll call the ephemeral_tool with input 'test2' for you.
       - role: assistant
         tool_calls:
           - id: toolcall_2
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Testing ephemeral_tool"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_3
             type: function
             function:
               name: ephemeral_tool
@@ -33,143 +70,167 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: Use the stable_tool with input 'test1' and the ephemeral_tool with input 'test2'. Tell me both results.
+        content: Use the stable_tool with input 'test1' and tell me the result.
       - role: assistant
-        content: I'll call both tools for you and report the results.
+        content: I'll call the stable_tool with input 'test1' for you.
         tool_calls:
           - id: toolcall_0
             type: function
             function:
               name: report_intent
-              arguments: '{"intent":"Testing stable and ephemeral tools"}'
+              arguments: '{"intent":"Testing stable_tool"}'
           - id: toolcall_1
             type: function
             function:
               name: stable_tool
               arguments: '{"input":"test1"}'
-          - id: toolcall_2
-            type: function
-            function:
-              name: ephemeral_tool
-              arguments: '{"input":"test2"}'
       - role: tool
         tool_call_id: toolcall_0
         content: Intent logged
       - role: tool
         tool_call_id: toolcall_1
         content: STABLE_test1
-      - role: tool
-        tool_call_id: toolcall_2
-        content: EPHEMERAL_test2
       - role: assistant
-        content: |-
-          Both tools executed successfully:
-          - **stable_tool** returned: `STABLE_test1`
-          - **ephemeral_tool** returned: `EPHEMERAL_test2`
+        content: "The stable_tool returned: **STABLE_test1**"
       - role: user
-        content: >-
-          <tools_changed_notice>
-
-          Tools no longer available: ephemeral_tool
-
-
-          Important: Do not attempt to call tools that are no longer available unless you've been notified that they're
-          available again.
-
-          </tools_changed_notice>
-
-
-          Use the stable_tool with input 'still_here'. Also try using ephemeral_tool if it is available.
+        content: Use the ephemeral_tool with input 'test2' and tell me the result.
       - role: assistant
-        content: I'll call the stable_tool and check on the ephemeral_tool availability.
-      - role: assistant
+        content: I'll call the ephemeral_tool with input 'test2' for you.
         tool_calls:
-          - id: toolcall_3
-            type: function
-            function:
-              name: report_intent
-              arguments: '{"intent":"Testing tool availability"}'
-      - role: assistant
-        tool_calls:
-          - id: toolcall_4
-            type: function
-            function:
-              name: stable_tool
-              arguments: '{"input":"still_here"}'
-  - messages:
-      - role: system
-        content: ${system}
-      - role: user
-        content: Use the stable_tool with input 'test1' and the ephemeral_tool with input 'test2'. Tell me both results.
-      - role: assistant
-        content: I'll call both tools for you and report the results.
-        tool_calls:
-          - id: toolcall_0
-            type: function
-            function:
-              name: report_intent
-              arguments: '{"intent":"Testing stable and ephemeral tools"}'
-          - id: toolcall_1
-            type: function
-            function:
-              name: stable_tool
-              arguments: '{"input":"test1"}'
           - id: toolcall_2
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Testing ephemeral_tool"}'
+          - id: toolcall_3
             type: function
             function:
               name: ephemeral_tool
               arguments: '{"input":"test2"}'
       - role: tool
-        tool_call_id: toolcall_0
-        content: Intent logged
-      - role: tool
-        tool_call_id: toolcall_1
-        content: STABLE_test1
-      - role: tool
         tool_call_id: toolcall_2
-        content: EPHEMERAL_test2
-      - role: assistant
-        content: |-
-          Both tools executed successfully:
-          - **stable_tool** returned: `STABLE_test1`
-          - **ephemeral_tool** returned: `EPHEMERAL_test2`
-      - role: user
-        content: >-
-          <tools_changed_notice>
-
-          Tools no longer available: ephemeral_tool
-
-
-          Important: Do not attempt to call tools that are no longer available unless you've been notified that they're
-          available again.
-
-          </tools_changed_notice>
-
-
-          Use the stable_tool with input 'still_here'. Also try using ephemeral_tool if it is available.
-      - role: assistant
-        content: I'll call the stable_tool and check on the ephemeral_tool availability.
-        tool_calls:
-          - id: toolcall_3
-            type: function
-            function:
-              name: report_intent
-              arguments: '{"intent":"Testing tool availability"}'
-          - id: toolcall_4
-            type: function
-            function:
-              name: stable_tool
-              arguments: '{"input":"still_here"}'
+        content: Intent logged
       - role: tool
         tool_call_id: toolcall_3
+        content: EPHEMERAL_test2
+      - role: assistant
+        content: "The ephemeral_tool returned: **EPHEMERAL_test2**"
+      - role: user
+        content: >-
+          <tools_changed_notice>
+
+          Tools no longer available: ephemeral_tool
+
+
+          Important: Do not attempt to call tools that are no longer available unless you've been notified that they're
+          available again.
+
+          </tools_changed_notice>
+
+
+          Use the stable_tool with input 'still_here'. Also try using ephemeral_tool if it is available.
+      - role: assistant
+        content: I'll call the stable_tool with input 'still_here'. The ephemeral_tool is no longer available, so I can only use
+          the stable_tool.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_4
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Testing tool availability"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_5
+            type: function
+            function:
+              name: stable_tool
+              arguments: '{"input":"still_here"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the stable_tool with input 'test1' and tell me the result.
+      - role: assistant
+        content: I'll call the stable_tool with input 'test1' for you.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Testing stable_tool"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: stable_tool
+              arguments: '{"input":"test1"}'
+      - role: tool
+        tool_call_id: toolcall_0
         content: Intent logged
       - role: tool
+        tool_call_id: toolcall_1
+        content: STABLE_test1
+      - role: assistant
+        content: "The stable_tool returned: **STABLE_test1**"
+      - role: user
+        content: Use the ephemeral_tool with input 'test2' and tell me the result.
+      - role: assistant
+        content: I'll call the ephemeral_tool with input 'test2' for you.
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Testing ephemeral_tool"}'
+          - id: toolcall_3
+            type: function
+            function:
+              name: ephemeral_tool
+              arguments: '{"input":"test2"}'
+      - role: tool
+        tool_call_id: toolcall_2
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_3
+        content: EPHEMERAL_test2
+      - role: assistant
+        content: "The ephemeral_tool returned: **EPHEMERAL_test2**"
+      - role: user
+        content: >-
+          <tools_changed_notice>
+
+          Tools no longer available: ephemeral_tool
+
+
+          Important: Do not attempt to call tools that are no longer available unless you've been notified that they're
+          available again.
+
+          </tools_changed_notice>
+
+
+          Use the stable_tool with input 'still_here'. Also try using ephemeral_tool if it is available.
+      - role: assistant
+        content: I'll call the stable_tool with input 'still_here'. The ephemeral_tool is no longer available, so I can only use
+          the stable_tool.
+        tool_calls:
+          - id: toolcall_4
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Testing tool availability"}'
+          - id: toolcall_5
+            type: function
+            function:
+              name: stable_tool
+              arguments: '{"input":"still_here"}'
+      - role: tool
         tool_call_id: toolcall_4
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_5
         content: STABLE_still_here
       - role: assistant
-        content: >-
-          **stable_tool** returned: `STABLE_still_here`
+        content: |-
+          The stable_tool returned: **STABLE_still_here**
 
-
-          The **ephemeral_tool** is no longer available (it was removed as indicated in the tools_changed_notice), so I
-          couldn't call it.
+          The ephemeral_tool is not available anymore (it was removed), so I could only call the stable_tool.

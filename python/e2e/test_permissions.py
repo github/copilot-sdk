@@ -24,8 +24,7 @@ class TestPermissions:
         ) -> PermissionRequestResult:
             permission_requests.append(request)
             assert invocation["session_id"] == session.session_id
-            # Approve the permission
-            return {"kind": "approved"}
+            return PermissionRequestResult(kind="approved")
 
         session = await ctx.client.create_session({"on_permission_request": on_permission_request})
 
@@ -39,7 +38,7 @@ class TestPermissions:
         assert len(permission_requests) > 0
 
         # Should include write permission request
-        write_requests = [req for req in permission_requests if req.get("kind") == "write"]
+        write_requests = [req for req in permission_requests if req.kind.value == "write"]
         assert len(write_requests) > 0
 
         await session.disconnect()
@@ -50,8 +49,7 @@ class TestPermissions:
         def on_permission_request(
             request: PermissionRequest, invocation: dict
         ) -> PermissionRequestResult:
-            # Deny all permissions
-            return {"kind": "denied-interactively-by-user"}
+            return PermissionRequestResult(kind="denied-interactively-by-user")
 
         session = await ctx.client.create_session({"on_permission_request": on_permission_request})
 
@@ -74,7 +72,7 @@ class TestPermissions:
         """Test that tool operations are denied when handler explicitly denies"""
 
         def deny_all(request, invocation):
-            return {"kind": "denied-no-approval-rule-and-could-not-request-from-user"}
+            return PermissionRequestResult()
 
         session = await ctx.client.create_session({"on_permission_request": deny_all})
 
@@ -114,7 +112,7 @@ class TestPermissions:
         await session1.send_and_wait({"prompt": "What is 1+1?"})
 
         def deny_all(request, invocation):
-            return {"kind": "denied-no-approval-rule-and-could-not-request-from-user"}
+            return PermissionRequestResult()
 
         session2 = await ctx.client.resume_session(session_id, {"on_permission_request": deny_all})
 
@@ -166,7 +164,7 @@ class TestPermissions:
             permission_requests.append(request)
             # Simulate async permission check (e.g., user prompt)
             await asyncio.sleep(0.01)
-            return {"kind": "approved"}
+            return PermissionRequestResult(kind="approved")
 
         session = await ctx.client.create_session({"on_permission_request": on_permission_request})
 
@@ -192,7 +190,7 @@ class TestPermissions:
             request: PermissionRequest, invocation: dict
         ) -> PermissionRequestResult:
             permission_requests.append(request)
-            return {"kind": "approved"}
+            return PermissionRequestResult(kind="approved")
 
         session2 = await ctx.client.resume_session(
             session_id, {"on_permission_request": on_permission_request}
@@ -234,11 +232,11 @@ class TestPermissions:
             request: PermissionRequest, invocation: dict
         ) -> PermissionRequestResult:
             nonlocal received_tool_call_id
-            if request.get("toolCallId"):
+            if request.tool_call_id:
                 received_tool_call_id = True
-                assert isinstance(request["toolCallId"], str)
-                assert len(request["toolCallId"]) > 0
-            return {"kind": "approved"}
+                assert isinstance(request.tool_call_id, str)
+                assert len(request.tool_call_id) > 0
+            return PermissionRequestResult(kind="approved")
 
         session = await ctx.client.create_session({"on_permission_request": on_permission_request})
 

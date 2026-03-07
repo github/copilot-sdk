@@ -269,9 +269,15 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <param name="sessionEvent">The session event to dispatch.</param>
     /// <remarks>
     /// This method is internal. Handler exceptions are allowed to propagate so they are not lost.
+    /// Broadcast request events (external_tool.requested, permission.requested) are handled
+    /// internally before being forwarded to user handlers.
     /// </remarks>
     internal void DispatchEvent(SessionEvent sessionEvent)
     {
+        // Handle broadcast request events (protocol v3) before dispatching to user handlers.
+        // Fire-and-forget: the response is sent asynchronously via RPC.
+        HandleBroadcastEventAsync(sessionEvent);
+
         // Reading the field once gives us a snapshot; delegates are immutable.
         EventHandlers?.Invoke(sessionEvent);
     }
@@ -342,6 +348,156 @@ public sealed partial class CopilotSession : IAsyncDisposable
         };
 
         return await handler(request, invocation);
+    }
+
+    /// <summary>
+    /// Handles broadcast request events by executing local handlers and responding via RPC.
+    /// Implements the protocol v3 broadcast model where tool calls and permission requests
+    /// are broadcast as session events to all clients.
+    /// </summary>
+    private async void HandleBroadcastEventAsync(SessionEvent sessionEvent)
+    {
+        switch (sessionEvent)
+        {
+            case ExternalToolRequestedEvent toolEvent:
+                {
+                    var data = toolEvent.Data;
+                    if (string.IsNullOrEmpty(data.RequestId) || string.IsNullOrEmpty(data.ToolName))
+                        return;
+
+                    var tool = GetTool(data.ToolName);
+                    if (tool is null)
+                        return; // This client doesn't handle this tool; another client will.
+
+                    await ExecuteToolAndRespondAsync(data.RequestId, data.ToolName, data.ToolCallId, data.Arguments, tool);
+                    break;
+                }
+
+            case PermissionRequestedEvent permEvent:
+                {
+                    var data = permEvent.Data;
+                    if (string.IsNullOrEmpty(data.RequestId) || data.PermissionRequest is null)
+                        return;
+
+                    var handler = _permissionHandler;
+                    if (handler is null)
+                        return; // This client doesn't handle permissions; another client will.
+
+                    await ExecutePermissionAndRespondAsync(data.RequestId, data.PermissionRequest, handler);
+                    break;
+                }
+        }
+    }
+
+    /// <summary>
+    /// Executes a tool handler and sends the result back via the HandlePendingToolCall RPC.
+    /// </summary>
+    private async Task ExecuteToolAndRespondAsync(string requestId, string toolName, string toolCallId, object? arguments, AIFunction tool)
+    {
+        try
+        {
+            var invocation = new ToolInvocation
+            {
+                SessionId = SessionId,
+                ToolCallId = toolCallId,
+                ToolName = toolName,
+                Arguments = arguments
+            };
+
+            var aiFunctionArgs = new AIFunctionArguments
+            {
+                Context = new Dictionary<object, object?>
+                {
+                    [typeof(ToolInvocation)] = invocation
+                }
+            };
+
+            if (arguments is not null)
+            {
+                if (arguments is not JsonElement incomingJsonArgs)
+                {
+                    throw new InvalidOperationException($"Incoming arguments must be a {nameof(JsonElement)}; received {arguments.GetType().Name}");
+                }
+
+                foreach (var prop in incomingJsonArgs.EnumerateObject())
+                {
+                    aiFunctionArgs[prop.Name] = prop.Value;
+                }
+            }
+
+            var result = await tool.InvokeAsync(aiFunctionArgs);
+
+            var toolResultObject = result is ToolResultAIContent trac ? trac.Result : new ToolResultObject
+            {
+                ResultType = "success",
+                TextResultForLlm = result is JsonElement { ValueKind: JsonValueKind.String } je
+                    ? je.GetString()!
+                    : JsonSerializer.Serialize(result, tool.JsonSerializerOptions.GetTypeInfo(typeof(object))),
+            };
+
+            await Rpc.Tools.HandlePendingToolCallAsync(requestId, toolResultObject, error: null);
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                await Rpc.Tools.HandlePendingToolCallAsync(requestId, result: null, error: ex.Message);
+            }
+            catch (IOException)
+            {
+                // Connection lost or RPC error — nothing we can do
+            }
+            catch (ObjectDisposedException)
+            {
+                // Connection already disposed — nothing we can do
+            }
+        }
+    }
+
+    /// <summary>
+    /// Executes a permission handler and sends the result back via the HandlePendingPermissionRequest RPC.
+    /// </summary>
+    private async Task ExecutePermissionAndRespondAsync(string requestId, object permissionRequestData, PermissionRequestHandler handler)
+    {
+        try
+        {
+            // PermissionRequestedData.PermissionRequest is typed as `object` in generated code,
+            // but StreamJsonRpc deserializes it as a JsonElement.
+            if (permissionRequestData is not JsonElement permJsonElement)
+            {
+                throw new InvalidOperationException(
+                    $"Permission request data must be a {nameof(JsonElement)}; received {permissionRequestData.GetType().Name}");
+            }
+
+            var request = JsonSerializer.Deserialize(permJsonElement.GetRawText(), SessionJsonContext.Default.PermissionRequest)
+                ?? throw new InvalidOperationException("Failed to deserialize permission request");
+
+            var invocation = new PermissionInvocation
+            {
+                SessionId = SessionId
+            };
+
+            var result = await handler(request, invocation);
+            await Rpc.Permissions.HandlePendingPermissionRequestAsync(requestId, result);
+        }
+        catch (Exception)
+        {
+            try
+            {
+                await Rpc.Permissions.HandlePendingPermissionRequestAsync(requestId, new PermissionRequestResult
+                {
+                    Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser
+                });
+            }
+            catch (IOException)
+            {
+                // Connection lost or RPC error — nothing we can do
+            }
+            catch (ObjectDisposedException)
+            {
+                // Connection already disposed — nothing we can do
+            }
+        }
     }
 
     /// <summary>

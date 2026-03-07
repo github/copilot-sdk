@@ -8,6 +8,7 @@
  */
 
 import type { MessageConnection } from "vscode-jsonrpc/node";
+import { ConnectionError, ResponseError } from "vscode-jsonrpc/node";
 import { createSessionRpc } from "./generated/rpc.js";
 import type {
     MessageOptions,
@@ -374,9 +375,15 @@ export class CopilotSession {
             }
             await this.rpc.tools.handlePendingToolCall({ requestId, result });
         } catch (error) {
-            const message =
-                error instanceof Error ? error.message : String(error);
-            await this.rpc.tools.handlePendingToolCall({ requestId, error: message });
+            const message = error instanceof Error ? error.message : String(error);
+            try {
+                await this.rpc.tools.handlePendingToolCall({ requestId, error: message });
+            } catch (rpcError) {
+                if (!(rpcError instanceof ConnectionError || rpcError instanceof ResponseError)) {
+                    throw rpcError;
+                }
+                // Connection lost or RPC error — nothing we can do
+            }
         }
     }
 
@@ -394,12 +401,19 @@ export class CopilotSession {
             });
             await this.rpc.permissions.handlePendingPermissionRequest({ requestId, result });
         } catch (_error) {
-            await this.rpc.permissions.handlePendingPermissionRequest({
-                requestId,
-                result: {
-                    kind: "denied-no-approval-rule-and-could-not-request-from-user",
-                },
-            });
+            try {
+                await this.rpc.permissions.handlePendingPermissionRequest({
+                    requestId,
+                    result: {
+                        kind: "denied-no-approval-rule-and-could-not-request-from-user",
+                    },
+                });
+            } catch (rpcError) {
+                if (!(rpcError instanceof ConnectionError || rpcError instanceof ResponseError)) {
+                    throw rpcError;
+                }
+                // Connection lost or RPC error — nothing we can do
+            }
         }
     }
 

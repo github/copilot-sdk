@@ -955,6 +955,12 @@ func (c *Client) State() ConnectionState {
 	return c.state
 }
 
+// ActualPort returns the TCP port the CLI server is listening on.
+// Returns 0 if the client is not connected or using stdio transport.
+func (c *Client) ActualPort() int {
+	return c.actualPort
+}
+
 // Ping sends a ping request to the server to verify connectivity.
 //
 // The message parameter is optional and will be echoed back in the response.
@@ -1289,12 +1295,13 @@ func (c *Client) connectViaTcp(ctx context.Context) error {
 	return nil
 }
 
-// setupNotificationHandler configures handlers for session events, tool calls, and permission requests.
+// setupNotificationHandler configures handlers for session events and RPC requests.
+// Tool calls and permission requests are handled via the broadcast event model (protocol v3):
+// the server broadcasts external_tool.requested / permission.requested as session events,
+// and clients respond via session.tools.handlePendingToolCall / session.permissions.handlePendingPermissionRequest RPCs.
 func (c *Client) setupNotificationHandler() {
 	c.client.SetRequestHandler("session.event", jsonrpc2.NotificationHandlerFor(c.handleSessionEvent))
 	c.client.SetRequestHandler("session.lifecycle", jsonrpc2.NotificationHandlerFor(c.handleLifecycleEvent))
-	c.client.SetRequestHandler("tool.call", jsonrpc2.RequestHandlerFor(c.handleToolCallRequest))
-	c.client.SetRequestHandler("permission.request", jsonrpc2.RequestHandlerFor(c.handlePermissionRequest))
 	c.client.SetRequestHandler("userInput.request", jsonrpc2.RequestHandlerFor(c.handleUserInputRequest))
 	c.client.SetRequestHandler("hooks.invoke", jsonrpc2.RequestHandlerFor(c.handleHooksInvoke))
 }
@@ -1311,84 +1318,6 @@ func (c *Client) handleSessionEvent(req sessionEventRequest) {
 	if ok {
 		session.dispatchEvent(req.Event)
 	}
-}
-
-// handleToolCallRequest handles a tool call request from the CLI server.
-func (c *Client) handleToolCallRequest(req toolCallRequest) (*toolCallResponse, *jsonrpc2.Error) {
-	if req.SessionID == "" || req.ToolCallID == "" || req.ToolName == "" {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid tool call payload"}
-	}
-
-	c.sessionsMux.Lock()
-	session, ok := c.sessions[req.SessionID]
-	c.sessionsMux.Unlock()
-	if !ok {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", req.SessionID)}
-	}
-
-	handler, ok := session.getToolHandler(req.ToolName)
-	if !ok {
-		return &toolCallResponse{Result: buildUnsupportedToolResult(req.ToolName)}, nil
-	}
-
-	result := c.executeToolCall(req.SessionID, req.ToolCallID, req.ToolName, req.Arguments, handler)
-	return &toolCallResponse{Result: result}, nil
-}
-
-// executeToolCall executes a tool handler and returns the result.
-func (c *Client) executeToolCall(
-	sessionID, toolCallID, toolName string,
-	arguments any,
-	handler ToolHandler,
-) (result ToolResult) {
-	invocation := ToolInvocation{
-		SessionID:  sessionID,
-		ToolCallID: toolCallID,
-		ToolName:   toolName,
-		Arguments:  arguments,
-	}
-
-	defer func() {
-		if r := recover(); r != nil {
-			result = buildFailedToolResult(fmt.Sprintf("tool panic: %v", r))
-		}
-	}()
-
-	if handler != nil {
-		var err error
-		result, err = handler(invocation)
-		if err != nil {
-			result = buildFailedToolResult(err.Error())
-		}
-	}
-
-	return result
-}
-
-// handlePermissionRequest handles a permission request from the CLI server.
-func (c *Client) handlePermissionRequest(req permissionRequestRequest) (*permissionRequestResponse, *jsonrpc2.Error) {
-	if req.SessionID == "" {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid permission request payload"}
-	}
-
-	c.sessionsMux.Lock()
-	session, ok := c.sessions[req.SessionID]
-	c.sessionsMux.Unlock()
-	if !ok {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", req.SessionID)}
-	}
-
-	result, err := session.handlePermissionRequest(req.Request)
-	if err != nil {
-		// Return denial on error
-		return &permissionRequestResponse{
-			Result: PermissionRequestResult{
-				Kind: PermissionRequestResultKindDeniedCouldNotRequestFromUser,
-			},
-		}, nil
-	}
-
-	return &permissionRequestResponse{Result: result}, nil
 }
 
 // handleUserInputRequest handles a user input request from the CLI server.
@@ -1439,24 +1368,4 @@ func (c *Client) handleHooksInvoke(req hooksInvokeRequest) (map[string]any, *jso
 		result["output"] = output
 	}
 	return result, nil
-}
-
-// The detailed error is stored in the Error field but not exposed to the LLM for security.
-func buildFailedToolResult(internalError string) ToolResult {
-	return ToolResult{
-		TextResultForLLM: "Invoking this tool produced an error. Detailed information is not available.",
-		ResultType:       "failure",
-		Error:            internalError,
-		ToolTelemetry:    map[string]any{},
-	}
-}
-
-// buildUnsupportedToolResult creates a failure ToolResult for an unsupported tool.
-func buildUnsupportedToolResult(toolName string) ToolResult {
-	return ToolResult{
-		TextResultForLLM: fmt.Sprintf("Tool '%s' is not supported by this client instance.", toolName),
-		ResultType:       "failure",
-		Error:            fmt.Sprintf("tool '%s' not supported", toolName),
-		ToolTelemetry:    map[string]any{},
-	}
 }

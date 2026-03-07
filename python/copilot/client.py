@@ -13,14 +13,12 @@ Example:
 """
 
 import asyncio
-import inspect
 import os
 import re
 import subprocess
 import sys
 import threading
 from collections.abc import Callable
-from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any, cast
 
@@ -46,9 +44,6 @@ from .types import (
     SessionListFilter,
     SessionMetadata,
     StopError,
-    ToolHandler,
-    ToolInvocation,
-    ToolResult,
 )
 
 
@@ -218,6 +213,16 @@ class CopilotClient:
         if self._rpc is None:
             raise RuntimeError("Client is not connected. Call start() first.")
         return self._rpc
+
+    @property
+    def actual_port(self) -> int | None:
+        """The actual TCP port the CLI server is listening on, if using TCP transport.
+
+        Useful for multi-client scenarios where a second client needs to connect
+        to the same server. Only available after :meth:`start` completes and
+        only when not using stdio transport.
+        """
+        return self._actual_port
 
     def _parse_cli_url(self, url: str) -> tuple[str, int]:
         """
@@ -1354,8 +1359,10 @@ class CopilotClient:
                 self._dispatch_lifecycle_event(lifecycle_event)
 
         self._client.set_notification_handler(handle_notification)
-        self._client.set_request_handler("tool.call", self._handle_tool_call_request)
-        self._client.set_request_handler("permission.request", self._handle_permission_request)
+        # Protocol v3: tool.call and permission.request RPC handlers removed.
+        # Tool calls and permission requests are now broadcast as session events
+        # (external_tool.requested, permission.requested) and handled in
+        # Session._handle_broadcast_event.
         self._client.set_request_handler("userInput.request", self._handle_user_input_request)
         self._client.set_request_handler("hooks.invoke", self._handle_hooks_invoke)
 
@@ -1435,49 +1442,14 @@ class CopilotClient:
                 self._dispatch_lifecycle_event(lifecycle_event)
 
         self._client.set_notification_handler(handle_notification)
-        self._client.set_request_handler("tool.call", self._handle_tool_call_request)
-        self._client.set_request_handler("permission.request", self._handle_permission_request)
+        # Protocol v3: tool.call and permission.request RPC handlers removed.
+        # See _connect_via_stdio for details.
         self._client.set_request_handler("userInput.request", self._handle_user_input_request)
         self._client.set_request_handler("hooks.invoke", self._handle_hooks_invoke)
 
         # Start listening for messages
         loop = asyncio.get_running_loop()
         self._client.start(loop)
-
-    async def _handle_permission_request(self, params: dict) -> dict:
-        """
-        Handle a permission request from the CLI server.
-
-        Args:
-            params: The permission request parameters from the server.
-
-        Returns:
-            A dict containing the permission decision result.
-
-        Raises:
-            ValueError: If the request payload is invalid.
-        """
-        session_id = params.get("sessionId")
-        permission_request = params.get("permissionRequest")
-
-        if not session_id or not permission_request:
-            raise ValueError("invalid permission request payload")
-
-        with self._sessions_lock:
-            session = self._sessions.get(session_id)
-        if not session:
-            raise ValueError(f"unknown session {session_id}")
-
-        try:
-            result = await session._handle_permission_request(permission_request)
-            return {"result": result}
-        except Exception:  # pylint: disable=broad-except
-            # If permission handler fails, deny the permission
-            return {
-                "result": {
-                    "kind": "denied-no-approval-rule-and-could-not-request-from-user",
-                }
-            }
 
     async def _handle_user_input_request(self, params: dict) -> dict:
         """
@@ -1533,129 +1505,3 @@ class CopilotClient:
 
         output = await session._handle_hooks_invoke(hook_type, input_data)
         return {"output": output}
-
-    async def _handle_tool_call_request(self, params: dict) -> dict:
-        """
-        Handle a tool call request from the CLI server.
-
-        Args:
-            params: The tool call parameters from the server.
-
-        Returns:
-            A dict containing the tool execution result.
-
-        Raises:
-            ValueError: If the request payload is invalid or session is unknown.
-        """
-        session_id = params.get("sessionId")
-        tool_call_id = params.get("toolCallId")
-        tool_name = params.get("toolName")
-
-        if not session_id or not tool_call_id or not tool_name:
-            raise ValueError("invalid tool call payload")
-
-        with self._sessions_lock:
-            session = self._sessions.get(session_id)
-        if not session:
-            raise ValueError(f"unknown session {session_id}")
-
-        handler = session._get_tool_handler(tool_name)
-        if not handler:
-            return {"result": self._build_unsupported_tool_result(tool_name)}
-
-        arguments = params.get("arguments")
-        result = await self._execute_tool_call(
-            session_id,
-            tool_call_id,
-            tool_name,
-            arguments,
-            handler,
-        )
-
-        return {"result": result}
-
-    async def _execute_tool_call(
-        self,
-        session_id: str,
-        tool_call_id: str,
-        tool_name: str,
-        arguments: Any,
-        handler: ToolHandler,
-    ) -> ToolResult:
-        """
-        Execute a tool call with the given handler.
-
-        Args:
-            session_id: The session ID making the tool call.
-            tool_call_id: The unique ID for this tool call.
-            tool_name: The name of the tool being called.
-            arguments: The arguments to pass to the tool handler.
-            handler: The tool handler function to execute.
-
-        Returns:
-            A ToolResult containing the execution result or error.
-        """
-        invocation: ToolInvocation = {
-            "session_id": session_id,
-            "tool_call_id": tool_call_id,
-            "tool_name": tool_name,
-            "arguments": arguments,
-        }
-
-        try:
-            result = handler(invocation)
-            if inspect.isawaitable(result):
-                result = await result
-        except Exception as exc:  # pylint: disable=broad-except
-            # Don't expose detailed error information to the LLM for security reasons.
-            # The actual error is stored in the 'error' field for debugging.
-            result = ToolResult(
-                textResultForLlm="Invoking this tool produced an error. "
-                "Detailed information is not available.",
-                resultType="failure",
-                error=str(exc),
-                toolTelemetry={},
-            )
-
-        if result is None:
-            result = ToolResult(
-                textResultForLlm="Tool returned no result.",
-                resultType="failure",
-                error="tool returned no result",
-                toolTelemetry={},
-            )
-
-        return self._normalize_tool_result(cast(ToolResult, result))
-
-    def _normalize_tool_result(self, result: ToolResult) -> ToolResult:
-        """
-        Normalize a tool result for transmission.
-
-        Converts dataclass instances to dictionaries for JSON serialization.
-
-        Args:
-            result: The tool result to normalize.
-
-        Returns:
-            The normalized tool result.
-        """
-        if is_dataclass(result) and not isinstance(result, type):
-            return asdict(result)  # type: ignore[arg-type]
-        return result
-
-    def _build_unsupported_tool_result(self, tool_name: str) -> ToolResult:
-        """
-        Build a failure result for an unsupported tool.
-
-        Args:
-            tool_name: The name of the unsupported tool.
-
-        Returns:
-            A ToolResult indicating the tool is not supported.
-        """
-        return ToolResult(
-            textResultForLlm=f"Tool '{tool_name}' is not supported.",
-            resultType="failure",
-            error=f"tool '{tool_name}' not supported",
-            toolTelemetry={},
-        )

@@ -633,17 +633,6 @@ type SessionLifecycleEventMetadata struct {
 // SessionLifecycleHandler is a callback for session lifecycle events
 type SessionLifecycleHandler func(event SessionLifecycleEvent)
 
-// permissionRequestRequest represents the request data for a permission request
-type permissionRequestRequest struct {
-	SessionID string            `json:"sessionId"`
-	Request   PermissionRequest `json:"permissionRequest"`
-}
-
-// permissionRequestResponse represents the response to a permission request
-type permissionRequestResponse struct {
-	Result PermissionRequestResult `json:"result"`
-}
-
 // createSessionRequest is the request for session.create
 type createSessionRequest struct {
 	Model             string                     `json:"model,omitempty"`
@@ -838,21 +827,6 @@ type sessionSendResponse struct {
 type sessionEventRequest struct {
 	SessionID string       `json:"sessionId"`
 	Event     SessionEvent `json:"event"`
-}
-
-// toolCallRequest represents a tool call request from the server
-// to the client for execution.
-type toolCallRequest struct {
-	SessionID  string `json:"sessionId"`
-	ToolCallID string `json:"toolCallId"`
-	ToolName   string `json:"toolName"`
-	Arguments  any    `json:"arguments"`
-}
-
-// toolCallResponse represents the response to a tool call request
-// from the client back to the server.
-type toolCallResponse struct {
-	Result ToolResult `json:"result"`
 }
 
 // userInputRequest represents a request for user input from the agent

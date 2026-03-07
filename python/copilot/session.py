@@ -11,8 +11,17 @@ import threading
 from collections.abc import Callable
 from typing import Any, cast
 
-from .generated.rpc import SessionModelSwitchToParams, SessionRpc
+from .generated.rpc import (
+    Kind,
+    ResultResult,
+    SessionModelSwitchToParams,
+    SessionPermissionsHandlePendingPermissionRequestParams,
+    SessionPermissionsHandlePendingPermissionRequestParamsResult,
+    SessionRpc,
+    SessionToolsHandlePendingToolCallParams,
+)
 from .generated.session_events import SessionEvent, SessionEventType, session_event_from_dict
+from .jsonrpc import JsonRpcError, ProcessExitedError
 from .types import (
     MessageOptions,
     PermissionRequest,
@@ -20,6 +29,8 @@ from .types import (
     SessionHooks,
     Tool,
     ToolHandler,
+    ToolInvocation,
+    ToolResult,
     UserInputHandler,
     UserInputRequest,
     UserInputResponse,
@@ -236,12 +247,19 @@ class CopilotSession:
         """
         Dispatch an event to all registered handlers.
 
+        Broadcast request events (external_tool.requested, permission.requested) are handled
+        internally before being forwarded to user handlers.
+
         Note:
             This method is internal and should not be called directly.
 
         Args:
             event: The session event to dispatch to all handlers.
         """
+        # Handle broadcast request events (protocol v3) before dispatching to user handlers.
+        # Fire-and-forget: the response is sent asynchronously via RPC.
+        self._handle_broadcast_event(event)
+
         with self._event_handlers_lock:
             handlers = list(self._event_handlers)
 
@@ -250,6 +268,139 @@ class CopilotSession:
                 handler(event)
             except Exception as e:
                 print(f"Error in session event handler: {e}")
+
+    def _handle_broadcast_event(self, event: SessionEvent) -> None:
+        """Handle broadcast request events by executing local handlers and responding via RPC.
+
+        Implements the protocol v3 broadcast model where tool calls and permission requests
+        are broadcast as session events to all clients.
+        """
+        if event.type == SessionEventType.EXTERNAL_TOOL_REQUESTED:
+            request_id = event.data.request_id
+            tool_name = event.data.tool_name
+            if not request_id or not tool_name:
+                return
+
+            handler = self._get_tool_handler(tool_name)
+            if not handler:
+                return  # This client doesn't handle this tool; another client will.
+
+            tool_call_id = event.data.tool_call_id or ""
+            arguments = event.data.arguments
+            asyncio.ensure_future(
+                self._execute_tool_and_respond(
+                    request_id, tool_name, tool_call_id, arguments, handler
+                )
+            )
+
+        elif event.type == SessionEventType.PERMISSION_REQUESTED:
+            request_id = event.data.request_id
+            permission_request = event.data.permission_request
+            if not request_id or not permission_request:
+                return
+
+            with self._permission_handler_lock:
+                perm_handler = self._permission_handler
+            if not perm_handler:
+                return  # This client doesn't handle permissions; another client will.
+
+            asyncio.ensure_future(
+                self._execute_permission_and_respond(request_id, permission_request, perm_handler)
+            )
+
+    async def _execute_tool_and_respond(
+        self,
+        request_id: str,
+        tool_name: str,
+        tool_call_id: str,
+        arguments: Any,
+        handler: ToolHandler,
+    ) -> None:
+        """Execute a tool handler and send the result back via HandlePendingToolCall RPC."""
+        try:
+            invocation = ToolInvocation(
+                session_id=self.session_id,
+                tool_call_id=tool_call_id,
+                tool_name=tool_name,
+                arguments=arguments,
+            )
+
+            result = handler(invocation)
+            if inspect.isawaitable(result):
+                result = await result
+
+            tool_result: ToolResult
+            if result is None:
+                tool_result = ToolResult(
+                    text_result_for_llm="Tool returned no result.",
+                    result_type="failure",
+                    error="tool returned no result",
+                    tool_telemetry={},
+                )
+            else:
+                tool_result = result  # type: ignore[assignment]
+
+            await self.rpc.tools.handle_pending_tool_call(
+                SessionToolsHandlePendingToolCallParams(
+                    request_id=request_id,
+                    result=ResultResult(
+                        text_result_for_llm=tool_result.text_result_for_llm,
+                        result_type=tool_result.result_type,
+                        tool_telemetry=tool_result.tool_telemetry,
+                    ),
+                )
+            )
+        except Exception as exc:
+            try:
+                await self.rpc.tools.handle_pending_tool_call(
+                    SessionToolsHandlePendingToolCallParams(
+                        request_id=request_id,
+                        error=str(exc),
+                    )
+                )
+            except (JsonRpcError, ProcessExitedError, OSError):
+                pass  # Connection lost or RPC error — nothing we can do
+
+    async def _execute_permission_and_respond(
+        self,
+        request_id: str,
+        permission_request: Any,
+        handler: _PermissionHandlerFn,
+    ) -> None:
+        """Execute a permission handler and respond via RPC."""
+        try:
+            result = handler(permission_request, {"session_id": self.session_id})
+            if inspect.isawaitable(result):
+                result = await result
+
+            result = cast(PermissionRequestResult, result)
+
+            perm_result = SessionPermissionsHandlePendingPermissionRequestParamsResult(
+                kind=Kind(result.kind),
+                rules=result.rules,
+                feedback=result.feedback,
+                message=result.message,
+                path=result.path,
+            )
+
+            await self.rpc.permissions.handle_pending_permission_request(
+                SessionPermissionsHandlePendingPermissionRequestParams(
+                    request_id=request_id,
+                    result=perm_result,
+                )
+            )
+        except Exception:
+            try:
+                await self.rpc.permissions.handle_pending_permission_request(
+                    SessionPermissionsHandlePendingPermissionRequestParams(
+                        request_id=request_id,
+                        result=SessionPermissionsHandlePendingPermissionRequestParamsResult(
+                            kind=Kind.DENIED_NO_APPROVAL_RULE_AND_COULD_NOT_REQUEST_FROM_USER,
+                        ),
+                    )
+                )
+            except (JsonRpcError, ProcessExitedError, OSError):
+                pass  # Connection lost or RPC error — nothing we can do
 
     def _register_tools(self, tools: list[Tool] | None) -> None:
         """
@@ -329,7 +480,7 @@ class CopilotSession:
 
         if not handler:
             # No handler registered, deny permission
-            return {"kind": "denied-no-approval-rule-and-could-not-request-from-user"}
+            return PermissionRequestResult()
 
         try:
             result = handler(request, {"session_id": self.session_id})
@@ -338,7 +489,7 @@ class CopilotSession:
             return cast(PermissionRequestResult, result)
         except Exception:  # pylint: disable=broad-except
             # Handler failed, deny permission
-            return {"kind": "denied-no-approval-rule-and-could-not-request-from-user"}
+            return PermissionRequestResult()
 
     def _register_user_input_handler(self, handler: UserInputHandler | None) -> None:
         """

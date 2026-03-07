@@ -230,14 +230,10 @@ export interface PermissionRequest {
     [key: string]: unknown;
 }
 
-export interface PermissionRequestResult {
-    kind:
-        | "approved"
-        | "denied-by-rules"
-        | "denied-no-approval-rule-and-could-not-request-from-user"
-        | "denied-interactively-by-user";
-    rules?: unknown[];
-}
+import type { SessionPermissionsHandlePendingPermissionRequestParams } from "./generated/rpc.js";
+
+export type PermissionRequestResult =
+    SessionPermissionsHandlePendingPermissionRequestParams["result"];
 
 export type PermissionHandler = (
     request: PermissionRequest,

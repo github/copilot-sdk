@@ -303,24 +303,6 @@ func (s *Session) getPermissionHandler() PermissionHandlerFunc {
 	return s.permissionHandler
 }
 
-// handlePermissionRequest handles a permission request from the Copilot CLI.
-// This is an internal method called by the SDK when the CLI requests permission.
-func (s *Session) handlePermissionRequest(request PermissionRequest) (PermissionRequestResult, error) {
-	handler := s.getPermissionHandler()
-
-	if handler == nil {
-		return PermissionRequestResult{
-			Kind: PermissionRequestResultKindDeniedCouldNotRequestFromUser,
-		}, nil
-	}
-
-	invocation := PermissionInvocation{
-		SessionID: s.SessionID,
-	}
-
-	return handler(request, invocation)
-}
-
 // registerUserInputHandler registers a user input handler for this session.
 //
 // When the assistant needs to ask the user a question (e.g., via ask_user tool),
@@ -457,6 +439,9 @@ func (s *Session) handleHooksInvoke(hookType string, rawInput json.RawMessage) (
 // This is an internal method; handlers are called synchronously and any panics
 // are recovered to prevent crashing the event dispatcher.
 func (s *Session) dispatchEvent(event SessionEvent) {
+	// Handle broadcast request events internally (fire-and-forget)
+	s.handleBroadcastEvent(event)
+
 	s.handlerMutex.RLock()
 	handlers := make([]SessionEventHandler, 0, len(s.handlers))
 	for _, h := range s.handlers {
@@ -475,6 +460,117 @@ func (s *Session) dispatchEvent(event SessionEvent) {
 			handler(event)
 		}()
 	}
+}
+
+// handleBroadcastEvent handles broadcast request events by executing local handlers
+// and responding via RPC. This implements the protocol v3 broadcast model where tool
+// calls and permission requests are broadcast as session events to all clients.
+func (s *Session) handleBroadcastEvent(event SessionEvent) {
+	switch event.Type {
+	case ExternalToolRequested:
+		requestID := event.Data.RequestID
+		toolName := event.Data.ToolName
+		if requestID == nil || toolName == nil {
+			return
+		}
+		handler, ok := s.getToolHandler(*toolName)
+		if !ok {
+			return
+		}
+		toolCallID := ""
+		if event.Data.ToolCallID != nil {
+			toolCallID = *event.Data.ToolCallID
+		}
+		go s.executeToolAndRespond(*requestID, *toolName, toolCallID, event.Data.Arguments, handler)
+
+	case PermissionRequested:
+		requestID := event.Data.RequestID
+		if requestID == nil || event.Data.PermissionRequest == nil {
+			return
+		}
+		handler := s.getPermissionHandler()
+		if handler == nil {
+			return
+		}
+		go s.executePermissionAndRespond(*requestID, *event.Data.PermissionRequest, handler)
+	}
+}
+
+// executeToolAndRespond executes a tool handler and sends the result back via RPC.
+func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, arguments any, handler ToolHandler) {
+	defer func() {
+		if r := recover(); r != nil {
+			errMsg := fmt.Sprintf("tool panic: %v", r)
+			s.RPC.Tools.HandlePendingToolCall(context.Background(), &rpc.SessionToolsHandlePendingToolCallParams{
+				RequestID: requestID,
+				Error:     &errMsg,
+			})
+		}
+	}()
+
+	invocation := ToolInvocation{
+		SessionID:  s.SessionID,
+		ToolCallID: toolCallID,
+		ToolName:   toolName,
+		Arguments:  arguments,
+	}
+
+	result, err := handler(invocation)
+	if err != nil {
+		errMsg := err.Error()
+		s.RPC.Tools.HandlePendingToolCall(context.Background(), &rpc.SessionToolsHandlePendingToolCallParams{
+			RequestID: requestID,
+			Error:     &errMsg,
+		})
+		return
+	}
+
+	resultStr := result.TextResultForLLM
+	if resultStr == "" {
+		resultStr = fmt.Sprintf("%v", result)
+	}
+	s.RPC.Tools.HandlePendingToolCall(context.Background(), &rpc.SessionToolsHandlePendingToolCallParams{
+		RequestID: requestID,
+		Result:    &rpc.ResultUnion{String: &resultStr},
+	})
+}
+
+// executePermissionAndRespond executes a permission handler and sends the result back via RPC.
+func (s *Session) executePermissionAndRespond(requestID string, permissionRequest PermissionRequest, handler PermissionHandlerFunc) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.SessionPermissionsHandlePendingPermissionRequestParams{
+				RequestID: requestID,
+				Result: rpc.SessionPermissionsHandlePendingPermissionRequestParamsResult{
+					Kind: rpc.DeniedNoApprovalRuleAndCouldNotRequestFromUser,
+				},
+			})
+		}
+	}()
+
+	invocation := PermissionInvocation{
+		SessionID: s.SessionID,
+	}
+
+	result, err := handler(permissionRequest, invocation)
+	if err != nil {
+		s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.SessionPermissionsHandlePendingPermissionRequestParams{
+			RequestID: requestID,
+			Result: rpc.SessionPermissionsHandlePendingPermissionRequestParamsResult{
+				Kind: rpc.DeniedNoApprovalRuleAndCouldNotRequestFromUser,
+			},
+		})
+		return
+	}
+
+	s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.SessionPermissionsHandlePendingPermissionRequestParams{
+		RequestID: requestID,
+		Result: rpc.SessionPermissionsHandlePendingPermissionRequestParamsResult{
+			Kind:     rpc.Kind(result.Kind),
+			Rules:    result.Rules,
+			Feedback: nil,
+		},
+	})
 }
 
 // GetMessages retrieves all events and messages from this session's history.
