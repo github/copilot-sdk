@@ -1082,7 +1082,7 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 	}
 
 	if pingResult.ProtocolVersion == nil {
-		return fmt.Errorf("SDK protocol version mismatch: SDK expects version %d-%d, but server does not report a protocol version. Please update your server to ensure compatibility", minProtocolVersion, maxVersion)
+		return fmt.Errorf("SDK protocol version mismatch: SDK supports versions %d-%d, but server does not report a protocol version. Please update your server to ensure compatibility", minProtocolVersion, maxVersion)
 	}
 
 	serverVersion := *pingResult.ProtocolVersion

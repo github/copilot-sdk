@@ -938,7 +938,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         if (!pingResponse.ProtocolVersion.HasValue)
         {
             throw new InvalidOperationException(
-                $"SDK protocol version mismatch: SDK expects version {MinProtocolVersion}-{maxVersion}, " +
+                $"SDK protocol version mismatch: SDK supports versions {MinProtocolVersion}-{maxVersion}, " +
                 $"but server does not report a protocol version. " +
                 $"Please update your server to ensure compatibility.");
         }
@@ -1346,22 +1346,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         public async Task<PermissionRequestResponseV2> OnPermissionRequestV2(string sessionId, JsonElement permissionRequest)
         {
-            var session = client.GetSession(sessionId);
-            if (session == null)
-            {
-                return new PermissionRequestResponseV2(new PermissionRequestResult
-                {
-                    Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser
-                });
-            }
+            var session = client.GetSession(sessionId)
+                ?? throw new ArgumentException($"Unknown session {sessionId}");
 
             try
             {
                 var result = await session.HandlePermissionRequestAsync(permissionRequest);
                 return new PermissionRequestResponseV2(result);
             }
-            catch
-            {
+            catch (Exception)            {
                 return new PermissionRequestResponseV2(new PermissionRequestResult
                 {
                     Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser
@@ -1489,7 +1482,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     // Protocol v2 backward-compatibility response types
     internal record ToolCallResponseV2(
-        ToolResultObject? Result);
+        ToolResultObject Result);
 
     internal record PermissionRequestResponseV2(
         PermissionRequestResult Result);

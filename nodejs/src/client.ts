@@ -806,7 +806,7 @@ export class CopilotClient {
 
         if (serverVersion === undefined) {
             throw new Error(
-                `SDK protocol version mismatch: SDK expects version ${MIN_PROTOCOL_VERSION}-${maxVersion}, but server does not report a protocol version. ` +
+                `SDK protocol version mismatch: SDK supports versions ${MIN_PROTOCOL_VERSION}-${maxVersion}, but server does not report a protocol version. ` +
                     `Please update your server to ensure compatibility.`
             );
         }

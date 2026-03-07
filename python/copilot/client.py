@@ -13,6 +13,7 @@ Example:
 """
 
 import asyncio
+import inspect
 import os
 import re
 import subprocess
@@ -1155,7 +1156,7 @@ class CopilotClient:
         if server_version is None:
             raise RuntimeError(
                 "SDK protocol version mismatch: "
-                f"SDK expects version {MIN_PROTOCOL_VERSION}-{max_version}"
+                f"SDK supports versions {MIN_PROTOCOL_VERSION}-{max_version}"
                 ", but server does not report a protocol version. "
                 "Please update your server to ensure compatibility."
             )
@@ -1571,8 +1572,6 @@ class CopilotClient:
         )
 
         try:
-            import inspect
-
             result = handler(invocation)
             if inspect.isawaitable(result):
                 result = await result
@@ -1615,7 +1614,16 @@ class CopilotClient:
         try:
             perm_request = PermissionRequest.from_dict(permission_request)
             result = await session._handle_permission_request(perm_request)
-            return {"result": {"kind": result.kind}}
+            result_payload: dict = {"kind": result.kind}
+            if result.rules is not None:
+                result_payload["rules"] = result.rules
+            if result.feedback is not None:
+                result_payload["feedback"] = result.feedback
+            if result.message is not None:
+                result_payload["message"] = result.message
+            if result.path is not None:
+                result_payload["path"] = result.path
+            return {"result": result_payload}
         except Exception:  # pylint: disable=broad-except
             return {
                 "result": {
