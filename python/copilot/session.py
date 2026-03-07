@@ -108,30 +108,13 @@ class CopilotSession:
         exc_type: Optional[type[BaseException]],
         exc_val: Optional[BaseException],
         exc_tb: Optional[TracebackType],
-    ) -> bool:
+    ) -> None:
         """
         Exit the async context manager.
 
         Automatically destroys the session and releases all associated resources.
-        If a cleanup error occurs and no exception was raised inside the context,
-        the cleanup error is propagated. If an exception was already raised inside
-        the context, the cleanup error is suppressed so the original exception is
-        not masked.
-
-        Args:
-            exc_type: The type of exception that occurred, if any.
-            exc_val: The exception instance that occurred, if any.
-            exc_tb: The traceback of the exception that occurred, if any.
-
-        Returns:
-            False to propagate any exception that occurred in the context.
         """
-        try:
-            await self.destroy()
-        except Exception:
-            if exc_type is None:
-                raise
-        return False
+        await self.destroy()
 
     @property
     def rpc(self) -> SessionRpc:

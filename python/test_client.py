@@ -328,12 +328,12 @@ class TestContextManager:
         await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_client_aexit_returns_false(self):
-        """Test that __aexit__ returns False to propagate exceptions."""
+    async def test_client_aexit_returns_none(self):
+        """Test that __aexit__ returns None to propagate exceptions."""
         client = CopilotClient({"cli_path": CLI_PATH})
         await client.start()
         result = await client.__aexit__(None, None, None)
-        assert result is False
+        assert result is None
 
     @pytest.mark.asyncio
     async def test_session_context_manager_returns_self(self):
@@ -341,20 +341,24 @@ class TestContextManager:
         client = CopilotClient({"cli_path": CLI_PATH})
         await client.start()
         try:
-            session = await client.create_session()
+            session = await client.create_session(
+                {"on_permission_request": PermissionHandler.approve_all}
+            )
             returned_session = await session.__aenter__()
             assert returned_session is session
         finally:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_session_aexit_returns_false(self):
-        """Test that session __aexit__ returns False to propagate exceptions."""
+    async def test_session_aexit_returns_none(self):
+        """Test that session __aexit__ returns None to propagate exceptions."""
         client = CopilotClient({"cli_path": CLI_PATH})
         await client.start()
         try:
-            session = await client.create_session()
+            session = await client.create_session(
+                {"on_permission_request": PermissionHandler.approve_all}
+            )
             result = await session.__aexit__(None, None, None)
-            assert result is False
+            assert result is None
         finally:
             await client.force_stop()
