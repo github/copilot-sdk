@@ -13,6 +13,7 @@ Example:
 """
 
 import asyncio
+import inspect
 import os
 import re
 import subprocess
@@ -23,7 +24,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from .generated.rpc import ServerRpc
-from .generated.session_events import session_event_from_dict
+from .generated.session_events import PermissionRequest, session_event_from_dict
 from .jsonrpc import JsonRpcClient, ProcessExitedError
 from .sdk_protocol_version import get_sdk_protocol_version
 from .session import CopilotSession
@@ -44,7 +45,13 @@ from .types import (
     SessionListFilter,
     SessionMetadata,
     StopError,
+    ToolInvocation,
+    ToolResult,
 )
+
+# Minimum protocol version this SDK can communicate with.
+# Servers reporting a version below this are rejected.
+MIN_PROTOCOL_VERSION = 2
 
 
 def _get_bundled_cli_path() -> str | None:
@@ -206,6 +213,7 @@ class CopilotClient:
         ] = {}
         self._lifecycle_handlers_lock = threading.Lock()
         self._rpc: ServerRpc | None = None
+        self._negotiated_protocol_version: int | None = None
 
     @property
     def rpc(self) -> ServerRpc:
@@ -1139,24 +1147,29 @@ class CopilotClient:
                 pass  # Ignore handler errors
 
     async def _verify_protocol_version(self) -> None:
-        """Verify that the server's protocol version matches the SDK's expected version."""
-        expected_version = get_sdk_protocol_version()
+        """Verify that the server's protocol version is within the supported range
+        and store the negotiated version."""
+        max_version = get_sdk_protocol_version()
         ping_result = await self.ping()
         server_version = ping_result.protocolVersion
 
         if server_version is None:
             raise RuntimeError(
-                f"SDK protocol version mismatch: SDK expects version {expected_version}, "
-                f"but server does not report a protocol version. "
-                f"Please update your server to ensure compatibility."
+                "SDK protocol version mismatch: "
+                f"SDK supports versions {MIN_PROTOCOL_VERSION}-{max_version}"
+                ", but server does not report a protocol version. "
+                "Please update your server to ensure compatibility."
             )
 
-        if server_version != expected_version:
+        if server_version < MIN_PROTOCOL_VERSION or server_version > max_version:
             raise RuntimeError(
-                f"SDK protocol version mismatch: SDK expects version {expected_version}, "
-                f"but server reports version {server_version}. "
-                f"Please update your SDK or server to ensure compatibility."
+                "SDK protocol version mismatch: "
+                f"SDK supports versions {MIN_PROTOCOL_VERSION}-{max_version}"
+                f", but server reports version {server_version}. "
+                "Please update your SDK or server to ensure compatibility."
             )
+
+        self._negotiated_protocol_version = server_version
 
     def _convert_provider_to_wire_format(
         self, provider: ProviderConfig | dict[str, Any]
@@ -1367,10 +1380,12 @@ class CopilotClient:
                 self._dispatch_lifecycle_event(lifecycle_event)
 
         self._client.set_notification_handler(handle_notification)
-        # Protocol v3: tool.call and permission.request RPC handlers removed.
-        # Tool calls and permission requests are now broadcast as session events
-        # (external_tool.requested, permission.requested) and handled in
-        # Session._handle_broadcast_event.
+        # Protocol v3 servers send tool calls / permission requests as broadcast events.
+        # Protocol v2 servers use the older tool.call / permission.request RPC model.
+        # We always register v2 adapters because handlers are set up before version
+        # negotiation; a v3 server will simply never send these requests.
+        self._client.set_request_handler("tool.call", self._handle_tool_call_request_v2)
+        self._client.set_request_handler("permission.request", self._handle_permission_request_v2)
         self._client.set_request_handler("userInput.request", self._handle_user_input_request)
         self._client.set_request_handler("hooks.invoke", self._handle_hooks_invoke)
 
@@ -1450,8 +1465,11 @@ class CopilotClient:
                 self._dispatch_lifecycle_event(lifecycle_event)
 
         self._client.set_notification_handler(handle_notification)
-        # Protocol v3: tool.call and permission.request RPC handlers removed.
-        # See _connect_via_stdio for details.
+        # Protocol v3 servers send tool calls / permission requests as broadcast events.
+        # Protocol v2 servers use the older tool.call / permission.request RPC model.
+        # We always register v2 adapters; a v3 server will simply never send these requests.
+        self._client.set_request_handler("tool.call", self._handle_tool_call_request_v2)
+        self._client.set_request_handler("permission.request", self._handle_permission_request_v2)
         self._client.set_request_handler("userInput.request", self._handle_user_input_request)
         self._client.set_request_handler("hooks.invoke", self._handle_hooks_invoke)
 
@@ -1513,3 +1531,102 @@ class CopilotClient:
 
         output = await session._handle_hooks_invoke(hook_type, input_data)
         return {"output": output}
+
+    # ========================================================================
+    # Protocol v2 backward-compatibility adapters
+    # ========================================================================
+
+    async def _handle_tool_call_request_v2(self, params: dict) -> dict:
+        """Handle a v2-style tool.call RPC request from the server."""
+        session_id = params.get("sessionId")
+        tool_call_id = params.get("toolCallId")
+        tool_name = params.get("toolName")
+
+        if not session_id or not tool_call_id or not tool_name:
+            raise ValueError("invalid tool call payload")
+
+        with self._sessions_lock:
+            session = self._sessions.get(session_id)
+        if not session:
+            raise ValueError(f"unknown session {session_id}")
+
+        handler = session._get_tool_handler(tool_name)
+        if not handler:
+            return {
+                "result": {
+                    "textResultForLlm": (
+                        f"Tool '{tool_name}' is not supported by this client instance."
+                    ),
+                    "resultType": "failure",
+                    "error": f"tool '{tool_name}' not supported",
+                    "toolTelemetry": {},
+                }
+            }
+
+        arguments = params.get("arguments")
+        invocation = ToolInvocation(
+            session_id=session_id,
+            tool_call_id=tool_call_id,
+            tool_name=tool_name,
+            arguments=arguments,
+        )
+
+        try:
+            result = handler(invocation)
+            if inspect.isawaitable(result):
+                result = await result
+
+            tool_result: ToolResult = result  # type: ignore[assignment]
+            return {
+                "result": {
+                    "textResultForLlm": tool_result.text_result_for_llm,
+                    "resultType": tool_result.result_type,
+                    "error": tool_result.error,
+                    "toolTelemetry": tool_result.tool_telemetry or {},
+                }
+            }
+        except Exception as exc:
+            return {
+                "result": {
+                    "textResultForLlm": (
+                        "Invoking this tool produced an error."
+                        " Detailed information is not available."
+                    ),
+                    "resultType": "failure",
+                    "error": str(exc),
+                    "toolTelemetry": {},
+                }
+            }
+
+    async def _handle_permission_request_v2(self, params: dict) -> dict:
+        """Handle a v2-style permission.request RPC request from the server."""
+        session_id = params.get("sessionId")
+        permission_request = params.get("permissionRequest")
+
+        if not session_id or not permission_request:
+            raise ValueError("invalid permission request payload")
+
+        with self._sessions_lock:
+            session = self._sessions.get(session_id)
+        if not session:
+            raise ValueError(f"unknown session {session_id}")
+
+        try:
+            perm_request = PermissionRequest.from_dict(permission_request)
+            result = await session._handle_permission_request(perm_request)
+            result_payload: dict = {"kind": result.kind}
+            if result.rules is not None:
+                result_payload["rules"] = result.rules
+            if result.feedback is not None:
+                result_payload["feedback"] = result.feedback
+            if result.message is not None:
+                result_payload["message"] = result.message
+            if result.path is not None:
+                result_payload["path"] = result.path
+            return {"result": result_payload}
+        except Exception:  # pylint: disable=broad-except
+            return {
+                "result": {
+                    "kind": "denied-no-approval-rule-and-could-not-request-from-user",
+                }
+            }

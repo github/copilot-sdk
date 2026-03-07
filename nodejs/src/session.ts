@@ -14,6 +14,7 @@ import type {
     MessageOptions,
     PermissionHandler,
     PermissionRequest,
+    PermissionRequestResult,
     SessionEvent,
     SessionEventHandler,
     SessionEventPayload,
@@ -485,6 +486,29 @@ export class CopilotSession {
      */
     registerHooks(hooks?: SessionHooks): void {
         this.hooks = hooks;
+    }
+
+    /**
+     * Handles a permission request in the v2 protocol format (synchronous RPC).
+     * Used as a back-compat adapter when connected to a v2 server.
+     *
+     * @param request - The permission request data from the CLI
+     * @returns A promise that resolves with the permission decision
+     * @internal This method is for internal use by the SDK.
+     */
+    async _handlePermissionRequestV2(request: unknown): Promise<PermissionRequestResult> {
+        if (!this.permissionHandler) {
+            return { kind: "denied-no-approval-rule-and-could-not-request-from-user" };
+        }
+
+        try {
+            const result = await this.permissionHandler(request as PermissionRequest, {
+                sessionId: this.sessionId,
+            });
+            return result;
+        } catch (_error) {
+            return { kind: "denied-no-approval-rule-and-could-not-request-from-user" };
+        }
     }
 
     /**

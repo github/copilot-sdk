@@ -42,8 +42,17 @@ import type {
     SessionListFilter,
     SessionMetadata,
     Tool,
+    ToolCallRequestPayload,
+    ToolCallResponsePayload,
+    ToolResultObject,
     TypedSessionLifecycleHandler,
 } from "./types.js";
+
+/**
+ * Minimum protocol version this SDK can communicate with.
+ * Servers reporting a version below this are rejected.
+ */
+const MIN_PROTOCOL_VERSION = 2;
 
 /**
  * Check if value is a Zod schema (has toJSONSchema method)
@@ -149,6 +158,7 @@ export class CopilotClient {
     > = new Map();
     private _rpc: ReturnType<typeof createServerRpc> | null = null;
     private processExitPromise: Promise<never> | null = null; // Rejects when CLI process exits
+    private negotiatedProtocolVersion: number | null = null;
 
     /**
      * Typed server-scoped RPC methods.
@@ -778,10 +788,11 @@ export class CopilotClient {
     }
 
     /**
-     * Verify that the server's protocol version matches the SDK's expected version
+     * Verify that the server's protocol version is within the supported range
+     * and store the negotiated version.
      */
     private async verifyProtocolVersion(): Promise<void> {
-        const expectedVersion = getSdkProtocolVersion();
+        const maxVersion = getSdkProtocolVersion();
 
         // Race ping against process exit to detect early CLI failures
         let pingResult: Awaited<ReturnType<typeof this.ping>>;
@@ -795,17 +806,19 @@ export class CopilotClient {
 
         if (serverVersion === undefined) {
             throw new Error(
-                `SDK protocol version mismatch: SDK expects version ${expectedVersion}, but server does not report a protocol version. ` +
+                `SDK protocol version mismatch: SDK supports versions ${MIN_PROTOCOL_VERSION}-${maxVersion}, but server does not report a protocol version. ` +
                     `Please update your server to ensure compatibility.`
             );
         }
 
-        if (serverVersion !== expectedVersion) {
+        if (serverVersion < MIN_PROTOCOL_VERSION || serverVersion > maxVersion) {
             throw new Error(
-                `SDK protocol version mismatch: SDK expects version ${expectedVersion}, but server reports version ${serverVersion}. ` +
+                `SDK protocol version mismatch: SDK supports versions ${MIN_PROTOCOL_VERSION}-${maxVersion}, but server reports version ${serverVersion}. ` +
                     `Please update your SDK or server to ensure compatibility.`
             );
         }
+
+        this.negotiatedProtocolVersion = serverVersion;
     }
 
     /**
@@ -1310,11 +1323,24 @@ export class CopilotClient {
             this.handleSessionLifecycleNotification(notification);
         });
 
-        // External tool calls and permission requests are now handled via broadcast events:
-        // the server sends external_tool.requested / permission.requested as session event
-        // notifications, and CopilotSession._dispatchEvent handles them internally by
-        // executing the handler and responding via session.tools.handlePendingToolCall /
-        // session.permissions.handlePendingPermissionRequest RPC.
+        // Protocol v3 servers send tool calls and permission requests as broadcast events
+        // (external_tool.requested / permission.requested) handled in CopilotSession._dispatchEvent.
+        // Protocol v2 servers use the older tool.call / permission.request RPC model instead.
+        // We always register v2 adapters because handlers are set up before version negotiation;
+        // a v3 server will simply never send these requests.
+        this.connection.onRequest(
+            "tool.call",
+            async (params: ToolCallRequestPayload): Promise<ToolCallResponsePayload> =>
+                await this.handleToolCallRequestV2(params)
+        );
+
+        this.connection.onRequest(
+            "permission.request",
+            async (params: {
+                sessionId: string;
+                permissionRequest: unknown;
+            }): Promise<{ result: unknown }> => await this.handlePermissionRequestV2(params)
+        );
 
         this.connection.onRequest(
             "userInput.request",
@@ -1447,6 +1473,127 @@ export class CopilotClient {
 
         const output = await session._handleHooksInvoke(params.hookType, params.input);
         return { output };
+    }
+
+    // ========================================================================
+    // Protocol v2 backward-compatibility adapters
+    // ========================================================================
+
+    /**
+     * Handles a v2-style tool.call RPC request from the server.
+     * Looks up the session and tool handler, executes it, and returns the result
+     * in the v2 response format.
+     */
+    private async handleToolCallRequestV2(
+        params: ToolCallRequestPayload
+    ): Promise<ToolCallResponsePayload> {
+        if (
+            !params ||
+            typeof params.sessionId !== "string" ||
+            typeof params.toolCallId !== "string" ||
+            typeof params.toolName !== "string"
+        ) {
+            throw new Error("Invalid tool call payload");
+        }
+
+        const session = this.sessions.get(params.sessionId);
+        if (!session) {
+            throw new Error(`Unknown session ${params.sessionId}`);
+        }
+
+        const handler = session.getToolHandler(params.toolName);
+        if (!handler) {
+            return {
+                result: {
+                    textResultForLlm: `Tool '${params.toolName}' is not supported by this client instance.`,
+                    resultType: "failure",
+                    error: `tool '${params.toolName}' not supported`,
+                    toolTelemetry: {},
+                },
+            };
+        }
+
+        try {
+            const invocation = {
+                sessionId: params.sessionId,
+                toolCallId: params.toolCallId,
+                toolName: params.toolName,
+                arguments: params.arguments,
+            };
+            const result = await handler(params.arguments, invocation);
+            return { result: this.normalizeToolResultV2(result) };
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            return {
+                result: {
+                    textResultForLlm:
+                        "Invoking this tool produced an error. Detailed information is not available.",
+                    resultType: "failure",
+                    error: message,
+                    toolTelemetry: {},
+                },
+            };
+        }
+    }
+
+    /**
+     * Handles a v2-style permission.request RPC request from the server.
+     */
+    private async handlePermissionRequestV2(params: {
+        sessionId: string;
+        permissionRequest: unknown;
+    }): Promise<{ result: unknown }> {
+        if (!params || typeof params.sessionId !== "string" || !params.permissionRequest) {
+            throw new Error("Invalid permission request payload");
+        }
+
+        const session = this.sessions.get(params.sessionId);
+        if (!session) {
+            throw new Error(`Session not found: ${params.sessionId}`);
+        }
+
+        try {
+            const result = await session._handlePermissionRequestV2(params.permissionRequest);
+            return { result };
+        } catch (_error) {
+            return {
+                result: {
+                    kind: "denied-no-approval-rule-and-could-not-request-from-user",
+                },
+            };
+        }
+    }
+
+    private normalizeToolResultV2(result: unknown): ToolResultObject {
+        if (result === undefined || result === null) {
+            return {
+                textResultForLlm: "Tool returned no result",
+                resultType: "failure",
+                error: "tool returned no result",
+                toolTelemetry: {},
+            };
+        }
+
+        if (this.isToolResultObject(result)) {
+            return result;
+        }
+
+        const textResult = typeof result === "string" ? result : JSON.stringify(result);
+        return {
+            textResultForLlm: textResult,
+            resultType: "success",
+            toolTelemetry: {},
+        };
+    }
+
+    private isToolResultObject(value: unknown): value is ToolResultObject {
+        return (
+            typeof value === "object" &&
+            value !== null &&
+            "textResultForLlm" in value &&
+            typeof (value as ToolResultObject).textResultForLlm === "string" &&
+            "resultType" in value
+        );
     }
 
     /**

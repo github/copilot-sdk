@@ -69,28 +69,29 @@ import (
 //	}
 //	defer client.Stop()
 type Client struct {
-	options                ClientOptions
-	process                *exec.Cmd
-	client                 *jsonrpc2.Client
-	actualPort             int
-	actualHost             string
-	state                  ConnectionState
-	sessions               map[string]*Session
-	sessionsMux            sync.Mutex
-	isExternalServer       bool
-	conn                   net.Conn // stores net.Conn for external TCP connections
-	useStdio               bool     // resolved value from options
-	autoStart              bool     // resolved value from options
-	autoRestart            bool     // resolved value from options
-	modelsCache            []ModelInfo
-	modelsCacheMux         sync.Mutex
-	lifecycleHandlers      []SessionLifecycleHandler
-	typedLifecycleHandlers map[SessionLifecycleEventType][]SessionLifecycleHandler
-	lifecycleHandlersMux   sync.Mutex
-	startStopMux           sync.RWMutex // protects process and state during start/[force]stop
-	processDone            chan struct{}
-	processErrorPtr        *error
-	osProcess              atomic.Pointer[os.Process]
+	options                   ClientOptions
+	process                   *exec.Cmd
+	client                    *jsonrpc2.Client
+	actualPort                int
+	actualHost                string
+	state                     ConnectionState
+	sessions                  map[string]*Session
+	sessionsMux               sync.Mutex
+	isExternalServer          bool
+	conn                      net.Conn // stores net.Conn for external TCP connections
+	useStdio                  bool     // resolved value from options
+	autoStart                 bool     // resolved value from options
+	autoRestart               bool     // resolved value from options
+	modelsCache               []ModelInfo
+	modelsCacheMux            sync.Mutex
+	lifecycleHandlers         []SessionLifecycleHandler
+	typedLifecycleHandlers    map[SessionLifecycleEventType][]SessionLifecycleHandler
+	lifecycleHandlersMux      sync.Mutex
+	startStopMux              sync.RWMutex // protects process and state during start/[force]stop
+	processDone               chan struct{}
+	processErrorPtr           *error
+	osProcess                 atomic.Pointer[os.Process]
+	negotiatedProtocolVersion int
 
 	// RPC provides typed server-scoped RPC methods.
 	// This field is nil until the client is connected via Start().
@@ -1068,22 +1069,28 @@ func (c *Client) ListModels(ctx context.Context) ([]ModelInfo, error) {
 	return models, nil
 }
 
-// verifyProtocolVersion verifies that the server's protocol version matches the SDK's expected version
+// minProtocolVersion is the minimum protocol version this SDK can communicate with.
+const minProtocolVersion = 2
+
+// verifyProtocolVersion verifies that the server's protocol version is within the supported range
+// and stores the negotiated version.
 func (c *Client) verifyProtocolVersion(ctx context.Context) error {
-	expectedVersion := GetSdkProtocolVersion()
+	maxVersion := GetSdkProtocolVersion()
 	pingResult, err := c.Ping(ctx, "")
 	if err != nil {
 		return err
 	}
 
 	if pingResult.ProtocolVersion == nil {
-		return fmt.Errorf("SDK protocol version mismatch: SDK expects version %d, but server does not report a protocol version. Please update your server to ensure compatibility", expectedVersion)
+		return fmt.Errorf("SDK protocol version mismatch: SDK supports versions %d-%d, but server does not report a protocol version. Please update your server to ensure compatibility", minProtocolVersion, maxVersion)
 	}
 
-	if *pingResult.ProtocolVersion != expectedVersion {
-		return fmt.Errorf("SDK protocol version mismatch: SDK expects version %d, but server reports version %d. Please update your SDK or server to ensure compatibility", expectedVersion, *pingResult.ProtocolVersion)
+	serverVersion := *pingResult.ProtocolVersion
+	if serverVersion < minProtocolVersion || serverVersion > maxVersion {
+		return fmt.Errorf("SDK protocol version mismatch: SDK supports versions %d-%d, but server reports version %d. Please update your SDK or server to ensure compatibility", minProtocolVersion, maxVersion, serverVersion)
 	}
 
+	c.negotiatedProtocolVersion = serverVersion
 	return nil
 }
 
@@ -1296,12 +1303,15 @@ func (c *Client) connectViaTcp(ctx context.Context) error {
 }
 
 // setupNotificationHandler configures handlers for session events and RPC requests.
-// Tool calls and permission requests are handled via the broadcast event model (protocol v3):
-// the server broadcasts external_tool.requested / permission.requested as session events,
-// and clients respond via session.tools.handlePendingToolCall / session.permissions.handlePendingPermissionRequest RPCs.
+// Protocol v3 servers send tool calls and permission requests as broadcast session events.
+// Protocol v2 servers use the older tool.call / permission.request RPC model.
+// We always register v2 adapters because handlers are set up before version negotiation;
+// a v3 server will simply never send these requests.
 func (c *Client) setupNotificationHandler() {
 	c.client.SetRequestHandler("session.event", jsonrpc2.NotificationHandlerFor(c.handleSessionEvent))
 	c.client.SetRequestHandler("session.lifecycle", jsonrpc2.NotificationHandlerFor(c.handleLifecycleEvent))
+	c.client.SetRequestHandler("tool.call", jsonrpc2.RequestHandlerFor(c.handleToolCallRequestV2))
+	c.client.SetRequestHandler("permission.request", jsonrpc2.RequestHandlerFor(c.handlePermissionRequestV2))
 	c.client.SetRequestHandler("userInput.request", jsonrpc2.RequestHandlerFor(c.handleUserInputRequest))
 	c.client.SetRequestHandler("hooks.invoke", jsonrpc2.RequestHandlerFor(c.handleHooksInvoke))
 }
@@ -1368,4 +1378,108 @@ func (c *Client) handleHooksInvoke(req hooksInvokeRequest) (map[string]any, *jso
 		result["output"] = output
 	}
 	return result, nil
+}
+
+// ========================================================================
+// Protocol v2 backward-compatibility adapters
+// ========================================================================
+
+// toolCallRequestV2 is the v2 RPC request payload for tool.call.
+type toolCallRequestV2 struct {
+	SessionID  string `json:"sessionId"`
+	ToolCallID string `json:"toolCallId"`
+	ToolName   string `json:"toolName"`
+	Arguments  any    `json:"arguments"`
+}
+
+// toolCallResponseV2 is the v2 RPC response payload for tool.call.
+type toolCallResponseV2 struct {
+	Result ToolResult `json:"result"`
+}
+
+// permissionRequestV2 is the v2 RPC request payload for permission.request.
+type permissionRequestV2 struct {
+	SessionID string            `json:"sessionId"`
+	Request   PermissionRequest `json:"permissionRequest"`
+}
+
+// permissionResponseV2 is the v2 RPC response payload for permission.request.
+type permissionResponseV2 struct {
+	Result PermissionRequestResult `json:"result"`
+}
+
+// handleToolCallRequestV2 handles a v2-style tool.call RPC request from the server.
+func (c *Client) handleToolCallRequestV2(req toolCallRequestV2) (*toolCallResponseV2, *jsonrpc2.Error) {
+	if req.SessionID == "" || req.ToolCallID == "" || req.ToolName == "" {
+		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid tool call payload"}
+	}
+
+	c.sessionsMux.Lock()
+	session, ok := c.sessions[req.SessionID]
+	c.sessionsMux.Unlock()
+	if !ok {
+		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", req.SessionID)}
+	}
+
+	handler, ok := session.getToolHandler(req.ToolName)
+	if !ok {
+		return &toolCallResponseV2{Result: ToolResult{
+			TextResultForLLM: fmt.Sprintf("Tool '%s' is not supported by this client instance.", req.ToolName),
+			ResultType:       "failure",
+			Error:            fmt.Sprintf("tool '%s' not supported", req.ToolName),
+			ToolTelemetry:    map[string]any{},
+		}}, nil
+	}
+
+	invocation := ToolInvocation(req)
+
+	result, err := handler(invocation)
+	if err != nil {
+		return &toolCallResponseV2{Result: ToolResult{
+			TextResultForLLM: "Invoking this tool produced an error. Detailed information is not available.",
+			ResultType:       "failure",
+			Error:            err.Error(),
+			ToolTelemetry:    map[string]any{},
+		}}, nil
+	}
+
+	return &toolCallResponseV2{Result: result}, nil
+}
+
+// handlePermissionRequestV2 handles a v2-style permission.request RPC request from the server.
+func (c *Client) handlePermissionRequestV2(req permissionRequestV2) (*permissionResponseV2, *jsonrpc2.Error) {
+	if req.SessionID == "" {
+		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid permission request payload"}
+	}
+
+	c.sessionsMux.Lock()
+	session, ok := c.sessions[req.SessionID]
+	c.sessionsMux.Unlock()
+	if !ok {
+		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", req.SessionID)}
+	}
+
+	handler := session.getPermissionHandler()
+	if handler == nil {
+		return &permissionResponseV2{
+			Result: PermissionRequestResult{
+				Kind: PermissionRequestResultKindDeniedCouldNotRequestFromUser,
+			},
+		}, nil
+	}
+
+	invocation := PermissionInvocation{
+		SessionID: session.SessionID,
+	}
+
+	result, err := handler(req.Request, invocation)
+	if err != nil {
+		return &permissionResponseV2{
+			Result: PermissionRequestResult{
+				Kind: PermissionRequestResultKindDeniedCouldNotRequestFromUser,
+			},
+		}, nil
+	}
+
+	return &permissionResponseV2{Result: result}, nil
 }
