@@ -670,14 +670,14 @@ function emitSessionRpcClasses(node: Record<string, unknown>, classes: string[])
 
     const srLines = [`/// <summary>Typed session-scoped RPC methods.</summary>`, `public class SessionRpc`, `{`, `    private readonly JsonRpc _rpc;`, `    private readonly string _sessionId;`, ""];
     srLines.push(`    internal SessionRpc(JsonRpc rpc, string sessionId)`, `    {`, `        _rpc = rpc;`, `        _sessionId = sessionId;`);
-    for (const [groupName] of groups) srLines.push(`        ${toPascalCase(groupName)} = new ${toPascalCase(groupName)}Api(rpc, sessionId);`);
+    for (const [groupName] of groups) srLines.push(`        ${toPascalCase(groupName)} = new Session${toPascalCase(groupName)}Api(rpc, sessionId);`);
     srLines.push(`    }`);
-    for (const [groupName] of groups) srLines.push("", `    public ${toPascalCase(groupName)}Api ${toPascalCase(groupName)} { get; }`);
+    for (const [groupName] of groups) srLines.push("", `    public Session${toPascalCase(groupName)}Api ${toPascalCase(groupName)} { get; }`);
     srLines.push(`}`);
     result.push(srLines.join("\n"));
 
     for (const [groupName, groupNode] of groups) {
-        result.push(emitSessionApiClass(`${toPascalCase(groupName)}Api`, groupNode as Record<string, unknown>, classes));
+        result.push(emitSessionApiClass(`Session${toPascalCase(groupName)}Api`, groupNode as Record<string, unknown>, classes));
     }
     return result;
 }

@@ -195,10 +195,11 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
 
     const wrapperName = isSession ? "SessionRpc" : "ServerRpc";
     const apiSuffix = "RpcApi";
+    const apiPrefix = isSession ? "Session" : "";
 
     // Emit API structs for groups
     for (const [groupName, groupNode] of groups) {
-        const apiName = toPascalCase(groupName) + apiSuffix;
+        const apiName = apiPrefix + toPascalCase(groupName) + apiSuffix;
         const fields = isSession ? "client *jsonrpc2.Client; sessionID string" : "client *jsonrpc2.Client";
         lines.push(`type ${apiName} struct { ${fields} }`);
         lines.push(``);
@@ -214,7 +215,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     lines.push(`    client *jsonrpc2.Client`);
     if (isSession) lines.push(`    sessionID string`);
     for (const [groupName] of groups) {
-        lines.push(`    ${toPascalCase(groupName)} *${toPascalCase(groupName)}${apiSuffix}`);
+        lines.push(`    ${toPascalCase(groupName)} *${apiPrefix}${toPascalCase(groupName)}${apiSuffix}`);
     }
     lines.push(`}`);
     lines.push(``);
@@ -232,8 +233,8 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     lines.push(`    return &${wrapperName}{${ctorFields}`);
     for (const [groupName] of groups) {
         const apiInit = isSession
-            ? `&${toPascalCase(groupName)}${apiSuffix}{client: client, sessionID: sessionID}`
-            : `&${toPascalCase(groupName)}${apiSuffix}{client: client}`;
+            ? `&${apiPrefix}${toPascalCase(groupName)}${apiSuffix}{client: client, sessionID: sessionID}`
+            : `&${apiPrefix}${toPascalCase(groupName)}${apiSuffix}{client: client}`;
         lines.push(`        ${toPascalCase(groupName)}: ${apiInit},`);
     }
     lines.push(`    }`);

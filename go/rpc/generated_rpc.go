@@ -148,17 +148,19 @@ type SessionModeSetParams struct {
 }
 
 type SessionPlanReadResult struct {
-	// The content of plan.md, or null if it does not exist
+	// The content of the plan file, or null if it does not exist
 	Content *string `json:"content"`
-	// Whether plan.md exists in the workspace
+	// Whether the plan file exists in the workspace
 	Exists bool `json:"exists"`
+	// Absolute file path of the plan file, or null if workspace is not enabled
+	Path *string `json:"path"`
 }
 
 type SessionPlanUpdateResult struct {
 }
 
 type SessionPlanUpdateParams struct {
-	// The new content for plan.md
+	// The new content for the plan file
 	Content string `json:"content"`
 }
 
@@ -260,6 +262,40 @@ type SessionCompactionCompactResult struct {
 	TokensRemoved float64 `json:"tokensRemoved"`
 }
 
+type SessionToolsHandlePendingToolCallResult struct {
+	Success bool `json:"success"`
+}
+
+type SessionToolsHandlePendingToolCallParams struct {
+	Error     *string      `json:"error,omitempty"`
+	RequestID string       `json:"requestId"`
+	Result    *ResultUnion `json:"result"`
+}
+
+type ResultResult struct {
+	Error            *string                `json:"error,omitempty"`
+	ResultType       *string                `json:"resultType,omitempty"`
+	TextResultForLlm string                 `json:"textResultForLlm"`
+	ToolTelemetry    map[string]interface{} `json:"toolTelemetry,omitempty"`
+}
+
+type SessionPermissionsHandlePendingPermissionRequestResult struct {
+	Success bool `json:"success"`
+}
+
+type SessionPermissionsHandlePendingPermissionRequestParams struct {
+	RequestID string                                                       `json:"requestId"`
+	Result    SessionPermissionsHandlePendingPermissionRequestParamsResult `json:"result"`
+}
+
+type SessionPermissionsHandlePendingPermissionRequestParamsResult struct {
+	Kind     Kind          `json:"kind"`
+	Rules    []interface{} `json:"rules,omitempty"`
+	Feedback *string       `json:"feedback,omitempty"`
+	Message  *string       `json:"message,omitempty"`
+	Path     *string       `json:"path,omitempty"`
+}
+
 // The current agent mode.
 //
 // The agent mode after switching.
@@ -272,6 +308,21 @@ const (
 	Interactive Mode = "interactive"
 	Plan        Mode = "plan"
 )
+
+type Kind string
+
+const (
+	Approved                                       Kind = "approved"
+	DeniedByContentExclusionPolicy                 Kind = "denied-by-content-exclusion-policy"
+	DeniedByRules                                  Kind = "denied-by-rules"
+	DeniedInteractivelyByUser                      Kind = "denied-interactively-by-user"
+	DeniedNoApprovalRuleAndCouldNotRequestFromUser Kind = "denied-no-approval-rule-and-could-not-request-from-user"
+)
+
+type ResultUnion struct {
+	ResultResult *ResultResult
+	String       *string
+}
 
 type ModelsRpcApi struct{ client *jsonrpc2.Client }
 
@@ -343,12 +394,12 @@ func NewServerRpc(client *jsonrpc2.Client) *ServerRpc {
 	}
 }
 
-type ModelRpcApi struct {
+type SessionModelRpcApi struct {
 	client    *jsonrpc2.Client
 	sessionID string
 }
 
-func (a *ModelRpcApi) GetCurrent(ctx context.Context) (*SessionModelGetCurrentResult, error) {
+func (a *SessionModelRpcApi) GetCurrent(ctx context.Context) (*SessionModelGetCurrentResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.model.getCurrent", req)
 	if err != nil {
@@ -361,7 +412,7 @@ func (a *ModelRpcApi) GetCurrent(ctx context.Context) (*SessionModelGetCurrentRe
 	return &result, nil
 }
 
-func (a *ModelRpcApi) SwitchTo(ctx context.Context, params *SessionModelSwitchToParams) (*SessionModelSwitchToResult, error) {
+func (a *SessionModelRpcApi) SwitchTo(ctx context.Context, params *SessionModelSwitchToParams) (*SessionModelSwitchToResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
 	if params != nil {
 		req["modelId"] = params.ModelID
@@ -377,12 +428,12 @@ func (a *ModelRpcApi) SwitchTo(ctx context.Context, params *SessionModelSwitchTo
 	return &result, nil
 }
 
-type ModeRpcApi struct {
+type SessionModeRpcApi struct {
 	client    *jsonrpc2.Client
 	sessionID string
 }
 
-func (a *ModeRpcApi) Get(ctx context.Context) (*SessionModeGetResult, error) {
+func (a *SessionModeRpcApi) Get(ctx context.Context) (*SessionModeGetResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.mode.get", req)
 	if err != nil {
@@ -395,7 +446,7 @@ func (a *ModeRpcApi) Get(ctx context.Context) (*SessionModeGetResult, error) {
 	return &result, nil
 }
 
-func (a *ModeRpcApi) Set(ctx context.Context, params *SessionModeSetParams) (*SessionModeSetResult, error) {
+func (a *SessionModeRpcApi) Set(ctx context.Context, params *SessionModeSetParams) (*SessionModeSetResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
 	if params != nil {
 		req["mode"] = params.Mode
@@ -411,12 +462,12 @@ func (a *ModeRpcApi) Set(ctx context.Context, params *SessionModeSetParams) (*Se
 	return &result, nil
 }
 
-type PlanRpcApi struct {
+type SessionPlanRpcApi struct {
 	client    *jsonrpc2.Client
 	sessionID string
 }
 
-func (a *PlanRpcApi) Read(ctx context.Context) (*SessionPlanReadResult, error) {
+func (a *SessionPlanRpcApi) Read(ctx context.Context) (*SessionPlanReadResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.plan.read", req)
 	if err != nil {
@@ -429,7 +480,7 @@ func (a *PlanRpcApi) Read(ctx context.Context) (*SessionPlanReadResult, error) {
 	return &result, nil
 }
 
-func (a *PlanRpcApi) Update(ctx context.Context, params *SessionPlanUpdateParams) (*SessionPlanUpdateResult, error) {
+func (a *SessionPlanRpcApi) Update(ctx context.Context, params *SessionPlanUpdateParams) (*SessionPlanUpdateResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
 	if params != nil {
 		req["content"] = params.Content
@@ -445,7 +496,7 @@ func (a *PlanRpcApi) Update(ctx context.Context, params *SessionPlanUpdateParams
 	return &result, nil
 }
 
-func (a *PlanRpcApi) Delete(ctx context.Context) (*SessionPlanDeleteResult, error) {
+func (a *SessionPlanRpcApi) Delete(ctx context.Context) (*SessionPlanDeleteResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.plan.delete", req)
 	if err != nil {
@@ -458,12 +509,12 @@ func (a *PlanRpcApi) Delete(ctx context.Context) (*SessionPlanDeleteResult, erro
 	return &result, nil
 }
 
-type WorkspaceRpcApi struct {
+type SessionWorkspaceRpcApi struct {
 	client    *jsonrpc2.Client
 	sessionID string
 }
 
-func (a *WorkspaceRpcApi) ListFiles(ctx context.Context) (*SessionWorkspaceListFilesResult, error) {
+func (a *SessionWorkspaceRpcApi) ListFiles(ctx context.Context) (*SessionWorkspaceListFilesResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.workspace.listFiles", req)
 	if err != nil {
@@ -476,7 +527,7 @@ func (a *WorkspaceRpcApi) ListFiles(ctx context.Context) (*SessionWorkspaceListF
 	return &result, nil
 }
 
-func (a *WorkspaceRpcApi) ReadFile(ctx context.Context, params *SessionWorkspaceReadFileParams) (*SessionWorkspaceReadFileResult, error) {
+func (a *SessionWorkspaceRpcApi) ReadFile(ctx context.Context, params *SessionWorkspaceReadFileParams) (*SessionWorkspaceReadFileResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
 	if params != nil {
 		req["path"] = params.Path
@@ -492,7 +543,7 @@ func (a *WorkspaceRpcApi) ReadFile(ctx context.Context, params *SessionWorkspace
 	return &result, nil
 }
 
-func (a *WorkspaceRpcApi) CreateFile(ctx context.Context, params *SessionWorkspaceCreateFileParams) (*SessionWorkspaceCreateFileResult, error) {
+func (a *SessionWorkspaceRpcApi) CreateFile(ctx context.Context, params *SessionWorkspaceCreateFileParams) (*SessionWorkspaceCreateFileResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
 	if params != nil {
 		req["path"] = params.Path
@@ -509,12 +560,12 @@ func (a *WorkspaceRpcApi) CreateFile(ctx context.Context, params *SessionWorkspa
 	return &result, nil
 }
 
-type FleetRpcApi struct {
+type SessionFleetRpcApi struct {
 	client    *jsonrpc2.Client
 	sessionID string
 }
 
-func (a *FleetRpcApi) Start(ctx context.Context, params *SessionFleetStartParams) (*SessionFleetStartResult, error) {
+func (a *SessionFleetRpcApi) Start(ctx context.Context, params *SessionFleetStartParams) (*SessionFleetStartResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
 	if params != nil {
 		if params.Prompt != nil {
@@ -532,12 +583,12 @@ func (a *FleetRpcApi) Start(ctx context.Context, params *SessionFleetStartParams
 	return &result, nil
 }
 
-type AgentRpcApi struct {
+type SessionAgentRpcApi struct {
 	client    *jsonrpc2.Client
 	sessionID string
 }
 
-func (a *AgentRpcApi) List(ctx context.Context) (*SessionAgentListResult, error) {
+func (a *SessionAgentRpcApi) List(ctx context.Context) (*SessionAgentListResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.agent.list", req)
 	if err != nil {
@@ -550,7 +601,7 @@ func (a *AgentRpcApi) List(ctx context.Context) (*SessionAgentListResult, error)
 	return &result, nil
 }
 
-func (a *AgentRpcApi) GetCurrent(ctx context.Context) (*SessionAgentGetCurrentResult, error) {
+func (a *SessionAgentRpcApi) GetCurrent(ctx context.Context) (*SessionAgentGetCurrentResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.agent.getCurrent", req)
 	if err != nil {
@@ -563,7 +614,7 @@ func (a *AgentRpcApi) GetCurrent(ctx context.Context) (*SessionAgentGetCurrentRe
 	return &result, nil
 }
 
-func (a *AgentRpcApi) Select(ctx context.Context, params *SessionAgentSelectParams) (*SessionAgentSelectResult, error) {
+func (a *SessionAgentRpcApi) Select(ctx context.Context, params *SessionAgentSelectParams) (*SessionAgentSelectResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
 	if params != nil {
 		req["name"] = params.Name
@@ -579,7 +630,7 @@ func (a *AgentRpcApi) Select(ctx context.Context, params *SessionAgentSelectPara
 	return &result, nil
 }
 
-func (a *AgentRpcApi) Deselect(ctx context.Context) (*SessionAgentDeselectResult, error) {
+func (a *SessionAgentRpcApi) Deselect(ctx context.Context) (*SessionAgentDeselectResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.agent.deselect", req)
 	if err != nil {
@@ -592,12 +643,12 @@ func (a *AgentRpcApi) Deselect(ctx context.Context) (*SessionAgentDeselectResult
 	return &result, nil
 }
 
-type CompactionRpcApi struct {
+type SessionCompactionRpcApi struct {
 	client    *jsonrpc2.Client
 	sessionID string
 }
 
-func (a *CompactionRpcApi) Compact(ctx context.Context) (*SessionCompactionCompactResult, error) {
+func (a *SessionCompactionRpcApi) Compact(ctx context.Context) (*SessionCompactionCompactResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.compaction.compact", req)
 	if err != nil {
@@ -610,27 +661,80 @@ func (a *CompactionRpcApi) Compact(ctx context.Context) (*SessionCompactionCompa
 	return &result, nil
 }
 
+type SessionToolsRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
+
+func (a *SessionToolsRpcApi) HandlePendingToolCall(ctx context.Context, params *SessionToolsHandlePendingToolCallParams) (*SessionToolsHandlePendingToolCallResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["requestId"] = params.RequestID
+		if params.Result != nil {
+			req["result"] = *params.Result
+		}
+		if params.Error != nil {
+			req["error"] = *params.Error
+		}
+	}
+	raw, err := a.client.Request("session.tools.handlePendingToolCall", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionToolsHandlePendingToolCallResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+type SessionPermissionsRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
+
+func (a *SessionPermissionsRpcApi) HandlePendingPermissionRequest(ctx context.Context, params *SessionPermissionsHandlePendingPermissionRequestParams) (*SessionPermissionsHandlePendingPermissionRequestResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["requestId"] = params.RequestID
+		req["result"] = params.Result
+	}
+	raw, err := a.client.Request("session.permissions.handlePendingPermissionRequest", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionPermissionsHandlePendingPermissionRequestResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // SessionRpc provides typed session-scoped RPC methods.
 type SessionRpc struct {
-	client     *jsonrpc2.Client
-	sessionID  string
-	Model      *ModelRpcApi
-	Mode       *ModeRpcApi
-	Plan       *PlanRpcApi
-	Workspace  *WorkspaceRpcApi
-	Fleet      *FleetRpcApi
-	Agent      *AgentRpcApi
-	Compaction *CompactionRpcApi
+	client      *jsonrpc2.Client
+	sessionID   string
+	Model       *SessionModelRpcApi
+	Mode        *SessionModeRpcApi
+	Plan        *SessionPlanRpcApi
+	Workspace   *SessionWorkspaceRpcApi
+	Fleet       *SessionFleetRpcApi
+	Agent       *SessionAgentRpcApi
+	Compaction  *SessionCompactionRpcApi
+	Tools       *SessionToolsRpcApi
+	Permissions *SessionPermissionsRpcApi
 }
 
 func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 	return &SessionRpc{client: client, sessionID: sessionID,
-		Model:      &ModelRpcApi{client: client, sessionID: sessionID},
-		Mode:       &ModeRpcApi{client: client, sessionID: sessionID},
-		Plan:       &PlanRpcApi{client: client, sessionID: sessionID},
-		Workspace:  &WorkspaceRpcApi{client: client, sessionID: sessionID},
-		Fleet:      &FleetRpcApi{client: client, sessionID: sessionID},
-		Agent:      &AgentRpcApi{client: client, sessionID: sessionID},
-		Compaction: &CompactionRpcApi{client: client, sessionID: sessionID},
+		Model:       &SessionModelRpcApi{client: client, sessionID: sessionID},
+		Mode:        &SessionModeRpcApi{client: client, sessionID: sessionID},
+		Plan:        &SessionPlanRpcApi{client: client, sessionID: sessionID},
+		Workspace:   &SessionWorkspaceRpcApi{client: client, sessionID: sessionID},
+		Fleet:       &SessionFleetRpcApi{client: client, sessionID: sessionID},
+		Agent:       &SessionAgentRpcApi{client: client, sessionID: sessionID},
+		Compaction:  &SessionCompactionRpcApi{client: client, sessionID: sessionID},
+		Tools:       &SessionToolsRpcApi{client: client, sessionID: sessionID},
+		Permissions: &SessionPermissionsRpcApi{client: client, sessionID: sessionID},
 	}
 }

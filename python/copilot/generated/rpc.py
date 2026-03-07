@@ -547,22 +547,27 @@ class SessionModeSetParams:
 @dataclass
 class SessionPlanReadResult:
     exists: bool
-    """Whether plan.md exists in the workspace"""
+    """Whether the plan file exists in the workspace"""
 
     content: str | None = None
-    """The content of plan.md, or null if it does not exist"""
+    """The content of the plan file, or null if it does not exist"""
+
+    path: str | None = None
+    """Absolute file path of the plan file, or null if workspace is not enabled"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'SessionPlanReadResult':
         assert isinstance(obj, dict)
         exists = from_bool(obj.get("exists"))
         content = from_union([from_none, from_str], obj.get("content"))
-        return SessionPlanReadResult(exists, content)
+        path = from_union([from_none, from_str], obj.get("path"))
+        return SessionPlanReadResult(exists, content, path)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["exists"] = from_bool(self.exists)
         result["content"] = from_union([from_none, from_str], self.content)
+        result["path"] = from_union([from_none, from_str], self.path)
         return result
 
 
@@ -581,7 +586,7 @@ class SessionPlanUpdateResult:
 @dataclass
 class SessionPlanUpdateParams:
     content: str
-    """The new content for plan.md"""
+    """The new content for the plan file"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'SessionPlanUpdateParams':
@@ -917,6 +922,149 @@ class SessionCompactionCompactResult:
         return result
 
 
+@dataclass
+class SessionToolsHandlePendingToolCallResult:
+    success: bool
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionToolsHandlePendingToolCallResult':
+        assert isinstance(obj, dict)
+        success = from_bool(obj.get("success"))
+        return SessionToolsHandlePendingToolCallResult(success)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["success"] = from_bool(self.success)
+        return result
+
+
+@dataclass
+class ResultResult:
+    text_result_for_llm: str
+    error: str | None = None
+    result_type: str | None = None
+    tool_telemetry: dict[str, Any] | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ResultResult':
+        assert isinstance(obj, dict)
+        text_result_for_llm = from_str(obj.get("textResultForLlm"))
+        error = from_union([from_str, from_none], obj.get("error"))
+        result_type = from_union([from_str, from_none], obj.get("resultType"))
+        tool_telemetry = from_union([lambda x: from_dict(lambda x: x, x), from_none], obj.get("toolTelemetry"))
+        return ResultResult(text_result_for_llm, error, result_type, tool_telemetry)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["textResultForLlm"] = from_str(self.text_result_for_llm)
+        if self.error is not None:
+            result["error"] = from_union([from_str, from_none], self.error)
+        if self.result_type is not None:
+            result["resultType"] = from_union([from_str, from_none], self.result_type)
+        if self.tool_telemetry is not None:
+            result["toolTelemetry"] = from_union([lambda x: from_dict(lambda x: x, x), from_none], self.tool_telemetry)
+        return result
+
+
+@dataclass
+class SessionToolsHandlePendingToolCallParams:
+    request_id: str
+    error: str | None = None
+    result: ResultResult | str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionToolsHandlePendingToolCallParams':
+        assert isinstance(obj, dict)
+        request_id = from_str(obj.get("requestId"))
+        error = from_union([from_str, from_none], obj.get("error"))
+        result = from_union([ResultResult.from_dict, from_str, from_none], obj.get("result"))
+        return SessionToolsHandlePendingToolCallParams(request_id, error, result)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["requestId"] = from_str(self.request_id)
+        if self.error is not None:
+            result["error"] = from_union([from_str, from_none], self.error)
+        if self.result is not None:
+            result["result"] = from_union([lambda x: to_class(ResultResult, x), from_str, from_none], self.result)
+        return result
+
+
+@dataclass
+class SessionPermissionsHandlePendingPermissionRequestResult:
+    success: bool
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionPermissionsHandlePendingPermissionRequestResult':
+        assert isinstance(obj, dict)
+        success = from_bool(obj.get("success"))
+        return SessionPermissionsHandlePendingPermissionRequestResult(success)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["success"] = from_bool(self.success)
+        return result
+
+
+class Kind(Enum):
+    APPROVED = "approved"
+    DENIED_BY_CONTENT_EXCLUSION_POLICY = "denied-by-content-exclusion-policy"
+    DENIED_BY_RULES = "denied-by-rules"
+    DENIED_INTERACTIVELY_BY_USER = "denied-interactively-by-user"
+    DENIED_NO_APPROVAL_RULE_AND_COULD_NOT_REQUEST_FROM_USER = "denied-no-approval-rule-and-could-not-request-from-user"
+
+
+@dataclass
+class SessionPermissionsHandlePendingPermissionRequestParamsResult:
+    kind: Kind
+    rules: list[Any] | None = None
+    feedback: str | None = None
+    message: str | None = None
+    path: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionPermissionsHandlePendingPermissionRequestParamsResult':
+        assert isinstance(obj, dict)
+        kind = Kind(obj.get("kind"))
+        rules = from_union([lambda x: from_list(lambda x: x, x), from_none], obj.get("rules"))
+        feedback = from_union([from_str, from_none], obj.get("feedback"))
+        message = from_union([from_str, from_none], obj.get("message"))
+        path = from_union([from_str, from_none], obj.get("path"))
+        return SessionPermissionsHandlePendingPermissionRequestParamsResult(kind, rules, feedback, message, path)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(Kind, self.kind)
+        if self.rules is not None:
+            result["rules"] = from_union([lambda x: from_list(lambda x: x, x), from_none], self.rules)
+        if self.feedback is not None:
+            result["feedback"] = from_union([from_str, from_none], self.feedback)
+        if self.message is not None:
+            result["message"] = from_union([from_str, from_none], self.message)
+        if self.path is not None:
+            result["path"] = from_union([from_str, from_none], self.path)
+        return result
+
+
+@dataclass
+class SessionPermissionsHandlePendingPermissionRequestParams:
+    request_id: str
+    result: SessionPermissionsHandlePendingPermissionRequestParamsResult
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionPermissionsHandlePendingPermissionRequestParams':
+        assert isinstance(obj, dict)
+        request_id = from_str(obj.get("requestId"))
+        result = SessionPermissionsHandlePendingPermissionRequestParamsResult.from_dict(obj.get("result"))
+        return SessionPermissionsHandlePendingPermissionRequestParams(request_id, result)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["requestId"] = from_str(self.request_id)
+        result["result"] = to_class(SessionPermissionsHandlePendingPermissionRequestParamsResult, self.result)
+        return result
+
+
 def ping_result_from_dict(s: Any) -> PingResult:
     return PingResult.from_dict(s)
 
@@ -1149,6 +1297,38 @@ def session_compaction_compact_result_to_dict(x: SessionCompactionCompactResult)
     return to_class(SessionCompactionCompactResult, x)
 
 
+def session_tools_handle_pending_tool_call_result_from_dict(s: Any) -> SessionToolsHandlePendingToolCallResult:
+    return SessionToolsHandlePendingToolCallResult.from_dict(s)
+
+
+def session_tools_handle_pending_tool_call_result_to_dict(x: SessionToolsHandlePendingToolCallResult) -> Any:
+    return to_class(SessionToolsHandlePendingToolCallResult, x)
+
+
+def session_tools_handle_pending_tool_call_params_from_dict(s: Any) -> SessionToolsHandlePendingToolCallParams:
+    return SessionToolsHandlePendingToolCallParams.from_dict(s)
+
+
+def session_tools_handle_pending_tool_call_params_to_dict(x: SessionToolsHandlePendingToolCallParams) -> Any:
+    return to_class(SessionToolsHandlePendingToolCallParams, x)
+
+
+def session_permissions_handle_pending_permission_request_result_from_dict(s: Any) -> SessionPermissionsHandlePendingPermissionRequestResult:
+    return SessionPermissionsHandlePendingPermissionRequestResult.from_dict(s)
+
+
+def session_permissions_handle_pending_permission_request_result_to_dict(x: SessionPermissionsHandlePendingPermissionRequestResult) -> Any:
+    return to_class(SessionPermissionsHandlePendingPermissionRequestResult, x)
+
+
+def session_permissions_handle_pending_permission_request_params_from_dict(s: Any) -> SessionPermissionsHandlePendingPermissionRequestParams:
+    return SessionPermissionsHandlePendingPermissionRequestParams.from_dict(s)
+
+
+def session_permissions_handle_pending_permission_request_params_to_dict(x: SessionPermissionsHandlePendingPermissionRequestParams) -> Any:
+    return to_class(SessionPermissionsHandlePendingPermissionRequestParams, x)
+
+
 def _timeout_kwargs(timeout: float | None) -> dict:
     """Build keyword arguments for optional timeout forwarding."""
     if timeout is not None:
@@ -1298,6 +1478,28 @@ class CompactionApi:
         return SessionCompactionCompactResult.from_dict(await self._client.request("session.compaction.compact", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
+class ToolsApi:
+    def __init__(self, client: "JsonRpcClient", session_id: str):
+        self._client = client
+        self._session_id = session_id
+
+    async def handle_pending_tool_call(self, params: SessionToolsHandlePendingToolCallParams, *, timeout: float | None = None) -> SessionToolsHandlePendingToolCallResult:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return SessionToolsHandlePendingToolCallResult.from_dict(await self._client.request("session.tools.handlePendingToolCall", params_dict, **_timeout_kwargs(timeout)))
+
+
+class PermissionsApi:
+    def __init__(self, client: "JsonRpcClient", session_id: str):
+        self._client = client
+        self._session_id = session_id
+
+    async def handle_pending_permission_request(self, params: SessionPermissionsHandlePendingPermissionRequestParams, *, timeout: float | None = None) -> SessionPermissionsHandlePendingPermissionRequestResult:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return SessionPermissionsHandlePendingPermissionRequestResult.from_dict(await self._client.request("session.permissions.handlePendingPermissionRequest", params_dict, **_timeout_kwargs(timeout)))
+
+
 class SessionRpc:
     """Typed session-scoped RPC methods."""
     def __init__(self, client: "JsonRpcClient", session_id: str):
@@ -1310,4 +1512,6 @@ class SessionRpc:
         self.fleet = FleetApi(client, session_id)
         self.agent = AgentApi(client, session_id)
         self.compaction = CompactionApi(client, session_id)
+        self.tools = ToolsApi(client, session_id)
+        self.permissions = PermissionsApi(client, session_id)
 

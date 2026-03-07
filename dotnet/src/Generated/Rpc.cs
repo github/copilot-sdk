@@ -250,13 +250,17 @@ internal class SessionModeSetRequest
 
 public class SessionPlanReadResult
 {
-    /// <summary>Whether plan.md exists in the workspace</summary>
+    /// <summary>Whether the plan file exists in the workspace</summary>
     [JsonPropertyName("exists")]
     public bool Exists { get; set; }
 
-    /// <summary>The content of plan.md, or null if it does not exist</summary>
+    /// <summary>The content of the plan file, or null if it does not exist</summary>
     [JsonPropertyName("content")]
     public string? Content { get; set; }
+
+    /// <summary>Absolute file path of the plan file, or null if workspace is not enabled</summary>
+    [JsonPropertyName("path")]
+    public string? Path { get; set; }
 }
 
 internal class SessionPlanReadRequest
@@ -468,6 +472,45 @@ internal class SessionCompactionCompactRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+public class SessionToolsHandlePendingToolCallResult
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+internal class SessionToolsHandlePendingToolCallRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    [JsonPropertyName("requestId")]
+    public string RequestId { get; set; } = string.Empty;
+
+    [JsonPropertyName("result")]
+    public object? Result { get; set; }
+
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+}
+
+public class SessionPermissionsHandlePendingPermissionRequestResult
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+internal class SessionPermissionsHandlePendingPermissionRequestRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    [JsonPropertyName("requestId")]
+    public string RequestId { get; set; } = string.Empty;
+
+    [JsonPropertyName("result")]
+    public object Result { get; set; } = null!;
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<SessionModeGetResultMode>))]
 public enum SessionModeGetResultMode
 {
@@ -572,36 +615,42 @@ public class SessionRpc
     {
         _rpc = rpc;
         _sessionId = sessionId;
-        Model = new ModelApi(rpc, sessionId);
-        Mode = new ModeApi(rpc, sessionId);
-        Plan = new PlanApi(rpc, sessionId);
-        Workspace = new WorkspaceApi(rpc, sessionId);
-        Fleet = new FleetApi(rpc, sessionId);
-        Agent = new AgentApi(rpc, sessionId);
-        Compaction = new CompactionApi(rpc, sessionId);
+        Model = new SessionModelApi(rpc, sessionId);
+        Mode = new SessionModeApi(rpc, sessionId);
+        Plan = new SessionPlanApi(rpc, sessionId);
+        Workspace = new SessionWorkspaceApi(rpc, sessionId);
+        Fleet = new SessionFleetApi(rpc, sessionId);
+        Agent = new SessionAgentApi(rpc, sessionId);
+        Compaction = new SessionCompactionApi(rpc, sessionId);
+        Tools = new SessionToolsApi(rpc, sessionId);
+        Permissions = new SessionPermissionsApi(rpc, sessionId);
     }
 
-    public ModelApi Model { get; }
+    public SessionModelApi Model { get; }
 
-    public ModeApi Mode { get; }
+    public SessionModeApi Mode { get; }
 
-    public PlanApi Plan { get; }
+    public SessionPlanApi Plan { get; }
 
-    public WorkspaceApi Workspace { get; }
+    public SessionWorkspaceApi Workspace { get; }
 
-    public FleetApi Fleet { get; }
+    public SessionFleetApi Fleet { get; }
 
-    public AgentApi Agent { get; }
+    public SessionAgentApi Agent { get; }
 
-    public CompactionApi Compaction { get; }
+    public SessionCompactionApi Compaction { get; }
+
+    public SessionToolsApi Tools { get; }
+
+    public SessionPermissionsApi Permissions { get; }
 }
 
-public class ModelApi
+public class SessionModelApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
 
-    internal ModelApi(JsonRpc rpc, string sessionId)
+    internal SessionModelApi(JsonRpc rpc, string sessionId)
     {
         _rpc = rpc;
         _sessionId = sessionId;
@@ -622,12 +671,12 @@ public class ModelApi
     }
 }
 
-public class ModeApi
+public class SessionModeApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
 
-    internal ModeApi(JsonRpc rpc, string sessionId)
+    internal SessionModeApi(JsonRpc rpc, string sessionId)
     {
         _rpc = rpc;
         _sessionId = sessionId;
@@ -648,12 +697,12 @@ public class ModeApi
     }
 }
 
-public class PlanApi
+public class SessionPlanApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
 
-    internal PlanApi(JsonRpc rpc, string sessionId)
+    internal SessionPlanApi(JsonRpc rpc, string sessionId)
     {
         _rpc = rpc;
         _sessionId = sessionId;
@@ -681,12 +730,12 @@ public class PlanApi
     }
 }
 
-public class WorkspaceApi
+public class SessionWorkspaceApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
 
-    internal WorkspaceApi(JsonRpc rpc, string sessionId)
+    internal SessionWorkspaceApi(JsonRpc rpc, string sessionId)
     {
         _rpc = rpc;
         _sessionId = sessionId;
@@ -714,12 +763,12 @@ public class WorkspaceApi
     }
 }
 
-public class FleetApi
+public class SessionFleetApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
 
-    internal FleetApi(JsonRpc rpc, string sessionId)
+    internal SessionFleetApi(JsonRpc rpc, string sessionId)
     {
         _rpc = rpc;
         _sessionId = sessionId;
@@ -733,12 +782,12 @@ public class FleetApi
     }
 }
 
-public class AgentApi
+public class SessionAgentApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
 
-    internal AgentApi(JsonRpc rpc, string sessionId)
+    internal SessionAgentApi(JsonRpc rpc, string sessionId)
     {
         _rpc = rpc;
         _sessionId = sessionId;
@@ -773,12 +822,12 @@ public class AgentApi
     }
 }
 
-public class CompactionApi
+public class SessionCompactionApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
 
-    internal CompactionApi(JsonRpc rpc, string sessionId)
+    internal SessionCompactionApi(JsonRpc rpc, string sessionId)
     {
         _rpc = rpc;
         _sessionId = sessionId;
@@ -789,6 +838,44 @@ public class CompactionApi
     {
         var request = new SessionCompactionCompactRequest { SessionId = _sessionId };
         return await CopilotClient.InvokeRpcAsync<SessionCompactionCompactResult>(_rpc, "session.compaction.compact", [request], cancellationToken);
+    }
+}
+
+public class SessionToolsApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal SessionToolsApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.tools.handlePendingToolCall".</summary>
+    public async Task<SessionToolsHandlePendingToolCallResult> HandlePendingToolCallAsync(string requestId, object? result, string? error, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionToolsHandlePendingToolCallRequest { SessionId = _sessionId, RequestId = requestId, Result = result, Error = error };
+        return await CopilotClient.InvokeRpcAsync<SessionToolsHandlePendingToolCallResult>(_rpc, "session.tools.handlePendingToolCall", [request], cancellationToken);
+    }
+}
+
+public class SessionPermissionsApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal SessionPermissionsApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.permissions.handlePendingPermissionRequest".</summary>
+    public async Task<SessionPermissionsHandlePendingPermissionRequestResult> HandlePendingPermissionRequestAsync(string requestId, object result, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionPermissionsHandlePendingPermissionRequestRequest { SessionId = _sessionId, RequestId = requestId, Result = result };
+        return await CopilotClient.InvokeRpcAsync<SessionPermissionsHandlePendingPermissionRequestResult>(_rpc, "session.permissions.handlePendingPermissionRequest", [request], cancellationToken);
     }
 }
 
@@ -830,12 +917,16 @@ public class CompactionApi
 [JsonSerializable(typeof(SessionModelGetCurrentResult))]
 [JsonSerializable(typeof(SessionModelSwitchToRequest))]
 [JsonSerializable(typeof(SessionModelSwitchToResult))]
+[JsonSerializable(typeof(SessionPermissionsHandlePendingPermissionRequestRequest))]
+[JsonSerializable(typeof(SessionPermissionsHandlePendingPermissionRequestResult))]
 [JsonSerializable(typeof(SessionPlanDeleteRequest))]
 [JsonSerializable(typeof(SessionPlanDeleteResult))]
 [JsonSerializable(typeof(SessionPlanReadRequest))]
 [JsonSerializable(typeof(SessionPlanReadResult))]
 [JsonSerializable(typeof(SessionPlanUpdateRequest))]
 [JsonSerializable(typeof(SessionPlanUpdateResult))]
+[JsonSerializable(typeof(SessionToolsHandlePendingToolCallRequest))]
+[JsonSerializable(typeof(SessionToolsHandlePendingToolCallResult))]
 [JsonSerializable(typeof(SessionWorkspaceCreateFileRequest))]
 [JsonSerializable(typeof(SessionWorkspaceCreateFileResult))]
 [JsonSerializable(typeof(SessionWorkspaceListFilesRequest))]
