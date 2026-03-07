@@ -174,15 +174,85 @@ The SDK can only access features exposed through the CLI's JSON-RPC protocol. If
 
 ## Version Compatibility
 
-| SDK Version | CLI Version | Protocol Version |
-|-------------|-------------|------------------|
-| Check `package.json` | `copilot --version` | `getStatus().protocolVersion` |
+| SDK Version | Min Protocol | Max Protocol | Notes |
+|-------------|-------------|--------------|-------|
+| 0.1.x | 2 | 2 | Exact match required |
+| 0.2.x+ | 2 | 3 | Range-based negotiation |
 
-The SDK and CLI must have compatible protocol versions. The SDK will log warnings if versions are mismatched.
+The SDK and CLI negotiate a compatible protocol version at startup. The SDK advertises a supported range (`minVersion`–`version`) and the CLI reports its version via `ping`. If the CLI's version falls within the SDK's range, the connection succeeds; otherwise, the SDK throws an error.
+
+You can check versions at runtime:
+
+```typescript
+const status = await client.ping();
+console.log("Server protocol version:", status.protocolVersion);
+```
+
+## Protocol v3: Broadcast Events and Multi-Client Sessions
+
+Protocol v3 changes how the SDK handles tool calls and permission requests internally. **No user-facing API changes are required** — existing code continues to work.
+
+### What Changed
+
+| Aspect | Protocol v2 | Protocol v3 |
+|--------|-------------|-------------|
+| **Tool calls** | CLI sends RPC request directly to the SDK | CLI broadcasts `external_tool.requested` event to all connected clients |
+| **Permission requests** | CLI sends RPC request directly to the SDK | CLI broadcasts `permission.requested` event to all connected clients |
+| **Multi-client** | One SDK client per CLI server | Multiple SDK clients can share a CLI server and session |
+
+### How It Works
+
+In v3, the CLI broadcasts tool and permission events to every connected client. Each client checks whether it has a matching handler:
+
+- If the client has a handler for the requested tool, it executes the tool and sends the result back via `session.tools.handlePendingToolCall`.
+- If the client doesn't have the handler, it responds with an "unsupported" result.
+- Permission requests follow the same pattern via `session.permissions.handlePendingPermissionRequest`.
+
+The SDK handles all of this automatically — you register tools and permission handlers the same way as before:
+
+```typescript
+import { CopilotClient, defineTool } from "@github/copilot-sdk";
+
+const myTool = defineTool("my_tool", {
+    description: "A custom tool",
+    parameters: { type: "object", properties: { input: { type: "string" } }, required: ["input"] },
+    handler: async (args: { input: string }) => {
+        return { result: args.input.toUpperCase() };
+    },
+});
+
+// Works identically on both v2 and v3
+const session = await client.createSession({
+    tools: [myTool],
+    onPermissionRequest: approveAll,
+});
+```
+
+### Multi-Client Sessions
+
+With v3, multiple SDK clients can connect to the same CLI server (via `cliUrl`) and share sessions. Each client can register different tools, and the broadcast model routes tool calls to the client that has the matching handler.
+
+See the [Multi-Client Session Sharing](./guides/session-persistence.md#multi-client-session-sharing) section in the Session Persistence guide for details and code samples.
+
+## Upgrading from v2 to v3
+
+Upgrading is straightforward — no code changes required:
+
+1. **Update the SDK package** to the latest version
+2. **Update the CLI** to a version that supports protocol v3
+3. **That's it** — the SDK auto-negotiates the protocol version
+
+The SDK remains backward-compatible with v2 CLI servers. If the CLI only supports v2, the SDK operates in v2 mode automatically. Multi-client session features are only available when both the SDK and CLI use v3.
+
+| Step | TypeScript | Python | Go | .NET |
+|------|-----------|--------|-----|------|
+| Update SDK | `npm install @github/copilot-sdk@latest` | `pip install --upgrade copilot-sdk` | `go get github.com/github/copilot-sdk/go@latest` | Update `PackageReference` version |
+| Update CLI | `npm install @github/copilot@latest` | Bundled with SDK | External install | Bundled with SDK |
 
 ## See Also
 
 - [Getting Started Guide](./getting-started.md)
+- [Session Persistence & Multi-Client](./guides/session-persistence.md)
 - [Hooks Documentation](./hooks/overview.md)
 - [MCP Servers Guide](./mcp/overview.md)
 - [Debugging Guide](./debugging.md)

@@ -502,12 +502,13 @@ const session = await client.createSession({
 |------------|-------------|------------|
 | **BYOK re-authentication** | API keys aren't persisted | Store keys in your secret manager; provide on resume |
 | **Writable storage** | `~/.copilot/session-state/` must be writable | Mount persistent volume in containers |
-| **No session locking** | Concurrent access to same session is undefined | Implement application-level locking or queue |
 | **Tool state not persisted** | In-memory tool state is lost | Design tools to be stateless or persist their own state |
 
 ### Handling Concurrent Access
 
-The SDK doesn't provide built-in session locking. If multiple clients might access the same session:
+With protocol v3, the SDK supports **multi-client session sharing** — multiple SDK clients can connect to the same CLI server and operate on the same session simultaneously. The CLI broadcasts tool and permission events to all connected clients, and each client handles the events for tools it has registered.
+
+If your use case requires **strict serialization** (e.g., only one client sends prompts at a time), you can still use application-level locking:
 
 ```typescript
 // Option 1: Application-level locking with Redis
@@ -540,12 +541,213 @@ await withSessionLock("user-123-task-456", async () => {
 });
 ```
 
+For multi-client session sharing without locking, see the next section.
+
+## Multi-Client Session Sharing
+
+Protocol v3 enables multiple SDK clients to share a session via broadcast events. This is useful for architectures where different services each provide different tools, or where a session needs to be accessible from multiple processes.
+
+```mermaid
+flowchart TB
+    subgraph clients["SDK Clients"]
+        A["Client A<br/>(tool: search_docs)"]
+        B["Client B<br/>(tool: run_tests)"]
+    end
+
+    subgraph server["CLI Server"]
+        CLI["Copilot CLI<br/>cliUrl: localhost:3000"]
+        S["Session: task-123"]
+    end
+
+    A -->|cliUrl| CLI
+    B -->|cliUrl| CLI
+    CLI --> S
+    S -->|broadcast: external_tool.requested| A
+    S -->|broadcast: external_tool.requested| B
+```
+
+### How It Works
+
+1. Start a CLI server (or use an existing one accessible via `cliUrl`)
+2. Client A connects and creates a session, registering its tools
+3. Client B connects and resumes the same session, registering different tools
+4. When the model calls a tool, the CLI broadcasts the request to all clients
+5. Each client checks if it has the requested tool and responds accordingly
+
+### TypeScript
+
+```typescript
+import { CopilotClient, defineTool, approveAll } from "@github/copilot-sdk";
+
+// Client A: provides search capabilities
+const searchDocs = defineTool("search_docs", {
+    description: "Search the documentation",
+    parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"] },
+    handler: async (args: { query: string }) => {
+        return { results: [`Result for: ${args.query}`] };
+    },
+});
+
+const clientA = new CopilotClient({ cliUrl: "localhost:3000" });
+const sessionA = await clientA.createSession({
+    sessionId: "shared-task-123",
+    tools: [searchDocs],
+    onPermissionRequest: approveAll,
+});
+
+// Client B: provides test capabilities (different process or service)
+const runTests = defineTool("run_tests", {
+    description: "Run the test suite",
+    parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
+    handler: async (args: { path: string }) => {
+        return { passed: true, path: args.path };
+    },
+});
+
+const clientB = new CopilotClient({ cliUrl: "localhost:3000" });
+const sessionB = await clientB.resumeSession("shared-task-123", {
+    tools: [runTests],
+    onPermissionRequest: approveAll,
+});
+```
+
+### Python
+
+```python
+from copilot import CopilotClient, PermissionHandler
+from copilot.tools import define_tool
+from pydantic import BaseModel, Field
+
+# Client A: provides search capabilities
+class SearchParams(BaseModel):
+    query: str = Field(description="Search query")
+
+@define_tool(description="Search the documentation")
+async def search_docs(params: SearchParams) -> dict:
+    return {"results": [f"Result for: {params.query}"]}
+
+client_a = CopilotClient(cli_url="localhost:3000")
+await client_a.start()
+session_a = await client_a.create_session({
+    "session_id": "shared-task-123",
+    "tools": [search_docs],
+    "on_permission_request": PermissionHandler.approve_all,
+})
+
+# Client B: provides test capabilities (different process)
+class TestParams(BaseModel):
+    path: str = Field(description="Test path")
+
+@define_tool(description="Run the test suite")
+async def run_tests(params: TestParams) -> dict:
+    return {"passed": True, "path": params.path}
+
+client_b = CopilotClient(cli_url="localhost:3000")
+await client_b.start()
+session_b = await client_b.resume_session("shared-task-123", {
+    "tools": [run_tests],
+    "on_permission_request": PermissionHandler.approve_all,
+})
+```
+
+### Go
+
+<!-- docs-validate: skip -->
+```go
+ctx := context.Background()
+
+// Client A: provides search capabilities
+searchDocs := copilot.DefineTool(
+    "search_docs",
+    "Search the documentation",
+    func(params struct {
+        Query string `json:"query" jsonschema:"Search query"`
+    }, inv copilot.ToolInvocation) (map[string]any, error) {
+        return map[string]any{"results": []string{fmt.Sprintf("Result for: %s", params.Query)}}, nil
+    },
+)
+
+clientA := copilot.NewClient(&copilot.ClientOptions{CLIUrl: "localhost:3000"})
+sessionA, _ := clientA.CreateSession(ctx, &copilot.SessionConfig{
+    SessionID:           "shared-task-123",
+    Tools:               []copilot.Tool{searchDocs},
+    OnPermissionRequest: copilot.ApproveAll,
+})
+
+// Client B: provides test capabilities (different process)
+runTests := copilot.DefineTool(
+    "run_tests",
+    "Run the test suite",
+    func(params struct {
+        Path string `json:"path" jsonschema:"Test path"`
+    }, inv copilot.ToolInvocation) (map[string]any, error) {
+        return map[string]any{"passed": true, "path": params.Path}, nil
+    },
+)
+
+clientB := copilot.NewClient(&copilot.ClientOptions{CLIUrl: "localhost:3000"})
+sessionB, _ := clientB.ResumeSession(ctx, "shared-task-123", &copilot.ResumeSessionConfig{
+    Tools:               []copilot.Tool{runTests},
+    OnPermissionRequest: copilot.ApproveAll,
+})
+```
+
+### C# (.NET)
+
+<!-- docs-validate: skip -->
+```csharp
+using GitHub.Copilot.SDK;
+using Microsoft.Extensions.AI;
+using System.ComponentModel;
+
+// Client A: provides search capabilities
+var searchDocs = AIFunctionFactory.Create(
+    ([Description("Search query")] string query) =>
+        new { results = new[] { $"Result for: {query}" } },
+    "search_docs",
+    "Search the documentation"
+);
+
+var clientA = new CopilotClient(new CopilotClientOptions { CliUrl = "localhost:3000" });
+var sessionA = await clientA.CreateSessionAsync(new SessionConfig
+{
+    SessionId = "shared-task-123",
+    Tools = [searchDocs],
+    OnPermissionRequest = PermissionHandler.ApproveAll,
+});
+
+// Client B: provides test capabilities (different process)
+var runTests = AIFunctionFactory.Create(
+    ([Description("Test path")] string path) =>
+        new { passed = true, path },
+    "run_tests",
+    "Run the test suite"
+);
+
+var clientB = new CopilotClient(new CopilotClientOptions { CliUrl = "localhost:3000" });
+var sessionB = await clientB.ResumeSessionAsync("shared-task-123", new ResumeSessionConfig
+{
+    Tools = [runTests],
+    OnPermissionRequest = PermissionHandler.ApproveAll,
+});
+```
+
+### Best Practices for Multi-Client Sessions
+
+| Practice | Description |
+|----------|-------------|
+| **Distribute tools uniquely** | Each tool should be registered on exactly one client. If multiple clients register the same tool, only one response will be used. |
+| **Always provide `onPermissionRequest`** | Each client that might receive permission broadcasts should have a handler. |
+| **Use meaningful session IDs** | Shared sessions need predictable IDs so all clients can find them. |
+| **Handle disconnections gracefully** | If a client disconnects, its tools become unavailable. Design your system so remaining clients can still operate. |
+
 ## Summary
 
 | Feature | How to Use |
 |---------|------------|
 | **Create resumable session** | Provide your own `sessionId` |
 | **Resume session** | `client.resumeSession(sessionId)` |
+| **Multi-client sharing** | Multiple clients connect via `cliUrl`, each registers its own tools |
 | **BYOK resume** | Re-provide `provider` config |
 | **List sessions** | `client.listSessions(filter?)` |
 | **Disconnect from active session** | `session.disconnect()` — releases in-memory resources; session data on disk is preserved for resumption |
@@ -554,6 +756,6 @@ await withSessionLock("user-123-task-456", async () => {
 
 ## Next Steps
 
+- [Compatibility Guide](../compatibility.md) - SDK vs CLI feature comparison, protocol v3 details
 - [Hooks Overview](../hooks/overview.md) - Customize session behavior with hooks
-- [Compatibility Guide](../compatibility.md) - SDK vs CLI feature comparison
 - [Debugging Guide](../debugging.md) - Troubleshoot session issues
