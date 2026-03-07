@@ -12,41 +12,6 @@ import (
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.go instead
 
-func TestClient_HandleToolCallRequest(t *testing.T) {
-	t.Run("returns a standardized failure result when a tool is not registered", func(t *testing.T) {
-		cliPath := findCLIPathForTest()
-		if cliPath == "" {
-			t.Skip("CLI not found")
-		}
-
-		client := NewClient(&ClientOptions{CLIPath: cliPath})
-		t.Cleanup(func() { client.ForceStop() })
-
-		session, err := client.CreateSession(t.Context(), &SessionConfig{
-			OnPermissionRequest: PermissionHandler.ApproveAll,
-		})
-		if err != nil {
-			t.Fatalf("Failed to create session: %v", err)
-		}
-
-		params := toolCallRequest{
-			SessionID:  session.SessionID,
-			ToolCallID: "123",
-			ToolName:   "missing_tool",
-			Arguments:  map[string]any{},
-		}
-		response, _ := client.handleToolCallRequest(params)
-
-		if response.Result.ResultType != "failure" {
-			t.Errorf("Expected resultType to be 'failure', got %q", response.Result.ResultType)
-		}
-
-		if response.Result.Error != "tool 'missing_tool' not supported" {
-			t.Errorf("Expected error to be \"tool 'missing_tool' not supported\", got %q", response.Result.Error)
-		}
-	})
-}
-
 func TestClient_URLParsing(t *testing.T) {
 	t.Run("should parse port-only URL format", func(t *testing.T) {
 		client := NewClient(&ClientOptions{

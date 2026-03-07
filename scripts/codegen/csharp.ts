@@ -535,6 +535,7 @@ function emitRpcClass(className: string, schema: JSONSchema7, visibility: "publi
         let defaultVal = "";
         if (isReq && !csharpType.endsWith("?")) {
             if (csharpType === "string") defaultVal = " = string.Empty;";
+            else if (csharpType === "object") defaultVal = " = null!;";
             else if (csharpType.startsWith("List<") || csharpType.startsWith("Dictionary<")) defaultVal = " = [];";
             else if (emittedRpcClasses.has(csharpType)) defaultVal = " = new();";
         }
@@ -567,7 +568,7 @@ function emitServerRpcClasses(node: Record<string, unknown>, classes: string[]):
     srLines.push(`    {`);
     srLines.push(`        _rpc = rpc;`);
     for (const [groupName] of groups) {
-        srLines.push(`        ${toPascalCase(groupName)} = new ${toPascalCase(groupName)}Api(rpc);`);
+        srLines.push(`        ${toPascalCase(groupName)} = new Server${toPascalCase(groupName)}Api(rpc);`);
     }
     srLines.push(`    }`);
 
@@ -581,7 +582,7 @@ function emitServerRpcClasses(node: Record<string, unknown>, classes: string[]):
     for (const [groupName] of groups) {
         srLines.push("");
         srLines.push(`    /// <summary>${toPascalCase(groupName)} APIs.</summary>`);
-        srLines.push(`    public ${toPascalCase(groupName)}Api ${toPascalCase(groupName)} { get; }`);
+        srLines.push(`    public Server${toPascalCase(groupName)}Api ${toPascalCase(groupName)} { get; }`);
     }
 
     srLines.push(`}`);
@@ -589,7 +590,7 @@ function emitServerRpcClasses(node: Record<string, unknown>, classes: string[]):
 
     // Per-group API classes
     for (const [groupName, groupNode] of groups) {
-        result.push(emitServerApiClass(`${toPascalCase(groupName)}Api`, groupNode as Record<string, unknown>, classes));
+        result.push(emitServerApiClass(`Server${toPascalCase(groupName)}Api`, groupNode as Record<string, unknown>, classes));
     }
 
     return result;
@@ -597,7 +598,8 @@ function emitServerRpcClasses(node: Record<string, unknown>, classes: string[]):
 
 function emitServerApiClass(className: string, node: Record<string, unknown>, classes: string[]): string {
     const lines: string[] = [];
-    lines.push(`/// <summary>Server-scoped ${className.replace("Api", "")} APIs.</summary>`);
+    const displayName = className.replace(/^Server/, "").replace(/Api$/, "");
+    lines.push(`/// <summary>Server-scoped ${displayName} APIs.</summary>`);
     lines.push(`public class ${className}`);
     lines.push(`{`);
     lines.push(`    private readonly JsonRpc _rpc;`);

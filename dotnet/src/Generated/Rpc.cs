@@ -250,13 +250,17 @@ internal class SessionModeSetRequest
 
 public class SessionPlanReadResult
 {
-    /// <summary>Whether plan.md exists in the workspace</summary>
+    /// <summary>Whether the plan file exists in the workspace</summary>
     [JsonPropertyName("exists")]
     public bool Exists { get; set; }
 
-    /// <summary>The content of plan.md, or null if it does not exist</summary>
+    /// <summary>The content of the plan file, or null if it does not exist</summary>
     [JsonPropertyName("content")]
     public string? Content { get; set; }
+
+    /// <summary>Absolute file path of the plan file, or null if workspace is not enabled</summary>
+    [JsonPropertyName("path")]
+    public string? Path { get; set; }
 }
 
 internal class SessionPlanReadRequest
@@ -468,6 +472,45 @@ internal class SessionCompactionCompactRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+public class SessionToolsHandlePendingToolCallResult
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+internal class SessionToolsHandlePendingToolCallRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    [JsonPropertyName("requestId")]
+    public string RequestId { get; set; } = string.Empty;
+
+    [JsonPropertyName("result")]
+    public object? Result { get; set; }
+
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+}
+
+public class SessionPermissionsHandlePendingPermissionRequestResult
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+internal class SessionPermissionsHandlePendingPermissionRequestRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    [JsonPropertyName("requestId")]
+    public string RequestId { get; set; } = string.Empty;
+
+    [JsonPropertyName("result")]
+    public object Result { get; set; } = null!;
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<SessionModeGetResultMode>))]
 public enum SessionModeGetResultMode
 {
@@ -488,9 +531,9 @@ public class ServerRpc
     internal ServerRpc(JsonRpc rpc)
     {
         _rpc = rpc;
-        Models = new ModelsApi(rpc);
-        Tools = new ToolsApi(rpc);
-        Account = new AccountApi(rpc);
+        Models = new ServerModelsApi(rpc);
+        Tools = new ServerToolsApi(rpc);
+        Account = new ServerAccountApi(rpc);
     }
 
     /// <summary>Calls "ping".</summary>
@@ -501,21 +544,21 @@ public class ServerRpc
     }
 
     /// <summary>Models APIs.</summary>
-    public ModelsApi Models { get; }
+    public ServerModelsApi Models { get; }
 
     /// <summary>Tools APIs.</summary>
-    public ToolsApi Tools { get; }
+    public ServerToolsApi Tools { get; }
 
     /// <summary>Account APIs.</summary>
-    public AccountApi Account { get; }
+    public ServerAccountApi Account { get; }
 }
 
 /// <summary>Server-scoped Models APIs.</summary>
-public class ModelsApi
+public class ServerModelsApi
 {
     private readonly JsonRpc _rpc;
 
-    internal ModelsApi(JsonRpc rpc)
+    internal ServerModelsApi(JsonRpc rpc)
     {
         _rpc = rpc;
     }
@@ -528,11 +571,11 @@ public class ModelsApi
 }
 
 /// <summary>Server-scoped Tools APIs.</summary>
-public class ToolsApi
+public class ServerToolsApi
 {
     private readonly JsonRpc _rpc;
 
-    internal ToolsApi(JsonRpc rpc)
+    internal ServerToolsApi(JsonRpc rpc)
     {
         _rpc = rpc;
     }
@@ -546,11 +589,11 @@ public class ToolsApi
 }
 
 /// <summary>Server-scoped Account APIs.</summary>
-public class AccountApi
+public class ServerAccountApi
 {
     private readonly JsonRpc _rpc;
 
-    internal AccountApi(JsonRpc rpc)
+    internal ServerAccountApi(JsonRpc rpc)
     {
         _rpc = rpc;
     }
@@ -579,6 +622,8 @@ public class SessionRpc
         Fleet = new FleetApi(rpc, sessionId);
         Agent = new AgentApi(rpc, sessionId);
         Compaction = new CompactionApi(rpc, sessionId);
+        Tools = new ToolsApi(rpc, sessionId);
+        Permissions = new PermissionsApi(rpc, sessionId);
     }
 
     public ModelApi Model { get; }
@@ -594,6 +639,10 @@ public class SessionRpc
     public AgentApi Agent { get; }
 
     public CompactionApi Compaction { get; }
+
+    public ToolsApi Tools { get; }
+
+    public PermissionsApi Permissions { get; }
 }
 
 public class ModelApi
@@ -792,6 +841,44 @@ public class CompactionApi
     }
 }
 
+public class ToolsApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal ToolsApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.tools.handlePendingToolCall".</summary>
+    public async Task<SessionToolsHandlePendingToolCallResult> HandlePendingToolCallAsync(string requestId, object? result, string? error, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionToolsHandlePendingToolCallRequest { SessionId = _sessionId, RequestId = requestId, Result = result, Error = error };
+        return await CopilotClient.InvokeRpcAsync<SessionToolsHandlePendingToolCallResult>(_rpc, "session.tools.handlePendingToolCall", [request], cancellationToken);
+    }
+}
+
+public class PermissionsApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal PermissionsApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.permissions.handlePendingPermissionRequest".</summary>
+    public async Task<SessionPermissionsHandlePendingPermissionRequestResult> HandlePendingPermissionRequestAsync(string requestId, object result, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionPermissionsHandlePendingPermissionRequestRequest { SessionId = _sessionId, RequestId = requestId, Result = result };
+        return await CopilotClient.InvokeRpcAsync<SessionPermissionsHandlePendingPermissionRequestResult>(_rpc, "session.permissions.handlePendingPermissionRequest", [request], cancellationToken);
+    }
+}
+
 [JsonSourceGenerationOptions(
     JsonSerializerDefaults.Web,
     AllowOutOfOrderMetadataProperties = true,
@@ -830,12 +917,16 @@ public class CompactionApi
 [JsonSerializable(typeof(SessionModelGetCurrentResult))]
 [JsonSerializable(typeof(SessionModelSwitchToRequest))]
 [JsonSerializable(typeof(SessionModelSwitchToResult))]
+[JsonSerializable(typeof(SessionPermissionsHandlePendingPermissionRequestRequest))]
+[JsonSerializable(typeof(SessionPermissionsHandlePendingPermissionRequestResult))]
 [JsonSerializable(typeof(SessionPlanDeleteRequest))]
 [JsonSerializable(typeof(SessionPlanDeleteResult))]
 [JsonSerializable(typeof(SessionPlanReadRequest))]
 [JsonSerializable(typeof(SessionPlanReadResult))]
 [JsonSerializable(typeof(SessionPlanUpdateRequest))]
 [JsonSerializable(typeof(SessionPlanUpdateResult))]
+[JsonSerializable(typeof(SessionToolsHandlePendingToolCallRequest))]
+[JsonSerializable(typeof(SessionToolsHandlePendingToolCallResult))]
 [JsonSerializable(typeof(SessionWorkspaceCreateFileRequest))]
 [JsonSerializable(typeof(SessionWorkspaceCreateFileResult))]
 [JsonSerializable(typeof(SessionWorkspaceListFilesRequest))]

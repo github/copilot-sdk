@@ -17,8 +17,4 @@ conversations:
         tool_call_id: toolcall_0
         content: "1. # ELIZA, the only chatbot you'll ever need"
       - role: assistant
-        content: |-
-          The first line of README.md is:
-          ```
-          # ELIZA, the only chatbot you'll ever need
-          ```
+        content: "The first line of README.md is: `# ELIZA, the only chatbot you'll ever need`"

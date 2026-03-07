@@ -37,7 +37,6 @@ describe("Custom tools", async () => {
                     handler: ({ input }) => input.toUpperCase(),
                 }),
             ],
-            onPermissionRequest: approveAll,
         });
 
         const assistantMessage = await session.sendAndWait({
@@ -57,7 +56,6 @@ describe("Custom tools", async () => {
                     },
                 }),
             ],
-            onPermissionRequest: approveAll,
         });
 
         const answer = await session.sendAndWait({
@@ -114,7 +112,6 @@ describe("Custom tools", async () => {
                     },
                 }),
             ],
-            onPermissionRequest: approveAll,
         });
 
         const assistantMessage = await session.sendAndWait({

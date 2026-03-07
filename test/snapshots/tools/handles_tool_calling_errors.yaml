@@ -15,6 +15,6 @@ conversations:
               arguments: "{}"
       - role: tool
         tool_call_id: toolcall_0
-        content: Invoking this tool produced an error. Detailed information is not available.
+        content: "Failed to execute `get_user_location` tool with arguments: {} due to error: Error: Tool execution failed"
       - role: assistant
-        content: unknown
+        content: Your location is unknown.

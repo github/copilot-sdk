@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { retrieveAvailableModels } from "@github/copilot/sdk";
 import { existsSync } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import type {
@@ -663,9 +662,23 @@ function transformOpenAIRequestMessage(
   } else if (m.role === "user" && typeof m.content === "string") {
     content = normalizeUserMessage(m.content);
   } else if (m.role === "tool" && typeof m.content === "string") {
-    // If it's a JSON tool call result, normalize the whitespace and property ordering
+    // If it's a JSON tool call result, normalize the whitespace and property ordering.
+    // For successful tool results wrapped in {resultType, textResultForLlm}, unwrap to
+    // just the inner value so snapshots stay stable across envelope format changes.
     try {
-      content = JSON.stringify(sortJsonKeys(JSON.parse(m.content)));
+      const parsed = JSON.parse(m.content);
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        parsed.resultType === "success" &&
+        "textResultForLlm" in parsed
+      ) {
+        content = typeof parsed.textResultForLlm === "string"
+          ? parsed.textResultForLlm
+          : JSON.stringify(sortJsonKeys(parsed.textResultForLlm));
+      } else {
+        content = JSON.stringify(sortJsonKeys(parsed));
+      }
     } catch {
       content = m.content.trim();
     }
@@ -950,9 +963,7 @@ function convertToStreamingResponseChunks(
   return chunks;
 }
 
-function createGetModelsResponse(modelIds: string[]): {
-  data: Awaited<ReturnType<typeof retrieveAvailableModels>>;
-} {
+function createGetModelsResponse(modelIds: string[]) {
   // Obviously the following might not match any given model. We could track the original responses from /models,
   // but that risks invalidating the caches too frequently and making this unmaintainable. If this approximation
   // turns out to be insufficient, we can tweak the logic here based on known model IDs.

@@ -29,8 +29,14 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(AssistantTurnEndEvent), "assistant.turn_end")]
 [JsonDerivedType(typeof(AssistantTurnStartEvent), "assistant.turn_start")]
 [JsonDerivedType(typeof(AssistantUsageEvent), "assistant.usage")]
+[JsonDerivedType(typeof(CommandCompletedEvent), "command.completed")]
+[JsonDerivedType(typeof(CommandQueuedEvent), "command.queued")]
 [JsonDerivedType(typeof(ElicitationCompletedEvent), "elicitation.completed")]
 [JsonDerivedType(typeof(ElicitationRequestedEvent), "elicitation.requested")]
+[JsonDerivedType(typeof(ExitPlanModeCompletedEvent), "exit_plan_mode.completed")]
+[JsonDerivedType(typeof(ExitPlanModeRequestedEvent), "exit_plan_mode.requested")]
+[JsonDerivedType(typeof(ExternalToolCompletedEvent), "external_tool.completed")]
+[JsonDerivedType(typeof(ExternalToolRequestedEvent), "external_tool.requested")]
 [JsonDerivedType(typeof(HookEndEvent), "hook.end")]
 [JsonDerivedType(typeof(HookStartEvent), "hook.start")]
 [JsonDerivedType(typeof(PendingMessagesModifiedEvent), "pending_messages.modified")]
@@ -723,6 +729,78 @@ public partial class ElicitationCompletedEvent : SessionEvent
     public required ElicitationCompletedData Data { get; set; }
 }
 
+/// <summary>
+/// Event: external_tool.requested
+/// </summary>
+public partial class ExternalToolRequestedEvent : SessionEvent
+{
+    [JsonIgnore]
+    public override string Type => "external_tool.requested";
+
+    [JsonPropertyName("data")]
+    public required ExternalToolRequestedData Data { get; set; }
+}
+
+/// <summary>
+/// Event: external_tool.completed
+/// </summary>
+public partial class ExternalToolCompletedEvent : SessionEvent
+{
+    [JsonIgnore]
+    public override string Type => "external_tool.completed";
+
+    [JsonPropertyName("data")]
+    public required ExternalToolCompletedData Data { get; set; }
+}
+
+/// <summary>
+/// Event: command.queued
+/// </summary>
+public partial class CommandQueuedEvent : SessionEvent
+{
+    [JsonIgnore]
+    public override string Type => "command.queued";
+
+    [JsonPropertyName("data")]
+    public required CommandQueuedData Data { get; set; }
+}
+
+/// <summary>
+/// Event: command.completed
+/// </summary>
+public partial class CommandCompletedEvent : SessionEvent
+{
+    [JsonIgnore]
+    public override string Type => "command.completed";
+
+    [JsonPropertyName("data")]
+    public required CommandCompletedData Data { get; set; }
+}
+
+/// <summary>
+/// Event: exit_plan_mode.requested
+/// </summary>
+public partial class ExitPlanModeRequestedEvent : SessionEvent
+{
+    [JsonIgnore]
+    public override string Type => "exit_plan_mode.requested";
+
+    [JsonPropertyName("data")]
+    public required ExitPlanModeRequestedData Data { get; set; }
+}
+
+/// <summary>
+/// Event: exit_plan_mode.completed
+/// </summary>
+public partial class ExitPlanModeCompletedEvent : SessionEvent
+{
+    [JsonIgnore]
+    public override string Type => "exit_plan_mode.completed";
+
+    [JsonPropertyName("data")]
+    public required ExitPlanModeCompletedData Data { get; set; }
+}
+
 public partial class SessionStartData
 {
     [JsonPropertyName("sessionId")]
@@ -785,6 +863,9 @@ public partial class SessionErrorData
 
 public partial class SessionIdleData
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("backgroundTasks")]
+    public SessionIdleDataBackgroundTasks? BackgroundTasks { get; set; }
 }
 
 public partial class SessionTitleChangedData
@@ -1125,6 +1206,10 @@ public partial class AssistantMessageData
     public string? Phase { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("outputTokens")]
+    public double? OutputTokens { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("interactionId")]
     public string? InteractionId { get; set; }
 
@@ -1450,6 +1535,9 @@ public partial class PermissionCompletedData
 {
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
+
+    [JsonPropertyName("result")]
+    public required PermissionCompletedDataResult Result { get; set; }
 }
 
 public partial class UserInputRequestedData
@@ -1497,6 +1585,70 @@ public partial class ElicitationCompletedData
     public required string RequestId { get; set; }
 }
 
+public partial class ExternalToolRequestedData
+{
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; set; }
+
+    [JsonPropertyName("toolCallId")]
+    public required string ToolCallId { get; set; }
+
+    [JsonPropertyName("toolName")]
+    public required string ToolName { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("arguments")]
+    public object? Arguments { get; set; }
+}
+
+public partial class ExternalToolCompletedData
+{
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+}
+
+public partial class CommandQueuedData
+{
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+
+    [JsonPropertyName("command")]
+    public required string Command { get; set; }
+}
+
+public partial class CommandCompletedData
+{
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+}
+
+public partial class ExitPlanModeRequestedData
+{
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+
+    [JsonPropertyName("summary")]
+    public required string Summary { get; set; }
+
+    [JsonPropertyName("planContent")]
+    public required string PlanContent { get; set; }
+
+    [JsonPropertyName("actions")]
+    public required string[] Actions { get; set; }
+
+    [JsonPropertyName("recommendedAction")]
+    public required string RecommendedAction { get; set; }
+}
+
+public partial class ExitPlanModeCompletedData
+{
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+}
+
 public partial class SessionStartDataContext
 {
     [JsonPropertyName("cwd")]
@@ -1531,6 +1683,38 @@ public partial class SessionResumeDataContext
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("branch")]
     public string? Branch { get; set; }
+}
+
+public partial class SessionIdleDataBackgroundTasksAgentsItem
+{
+    [JsonPropertyName("agentId")]
+    public required string AgentId { get; set; }
+
+    [JsonPropertyName("agentType")]
+    public required string AgentType { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+}
+
+public partial class SessionIdleDataBackgroundTasksShellsItem
+{
+    [JsonPropertyName("shellId")]
+    public required string ShellId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+}
+
+public partial class SessionIdleDataBackgroundTasks
+{
+    [JsonPropertyName("agents")]
+    public required SessionIdleDataBackgroundTasksAgentsItem[] Agents { get; set; }
+
+    [JsonPropertyName("shells")]
+    public required SessionIdleDataBackgroundTasksShellsItem[] Shells { get; set; }
 }
 
 public partial class SessionHandoffDataRepository
@@ -1911,6 +2095,12 @@ public partial class SystemMessageDataMetadata
     public Dictionary<string, object>? Variables { get; set; }
 }
 
+public partial class PermissionCompletedDataResult
+{
+    [JsonPropertyName("kind")]
+    public required PermissionCompletedDataResultKind Kind { get; set; }
+}
+
 public partial class ElicitationRequestedDataRequestedSchema
 {
     [JsonPropertyName("type")]
@@ -2013,6 +2203,21 @@ public enum SystemMessageDataRole
     Developer,
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter<PermissionCompletedDataResultKind>))]
+public enum PermissionCompletedDataResultKind
+{
+    [JsonStringEnumMemberName("approved")]
+    Approved,
+    [JsonStringEnumMemberName("denied-by-rules")]
+    DeniedByRules,
+    [JsonStringEnumMemberName("denied-no-approval-rule-and-could-not-request-from-user")]
+    DeniedNoApprovalRuleAndCouldNotRequestFromUser,
+    [JsonStringEnumMemberName("denied-interactively-by-user")]
+    DeniedInteractivelyByUser,
+    [JsonStringEnumMemberName("denied-by-content-exclusion-policy")]
+    DeniedByContentExclusionPolicy,
+}
+
 [JsonSourceGenerationOptions(
     JsonSerializerDefaults.Web,
     AllowOutOfOrderMetadataProperties = true,
@@ -2041,11 +2246,23 @@ public enum SystemMessageDataRole
 [JsonSerializable(typeof(AssistantUsageDataCopilotUsage))]
 [JsonSerializable(typeof(AssistantUsageDataCopilotUsageTokenDetailsItem))]
 [JsonSerializable(typeof(AssistantUsageEvent))]
+[JsonSerializable(typeof(CommandCompletedData))]
+[JsonSerializable(typeof(CommandCompletedEvent))]
+[JsonSerializable(typeof(CommandQueuedData))]
+[JsonSerializable(typeof(CommandQueuedEvent))]
 [JsonSerializable(typeof(ElicitationCompletedData))]
 [JsonSerializable(typeof(ElicitationCompletedEvent))]
 [JsonSerializable(typeof(ElicitationRequestedData))]
 [JsonSerializable(typeof(ElicitationRequestedDataRequestedSchema))]
 [JsonSerializable(typeof(ElicitationRequestedEvent))]
+[JsonSerializable(typeof(ExitPlanModeCompletedData))]
+[JsonSerializable(typeof(ExitPlanModeCompletedEvent))]
+[JsonSerializable(typeof(ExitPlanModeRequestedData))]
+[JsonSerializable(typeof(ExitPlanModeRequestedEvent))]
+[JsonSerializable(typeof(ExternalToolCompletedData))]
+[JsonSerializable(typeof(ExternalToolCompletedEvent))]
+[JsonSerializable(typeof(ExternalToolRequestedData))]
+[JsonSerializable(typeof(ExternalToolRequestedEvent))]
 [JsonSerializable(typeof(HookEndData))]
 [JsonSerializable(typeof(HookEndDataError))]
 [JsonSerializable(typeof(HookEndEvent))]
@@ -2054,6 +2271,7 @@ public enum SystemMessageDataRole
 [JsonSerializable(typeof(PendingMessagesModifiedData))]
 [JsonSerializable(typeof(PendingMessagesModifiedEvent))]
 [JsonSerializable(typeof(PermissionCompletedData))]
+[JsonSerializable(typeof(PermissionCompletedDataResult))]
 [JsonSerializable(typeof(PermissionCompletedEvent))]
 [JsonSerializable(typeof(PermissionRequestedData))]
 [JsonSerializable(typeof(PermissionRequestedEvent))]
@@ -2071,6 +2289,9 @@ public enum SystemMessageDataRole
 [JsonSerializable(typeof(SessionHandoffDataRepository))]
 [JsonSerializable(typeof(SessionHandoffEvent))]
 [JsonSerializable(typeof(SessionIdleData))]
+[JsonSerializable(typeof(SessionIdleDataBackgroundTasks))]
+[JsonSerializable(typeof(SessionIdleDataBackgroundTasksAgentsItem))]
+[JsonSerializable(typeof(SessionIdleDataBackgroundTasksShellsItem))]
 [JsonSerializable(typeof(SessionIdleEvent))]
 [JsonSerializable(typeof(SessionInfoData))]
 [JsonSerializable(typeof(SessionInfoEvent))]

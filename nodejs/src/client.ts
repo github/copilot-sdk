@@ -42,11 +42,6 @@ import type {
     SessionListFilter,
     SessionMetadata,
     Tool,
-    ToolCallRequestPayload,
-    ToolCallResponsePayload,
-    ToolHandler,
-    ToolResult,
-    ToolResultObject,
     TypedSessionLifecycleHandler,
 } from "./types.js";
 
@@ -196,6 +191,12 @@ export class CopilotClient {
             throw new Error("cliUrl is mutually exclusive with useStdio and cliPath");
         }
 
+        if (options.isChildProcess && (options.cliUrl || options.useStdio === false)) {
+            throw new Error(
+                "isChildProcess must be used in conjunction with useStdio and not with cliUrl"
+            );
+        }
+
         // Validate auth options with external server
         if (options.cliUrl && (options.githubToken || options.useLoggedInUser !== undefined)) {
             throw new Error(
@@ -211,12 +212,17 @@ export class CopilotClient {
             this.isExternalServer = true;
         }
 
+        if (options.isChildProcess) {
+            this.isExternalServer = true;
+        }
+
         this.options = {
             cliPath: options.cliPath || getBundledCliPath(),
             cliArgs: options.cliArgs ?? [],
             cwd: options.cwd ?? process.cwd(),
             port: options.port || 0,
             useStdio: options.cliUrl ? false : (options.useStdio ?? true), // Default to stdio unless cliUrl is provided
+            isChildProcess: options.isChildProcess ?? false,
             cliUrl: options.cliUrl,
             logLevel: options.logLevel || "debug",
             autoStart: options.autoStart ?? true,
@@ -1210,17 +1216,19 @@ export class CopilotClient {
      * Connect to the CLI server (via socket or stdio)
      */
     private async connectToServer(): Promise<void> {
-        if (this.options.useStdio) {
-            return this.connectViaStdio();
+        if (this.options.isChildProcess) {
+            return this.connectToParentProcessViaStdio();
+        } else if (this.options.useStdio) {
+            return this.connectToChildProcessViaStdio();
         } else {
             return this.connectViaTcp();
         }
     }
 
     /**
-     * Connect via stdio pipes
+     * Connect to child via stdio pipes
      */
-    private async connectViaStdio(): Promise<void> {
+    private async connectToChildProcessViaStdio(): Promise<void> {
         if (!this.cliProcess) {
             throw new Error("CLI process not started");
         }
@@ -1236,6 +1244,24 @@ export class CopilotClient {
         this.connection = createMessageConnection(
             new StreamMessageReader(this.cliProcess.stdout!),
             new StreamMessageWriter(this.cliProcess.stdin!)
+        );
+
+        this.attachConnectionHandlers();
+        this.connection.listen();
+    }
+
+    /**
+     * Connect to parent via stdio pipes
+     */
+    private async connectToParentProcessViaStdio(): Promise<void> {
+        if (this.cliProcess) {
+            throw new Error("CLI child process was unexpectedly started in parent process mode");
+        }
+
+        // Create JSON-RPC connection over stdin/stdout
+        this.connection = createMessageConnection(
+            new StreamMessageReader(process.stdin),
+            new StreamMessageWriter(process.stdout)
         );
 
         this.attachConnectionHandlers();
@@ -1284,19 +1310,11 @@ export class CopilotClient {
             this.handleSessionLifecycleNotification(notification);
         });
 
-        this.connection.onRequest(
-            "tool.call",
-            async (params: ToolCallRequestPayload): Promise<ToolCallResponsePayload> =>
-                await this.handleToolCallRequest(params)
-        );
-
-        this.connection.onRequest(
-            "permission.request",
-            async (params: {
-                sessionId: string;
-                permissionRequest: unknown;
-            }): Promise<{ result: unknown }> => await this.handlePermissionRequest(params)
-        );
+        // External tool calls and permission requests are now handled via broadcast events:
+        // the server sends external_tool.requested / permission.requested as session event
+        // notifications, and CopilotSession._dispatchEvent handles them internally by
+        // executing the handler and responding via session.tools.handlePendingToolCall /
+        // session.permissions.handlePendingPermissionRequest RPC.
 
         this.connection.onRequest(
             "userInput.request",
@@ -1382,86 +1400,6 @@ export class CopilotClient {
         }
     }
 
-    private async handleToolCallRequest(
-        params: ToolCallRequestPayload
-    ): Promise<ToolCallResponsePayload> {
-        if (
-            !params ||
-            typeof params.sessionId !== "string" ||
-            typeof params.toolCallId !== "string" ||
-            typeof params.toolName !== "string"
-        ) {
-            throw new Error("Invalid tool call payload");
-        }
-
-        const session = this.sessions.get(params.sessionId);
-        if (!session) {
-            throw new Error(`Unknown session ${params.sessionId}`);
-        }
-
-        const handler = session.getToolHandler(params.toolName);
-        if (!handler) {
-            return { result: this.buildUnsupportedToolResult(params.toolName) };
-        }
-
-        return await this.executeToolCall(handler, params);
-    }
-
-    private async executeToolCall(
-        handler: ToolHandler,
-        request: ToolCallRequestPayload
-    ): Promise<ToolCallResponsePayload> {
-        try {
-            const invocation = {
-                sessionId: request.sessionId,
-                toolCallId: request.toolCallId,
-                toolName: request.toolName,
-                arguments: request.arguments,
-            };
-            const result = await handler(request.arguments, invocation);
-
-            return { result: this.normalizeToolResult(result) };
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            return {
-                result: {
-                    // Don't expose detailed error information to the LLM for security reasons
-                    textResultForLlm:
-                        "Invoking this tool produced an error. Detailed information is not available.",
-                    resultType: "failure",
-                    error: message,
-                    toolTelemetry: {},
-                },
-            };
-        }
-    }
-
-    private async handlePermissionRequest(params: {
-        sessionId: string;
-        permissionRequest: unknown;
-    }): Promise<{ result: unknown }> {
-        if (!params || typeof params.sessionId !== "string" || !params.permissionRequest) {
-            throw new Error("Invalid permission request payload");
-        }
-
-        const session = this.sessions.get(params.sessionId);
-        if (!session) {
-            throw new Error(`Session not found: ${params.sessionId}`);
-        }
-
-        try {
-            const result = await session._handlePermissionRequest(params.permissionRequest);
-            return { result };
-        } catch (_error) {
-            // If permission handler fails, deny the permission
-            return {
-                result: {
-                    kind: "denied-no-approval-rule-and-could-not-request-from-user",
-                },
-            };
-        }
-    }
-
     private async handleUserInputRequest(params: {
         sessionId: string;
         question: string;
@@ -1509,49 +1447,6 @@ export class CopilotClient {
 
         const output = await session._handleHooksInvoke(params.hookType, params.input);
         return { output };
-    }
-
-    private normalizeToolResult(result: unknown): ToolResultObject {
-        if (result === undefined || result === null) {
-            return {
-                textResultForLlm: "Tool returned no result",
-                resultType: "failure",
-                error: "tool returned no result",
-                toolTelemetry: {},
-            };
-        }
-
-        // ToolResultObject passes through directly (duck-type check)
-        if (this.isToolResultObject(result)) {
-            return result;
-        }
-
-        // Everything else gets wrapped as a successful ToolResultObject
-        const textResult = typeof result === "string" ? result : JSON.stringify(result);
-        return {
-            textResultForLlm: textResult,
-            resultType: "success",
-            toolTelemetry: {},
-        };
-    }
-
-    private isToolResultObject(value: unknown): value is ToolResultObject {
-        return (
-            typeof value === "object" &&
-            value !== null &&
-            "textResultForLlm" in value &&
-            typeof (value as ToolResultObject).textResultForLlm === "string" &&
-            "resultType" in value
-        );
-    }
-
-    private buildUnsupportedToolResult(toolName: string): ToolResult {
-        return {
-            textResultForLlm: `Tool '${toolName}' is not supported by this client instance.`,
-            resultType: "failure",
-            error: `tool '${toolName}' not supported`,
-            toolTelemetry: {},
-        };
     }
 
     /**

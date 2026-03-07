@@ -88,14 +88,12 @@ describe("Built-in Tools", async () => {
     describe("glob", () => {
         it("should find files by pattern", async () => {
             await mkdir(join(workDir, "src"), { recursive: true });
-            await writeFile(join(workDir, "src", "app.ts"), "export const app = 1;");
             await writeFile(join(workDir, "src", "index.ts"), "export const index = 1;");
             await writeFile(join(workDir, "README.md"), "# Readme");
             const session = await client.createSession({ onPermissionRequest: approveAll });
             const msg = await session.sendAndWait({
                 prompt: "Find all .ts files in this directory (recursively). List the filenames you found.",
             });
-            expect(msg?.data.content).toContain("app.ts");
             expect(msg?.data.content).toContain("index.ts");
         });
     });

@@ -257,7 +257,8 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
 
     // Emit API classes for groups
     for (const [groupName, groupNode] of groups) {
-        const apiName = toPascalCase(groupName) + "Api";
+        const prefix = isSession ? "" : "Server";
+        const apiName = prefix + toPascalCase(groupName) + "Api";
         if (isSession) {
             lines.push(`class ${apiName}:`);
             lines.push(`    def __init__(self, client: "JsonRpcClient", session_id: str):`);
@@ -292,7 +293,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
         lines.push(`    def __init__(self, client: "JsonRpcClient"):`);
         lines.push(`        self._client = client`);
         for (const [groupName] of groups) {
-            lines.push(`        self.${toSnakeCase(groupName)} = ${toPascalCase(groupName)}Api(client)`);
+            lines.push(`        self.${toSnakeCase(groupName)} = Server${toPascalCase(groupName)}Api(client)`);
         }
     }
     lines.push(``);

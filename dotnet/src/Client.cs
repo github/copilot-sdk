@@ -61,6 +61,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private bool _disposed;
     private readonly int? _optionsPort;
     private readonly string? _optionsHost;
+    private int? _actualPort;
     private List<ModelInfo>? _modelsCache;
     private readonly SemaphoreSlim _modelsCacheLock = new(1, 1);
     private readonly List<Action<SessionLifecycleEvent>> _lifecycleHandlers = [];
@@ -79,6 +80,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     public ServerRpc Rpc => _disposed
         ? throw new ObjectDisposedException(nameof(CopilotClient))
         : _rpc ?? throw new InvalidOperationException("Client is not started. Call StartAsync first.");
+
+    /// <summary>
+    /// Gets the actual TCP port the CLI server is listening on, if using TCP transport.
+    /// </summary>
+    public int? ActualPort => _actualPort;
 
     /// <summary>
     /// Creates a new instance of <see cref="CopilotClient"/>.
@@ -191,12 +197,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             if (_optionsHost is not null && _optionsPort is not null)
             {
                 // External server (TCP)
+                _actualPort = _optionsPort;
                 result = ConnectToServerAsync(null, _optionsHost, _optionsPort, null, ct);
             }
             else
             {
                 // Child process (stdio or TCP)
                 var (cliProcess, portOrNull, stderrBuffer) = await StartCliServerAsync(_options, _logger, ct);
+                _actualPort = portOrNull;
                 result = ConnectToServerAsync(cliProcess, portOrNull is null ? null : "localhost", portOrNull, stderrBuffer, ct);
             }
 
@@ -1129,8 +1137,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var handler = new RpcHandler(this);
         rpc.AddLocalRpcMethod("session.event", handler.OnSessionEvent);
         rpc.AddLocalRpcMethod("session.lifecycle", handler.OnSessionLifecycle);
-        rpc.AddLocalRpcMethod("tool.call", handler.OnToolCall);
-        rpc.AddLocalRpcMethod("permission.request", handler.OnPermissionRequest);
         rpc.AddLocalRpcMethod("userInput.request", handler.OnUserInputRequest);
         rpc.AddLocalRpcMethod("hooks.invoke", handler.OnHooksInvoke);
         rpc.StartListening();
@@ -1229,116 +1235,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             }
 
             client.DispatchLifecycleEvent(evt);
-        }
-
-        public async Task<ToolCallResponse> OnToolCall(string sessionId,
-            string toolCallId,
-            string toolName,
-            object? arguments)
-        {
-            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
-            if (session.GetTool(toolName) is not { } tool)
-            {
-                return new ToolCallResponse(new ToolResultObject
-                {
-                    TextResultForLlm = $"Tool '{toolName}' is not supported.",
-                    ResultType = "failure",
-                    Error = $"tool '{toolName}' not supported"
-                });
-            }
-
-            try
-            {
-                var invocation = new ToolInvocation
-                {
-                    SessionId = sessionId,
-                    ToolCallId = toolCallId,
-                    ToolName = toolName,
-                    Arguments = arguments
-                };
-
-                // Map args from JSON into AIFunction format
-                var aiFunctionArgs = new AIFunctionArguments
-                {
-                    Context = new Dictionary<object, object?>
-                    {
-                        // Allow recipient to access the raw ToolInvocation if they want, e.g., to get SessionId
-                        // This is an alternative to using MEAI's ConfigureParameterBinding, which we can't use
-                        // because we're not the ones producing the AIFunction.
-                        [typeof(ToolInvocation)] = invocation
-                    }
-                };
-
-                if (arguments is not null)
-                {
-                    if (arguments is not JsonElement incomingJsonArgs)
-                    {
-                        throw new InvalidOperationException($"Incoming arguments must be a {nameof(JsonElement)}; received {arguments.GetType().Name}");
-                    }
-
-                    foreach (var prop in incomingJsonArgs.EnumerateObject())
-                    {
-                        // MEAI will deserialize the JsonElement value respecting the delegate's parameter types
-                        aiFunctionArgs[prop.Name] = prop.Value;
-                    }
-                }
-
-                var result = await tool.InvokeAsync(aiFunctionArgs);
-
-                // If the function returns a ToolResultObject, use it directly; otherwise, wrap the result
-                // This lets the developer provide BinaryResult, SessionLog, etc. if they deal with that themselves
-                var toolResultObject = result is ToolResultAIContent trac ? trac.Result : new ToolResultObject
-                {
-                    ResultType = "success",
-
-                    // In most cases, result will already have been converted to JsonElement by the AIFunction.
-                    // We special-case string for consistency with our Node/Python/Go clients.
-                    // TODO: I don't think it's right to special-case string here, and all the clients should
-                    // always serialize the result to JSON (otherwise what stringification is going to happen?
-                    // something we don't control? an error?)
-                    TextResultForLlm = result is JsonElement { ValueKind: JsonValueKind.String } je
-                        ? je.GetString()!
-                        : JsonSerializer.Serialize(result, tool.JsonSerializerOptions.GetTypeInfo(typeof(object))),
-                };
-                return new ToolCallResponse(toolResultObject);
-            }
-            catch (Exception ex)
-            {
-                return new ToolCallResponse(new()
-                {
-                    // TODO: We should offer some way to control whether or not to expose detailed exception information to the LLM.
-                    //       For security, the default must be false, but developers can opt into allowing it.
-                    TextResultForLlm = $"Invoking this tool produced an error. Detailed information is not available.",
-                    ResultType = "failure",
-                    Error = ex.Message
-                });
-            }
-        }
-
-        public async Task<PermissionRequestResponse> OnPermissionRequest(string sessionId, JsonElement permissionRequest)
-        {
-            var session = client.GetSession(sessionId);
-            if (session == null)
-            {
-                return new PermissionRequestResponse(new PermissionRequestResult
-                {
-                    Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser
-                });
-            }
-
-            try
-            {
-                var result = await session.HandlePermissionRequestAsync(permissionRequest);
-                return new PermissionRequestResponse(result);
-            }
-            catch
-            {
-                // If permission handler fails, deny the permission
-                return new PermissionRequestResponse(new PermissionRequestResult
-                {
-                    Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser
-                });
-            }
         }
 
         public async Task<UserInputRequestResponse> OnUserInputRequest(string sessionId, string question, List<string>? choices = null, bool? allowFreeform = null)
@@ -1473,12 +1369,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     internal record ListSessionsResponse(
         List<SessionMetadata> Sessions);
 
-    internal record ToolCallResponse(
-        ToolResultObject? Result);
-
-    internal record PermissionRequestResponse(
-        PermissionRequestResult Result);
-
     internal record UserInputRequestResponse(
         string Answer,
         bool WasFreeform);
@@ -1578,14 +1468,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(HooksInvokeResponse))]
     [JsonSerializable(typeof(ListSessionsRequest))]
     [JsonSerializable(typeof(ListSessionsResponse))]
-    [JsonSerializable(typeof(PermissionRequestResponse))]
     [JsonSerializable(typeof(PermissionRequestResult))]
     [JsonSerializable(typeof(ProviderConfig))]
     [JsonSerializable(typeof(ResumeSessionRequest))]
     [JsonSerializable(typeof(ResumeSessionResponse))]
     [JsonSerializable(typeof(SessionMetadata))]
     [JsonSerializable(typeof(SystemMessageConfig))]
-    [JsonSerializable(typeof(ToolCallResponse))]
     [JsonSerializable(typeof(ToolDefinition))]
     [JsonSerializable(typeof(ToolResultAIContent))]
     [JsonSerializable(typeof(ToolResultObject))]

@@ -26,28 +26,6 @@ describe("CopilotClient", () => {
         );
     });
 
-    it("returns a standardized failure result when a tool is not registered", async () => {
-        const client = new CopilotClient();
-        await client.start();
-        onTestFinished(() => client.forceStop());
-
-        const session = await client.createSession({ onPermissionRequest: approveAll });
-
-        const response = await (
-            client as unknown as { handleToolCallRequest: (typeof client)["handleToolCallRequest"] }
-        ).handleToolCallRequest({
-            sessionId: session.sessionId,
-            toolCallId: "123",
-            toolName: "missing_tool",
-            arguments: {},
-        });
-
-        expect(response.result).toMatchObject({
-            resultType: "failure",
-            error: "tool 'missing_tool' not supported",
-        });
-    });
-
     it("forwards clientName in session.create request", async () => {
         const client = new CopilotClient();
         await client.start();

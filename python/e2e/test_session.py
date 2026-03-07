@@ -5,7 +5,7 @@ import os
 import pytest
 
 from copilot import CopilotClient, PermissionHandler
-from copilot.types import Tool
+from copilot.types import Tool, ToolResult
 
 from .testharness import E2ETestContext, get_final_assistant_message, get_next_event_of_type
 
@@ -323,11 +323,11 @@ class TestSessions:
     async def test_should_create_session_with_custom_tool(self, ctx: E2ETestContext):
         # This test uses the low-level Tool() API to show that Pydantic is optional
         def get_secret_number_handler(invocation):
-            key = invocation["arguments"].get("key", "")
-            return {
-                "textResultForLlm": "54321" if key == "ALPHA" else "unknown",
-                "resultType": "success",
-            }
+            key = invocation.arguments.get("key", "") if invocation.arguments else ""
+            return ToolResult(
+                text_result_for_llm="54321" if key == "ALPHA" else "unknown",
+                result_type="success",
+            )
 
         session = await ctx.client.create_session(
             {
