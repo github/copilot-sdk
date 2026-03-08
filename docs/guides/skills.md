@@ -43,6 +43,7 @@ await session.sendAndWait({ prompt: "Review this code for security issues" });
 
 ```python
 from copilot import CopilotClient
+from copilot.types import PermissionRequestResult
 
 async def main():
     client = CopilotClient()
@@ -54,7 +55,7 @@ async def main():
             "./skills/code-review",
             "./skills/documentation",
         ],
-        "on_permission_request": lambda req: {"kind": "approved"},
+        "on_permission_request": lambda req, inv: PermissionRequestResult(kind="approved"),
     })
 
     # Copilot now has access to skills in those directories

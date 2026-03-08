@@ -65,6 +65,7 @@ const session = await client.createSession({
 
 ```python
 from copilot import CopilotClient
+from copilot.types import PermissionRequestResult
 
 client = CopilotClient()
 await client.start()
@@ -87,7 +88,7 @@ session = await client.create_session({
             "prompt": "You are a code editor. Make minimal, surgical changes to files as requested.",
         },
     ],
-    "on_permission_request": lambda req: {"kind": "approved"},
+    "on_permission_request": lambda req, inv: PermissionRequestResult(kind="approved"),
 })
 ```
 
