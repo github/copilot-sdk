@@ -82,6 +82,7 @@ session.on("assistant.message_delta", (event) => {
 <details>
 <summary><strong>Python</strong></summary>
 
+<!-- docs-validate: skip -->
 ```python
 from copilot.generated.session_events import SessionEventType
 
