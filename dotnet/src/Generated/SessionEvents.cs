@@ -5,6 +5,7 @@
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: session-events.schema.json
 
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -13,6 +14,7 @@ namespace GitHub.Copilot.SDK;
 /// <summary>
 /// Provides the base class from which all session events derive.
 /// </summary>
+[DebuggerDisplay("{DebuggerDisplay,nq}")]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
@@ -107,6 +109,9 @@ public abstract partial class SessionEvent
     /// <summary>Serializes this event to a JSON string.</summary>
     public string ToJson() =>
         JsonSerializer.Serialize(this, SessionEventsJsonContext.Default.SessionEvent);
+
+    [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+    private string DebuggerDisplay => ToJson();
 }
 
 /// <summary>Represents the <c>session.start</c> event.</summary>
