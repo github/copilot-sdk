@@ -266,6 +266,63 @@ class TestSessionConfigForwarding:
             await client.force_stop()
 
     @pytest.mark.asyncio
+    async def test_create_session_forwards_agent(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            await client.create_session(
+                {
+                    "agent": "test-agent",
+                    "custom_agents": [{"name": "test-agent", "prompt": "You are a test agent."}],
+                    "on_permission_request": PermissionHandler.approve_all,
+                }
+            )
+            assert captured["session.create"]["agent"] == "test-agent"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_resume_session_forwards_agent(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            session = await client.create_session(
+                {"on_permission_request": PermissionHandler.approve_all}
+            )
+
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.resume":
+                    return {"sessionId": session.session_id}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            await client.resume_session(
+                session.session_id,
+                {
+                    "agent": "test-agent",
+                    "custom_agents": [{"name": "test-agent", "prompt": "You are a test agent."}],
+                    "on_permission_request": PermissionHandler.approve_all,
+                },
+            )
+            assert captured["session.resume"]["agent"] == "test-agent"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
     async def test_set_model_sends_correct_rpc(self):
         client = CopilotClient({"cli_path": CLI_PATH})
         await client.start()

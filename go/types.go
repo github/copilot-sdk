@@ -384,6 +384,9 @@ type SessionConfig struct {
 	MCPServers map[string]MCPServerConfig
 	// CustomAgents configures custom agents for the session
 	CustomAgents []CustomAgentConfig
+	// Agent is the name of the custom agent to activate when the session starts.
+	// Must match the Name of one of the agents in CustomAgents.
+	Agent string
 	// SkillDirectories is a list of directories to load skills from
 	SkillDirectories []string
 	// DisabledSkills is a list of skill names to disable
@@ -467,6 +470,9 @@ type ResumeSessionConfig struct {
 	MCPServers map[string]MCPServerConfig
 	// CustomAgents configures custom agents for the session
 	CustomAgents []CustomAgentConfig
+	// Agent is the name of the custom agent to activate when the session starts.
+	// Must match the Name of one of the agents in CustomAgents.
+	Agent string
 	// SkillDirectories is a list of directories to load skills from
 	SkillDirectories []string
 	// DisabledSkills is a list of skill names to disable
@@ -652,6 +658,7 @@ type createSessionRequest struct {
 	MCPServers        map[string]MCPServerConfig `json:"mcpServers,omitempty"`
 	EnvValueMode      string                     `json:"envValueMode,omitempty"`
 	CustomAgents      []CustomAgentConfig        `json:"customAgents,omitempty"`
+	Agent             string                     `json:"agent,omitempty"`
 	ConfigDir         string                     `json:"configDir,omitempty"`
 	SkillDirectories  []string                   `json:"skillDirectories,omitempty"`
 	DisabledSkills    []string                   `json:"disabledSkills,omitempty"`
@@ -685,6 +692,7 @@ type resumeSessionRequest struct {
 	MCPServers        map[string]MCPServerConfig `json:"mcpServers,omitempty"`
 	EnvValueMode      string                     `json:"envValueMode,omitempty"`
 	CustomAgents      []CustomAgentConfig        `json:"customAgents,omitempty"`
+	Agent             string                     `json:"agent,omitempty"`
 	SkillDirectories  []string                   `json:"skillDirectories,omitempty"`
 	DisabledSkills    []string                   `json:"disabledSkills,omitempty"`
 	InfiniteSessions  *InfiniteSessionConfig     `json:"infiniteSessions,omitempty"`

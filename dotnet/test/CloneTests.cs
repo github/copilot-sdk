@@ -88,6 +88,7 @@ public class CloneTests
             Streaming = true,
             McpServers = new Dictionary<string, object> { ["server1"] = new object() },
             CustomAgents = [new CustomAgentConfig { Name = "agent1" }],
+            Agent = "agent1",
             SkillDirectories = ["/skills"],
             DisabledSkills = ["skill1"],
         };
@@ -105,6 +106,7 @@ public class CloneTests
         Assert.Equal(original.Streaming, clone.Streaming);
         Assert.Equal(original.McpServers.Count, clone.McpServers!.Count);
         Assert.Equal(original.CustomAgents.Count, clone.CustomAgents!.Count);
+        Assert.Equal(original.Agent, clone.Agent);
         Assert.Equal(original.SkillDirectories, clone.SkillDirectories);
         Assert.Equal(original.DisabledSkills, clone.DisabledSkills);
     }
@@ -241,5 +243,33 @@ public class CloneTests
         Assert.Null(clone.SkillDirectories);
         Assert.Null(clone.DisabledSkills);
         Assert.Null(clone.Tools);
+    }
+
+    [Fact]
+    public void SessionConfig_Clone_CopiesAgentProperty()
+    {
+        var original = new SessionConfig
+        {
+            Agent = "test-agent",
+            CustomAgents = [new CustomAgentConfig { Name = "test-agent", Prompt = "You are a test agent." }],
+        };
+
+        var clone = original.Clone();
+
+        Assert.Equal("test-agent", clone.Agent);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_CopiesAgentProperty()
+    {
+        var original = new ResumeSessionConfig
+        {
+            Agent = "test-agent",
+            CustomAgents = [new CustomAgentConfig { Name = "test-agent", Prompt = "You are a test agent." }],
+        };
+
+        var clone = original.Clone();
+
+        Assert.Equal("test-agent", clone.Agent);
     }
 }

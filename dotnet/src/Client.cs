@@ -419,6 +419,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.McpServers,
             "direct",
             config.CustomAgents,
+            config.Agent,
             config.ConfigDir,
             config.SkillDirectories,
             config.DisabledSkills,
@@ -512,6 +513,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.McpServers,
             "direct",
             config.CustomAgents,
+            config.Agent,
             config.SkillDirectories,
             config.DisabledSkills,
             config.InfiniteSessions);
@@ -1407,6 +1409,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         Dictionary<string, object>? McpServers,
         string? EnvValueMode,
         List<CustomAgentConfig>? CustomAgents,
+        string? Agent,
         string? ConfigDir,
         List<string>? SkillDirectories,
         List<string>? DisabledSkills,
@@ -1450,6 +1453,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         Dictionary<string, object>? McpServers,
         string? EnvValueMode,
         List<CustomAgentConfig>? CustomAgents,
+        string? Agent,
         List<string>? SkillDirectories,
         List<string>? DisabledSkills,
         InfiniteSessionConfig? InfiniteSessions);

@@ -726,6 +726,13 @@ export interface SessionConfig {
     customAgents?: CustomAgentConfig[];
 
     /**
+     * Name of the custom agent to activate when the session starts.
+     * Must match the `name` of one of the agents in `customAgents`.
+     * Equivalent to calling `session.rpc.agent.select({ name })` after creation.
+     */
+    agent?: string;
+
+    /**
      * Directories to load skills from.
      */
     skillDirectories?: string[];
@@ -764,6 +771,7 @@ export type ResumeSessionConfig = Pick<
     | "configDir"
     | "mcpServers"
     | "customAgents"
+    | "agent"
     | "skillDirectories"
     | "disabledSkills"
     | "infiniteSessions"

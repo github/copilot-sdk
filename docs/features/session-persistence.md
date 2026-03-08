@@ -248,6 +248,7 @@ When resuming a session, you can optionally reconfigure many settings. This is u
 | `configDir` | Override configuration directory |
 | `mcpServers` | Configure MCP servers |
 | `customAgents` | Configure custom agents |
+| `agent` | Pre-select a custom agent by name |
 | `skillDirectories` | Directories to load skills from |
 | `disabledSkills` | Skills to disable |
 | `infiniteSessions` | Configure infinite session behavior |

@@ -569,6 +569,11 @@ class CopilotClient:
                 self._convert_custom_agent_to_wire_format(agent) for agent in custom_agents
             ]
 
+        # Add agent selection if provided
+        agent = cfg.get("agent")
+        if agent:
+            payload["agent"] = agent
+
         # Add config directory override if provided
         config_dir = cfg.get("config_dir")
         if config_dir:
@@ -757,6 +762,11 @@ class CopilotClient:
             payload["customAgents"] = [
                 self._convert_custom_agent_to_wire_format(agent) for agent in custom_agents
             ]
+
+        # Add agent selection if provided
+        agent = cfg.get("agent")
+        if agent:
+            payload["agent"] = agent
 
         # Add skill directories configuration if provided
         skill_directories = cfg.get("skill_directories")

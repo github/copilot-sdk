@@ -1197,6 +1197,7 @@ public class SessionConfig
         ClientName = other.ClientName;
         ConfigDir = other.ConfigDir;
         CustomAgents = other.CustomAgents is not null ? [.. other.CustomAgents] : null;
+        Agent = other.Agent;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
         ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
         Hooks = other.Hooks;
@@ -1308,6 +1309,12 @@ public class SessionConfig
     public List<CustomAgentConfig>? CustomAgents { get; set; }
 
     /// <summary>
+    /// Name of the custom agent to activate when the session starts.
+    /// Must match the <see cref="CustomAgentConfig.Name"/> of one of the agents in <see cref="CustomAgents"/>.
+    /// </summary>
+    public string? Agent { get; set; }
+
+    /// <summary>
     /// Directories to load skills from.
     /// </summary>
     public List<string>? SkillDirectories { get; set; }
@@ -1361,6 +1368,7 @@ public class ResumeSessionConfig
         ClientName = other.ClientName;
         ConfigDir = other.ConfigDir;
         CustomAgents = other.CustomAgents is not null ? [.. other.CustomAgents] : null;
+        Agent = other.Agent;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
         DisableResume = other.DisableResume;
         ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
@@ -1475,6 +1483,12 @@ public class ResumeSessionConfig
     /// Custom agent configurations for the session.
     /// </summary>
     public List<CustomAgentConfig>? CustomAgents { get; set; }
+
+    /// <summary>
+    /// Name of the custom agent to activate when the session starts.
+    /// Must match the <see cref="CustomAgentConfig.Name"/> of one of the agents in <see cref="CustomAgents"/>.
+    /// </summary>
+    public string? Agent { get; set; }
 
     /// <summary>
     /// Directories to load skills from.

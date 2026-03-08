@@ -507,6 +507,9 @@ class SessionConfig(TypedDict, total=False):
     mcp_servers: dict[str, MCPServerConfig]
     # Custom agent configurations for the session
     custom_agents: list[CustomAgentConfig]
+    # Name of the custom agent to activate when the session starts.
+    # Must match the name of one of the agents in custom_agents.
+    agent: str
     # Override the default configuration directory location.
     # When specified, the session will use this directory for storing config and state.
     config_dir: str
@@ -575,6 +578,9 @@ class ResumeSessionConfig(TypedDict, total=False):
     mcp_servers: dict[str, MCPServerConfig]
     # Custom agent configurations for the session
     custom_agents: list[CustomAgentConfig]
+    # Name of the custom agent to activate when the session starts.
+    # Must match the name of one of the agents in custom_agents.
+    agent: str
     # Directories to load skills from
     skill_directories: list[str]
     # List of skill names to disable
