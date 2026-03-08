@@ -369,6 +369,7 @@ const session = await client.createSession({
 <details>
 <summary><strong>Python</strong></summary>
 
+<!-- docs-validate: skip -->
 ```python
 import json, aiofiles
 
