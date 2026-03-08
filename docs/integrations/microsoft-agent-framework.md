@@ -450,7 +450,7 @@ catch (AgentException ex)
 ## See Also
 
 - [Getting Started](../getting-started.md) — initial Copilot SDK setup
-- [Custom Agents](./custom-agents.md) — define specialized sub-agents within the SDK
-- [Custom Skills](./skills.md) — reusable prompt modules
+- [Custom Agents](../features/custom-agents.md) — define specialized sub-agents within the SDK
+- [Custom Skills](../features/skills.md) — reusable prompt modules
 - [Microsoft Agent Framework documentation](https://learn.microsoft.com/en-us/agent-framework/agents/providers/github-copilot) — official MAF docs for the Copilot provider
 - [Blog: Build AI Agents with GitHub Copilot SDK and Microsoft Agent Framework](https://devblogs.microsoft.com/semantic-kernel/build-ai-agents-with-github-copilot-sdk-and-microsoft-agent-framework/)

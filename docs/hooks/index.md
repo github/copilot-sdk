@@ -233,4 +233,4 @@ const session = await client.createSession({
 
 - [Getting Started Guide](../getting-started.md)
 - [Custom Tools](../getting-started.md#step-4-add-a-custom-tool)
-- [Debugging Guide](../debugging.md)
+- [Debugging Guide](../troubleshooting/debugging.md)

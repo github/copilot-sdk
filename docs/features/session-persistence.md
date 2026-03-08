@@ -561,7 +561,7 @@ const session = await client.createSession({
 });
 ```
 
-> **Note:** Thresholds are context utilization ratios (0.0-1.0), not absolute token counts. See the [Compatibility Guide](../compatibility.md) for details.
+> **Note:** Thresholds are context utilization ratios (0.0-1.0), not absolute token counts. See the [Compatibility Guide](../troubleshooting/compatibility.md) for details.
 
 ## Limitations & Considerations
 
@@ -621,6 +621,6 @@ await withSessionLock("user-123-task-456", async () => {
 
 ## Next Steps
 
-- [Hooks Overview](../hooks/overview.md) - Customize session behavior with hooks
-- [Compatibility Guide](../compatibility.md) - SDK vs CLI feature comparison
-- [Debugging Guide](../debugging.md) - Troubleshoot session issues
+- [Hooks Overview](../hooks/index.md) - Customize session behavior with hooks
+- [Compatibility Guide](../troubleshooting/compatibility.md) - SDK vs CLI feature comparison
+- [Debugging Guide](../troubleshooting/debugging.md) - Troubleshoot session issues

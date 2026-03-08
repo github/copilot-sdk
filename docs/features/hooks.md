@@ -973,7 +973,7 @@ const session = await client.createSession({
 
 For full type definitions, input/output field tables, and additional examples for every hook, see the API reference:
 
-- [Hooks Overview](../hooks/overview.md)
+- [Hooks Overview](../hooks/index.md)
 - [Pre-Tool Use](../hooks/pre-tool-use.md)
 - [Post-Tool Use](../hooks/post-tool-use.md)
 - [User Prompt Submitted](../hooks/user-prompt-submitted.md)
@@ -985,4 +985,4 @@ For full type definitions, input/output field tables, and additional examples fo
 - [Getting Started](../getting-started.md)
 - [Custom Agents & Sub-Agent Orchestration](./custom-agents.md)
 - [Streaming Session Events](./streaming-events.md)
-- [Debugging Guide](../debugging.md)
+- [Debugging Guide](../troubleshooting/debugging.md)

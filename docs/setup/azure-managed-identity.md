@@ -1,6 +1,6 @@
 # Azure Managed Identity with BYOK
 
-The Copilot SDK's [BYOK mode](./byok.md) accepts static API keys, but Azure deployments often use **Managed Identity** (Entra ID) instead of long-lived keys. Since the SDK doesn't natively support Entra ID authentication, you can use a short-lived bearer token via the `bearer_token` provider config field.
+The Copilot SDK's [BYOK mode](../auth/byok.md) accepts static API keys, but Azure deployments often use **Managed Identity** (Entra ID) instead of long-lived keys. Since the SDK doesn't natively support Entra ID authentication, you can use a short-lived bearer token via the `bearer_token` provider config field.
 
 This guide shows how to use `DefaultAzureCredential` from the [Azure Identity](https://learn.microsoft.com/python/api/azure-identity/azure.identity.defaultazurecredential) library to authenticate with Azure AI Foundry models through the Copilot SDK.
 
@@ -207,11 +207,11 @@ See the [DefaultAzureCredential documentation](https://learn.microsoft.com/pytho
 | Azure-hosted app with Managed Identity | ✅ Use this pattern |
 | App with existing Azure AD service principal | ✅ Use this pattern |
 | Local development with `az login` | ✅ Use this pattern |
-| Non-Azure environment with static API key | Use [standard BYOK](./byok.md) |
+| Non-Azure environment with static API key | Use [standard BYOK](../auth/byok.md) |
 | GitHub Copilot subscription available | Use [GitHub OAuth](./github-oauth.md) |
 
 ## See Also
 
-- [BYOK Setup Guide](./byok.md) — Static API key configuration
+- [BYOK Setup Guide](../auth/byok.md) — Static API key configuration
 - [Backend Services](./backend-services.md) — Server-side deployment
 - [Azure Identity documentation](https://learn.microsoft.com/python/api/overview/azure/identity-readme)

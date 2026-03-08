@@ -365,4 +365,4 @@ If multiple skills provide conflicting instructions:
 
 - [Custom Agents](../getting-started.md#create-custom-agents) - Define specialized AI personas
 - [Custom Tools](../getting-started.md#step-4-add-a-custom-tool) - Build your own tools
-- [MCP Servers](../mcp/overview.md) - Connect external tool providers
+- [MCP Servers](./mcp.md) - Connect external tool providers

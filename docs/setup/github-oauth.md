@@ -432,12 +432,12 @@ For a lighter resource footprint, you can run a single external CLI server and p
 
 | Need | Next Guide |
 |------|-----------|
-| Users without GitHub accounts | [BYOK](./byok.md) |
+| Users without GitHub accounts | [BYOK](../auth/byok.md) |
 | Run the SDK on servers | [Backend Services](./backend-services.md) |
 | Handle many concurrent users | [Scaling & Multi-Tenancy](./scaling.md) |
 
 ## Next Steps
 
-- **[Authentication docs](../../auth/index.md)** — Full auth method reference
+- **[Authentication docs](../auth/index.md)** — Full auth method reference
 - **[Backend Services](./backend-services.md)** — Run the SDK server-side
 - **[Scaling & Multi-Tenancy](./scaling.md)** — Handle many users at scale

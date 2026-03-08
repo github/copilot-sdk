@@ -225,10 +225,10 @@ If you need any of these, it's time to pick a more advanced setup:
 | Ship your app to others | [Bundled CLI](./bundled-cli.md) |
 | Multiple users signing in | [GitHub OAuth](./github-oauth.md) |
 | Run on a server | [Backend Services](./backend-services.md) |
-| Use your own model keys | [BYOK](./byok.md) |
+| Use your own model keys | [BYOK](../auth/byok.md) |
 
 ## Next Steps
 
-- **[Getting Started tutorial](../../getting-started.md)** — Build a complete interactive app
-- **[Authentication docs](../../auth/index.md)** — All auth methods in detail
-- **[Session Persistence](../session-persistence.md)** — Advanced session management
+- **[Getting Started tutorial](../getting-started.md)** — Build a complete interactive app
+- **[Authentication docs](../auth/index.md)** — All auth methods in detail
+- **[Session Persistence](../features/session-persistence.md)** — Advanced session management

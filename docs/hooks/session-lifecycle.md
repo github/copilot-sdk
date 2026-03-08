@@ -504,6 +504,6 @@ Session Summary:
 
 ## See Also
 
-- [Hooks Overview](./overview.md)
+- [Hooks Overview](./index.md)
 - [Error Handling Hook](./error-handling.md)
-- [Debugging Guide](../debugging.md)
+- [Debugging Guide](../troubleshooting/debugging.md)

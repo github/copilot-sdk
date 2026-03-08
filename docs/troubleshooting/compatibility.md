@@ -182,7 +182,7 @@ The SDK and CLI must have compatible protocol versions. The SDK will log warning
 
 ## See Also
 
-- [Getting Started Guide](./getting-started.md)
-- [Hooks Documentation](./hooks/overview.md)
-- [MCP Servers Guide](./mcp/overview.md)
+- [Getting Started Guide](../getting-started.md)
+- [Hooks Documentation](../hooks/index.md)
+- [MCP Servers Guide](../features/mcp.md)
 - [Debugging Guide](./debugging.md)

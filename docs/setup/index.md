@@ -58,7 +58,7 @@ You're building a product for customers. You need to handle authentication for y
 
 **Start with:**
 1. **[GitHub OAuth](./github-oauth.md)** — Let customers sign in with GitHub
-2. **[BYOK](./byok.md)** — Manage identity yourself with your own model keys
+2. **[BYOK](../auth/byok.md)** — Manage identity yourself with your own model keys
 3. **[Backend Services](./backend-services.md)** — Power your product from server-side code
 
 **For production:**
@@ -74,7 +74,7 @@ You're embedding Copilot into a platform — APIs, developer tools, or infrastru
 
 **Depending on your auth model:**
 3. **[GitHub OAuth](./github-oauth.md)** — For GitHub-authenticated users
-4. **[BYOK](./byok.md)** — For self-managed identity and model access
+4. **[BYOK](../auth/byok.md)** — For self-managed identity and model access
 
 ## Decision Matrix
 
@@ -85,7 +85,7 @@ Use this table to find the right guides based on what you need to do:
 | Simplest possible setup | [Local CLI](./local-cli.md) |
 | Ship a standalone app with Copilot | [Bundled CLI](./bundled-cli.md) |
 | Users sign in with GitHub | [GitHub OAuth](./github-oauth.md) |
-| Use your own model keys (OpenAI, Azure, etc.) | [BYOK](./byok.md) |
+| Use your own model keys (OpenAI, Azure, etc.) | [BYOK](../auth/byok.md) |
 | Azure BYOK with Managed Identity (no API keys) | [Azure Managed Identity](./azure-managed-identity.md) |
 | Run the SDK on a server | [Backend Services](./backend-services.md) |
 | Serve multiple users / scale horizontally | [Scaling & Multi-Tenancy](./scaling.md) |
@@ -136,7 +136,7 @@ All guides assume you have:
   - Go: `go get github.com/github/copilot-sdk/go`
   - .NET: `dotnet add package GitHub.Copilot.SDK`
 
-If you're brand new, start with the **[Getting Started tutorial](../../getting-started.md)** first, then come back here for production configuration.
+If you're brand new, start with the **[Getting Started tutorial](../getting-started.md)** first, then come back here for production configuration.
 
 ## Next Steps
 
