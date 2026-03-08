@@ -107,8 +107,12 @@ Please use the [GitHub Issues](https://github.com/github/copilot-sdk/issues) pag
 
 ## Quick Links
 
+- **[Documentation](./docs/index.md)** – Full documentation index
 - **[Getting Started](./docs/getting-started.md)** – Tutorial to get up and running
+- **[Setup Guides](./docs/setup/index.md)** – Architecture, deployment, and scaling
 - **[Authentication](./docs/auth/index.md)** – GitHub OAuth, BYOK, and more
+- **[Features](./docs/features/index.md)** – Hooks, custom agents, MCP, skills, and more
+- **[Troubleshooting](./docs/troubleshooting/debugging.md)** – Common issues and solutions
 - **[Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk)** – Practical recipes for common tasks across all languages
 - **[More Resources](https://github.com/github/awesome-copilot/blob/main/collections/copilot-sdk.md)** – Additional examples, tutorials, and community resources
 

@@ -231,7 +231,7 @@ const session = await client.createSession({
 });
 ```
 
-See the **[BYOK guide](./byok.md)** for full details.
+See the **[BYOK guide](../auth/byok.md)** for full details.
 
 ## Session Management
 
@@ -346,10 +346,10 @@ const client = new CopilotClient({
 |------|-----------|
 | Users signing in with GitHub accounts | [GitHub OAuth](./github-oauth.md) |
 | Run on a server instead of user machines | [Backend Services](./backend-services.md) |
-| Use your own model keys | [BYOK](./byok.md) |
+| Use your own model keys | [BYOK](../auth/byok.md) |
 
 ## Next Steps
 
-- **[BYOK guide](./byok.md)** — Use your own model provider keys
-- **[Session Persistence](../session-persistence.md)** — Advanced session management
-- **[Getting Started tutorial](../../getting-started.md)** — Build a complete app
+- **[BYOK guide](../auth/byok.md)** — Use your own model provider keys
+- **[Session Persistence](../features/session-persistence.md)** — Advanced session management
+- **[Getting Started tutorial](../getting-started.md)** — Build a complete app

@@ -355,4 +355,4 @@ await using var client = new CopilotClient(new CopilotClientOptions
 
 - [BYOK Documentation](./byok.md) - Learn how to use your own API keys
 - [Getting Started Guide](../getting-started.md) - Build your first Copilot-powered app
-- [MCP Servers](../mcp) - Connect to external tools
+- [MCP Servers](../features/mcp.md) - Connect to external tools

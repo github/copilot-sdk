@@ -428,6 +428,6 @@ const session = await client.createSession({
 
 ## See Also
 
-- [Hooks Overview](./overview.md)
+- [Hooks Overview](./index.md)
 - [Pre-Tool Use Hook](./pre-tool-use.md)
 - [Error Handling Hook](./error-handling.md)

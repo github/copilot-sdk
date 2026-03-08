@@ -280,7 +280,7 @@ app.post("/chat", authMiddleware, async (req, res) => {
 
 ### BYOK (No GitHub Auth)
 
-Use your own API keys for the model provider. See [BYOK](./byok.md) for details.
+Use your own API keys for the model provider. See [BYOK](../auth/byok.md) for details.
 
 ```typescript
 const client = new CopilotClient({
@@ -478,10 +478,10 @@ setInterval(() => cleanupSessions(24 * 60 * 60 * 1000), 60 * 60 * 1000);
 |------|-----------|
 | Multiple CLI servers / high availability | [Scaling & Multi-Tenancy](./scaling.md) |
 | GitHub account auth for users | [GitHub OAuth](./github-oauth.md) |
-| Your own model keys | [BYOK](./byok.md) |
+| Your own model keys | [BYOK](../auth/byok.md) |
 
 ## Next Steps
 
 - **[Scaling & Multi-Tenancy](./scaling.md)** — Handle more users, add redundancy
-- **[Session Persistence](../session-persistence.md)** — Resume sessions across restarts
+- **[Session Persistence](../features/session-persistence.md)** — Resume sessions across restarts
 - **[GitHub OAuth](./github-oauth.md)** — Add user authentication

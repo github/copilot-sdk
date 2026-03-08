@@ -473,6 +473,6 @@ When opening an issue or asking for help, collect:
 
 ## See Also
 
-- [MCP Overview](./overview.md) - Configuration and setup
-- [General Debugging Guide](../debugging.md) - SDK-wide debugging
+- [MCP Overview](../features/mcp.md) - Configuration and setup
+- [General Debugging Guide](./debugging.md) - SDK-wide debugging
 - [MCP Specification](https://modelcontextprotocol.io/) - Official protocol docs

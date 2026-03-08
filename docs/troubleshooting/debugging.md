@@ -316,7 +316,7 @@ var client = new CopilotClient(new CopilotClientOptions
 
 ## MCP Server Debugging
 
-MCP (Model Context Protocol) servers can be tricky to debug. For comprehensive MCP debugging guidance, see the dedicated **[MCP Debugging Guide](./mcp/debugging.md)**.
+MCP (Model Context Protocol) servers can be tricky to debug. For comprehensive MCP debugging guidance, see the dedicated **[MCP Debugging Guide](./mcp-debugging.md)**.
 
 ### Quick MCP Checklist
 
@@ -334,7 +334,7 @@ Before integrating with the SDK, verify your MCP server works:
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | /path/to/your/mcp-server
 ```
 
-See [MCP Debugging Guide](./mcp/debugging.md) for detailed troubleshooting.
+See [MCP Debugging Guide](./mcp-debugging.md) for detailed troubleshooting.
 
 ---
 
@@ -519,7 +519,7 @@ If you're still stuck:
 
 ## See Also
 
-- [Getting Started Guide](./getting-started.md)
-- [MCP Overview](./mcp/overview.md) - MCP configuration and setup
-- [MCP Debugging Guide](./mcp/debugging.md) - Detailed MCP troubleshooting
+- [Getting Started Guide](../getting-started.md)
+- [MCP Overview](../features/mcp.md) - MCP configuration and setup
+- [MCP Debugging Guide](./mcp-debugging.md) - Detailed MCP troubleshooting
 - [API Reference](https://github.com/github/copilot-sdk)

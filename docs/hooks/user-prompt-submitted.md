@@ -446,6 +446,6 @@ const session = await client.createSession({
 
 ## See Also
 
-- [Hooks Overview](./overview.md)
+- [Hooks Overview](./index.md)
 - [Session Lifecycle Hooks](./session-lifecycle.md)
 - [Pre-Tool Use Hook](./pre-tool-use.md)

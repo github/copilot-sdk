@@ -629,7 +629,7 @@ flowchart TB
 
 ## Next Steps
 
-- **[Session Persistence](../session-persistence.md)** — Deep dive on resumable sessions
+- **[Session Persistence](../features/session-persistence.md)** — Deep dive on resumable sessions
 - **[Backend Services](./backend-services.md)** — Core server-side setup
 - **[GitHub OAuth](./github-oauth.md)** — Multi-user authentication
-- **[BYOK](./byok.md)** — Use your own model provider
+- **[BYOK](../auth/byok.md)** — Use your own model provider
