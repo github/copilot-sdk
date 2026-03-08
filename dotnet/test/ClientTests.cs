@@ -274,4 +274,104 @@ public class ClientTests
         Assert.Contains("OnPermissionRequest", ex.Message);
         Assert.Contains("is required", ex.Message);
     }
+
+    [Fact]
+    public async Task ListModels_WithCustomHandler_CallsHandler()
+    {
+        var customModels = new List<ModelInfo>
+        {
+            new()
+            {
+                Id = "my-custom-model",
+                Name = "My Custom Model",
+                Capabilities = new ModelCapabilities
+                {
+                    Supports = new ModelSupports { Vision = false, ReasoningEffort = false },
+                    Limits = new ModelLimits { MaxContextWindowTokens = 128000 }
+                }
+            }
+        };
+
+        var callCount = 0;
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            OnListModels = (ct) =>
+            {
+                callCount++;
+                return Task.FromResult(customModels);
+            }
+        });
+        await client.StartAsync();
+
+        var models = await client.ListModelsAsync();
+        Assert.Equal(1, callCount);
+        Assert.Single(models);
+        Assert.Equal("my-custom-model", models[0].Id);
+    }
+
+    [Fact]
+    public async Task ListModels_WithCustomHandler_CachesResults()
+    {
+        var customModels = new List<ModelInfo>
+        {
+            new()
+            {
+                Id = "cached-model",
+                Name = "Cached Model",
+                Capabilities = new ModelCapabilities
+                {
+                    Supports = new ModelSupports { Vision = false, ReasoningEffort = false },
+                    Limits = new ModelLimits { MaxContextWindowTokens = 128000 }
+                }
+            }
+        };
+
+        var callCount = 0;
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            OnListModels = (ct) =>
+            {
+                callCount++;
+                return Task.FromResult(customModels);
+            }
+        });
+        await client.StartAsync();
+
+        await client.ListModelsAsync();
+        await client.ListModelsAsync();
+        Assert.Equal(1, callCount); // Only called once due to caching
+    }
+
+    [Fact]
+    public async Task ListModels_WithCustomHandler_WorksWithoutStart()
+    {
+        var customModels = new List<ModelInfo>
+        {
+            new()
+            {
+                Id = "no-start-model",
+                Name = "No Start Model",
+                Capabilities = new ModelCapabilities
+                {
+                    Supports = new ModelSupports { Vision = false, ReasoningEffort = false },
+                    Limits = new ModelLimits { MaxContextWindowTokens = 128000 }
+                }
+            }
+        };
+
+        var callCount = 0;
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            OnListModels = (ct) =>
+            {
+                callCount++;
+                return Task.FromResult(customModels);
+            }
+        });
+
+        var models = await client.ListModelsAsync();
+        Assert.Equal(1, callCount);
+        Assert.Single(models);
+        Assert.Equal("no-start-model", models[0].Id);
+    }
 }

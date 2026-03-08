@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { approveAll, CopilotClient } from "../src/index.js";
+import { approveAll, CopilotClient, type ModelInfo } from "../src/index.js";
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.ts instead
 
@@ -386,6 +386,93 @@ describe("CopilotClient", () => {
             const payload = spy.mock.calls.find((c) => c[0] === "session.resume")![1] as any;
             expect(payload.agent).toBe("test-agent");
             spy.mockRestore();
+        });
+    });
+
+    describe("onListModels", () => {
+        it("calls onListModels handler instead of RPC when provided", async () => {
+            const customModels: ModelInfo[] = [
+                {
+                    id: "my-custom-model",
+                    name: "My Custom Model",
+                    capabilities: {
+                        supports: { vision: false, reasoningEffort: false },
+                        limits: { max_context_window_tokens: 128000 },
+                    },
+                },
+            ];
+
+            const handler = vi.fn().mockReturnValue(customModels);
+            const client = new CopilotClient({ onListModels: handler });
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const models = await client.listModels();
+            expect(handler).toHaveBeenCalledTimes(1);
+            expect(models).toEqual(customModels);
+        });
+
+        it("caches onListModels results on subsequent calls", async () => {
+            const customModels: ModelInfo[] = [
+                {
+                    id: "cached-model",
+                    name: "Cached Model",
+                    capabilities: {
+                        supports: { vision: false, reasoningEffort: false },
+                        limits: { max_context_window_tokens: 128000 },
+                    },
+                },
+            ];
+
+            const handler = vi.fn().mockReturnValue(customModels);
+            const client = new CopilotClient({ onListModels: handler });
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            await client.listModels();
+            await client.listModels();
+            expect(handler).toHaveBeenCalledTimes(1); // Only called once due to caching
+        });
+
+        it("supports async onListModels handler", async () => {
+            const customModels: ModelInfo[] = [
+                {
+                    id: "async-model",
+                    name: "Async Model",
+                    capabilities: {
+                        supports: { vision: false, reasoningEffort: false },
+                        limits: { max_context_window_tokens: 128000 },
+                    },
+                },
+            ];
+
+            const handler = vi.fn().mockResolvedValue(customModels);
+            const client = new CopilotClient({ onListModels: handler });
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const models = await client.listModels();
+            expect(models).toEqual(customModels);
+        });
+
+        it("does not require client.start when onListModels is provided", async () => {
+            const customModels: ModelInfo[] = [
+                {
+                    id: "no-start-model",
+                    name: "No Start Model",
+                    capabilities: {
+                        supports: { vision: false, reasoningEffort: false },
+                        limits: { max_context_window_tokens: 128000 },
+                    },
+                },
+            ];
+
+            const handler = vi.fn().mockReturnValue(customModels);
+            const client = new CopilotClient({ onListModels: handler });
+
+            const models = await client.listModels();
+            expect(handler).toHaveBeenCalledTimes(1);
+            expect(models).toEqual(customModels);
         });
     });
 });

@@ -1,6 +1,9 @@
 package copilot
 
-import "encoding/json"
+import (
+	"context"
+	"encoding/json"
+)
 
 // ConnectionState represents the client connection state
 type ConnectionState string
@@ -54,6 +57,11 @@ type ClientOptions struct {
 	// Default: true (but defaults to false when GitHubToken is provided).
 	// Use Bool(false) to explicitly disable.
 	UseLoggedInUser *bool
+	// OnListModels is a custom handler for listing available models.
+	// When provided, client.ListModels() calls this handler instead of
+	// querying the CLI server. Useful in BYOK mode to return models
+	// available from your custom provider.
+	OnListModels func(ctx context.Context) ([]ModelInfo, error)
 }
 
 // Bool returns a pointer to the given bool value.

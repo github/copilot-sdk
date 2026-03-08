@@ -1,6 +1,7 @@
 package copilot
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -546,6 +547,65 @@ func TestClient_ResumeSession_RequiresPermissionHandler(t *testing.T) {
 			t.Errorf("Expected error about OnPermissionRequest being required, got: %v", err)
 		}
 	})
+}
+
+func TestListModelsWithCustomHandler(t *testing.T) {
+	customModels := []ModelInfo{
+		{
+			ID:   "my-custom-model",
+			Name: "My Custom Model",
+			Capabilities: ModelCapabilities{
+				Supports: ModelSupports{Vision: false, ReasoningEffort: false},
+				Limits:   ModelLimits{MaxContextWindowTokens: 128000},
+			},
+		},
+	}
+
+	callCount := 0
+	handler := func(ctx context.Context) ([]ModelInfo, error) {
+		callCount++
+		return customModels, nil
+	}
+
+	client := NewClient(&ClientOptions{OnListModels: handler})
+
+	models, err := client.ListModels(t.Context())
+	if err != nil {
+		t.Fatalf("ListModels failed: %v", err)
+	}
+	if callCount != 1 {
+		t.Errorf("expected handler called once, got %d", callCount)
+	}
+	if len(models) != 1 || models[0].ID != "my-custom-model" {
+		t.Errorf("unexpected models: %+v", models)
+	}
+}
+
+func TestListModelsHandlerCachesResults(t *testing.T) {
+	customModels := []ModelInfo{
+		{
+			ID:   "cached-model",
+			Name: "Cached Model",
+			Capabilities: ModelCapabilities{
+				Supports: ModelSupports{Vision: false, ReasoningEffort: false},
+				Limits:   ModelLimits{MaxContextWindowTokens: 128000},
+			},
+		},
+	}
+
+	callCount := 0
+	handler := func(ctx context.Context) ([]ModelInfo, error) {
+		callCount++
+		return customModels, nil
+	}
+
+	client := NewClient(&ClientOptions{OnListModels: handler})
+
+	_, _ = client.ListModels(t.Context())
+	_, _ = client.ListModels(t.Context())
+	if callCount != 1 {
+		t.Errorf("expected handler called once due to caching, got %d", callCount)
+	}
 }
 
 func TestClient_StartStopRace(t *testing.T) {

@@ -92,6 +92,7 @@ type Client struct {
 	processErrorPtr           *error
 	osProcess                 atomic.Pointer[os.Process]
 	negotiatedProtocolVersion int
+	onListModels              func(ctx context.Context) ([]ModelInfo, error)
 
 	// RPC provides typed server-scoped RPC methods.
 	// This field is nil until the client is connected via Start().
@@ -187,6 +188,9 @@ func NewClient(options *ClientOptions) *Client {
 		}
 		if options.UseLoggedInUser != nil {
 			opts.UseLoggedInUser = options.UseLoggedInUser
+		}
+		if options.OnListModels != nil {
+			client.onListModels = options.OnListModels
 		}
 	}
 
@@ -1035,40 +1039,51 @@ func (c *Client) GetAuthStatus(ctx context.Context) (*GetAuthStatusResponse, err
 // Results are cached after the first successful call to avoid rate limiting.
 // The cache is cleared when the client disconnects.
 func (c *Client) ListModels(ctx context.Context) ([]ModelInfo, error) {
-	if c.client == nil {
-		return nil, fmt.Errorf("client not connected")
-	}
-
 	// Use mutex for locking to prevent race condition with concurrent calls
 	c.modelsCacheMux.Lock()
 	defer c.modelsCacheMux.Unlock()
 
 	// Check cache (already inside lock)
 	if c.modelsCache != nil {
-		// Return a copy to prevent cache mutation
 		result := make([]ModelInfo, len(c.modelsCache))
 		copy(result, c.modelsCache)
 		return result, nil
 	}
 
-	// Cache miss - fetch from backend while holding lock
-	result, err := c.client.Request("models.list", listModelsRequest{})
-	if err != nil {
-		return nil, err
+	var models []ModelInfo
+	if c.onListModels != nil {
+		// Use custom handler instead of CLI RPC
+		var err error
+		models, err = c.onListModels(ctx)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		if c.client == nil {
+			return nil, fmt.Errorf("client not connected")
+		}
+		// Cache miss - fetch from backend while holding lock
+		result, err := c.client.Request("models.list", listModelsRequest{})
+		if err != nil {
+			return nil, err
+		}
+
+		var response listModelsResponse
+		if err := json.Unmarshal(result, &response); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal models response: %w", err)
+		}
+		models = response.Models
 	}
 
-	var response listModelsResponse
-	if err := json.Unmarshal(result, &response); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal models response: %w", err)
-	}
-
-	// Update cache before releasing lock
-	c.modelsCache = response.Models
+	// Update cache before releasing lock (copy to prevent external mutation)
+	cache := make([]ModelInfo, len(models))
+	copy(cache, models)
+	c.modelsCache = cache
 
 	// Return a copy to prevent cache mutation
-	models := make([]ModelInfo, len(response.Models))
-	copy(models, response.Models)
-	return models, nil
+	result := make([]ModelInfo, len(models))
+	copy(result, models)
+	return result, nil
 }
 
 // minProtocolVersion is the minimum protocol version this SDK can communicate with.

@@ -98,6 +98,11 @@ class CopilotClientOptions(TypedDict, total=False):
     # When False, only explicit tokens (github_token or environment variables) are used.
     # Default: True (but defaults to False when github_token is provided)
     use_logged_in_user: bool
+    # Custom handler for listing available models.
+    # When provided, client.list_models() calls this handler instead of
+    # querying the CLI server. Useful in BYOK mode to return models
+    # available from your custom provider.
+    on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]]
 
 
 ToolResultType = Literal["success", "failure", "rejected", "denied"]

@@ -63,6 +63,7 @@ public class CopilotClientOptions
         Port = other.Port;
         UseLoggedInUser = other.UseLoggedInUser;
         UseStdio = other.UseStdio;
+        OnListModels = other.OnListModels;
     }
 
     /// <summary>
@@ -135,6 +136,14 @@ public class CopilotClientOptions
     /// Default: true (but defaults to false when GitHubToken is provided).
     /// </summary>
     public bool? UseLoggedInUser { get; set; }
+
+    /// <summary>
+    /// Custom handler for listing available models.
+    /// When provided, <c>ListModelsAsync()</c> calls this handler instead of
+    /// querying the CLI server. Useful in BYOK mode to return models
+    /// available from your custom provider.
+    /// </summary>
+    public Func<CancellationToken, Task<List<ModelInfo>>>? OnListModels { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="CopilotClientOptions"/> instance.

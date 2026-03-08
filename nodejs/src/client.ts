@@ -141,7 +141,7 @@ export class CopilotClient {
     private sessions: Map<string, CopilotSession> = new Map();
     private stderrBuffer: string = ""; // Captures CLI stderr for error messages
     private options: Required<
-        Omit<CopilotClientOptions, "cliUrl" | "githubToken" | "useLoggedInUser">
+        Omit<CopilotClientOptions, "cliUrl" | "githubToken" | "useLoggedInUser" | "onListModels">
     > & {
         cliUrl?: string;
         githubToken?: string;
@@ -149,6 +149,7 @@ export class CopilotClient {
     };
     private isExternalServer: boolean = false;
     private forceStopping: boolean = false;
+    private onListModels?: () => Promise<ModelInfo[]> | ModelInfo[];
     private modelsCache: ModelInfo[] | null = null;
     private modelsCacheLock: Promise<void> = Promise.resolve();
     private sessionLifecycleHandlers: Set<SessionLifecycleHandler> = new Set();
@@ -225,6 +226,8 @@ export class CopilotClient {
         if (options.isChildProcess) {
             this.isExternalServer = true;
         }
+
+        this.onListModels = options.onListModels;
 
         this.options = {
             cliPath: options.cliPath || getBundledCliPath(),
@@ -751,16 +754,15 @@ export class CopilotClient {
     /**
      * List available models with their metadata.
      *
+     * If an `onListModels` handler was provided in the client options,
+     * it is called instead of querying the CLI server.
+     *
      * Results are cached after the first successful call to avoid rate limiting.
      * The cache is cleared when the client disconnects.
      *
-     * @throws Error if not authenticated
+     * @throws Error if not connected (when no custom handler is set)
      */
     async listModels(): Promise<ModelInfo[]> {
-        if (!this.connection) {
-            throw new Error("Client not connected");
-        }
-
         // Use promise-based locking to prevent race condition with concurrent calls
         await this.modelsCacheLock;
 
@@ -775,13 +777,22 @@ export class CopilotClient {
                 return [...this.modelsCache]; // Return a copy to prevent cache mutation
             }
 
-            // Cache miss - fetch from backend while holding lock
-            const result = await this.connection.sendRequest("models.list", {});
-            const response = result as { models: ModelInfo[] };
-            const models = response.models;
+            let models: ModelInfo[];
+            if (this.onListModels) {
+                // Use custom handler instead of CLI RPC
+                models = await this.onListModels();
+            } else {
+                if (!this.connection) {
+                    throw new Error("Client not connected");
+                }
+                // Cache miss - fetch from backend while holding lock
+                const result = await this.connection.sendRequest("models.list", {});
+                const response = result as { models: ModelInfo[] };
+                models = response.models;
+            }
 
-            // Update cache before releasing lock
-            this.modelsCache = models;
+            // Update cache before releasing lock (copy to prevent external mutation)
+            this.modelsCache = [...models];
 
             return [...models]; // Return a copy to prevent cache mutation
         } finally {

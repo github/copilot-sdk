@@ -7,6 +7,7 @@ This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py
 import pytest
 
 from copilot import CopilotClient, PermissionHandler, define_tool
+from copilot.types import ModelCapabilities, ModelInfo, ModelLimits, ModelSupports
 from e2e.testharness import CLI_PATH
 
 
@@ -212,6 +213,116 @@ class TestOverridesBuiltInTool:
             assert tool_defs[0]["overridesBuiltInTool"] is True
         finally:
             await client.force_stop()
+
+
+class TestOnListModels:
+    @pytest.mark.asyncio
+    async def test_list_models_with_custom_handler(self):
+        """Test that on_list_models handler is called instead of RPC"""
+        custom_models = [
+            ModelInfo(
+                id="my-custom-model",
+                name="My Custom Model",
+                capabilities=ModelCapabilities(
+                    supports=ModelSupports(vision=False, reasoning_effort=False),
+                    limits=ModelLimits(max_context_window_tokens=128000),
+                ),
+            )
+        ]
+
+        handler_calls = []
+
+        def handler():
+            handler_calls.append(1)
+            return custom_models
+
+        client = CopilotClient({"cli_path": CLI_PATH, "on_list_models": handler})
+        await client.start()
+        try:
+            models = await client.list_models()
+            assert len(handler_calls) == 1
+            assert models == custom_models
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_list_models_handler_caches_results(self):
+        """Test that on_list_models results are cached"""
+        custom_models = [
+            ModelInfo(
+                id="cached-model",
+                name="Cached Model",
+                capabilities=ModelCapabilities(
+                    supports=ModelSupports(vision=False, reasoning_effort=False),
+                    limits=ModelLimits(max_context_window_tokens=128000),
+                ),
+            )
+        ]
+
+        handler_calls = []
+
+        def handler():
+            handler_calls.append(1)
+            return custom_models
+
+        client = CopilotClient({"cli_path": CLI_PATH, "on_list_models": handler})
+        await client.start()
+        try:
+            await client.list_models()
+            await client.list_models()
+            assert len(handler_calls) == 1  # Only called once due to caching
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_list_models_async_handler(self):
+        """Test that async on_list_models handler works"""
+        custom_models = [
+            ModelInfo(
+                id="async-model",
+                name="Async Model",
+                capabilities=ModelCapabilities(
+                    supports=ModelSupports(vision=False, reasoning_effort=False),
+                    limits=ModelLimits(max_context_window_tokens=128000),
+                ),
+            )
+        ]
+
+        async def handler():
+            return custom_models
+
+        client = CopilotClient({"cli_path": CLI_PATH, "on_list_models": handler})
+        await client.start()
+        try:
+            models = await client.list_models()
+            assert models == custom_models
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_list_models_handler_without_start(self):
+        """Test that on_list_models works without starting the CLI connection"""
+        custom_models = [
+            ModelInfo(
+                id="no-start-model",
+                name="No Start Model",
+                capabilities=ModelCapabilities(
+                    supports=ModelSupports(vision=False, reasoning_effort=False),
+                    limits=ModelLimits(max_context_window_tokens=128000),
+                ),
+            )
+        ]
+
+        handler_calls = []
+
+        def handler():
+            handler_calls.append(1)
+            return custom_models
+
+        client = CopilotClient({"cli_path": CLI_PATH, "on_list_models": handler})
+        models = await client.list_models()
+        assert len(handler_calls) == 1
+        assert models == custom_models
 
 
 class TestSessionConfigForwarding:

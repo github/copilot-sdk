@@ -200,6 +200,8 @@ class CopilotClient:
         if github_token:
             self.options["github_token"] = github_token
 
+        self._on_list_models = opts.get("on_list_models")
+
         self._process: subprocess.Popen | None = None
         self._client: JsonRpcClient | None = None
         self._state: ConnectionState = "disconnected"
@@ -897,11 +899,15 @@ class CopilotClient:
         Results are cached after the first successful call to avoid rate limiting.
         The cache is cleared when the client disconnects.
 
+        If a custom ``on_list_models`` handler was provided in the client options,
+        it is called instead of querying the CLI server. The handler may be sync
+        or async.
+
         Returns:
             A list of ModelInfo objects with model details.
 
         Raises:
-            RuntimeError: If the client is not connected.
+            RuntimeError: If the client is not connected (when no custom handler is set).
             Exception: If not authenticated.
 
         Example:
@@ -909,22 +915,30 @@ class CopilotClient:
             >>> for model in models:
             ...     print(f"{model.id}: {model.name}")
         """
-        if not self._client:
-            raise RuntimeError("Client not connected")
-
         # Use asyncio lock to prevent race condition with concurrent calls
         async with self._models_cache_lock:
             # Check cache (already inside lock)
             if self._models_cache is not None:
                 return list(self._models_cache)  # Return a copy to prevent cache mutation
 
-            # Cache miss - fetch from backend while holding lock
-            response = await self._client.request("models.list", {})
-            models_data = response.get("models", [])
-            models = [ModelInfo.from_dict(model) for model in models_data]
+            if self._on_list_models:
+                # Use custom handler instead of CLI RPC
+                result = self._on_list_models()
+                if inspect.isawaitable(result):
+                    models = await result
+                else:
+                    models = result
+            else:
+                if not self._client:
+                    raise RuntimeError("Client not connected")
 
-            # Update cache before releasing lock
-            self._models_cache = models
+                # Cache miss - fetch from backend while holding lock
+                response = await self._client.request("models.list", {})
+                models_data = response.get("models", [])
+                models = [ModelInfo.from_dict(model) for model in models_data]
+
+            # Update cache before releasing lock (copy to prevent external mutation)
+            self._models_cache = list(models)
 
             return list(models)  # Return a copy to prevent cache mutation
 

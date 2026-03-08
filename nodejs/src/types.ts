@@ -96,6 +96,14 @@ export interface CopilotClientOptions {
      * @default true (but defaults to false when githubToken is provided)
      */
     useLoggedInUser?: boolean;
+
+    /**
+     * Custom handler for listing available models.
+     * When provided, client.listModels() calls this handler instead of
+     * querying the CLI server. Useful in BYOK mode to return models
+     * available from your custom provider.
+     */
+    onListModels?: () => Promise<ModelInfo[]> | ModelInfo[];
 }
 
 /**

@@ -70,6 +70,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private int? _negotiatedProtocolVersion;
     private List<ModelInfo>? _modelsCache;
     private readonly SemaphoreSlim _modelsCacheLock = new(1, 1);
+    private readonly Func<CancellationToken, Task<List<ModelInfo>>>? _onListModels;
     private readonly List<Action<SessionLifecycleEvent>> _lifecycleHandlers = [];
     private readonly Dictionary<string, List<Action<SessionLifecycleEvent>>> _typedLifecycleHandlers = [];
     private readonly object _lifecycleHandlersLock = new();
@@ -136,6 +137,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
 
         _logger = _options.Logger ?? NullLogger.Instance;
+        _onListModels = _options.OnListModels;
 
         // Parse CliUrl if provided
         if (!string.IsNullOrEmpty(_options.CliUrl))
@@ -624,9 +626,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <exception cref="InvalidOperationException">Thrown when the client is not connected or not authenticated.</exception>
     public async Task<List<ModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
     {
-        var connection = await EnsureConnectedAsync(cancellationToken);
-
-        // Use semaphore for async locking to prevent race condition with concurrent calls
         await _modelsCacheLock.WaitAsync(cancellationToken);
         try
         {
@@ -636,14 +635,26 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 return [.. _modelsCache]; // Return a copy to prevent cache mutation
             }
 
-            // Cache miss - fetch from backend while holding lock
-            var response = await InvokeRpcAsync<GetModelsResponse>(
-                connection.Rpc, "models.list", [], cancellationToken);
+            List<ModelInfo> models;
+            if (_onListModels is not null)
+            {
+                // Use custom handler instead of CLI RPC
+                models = await _onListModels(cancellationToken);
+            }
+            else
+            {
+                var connection = await EnsureConnectedAsync(cancellationToken);
 
-            // Update cache before releasing lock
-            _modelsCache = response.Models;
+                // Cache miss - fetch from backend while holding lock
+                var response = await InvokeRpcAsync<GetModelsResponse>(
+                    connection.Rpc, "models.list", [], cancellationToken);
+                models = response.Models;
+            }
 
-            return [.. response.Models]; // Return a copy to prevent cache mutation
+            // Update cache before releasing lock (copy to prevent external mutation)
+            _modelsCache = [.. models];
+
+            return [.. models]; // Return a copy to prevent cache mutation
         }
         finally
         {
