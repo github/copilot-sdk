@@ -413,6 +413,60 @@ func TestResumeSessionRequest_ClientName(t *testing.T) {
 	})
 }
 
+func TestCreateSessionRequest_Agent(t *testing.T) {
+	t.Run("includes agent in JSON when set", func(t *testing.T) {
+		req := createSessionRequest{Agent: "test-agent"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["agent"] != "test-agent" {
+			t.Errorf("Expected agent to be 'test-agent', got %v", m["agent"])
+		}
+	})
+
+	t.Run("omits agent from JSON when empty", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["agent"]; ok {
+			t.Error("Expected agent to be omitted when empty")
+		}
+	})
+}
+
+func TestResumeSessionRequest_Agent(t *testing.T) {
+	t.Run("includes agent in JSON when set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", Agent: "test-agent"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["agent"] != "test-agent" {
+			t.Errorf("Expected agent to be 'test-agent', got %v", m["agent"])
+		}
+	})
+
+	t.Run("omits agent from JSON when empty", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["agent"]; ok {
+			t.Error("Expected agent to be omitted when empty")
+		}
+	})
+}
+
 func TestOverridesBuiltInTool(t *testing.T) {
 	t.Run("OverridesBuiltInTool is serialized in tool definition", func(t *testing.T) {
 		tool := Tool{

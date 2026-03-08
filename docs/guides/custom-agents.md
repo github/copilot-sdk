@@ -219,6 +219,102 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
 
 > **Tip:** A good `description` helps the runtime match user intent to the right agent. Be specific about the agent's expertise and capabilities.
 
+In addition to per-agent configuration above, you can set `agent` on the **session config** itself to pre-select which custom agent is active when the session starts. See [Selecting an Agent at Session Creation](#selecting-an-agent-at-session-creation) below.
+
+| Session Config Property | Type | Description |
+|-------------------------|------|-------------|
+| `agent` | `string` | Name of the custom agent to pre-select at session creation. Must match a `name` in `customAgents`. |
+
+## Selecting an Agent at Session Creation
+
+You can pass `agent` in the session config to pre-select which custom agent should be active when the session starts. The value must match the `name` of one of the agents defined in `customAgents`.
+
+This is equivalent to calling `session.rpc.agent.select()` after creation, but avoids the extra API call and ensures the agent is active from the very first prompt.
+
+<details open>
+<summary><strong>Node.js / TypeScript</strong></summary>
+
+<!-- docs-validate: skip -->
+```typescript
+const session = await client.createSession({
+    customAgents: [
+        {
+            name: "researcher",
+            prompt: "You are a research assistant. Analyze code and answer questions.",
+        },
+        {
+            name: "editor",
+            prompt: "You are a code editor. Make minimal, surgical changes.",
+        },
+    ],
+    agent: "researcher", // Pre-select the researcher agent
+});
+```
+
+</details>
+
+<details>
+<summary><strong>Python</strong></summary>
+
+<!-- docs-validate: skip -->
+```python
+session = await client.create_session({
+    "custom_agents": [
+        {
+            "name": "researcher",
+            "prompt": "You are a research assistant. Analyze code and answer questions.",
+        },
+        {
+            "name": "editor",
+            "prompt": "You are a code editor. Make minimal, surgical changes.",
+        },
+    ],
+    "agent": "researcher",  # Pre-select the researcher agent
+})
+```
+
+</details>
+
+<details>
+<summary><strong>Go</strong></summary>
+
+<!-- docs-validate: skip -->
+```go
+session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
+    CustomAgents: []copilot.CustomAgentConfig{
+        {
+            Name:   "researcher",
+            Prompt: "You are a research assistant. Analyze code and answer questions.",
+        },
+        {
+            Name:   "editor",
+            Prompt: "You are a code editor. Make minimal, surgical changes.",
+        },
+    },
+    Agent: "researcher", // Pre-select the researcher agent
+})
+```
+
+</details>
+
+<details>
+<summary><strong>.NET</strong></summary>
+
+<!-- docs-validate: skip -->
+```csharp
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    CustomAgents = new List<CustomAgentConfig>
+    {
+        new() { Name = "researcher", Prompt = "You are a research assistant. Analyze code and answer questions." },
+        new() { Name = "editor", Prompt = "You are a code editor. Make minimal, surgical changes." },
+    },
+    Agent = "researcher", // Pre-select the researcher agent
+});
+```
+
+</details>
+
 ## How Sub-Agent Delegation Works
 
 When you send a prompt to a session with custom agents, the runtime evaluates whether to delegate to a sub-agent:

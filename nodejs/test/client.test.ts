@@ -336,4 +336,56 @@ describe("CopilotClient", () => {
             spy.mockRestore();
         });
     });
+
+    describe("agent parameter in session creation", () => {
+        it("forwards agent in session.create request", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            await client.createSession({
+                onPermissionRequest: approveAll,
+                customAgents: [
+                    {
+                        name: "test-agent",
+                        prompt: "You are a test agent.",
+                    },
+                ],
+                agent: "test-agent",
+            });
+
+            const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
+            expect(payload.agent).toBe("test-agent");
+            expect(payload.customAgents).toEqual([expect.objectContaining({ name: "test-agent" })]);
+        });
+
+        it("forwards agent in session.resume request", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            const spy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (method: string, params: any) => {
+                    if (method === "session.resume") return { sessionId: params.sessionId };
+                    throw new Error(`Unexpected method: ${method}`);
+                });
+            await client.resumeSession(session.sessionId, {
+                onPermissionRequest: approveAll,
+                customAgents: [
+                    {
+                        name: "test-agent",
+                        prompt: "You are a test agent.",
+                    },
+                ],
+                agent: "test-agent",
+            });
+
+            const payload = spy.mock.calls.find((c) => c[0] === "session.resume")![1] as any;
+            expect(payload.agent).toBe("test-agent");
+            spy.mockRestore();
+        });
+    });
 });
