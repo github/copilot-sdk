@@ -16,7 +16,15 @@ The `onSessionStart` hook is called when a session begins (new or resumed).
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```ts
+import type { SessionStartHookInput, HookInvocation, SessionStartHookOutput } from "@github/copilot-sdk";
+type SessionStartHandler = (
+  input: SessionStartHookInput,
+  invocation: HookInvocation
+) => Promise<SessionStartHookOutput | null | undefined>;
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 type SessionStartHandler = (
   input: SessionStartHookInput,
@@ -29,7 +37,17 @@ type SessionStartHandler = (
 <details>
 <summary><strong>Python</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```python
+from copilot.types import SessionStartHookInput, HookInvocation, SessionStartHookOutput
+from typing import Callable, Awaitable
+
+SessionStartHandler = Callable[
+    [SessionStartHookInput, HookInvocation],
+    Awaitable[SessionStartHookOutput | None]
+]
+```
+<!-- /docs-validate: hidden -->
 ```python
 SessionStartHandler = Callable[
     [SessionStartHookInput, HookInvocation],
@@ -42,7 +60,20 @@ SessionStartHandler = Callable[
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import copilot "github.com/github/copilot-sdk/go"
+
+type SessionStartHandler func(
+    input copilot.SessionStartHookInput,
+    invocation copilot.HookInvocation,
+) (*copilot.SessionStartHookOutput, error)
+
+func main() {}
+```
+<!-- /docs-validate: hidden -->
 ```go
 type SessionStartHandler func(
     input SessionStartHookInput,
@@ -55,7 +86,15 @@ type SessionStartHandler func(
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot.SDK;
+
+public delegate Task<SessionStartHookOutput?> SessionStartHandler(
+    SessionStartHookInput input,
+    HookInvocation invocation);
+```
+<!-- /docs-validate: hidden -->
 ```csharp
 public delegate Task<SessionStartHookOutput?> SessionStartHandler(
     SessionStartHookInput input,
@@ -208,7 +247,17 @@ type SessionEndHandler = (
 <details>
 <summary><strong>Python</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```python
+from copilot.types import SessionEndHookInput, HookInvocation
+from typing import Callable, Awaitable
+
+SessionEndHandler = Callable[
+    [SessionEndHookInput, HookInvocation],
+    Awaitable[None]
+]
+```
+<!-- /docs-validate: hidden -->
 ```python
 SessionEndHandler = Callable[
     [SessionEndHookInput, HookInvocation],
@@ -221,7 +270,20 @@ SessionEndHandler = Callable[
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import copilot "github.com/github/copilot-sdk/go"
+
+type SessionEndHandler func(
+    input copilot.SessionEndHookInput,
+    invocation copilot.HookInvocation,
+) error
+
+func main() {}
+```
+<!-- /docs-validate: hidden -->
 ```go
 type SessionEndHandler func(
     input SessionEndHookInput,

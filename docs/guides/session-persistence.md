@@ -65,7 +65,33 @@ await session.send_and_wait({"prompt": "Analyze my codebase"})
 
 ### Go
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+
+	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
+		SessionID: "user-123-task-456",
+		Model:     "gpt-5.2-codex",
+		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+		},
+	})
+
+	session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Analyze my codebase"})
+	_ = session
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 ctx := context.Background()
 client := copilot.NewClient(nil)
@@ -142,7 +168,27 @@ await session.send_and_wait({"prompt": "What did we discuss earlier?"})
 
 ### Go
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+
+	session, _ := client.ResumeSession(ctx, "user-123-task-456", nil)
+
+	session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "What did we discuss earlier?"})
+	_ = session
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 ctx := context.Background()
 
@@ -155,7 +201,28 @@ session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "What did we discuss ear
 
 ### C# (.NET)
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot.SDK;
+
+public static class ResumeSessionExample
+{
+    public static async Task Main()
+    {
+        await using var client = new CopilotClient();
+
+        var session = await client.ResumeSessionAsync("user-123-task-456", new ResumeSessionConfig
+        {
+            OnPermissionRequest = (req, inv) =>
+                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
+        });
+
+        await session.SendAndWaitAsync(new MessageOptions { Prompt = "What did we discuss earlier?" });
+    }
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```csharp
 // Resume from a different client instance (or after restart)
 var session = await client.ResumeSessionAsync("user-123-task-456");

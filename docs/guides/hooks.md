@@ -81,7 +81,47 @@ session = await client.create_session({
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func onSessionStart(input copilot.SessionStartHookInput, inv copilot.HookInvocation) (*copilot.SessionStartHookOutput, error) {
+	return nil, nil
+}
+
+func onPreToolUse(input copilot.PreToolUseHookInput, inv copilot.HookInvocation) (*copilot.PreToolUseHookOutput, error) {
+	return nil, nil
+}
+
+func onPostToolUse(input copilot.PostToolUseHookInput, inv copilot.HookInvocation) (*copilot.PostToolUseHookOutput, error) {
+	return nil, nil
+}
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+		Hooks: &copilot.SessionHooks{
+			OnSessionStart: onSessionStart,
+			OnPreToolUse:   onPreToolUse,
+			OnPostToolUse:  onPostToolUse,
+		},
+		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			return copilot.PermissionRequestResult{Kind: "approved"}, nil
+		},
+	})
+	_ = session
+	_ = err
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 client := copilot.NewClient(nil)
 
@@ -103,7 +143,39 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot.SDK;
+
+public static class HooksExample
+{
+    static Task<SessionStartHookOutput?> onSessionStart(SessionStartHookInput input, HookInvocation invocation) =>
+        Task.FromResult<SessionStartHookOutput?>(null);
+    static Task<PreToolUseHookOutput?> onPreToolUse(PreToolUseHookInput input, HookInvocation invocation) =>
+        Task.FromResult<PreToolUseHookOutput?>(null);
+    static Task<PostToolUseHookOutput?> onPostToolUse(PostToolUseHookInput input, HookInvocation invocation) =>
+        Task.FromResult<PostToolUseHookOutput?>(null);
+
+    public static async Task Main()
+    {
+        var client = new CopilotClient();
+
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Hooks = new SessionHooks
+            {
+                OnSessionStart = onSessionStart,
+                OnPreToolUse   = onPreToolUse,
+                OnPostToolUse  = onPostToolUse,
+            },
+            OnPermissionRequest = (req, inv) =>
+                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
+        });
+    }
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```csharp
 var client = new CopilotClient();
 
@@ -184,7 +256,43 @@ session = await client.create_session({
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+
+	readOnlyTools := map[string]bool{"read_file": true, "glob": true, "grep": true, "view": true}
+
+	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
+		Hooks: &copilot.SessionHooks{
+			OnPreToolUse: func(input copilot.PreToolUseHookInput, inv copilot.HookInvocation) (*copilot.PreToolUseHookOutput, error) {
+				if !readOnlyTools[input.ToolName] {
+					return &copilot.PreToolUseHookOutput{
+						PermissionDecision:       "deny",
+						PermissionDecisionReason: fmt.Sprintf("Only read-only tools are allowed. %q was blocked.", input.ToolName),
+					}, nil
+				}
+				return &copilot.PreToolUseHookOutput{PermissionDecision: "allow"}, nil
+			},
+		},
+		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+		},
+	})
+	_ = session
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 readOnlyTools := map[string]bool{"read_file": true, "glob": true, "grep": true, "view": true}
 
@@ -208,7 +316,44 @@ session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot.SDK;
+
+public static class PermissionControlExample
+{
+    public static async Task Main()
+    {
+        await using var client = new CopilotClient();
+
+        var readOnlyTools = new HashSet<string> { "read_file", "glob", "grep", "view" };
+
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Hooks = new SessionHooks
+            {
+                OnPreToolUse = (input, invocation) =>
+                {
+                    if (!readOnlyTools.Contains(input.ToolName))
+                    {
+                        return Task.FromResult<PreToolUseHookOutput?>(new PreToolUseHookOutput
+                        {
+                            PermissionDecision = "deny",
+                            PermissionDecisionReason = $"Only read-only tools are allowed. \"{input.ToolName}\" was blocked.",
+                        });
+                    }
+                    return Task.FromResult<PreToolUseHookOutput?>(
+                        new PreToolUseHookOutput { PermissionDecision = "allow" });
+                },
+            },
+            OnPermissionRequest = (req, inv) =>
+                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
+        });
+    }
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```csharp
 var readOnlyTools = new HashSet<string> { "read_file", "glob", "grep", "view" };
 

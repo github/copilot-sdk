@@ -263,7 +263,44 @@ async def main():
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+	client.Start(ctx)
+
+	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
+		Model: "gpt-4.1",
+		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+		},
+	})
+
+	session.Send(ctx, copilot.MessageOptions{
+		Prompt: "Set up the project structure",
+	})
+
+	session.Send(ctx, copilot.MessageOptions{
+		Prompt: "Add unit tests for the auth module",
+		Mode:   "enqueue",
+	})
+
+	session.Send(ctx, copilot.MessageOptions{
+		Prompt: "Update the README with setup instructions",
+		Mode:   "enqueue",
+	})
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 // Send an initial task
 session.Send(ctx, copilot.MessageOptions{
@@ -289,7 +326,43 @@ session.Send(ctx, copilot.MessageOptions{
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot.SDK;
+
+public static class QueueingExample
+{
+    public static async Task Main()
+    {
+        await using var client = new CopilotClient();
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Model = "gpt-4.1",
+            OnPermissionRequest = (req, inv) =>
+                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
+        });
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Set up the project structure"
+        });
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Add unit tests for the auth module",
+            Mode = "enqueue"
+        });
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Update the README with setup instructions",
+            Mode = "enqueue"
+        });
+    }
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```csharp
 // Send an initial task
 await session.SendAsync(new MessageOptions

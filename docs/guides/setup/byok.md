@@ -118,7 +118,39 @@ await client.stop()
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+
+	client := copilot.NewClient(nil)
+	client.Start(ctx)
+	defer client.Stop()
+
+	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
+		Model: "gpt-4.1",
+		Provider: &copilot.ProviderConfig{
+			Type:    "openai",
+			BaseURL: "https://api.openai.com/v1",
+			APIKey:  os.Getenv("OPENAI_API_KEY"),
+		},
+	})
+
+	response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Hello!"})
+	fmt.Println(*response.Data.Content)
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 client := copilot.NewClient(nil)
 client.Start(ctx)

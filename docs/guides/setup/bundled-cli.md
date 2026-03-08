@@ -105,7 +105,35 @@ await client.stop()
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+
+	client := copilot.NewClient(&copilot.ClientOptions{
+		CLIPath: "./vendor/copilot",
+	})
+	if err := client.Start(ctx); err != nil {
+		log.Fatal(err)
+	}
+	defer client.Stop()
+
+	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{Model: "gpt-4.1"})
+	response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Hello!"})
+	fmt.Println(*response.Data.Content)
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
     CLIPath:"./vendor/copilot",

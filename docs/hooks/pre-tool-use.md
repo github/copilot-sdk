@@ -12,7 +12,15 @@ The `onPreToolUse` hook is called **before** a tool executes. Use it to:
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```ts
+import type { PreToolUseHookInput, HookInvocation, PreToolUseHookOutput } from "@github/copilot-sdk";
+type PreToolUseHandler = (
+  input: PreToolUseHookInput,
+  invocation: HookInvocation
+) => Promise<PreToolUseHookOutput | null | undefined>;
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 type PreToolUseHandler = (
   input: PreToolUseHookInput,
@@ -25,7 +33,17 @@ type PreToolUseHandler = (
 <details>
 <summary><strong>Python</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```python
+from copilot.types import PreToolUseHookInput, HookInvocation, PreToolUseHookOutput
+from typing import Callable, Awaitable
+
+PreToolUseHandler = Callable[
+    [PreToolUseHookInput, HookInvocation],
+    Awaitable[PreToolUseHookOutput | None]
+]
+```
+<!-- /docs-validate: hidden -->
 ```python
 PreToolUseHandler = Callable[
     [PreToolUseHookInput, HookInvocation],
@@ -38,7 +56,20 @@ PreToolUseHandler = Callable[
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import copilot "github.com/github/copilot-sdk/go"
+
+type PreToolUseHandler func(
+    input copilot.PreToolUseHookInput,
+    invocation copilot.HookInvocation,
+) (*copilot.PreToolUseHookOutput, error)
+
+func main() {}
+```
+<!-- /docs-validate: hidden -->
 ```go
 type PreToolUseHandler func(
     input PreToolUseHookInput,
@@ -51,7 +82,15 @@ type PreToolUseHandler func(
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot.SDK;
+
+public delegate Task<PreToolUseHookOutput?> PreToolUseHandler(
+    PreToolUseHookInput input,
+    HookInvocation invocation);
+```
+<!-- /docs-validate: hidden -->
 ```csharp
 public delegate Task<PreToolUseHookOutput?> PreToolUseHandler(
     PreToolUseHookInput input,
@@ -129,7 +168,34 @@ session = await client.create_session({
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	client := copilot.NewClient(nil)
+	session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		Hooks: &copilot.SessionHooks{
+			OnPreToolUse: func(input copilot.PreToolUseHookInput, inv copilot.HookInvocation) (*copilot.PreToolUseHookOutput, error) {
+				fmt.Printf("[%s] Calling %s\n", inv.SessionID, input.ToolName)
+				fmt.Printf("  Args: %v\n", input.ToolArgs)
+				return &copilot.PreToolUseHookOutput{
+					PermissionDecision: "allow",
+				}, nil
+			},
+		},
+	})
+	_ = session
+}
+```
+<!-- /docs-validate: hidden -->
 ```go
 session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Hooks: &copilot.SessionHooks{
@@ -149,7 +215,33 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot.SDK;
+
+public static class PreToolUseExample
+{
+    public static async Task Main()
+    {
+        await using var client = new CopilotClient();
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Hooks = new SessionHooks
+            {
+                OnPreToolUse = (input, invocation) =>
+                {
+                    Console.WriteLine($"[{invocation.SessionId}] Calling {input.ToolName}");
+                    Console.WriteLine($"  Args: {input.ToolArgs}");
+                    return Task.FromResult<PreToolUseHookOutput?>(
+                        new PreToolUseHookOutput { PermissionDecision = "allow" }
+                    );
+                },
+            },
+        });
+    }
+}
+```
+<!-- /docs-validate: hidden -->
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {

@@ -131,7 +131,39 @@ response = await session.send_and_wait({"prompt": message})
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"time"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	userID := "user1"
+	message := "Hello"
+
+	client := copilot.NewClient(&copilot.ClientOptions{
+		CLIUrl: "localhost:4321",
+	})
+	client.Start(ctx)
+	defer client.Stop()
+
+	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
+		SessionID: fmt.Sprintf("user-%s-%d", userID, time.Now().Unix()),
+		Model:     "gpt-4.1",
+	})
+
+	response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: message})
+	_ = response
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
     CLIUrl:"localhost:4321",
@@ -152,7 +184,30 @@ response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: message})
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot.SDK;
+
+var userId = "user1";
+var message = "Hello";
+
+var client = new CopilotClient(new CopilotClientOptions
+{
+    CliUrl = "localhost:4321",
+    UseStdio = false,
+});
+
+await using var session = await client.CreateSessionAsync(new SessionConfig
+{
+    SessionId = $"user-{userId}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}",
+    Model = "gpt-4.1",
+});
+
+var response = await session.SendAndWaitAsync(
+    new MessageOptions { Prompt = message });
+```
+<!-- /docs-validate: hidden -->
+
 ```csharp
 var client = new CopilotClient(new CopilotClientOptions
 {

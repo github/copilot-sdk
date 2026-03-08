@@ -82,7 +82,23 @@ session.on("assistant.message_delta", (event) => {
 <details>
 <summary><strong>Python</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```python
+from copilot import CopilotClient
+from copilot.generated.session_events import SessionEventType
+
+client = CopilotClient()
+
+session = None  # assume session is created elsewhere
+
+def handle(event):
+    if event.type == SessionEventType.ASSISTANT_MESSAGE_DELTA:
+        print(event.data.delta_content, end="", flush=True)
+
+# session.on(handle)
+```
+<!-- /docs-validate: hidden -->
+
 ```python
 from copilot.generated.session_events import SessionEventType
 
@@ -98,7 +114,38 @@ session.on(handle)
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+
+	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
+		Model:     "gpt-4.1",
+		Streaming: true,
+		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+		},
+	})
+
+	session.On(func(event copilot.SessionEvent) {
+		if event.Type == "assistant.message_delta" {
+			fmt.Print(*event.Data.DeltaContent)
+		}
+	})
+	_ = session
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 session.On(func(event copilot.SessionEvent) {
     if event.Type == "assistant.message_delta" {
@@ -112,7 +159,26 @@ session.On(func(event copilot.SessionEvent) {
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot.SDK;
+
+public static class StreamingEventsExample
+{
+    public static async Task Example(CopilotSession session)
+    {
+        session.On(evt =>
+        {
+            if (evt is AssistantMessageDeltaEvent delta)
+            {
+                Console.Write(delta.Data.DeltaContent);
+            }
+        });
+    }
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```csharp
 session.On(evt =>
 {

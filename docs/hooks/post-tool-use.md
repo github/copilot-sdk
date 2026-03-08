@@ -12,7 +12,15 @@ The `onPostToolUse` hook is called **after** a tool executes. Use it to:
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```ts
+import type { PostToolUseHookInput, HookInvocation, PostToolUseHookOutput } from "@github/copilot-sdk";
+type PostToolUseHandler = (
+  input: PostToolUseHookInput,
+  invocation: HookInvocation
+) => Promise<PostToolUseHookOutput | null | undefined>;
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 type PostToolUseHandler = (
   input: PostToolUseHookInput,
@@ -25,7 +33,17 @@ type PostToolUseHandler = (
 <details>
 <summary><strong>Python</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```python
+from copilot.types import PostToolUseHookInput, HookInvocation, PostToolUseHookOutput
+from typing import Callable, Awaitable
+
+PostToolUseHandler = Callable[
+    [PostToolUseHookInput, HookInvocation],
+    Awaitable[PostToolUseHookOutput | None]
+]
+```
+<!-- /docs-validate: hidden -->
 ```python
 PostToolUseHandler = Callable[
     [PostToolUseHookInput, HookInvocation],
@@ -38,7 +56,20 @@ PostToolUseHandler = Callable[
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import copilot "github.com/github/copilot-sdk/go"
+
+type PostToolUseHandler func(
+    input copilot.PostToolUseHookInput,
+    invocation copilot.HookInvocation,
+) (*copilot.PostToolUseHookOutput, error)
+
+func main() {}
+```
+<!-- /docs-validate: hidden -->
 ```go
 type PostToolUseHandler func(
     input PostToolUseHookInput,
@@ -51,7 +82,15 @@ type PostToolUseHandler func(
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot.SDK;
+
+public delegate Task<PostToolUseHookOutput?> PostToolUseHandler(
+    PostToolUseHookInput input,
+    HookInvocation invocation);
+```
+<!-- /docs-validate: hidden -->
 ```csharp
 public delegate Task<PostToolUseHookOutput?> PostToolUseHandler(
     PostToolUseHookInput input,
@@ -122,7 +161,33 @@ session = await client.create_session({
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	client := copilot.NewClient(nil)
+	session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		Hooks: &copilot.SessionHooks{
+			OnPostToolUse: func(input copilot.PostToolUseHookInput, inv copilot.HookInvocation) (*copilot.PostToolUseHookOutput, error) {
+				fmt.Printf("[%s] Tool: %s\n", inv.SessionID, input.ToolName)
+				fmt.Printf("  Args: %v\n", input.ToolArgs)
+				fmt.Printf("  Result: %v\n", input.ToolResult)
+				return nil, nil
+			},
+		},
+	})
+	_ = session
+}
+```
+<!-- /docs-validate: hidden -->
 ```go
 session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Hooks: &copilot.SessionHooks{
@@ -141,7 +206,32 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot.SDK;
+
+public static class PostToolUseExample
+{
+    public static async Task Main()
+    {
+        await using var client = new CopilotClient();
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Hooks = new SessionHooks
+            {
+                OnPostToolUse = (input, invocation) =>
+                {
+                    Console.WriteLine($"[{invocation.SessionId}] Tool: {input.ToolName}");
+                    Console.WriteLine($"  Args: {input.ToolArgs}");
+                    Console.WriteLine($"  Result: {input.ToolResult}");
+                    return Task.FromResult<PostToolUseHookOutput?>(null);
+                },
+            },
+        });
+    }
+}
+```
+<!-- /docs-validate: hidden -->
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {

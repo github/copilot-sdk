@@ -165,7 +165,18 @@ await session.send({"prompt": "Hello"})
 ```
 
 **Event Data Structure:**
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```python
+from dataclasses import dataclass
+
+@dataclass
+class Usage:
+    input_tokens: float
+    output_tokens: float
+    cache_read_tokens: float
+    cache_write_tokens: float
+```
+<!-- /docs-validate: hidden -->
 ```python
 @dataclass
 class Usage:
@@ -431,7 +442,21 @@ export OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true
 
 ### Checking at Runtime
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```python
+import os
+from typing import Any
+
+span: Any = None
+event: Any = None
+
+def should_record_content():
+    return os.getenv("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT", "false").lower() == "true"
+
+if should_record_content() and event.data.content:
+    span.add_event("gen_ai.output.messages", ...)
+```
+<!-- /docs-validate: hidden -->
 ```python
 import os
 
@@ -447,7 +472,23 @@ if should_record_content() and event.data.content:
 
 For MCP-based tools, add these additional attributes following the [OpenTelemetry MCP semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/mcp/):
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```python
+from typing import Any
+
+data: Any = None
+session: Any = None
+
+tool_attrs = {
+    "mcp.method.name": "tools/call",
+    "mcp.server.name": data.mcp_server_name,
+    "mcp.session.id": session.session_id,
+    "gen_ai.tool.name": data.mcp_tool_name,
+    "gen_ai.operation.name": "execute_tool",
+    "network.transport": "pipe",
+}
+```
+<!-- /docs-validate: hidden -->
 ```python
 tool_attrs = {
     # Required
@@ -552,7 +593,16 @@ View traces in the Azure Portal under your Application Insights resource → Tra
 ### Tool spans not showing as children
 
 Make sure to attach the tool span to the parent context:
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```python
+from opentelemetry import trace, context
+from opentelemetry.trace import SpanKind
+
+tracer = trace.get_tracer(__name__)
+tool_span = tracer.start_span("test", kind=SpanKind.CLIENT)
+tool_token = context.attach(trace.set_span_in_context(tool_span))
+```
+<!-- /docs-validate: hidden -->
 ```python
 tool_token = context.attach(trace.set_span_in_context(tool_span))
 ```

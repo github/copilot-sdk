@@ -44,7 +44,21 @@ client = CopilotClient({"log_level": "debug"})
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import copilot "github.com/github/copilot-sdk/go"
+
+func main() {
+	client := copilot.NewClient(&copilot.ClientOptions{
+		LogLevel: "debug",
+	})
+	_ = client
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 import copilot "github.com/github/copilot-sdk/go"
 
@@ -59,6 +73,7 @@ client := copilot.NewClient(&copilot.ClientOptions{
 <summary><strong>.NET</strong></summary>
 
 <!-- docs-validate: skip -->
+
 ```csharp
 using GitHub.Copilot.SDK;
 using Microsoft.Extensions.Logging;
@@ -110,7 +125,18 @@ const client = new CopilotClient({
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+func main() {
+	// The Go SDK does not currently support passing extra CLI arguments.
+	// For custom log directories, run the CLI manually with --log-dir
+	// and connect via CLIUrl option.
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 // The Go SDK does not currently support passing extra CLI arguments.
 // For custom log directories, run the CLI manually with --log-dir

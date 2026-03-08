@@ -97,7 +97,47 @@ session = await client.create_session({
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+	client.Start(ctx)
+
+	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
+		Model: "gpt-4.1",
+		CustomAgents: []copilot.CustomAgentConfig{
+			{
+				Name:        "researcher",
+				DisplayName: "Research Agent",
+				Description: "Explores codebases and answers questions using read-only tools",
+				Tools:       []string{"grep", "glob", "view"},
+				Prompt:      "You are a research assistant. Analyze code and answer questions. Do not modify any files.",
+			},
+			{
+				Name:        "editor",
+				DisplayName: "Editor Agent",
+				Description: "Makes targeted code changes",
+				Tools:       []string{"view", "edit", "bash"},
+				Prompt:      "You are a code editor. Make minimal, surgical changes to files as requested.",
+			},
+		},
+		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+		},
+	})
+	_ = session
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 ctx := context.Background()
 client := copilot.NewClient(nil)
@@ -287,7 +327,51 @@ response = await session.send_and_wait({
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+	client.Start(ctx)
+
+	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
+		Model: "gpt-4.1",
+		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+		},
+	})
+
+	session.On(func(event copilot.SessionEvent) {
+		switch event.Type {
+		case "subagent.started":
+			fmt.Printf("▶ Sub-agent started: %s\n", *event.Data.AgentDisplayName)
+			fmt.Printf("  Description: %s\n", *event.Data.AgentDescription)
+			fmt.Printf("  Tool call ID: %s\n", *event.Data.ToolCallID)
+		case "subagent.completed":
+			fmt.Printf("✅ Sub-agent completed: %s\n", *event.Data.AgentDisplayName)
+		case "subagent.failed":
+			fmt.Printf("❌ Sub-agent failed: %s — %v\n", *event.Data.AgentDisplayName, event.Data.Error)
+		case "subagent.selected":
+			fmt.Printf("🎯 Agent selected: %s\n", *event.Data.AgentDisplayName)
+		}
+	})
+
+	_, err := session.SendAndWait(ctx, copilot.MessageOptions{
+		Prompt: "Research how authentication works in this codebase",
+	})
+	_ = err
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 session.On(func(event copilot.SessionEvent) {
     switch event.Type {

@@ -12,7 +12,15 @@ The `onUserPromptSubmitted` hook is called when a user submits a message. Use it
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```ts
+import type { UserPromptSubmittedHookInput, HookInvocation, UserPromptSubmittedHookOutput } from "@github/copilot-sdk";
+type UserPromptSubmittedHandler = (
+  input: UserPromptSubmittedHookInput,
+  invocation: HookInvocation
+) => Promise<UserPromptSubmittedHookOutput | null | undefined>;
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 type UserPromptSubmittedHandler = (
   input: UserPromptSubmittedHookInput,
@@ -25,7 +33,17 @@ type UserPromptSubmittedHandler = (
 <details>
 <summary><strong>Python</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```python
+from copilot.types import UserPromptSubmittedHookInput, HookInvocation, UserPromptSubmittedHookOutput
+from typing import Callable, Awaitable
+
+UserPromptSubmittedHandler = Callable[
+    [UserPromptSubmittedHookInput, HookInvocation],
+    Awaitable[UserPromptSubmittedHookOutput | None]
+]
+```
+<!-- /docs-validate: hidden -->
 ```python
 UserPromptSubmittedHandler = Callable[
     [UserPromptSubmittedHookInput, HookInvocation],
@@ -38,7 +56,20 @@ UserPromptSubmittedHandler = Callable[
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import copilot "github.com/github/copilot-sdk/go"
+
+type UserPromptSubmittedHandler func(
+    input copilot.UserPromptSubmittedHookInput,
+    invocation copilot.HookInvocation,
+) (*copilot.UserPromptSubmittedHookOutput, error)
+
+func main() {}
+```
+<!-- /docs-validate: hidden -->
 ```go
 type UserPromptSubmittedHandler func(
     input UserPromptSubmittedHookInput,
@@ -51,7 +82,15 @@ type UserPromptSubmittedHandler func(
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot.SDK;
+
+public delegate Task<UserPromptSubmittedHookOutput?> UserPromptSubmittedHandler(
+    UserPromptSubmittedHookInput input,
+    HookInvocation invocation);
+```
+<!-- /docs-validate: hidden -->
 ```csharp
 public delegate Task<UserPromptSubmittedHookOutput?> UserPromptSubmittedHandler(
     UserPromptSubmittedHookInput input,
@@ -116,7 +155,31 @@ session = await client.create_session({
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	client := copilot.NewClient(nil)
+	session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		Hooks: &copilot.SessionHooks{
+			OnUserPromptSubmitted: func(input copilot.UserPromptSubmittedHookInput, inv copilot.HookInvocation) (*copilot.UserPromptSubmittedHookOutput, error) {
+				fmt.Printf("[%s] User: %s\n", inv.SessionID, input.Prompt)
+				return nil, nil
+			},
+		},
+	})
+	_ = session
+}
+```
+<!-- /docs-validate: hidden -->
 ```go
 session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Hooks: &copilot.SessionHooks{
@@ -133,7 +196,30 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot.SDK;
+
+public static class UserPromptSubmittedExample
+{
+    public static async Task Main()
+    {
+        await using var client = new CopilotClient();
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Hooks = new SessionHooks
+            {
+                OnUserPromptSubmitted = (input, invocation) =>
+                {
+                    Console.WriteLine($"[{invocation.SessionId}] User: {input.Prompt}");
+                    return Task.FromResult<UserPromptSubmittedHookOutput?>(null);
+                },
+            },
+        });
+    }
+}
+```
+<!-- /docs-validate: hidden -->
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {

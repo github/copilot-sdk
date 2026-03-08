@@ -91,7 +91,41 @@ await session.send({
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+	client.Start(ctx)
+
+	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
+		Model: "gpt-4.1",
+		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+		},
+	})
+
+	path := "/absolute/path/to/screenshot.png"
+	session.Send(ctx, copilot.MessageOptions{
+		Prompt: "Describe what you see in this image",
+		Attachments: []copilot.Attachment{
+			{
+				Type: copilot.File,
+				Path: &path,
+			},
+		},
+	})
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 ctx := context.Background()
 client := copilot.NewClient(nil)
@@ -121,7 +155,39 @@ session.Send(ctx, copilot.MessageOptions{
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot.SDK;
+
+public static class ImageInputExample
+{
+    public static async Task Main()
+    {
+        await using var client = new CopilotClient();
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Model = "gpt-4.1",
+            OnPermissionRequest = (req, inv) =>
+                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
+        });
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Describe what you see in this image",
+            Attachments = new List<UserMessageDataAttachmentsItem>
+            {
+                new UserMessageDataAttachmentsItemFile
+                {
+                    Path = "/absolute/path/to/screenshot.png",
+                    DisplayName = "screenshot.png",
+                },
+            },
+        });
+    }
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```csharp
 using GitHub.Copilot.SDK;
 
@@ -180,7 +246,17 @@ Not all models support vision. Check the model's capabilities before sending ima
 
 ### Vision limits type
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```typescript
+interface VisionCapabilities {
+    vision?: {
+        supported_media_types: string[];
+        max_prompt_images: number;
+        max_prompt_image_size: number; // bytes
+    };
+}
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 vision?: {
     supported_media_types: string[];

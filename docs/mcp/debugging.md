@@ -242,7 +242,37 @@ cd /expected/working/dir
 
 #### .NET Console Apps / Tools
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot.SDK;
+
+public static class McpDotnetConfigExample
+{
+    public static void Main()
+    {
+        var servers = new Dictionary<string, McpLocalServerConfig>
+        {
+            ["my-dotnet-server"] = new McpLocalServerConfig
+            {
+                Type = "local",
+                Command = @"C:\Tools\MyServer\MyServer.exe",
+                Args = new List<string>(),
+                Cwd = @"C:\Tools\MyServer",
+                Tools = new List<string> { "*" },
+            },
+            ["my-dotnet-tool"] = new McpLocalServerConfig
+            {
+                Type = "local",
+                Command = "dotnet",
+                Args = new List<string> { @"C:\Tools\MyTool\MyTool.dll" },
+                Cwd = @"C:\Tools\MyTool",
+                Tools = new List<string> { "*" },
+            }
+        };
+    }
+}
+```
+<!-- /docs-validate: hidden -->
 ```csharp
 // Correct configuration for .NET exe
 ["my-dotnet-server"] = new McpLocalServerConfig
@@ -267,7 +297,28 @@ cd /expected/working/dir
 
 #### NPX Commands
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot.SDK;
+
+public static class McpNpxConfigExample
+{
+    public static void Main()
+    {
+        var servers = new Dictionary<string, McpLocalServerConfig>
+        {
+            ["filesystem"] = new McpLocalServerConfig
+            {
+                Type = "local",
+                Command = "cmd",
+                Args = new List<string> { "/c", "npx", "-y", "@modelcontextprotocol/server-filesystem", "C:\\allowed\\path" },
+                Tools = new List<string> { "*" },
+            }
+        };
+    }
+}
+```
+<!-- /docs-validate: hidden -->
 ```csharp
 // Windows needs cmd /c for npx
 ["filesystem"] = new McpLocalServerConfig
@@ -304,7 +355,19 @@ xattr -d com.apple.quarantine /path/to/mcp-server
 
 #### Homebrew Paths
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```typescript
+import { MCPLocalServerConfig } from "@github/copilot-sdk";
+
+const mcpServers: Record<string, MCPLocalServerConfig> = {
+  "my-server": {
+    command: "/opt/homebrew/bin/node",
+    args: ["/path/to/server.js"],
+    tools: ["*"],
+  },
+};
+```
+<!-- /docs-validate: hidden -->
 ```typescript
 // GUI apps may not have /opt/homebrew in PATH
 mcpServers: {
