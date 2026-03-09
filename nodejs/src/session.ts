@@ -693,4 +693,27 @@ export class CopilotSession {
     async setModel(model: string): Promise<void> {
         await this.rpc.model.switchTo({ modelId: model });
     }
+
+    /**
+     * Log a message to the session timeline.
+     * The message appears in the session event stream and is visible to SDK consumers
+     * and (for non-ephemeral messages) persisted to the session event log on disk.
+     *
+     * @param message - Human-readable message text
+     * @param options - Optional log level and ephemeral flag
+     *
+     * @example
+     * ```typescript
+     * await session.log("Processing started");
+     * await session.log("Disk usage high", { level: "warning" });
+     * await session.log("Connection failed", { level: "error" });
+     * await session.log("Debug info", { ephemeral: true });
+     * ```
+     */
+    async log(
+        message: string,
+        options?: { level?: "info" | "warning" | "error"; ephemeral?: boolean }
+    ): Promise<void> {
+        await this.rpc.log({ message, ...options });
+    }
 }
