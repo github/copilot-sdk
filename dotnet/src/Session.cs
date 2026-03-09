@@ -339,7 +339,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             };
         }
 
-        var request = JsonSerializer.Deserialize(permissionRequestData.GetRawText(), SessionJsonContext.Default.PermissionRequest)
+        var request = JsonSerializer.Deserialize(permissionRequestData.GetRawText(), SessionEventsJsonContext.Default.PermissionRequest)
             ?? throw new InvalidOperationException("Failed to deserialize permission request");
 
         var invocation = new PermissionInvocation
@@ -457,27 +457,16 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <summary>
     /// Executes a permission handler and sends the result back via the HandlePendingPermissionRequest RPC.
     /// </summary>
-    private async Task ExecutePermissionAndRespondAsync(string requestId, object permissionRequestData, PermissionRequestHandler handler)
+    private async Task ExecutePermissionAndRespondAsync(string requestId, PermissionRequest permissionRequest, PermissionRequestHandler handler)
     {
         try
         {
-            // PermissionRequestedData.PermissionRequest is typed as `object` in generated code,
-            // but StreamJsonRpc deserializes it as a JsonElement.
-            if (permissionRequestData is not JsonElement permJsonElement)
-            {
-                throw new InvalidOperationException(
-                    $"Permission request data must be a {nameof(JsonElement)}; received {permissionRequestData.GetType().Name}");
-            }
-
-            var request = JsonSerializer.Deserialize(permJsonElement.GetRawText(), SessionJsonContext.Default.PermissionRequest)
-                ?? throw new InvalidOperationException("Failed to deserialize permission request");
-
             var invocation = new PermissionInvocation
             {
                 SessionId = SessionId
             };
 
-            var result = await handler(request, invocation);
+            var result = await handler(permissionRequest, invocation);
             await Rpc.Permissions.HandlePendingPermissionRequestAsync(requestId, result);
         }
         catch (Exception)
@@ -780,7 +769,6 @@ public sealed partial class CopilotSession : IAsyncDisposable
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonSerializable(typeof(GetMessagesRequest))]
     [JsonSerializable(typeof(GetMessagesResponse))]
-    [JsonSerializable(typeof(PermissionRequest))]
     [JsonSerializable(typeof(SendMessageRequest))]
     [JsonSerializable(typeof(SendMessageResponse))]
     [JsonSerializable(typeof(SessionAbortRequest))]

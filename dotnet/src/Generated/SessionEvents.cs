@@ -1528,7 +1528,7 @@ public partial class PermissionRequestedData
     public required string RequestId { get; set; }
 
     [JsonPropertyName("permissionRequest")]
-    public required object PermissionRequest { get; set; }
+    public required PermissionRequest PermissionRequest { get; set; }
 }
 
 public partial class PermissionCompletedData
@@ -2095,6 +2095,193 @@ public partial class SystemMessageDataMetadata
     public Dictionary<string, object>? Variables { get; set; }
 }
 
+public partial class PermissionRequestShellCommandsItem
+{
+    [JsonPropertyName("identifier")]
+    public required string Identifier { get; set; }
+
+    [JsonPropertyName("readOnly")]
+    public required bool ReadOnly { get; set; }
+}
+
+public partial class PermissionRequestShellPossibleUrlsItem
+{
+    [JsonPropertyName("url")]
+    public required string Url { get; set; }
+}
+
+public partial class PermissionRequestShell : PermissionRequest
+{
+    [JsonIgnore]
+    public override string Kind => "shell";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+
+    [JsonPropertyName("fullCommandText")]
+    public required string FullCommandText { get; set; }
+
+    [JsonPropertyName("intention")]
+    public required string Intention { get; set; }
+
+    [JsonPropertyName("commands")]
+    public required PermissionRequestShellCommandsItem[] Commands { get; set; }
+
+    [JsonPropertyName("possiblePaths")]
+    public required string[] PossiblePaths { get; set; }
+
+    [JsonPropertyName("possibleUrls")]
+    public required PermissionRequestShellPossibleUrlsItem[] PossibleUrls { get; set; }
+
+    [JsonPropertyName("hasWriteFileRedirection")]
+    public required bool HasWriteFileRedirection { get; set; }
+
+    [JsonPropertyName("canOfferSessionApproval")]
+    public required bool CanOfferSessionApproval { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("warning")]
+    public string? Warning { get; set; }
+}
+
+public partial class PermissionRequestWrite : PermissionRequest
+{
+    [JsonIgnore]
+    public override string Kind => "write";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+
+    [JsonPropertyName("intention")]
+    public required string Intention { get; set; }
+
+    [JsonPropertyName("fileName")]
+    public required string FileName { get; set; }
+
+    [JsonPropertyName("diff")]
+    public required string Diff { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("newFileContents")]
+    public string? NewFileContents { get; set; }
+}
+
+public partial class PermissionRequestRead : PermissionRequest
+{
+    [JsonIgnore]
+    public override string Kind => "read";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+
+    [JsonPropertyName("intention")]
+    public required string Intention { get; set; }
+
+    [JsonPropertyName("path")]
+    public required string Path { get; set; }
+}
+
+public partial class PermissionRequestMcp : PermissionRequest
+{
+    [JsonIgnore]
+    public override string Kind => "mcp";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+
+    [JsonPropertyName("toolName")]
+    public required string ToolName { get; set; }
+
+    [JsonPropertyName("toolTitle")]
+    public required string ToolTitle { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("args")]
+    public object? Args { get; set; }
+
+    [JsonPropertyName("readOnly")]
+    public required bool ReadOnly { get; set; }
+}
+
+public partial class PermissionRequestUrl : PermissionRequest
+{
+    [JsonIgnore]
+    public override string Kind => "url";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+
+    [JsonPropertyName("intention")]
+    public required string Intention { get; set; }
+
+    [JsonPropertyName("url")]
+    public required string Url { get; set; }
+}
+
+public partial class PermissionRequestMemory : PermissionRequest
+{
+    [JsonIgnore]
+    public override string Kind => "memory";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+
+    [JsonPropertyName("subject")]
+    public required string Subject { get; set; }
+
+    [JsonPropertyName("fact")]
+    public required string Fact { get; set; }
+
+    [JsonPropertyName("citations")]
+    public required string Citations { get; set; }
+}
+
+public partial class PermissionRequestCustomTool : PermissionRequest
+{
+    [JsonIgnore]
+    public override string Kind => "custom-tool";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+
+    [JsonPropertyName("toolName")]
+    public required string ToolName { get; set; }
+
+    [JsonPropertyName("toolDescription")]
+    public required string ToolDescription { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("args")]
+    public object? Args { get; set; }
+}
+
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(PermissionRequestShell), "shell")]
+[JsonDerivedType(typeof(PermissionRequestWrite), "write")]
+[JsonDerivedType(typeof(PermissionRequestRead), "read")]
+[JsonDerivedType(typeof(PermissionRequestMcp), "mcp")]
+[JsonDerivedType(typeof(PermissionRequestUrl), "url")]
+[JsonDerivedType(typeof(PermissionRequestMemory), "memory")]
+[JsonDerivedType(typeof(PermissionRequestCustomTool), "custom-tool")]
+public partial class PermissionRequest
+{
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
 public partial class PermissionCompletedDataResult
 {
     [JsonPropertyName("kind")]
@@ -2273,6 +2460,16 @@ public enum PermissionCompletedDataResultKind
 [JsonSerializable(typeof(PermissionCompletedData))]
 [JsonSerializable(typeof(PermissionCompletedDataResult))]
 [JsonSerializable(typeof(PermissionCompletedEvent))]
+[JsonSerializable(typeof(PermissionRequest))]
+[JsonSerializable(typeof(PermissionRequestCustomTool))]
+[JsonSerializable(typeof(PermissionRequestMcp))]
+[JsonSerializable(typeof(PermissionRequestMemory))]
+[JsonSerializable(typeof(PermissionRequestRead))]
+[JsonSerializable(typeof(PermissionRequestShell))]
+[JsonSerializable(typeof(PermissionRequestShellCommandsItem))]
+[JsonSerializable(typeof(PermissionRequestShellPossibleUrlsItem))]
+[JsonSerializable(typeof(PermissionRequestUrl))]
+[JsonSerializable(typeof(PermissionRequestWrite))]
 [JsonSerializable(typeof(PermissionRequestedData))]
 [JsonSerializable(typeof(PermissionRequestedEvent))]
 [JsonSerializable(typeof(SessionCompactionCompleteData))]

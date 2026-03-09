@@ -24,11 +24,29 @@ import {
 
 const execFileAsync = promisify(execFile);
 
+// ── C# type rename overrides ────────────────────────────────────────────────
+// Map generated class names to shorter public-facing names.
+// Applied to base classes AND their derived variants (e.g., FooBar → Bar, FooBazShell → BarShell).
+const TYPE_RENAMES: Record<string, string> = {
+    PermissionRequestedDataPermissionRequest: "PermissionRequest",
+};
+
+/** Apply rename to a generated class name, checking both exact match and prefix replacement for derived types. */
+function applyTypeRename(className: string): string {
+    if (TYPE_RENAMES[className]) return TYPE_RENAMES[className];
+    for (const [from, to] of Object.entries(TYPE_RENAMES)) {
+        if (className.startsWith(from)) {
+            return to + className.slice(from.length);
+        }
+    }
+    return className;
+}
+
 // ── C# utilities ────────────────────────────────────────────────────────────
 
 function toPascalCase(name: string): string {
-    if (name.includes("_")) {
-        return name.split("_").map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join("");
+    if (name.includes("_") || name.includes("-")) {
+        return name.split(/[-_]/).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join("");
     }
     return name.charAt(0).toUpperCase() + name.slice(1);
 }
@@ -208,17 +226,18 @@ function generatePolymorphicClasses(
 ): string {
     const lines: string[] = [];
     const discriminatorInfo = findDiscriminator(variants)!;
+    const renamedBase = applyTypeRename(baseClassName);
 
     lines.push(`[JsonPolymorphic(`);
     lines.push(`    TypeDiscriminatorPropertyName = "${discriminatorProperty}",`);
     lines.push(`    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]`);
 
     for (const [constValue] of discriminatorInfo.mapping) {
-        const derivedClassName = `${baseClassName}${toPascalCase(constValue)}`;
+        const derivedClassName = applyTypeRename(`${baseClassName}${toPascalCase(constValue)}`);
         lines.push(`[JsonDerivedType(typeof(${derivedClassName}), "${constValue}")]`);
     }
 
-    lines.push(`public partial class ${baseClassName}`);
+    lines.push(`public partial class ${renamedBase}`);
     lines.push(`{`);
     lines.push(`    [JsonPropertyName("${discriminatorProperty}")]`);
     lines.push(`    public virtual string ${toPascalCase(discriminatorProperty)} { get; set; } = string.Empty;`);
@@ -226,8 +245,8 @@ function generatePolymorphicClasses(
     lines.push("");
 
     for (const [constValue, variant] of discriminatorInfo.mapping) {
-        const derivedClassName = `${baseClassName}${toPascalCase(constValue)}`;
-        const derivedCode = generateDerivedClass(derivedClassName, baseClassName, discriminatorProperty, constValue, variant, knownTypes, nestedClasses, enumOutput);
+        const derivedClassName = applyTypeRename(`${baseClassName}${toPascalCase(constValue)}`);
+        const derivedCode = generateDerivedClass(derivedClassName, renamedBase, discriminatorProperty, constValue, variant, knownTypes, nestedClasses, enumOutput);
         nestedClasses.set(derivedClassName, derivedCode);
     }
 
@@ -319,6 +338,18 @@ function resolveSessionPropertyType(
         if (nonNull.length === 1) {
             return resolveSessionPropertyType(nonNull[0] as JSONSchema7, parentClassName, propName, isRequired && !hasNull, knownTypes, nestedClasses, enumOutput);
         }
+        // Discriminated union: anyOf with multiple object variants sharing a const discriminator
+        if (nonNull.length > 1) {
+            const variants = nonNull as JSONSchema7[];
+            const discriminatorInfo = findDiscriminator(variants);
+            if (discriminatorInfo) {
+                const baseClassName = `${parentClassName}${propName}`;
+                const renamedBase = applyTypeRename(baseClassName);
+                const polymorphicCode = generatePolymorphicClasses(baseClassName, discriminatorInfo.property, variants, knownTypes, nestedClasses, enumOutput);
+                nestedClasses.set(renamedBase, polymorphicCode);
+                return isRequired && !hasNull ? renamedBase : `${renamedBase}?`;
+            }
+        }
         return hasNull || !isRequired ? "object?" : "object";
     }
     if (propSchema.enum && Array.isArray(propSchema.enum)) {
@@ -338,9 +369,10 @@ function resolveSessionPropertyType(
             const discriminatorInfo = findDiscriminator(variants);
             if (discriminatorInfo) {
                 const baseClassName = `${parentClassName}${propName}Item`;
+                const renamedBase = applyTypeRename(baseClassName);
                 const polymorphicCode = generatePolymorphicClasses(baseClassName, discriminatorInfo.property, variants, knownTypes, nestedClasses, enumOutput);
-                nestedClasses.set(baseClassName, polymorphicCode);
-                return isRequired ? `${baseClassName}[]` : `${baseClassName}[]?`;
+                nestedClasses.set(renamedBase, polymorphicCode);
+                return isRequired ? `${renamedBase}[]` : `${renamedBase}[]?`;
             }
         }
         if (items.type === "object" && items.properties) {

@@ -17,9 +17,15 @@ try
         Model = "claude-haiku-4.5",
         OnPermissionRequest = (request, invocation) =>
         {
-            var toolName = request.ExtensionData?.TryGetValue("toolName", out var value) == true
-                ? value?.ToString() ?? "unknown"
-                : "unknown";
+            var toolName = request switch
+            {
+                PermissionRequestCustomTool ct => ct.ToolName,
+                PermissionRequestShell sh => "shell",
+                PermissionRequestWrite wr => wr.FileName ?? "write",
+                PermissionRequestRead rd => rd.Path ?? "read",
+                PermissionRequestMcp mcp => mcp.ToolName ?? "mcp",
+                _ => request.Kind,
+            };
             permissionLog.Add($"approved:{toolName}");
             return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
         },

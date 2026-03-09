@@ -231,7 +231,7 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
         {
             OnPermissionRequest = (request, invocation) =>
             {
-                if (!string.IsNullOrEmpty(request.ToolCallId))
+                if (request is PermissionRequestShell shell && !string.IsNullOrEmpty(shell.ToolCallId))
                 {
                     receivedToolCallId = true;
                 }
