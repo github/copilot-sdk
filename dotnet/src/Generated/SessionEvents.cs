@@ -1549,7 +1549,7 @@ public partial class SystemNotificationData
     public required string Content { get; set; }
 
     [JsonPropertyName("kind")]
-    public required object Kind { get; set; }
+    public required SystemNotificationDataKind Kind { get; set; }
 }
 
 public partial class PermissionRequestedData
@@ -2125,6 +2125,72 @@ public partial class SystemMessageDataMetadata
     public Dictionary<string, object>? Variables { get; set; }
 }
 
+public partial class SystemNotificationDataKindAgentCompleted : SystemNotificationDataKind
+{
+    [JsonIgnore]
+    public override string Type => "agent_completed";
+
+    [JsonPropertyName("agentId")]
+    public required string AgentId { get; set; }
+
+    [JsonPropertyName("agentType")]
+    public required string AgentType { get; set; }
+
+    [JsonPropertyName("status")]
+    public required SystemNotificationDataKindAgentCompletedStatus Status { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("prompt")]
+    public string? Prompt { get; set; }
+}
+
+public partial class SystemNotificationDataKindShellCompleted : SystemNotificationDataKind
+{
+    [JsonIgnore]
+    public override string Type => "shell_completed";
+
+    [JsonPropertyName("shellId")]
+    public required string ShellId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("exitCode")]
+    public double? ExitCode { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+}
+
+public partial class SystemNotificationDataKindShellDetachedCompleted : SystemNotificationDataKind
+{
+    [JsonIgnore]
+    public override string Type => "shell_detached_completed";
+
+    [JsonPropertyName("shellId")]
+    public required string ShellId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+}
+
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "type",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(SystemNotificationDataKindAgentCompleted), "agent_completed")]
+[JsonDerivedType(typeof(SystemNotificationDataKindShellCompleted), "shell_completed")]
+[JsonDerivedType(typeof(SystemNotificationDataKindShellDetachedCompleted), "shell_detached_completed")]
+public partial class SystemNotificationDataKind
+{
+    [JsonPropertyName("type")]
+    public virtual string Type { get; set; } = string.Empty;
+}
+
+
 public partial class PermissionRequestShellCommandsItem
 {
     [JsonPropertyName("identifier")]
@@ -2420,6 +2486,15 @@ public enum SystemMessageDataRole
     Developer,
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter<SystemNotificationDataKindAgentCompletedStatus>))]
+public enum SystemNotificationDataKindAgentCompletedStatus
+{
+    [JsonStringEnumMemberName("completed")]
+    Completed,
+    [JsonStringEnumMemberName("failed")]
+    Failed,
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<PermissionCompletedDataResultKind>))]
 public enum PermissionCompletedDataResultKind
 {
@@ -2567,6 +2642,10 @@ public enum PermissionCompletedDataResultKind
 [JsonSerializable(typeof(SystemMessageDataMetadata))]
 [JsonSerializable(typeof(SystemMessageEvent))]
 [JsonSerializable(typeof(SystemNotificationData))]
+[JsonSerializable(typeof(SystemNotificationDataKind))]
+[JsonSerializable(typeof(SystemNotificationDataKindAgentCompleted))]
+[JsonSerializable(typeof(SystemNotificationDataKindShellCompleted))]
+[JsonSerializable(typeof(SystemNotificationDataKindShellDetachedCompleted))]
 [JsonSerializable(typeof(SystemNotificationEvent))]
 [JsonSerializable(typeof(ToolExecutionCompleteData))]
 [JsonSerializable(typeof(ToolExecutionCompleteDataError))]
