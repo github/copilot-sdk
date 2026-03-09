@@ -68,6 +68,7 @@ export type SessionEvent =
            */
           branch?: string;
         };
+        alreadyInUse?: boolean;
       };
     }
   | {
@@ -118,6 +119,7 @@ export type SessionEvent =
            */
           branch?: string;
         };
+        alreadyInUse?: boolean;
       };
     }
   | {
@@ -2150,6 +2152,84 @@ export type SessionEvent =
             [k: string]: unknown;
           };
         };
+      };
+    }
+  | {
+      /**
+       * Unique event identifier (UUID v4), generated when the event is emitted
+       */
+      id: string;
+      /**
+       * ISO 8601 timestamp when the event was created
+       */
+      timestamp: string;
+      /**
+       * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+       */
+      parentId: string | null;
+      /**
+       * When true, the event is transient and not persisted to the session event log on disk
+       */
+      ephemeral?: boolean;
+      type: "system.notification";
+      data: {
+        /**
+         * The notification text, typically wrapped in <system_notification> XML tags
+         */
+        content: string;
+        /**
+         * Structured metadata identifying what triggered this notification
+         */
+        kind:
+          | {
+              type: "agent_completed";
+              /**
+               * Unique identifier of the background agent
+               */
+              agentId: string;
+              /**
+               * Type of the agent (e.g., explore, task, general-purpose)
+               */
+              agentType: string;
+              /**
+               * Whether the agent completed successfully or failed
+               */
+              status: "completed" | "failed";
+              /**
+               * Human-readable description of the agent task
+               */
+              description?: string;
+              /**
+               * The full prompt given to the background agent
+               */
+              prompt?: string;
+            }
+          | {
+              type: "shell_completed";
+              /**
+               * Unique identifier of the shell session
+               */
+              shellId: string;
+              /**
+               * Exit code of the shell command, if available
+               */
+              exitCode?: number;
+              /**
+               * Human-readable description of the command
+               */
+              description?: string;
+            }
+          | {
+              type: "shell_detached_completed";
+              /**
+               * Unique identifier of the detached shell session
+               */
+              shellId: string;
+              /**
+               * Human-readable description of the command
+               */
+              description?: string;
+            };
       };
     }
   | {

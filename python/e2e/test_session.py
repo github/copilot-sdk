@@ -501,6 +501,49 @@ class TestSessions:
         assistant_message = await get_final_assistant_message(session)
         assert "2" in assistant_message.data.content
 
+    async def test_session_log_emits_events_at_all_levels(self, ctx: E2ETestContext):
+        import asyncio
+
+        session = await ctx.client.create_session(
+            {"on_permission_request": PermissionHandler.approve_all}
+        )
+
+        received_events = []
+
+        def on_event(event):
+            if event.type.value in ("session.info", "session.warning", "session.error"):
+                received_events.append(event)
+
+        session.on(on_event)
+
+        await session.log("Info message")
+        await session.log("Warning message", level="warning")
+        await session.log("Error message", level="error")
+        await session.log("Ephemeral message", ephemeral=True)
+
+        # Poll until all 4 notification events arrive
+        deadline = asyncio.get_event_loop().time() + 10
+        while len(received_events) < 4:
+            if asyncio.get_event_loop().time() > deadline:
+                pytest.fail(
+                    f"Timed out waiting for 4 notification events, got {len(received_events)}"
+                )
+            await asyncio.sleep(0.1)
+
+        by_message = {e.data.message: e for e in received_events}
+
+        assert by_message["Info message"].type.value == "session.info"
+        assert by_message["Info message"].data.info_type == "notification"
+
+        assert by_message["Warning message"].type.value == "session.warning"
+        assert by_message["Warning message"].data.warning_type == "notification"
+
+        assert by_message["Error message"].type.value == "session.error"
+        assert by_message["Error message"].data.error_type == "notification"
+
+        assert by_message["Ephemeral message"].type.value == "session.info"
+        assert by_message["Ephemeral message"].data.info_type == "notification"
+
 
 def _get_system_message(exchange: dict) -> str:
     messages = exchange.get("request", {}).get("messages", [])

@@ -701,12 +701,21 @@ function emitServerInstanceMethod(
 function emitSessionRpcClasses(node: Record<string, unknown>, classes: string[]): string[] {
     const result: string[] = [];
     const groups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
+    const topLevelMethods = Object.entries(node).filter(([, v]) => isRpcMethod(v));
 
     const srLines = [`/// <summary>Typed session-scoped RPC methods.</summary>`, `public class SessionRpc`, `{`, `    private readonly JsonRpc _rpc;`, `    private readonly string _sessionId;`, ""];
     srLines.push(`    internal SessionRpc(JsonRpc rpc, string sessionId)`, `    {`, `        _rpc = rpc;`, `        _sessionId = sessionId;`);
     for (const [groupName] of groups) srLines.push(`        ${toPascalCase(groupName)} = new ${toPascalCase(groupName)}Api(rpc, sessionId);`);
     srLines.push(`    }`);
     for (const [groupName] of groups) srLines.push("", `    public ${toPascalCase(groupName)}Api ${toPascalCase(groupName)} { get; }`);
+
+    // Emit top-level session RPC methods directly on the SessionRpc class
+    const topLevelLines: string[] = [];
+    for (const [key, value] of topLevelMethods) {
+        emitSessionMethod(key, value as RpcMethod, topLevelLines, classes, "    ");
+    }
+    srLines.push(...topLevelLines);
+
     srLines.push(`}`);
     result.push(srLines.join("\n"));
 
@@ -716,50 +725,53 @@ function emitSessionRpcClasses(node: Record<string, unknown>, classes: string[])
     return result;
 }
 
+function emitSessionMethod(key: string, method: RpcMethod, lines: string[], classes: string[], indent: string): void {
+    const methodName = toPascalCase(key);
+    const resultClassName = `${typeToClassName(method.rpcMethod)}Result`;
+    const resultClass = emitRpcClass(resultClassName, method.result, "public", classes);
+    if (resultClass) classes.push(resultClass);
+
+    const paramEntries = (method.params?.properties ? Object.entries(method.params.properties) : []).filter(([k]) => k !== "sessionId");
+    const requiredSet = new Set(method.params?.required || []);
+
+    // Sort so required params come before optional (C# requires defaults at end)
+    paramEntries.sort((a, b) => {
+        const aReq = requiredSet.has(a[0]) ? 0 : 1;
+        const bReq = requiredSet.has(b[0]) ? 0 : 1;
+        return aReq - bReq;
+    });
+
+    const requestClassName = `${typeToClassName(method.rpcMethod)}Request`;
+    if (method.params) {
+        const reqClass = emitRpcClass(requestClassName, method.params, "internal", classes);
+        if (reqClass) classes.push(reqClass);
+    }
+
+    lines.push("", `${indent}/// <summary>Calls "${method.rpcMethod}".</summary>`);
+    const sigParams: string[] = [];
+    const bodyAssignments = [`SessionId = _sessionId`];
+
+    for (const [pName, pSchema] of paramEntries) {
+        if (typeof pSchema !== "object") continue;
+        const isReq = requiredSet.has(pName);
+        const csType = resolveRpcType(pSchema as JSONSchema7, isReq, requestClassName, toPascalCase(pName), classes);
+        sigParams.push(`${csType} ${pName}${isReq ? "" : " = null"}`);
+        bodyAssignments.push(`${toPascalCase(pName)} = ${pName}`);
+    }
+    sigParams.push("CancellationToken cancellationToken = default");
+
+    lines.push(`${indent}public async Task<${resultClassName}> ${methodName}Async(${sigParams.join(", ")})`);
+    lines.push(`${indent}{`, `${indent}    var request = new ${requestClassName} { ${bodyAssignments.join(", ")} };`);
+    lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [request], cancellationToken);`, `${indent}}`);
+}
+
 function emitSessionApiClass(className: string, node: Record<string, unknown>, classes: string[]): string {
     const lines = [`public class ${className}`, `{`, `    private readonly JsonRpc _rpc;`, `    private readonly string _sessionId;`, ""];
     lines.push(`    internal ${className}(JsonRpc rpc, string sessionId)`, `    {`, `        _rpc = rpc;`, `        _sessionId = sessionId;`, `    }`);
 
     for (const [key, value] of Object.entries(node)) {
         if (!isRpcMethod(value)) continue;
-        const method = value;
-        const methodName = toPascalCase(key);
-        const resultClassName = `${typeToClassName(method.rpcMethod)}Result`;
-        const resultClass = emitRpcClass(resultClassName, method.result, "public", classes);
-        if (resultClass) classes.push(resultClass);
-
-        const paramEntries = (method.params?.properties ? Object.entries(method.params.properties) : []).filter(([k]) => k !== "sessionId");
-        const requiredSet = new Set(method.params?.required || []);
-
-        // Sort so required params come before optional (C# requires defaults at end)
-        paramEntries.sort((a, b) => {
-            const aReq = requiredSet.has(a[0]) ? 0 : 1;
-            const bReq = requiredSet.has(b[0]) ? 0 : 1;
-            return aReq - bReq;
-        });
-
-        const requestClassName = `${typeToClassName(method.rpcMethod)}Request`;
-        if (method.params) {
-            const reqClass = emitRpcClass(requestClassName, method.params, "internal", classes);
-            if (reqClass) classes.push(reqClass);
-        }
-
-        lines.push("", `    /// <summary>Calls "${method.rpcMethod}".</summary>`);
-        const sigParams: string[] = [];
-        const bodyAssignments = [`SessionId = _sessionId`];
-
-        for (const [pName, pSchema] of paramEntries) {
-            if (typeof pSchema !== "object") continue;
-            const isReq = requiredSet.has(pName);
-            const csType = resolveRpcType(pSchema as JSONSchema7, isReq, requestClassName, toPascalCase(pName), classes);
-            sigParams.push(`${csType} ${pName}${isReq ? "" : " = null"}`);
-            bodyAssignments.push(`${toPascalCase(pName)} = ${pName}`);
-        }
-        sigParams.push("CancellationToken cancellationToken = default");
-
-        lines.push(`    public async Task<${resultClassName}> ${methodName}Async(${sigParams.join(", ")})`);
-        lines.push(`    {`, `        var request = new ${requestClassName} { ${bodyAssignments.join(", ")} };`);
-        lines.push(`        return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [request], cancellationToken);`, `    }`);
+        emitSessionMethod(key, value, lines, classes, "    ");
     }
     lines.push(`}`);
     return lines.join("\n");

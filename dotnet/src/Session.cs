@@ -671,7 +671,29 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </example>
     public async Task SetModelAsync(string model, CancellationToken cancellationToken = default)
     {
-        await Rpc.Model.SwitchToAsync(model, cancellationToken);
+        await Rpc.Model.SwitchToAsync(model, cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// Log a message to the session timeline.
+    /// The message appears in the session event stream and is visible to SDK consumers
+    /// and (for non-ephemeral messages) persisted to the session event log on disk.
+    /// </summary>
+    /// <param name="message">The message to log.</param>
+    /// <param name="level">Log level (default: info).</param>
+    /// <param name="ephemeral">When <c>true</c>, the message is not persisted to disk.</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    /// <example>
+    /// <code>
+    /// await session.LogAsync("Build completed successfully");
+    /// await session.LogAsync("Disk space low", level: SessionLogRequestLevel.Warning);
+    /// await session.LogAsync("Connection failed", level: SessionLogRequestLevel.Error);
+    /// await session.LogAsync("Temporary status", ephemeral: true);
+    /// </code>
+    /// </example>
+    public async Task LogAsync(string message, SessionLogRequestLevel? level = null, bool? ephemeral = null, CancellationToken cancellationToken = default)
+    {
+        await Rpc.LogAsync(message, level, ephemeral, cancellationToken);
     }
 
     /// <summary>

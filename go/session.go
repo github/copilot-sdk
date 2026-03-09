@@ -701,3 +701,49 @@ func (s *Session) SetModel(ctx context.Context, model string) error {
 
 	return nil
 }
+
+// LogOptions configures optional parameters for [Session.Log].
+type LogOptions struct {
+	// Level sets the log severity. Valid values are [rpc.Info] (default),
+	// [rpc.Warning], and [rpc.Error].
+	Level rpc.Level
+	// Ephemeral marks the message as transient so it is not persisted
+	// to the session event log on disk.
+	Ephemeral bool
+}
+
+// Log sends a log message to the session timeline.
+// The message appears in the session event stream and is visible to SDK consumers
+// and (for non-ephemeral messages) persisted to the session event log on disk.
+//
+// Pass nil for opts to use defaults (info level, non-ephemeral).
+//
+// Example:
+//
+//	// Simple info message
+//	session.Log(ctx, "Processing started")
+//
+//	// Warning with options
+//	session.Log(ctx, "Rate limit approaching", &copilot.LogOptions{Level: rpc.Warning})
+//
+//	// Ephemeral message (not persisted)
+//	session.Log(ctx, "Working...", &copilot.LogOptions{Ephemeral: true})
+func (s *Session) Log(ctx context.Context, message string, opts *LogOptions) error {
+	params := &rpc.SessionLogParams{Message: message}
+
+	if opts != nil {
+		if opts.Level != "" {
+			params.Level = &opts.Level
+		}
+		if opts.Ephemeral {
+			params.Ephemeral = &opts.Ephemeral
+		}
+	}
+
+	_, err := s.RPC.Log(ctx, params)
+	if err != nil {
+		return fmt.Errorf("failed to log message: %w", err)
+	}
+
+	return nil
+}

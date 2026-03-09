@@ -13,7 +13,9 @@ from typing import Any, cast
 
 from .generated.rpc import (
     Kind,
+    Level,
     ResultResult,
+    SessionLogParams,
     SessionModelSwitchToParams,
     SessionPermissionsHandlePendingPermissionRequestParams,
     SessionPermissionsHandlePendingPermissionRequestParamsResult,
@@ -733,3 +735,37 @@ class CopilotSession:
             >>> await session.set_model("gpt-4.1")
         """
         await self.rpc.model.switch_to(SessionModelSwitchToParams(model_id=model))
+
+    async def log(
+        self,
+        message: str,
+        *,
+        level: str | None = None,
+        ephemeral: bool | None = None,
+    ) -> None:
+        """
+        Log a message to the session timeline.
+
+        The message appears in the session event stream and is visible to SDK consumers
+        and (for non-ephemeral messages) persisted to the session event log on disk.
+
+        Args:
+            message: The human-readable message to log.
+            level: Log severity level ("info", "warning", "error"). Defaults to "info".
+            ephemeral: When True, the message is transient and not persisted to disk.
+
+        Raises:
+            Exception: If the session has been destroyed or the connection fails.
+
+        Example:
+            >>> await session.log("Processing started")
+            >>> await session.log("Something looks off", level="warning")
+            >>> await session.log("Operation failed", level="error")
+            >>> await session.log("Temporary status update", ephemeral=True)
+        """
+        params = SessionLogParams(
+            message=message,
+            level=Level(level) if level is not None else None,
+            ephemeral=ephemeral,
+        )
+        await self.rpc.log(params)

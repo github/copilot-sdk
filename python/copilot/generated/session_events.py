@@ -538,6 +538,83 @@ class ErrorClass:
         return result
 
 
+class Status(Enum):
+    """Whether the agent completed successfully or failed"""
+
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class KindType(Enum):
+    AGENT_COMPLETED = "agent_completed"
+    SHELL_COMPLETED = "shell_completed"
+    SHELL_DETACHED_COMPLETED = "shell_detached_completed"
+
+
+@dataclass
+class KindClass:
+    """Structured metadata identifying what triggered this notification"""
+
+    type: KindType
+    agent_id: str | None = None
+    """Unique identifier of the background agent"""
+
+    agent_type: str | None = None
+    """Type of the agent (e.g., explore, task, general-purpose)"""
+
+    description: str | None = None
+    """Human-readable description of the agent task
+    
+    Human-readable description of the command
+    """
+    prompt: str | None = None
+    """The full prompt given to the background agent"""
+
+    status: Status | None = None
+    """Whether the agent completed successfully or failed"""
+
+    exit_code: float | None = None
+    """Exit code of the shell command, if available"""
+
+    shell_id: str | None = None
+    """Unique identifier of the shell session
+    
+    Unique identifier of the detached shell session
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'KindClass':
+        assert isinstance(obj, dict)
+        type = KindType(obj.get("type"))
+        agent_id = from_union([from_str, from_none], obj.get("agentId"))
+        agent_type = from_union([from_str, from_none], obj.get("agentType"))
+        description = from_union([from_str, from_none], obj.get("description"))
+        prompt = from_union([from_str, from_none], obj.get("prompt"))
+        status = from_union([Status, from_none], obj.get("status"))
+        exit_code = from_union([from_float, from_none], obj.get("exitCode"))
+        shell_id = from_union([from_str, from_none], obj.get("shellId"))
+        return KindClass(type, agent_id, agent_type, description, prompt, status, exit_code, shell_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["type"] = to_enum(KindType, self.type)
+        if self.agent_id is not None:
+            result["agentId"] = from_union([from_str, from_none], self.agent_id)
+        if self.agent_type is not None:
+            result["agentType"] = from_union([from_str, from_none], self.agent_type)
+        if self.description is not None:
+            result["description"] = from_union([from_str, from_none], self.description)
+        if self.prompt is not None:
+            result["prompt"] = from_union([from_str, from_none], self.prompt)
+        if self.status is not None:
+            result["status"] = from_union([lambda x: to_enum(Status, x), from_none], self.status)
+        if self.exit_code is not None:
+            result["exitCode"] = from_union([to_float, from_none], self.exit_code)
+        if self.shell_id is not None:
+            result["shellId"] = from_union([from_str, from_none], self.shell_id)
+        return result
+
+
 @dataclass
 class Metadata:
     """Metadata about the prompt template and its construction"""
@@ -1305,6 +1382,7 @@ class Data:
     Empty payload; the event signals that the custom agent was deselected, returning to the
     default agent
     """
+    already_in_use: bool | None = None
     context: ContextClass | str | None = None
     """Working directory and git context at session start
     
@@ -1583,6 +1661,8 @@ class Data:
     Full content of the skill file, injected into the conversation for the model
     
     The system or developer prompt text
+    
+    The notification text, typically wrapped in <system_notification> XML tags
     """
     interaction_id: str | None = None
     """CAPI interaction ID for correlating this user message with its turn
@@ -1793,6 +1873,9 @@ class Data:
     role: Role | None = None
     """Message role: "system" for system prompts, "developer" for developer-injected instructions"""
 
+    kind: KindClass | None = None
+    """Structured metadata identifying what triggered this notification"""
+
     permission_request: PermissionRequest | None = None
     """Details of the permission being requested"""
 
@@ -1826,6 +1909,7 @@ class Data:
     @staticmethod
     def from_dict(obj: Any) -> 'Data':
         assert isinstance(obj, dict)
+        already_in_use = from_union([from_bool, from_none], obj.get("alreadyInUse"))
         context = from_union([ContextClass.from_dict, from_str, from_none], obj.get("context"))
         copilot_version = from_union([from_str, from_none], obj.get("copilotVersion"))
         producer = from_union([from_str, from_none], obj.get("producer"))
@@ -1944,6 +2028,7 @@ class Data:
         output = obj.get("output")
         metadata = from_union([Metadata.from_dict, from_none], obj.get("metadata"))
         role = from_union([Role, from_none], obj.get("role"))
+        kind = from_union([KindClass.from_dict, from_none], obj.get("kind"))
         permission_request = from_union([PermissionRequest.from_dict, from_none], obj.get("permissionRequest"))
         allow_freeform = from_union([from_bool, from_none], obj.get("allowFreeform"))
         choices = from_union([lambda x: from_list(from_str, x), from_none], obj.get("choices"))
@@ -1954,10 +2039,12 @@ class Data:
         actions = from_union([lambda x: from_list(from_str, x), from_none], obj.get("actions"))
         plan_content = from_union([from_str, from_none], obj.get("planContent"))
         recommended_action = from_union([from_str, from_none], obj.get("recommendedAction"))
-        return Data(context, copilot_version, producer, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, background_tasks, title, info_type, warning_type, new_model, previous_model, new_mode, previous_mode, operation, path, handoff_time, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, current_model, error_reason, model_metrics, session_start_time, shutdown_type, total_api_duration_ms, total_premium_requests, branch, cwd, git_root, current_tokens, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, interaction_id, source, transformed_content, turn_id, intent, reasoning_id, delta_content, total_response_size_bytes, encrypted_content, message_id, output_tokens, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, api_call_id, cache_read_tokens, cache_write_tokens, copilot_usage, cost, duration, initiator, input_tokens, model, quota_snapshots, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, name, plugin_name, plugin_version, agent_description, agent_display_name, agent_name, tools, hook_invocation_id, hook_type, input, output, metadata, role, permission_request, allow_freeform, choices, question, mode, requested_schema, command, actions, plan_content, recommended_action)
+        return Data(already_in_use, context, copilot_version, producer, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, background_tasks, title, info_type, warning_type, new_model, previous_model, new_mode, previous_mode, operation, path, handoff_time, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, current_model, error_reason, model_metrics, session_start_time, shutdown_type, total_api_duration_ms, total_premium_requests, branch, cwd, git_root, current_tokens, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, interaction_id, source, transformed_content, turn_id, intent, reasoning_id, delta_content, total_response_size_bytes, encrypted_content, message_id, output_tokens, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, api_call_id, cache_read_tokens, cache_write_tokens, copilot_usage, cost, duration, initiator, input_tokens, model, quota_snapshots, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, name, plugin_name, plugin_version, agent_description, agent_display_name, agent_name, tools, hook_invocation_id, hook_type, input, output, metadata, role, kind, permission_request, allow_freeform, choices, question, mode, requested_schema, command, actions, plan_content, recommended_action)
 
     def to_dict(self) -> dict:
         result: dict = {}
+        if self.already_in_use is not None:
+            result["alreadyInUse"] = from_union([from_bool, from_none], self.already_in_use)
         if self.context is not None:
             result["context"] = from_union([lambda x: to_class(ContextClass, x), from_str, from_none], self.context)
         if self.copilot_version is not None:
@@ -2194,6 +2281,8 @@ class Data:
             result["metadata"] = from_union([lambda x: to_class(Metadata, x), from_none], self.metadata)
         if self.role is not None:
             result["role"] = from_union([lambda x: to_enum(Role, x), from_none], self.role)
+        if self.kind is not None:
+            result["kind"] = from_union([lambda x: to_class(KindClass, x), from_none], self.kind)
         if self.permission_request is not None:
             result["permissionRequest"] = from_union([lambda x: to_class(PermissionRequest, x), from_none], self.permission_request)
         if self.allow_freeform is not None:
@@ -2268,6 +2357,7 @@ class SessionEventType(Enum):
     SUBAGENT_SELECTED = "subagent.selected"
     SUBAGENT_STARTED = "subagent.started"
     SYSTEM_MESSAGE = "system.message"
+    SYSTEM_NOTIFICATION = "system.notification"
     TOOL_EXECUTION_COMPLETE = "tool.execution_complete"
     TOOL_EXECUTION_PARTIAL_RESULT = "tool.execution_partial_result"
     TOOL_EXECUTION_PROGRESS = "tool.execution_progress"
