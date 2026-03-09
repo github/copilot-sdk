@@ -5,7 +5,7 @@ var cliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
 using var client = new CopilotClient(new CopilotClientOptions
 {
     CliPath = cliPath,
-    GithubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
+    GitHubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
 });
 
 await client.StartAsync();

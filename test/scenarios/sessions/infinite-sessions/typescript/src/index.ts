@@ -37,7 +37,7 @@ async function main() {
 
     console.log("Infinite sessions test complete — all messages processed successfully");
 
-    await session.destroy();
+    await session.disconnect();
   } finally {
     await client.stop();
   }

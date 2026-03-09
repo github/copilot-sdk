@@ -5,7 +5,7 @@ var inputLog = new List<string>();
 using var client = new CopilotClient(new CopilotClientOptions
 {
     CliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH"),
-    GithubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
+    GitHubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
 });
 
 await client.StartAsync();
@@ -16,7 +16,7 @@ try
     {
         Model = "claude-haiku-4.5",
         OnPermissionRequest = (request, invocation) =>
-            Task.FromResult(new PermissionRequestResult { Kind = "approved" }),
+            Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
         OnUserInputRequest = (request, invocation) =>
         {
             inputLog.Add($"question: {request.Question}");

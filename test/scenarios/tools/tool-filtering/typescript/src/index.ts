@@ -24,7 +24,7 @@ async function main() {
       console.log(response.data.content);
     }
 
-    await session.destroy();
+    await session.disconnect();
   } finally {
     await client.stop();
   }

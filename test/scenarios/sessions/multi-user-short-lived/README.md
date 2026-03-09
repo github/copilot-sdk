@@ -17,7 +17,7 @@ Demonstrates a **stateless backend pattern** where multiple users interact with 
 │(new) │ │(new)│ │(new) │
 └──────┘ └─────┘ └──────┘
 
-Each request → new session → destroy after response
+Each request → new session → disconnect after response
 Virtual FS per user (in-memory, not shared across users)
 ```
 

@@ -25,6 +25,7 @@ go run chat.go
 package main
 
 import (
+	"context"
     "fmt"
     "log"
 
@@ -50,7 +51,7 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
-    defer session.Destroy()
+    defer session.Disconnect()
 
     // Set up event handler
     done := make(chan bool)
@@ -99,10 +100,11 @@ That's it! When your application calls `copilot.NewClient` without a `CLIPath` n
 - `Stop() error` - Stop the CLI server
 - `ForceStop()` - Forcefully stop without graceful cleanup
 - `CreateSession(config *SessionConfig) (*Session, error)` - Create a new session
-- `ResumeSession(sessionID string) (*Session, error)` - Resume an existing session
+- `ResumeSession(sessionID string, config *ResumeSessionConfig) (*Session, error)` - Resume an existing session
 - `ResumeSessionWithOptions(sessionID string, config *ResumeSessionConfig) (*Session, error)` - Resume with additional configuration
 - `ListSessions(filter *SessionListFilter) ([]SessionMetadata, error)` - List sessions (with optional filter)
 - `DeleteSession(sessionID string) error` - Delete a session permanently
+- `GetLastSessionID(ctx context.Context) (*string, error)` - Get the ID of the most recently updated session
 - `GetState() ConnectionState` - Get connection state
 - `Ping(message string) (*PingResponse, error)` - Ping the server
 - `GetForegroundSessionID(ctx context.Context) (*string, error)` - Get the session ID currently displayed in TUI (TUI+server mode only)
@@ -138,8 +140,8 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `AutoStart` (\*bool): Auto-start server on first use (default: true). Use `Bool(false)` to disable.
 - `AutoRestart` (\*bool): Auto-restart on crash (default: true). Use `Bool(false)` to disable.
 - `Env` ([]string): Environment variables for CLI process (default: inherits from current process)
-- `GithubToken` (string): GitHub token for authentication. When provided, takes priority over other auth methods.
-- `UseLoggedInUser` (\*bool): Whether to use logged-in user for authentication (default: true, but false when `GithubToken` is provided). Cannot be used with `CLIUrl`.
+- `GitHubToken` (string): GitHub token for authentication. When provided, takes priority over other auth methods.
+- `UseLoggedInUser` (\*bool): Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `CLIUrl`.
 
 **SessionConfig:**
 
@@ -167,7 +169,8 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `On(handler SessionEventHandler) func()` - Subscribe to events (returns unsubscribe function)
 - `Abort(ctx context.Context) error` - Abort the currently processing message
 - `GetMessages(ctx context.Context) ([]SessionEvent, error)` - Get message history
-- `Destroy() error` - Destroy the session
+- `Disconnect() error` - Disconnect the session (releases in-memory resources, preserves disk state)
+- `Destroy() error` - *(Deprecated)* Use `Disconnect()` instead
 
 ### Helper Functions
 
@@ -266,6 +269,18 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 
 When the model selects a tool, the SDK automatically runs your handler (in parallel with other calls) and responds to the CLI's `tool.call` with the handler's result.
 
+#### Overriding Built-in Tools
+
+If you register a tool with the same name as a built-in CLI tool (e.g. `edit_file`, `read_file`), the SDK will throw an error unless you explicitly opt in by setting `OverridesBuiltInTool = true`. This flag signals that you intend to replace the built-in tool with your custom implementation.
+
+```go
+editFile := copilot.DefineTool("edit_file", "Custom file editor with project-specific validation",
+    func(params EditFileParams, inv copilot.ToolInvocation) (any, error) {
+        // your logic
+    })
+editFile.OverridesBuiltInTool = true
+```
+
 ## Streaming
 
 Enable streaming to receive assistant response chunks as they're generated:
@@ -274,6 +289,7 @@ Enable streaming to receive assistant response chunks as they're generated:
 package main
 
 import (
+	"context"
     "fmt"
     "log"
 
@@ -295,7 +311,7 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
-    defer session.Destroy()
+    defer session.Disconnect()
 
     done := make(chan bool)
 

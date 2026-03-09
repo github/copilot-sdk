@@ -34,7 +34,7 @@ type sessionHandler struct {
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
-//	defer session.Destroy()
+//	defer session.Disconnect()
 //
 //	// Subscribe to events
 //	unsubscribe := session.On(func(event copilot.SessionEvent) {
@@ -97,7 +97,7 @@ func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string)
 //   - options: The message options including the prompt and optional attachments.
 //
 // Returns the message ID of the response, which can be used to correlate events,
-// or an error if the session has been destroyed or the connection fails.
+// or an error if the session has been disconnected or the connection fails.
 //
 // Example:
 //
@@ -303,24 +303,6 @@ func (s *Session) getPermissionHandler() PermissionHandlerFunc {
 	return s.permissionHandler
 }
 
-// handlePermissionRequest handles a permission request from the Copilot CLI.
-// This is an internal method called by the SDK when the CLI requests permission.
-func (s *Session) handlePermissionRequest(request PermissionRequest) (PermissionRequestResult, error) {
-	handler := s.getPermissionHandler()
-
-	if handler == nil {
-		return PermissionRequestResult{
-			Kind: "denied-no-approval-rule-and-could-not-request-from-user",
-		}, nil
-	}
-
-	invocation := PermissionInvocation{
-		SessionID: s.SessionID,
-	}
-
-	return handler(request, invocation)
-}
-
 // registerUserInputHandler registers a user input handler for this session.
 //
 // When the assistant needs to ask the user a question (e.g., via ask_user tool),
@@ -457,6 +439,9 @@ func (s *Session) handleHooksInvoke(hookType string, rawInput json.RawMessage) (
 // This is an internal method; handlers are called synchronously and any panics
 // are recovered to prevent crashing the event dispatcher.
 func (s *Session) dispatchEvent(event SessionEvent) {
+	// Handle broadcast request events internally (fire-and-forget)
+	s.handleBroadcastEvent(event)
+
 	s.handlerMutex.RLock()
 	handlers := make([]SessionEventHandler, 0, len(s.handlers))
 	for _, h := range s.handlers {
@@ -477,13 +462,124 @@ func (s *Session) dispatchEvent(event SessionEvent) {
 	}
 }
 
+// handleBroadcastEvent handles broadcast request events by executing local handlers
+// and responding via RPC. This implements the protocol v3 broadcast model where tool
+// calls and permission requests are broadcast as session events to all clients.
+func (s *Session) handleBroadcastEvent(event SessionEvent) {
+	switch event.Type {
+	case ExternalToolRequested:
+		requestID := event.Data.RequestID
+		toolName := event.Data.ToolName
+		if requestID == nil || toolName == nil {
+			return
+		}
+		handler, ok := s.getToolHandler(*toolName)
+		if !ok {
+			return
+		}
+		toolCallID := ""
+		if event.Data.ToolCallID != nil {
+			toolCallID = *event.Data.ToolCallID
+		}
+		go s.executeToolAndRespond(*requestID, *toolName, toolCallID, event.Data.Arguments, handler)
+
+	case PermissionRequested:
+		requestID := event.Data.RequestID
+		if requestID == nil || event.Data.PermissionRequest == nil {
+			return
+		}
+		handler := s.getPermissionHandler()
+		if handler == nil {
+			return
+		}
+		go s.executePermissionAndRespond(*requestID, *event.Data.PermissionRequest, handler)
+	}
+}
+
+// executeToolAndRespond executes a tool handler and sends the result back via RPC.
+func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, arguments any, handler ToolHandler) {
+	defer func() {
+		if r := recover(); r != nil {
+			errMsg := fmt.Sprintf("tool panic: %v", r)
+			s.RPC.Tools.HandlePendingToolCall(context.Background(), &rpc.SessionToolsHandlePendingToolCallParams{
+				RequestID: requestID,
+				Error:     &errMsg,
+			})
+		}
+	}()
+
+	invocation := ToolInvocation{
+		SessionID:  s.SessionID,
+		ToolCallID: toolCallID,
+		ToolName:   toolName,
+		Arguments:  arguments,
+	}
+
+	result, err := handler(invocation)
+	if err != nil {
+		errMsg := err.Error()
+		s.RPC.Tools.HandlePendingToolCall(context.Background(), &rpc.SessionToolsHandlePendingToolCallParams{
+			RequestID: requestID,
+			Error:     &errMsg,
+		})
+		return
+	}
+
+	resultStr := result.TextResultForLLM
+	if resultStr == "" {
+		resultStr = fmt.Sprintf("%v", result)
+	}
+	s.RPC.Tools.HandlePendingToolCall(context.Background(), &rpc.SessionToolsHandlePendingToolCallParams{
+		RequestID: requestID,
+		Result:    &rpc.ResultUnion{String: &resultStr},
+	})
+}
+
+// executePermissionAndRespond executes a permission handler and sends the result back via RPC.
+func (s *Session) executePermissionAndRespond(requestID string, permissionRequest PermissionRequest, handler PermissionHandlerFunc) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.SessionPermissionsHandlePendingPermissionRequestParams{
+				RequestID: requestID,
+				Result: rpc.SessionPermissionsHandlePendingPermissionRequestParamsResult{
+					Kind: rpc.DeniedNoApprovalRuleAndCouldNotRequestFromUser,
+				},
+			})
+		}
+	}()
+
+	invocation := PermissionInvocation{
+		SessionID: s.SessionID,
+	}
+
+	result, err := handler(permissionRequest, invocation)
+	if err != nil {
+		s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.SessionPermissionsHandlePendingPermissionRequestParams{
+			RequestID: requestID,
+			Result: rpc.SessionPermissionsHandlePendingPermissionRequestParamsResult{
+				Kind: rpc.DeniedNoApprovalRuleAndCouldNotRequestFromUser,
+			},
+		})
+		return
+	}
+
+	s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.SessionPermissionsHandlePendingPermissionRequestParams{
+		RequestID: requestID,
+		Result: rpc.SessionPermissionsHandlePendingPermissionRequestParamsResult{
+			Kind:     rpc.Kind(result.Kind),
+			Rules:    result.Rules,
+			Feedback: nil,
+		},
+	})
+}
+
 // GetMessages retrieves all events and messages from this session's history.
 //
 // This returns the complete conversation history including user messages,
 // assistant responses, tool executions, and other session events in
 // chronological order.
 //
-// Returns an error if the session has been destroyed or the connection fails.
+// Returns an error if the session has been disconnected or the connection fails.
 //
 // Example:
 //
@@ -511,24 +607,28 @@ func (s *Session) GetMessages(ctx context.Context) ([]SessionEvent, error) {
 	return response.Events, nil
 }
 
-// Destroy destroys this session and releases all associated resources.
+// Disconnect closes this session and releases all in-memory resources (event
+// handlers, tool handlers, permission handlers).
 //
-// After calling this method, the session can no longer be used. All event
-// handlers and tool handlers are cleared. To continue the conversation,
-// use [Client.ResumeSession] with the session ID.
+// Session state on disk (conversation history, planning state, artifacts) is
+// preserved, so the conversation can be resumed later by calling
+// [Client.ResumeSession] with the session ID. To permanently remove all
+// session data including files on disk, use [Client.DeleteSession] instead.
+//
+// After calling this method, the session object can no longer be used.
 //
 // Returns an error if the connection fails.
 //
 // Example:
 //
-//	// Clean up when done
-//	if err := session.Destroy(); err != nil {
-//	    log.Printf("Failed to destroy session: %v", err)
+//	// Clean up when done — session can still be resumed later
+//	if err := session.Disconnect(); err != nil {
+//	    log.Printf("Failed to disconnect session: %v", err)
 //	}
-func (s *Session) Destroy() error {
+func (s *Session) Disconnect() error {
 	_, err := s.client.Request("session.destroy", sessionDestroyRequest{SessionID: s.SessionID})
 	if err != nil {
-		return fmt.Errorf("failed to destroy session: %w", err)
+		return fmt.Errorf("failed to disconnect session: %w", err)
 	}
 
 	// Clear handlers
@@ -547,12 +647,20 @@ func (s *Session) Destroy() error {
 	return nil
 }
 
+// Deprecated: Use [Session.Disconnect] instead. Destroy will be removed in a future release.
+//
+// Destroy closes this session and releases all in-memory resources.
+// Session data on disk is preserved for later resumption.
+func (s *Session) Destroy() error {
+	return s.Disconnect()
+}
+
 // Abort aborts the currently processing message in this session.
 //
 // Use this to cancel a long-running request. The session remains valid
 // and can continue to be used for new messages.
 //
-// Returns an error if the session has been destroyed or the connection fails.
+// Returns an error if the session has been disconnected or the connection fails.
 //
 // Example:
 //
@@ -572,6 +680,23 @@ func (s *Session) Abort(ctx context.Context) error {
 	_, err := s.client.Request("session.abort", sessionAbortRequest{SessionID: s.SessionID})
 	if err != nil {
 		return fmt.Errorf("failed to abort session: %w", err)
+	}
+
+	return nil
+}
+
+// SetModel changes the model for this session.
+// The new model takes effect for the next message. Conversation history is preserved.
+//
+// Example:
+//
+//	if err := session.SetModel(context.Background(), "gpt-4.1"); err != nil {
+//	    log.Printf("Failed to set model: %v", err)
+//	}
+func (s *Session) SetModel(ctx context.Context, model string) error {
+	_, err := s.RPC.Model.SwitchTo(ctx, &rpc.SessionModelSwitchToParams{ModelID: model})
+	if err != nil {
+		return fmt.Errorf("failed to set model: %w", err)
 	}
 
 	return nil

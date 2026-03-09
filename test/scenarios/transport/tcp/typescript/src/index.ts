@@ -19,7 +19,7 @@ async function main() {
       process.exit(1);
     }
 
-    await session.destroy();
+    await session.disconnect();
   } finally {
     await client.stop();
   }

@@ -8,6 +8,7 @@ import (
 	"io"
 	"reflect"
 	"sync"
+	"sync/atomic"
 )
 
 // Error represents a JSON-RPC error response
@@ -54,7 +55,7 @@ type Client struct {
 	mu              sync.Mutex
 	pendingRequests map[string]chan *Response
 	requestHandlers map[string]RequestHandler
-	running         bool
+	running         atomic.Bool
 	stopChan        chan struct{}
 	wg              sync.WaitGroup
 	processDone     chan struct{} // closed when the underlying process exits
@@ -97,17 +98,17 @@ func (c *Client) getProcessError() error {
 
 // Start begins listening for messages in a background goroutine
 func (c *Client) Start() {
-	c.running = true
+	c.running.Store(true)
 	c.wg.Add(1)
 	go c.readLoop()
 }
 
 // Stop stops the client and cleans up
 func (c *Client) Stop() {
-	if !c.running {
+	if !c.running.Load() {
 		return
 	}
-	c.running = false
+	c.running.Store(false)
 	close(c.stopChan)
 
 	// Close stdout to unblock the readLoop
@@ -298,14 +299,14 @@ func (c *Client) readLoop() {
 
 	reader := bufio.NewReader(c.stdout)
 
-	for c.running {
+	for c.running.Load() {
 		// Read Content-Length header
 		var contentLength int
 		for {
 			line, err := reader.ReadString('\n')
 			if err != nil {
 				// Only log unexpected errors (not EOF or closed pipe during shutdown)
-				if err != io.EOF && c.running {
+				if err != io.EOF && c.running.Load() {
 					fmt.Printf("Error reading header: %v\n", err)
 				}
 				return

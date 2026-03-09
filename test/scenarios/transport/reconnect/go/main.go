@@ -43,8 +43,8 @@ func main() {
 		log.Fatal("No response content received for session 1")
 	}
 
-	session1.Destroy()
-	fmt.Println("Session 1 destroyed")
+	session1.Disconnect()
+	fmt.Println("Session 1 disconnected")
 	fmt.Println()
 
 	// Session 2 — tests that the server accepts new sessions
@@ -69,8 +69,8 @@ func main() {
 		log.Fatal("No response content received for session 2")
 	}
 
-	session2.Destroy()
-	fmt.Println("Session 2 destroyed")
+	session2.Disconnect()
+	fmt.Println("Session 2 disconnected")
 
 	fmt.Println("\nReconnect test passed — both sessions completed successfully")
 }

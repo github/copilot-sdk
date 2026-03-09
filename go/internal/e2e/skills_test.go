@@ -57,7 +57,8 @@ func TestSkills(t *testing.T) {
 		skillsDir := createTestSkillDir(t, ctx.WorkDir, skillMarker)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			SkillDirectories: []string{skillsDir},
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			SkillDirectories:    []string{skillsDir},
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -75,7 +76,7 @@ func TestSkills(t *testing.T) {
 			t.Errorf("Expected message to contain skill marker '%s', got: %v", skillMarker, message.Data.Content)
 		}
 
-		session.Destroy()
+		session.Disconnect()
 	})
 
 	t.Run("should not apply skill when disabled via disabledSkills", func(t *testing.T) {
@@ -84,8 +85,9 @@ func TestSkills(t *testing.T) {
 		skillsDir := createTestSkillDir(t, ctx.WorkDir, skillMarker)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			SkillDirectories: []string{skillsDir},
-			DisabledSkills:   []string{"test-skill"},
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			SkillDirectories:    []string{skillsDir},
+			DisabledSkills:      []string{"test-skill"},
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -103,7 +105,7 @@ func TestSkills(t *testing.T) {
 			t.Errorf("Expected message to NOT contain skill marker '%s' when disabled, got: %v", skillMarker, *message.Data.Content)
 		}
 
-		session.Destroy()
+		session.Disconnect()
 	})
 
 	t.Run("should apply skill on session resume with skillDirectories", func(t *testing.T) {
@@ -113,7 +115,7 @@ func TestSkills(t *testing.T) {
 		skillsDir := createTestSkillDir(t, ctx.WorkDir, skillMarker)
 
 		// Create a session without skills first
-		session1, err := client.CreateSession(t.Context(), nil)
+		session1, err := client.CreateSession(t.Context(), &copilot.SessionConfig{OnPermissionRequest: copilot.PermissionHandler.ApproveAll})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
@@ -131,7 +133,8 @@ func TestSkills(t *testing.T) {
 
 		// Resume with skillDirectories - skill should now be active
 		session2, err := client.ResumeSessionWithOptions(t.Context(), sessionID, &copilot.ResumeSessionConfig{
-			SkillDirectories: []string{skillsDir},
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			SkillDirectories:    []string{skillsDir},
 		})
 		if err != nil {
 			t.Fatalf("Failed to resume session: %v", err)
@@ -151,6 +154,6 @@ func TestSkills(t *testing.T) {
 			t.Errorf("Expected message to contain skill marker '%s' after resume, got: %v", skillMarker, message2.Data.Content)
 		}
 
-		session2.Destroy()
+		session2.Disconnect()
 	})
 }

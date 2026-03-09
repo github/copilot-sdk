@@ -50,7 +50,20 @@ await client.start()
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import copilot "github.com/github/copilot-sdk/go"
+
+func main() {
+	// Default: uses logged-in user credentials
+	client := copilot.NewClient(nil)
+	_ = client
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 import copilot "github.com/github/copilot-sdk/go"
 
@@ -120,7 +133,23 @@ await client.start()
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import copilot "github.com/github/copilot-sdk/go"
+
+func main() {
+	userAccessToken := "token"
+	client := copilot.NewClient(&copilot.ClientOptions{
+		GitHubToken:     userAccessToken,
+		UseLoggedInUser: copilot.Bool(false),
+	})
+	_ = client
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 import copilot "github.com/github/copilot-sdk/go"
 
@@ -135,7 +164,19 @@ client := copilot.NewClient(&copilot.ClientOptions{
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot.SDK;
+
+var userAccessToken = "token";
+await using var client = new CopilotClient(new CopilotClientOptions
+{
+    GithubToken = userAccessToken,
+    UseLoggedInUser = false,
+});
+```
+<!-- /docs-validate: hidden -->
+
 ```csharp
 using GitHub.Copilot.SDK;
 
@@ -254,7 +295,16 @@ const client = new CopilotClient({
 <details>
 <summary><strong>Python</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```python
+from copilot import CopilotClient
+
+client = CopilotClient({
+    "use_logged_in_user": False,
+})
+```
+<!-- /docs-validate: hidden -->
+
 ```python
 client = CopilotClient({
     "use_logged_in_user": False,  # Only use explicit tokens
@@ -266,7 +316,21 @@ client = CopilotClient({
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import copilot "github.com/github/copilot-sdk/go"
+
+func main() {
+	client := copilot.NewClient(&copilot.ClientOptions{
+		UseLoggedInUser: copilot.Bool(false),
+	})
+	_ = client
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
     UseLoggedInUser: copilot.Bool(false),  // Only use explicit tokens
@@ -291,4 +355,4 @@ await using var client = new CopilotClient(new CopilotClientOptions
 
 - [BYOK Documentation](./byok.md) - Learn how to use your own API keys
 - [Getting Started Guide](../getting-started.md) - Build your first Copilot-powered app
-- [MCP Servers](../mcp) - Connect to external tools
+- [MCP Servers](../features/mcp.md) - Connect to external tools

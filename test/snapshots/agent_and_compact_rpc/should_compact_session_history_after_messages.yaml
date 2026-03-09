@@ -1,0 +1,80 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: What is 2+2?
+      - role: assistant
+        content: 2+2 = 4
+      - role: user
+        content: ${compaction_prompt}
+      - role: assistant
+        content: >-
+          <overview>
+
+          The user asked a simple arithmetic question ("What is 2+2?") which was answered directly (4). No technical
+          work, code changes, or file modifications were requested or performed. This appears to be a minimal test or
+          verification exchange before any substantive work begins.
+
+          </overview>
+
+
+          <history>
+
+          1. The user asked "What is 2+2?"
+             - Provided the answer: 4
+             - No follow-up actions were needed
+          </history>
+
+
+          <work_done>
+
+          No work has been performed. No files were created, modified, or deleted. This was purely an informational
+          exchange with no code changes or system modifications.
+
+
+          Current state:
+
+          - Working directory: ${workdir}
+
+          - Not a git repository
+
+          - No files have been accessed or modified
+
+          - No todos or plan have been created
+
+          </work_done>
+
+
+          <technical_details>
+
+          - Environment is Windows (Windows_NT), requiring backslash path separators
+
+          - Session workspace available for artifacts (e.g., plan.md)
+
+          - SQL database available but not yet initialized (no tables created)
+
+          - Available tools: git, curl, gh
+
+          - No technical work has been performed yet, so no technical details have been discovered
+
+          </technical_details>
+
+
+          <important_files>
+
+          No files have been accessed or modified during this conversation.
+
+          </important_files>
+
+
+          <next_steps>
+
+          No work is currently in progress. Awaiting user's next request for any substantive task.
+
+          </next_steps>
+
+
+          <checkpoint_title>Simple arithmetic question answered</checkpoint_title>

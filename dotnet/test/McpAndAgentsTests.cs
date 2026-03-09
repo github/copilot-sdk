@@ -24,7 +24,7 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
             }
         };
 
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             McpServers = mcpServers
         });
@@ -45,7 +45,7 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
     public async Task Should_Accept_MCP_Server_Configuration_On_Session_Resume()
     {
         // Create a session first
-        var session1 = await Client.CreateSessionAsync();
+        var session1 = await CreateSessionAsync();
         var sessionId = session1.SessionId;
         await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
 
@@ -61,7 +61,7 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
             }
         };
 
-        var session2 = await Client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
             McpServers = mcpServers
         });
@@ -96,7 +96,7 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
             }
         };
 
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             McpServers = mcpServers
         });
@@ -120,7 +120,7 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
             }
         };
 
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             CustomAgents = customAgents
         });
@@ -141,7 +141,7 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
     public async Task Should_Accept_Custom_Agent_Configuration_On_Session_Resume()
     {
         // Create a session first
-        var session1 = await Client.CreateSessionAsync();
+        var session1 = await CreateSessionAsync();
         var sessionId = session1.SessionId;
         await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
 
@@ -157,7 +157,7 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
             }
         };
 
-        var session2 = await Client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
             CustomAgents = customAgents
         });
@@ -187,7 +187,7 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
             }
         };
 
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             CustomAgents = customAgents
         });
@@ -220,7 +220,7 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
             }
         };
 
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             CustomAgents = customAgents
         });
@@ -251,7 +251,7 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
             }
         };
 
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             CustomAgents = customAgents
         });
@@ -277,7 +277,7 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
             }
         };
 
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             McpServers = mcpServers,
             OnPermissionRequest = PermissionHandler.ApproveAll,
@@ -321,7 +321,7 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
             }
         };
 
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             McpServers = mcpServers,
             CustomAgents = customAgents

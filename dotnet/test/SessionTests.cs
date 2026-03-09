@@ -13,9 +13,9 @@ namespace GitHub.Copilot.SDK.Test;
 public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "session", output)
 {
     [Fact]
-    public async Task ShouldCreateAndDestroySessions()
+    public async Task ShouldCreateAndDisconnectSessions()
     {
-        var session = await Client.CreateSessionAsync(new SessionConfig { Model = "fake-test-model" });
+        var session = await CreateSessionAsync(new SessionConfig { Model = "fake-test-model" });
 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
 
@@ -33,7 +33,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     [Fact]
     public async Task Should_Have_Stateful_Conversation()
     {
-        var session = await Client.CreateSessionAsync();
+        var session = await CreateSessionAsync();
 
         var assistantMessage = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
         Assert.NotNull(assistantMessage);
@@ -48,7 +48,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     public async Task Should_Create_A_Session_With_Appended_SystemMessage_Config()
     {
         var systemMessageSuffix = "End each response with the phrase 'Have a nice day!'";
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             SystemMessage = new SystemMessageConfig { Mode = SystemMessageMode.Append, Content = systemMessageSuffix }
         });
@@ -72,7 +72,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     public async Task Should_Create_A_Session_With_Replaced_SystemMessage_Config()
     {
         var testSystemMessage = "You are an assistant called Testy McTestface. Reply succinctly.";
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             SystemMessage = new SystemMessageConfig { Mode = SystemMessageMode.Replace, Content = testSystemMessage }
         });
@@ -93,9 +93,9 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     [Fact]
     public async Task Should_Create_A_Session_With_AvailableTools()
     {
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
-            AvailableTools = new List<string> { "view", "edit" }
+            AvailableTools = ["view", "edit"]
         });
 
         await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
@@ -113,9 +113,9 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     [Fact]
     public async Task Should_Create_A_Session_With_ExcludedTools()
     {
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
-            ExcludedTools = new List<string> { "view" }
+            ExcludedTools = ["view"]
         });
 
         await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
@@ -133,7 +133,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     [Fact]
     public async Task Should_Create_Session_With_Custom_Tool()
     {
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             Tools =
             [
@@ -153,7 +153,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     [Fact]
     public async Task Should_Resume_A_Session_Using_The_Same_Client()
     {
-        var session1 = await Client.CreateSessionAsync();
+        var session1 = await CreateSessionAsync();
         var sessionId = session1.SessionId;
 
         await session1.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
@@ -161,18 +161,23 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         Assert.NotNull(answer);
         Assert.Contains("2", answer!.Data.Content ?? string.Empty);
 
-        var session2 = await Client.ResumeSessionAsync(sessionId);
+        var session2 = await ResumeSessionAsync(sessionId);
         Assert.Equal(sessionId, session2.SessionId);
 
         var answer2 = await TestHelper.GetFinalAssistantMessageAsync(session2);
         Assert.NotNull(answer2);
         Assert.Contains("2", answer2!.Data.Content ?? string.Empty);
+
+        // Can continue the conversation statefully
+        var answer3 = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "Now if you double that, what do you get?" });
+        Assert.NotNull(answer3);
+        Assert.Contains("4", answer3!.Data.Content ?? string.Empty);
     }
 
     [Fact]
     public async Task Should_Resume_A_Session_Using_A_New_Client()
     {
-        var session1 = await Client.CreateSessionAsync();
+        var session1 = await CreateSessionAsync();
         var sessionId = session1.SessionId;
 
         await session1.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
@@ -181,25 +186,30 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         Assert.Contains("2", answer!.Data.Content ?? string.Empty);
 
         using var newClient = Ctx.CreateClient();
-        var session2 = await newClient.ResumeSessionAsync(sessionId);
+        var session2 = await newClient.ResumeSessionAsync(sessionId, new ResumeSessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
         Assert.Equal(sessionId, session2.SessionId);
 
         var messages = await session2.GetMessagesAsync();
         Assert.Contains(messages, m => m is UserMessageEvent);
         Assert.Contains(messages, m => m is SessionResumeEvent);
+
+        // Can continue the conversation statefully
+        var answer2 = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "Now if you double that, what do you get?" });
+        Assert.NotNull(answer2);
+        Assert.Contains("4", answer2!.Data.Content ?? string.Empty);
     }
 
     [Fact]
     public async Task Should_Throw_Error_When_Resuming_Non_Existent_Session()
     {
         await Assert.ThrowsAsync<IOException>(() =>
-            Client.ResumeSessionAsync("non-existent-session-id"));
+            ResumeSessionAsync("non-existent-session-id"));
     }
 
     [Fact]
     public async Task Should_Abort_A_Session()
     {
-        var session = await Client.CreateSessionAsync();
+        var session = await CreateSessionAsync();
 
         // Set up wait for tool execution to start BEFORE sending
         var toolStartTask = TestHelper.GetNextEventOfTypeAsync<ToolExecutionStartEvent>(session);
@@ -231,72 +241,10 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         Assert.Contains("4", answer!.Data.Content ?? string.Empty);
     }
 
-    // TODO: This test requires the session-events.schema.json to include assistant.message_delta.
-    // The CLI v0.0.376 emits delta events at runtime, but the schema hasn't been updated yet.
-    // Once the schema is updated and types are regenerated, this test can be enabled.
-    [Fact(Skip = "Requires schema update for AssistantMessageDeltaEvent type")]
-    public async Task Should_Receive_Streaming_Delta_Events_When_Streaming_Is_Enabled()
-    {
-        var session = await Client.CreateSessionAsync(new SessionConfig { Streaming = true });
-
-        var deltaContents = new List<string>();
-        var doneEvent = new TaskCompletionSource<bool>();
-
-        session.On(evt =>
-        {
-            switch (evt)
-            {
-                // TODO: Uncomment once AssistantMessageDeltaEvent is generated
-                // case AssistantMessageDeltaEvent delta:
-                //     if (!string.IsNullOrEmpty(delta.Data.DeltaContent))
-                //         deltaContents.Add(delta.Data.DeltaContent);
-                //     break;
-                case SessionIdleEvent:
-                    doneEvent.TrySetResult(true);
-                    break;
-            }
-        });
-
-        await session.SendAsync(new MessageOptions { Prompt = "What is 2+2?" });
-
-        // Wait for completion
-        var completed = await Task.WhenAny(doneEvent.Task, Task.Delay(TimeSpan.FromSeconds(60)));
-        Assert.Equal(doneEvent.Task, completed);
-
-        // Should have received delta events
-        Assert.NotEmpty(deltaContents);
-
-        // Get the final message to compare
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
-        Assert.NotNull(assistantMessage);
-
-        // Accumulated deltas should equal the final message
-        var accumulated = string.Join("", deltaContents);
-        Assert.Equal(assistantMessage!.Data.Content, accumulated);
-
-        // Final message should contain the answer
-        Assert.Contains("4", assistantMessage.Data.Content ?? string.Empty);
-    }
-
-    [Fact]
-    public async Task Should_Pass_Streaming_Option_To_Session_Creation()
-    {
-        // Verify that the streaming option is accepted without errors
-        var session = await Client.CreateSessionAsync(new SessionConfig { Streaming = true });
-
-        Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
-
-        // Session should still work normally
-        await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
-        Assert.NotNull(assistantMessage);
-        Assert.Contains("2", assistantMessage!.Data.Content);
-    }
-
     [Fact]
     public async Task Should_Receive_Session_Events()
     {
-        var session = await Client.CreateSessionAsync();
+        var session = await CreateSessionAsync();
         var receivedEvents = new List<SessionEvent>();
         var idleReceived = new TaskCompletionSource<bool>();
 
@@ -333,7 +281,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     [Fact]
     public async Task Send_Returns_Immediately_While_Events_Stream_In_Background()
     {
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
@@ -358,7 +306,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     [Fact]
     public async Task SendAndWait_Blocks_Until_Session_Idle_And_Returns_Final_Assistant_Message()
     {
-        var session = await Client.CreateSessionAsync();
+        var session = await CreateSessionAsync();
         var events = new List<string>();
 
         session.On(evt => events.Add(evt.Type));
@@ -376,7 +324,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     [Fact(Skip = "Needs test harness CAPI proxy support")]
     public async Task Should_List_Sessions_With_Context()
     {
-        var session = await Client.CreateSessionAsync();
+        var session = await CreateSessionAsync();
 
         var sessions = await Client.ListSessionsAsync();
         Assert.NotEmpty(sessions);
@@ -394,7 +342,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     [Fact]
     public async Task SendAndWait_Throws_On_Timeout()
     {
-        var session = await Client.CreateSessionAsync();
+        var session = await CreateSessionAsync();
 
         // Use a slow command to ensure timeout triggers before completion
         var ex = await Assert.ThrowsAsync<TimeoutException>(() =>
@@ -404,10 +352,34 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     }
 
     [Fact]
+    public async Task SendAndWait_Throws_OperationCanceledException_When_Token_Cancelled()
+    {
+        var session = await CreateSessionAsync();
+
+        // Set up wait for tool execution to start BEFORE sending
+        var toolStartTask = TestHelper.GetNextEventOfTypeAsync<ToolExecutionStartEvent>(session);
+
+        using var cts = new CancellationTokenSource();
+
+        // Start SendAndWaitAsync - don't await it yet
+        var sendTask = session.SendAndWaitAsync(
+            new MessageOptions { Prompt = "run the shell command 'sleep 10' (note this works on both bash and PowerShell)" },
+            cancellationToken: cts.Token);
+
+        // Wait for the tool to begin executing before cancelling
+        await toolStartTask;
+
+        // Cancel the token
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => sendTask);
+    }
+
+    [Fact]
     public async Task Should_Create_Session_With_Custom_Config_Dir()
     {
         var customConfigDir = Path.Join(Ctx.HomeDir, "custom-config");
-        var session = await Client.CreateSessionAsync(new SessionConfig { ConfigDir = customConfigDir });
+        var session = await CreateSessionAsync(new SessionConfig { ConfigDir = customConfigDir });
 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
 
@@ -416,5 +388,20 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
         Assert.NotNull(assistantMessage);
         Assert.Contains("2", assistantMessage!.Data.Content);
+    }
+
+    [Fact]
+    public async Task Should_Set_Model_On_Existing_Session()
+    {
+        var session = await CreateSessionAsync();
+
+        // Subscribe for the model change event before calling SetModelAsync
+        var modelChangedTask = TestHelper.GetNextEventOfTypeAsync<SessionModelChangeEvent>(session);
+
+        await session.SetModelAsync("gpt-4.1");
+
+        // Verify a model_change event was emitted with the new model
+        var modelChanged = await modelChangedTask;
+        Assert.Equal("gpt-4.1", modelChanged.Data.NewModel);
     }
 }

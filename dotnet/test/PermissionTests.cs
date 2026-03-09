@@ -15,13 +15,13 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
     {
         var permissionRequests = new List<PermissionRequest>();
         CopilotSession? session = null;
-        session = await Client.CreateSessionAsync(new SessionConfig
+        session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = (request, invocation) =>
             {
                 permissionRequests.Add(request);
                 Assert.Equal(session!.SessionId, invocation.SessionId);
-                return Task.FromResult(new PermissionRequestResult { Kind = "approved" });
+                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
             }
         });
 
@@ -44,13 +44,13 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
     [Fact]
     public async Task Should_Deny_Permission_When_Handler_Returns_Denied()
     {
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = (request, invocation) =>
             {
                 return Task.FromResult(new PermissionRequestResult
                 {
-                    Kind = "denied-interactively-by-user"
+                    Kind = PermissionRequestResultKind.DeniedInteractivelyByUser
                 });
             }
         });
@@ -71,9 +71,13 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
-    public async Task Should_Deny_Tool_Operations_By_Default_When_No_Handler_Is_Provided()
+    public async Task Should_Deny_Tool_Operations_When_Handler_Explicitly_Denies()
     {
-        var session = await Client.CreateSessionAsync(new SessionConfig());
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = (_, _) =>
+                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser })
+        });
         var permissionDenied = false;
 
         session.On(evt =>
@@ -95,10 +99,9 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
-    public async Task Should_Work_Without_Permission_Handler__Default_Behavior_()
+    public async Task Should_Work_With_Approve_All_Permission_Handler()
     {
-        // Create session without permission handler
-        var session = await Client.CreateSessionAsync(new SessionConfig());
+        var session = await CreateSessionAsync(new SessionConfig());
 
         await session.SendAsync(new MessageOptions
         {
@@ -113,14 +116,14 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
     public async Task Should_Handle_Async_Permission_Handler()
     {
         var permissionRequestReceived = false;
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = async (request, invocation) =>
             {
                 permissionRequestReceived = true;
                 // Simulate async permission check
                 await Task.Delay(10);
-                return new PermissionRequestResult { Kind = "approved" };
+                return new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved };
             }
         });
 
@@ -140,17 +143,17 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
         var permissionRequestReceived = false;
 
         // Create session without permission handler
-        var session1 = await Client.CreateSessionAsync();
+        var session1 = await CreateSessionAsync();
         var sessionId = session1.SessionId;
         await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
 
         // Resume with permission handler
-        var session2 = await Client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = (request, invocation) =>
             {
                 permissionRequestReceived = true;
-                return Task.FromResult(new PermissionRequestResult { Kind = "approved" });
+                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
             }
         });
 
@@ -165,7 +168,7 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
     [Fact]
     public async Task Should_Handle_Permission_Handler_Errors_Gracefully()
     {
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = (request, invocation) =>
             {
@@ -186,16 +189,20 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
-    public async Task Should_Deny_Tool_Operations_By_Default_When_No_Handler_Is_Provided_After_Resume()
+    public async Task Should_Deny_Tool_Operations_When_Handler_Explicitly_Denies_After_Resume()
     {
-        var session1 = await Client.CreateSessionAsync(new SessionConfig
+        var session1 = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll
         });
         var sessionId = session1.SessionId;
         await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
 
-        var session2 = await Client.ResumeSessionAsync(sessionId);
+        var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        {
+            OnPermissionRequest = (_, _) =>
+                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser })
+        });
         var permissionDenied = false;
 
         session2.On(evt =>
@@ -220,7 +227,7 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
     public async Task Should_Receive_ToolCallId_In_Permission_Requests()
     {
         var receivedToolCallId = false;
-        var session = await Client.CreateSessionAsync(new SessionConfig
+        var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = (request, invocation) =>
             {
@@ -228,7 +235,7 @@ public class PermissionTests(E2ETestFixture fixture, ITestOutputHelper output) :
                 {
                     receivedToolCallId = true;
                 }
-                return Task.FromResult(new PermissionRequestResult { Kind = "approved" });
+                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
             }
         });
 

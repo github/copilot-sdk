@@ -31,6 +31,7 @@ interface CodeBlock {
   file: string;
   line: number;
   skip: boolean;
+  hidden: boolean;
   wrapAsync: boolean;
 }
 
@@ -58,6 +59,7 @@ function parseMarkdownCodeBlocks(
   let blockStartLine = 0;
   let skipNext = false;
   let wrapAsync = false;
+  let inHiddenBlock = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -69,6 +71,16 @@ function parseMarkdownCodeBlocks(
     }
     if (line.includes("<!-- docs-validate: wrap-async -->")) {
       wrapAsync = true;
+      continue;
+    }
+    if (line.includes("<!-- docs-validate: hidden -->")) {
+      inHiddenBlock = true;
+      continue;
+    }
+    if (line.includes("<!-- /docs-validate: hidden -->")) {
+      inHiddenBlock = false;
+      // Skip the next visible code block since the hidden one replaces it
+      skipNext = true;
       continue;
     }
 
@@ -92,12 +104,17 @@ function parseMarkdownCodeBlocks(
         file: filePath,
         line: blockStartLine,
         skip: skipNext,
+        hidden: inHiddenBlock,
         wrapAsync: wrapAsync,
       });
       inCodeBlock = false;
       currentLang = "";
       currentCode = [];
-      skipNext = false;
+      // Only reset skipNext when NOT in a hidden block — hidden blocks
+      // can contain multiple code fences that all get validated.
+      if (!inHiddenBlock) {
+        skipNext = false;
+      }
       wrapAsync = false;
       continue;
     }
@@ -358,6 +375,7 @@ async function main() {
   const langCounts = new Map<string, number>();
   let totalBlocks = 0;
   let skippedBlocks = 0;
+  let hiddenBlocks = 0;
 
   for (const mdFile of mdFiles) {
     const fullPath = path.join(DOCS_DIR, mdFile);
@@ -368,6 +386,10 @@ async function main() {
       if (block.skip) {
         skippedBlocks++;
         continue;
+      }
+
+      if (block.hidden) {
+        hiddenBlocks++;
       }
 
       // Skip empty or trivial blocks
@@ -425,6 +447,9 @@ async function main() {
   console.log(`  Total          ${totalBlocks}`);
   if (skippedBlocks > 0) {
     console.log(`  Skipped        ${skippedBlocks}`);
+  }
+  if (hiddenBlocks > 0) {
+    console.log(`  Hidden         ${hiddenBlocks}`);
   }
   console.log(`\nOutput: ${OUTPUT_DIR}`);
 }

@@ -7,6 +7,8 @@ import shutil
 
 import pytest
 
+from copilot import PermissionHandler
+
 from .testharness import E2ETestContext
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
@@ -53,7 +55,12 @@ class TestSkillBehavior:
     async def test_should_load_and_apply_skill_from_skilldirectories(self, ctx: E2ETestContext):
         """Test that skills are loaded and applied from skillDirectories"""
         skills_dir = create_skill_dir(ctx.work_dir)
-        session = await ctx.client.create_session({"skill_directories": [skills_dir]})
+        session = await ctx.client.create_session(
+            {
+                "skill_directories": [skills_dir],
+                "on_permission_request": PermissionHandler.approve_all,
+            }
+        )
 
         assert session.session_id is not None
 
@@ -62,7 +69,7 @@ class TestSkillBehavior:
         assert message is not None
         assert SKILL_MARKER in message.data.content
 
-        await session.destroy()
+        await session.disconnect()
 
     async def test_should_not_apply_skill_when_disabled_via_disabledskills(
         self, ctx: E2ETestContext
@@ -70,7 +77,11 @@ class TestSkillBehavior:
         """Test that disabledSkills prevents skill from being applied"""
         skills_dir = create_skill_dir(ctx.work_dir)
         session = await ctx.client.create_session(
-            {"skill_directories": [skills_dir], "disabled_skills": ["test-skill"]}
+            {
+                "skill_directories": [skills_dir],
+                "disabled_skills": ["test-skill"],
+                "on_permission_request": PermissionHandler.approve_all,
+            }
         )
 
         assert session.session_id is not None
@@ -80,7 +91,7 @@ class TestSkillBehavior:
         assert message is not None
         assert SKILL_MARKER not in message.data.content
 
-        await session.destroy()
+        await session.disconnect()
 
     @pytest.mark.skip(
         reason="See the big comment around the equivalent test in the Node SDK. "
@@ -93,7 +104,9 @@ class TestSkillBehavior:
         skills_dir = create_skill_dir(ctx.work_dir)
 
         # Create a session without skills first
-        session1 = await ctx.client.create_session()
+        session1 = await ctx.client.create_session(
+            {"on_permission_request": PermissionHandler.approve_all}
+        )
         session_id = session1.session_id
 
         # First message without skill - marker should not appear
@@ -102,7 +115,13 @@ class TestSkillBehavior:
         assert SKILL_MARKER not in message1.data.content
 
         # Resume with skillDirectories - skill should now be active
-        session2 = await ctx.client.resume_session(session_id, {"skill_directories": [skills_dir]})
+        session2 = await ctx.client.resume_session(
+            session_id,
+            {
+                "skill_directories": [skills_dir],
+                "on_permission_request": PermissionHandler.approve_all,
+            },
+        )
 
         assert session2.session_id == session_id
 
@@ -111,4 +130,4 @@ class TestSkillBehavior:
         assert message2 is not None
         assert SKILL_MARKER in message2.data.content
 
-        await session2.destroy()
+        await session2.disconnect()

@@ -12,7 +12,7 @@ import (
 func main() {
 	// Go SDK auto-reads COPILOT_CLI_PATH from env
 	client := copilot.NewClient(&copilot.ClientOptions{
-		GithubToken: os.Getenv("GITHUB_TOKEN"),
+		GitHubToken: os.Getenv("GITHUB_TOKEN"),
 	})
 
 	ctx := context.Background()
@@ -27,7 +27,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer session.Destroy()
+	defer session.Disconnect()
 
 	response, err := session.SendAndWait(ctx, copilot.MessageOptions{
 		Prompt: "What is the capital of France?",

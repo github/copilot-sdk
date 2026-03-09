@@ -20,7 +20,7 @@ async def ask_copilot(prompt: str) -> str:
 
         response = await session.send_and_wait({"prompt": prompt})
 
-        await session.destroy()
+        await session.disconnect()
 
         if response:
             return response.data.content

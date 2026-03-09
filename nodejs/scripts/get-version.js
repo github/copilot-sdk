@@ -5,7 +5,7 @@
  *
  * Usage:
  *
- *     node scripts/get-version.js [current|current-prerelease|latest|prerelease]
+ *     node scripts/get-version.js [current|current-prerelease|latest|prerelease|unstable]
  *
  * Outputs the version to stdout.
  */
@@ -32,7 +32,7 @@ async function getLatestVersion(tag) {
 
 async function main() {
     const command = process.argv[2];
-    const validCommands = ["current", "current-prerelease", "latest", "prerelease"];
+    const validCommands = ["current", "current-prerelease", "latest", "prerelease", "unstable"];
     if (!validCommands.includes(command)) {
         console.error(
             `Invalid argument, must be one of: ${validCommands.join(", ")}, got: "${command}"`
@@ -75,8 +75,16 @@ async function main() {
         return;
     }
 
+    if (command === "unstable") {
+        const unstable = await getLatestVersion("unstable");
+        if (unstable && semver.gt(unstable, higherVersion)) {
+            higherVersion = unstable;
+        }
+    }
+
     const increment = command === "latest" ? "patch" : "prerelease";
-    const prereleaseIdentifier = command === "prerelease" ? "preview" : undefined;
+    const prereleaseIdentifier =
+        command === "prerelease" ? "preview" : command === "unstable" ? "unstable" : undefined;
     const nextVersion = semver.inc(higherVersion, increment, prereleaseIdentifier);
     if (!nextVersion) {
         console.error(`Failed to increment version "${higherVersion}" with "${increment}"`);

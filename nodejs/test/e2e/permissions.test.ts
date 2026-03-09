@@ -39,7 +39,7 @@ describe("Permission callbacks", async () => {
         const writeRequests = permissionRequests.filter((req) => req.kind === "write");
         expect(writeRequests.length).toBeGreaterThan(0);
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should deny permission when handler returns denied", async () => {
@@ -61,13 +61,17 @@ describe("Permission callbacks", async () => {
         const content = await readFile(testFile, "utf-8");
         expect(content).toBe(originalContent);
 
-        await session.destroy();
+        await session.disconnect();
     });
 
-    it("should deny tool operations by default when no handler is provided", async () => {
+    it("should deny tool operations when handler explicitly denies", async () => {
         let permissionDenied = false;
 
-        const session = await client.createSession();
+        const session = await client.createSession({
+            onPermissionRequest: () => ({
+                kind: "denied-no-approval-rule-and-could-not-request-from-user",
+            }),
+        });
         session.on((event) => {
             if (
                 event.type === "tool.execution_complete" &&
@@ -82,15 +86,19 @@ describe("Permission callbacks", async () => {
 
         expect(permissionDenied).toBe(true);
 
-        await session.destroy();
+        await session.disconnect();
     });
 
-    it("should deny tool operations by default when no handler is provided after resume", async () => {
+    it("should deny tool operations when handler explicitly denies after resume", async () => {
         const session1 = await client.createSession({ onPermissionRequest: approveAll });
         const sessionId = session1.sessionId;
         await session1.sendAndWait({ prompt: "What is 1+1?" });
 
-        const session2 = await client.resumeSession(sessionId);
+        const session2 = await client.resumeSession(sessionId, {
+            onPermissionRequest: () => ({
+                kind: "denied-no-approval-rule-and-could-not-request-from-user",
+            }),
+        });
         let permissionDenied = false;
         session2.on((event) => {
             if (
@@ -106,19 +114,18 @@ describe("Permission callbacks", async () => {
 
         expect(permissionDenied).toBe(true);
 
-        await session2.destroy();
+        await session2.disconnect();
     });
 
-    it("should work without permission handler (default behavior)", async () => {
-        // Create session without onPermissionRequest handler
-        const session = await client.createSession();
+    it("should work with approve-all permission handler", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
 
         const message = await session.sendAndWait({
             prompt: "What is 2+2?",
         });
         expect(message?.data.content).toContain("4");
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should handle async permission handler", async () => {
@@ -141,14 +148,14 @@ describe("Permission callbacks", async () => {
 
         expect(permissionRequests.length).toBeGreaterThan(0);
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should resume session with permission handler", async () => {
         const permissionRequests: PermissionRequest[] = [];
 
-        // Create session without permission handler
-        const session1 = await client.createSession();
+        // Create initial session
+        const session1 = await client.createSession({ onPermissionRequest: approveAll });
         const sessionId = session1.sessionId;
         await session1.sendAndWait({ prompt: "What is 1+1?" });
 
@@ -167,7 +174,7 @@ describe("Permission callbacks", async () => {
         // Should have permission requests from resumed session
         expect(permissionRequests.length).toBeGreaterThan(0);
 
-        await session2.destroy();
+        await session2.disconnect();
     });
 
     it("should handle permission handler errors gracefully", async () => {
@@ -184,7 +191,7 @@ describe("Permission callbacks", async () => {
         // Should handle the error and deny permission
         expect(message?.data.content?.toLowerCase()).toMatch(/fail|cannot|unable|permission/);
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should receive toolCallId in permission requests", async () => {
@@ -207,6 +214,6 @@ describe("Permission callbacks", async () => {
 
         expect(receivedToolCallId).toBe(true);
 
-        await session.destroy();
+        await session.disconnect();
     });
 });

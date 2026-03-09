@@ -162,7 +162,7 @@ func main() {
 	}
 
 	client := copilot.NewClient(&copilot.ClientOptions{
-		GithubToken: token,
+		GitHubToken: token,
 	})
 
 	ctx := context.Background()
@@ -177,7 +177,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer session.Destroy()
+	defer session.Disconnect()
 
 	response, err := session.SendAndWait(ctx, copilot.MessageOptions{
 		Prompt: "What is the capital of France?",

@@ -18,7 +18,7 @@ async function main() {
       prompt: "Remember this: the secret word is PINEAPPLE.",
     });
 
-    // 3. Get the session ID (don't destroy — resume needs the session to persist)
+    // 3. Get the session ID (don't disconnect — resume needs the session to persist)
     const sessionId = session.sessionId;
 
     // 4. Resume the session with the same ID
@@ -34,7 +34,7 @@ async function main() {
       console.log(response.data.content);
     }
 
-    await resumed.destroy();
+    await resumed.disconnect();
   } finally {
     await client.stop();
   }

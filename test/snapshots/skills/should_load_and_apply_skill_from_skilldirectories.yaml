@@ -41,4 +41,4 @@ conversations:
 
           </skill-context>
       - role: assistant
-        content: Hello! PINEAPPLE_COCONUT_42 - Ready to help you with your tasks.
+        content: Hello! PINEAPPLE_COCONUT_42 - I'm ready to help you with your tasks today.

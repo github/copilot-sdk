@@ -24,8 +24,8 @@ async def main():
             print("No response content received for session 1", file=sys.stderr)
             sys.exit(1)
 
-        await session1.destroy()
-        print("Session 1 destroyed\n")
+        await session1.disconnect()
+        print("Session 1 disconnected\n")
 
         # Second session — tests that the server accepts new sessions
         print("--- Session 2 ---")
@@ -41,8 +41,8 @@ async def main():
             print("No response content received for session 2", file=sys.stderr)
             sys.exit(1)
 
-        await session2.destroy()
-        print("Session 2 destroyed")
+        await session2.disconnect()
+        print("Session 2 disconnected")
 
         print("\nReconnect test passed — both sessions completed successfully")
     finally:

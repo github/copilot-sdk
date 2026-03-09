@@ -2,7 +2,7 @@
 
 import pytest
 
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler, StopError
 
 from .testharness import CLI_PATH
 
@@ -20,8 +20,7 @@ class TestClient:
             assert pong.message == "pong: test message"
             assert pong.timestamp >= 0
 
-            errors = await client.stop()
-            assert len(errors) == 0
+            await client.stop()
             assert client.get_state() == "disconnected"
         finally:
             await client.force_stop()
@@ -38,20 +37,19 @@ class TestClient:
             assert pong.message == "pong: test message"
             assert pong.timestamp >= 0
 
-            errors = await client.stop()
-            assert len(errors) == 0
+            await client.stop()
             assert client.get_state() == "disconnected"
         finally:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_should_return_errors_on_failed_cleanup(self):
+    async def test_should_raise_exception_group_on_failed_cleanup(self):
         import asyncio
 
         client = CopilotClient({"cli_path": CLI_PATH})
 
         try:
-            await client.create_session()
+            await client.create_session({"on_permission_request": PermissionHandler.approve_all})
 
             # Kill the server process to force cleanup to fail
             process = client._process
@@ -59,9 +57,11 @@ class TestClient:
             process.kill()
             await asyncio.sleep(0.1)
 
-            errors = await client.stop()
-            assert len(errors) > 0
-            assert "Failed to destroy session" in errors[0].message
+            with pytest.raises(ExceptionGroup) as exc_info:
+                await client.stop()
+            assert len(exc_info.value.exceptions) > 0
+            assert isinstance(exc_info.value.exceptions[0], StopError)
+            assert "Failed to disconnect session" in exc_info.value.exceptions[0].message
         finally:
             await client.force_stop()
 
@@ -69,7 +69,7 @@ class TestClient:
     async def test_should_force_stop_without_cleanup(self):
         client = CopilotClient({"cli_path": CLI_PATH})
 
-        await client.create_session()
+        await client.create_session({"on_permission_request": PermissionHandler.approve_all})
         await client.force_stop()
         assert client.get_state() == "disconnected"
 
@@ -206,7 +206,9 @@ class TestClient:
 
             # Verify subsequent calls also fail (don't hang)
             with pytest.raises(Exception) as exc_info2:
-                session = await client.create_session()
+                session = await client.create_session(
+                    {"on_permission_request": PermissionHandler.approve_all}
+                )
                 await session.send("test")
             # Error message varies by platform (EINVAL on Windows, EPIPE on Linux)
             error_msg = str(exc_info2.value).lower()

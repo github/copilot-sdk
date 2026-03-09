@@ -21,7 +21,7 @@ app.post("/chat", async (req, res) => {
 
     const response = await session.sendAndWait({ prompt });
 
-    await session.destroy();
+    await session.disconnect();
 
     if (response?.data.content) {
       res.json({ response: response.data.content });

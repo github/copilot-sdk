@@ -393,6 +393,9 @@ function generateSessionEventsCode(schema: JSONSchema7): string {
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: session-events.schema.json
 
+// Generated code does not have XML doc comments; suppress CS1591 to avoid warnings.
+#pragma warning disable CS1591
+
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -467,6 +470,14 @@ function singularPascal(s: string): string {
 }
 
 function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassName: string, propName: string, classes: string[]): string {
+    // Handle anyOf: [T, null] → T? (nullable typed property)
+    if (schema.anyOf) {
+        const hasNull = schema.anyOf.some((s) => typeof s === "object" && (s as JSONSchema7).type === "null");
+        const nonNull = schema.anyOf.filter((s) => typeof s === "object" && (s as JSONSchema7).type !== "null");
+        if (nonNull.length === 1) {
+            return resolveRpcType(nonNull[0] as JSONSchema7, isRequired && !hasNull, parentClassName, propName, classes);
+        }
+    }
     // Handle enums (string unions like "interactive" | "plan" | "autopilot")
     if (schema.enum && Array.isArray(schema.enum)) {
         const enumName = getOrCreateEnum(parentClassName, propName, schema.enum as string[], rpcEnumOutput);
@@ -524,7 +535,9 @@ function emitRpcClass(className: string, schema: JSONSchema7, visibility: "publi
         let defaultVal = "";
         if (isReq && !csharpType.endsWith("?")) {
             if (csharpType === "string") defaultVal = " = string.Empty;";
-            else if (csharpType.startsWith("List<") || csharpType.startsWith("Dictionary<") || emittedRpcClasses.has(csharpType)) defaultVal = " = new();";
+            else if (csharpType === "object") defaultVal = " = null!;";
+            else if (csharpType.startsWith("List<") || csharpType.startsWith("Dictionary<")) defaultVal = " = [];";
+            else if (emittedRpcClasses.has(csharpType)) defaultVal = " = new();";
         }
         lines.push(`    public ${csharpType} ${csharpName} { get; set; }${defaultVal}`);
         if (i < props.length - 1) lines.push("");
@@ -555,7 +568,7 @@ function emitServerRpcClasses(node: Record<string, unknown>, classes: string[]):
     srLines.push(`    {`);
     srLines.push(`        _rpc = rpc;`);
     for (const [groupName] of groups) {
-        srLines.push(`        ${toPascalCase(groupName)} = new ${toPascalCase(groupName)}Api(rpc);`);
+        srLines.push(`        ${toPascalCase(groupName)} = new Server${toPascalCase(groupName)}Api(rpc);`);
     }
     srLines.push(`    }`);
 
@@ -569,7 +582,7 @@ function emitServerRpcClasses(node: Record<string, unknown>, classes: string[]):
     for (const [groupName] of groups) {
         srLines.push("");
         srLines.push(`    /// <summary>${toPascalCase(groupName)} APIs.</summary>`);
-        srLines.push(`    public ${toPascalCase(groupName)}Api ${toPascalCase(groupName)} { get; }`);
+        srLines.push(`    public Server${toPascalCase(groupName)}Api ${toPascalCase(groupName)} { get; }`);
     }
 
     srLines.push(`}`);
@@ -577,7 +590,7 @@ function emitServerRpcClasses(node: Record<string, unknown>, classes: string[]):
 
     // Per-group API classes
     for (const [groupName, groupNode] of groups) {
-        result.push(emitServerApiClass(`${toPascalCase(groupName)}Api`, groupNode as Record<string, unknown>, classes));
+        result.push(emitServerApiClass(`Server${toPascalCase(groupName)}Api`, groupNode as Record<string, unknown>, classes));
     }
 
     return result;
@@ -585,7 +598,8 @@ function emitServerRpcClasses(node: Record<string, unknown>, classes: string[]):
 
 function emitServerApiClass(className: string, node: Record<string, unknown>, classes: string[]): string {
     const lines: string[] = [];
-    lines.push(`/// <summary>Server-scoped ${className.replace("Api", "")} APIs.</summary>`);
+    const displayName = className.replace(/^Server/, "").replace(/Api$/, "");
+    lines.push(`/// <summary>Server-scoped ${displayName} APIs.</summary>`);
     lines.push(`public class ${className}`);
     lines.push(`{`);
     lines.push(`    private readonly JsonRpc _rpc;`);
@@ -621,7 +635,7 @@ function emitServerInstanceMethod(
 
     let requestClassName: string | null = null;
     if (paramEntries.length > 0) {
-        requestClassName = `${methodName}Request`;
+        requestClassName = `${typeToClassName(method.rpcMethod)}Request`;
         const reqClass = emitRpcClass(requestClassName, method.params!, "internal", classes);
         if (reqClass) classes.push(reqClass);
     }
@@ -685,7 +699,7 @@ function emitSessionApiClass(className: string, node: Record<string, unknown>, c
         const paramEntries = (method.params?.properties ? Object.entries(method.params.properties) : []).filter(([k]) => k !== "sessionId");
         const requiredSet = new Set(method.params?.required || []);
 
-        const requestClassName = `${methodName}Request`;
+        const requestClassName = `${typeToClassName(method.rpcMethod)}Request`;
         if (method.params) {
             const reqClass = emitRpcClass(requestClassName, method.params, "internal", classes);
             if (reqClass) classes.push(reqClass);
@@ -729,6 +743,9 @@ function generateRpcCode(schema: ApiSchema): string {
 
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: api.schema.json
+
+// Generated code does not have XML doc comments; suppress CS1591 to avoid warnings.
+#pragma warning disable CS1591
 
 using System.Text.Json;
 using System.Text.Json.Serialization;

@@ -66,6 +66,8 @@
       <_CopilotArchivePath>$(_CopilotCacheDir)\copilot.tgz</_CopilotArchivePath>
       <_CopilotNormalizedRegistryUrl>$([System.String]::Copy('$(CopilotNpmRegistryUrl)').TrimEnd('/'))</_CopilotNormalizedRegistryUrl>
       <_CopilotDownloadUrl>$(_CopilotNormalizedRegistryUrl)/@github/copilot-$(_CopilotPlatform)/-/copilot-$(_CopilotPlatform)-$(CopilotCliVersion).tgz</_CopilotDownloadUrl>
+      <!-- DownloadFile Timeout is in milliseconds; convert from user-facing seconds -->
+      <_CopilotCliDownloadTimeoutMs>$([System.Convert]::ToInt32($([MSBuild]::Multiply($(CopilotCliDownloadTimeout), 1000))))</_CopilotCliDownloadTimeoutMs>
     </PropertyGroup>
 
     <!-- Delete archive if binary missing (handles partial/corrupted downloads) -->
@@ -75,7 +77,7 @@
     <MakeDir Directories="$(_CopilotCacheDir)" Condition="!Exists('$(_CopilotCliBinaryPath)')" />
     <Message Importance="high" Text="Downloading Copilot CLI $(CopilotCliVersion) for $(_CopilotPlatform)..." Condition="!Exists('$(_CopilotCliBinaryPath)')" />
     <DownloadFile SourceUrl="$(_CopilotDownloadUrl)" DestinationFolder="$(_CopilotCacheDir)" DestinationFileName="copilot.tgz"
-                  Timeout="$([System.Int32]::Parse('$(CopilotCliDownloadTimeout)'))"
+                  Timeout="$(_CopilotCliDownloadTimeoutMs)"
                   Condition="!Exists('$(_CopilotCliBinaryPath)')" />
 
     <!-- Extract using tar (use Windows system tar explicitly to avoid Git bash tar issues) -->

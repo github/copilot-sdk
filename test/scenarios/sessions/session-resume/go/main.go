@@ -11,7 +11,7 @@ import (
 
 func main() {
 	client := copilot.NewClient(&copilot.ClientOptions{
-		GithubToken: os.Getenv("GITHUB_TOKEN"),
+		GitHubToken: os.Getenv("GITHUB_TOKEN"),
 	})
 
 	ctx := context.Background()
@@ -22,8 +22,9 @@ func main() {
 
 	// 1. Create a session
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model:          "claude-haiku-4.5",
-		AvailableTools: []string{},
+		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		Model:               "claude-haiku-4.5",
+		AvailableTools:      []string{},
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -37,16 +38,18 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// 3. Get the session ID (don't destroy — resume needs the session to persist)
+	// 3. Get the session ID (don't disconnect — resume needs the session to persist)
 	sessionID := session.SessionID
 
 	// 4. Resume the session with the same ID
-	resumed, err := client.ResumeSession(ctx, sessionID)
+	resumed, err := client.ResumeSession(ctx, sessionID, &copilot.ResumeSessionConfig{
+		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Println("Session resumed")
-	defer resumed.Destroy()
+	defer resumed.Disconnect()
 
 	// 5. Ask for the secret word
 	response, err := resumed.SendAndWait(ctx, copilot.MessageOptions{

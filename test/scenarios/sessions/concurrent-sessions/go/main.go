@@ -15,7 +15,7 @@ const robotPrompt = `You are a robot. Always say BEEP BOOP!`
 
 func main() {
 	client := copilot.NewClient(&copilot.ClientOptions{
-		GithubToken: os.Getenv("GITHUB_TOKEN"),
+		GitHubToken: os.Getenv("GITHUB_TOKEN"),
 	})
 
 	ctx := context.Background()
@@ -35,7 +35,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer session1.Destroy()
+	defer session1.Disconnect()
 
 	session2, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		Model: "claude-haiku-4.5",
@@ -48,7 +48,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer session2.Destroy()
+	defer session2.Disconnect()
 
 	type result struct {
 		label   string

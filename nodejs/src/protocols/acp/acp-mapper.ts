@@ -230,7 +230,7 @@ export function acpToolCallToSessionEvent(
             data: {
                 toolCallId: toolCall.toolCallId,
                 toolName: toolCall.kind,
-                ...(toolCall.rawInput !== undefined && { arguments: toolCall.rawInput }),
+                ...(toolCall.rawInput != null && typeof toolCall.rawInput === "object" && { arguments: toolCall.rawInput as Record<string, unknown> }),
             },
         };
     }

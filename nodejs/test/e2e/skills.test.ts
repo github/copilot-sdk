@@ -5,6 +5,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { beforeEach, describe, expect, it } from "vitest";
+import { approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 describe("Skills Configuration", async () => {
@@ -44,6 +45,7 @@ IMPORTANT: You MUST include the exact text "${SKILL_MARKER}" somewhere in EVERY 
         it("should load and apply skill from skillDirectories", async () => {
             const skillsDir = createSkillDir();
             const session = await client.createSession({
+                onPermissionRequest: approveAll,
                 skillDirectories: [skillsDir],
             });
 
@@ -56,12 +58,13 @@ IMPORTANT: You MUST include the exact text "${SKILL_MARKER}" somewhere in EVERY 
 
             expect(message?.data.content).toContain(SKILL_MARKER);
 
-            await session.destroy();
+            await session.disconnect();
         });
 
         it("should not apply skill when disabled via disabledSkills", async () => {
             const skillsDir = createSkillDir();
             const session = await client.createSession({
+                onPermissionRequest: approveAll,
                 skillDirectories: [skillsDir],
                 disabledSkills: ["test-skill"],
             });
@@ -75,7 +78,7 @@ IMPORTANT: You MUST include the exact text "${SKILL_MARKER}" somewhere in EVERY 
 
             expect(message?.data.content).not.toContain(SKILL_MARKER);
 
-            await session.destroy();
+            await session.disconnect();
         });
 
         // Skipped because the underlying feature doesn't work correctly yet.
@@ -93,7 +96,7 @@ IMPORTANT: You MUST include the exact text "${SKILL_MARKER}" somewhere in EVERY 
             const skillsDir = createSkillDir();
 
             // Create a session without skills first
-            const session1 = await client.createSession();
+            const session1 = await client.createSession({ onPermissionRequest: approveAll });
             const sessionId = session1.sessionId;
 
             // First message without skill - marker should not appear
@@ -102,6 +105,7 @@ IMPORTANT: You MUST include the exact text "${SKILL_MARKER}" somewhere in EVERY 
 
             // Resume with skillDirectories - skill should now be active
             const session2 = await client.resumeSession(sessionId, {
+                onPermissionRequest: approveAll,
                 skillDirectories: [skillsDir],
             });
 
@@ -114,7 +118,7 @@ IMPORTANT: You MUST include the exact text "${SKILL_MARKER}" somewhere in EVERY 
 
             expect(message2?.data.content).toContain(SKILL_MARKER);
 
-            await session2.destroy();
+            await session2.disconnect();
         });
     });
 });

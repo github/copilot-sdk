@@ -21,8 +21,8 @@ async function main() {
       process.exit(1);
     }
 
-    await session1.destroy();
-    console.log("Session 1 destroyed\n");
+    await session1.disconnect();
+    console.log("Session 1 disconnected\n");
 
     // Second session — tests that the server accepts new sessions
     console.log("--- Session 2 ---");
@@ -39,8 +39,8 @@ async function main() {
       process.exit(1);
     }
 
-    await session2.destroy();
-    console.log("Session 2 destroyed");
+    await session2.disconnect();
+    console.log("Session 2 disconnected");
 
     console.log("\nReconnect test passed — both sessions completed successfully");
   } finally {

@@ -9,5 +9,5 @@ public static class PermissionHandler
 {
     /// <summary>A <see cref="PermissionRequestHandler"/> that approves all permission requests.</summary>
     public static PermissionRequestHandler ApproveAll { get; } =
-        (_, _) => Task.FromResult(new PermissionRequestResult { Kind = "approved" });
+        (_, _) => Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
 }

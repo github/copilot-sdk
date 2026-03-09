@@ -65,8 +65,8 @@ type Limits struct {
 
 type Supports struct {
 	// Whether this model supports reasoning effort configuration
-	ReasoningEffort bool `json:"reasoningEffort"`
-	Vision          bool `json:"vision"`
+	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
+	Vision          *bool `json:"vision,omitempty"`
 }
 
 // Policy state (if applicable)
@@ -148,17 +148,19 @@ type SessionModeSetParams struct {
 }
 
 type SessionPlanReadResult struct {
-	// The content of plan.md, or null if it does not exist
+	// The content of the plan file, or null if it does not exist
 	Content *string `json:"content"`
-	// Whether plan.md exists in the workspace
+	// Whether the plan file exists in the workspace
 	Exists bool `json:"exists"`
+	// Absolute file path of the plan file, or null if workspace is not enabled
+	Path *string `json:"path"`
 }
 
 type SessionPlanUpdateResult struct {
 }
 
 type SessionPlanUpdateParams struct {
-	// The new content for plan.md
+	// The new content for the plan file
 	Content string `json:"content"`
 }
 
@@ -200,6 +202,100 @@ type SessionFleetStartParams struct {
 	Prompt *string `json:"prompt,omitempty"`
 }
 
+type SessionAgentListResult struct {
+	// Available custom agents
+	Agents []AgentElement `json:"agents"`
+}
+
+type AgentElement struct {
+	// Description of the agent's purpose
+	Description string `json:"description"`
+	// Human-readable display name
+	DisplayName string `json:"displayName"`
+	// Unique identifier of the custom agent
+	Name string `json:"name"`
+}
+
+type SessionAgentGetCurrentResult struct {
+	// Currently selected custom agent, or null if using the default agent
+	Agent *SessionAgentGetCurrentResultAgent `json:"agent"`
+}
+
+type SessionAgentGetCurrentResultAgent struct {
+	// Description of the agent's purpose
+	Description string `json:"description"`
+	// Human-readable display name
+	DisplayName string `json:"displayName"`
+	// Unique identifier of the custom agent
+	Name string `json:"name"`
+}
+
+type SessionAgentSelectResult struct {
+	// The newly selected custom agent
+	Agent SessionAgentSelectResultAgent `json:"agent"`
+}
+
+// The newly selected custom agent
+type SessionAgentSelectResultAgent struct {
+	// Description of the agent's purpose
+	Description string `json:"description"`
+	// Human-readable display name
+	DisplayName string `json:"displayName"`
+	// Unique identifier of the custom agent
+	Name string `json:"name"`
+}
+
+type SessionAgentSelectParams struct {
+	// Name of the custom agent to select
+	Name string `json:"name"`
+}
+
+type SessionAgentDeselectResult struct {
+}
+
+type SessionCompactionCompactResult struct {
+	// Number of messages removed during compaction
+	MessagesRemoved float64 `json:"messagesRemoved"`
+	// Whether compaction completed successfully
+	Success bool `json:"success"`
+	// Number of tokens freed by compaction
+	TokensRemoved float64 `json:"tokensRemoved"`
+}
+
+type SessionToolsHandlePendingToolCallResult struct {
+	Success bool `json:"success"`
+}
+
+type SessionToolsHandlePendingToolCallParams struct {
+	Error     *string      `json:"error,omitempty"`
+	RequestID string       `json:"requestId"`
+	Result    *ResultUnion `json:"result"`
+}
+
+type ResultResult struct {
+	Error            *string                `json:"error,omitempty"`
+	ResultType       *string                `json:"resultType,omitempty"`
+	TextResultForLlm string                 `json:"textResultForLlm"`
+	ToolTelemetry    map[string]interface{} `json:"toolTelemetry,omitempty"`
+}
+
+type SessionPermissionsHandlePendingPermissionRequestResult struct {
+	Success bool `json:"success"`
+}
+
+type SessionPermissionsHandlePendingPermissionRequestParams struct {
+	RequestID string                                                       `json:"requestId"`
+	Result    SessionPermissionsHandlePendingPermissionRequestParamsResult `json:"result"`
+}
+
+type SessionPermissionsHandlePendingPermissionRequestParamsResult struct {
+	Kind     Kind          `json:"kind"`
+	Rules    []interface{} `json:"rules,omitempty"`
+	Feedback *string       `json:"feedback,omitempty"`
+	Message  *string       `json:"message,omitempty"`
+	Path     *string       `json:"path,omitempty"`
+}
+
 // The current agent mode.
 //
 // The agent mode after switching.
@@ -213,9 +309,24 @@ const (
 	Plan        Mode = "plan"
 )
 
-type ModelsRpcApi struct{ client *jsonrpc2.Client }
+type Kind string
 
-func (a *ModelsRpcApi) List(ctx context.Context) (*ModelsListResult, error) {
+const (
+	Approved                                       Kind = "approved"
+	DeniedByContentExclusionPolicy                 Kind = "denied-by-content-exclusion-policy"
+	DeniedByRules                                  Kind = "denied-by-rules"
+	DeniedInteractivelyByUser                      Kind = "denied-interactively-by-user"
+	DeniedNoApprovalRuleAndCouldNotRequestFromUser Kind = "denied-no-approval-rule-and-could-not-request-from-user"
+)
+
+type ResultUnion struct {
+	ResultResult *ResultResult
+	String       *string
+}
+
+type ServerModelsRpcApi struct{ client *jsonrpc2.Client }
+
+func (a *ServerModelsRpcApi) List(ctx context.Context) (*ModelsListResult, error) {
 	raw, err := a.client.Request("models.list", map[string]interface{}{})
 	if err != nil {
 		return nil, err
@@ -227,9 +338,9 @@ func (a *ModelsRpcApi) List(ctx context.Context) (*ModelsListResult, error) {
 	return &result, nil
 }
 
-type ToolsRpcApi struct{ client *jsonrpc2.Client }
+type ServerToolsRpcApi struct{ client *jsonrpc2.Client }
 
-func (a *ToolsRpcApi) List(ctx context.Context, params *ToolsListParams) (*ToolsListResult, error) {
+func (a *ServerToolsRpcApi) List(ctx context.Context, params *ToolsListParams) (*ToolsListResult, error) {
 	raw, err := a.client.Request("tools.list", params)
 	if err != nil {
 		return nil, err
@@ -241,9 +352,9 @@ func (a *ToolsRpcApi) List(ctx context.Context, params *ToolsListParams) (*Tools
 	return &result, nil
 }
 
-type AccountRpcApi struct{ client *jsonrpc2.Client }
+type ServerAccountRpcApi struct{ client *jsonrpc2.Client }
 
-func (a *AccountRpcApi) GetQuota(ctx context.Context) (*AccountGetQuotaResult, error) {
+func (a *ServerAccountRpcApi) GetQuota(ctx context.Context) (*AccountGetQuotaResult, error) {
 	raw, err := a.client.Request("account.getQuota", map[string]interface{}{})
 	if err != nil {
 		return nil, err
@@ -258,9 +369,9 @@ func (a *AccountRpcApi) GetQuota(ctx context.Context) (*AccountGetQuotaResult, e
 // ServerRpc provides typed server-scoped RPC methods.
 type ServerRpc struct {
 	client  *jsonrpc2.Client
-	Models  *ModelsRpcApi
-	Tools   *ToolsRpcApi
-	Account *AccountRpcApi
+	Models  *ServerModelsRpcApi
+	Tools   *ServerToolsRpcApi
+	Account *ServerAccountRpcApi
 }
 
 func (a *ServerRpc) Ping(ctx context.Context, params *PingParams) (*PingResult, error) {
@@ -277,9 +388,9 @@ func (a *ServerRpc) Ping(ctx context.Context, params *PingParams) (*PingResult, 
 
 func NewServerRpc(client *jsonrpc2.Client) *ServerRpc {
 	return &ServerRpc{client: client,
-		Models:  &ModelsRpcApi{client: client},
-		Tools:   &ToolsRpcApi{client: client},
-		Account: &AccountRpcApi{client: client},
+		Models:  &ServerModelsRpcApi{client: client},
+		Tools:   &ServerToolsRpcApi{client: client},
+		Account: &ServerAccountRpcApi{client: client},
 	}
 }
 
@@ -472,23 +583,158 @@ func (a *FleetRpcApi) Start(ctx context.Context, params *SessionFleetStartParams
 	return &result, nil
 }
 
-// SessionRpc provides typed session-scoped RPC methods.
-type SessionRpc struct {
+type AgentRpcApi struct {
 	client    *jsonrpc2.Client
 	sessionID string
-	Model     *ModelRpcApi
-	Mode      *ModeRpcApi
-	Plan      *PlanRpcApi
-	Workspace *WorkspaceRpcApi
-	Fleet     *FleetRpcApi
+}
+
+func (a *AgentRpcApi) List(ctx context.Context) (*SessionAgentListResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.agent.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionAgentListResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *AgentRpcApi) GetCurrent(ctx context.Context) (*SessionAgentGetCurrentResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.agent.getCurrent", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionAgentGetCurrentResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *AgentRpcApi) Select(ctx context.Context, params *SessionAgentSelectParams) (*SessionAgentSelectResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["name"] = params.Name
+	}
+	raw, err := a.client.Request("session.agent.select", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionAgentSelectResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *AgentRpcApi) Deselect(ctx context.Context) (*SessionAgentDeselectResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.agent.deselect", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionAgentDeselectResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+type CompactionRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
+
+func (a *CompactionRpcApi) Compact(ctx context.Context) (*SessionCompactionCompactResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.compaction.compact", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionCompactionCompactResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+type ToolsRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
+
+func (a *ToolsRpcApi) HandlePendingToolCall(ctx context.Context, params *SessionToolsHandlePendingToolCallParams) (*SessionToolsHandlePendingToolCallResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["requestId"] = params.RequestID
+		if params.Result != nil {
+			req["result"] = *params.Result
+		}
+		if params.Error != nil {
+			req["error"] = *params.Error
+		}
+	}
+	raw, err := a.client.Request("session.tools.handlePendingToolCall", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionToolsHandlePendingToolCallResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+type PermissionsRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
+
+func (a *PermissionsRpcApi) HandlePendingPermissionRequest(ctx context.Context, params *SessionPermissionsHandlePendingPermissionRequestParams) (*SessionPermissionsHandlePendingPermissionRequestResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["requestId"] = params.RequestID
+		req["result"] = params.Result
+	}
+	raw, err := a.client.Request("session.permissions.handlePendingPermissionRequest", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionPermissionsHandlePendingPermissionRequestResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// SessionRpc provides typed session-scoped RPC methods.
+type SessionRpc struct {
+	client      *jsonrpc2.Client
+	sessionID   string
+	Model       *ModelRpcApi
+	Mode        *ModeRpcApi
+	Plan        *PlanRpcApi
+	Workspace   *WorkspaceRpcApi
+	Fleet       *FleetRpcApi
+	Agent       *AgentRpcApi
+	Compaction  *CompactionRpcApi
+	Tools       *ToolsRpcApi
+	Permissions *PermissionsRpcApi
 }
 
 func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 	return &SessionRpc{client: client, sessionID: sessionID,
-		Model:     &ModelRpcApi{client: client, sessionID: sessionID},
-		Mode:      &ModeRpcApi{client: client, sessionID: sessionID},
-		Plan:      &PlanRpcApi{client: client, sessionID: sessionID},
-		Workspace: &WorkspaceRpcApi{client: client, sessionID: sessionID},
-		Fleet:     &FleetRpcApi{client: client, sessionID: sessionID},
+		Model:       &ModelRpcApi{client: client, sessionID: sessionID},
+		Mode:        &ModeRpcApi{client: client, sessionID: sessionID},
+		Plan:        &PlanRpcApi{client: client, sessionID: sessionID},
+		Workspace:   &WorkspaceRpcApi{client: client, sessionID: sessionID},
+		Fleet:       &FleetRpcApi{client: client, sessionID: sessionID},
+		Agent:       &AgentRpcApi{client: client, sessionID: sessionID},
+		Compaction:  &CompactionRpcApi{client: client, sessionID: sessionID},
+		Tools:       &ToolsRpcApi{client: client, sessionID: sessionID},
+		Permissions: &PermissionsRpcApi{client: client, sessionID: sessionID},
 	}
 }

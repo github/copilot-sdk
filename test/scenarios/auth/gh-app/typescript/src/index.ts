@@ -121,7 +121,7 @@ async function main() {
     });
 
     if (response) console.log(response.data.content);
-    await session.destroy();
+    await session.disconnect();
   } finally {
     await client.stop();
   }

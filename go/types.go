@@ -1,6 +1,9 @@
 package copilot
 
-import "encoding/json"
+import (
+	"context"
+	"encoding/json"
+)
 
 // ConnectionState represents the client connection state
 type ConnectionState string
@@ -44,16 +47,21 @@ type ClientOptions struct {
 	// If Env contains duplicate environment keys, only the last value in the
 	// slice for each duplicate key is used.
 	Env []string
-	// GithubToken is the GitHub token to use for authentication.
+	// GitHubToken is the GitHub token to use for authentication.
 	// When provided, the token is passed to the CLI server via environment variable.
 	// This takes priority over other authentication methods.
-	GithubToken string
+	GitHubToken string
 	// UseLoggedInUser controls whether to use the logged-in user for authentication.
 	// When true, the CLI server will attempt to use stored OAuth tokens or gh CLI auth.
-	// When false, only explicit tokens (GithubToken or environment variables) are used.
-	// Default: true (but defaults to false when GithubToken is provided).
+	// When false, only explicit tokens (GitHubToken or environment variables) are used.
+	// Default: true (but defaults to false when GitHubToken is provided).
 	// Use Bool(false) to explicitly disable.
 	UseLoggedInUser *bool
+	// OnListModels is a custom handler for listing available models.
+	// When provided, client.ListModels() calls this handler instead of
+	// querying the CLI server. Useful in BYOK mode to return models
+	// available from your custom provider.
+	OnListModels func(ctx context.Context) ([]ModelInfo, error)
 }
 
 // Bool returns a pointer to the given bool value.
@@ -99,17 +107,28 @@ type SystemMessageConfig struct {
 	Content string `json:"content,omitempty"`
 }
 
-// PermissionRequest represents a permission request from the server
-type PermissionRequest struct {
-	Kind       string         `json:"kind"`
-	ToolCallID string         `json:"toolCallId,omitempty"`
-	Extra      map[string]any `json:"-"` // Additional fields vary by kind
-}
+// PermissionRequestResultKind represents the kind of a permission request result.
+type PermissionRequestResultKind string
+
+const (
+	// PermissionRequestResultKindApproved indicates the permission was approved.
+	PermissionRequestResultKindApproved PermissionRequestResultKind = "approved"
+
+	// PermissionRequestResultKindDeniedByRules indicates the permission was denied by rules.
+	PermissionRequestResultKindDeniedByRules PermissionRequestResultKind = "denied-by-rules"
+
+	// PermissionRequestResultKindDeniedCouldNotRequestFromUser indicates the permission was denied because
+	// no approval rule was found and the user could not be prompted.
+	PermissionRequestResultKindDeniedCouldNotRequestFromUser PermissionRequestResultKind = "denied-no-approval-rule-and-could-not-request-from-user"
+
+	// PermissionRequestResultKindDeniedInteractivelyByUser indicates the permission was denied interactively by the user.
+	PermissionRequestResultKindDeniedInteractivelyByUser PermissionRequestResultKind = "denied-interactively-by-user"
+)
 
 // PermissionRequestResult represents the result of a permission request
 type PermissionRequestResult struct {
-	Kind  string `json:"kind"`
-	Rules []any  `json:"rules,omitempty"`
+	Kind  PermissionRequestResultKind `json:"kind"`
+	Rules []any                       `json:"rules,omitempty"`
 }
 
 // PermissionHandlerFunc executes a permission request
@@ -373,6 +392,9 @@ type SessionConfig struct {
 	MCPServers map[string]MCPServerConfig
 	// CustomAgents configures custom agents for the session
 	CustomAgents []CustomAgentConfig
+	// Agent is the name of the custom agent to activate when the session starts.
+	// Must match the Name of one of the agents in CustomAgents.
+	Agent string
 	// SkillDirectories is a list of directories to load skills from
 	SkillDirectories []string
 	// DisabledSkills is a list of skill names to disable
@@ -384,10 +406,11 @@ type SessionConfig struct {
 
 // Tool describes a caller-implemented tool that can be invoked by Copilot
 type Tool struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description,omitempty"`
-	Parameters  map[string]any `json:"parameters,omitempty"`
-	Handler     ToolHandler    `json:"-"`
+	Name                 string         `json:"name"`
+	Description          string         `json:"description,omitempty"`
+	Parameters           map[string]any `json:"parameters,omitempty"`
+	OverridesBuiltInTool bool           `json:"overridesBuiltInTool,omitempty"`
+	Handler              ToolHandler    `json:"-"`
 }
 
 // ToolInvocation describes a tool call initiated by Copilot
@@ -455,6 +478,9 @@ type ResumeSessionConfig struct {
 	MCPServers map[string]MCPServerConfig
 	// CustomAgents configures custom agents for the session
 	CustomAgents []CustomAgentConfig
+	// Agent is the name of the custom agent to activate when the session starts.
+	// Must match the Name of one of the agents in CustomAgents.
+	Agent string
 	// SkillDirectories is a list of directories to load skills from
 	SkillDirectories []string
 	// DisabledSkills is a list of skill names to disable
@@ -621,17 +647,6 @@ type SessionLifecycleEventMetadata struct {
 // SessionLifecycleHandler is a callback for session lifecycle events
 type SessionLifecycleHandler func(event SessionLifecycleEvent)
 
-// permissionRequestRequest represents the request data for a permission request
-type permissionRequestRequest struct {
-	SessionID string            `json:"sessionId"`
-	Request   PermissionRequest `json:"permissionRequest"`
-}
-
-// permissionRequestResponse represents the response to a permission request
-type permissionRequestResponse struct {
-	Result PermissionRequestResult `json:"result"`
-}
-
 // createSessionRequest is the request for session.create
 type createSessionRequest struct {
 	Model             string                     `json:"model,omitempty"`
@@ -651,6 +666,7 @@ type createSessionRequest struct {
 	MCPServers        map[string]MCPServerConfig `json:"mcpServers,omitempty"`
 	EnvValueMode      string                     `json:"envValueMode,omitempty"`
 	CustomAgents      []CustomAgentConfig        `json:"customAgents,omitempty"`
+	Agent             string                     `json:"agent,omitempty"`
 	ConfigDir         string                     `json:"configDir,omitempty"`
 	SkillDirectories  []string                   `json:"skillDirectories,omitempty"`
 	DisabledSkills    []string                   `json:"disabledSkills,omitempty"`
@@ -684,6 +700,7 @@ type resumeSessionRequest struct {
 	MCPServers        map[string]MCPServerConfig `json:"mcpServers,omitempty"`
 	EnvValueMode      string                     `json:"envValueMode,omitempty"`
 	CustomAgents      []CustomAgentConfig        `json:"customAgents,omitempty"`
+	Agent             string                     `json:"agent,omitempty"`
 	SkillDirectories  []string                   `json:"skillDirectories,omitempty"`
 	DisabledSkills    []string                   `json:"disabledSkills,omitempty"`
 	InfiniteSessions  *InfiniteSessionConfig     `json:"infiniteSessions,omitempty"`
@@ -720,6 +737,14 @@ type deleteSessionRequest struct {
 type deleteSessionResponse struct {
 	Success bool    `json:"success"`
 	Error   *string `json:"error,omitempty"`
+}
+
+// getLastSessionIDRequest is the request for session.getLastId
+type getLastSessionIDRequest struct{}
+
+// getLastSessionIDResponse is the response from session.getLastId
+type getLastSessionIDResponse struct {
+	SessionID *string `json:"sessionId,omitempty"`
 }
 
 // getForegroundSessionRequest is the request for session.getForeground
@@ -818,21 +843,6 @@ type sessionSendResponse struct {
 type sessionEventRequest struct {
 	SessionID string       `json:"sessionId"`
 	Event     SessionEvent `json:"event"`
-}
-
-// toolCallRequest represents a tool call request from the server
-// to the client for execution.
-type toolCallRequest struct {
-	SessionID  string `json:"sessionId"`
-	ToolCallID string `json:"toolCallId"`
-	ToolName   string `json:"toolName"`
-	Arguments  any    `json:"arguments"`
-}
-
-// toolCallResponse represents the response to a tool call request
-// from the client back to the server.
-type toolCallResponse struct {
-	Result ToolResult `json:"result"`
 }
 
 // userInputRequest represents a request for user input from the agent

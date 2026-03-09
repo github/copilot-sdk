@@ -43,7 +43,7 @@ class TestHooks:
         # Should have received the tool name
         assert any(inp.get("toolName") for inp in pre_tool_use_inputs)
 
-        await session.destroy()
+        await session.disconnect()
 
     async def test_should_invoke_posttooluse_hook_after_model_runs_a_tool(
         self, ctx: E2ETestContext
@@ -77,7 +77,7 @@ class TestHooks:
         assert any(inp.get("toolName") for inp in post_tool_use_inputs)
         assert any(inp.get("toolResult") is not None for inp in post_tool_use_inputs)
 
-        await session.destroy()
+        await session.disconnect()
 
     async def test_should_invoke_both_pretooluse_and_posttooluse_hooks_for_a_single_tool_call(
         self, ctx: E2ETestContext
@@ -118,7 +118,7 @@ class TestHooks:
         common_tool = next((name for name in pre_tool_names if name in post_tool_names), None)
         assert common_tool is not None
 
-        await session.destroy()
+        await session.disconnect()
 
     async def test_should_deny_tool_execution_when_pretooluse_returns_deny(
         self, ctx: E2ETestContext
@@ -153,4 +153,4 @@ class TestHooks:
         # At minimum, we verify the hook was invoked
         assert response is not None
 
-        await session.destroy()
+        await session.disconnect()

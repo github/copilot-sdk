@@ -28,7 +28,7 @@ async def main():
             print("Reasoning effort: low")
             print(f"Response: {response.data.content}")
 
-        await session.destroy()
+        await session.disconnect()
     finally:
         await client.stop()
 

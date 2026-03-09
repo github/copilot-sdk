@@ -45,11 +45,11 @@ export interface ModelsListResult {
      */
     capabilities: {
       supports: {
-        vision: boolean;
+        vision?: boolean;
         /**
          * Whether this model supports reasoning effort configuration
          */
-        reasoningEffort: boolean;
+        reasoningEffort?: boolean;
       };
       limits: {
         max_prompt_tokens?: number;
@@ -209,13 +209,17 @@ export interface SessionModeSetParams {
 
 export interface SessionPlanReadResult {
   /**
-   * Whether plan.md exists in the workspace
+   * Whether the plan file exists in the workspace
    */
   exists: boolean;
   /**
-   * The content of plan.md, or null if it does not exist
+   * The content of the plan file, or null if it does not exist
    */
   content: string | null;
+  /**
+   * Absolute file path of the plan file, or null if workspace is not enabled
+   */
+  path: string | null;
 }
 
 export interface SessionPlanReadParams {
@@ -233,7 +237,7 @@ export interface SessionPlanUpdateParams {
    */
   sessionId: string;
   /**
-   * The new content for plan.md
+   * The new content for the plan file
    */
   content: string;
 }
@@ -314,6 +318,177 @@ export interface SessionFleetStartParams {
   prompt?: string;
 }
 
+export interface SessionAgentListResult {
+  /**
+   * Available custom agents
+   */
+  agents: {
+    /**
+     * Unique identifier of the custom agent
+     */
+    name: string;
+    /**
+     * Human-readable display name
+     */
+    displayName: string;
+    /**
+     * Description of the agent's purpose
+     */
+    description: string;
+  }[];
+}
+
+export interface SessionAgentListParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
+
+export interface SessionAgentGetCurrentResult {
+  /**
+   * Currently selected custom agent, or null if using the default agent
+   */
+  agent: {
+    /**
+     * Unique identifier of the custom agent
+     */
+    name: string;
+    /**
+     * Human-readable display name
+     */
+    displayName: string;
+    /**
+     * Description of the agent's purpose
+     */
+    description: string;
+  } | null;
+}
+
+export interface SessionAgentGetCurrentParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
+
+export interface SessionAgentSelectResult {
+  /**
+   * The newly selected custom agent
+   */
+  agent: {
+    /**
+     * Unique identifier of the custom agent
+     */
+    name: string;
+    /**
+     * Human-readable display name
+     */
+    displayName: string;
+    /**
+     * Description of the agent's purpose
+     */
+    description: string;
+  };
+}
+
+export interface SessionAgentSelectParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Name of the custom agent to select
+   */
+  name: string;
+}
+
+export interface SessionAgentDeselectResult {}
+
+export interface SessionAgentDeselectParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
+
+export interface SessionCompactionCompactResult {
+  /**
+   * Whether compaction completed successfully
+   */
+  success: boolean;
+  /**
+   * Number of tokens freed by compaction
+   */
+  tokensRemoved: number;
+  /**
+   * Number of messages removed during compaction
+   */
+  messagesRemoved: number;
+}
+
+export interface SessionCompactionCompactParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
+
+export interface SessionToolsHandlePendingToolCallResult {
+  success: boolean;
+}
+
+export interface SessionToolsHandlePendingToolCallParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  requestId: string;
+  result?:
+    | string
+    | {
+        textResultForLlm: string;
+        resultType?: string;
+        error?: string;
+        toolTelemetry?: {
+          [k: string]: unknown;
+        };
+      };
+  error?: string;
+}
+
+export interface SessionPermissionsHandlePendingPermissionRequestResult {
+  success: boolean;
+}
+
+export interface SessionPermissionsHandlePendingPermissionRequestParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  requestId: string;
+  result:
+    | {
+        kind: "approved";
+      }
+    | {
+        kind: "denied-by-rules";
+        rules: unknown[];
+      }
+    | {
+        kind: "denied-no-approval-rule-and-could-not-request-from-user";
+      }
+    | {
+        kind: "denied-interactively-by-user";
+        feedback?: string;
+      }
+    | {
+        kind: "denied-by-content-exclusion-policy";
+        path: string;
+        message: string;
+      };
+}
+
 /** Create typed server-scoped RPC methods (no session required). */
 export function createServerRpc(connection: MessageConnection) {
     return {
@@ -368,6 +543,28 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         fleet: {
             start: async (params: Omit<SessionFleetStartParams, "sessionId">): Promise<SessionFleetStartResult> =>
                 connection.sendRequest("session.fleet.start", { sessionId, ...params }),
+        },
+        agent: {
+            list: async (): Promise<SessionAgentListResult> =>
+                connection.sendRequest("session.agent.list", { sessionId }),
+            getCurrent: async (): Promise<SessionAgentGetCurrentResult> =>
+                connection.sendRequest("session.agent.getCurrent", { sessionId }),
+            select: async (params: Omit<SessionAgentSelectParams, "sessionId">): Promise<SessionAgentSelectResult> =>
+                connection.sendRequest("session.agent.select", { sessionId, ...params }),
+            deselect: async (): Promise<SessionAgentDeselectResult> =>
+                connection.sendRequest("session.agent.deselect", { sessionId }),
+        },
+        compaction: {
+            compact: async (): Promise<SessionCompactionCompactResult> =>
+                connection.sendRequest("session.compaction.compact", { sessionId }),
+        },
+        tools: {
+            handlePendingToolCall: async (params: Omit<SessionToolsHandlePendingToolCallParams, "sessionId">): Promise<SessionToolsHandlePendingToolCallResult> =>
+                connection.sendRequest("session.tools.handlePendingToolCall", { sessionId, ...params }),
+        },
+        permissions: {
+            handlePendingPermissionRequest: async (params: Omit<SessionPermissionsHandlePendingPermissionRequestParams, "sessionId">): Promise<SessionPermissionsHandlePendingPermissionRequestResult> =>
+                connection.sendRequest("session.permissions.handlePendingPermissionRequest", { sessionId, ...params }),
         },
     };
 }

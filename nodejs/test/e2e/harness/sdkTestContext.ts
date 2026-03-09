@@ -13,13 +13,20 @@ import { CopilotClient } from "../../../src";
 import { CapiProxy } from "./CapiProxy";
 import { retry } from "./sdkTestHelper";
 
+export const isCI = process.env.GITHUB_ACTIONS === "true";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const SNAPSHOTS_DIR = resolve(__dirname, "../../../../test/snapshots");
 
 export async function createSdkTestContext({
     logLevel,
-}: { logLevel?: "error" | "none" | "warning" | "info" | "debug" | "all"; cliPath?: string } = {}) {
+    useStdio,
+}: {
+    logLevel?: "error" | "none" | "warning" | "info" | "debug" | "all";
+    cliPath?: string;
+    useStdio?: boolean;
+} = {}) {
     const homeDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-config-")));
     const workDir = realpathSync(fs.mkdtempSync(join(os.tmpdir(), "copilot-test-work-")));
 
@@ -42,7 +49,8 @@ export async function createSdkTestContext({
         logLevel: logLevel || "error",
         cliPath: process.env.COPILOT_CLI_PATH,
         // Use fake token in CI to allow cached responses without real auth
-        githubToken: process.env.CI === "true" ? "fake-token-for-e2e-tests" : undefined,
+        githubToken: isCI ? "fake-token-for-e2e-tests" : undefined,
+        useStdio: useStdio,
     });
 
     const harness = { homeDir, workDir, openAiEndpoint, copilotClient, env };

@@ -19,7 +19,7 @@ conversations:
             type: function
             function:
               name: ${shell}
-              arguments: '{"command":"echo test","description":"Run echo test command"}'
+              arguments: '{"command":"echo test","description":"Run echo test"}'
   - messages:
       - role: system
         content: ${system}
@@ -36,7 +36,7 @@ conversations:
             type: function
             function:
               name: ${shell}
-              arguments: '{"command":"echo test","description":"Run echo test command"}'
+              arguments: '{"command":"echo test","description":"Run echo test"}'
       - role: tool
         tool_call_id: toolcall_0
         content: Intent logged

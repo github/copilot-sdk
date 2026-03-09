@@ -32,7 +32,7 @@ async function main() {
 
     console.log("\nSkill directories configured successfully");
 
-    await session.destroy();
+    await session.disconnect();
   } finally {
     await client.stop();
   }

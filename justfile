@@ -78,6 +78,7 @@ install:
     @cd python && uv pip install -e ".[dev]"
     @cd go && go mod download
     @cd dotnet && dotnet restore
+    @cd test/harness && npm ci --ignore-scripts
     @echo "✅ All dependencies installed"
 
 # Run interactive SDK playground

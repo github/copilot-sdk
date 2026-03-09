@@ -5,7 +5,7 @@ var permissionLog = new List<string>();
 using var client = new CopilotClient(new CopilotClientOptions
 {
     CliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH"),
-    GithubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
+    GitHubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
 });
 
 await client.StartAsync();
@@ -21,7 +21,7 @@ try
                 ? value?.ToString() ?? "unknown"
                 : "unknown";
             permissionLog.Add($"approved:{toolName}");
-            return Task.FromResult(new PermissionRequestResult { Kind = "approved" });
+            return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
         },
         Hooks = new SessionHooks
         {

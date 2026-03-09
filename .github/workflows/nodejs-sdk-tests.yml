@@ -12,6 +12,7 @@ on:
       - 'nodejs/**'
       - 'test/**'
       - '.github/workflows/nodejs-sdk-tests.yml'
+      - '!nodejs/scripts/**'
       - '!**/*.md'
       - '!**/LICENSE*'
       - '!**/.gitignore'

@@ -94,7 +94,9 @@ func TestClient(t *testing.T) {
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
-		_, err := client.CreateSession(t.Context(), nil)
+		_, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
@@ -118,7 +120,9 @@ func TestClient(t *testing.T) {
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
-		_, err := client.CreateSession(t.Context(), nil)
+		_, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}

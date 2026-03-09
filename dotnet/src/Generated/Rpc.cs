@@ -5,6 +5,9 @@
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: api.schema.json
 
+// Generated code does not have XML doc comments; suppress CS1591 to avoid warnings.
+#pragma warning disable CS1591
+
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using StreamJsonRpc;
@@ -35,11 +38,11 @@ internal class PingRequest
 public class ModelCapabilitiesSupports
 {
     [JsonPropertyName("vision")]
-    public bool Vision { get; set; }
+    public bool? Vision { get; set; }
 
     /// <summary>Whether this model supports reasoning effort configuration</summary>
     [JsonPropertyName("reasoningEffort")]
-    public bool ReasoningEffort { get; set; }
+    public bool? ReasoningEffort { get; set; }
 }
 
 public class ModelCapabilitiesLimits
@@ -116,7 +119,7 @@ public class ModelsListResult
 {
     /// <summary>List of available models with full metadata</summary>
     [JsonPropertyName("models")]
-    public List<Model> Models { get; set; } = new();
+    public List<Model> Models { get; set; } = [];
 }
 
 public class Tool
@@ -146,10 +149,10 @@ public class ToolsListResult
 {
     /// <summary>List of available built-in tools with metadata</summary>
     [JsonPropertyName("tools")]
-    public List<Tool> Tools { get; set; } = new();
+    public List<Tool> Tools { get; set; } = [];
 }
 
-internal class ListRequest
+internal class ToolsListRequest
 {
     [JsonPropertyName("model")]
     public string? Model { get; set; }
@@ -186,7 +189,7 @@ public class AccountGetQuotaResult
 {
     /// <summary>Quota snapshots keyed by type (e.g., chat, completions, premium_interactions)</summary>
     [JsonPropertyName("quotaSnapshots")]
-    public Dictionary<string, AccountGetQuotaResultQuotaSnapshotsValue> QuotaSnapshots { get; set; } = new();
+    public Dictionary<string, AccountGetQuotaResultQuotaSnapshotsValue> QuotaSnapshots { get; set; } = [];
 }
 
 public class SessionModelGetCurrentResult
@@ -195,7 +198,7 @@ public class SessionModelGetCurrentResult
     public string? ModelId { get; set; }
 }
 
-internal class GetCurrentRequest
+internal class SessionModelGetCurrentRequest
 {
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -207,7 +210,7 @@ public class SessionModelSwitchToResult
     public string? ModelId { get; set; }
 }
 
-internal class SwitchToRequest
+internal class SessionModelSwitchToRequest
 {
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -223,7 +226,7 @@ public class SessionModeGetResult
     public SessionModeGetResultMode Mode { get; set; }
 }
 
-internal class GetRequest
+internal class SessionModeGetRequest
 {
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -236,7 +239,7 @@ public class SessionModeSetResult
     public SessionModeGetResultMode Mode { get; set; }
 }
 
-internal class SetRequest
+internal class SessionModeSetRequest
 {
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -247,16 +250,20 @@ internal class SetRequest
 
 public class SessionPlanReadResult
 {
-    /// <summary>Whether plan.md exists in the workspace</summary>
+    /// <summary>Whether the plan file exists in the workspace</summary>
     [JsonPropertyName("exists")]
     public bool Exists { get; set; }
 
-    /// <summary>The content of plan.md, or null if it does not exist</summary>
+    /// <summary>The content of the plan file, or null if it does not exist</summary>
     [JsonPropertyName("content")]
     public string? Content { get; set; }
+
+    /// <summary>Absolute file path of the plan file, or null if workspace is not enabled</summary>
+    [JsonPropertyName("path")]
+    public string? Path { get; set; }
 }
 
-internal class ReadRequest
+internal class SessionPlanReadRequest
 {
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -266,7 +273,7 @@ public class SessionPlanUpdateResult
 {
 }
 
-internal class UpdateRequest
+internal class SessionPlanUpdateRequest
 {
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -279,7 +286,7 @@ public class SessionPlanDeleteResult
 {
 }
 
-internal class DeleteRequest
+internal class SessionPlanDeleteRequest
 {
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -289,10 +296,10 @@ public class SessionWorkspaceListFilesResult
 {
     /// <summary>Relative file paths in the workspace files directory</summary>
     [JsonPropertyName("files")]
-    public List<string> Files { get; set; } = new();
+    public List<string> Files { get; set; } = [];
 }
 
-internal class ListFilesRequest
+internal class SessionWorkspaceListFilesRequest
 {
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -305,7 +312,7 @@ public class SessionWorkspaceReadFileResult
     public string Content { get; set; } = string.Empty;
 }
 
-internal class ReadFileRequest
+internal class SessionWorkspaceReadFileRequest
 {
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -318,7 +325,7 @@ public class SessionWorkspaceCreateFileResult
 {
 }
 
-internal class CreateFileRequest
+internal class SessionWorkspaceCreateFileRequest
 {
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -337,13 +344,171 @@ public class SessionFleetStartResult
     public bool Started { get; set; }
 }
 
-internal class StartRequest
+internal class SessionFleetStartRequest
 {
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
 
     [JsonPropertyName("prompt")]
     public string? Prompt { get; set; }
+}
+
+public class Agent
+{
+    /// <summary>Unique identifier of the custom agent</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Human-readable display name</summary>
+    [JsonPropertyName("displayName")]
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>Description of the agent's purpose</summary>
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+}
+
+public class SessionAgentListResult
+{
+    /// <summary>Available custom agents</summary>
+    [JsonPropertyName("agents")]
+    public List<Agent> Agents { get; set; } = [];
+}
+
+internal class SessionAgentListRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+public class SessionAgentGetCurrentResultAgent
+{
+    /// <summary>Unique identifier of the custom agent</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Human-readable display name</summary>
+    [JsonPropertyName("displayName")]
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>Description of the agent's purpose</summary>
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+}
+
+public class SessionAgentGetCurrentResult
+{
+    /// <summary>Currently selected custom agent, or null if using the default agent</summary>
+    [JsonPropertyName("agent")]
+    public SessionAgentGetCurrentResultAgent? Agent { get; set; }
+}
+
+internal class SessionAgentGetCurrentRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>The newly selected custom agent</summary>
+public class SessionAgentSelectResultAgent
+{
+    /// <summary>Unique identifier of the custom agent</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Human-readable display name</summary>
+    [JsonPropertyName("displayName")]
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>Description of the agent's purpose</summary>
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+}
+
+public class SessionAgentSelectResult
+{
+    /// <summary>The newly selected custom agent</summary>
+    [JsonPropertyName("agent")]
+    public SessionAgentSelectResultAgent Agent { get; set; } = new();
+}
+
+internal class SessionAgentSelectRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+}
+
+public class SessionAgentDeselectResult
+{
+}
+
+internal class SessionAgentDeselectRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+public class SessionCompactionCompactResult
+{
+    /// <summary>Whether compaction completed successfully</summary>
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+
+    /// <summary>Number of tokens freed by compaction</summary>
+    [JsonPropertyName("tokensRemoved")]
+    public double TokensRemoved { get; set; }
+
+    /// <summary>Number of messages removed during compaction</summary>
+    [JsonPropertyName("messagesRemoved")]
+    public double MessagesRemoved { get; set; }
+}
+
+internal class SessionCompactionCompactRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+public class SessionToolsHandlePendingToolCallResult
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+internal class SessionToolsHandlePendingToolCallRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    [JsonPropertyName("requestId")]
+    public string RequestId { get; set; } = string.Empty;
+
+    [JsonPropertyName("result")]
+    public object? Result { get; set; }
+
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+}
+
+public class SessionPermissionsHandlePendingPermissionRequestResult
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+internal class SessionPermissionsHandlePendingPermissionRequestRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    [JsonPropertyName("requestId")]
+    public string RequestId { get; set; } = string.Empty;
+
+    [JsonPropertyName("result")]
+    public object Result { get; set; } = null!;
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<SessionModeGetResultMode>))]
@@ -366,9 +531,9 @@ public class ServerRpc
     internal ServerRpc(JsonRpc rpc)
     {
         _rpc = rpc;
-        Models = new ModelsApi(rpc);
-        Tools = new ToolsApi(rpc);
-        Account = new AccountApi(rpc);
+        Models = new ServerModelsApi(rpc);
+        Tools = new ServerToolsApi(rpc);
+        Account = new ServerAccountApi(rpc);
     }
 
     /// <summary>Calls "ping".</summary>
@@ -379,21 +544,21 @@ public class ServerRpc
     }
 
     /// <summary>Models APIs.</summary>
-    public ModelsApi Models { get; }
+    public ServerModelsApi Models { get; }
 
     /// <summary>Tools APIs.</summary>
-    public ToolsApi Tools { get; }
+    public ServerToolsApi Tools { get; }
 
     /// <summary>Account APIs.</summary>
-    public AccountApi Account { get; }
+    public ServerAccountApi Account { get; }
 }
 
 /// <summary>Server-scoped Models APIs.</summary>
-public class ModelsApi
+public class ServerModelsApi
 {
     private readonly JsonRpc _rpc;
 
-    internal ModelsApi(JsonRpc rpc)
+    internal ServerModelsApi(JsonRpc rpc)
     {
         _rpc = rpc;
     }
@@ -406,11 +571,11 @@ public class ModelsApi
 }
 
 /// <summary>Server-scoped Tools APIs.</summary>
-public class ToolsApi
+public class ServerToolsApi
 {
     private readonly JsonRpc _rpc;
 
-    internal ToolsApi(JsonRpc rpc)
+    internal ServerToolsApi(JsonRpc rpc)
     {
         _rpc = rpc;
     }
@@ -418,17 +583,17 @@ public class ToolsApi
     /// <summary>Calls "tools.list".</summary>
     public async Task<ToolsListResult> ListAsync(string? model = null, CancellationToken cancellationToken = default)
     {
-        var request = new ListRequest { Model = model };
+        var request = new ToolsListRequest { Model = model };
         return await CopilotClient.InvokeRpcAsync<ToolsListResult>(_rpc, "tools.list", [request], cancellationToken);
     }
 }
 
 /// <summary>Server-scoped Account APIs.</summary>
-public class AccountApi
+public class ServerAccountApi
 {
     private readonly JsonRpc _rpc;
 
-    internal AccountApi(JsonRpc rpc)
+    internal ServerAccountApi(JsonRpc rpc)
     {
         _rpc = rpc;
     }
@@ -455,6 +620,10 @@ public class SessionRpc
         Plan = new PlanApi(rpc, sessionId);
         Workspace = new WorkspaceApi(rpc, sessionId);
         Fleet = new FleetApi(rpc, sessionId);
+        Agent = new AgentApi(rpc, sessionId);
+        Compaction = new CompactionApi(rpc, sessionId);
+        Tools = new ToolsApi(rpc, sessionId);
+        Permissions = new PermissionsApi(rpc, sessionId);
     }
 
     public ModelApi Model { get; }
@@ -466,6 +635,14 @@ public class SessionRpc
     public WorkspaceApi Workspace { get; }
 
     public FleetApi Fleet { get; }
+
+    public AgentApi Agent { get; }
+
+    public CompactionApi Compaction { get; }
+
+    public ToolsApi Tools { get; }
+
+    public PermissionsApi Permissions { get; }
 }
 
 public class ModelApi
@@ -482,14 +659,14 @@ public class ModelApi
     /// <summary>Calls "session.model.getCurrent".</summary>
     public async Task<SessionModelGetCurrentResult> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
-        var request = new GetCurrentRequest { SessionId = _sessionId };
+        var request = new SessionModelGetCurrentRequest { SessionId = _sessionId };
         return await CopilotClient.InvokeRpcAsync<SessionModelGetCurrentResult>(_rpc, "session.model.getCurrent", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.model.switchTo".</summary>
     public async Task<SessionModelSwitchToResult> SwitchToAsync(string modelId, CancellationToken cancellationToken = default)
     {
-        var request = new SwitchToRequest { SessionId = _sessionId, ModelId = modelId };
+        var request = new SessionModelSwitchToRequest { SessionId = _sessionId, ModelId = modelId };
         return await CopilotClient.InvokeRpcAsync<SessionModelSwitchToResult>(_rpc, "session.model.switchTo", [request], cancellationToken);
     }
 }
@@ -508,14 +685,14 @@ public class ModeApi
     /// <summary>Calls "session.mode.get".</summary>
     public async Task<SessionModeGetResult> GetAsync(CancellationToken cancellationToken = default)
     {
-        var request = new GetRequest { SessionId = _sessionId };
+        var request = new SessionModeGetRequest { SessionId = _sessionId };
         return await CopilotClient.InvokeRpcAsync<SessionModeGetResult>(_rpc, "session.mode.get", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.mode.set".</summary>
     public async Task<SessionModeSetResult> SetAsync(SessionModeGetResultMode mode, CancellationToken cancellationToken = default)
     {
-        var request = new SetRequest { SessionId = _sessionId, Mode = mode };
+        var request = new SessionModeSetRequest { SessionId = _sessionId, Mode = mode };
         return await CopilotClient.InvokeRpcAsync<SessionModeSetResult>(_rpc, "session.mode.set", [request], cancellationToken);
     }
 }
@@ -534,21 +711,21 @@ public class PlanApi
     /// <summary>Calls "session.plan.read".</summary>
     public async Task<SessionPlanReadResult> ReadAsync(CancellationToken cancellationToken = default)
     {
-        var request = new ReadRequest { SessionId = _sessionId };
+        var request = new SessionPlanReadRequest { SessionId = _sessionId };
         return await CopilotClient.InvokeRpcAsync<SessionPlanReadResult>(_rpc, "session.plan.read", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.plan.update".</summary>
     public async Task<SessionPlanUpdateResult> UpdateAsync(string content, CancellationToken cancellationToken = default)
     {
-        var request = new UpdateRequest { SessionId = _sessionId, Content = content };
+        var request = new SessionPlanUpdateRequest { SessionId = _sessionId, Content = content };
         return await CopilotClient.InvokeRpcAsync<SessionPlanUpdateResult>(_rpc, "session.plan.update", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.plan.delete".</summary>
     public async Task<SessionPlanDeleteResult> DeleteAsync(CancellationToken cancellationToken = default)
     {
-        var request = new DeleteRequest { SessionId = _sessionId };
+        var request = new SessionPlanDeleteRequest { SessionId = _sessionId };
         return await CopilotClient.InvokeRpcAsync<SessionPlanDeleteResult>(_rpc, "session.plan.delete", [request], cancellationToken);
     }
 }
@@ -567,21 +744,21 @@ public class WorkspaceApi
     /// <summary>Calls "session.workspace.listFiles".</summary>
     public async Task<SessionWorkspaceListFilesResult> ListFilesAsync(CancellationToken cancellationToken = default)
     {
-        var request = new ListFilesRequest { SessionId = _sessionId };
+        var request = new SessionWorkspaceListFilesRequest { SessionId = _sessionId };
         return await CopilotClient.InvokeRpcAsync<SessionWorkspaceListFilesResult>(_rpc, "session.workspace.listFiles", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.workspace.readFile".</summary>
     public async Task<SessionWorkspaceReadFileResult> ReadFileAsync(string path, CancellationToken cancellationToken = default)
     {
-        var request = new ReadFileRequest { SessionId = _sessionId, Path = path };
+        var request = new SessionWorkspaceReadFileRequest { SessionId = _sessionId, Path = path };
         return await CopilotClient.InvokeRpcAsync<SessionWorkspaceReadFileResult>(_rpc, "session.workspace.readFile", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.workspace.createFile".</summary>
     public async Task<SessionWorkspaceCreateFileResult> CreateFileAsync(string path, string content, CancellationToken cancellationToken = default)
     {
-        var request = new CreateFileRequest { SessionId = _sessionId, Path = path, Content = content };
+        var request = new SessionWorkspaceCreateFileRequest { SessionId = _sessionId, Path = path, Content = content };
         return await CopilotClient.InvokeRpcAsync<SessionWorkspaceCreateFileResult>(_rpc, "session.workspace.createFile", [request], cancellationToken);
     }
 }
@@ -600,8 +777,105 @@ public class FleetApi
     /// <summary>Calls "session.fleet.start".</summary>
     public async Task<SessionFleetStartResult> StartAsync(string? prompt, CancellationToken cancellationToken = default)
     {
-        var request = new StartRequest { SessionId = _sessionId, Prompt = prompt };
+        var request = new SessionFleetStartRequest { SessionId = _sessionId, Prompt = prompt };
         return await CopilotClient.InvokeRpcAsync<SessionFleetStartResult>(_rpc, "session.fleet.start", [request], cancellationToken);
+    }
+}
+
+public class AgentApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal AgentApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.agent.list".</summary>
+    public async Task<SessionAgentListResult> ListAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new SessionAgentListRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionAgentListResult>(_rpc, "session.agent.list", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.agent.getCurrent".</summary>
+    public async Task<SessionAgentGetCurrentResult> GetCurrentAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new SessionAgentGetCurrentRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionAgentGetCurrentResult>(_rpc, "session.agent.getCurrent", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.agent.select".</summary>
+    public async Task<SessionAgentSelectResult> SelectAsync(string name, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionAgentSelectRequest { SessionId = _sessionId, Name = name };
+        return await CopilotClient.InvokeRpcAsync<SessionAgentSelectResult>(_rpc, "session.agent.select", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.agent.deselect".</summary>
+    public async Task<SessionAgentDeselectResult> DeselectAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new SessionAgentDeselectRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionAgentDeselectResult>(_rpc, "session.agent.deselect", [request], cancellationToken);
+    }
+}
+
+public class CompactionApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal CompactionApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.compaction.compact".</summary>
+    public async Task<SessionCompactionCompactResult> CompactAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new SessionCompactionCompactRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionCompactionCompactResult>(_rpc, "session.compaction.compact", [request], cancellationToken);
+    }
+}
+
+public class ToolsApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal ToolsApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.tools.handlePendingToolCall".</summary>
+    public async Task<SessionToolsHandlePendingToolCallResult> HandlePendingToolCallAsync(string requestId, object? result, string? error, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionToolsHandlePendingToolCallRequest { SessionId = _sessionId, RequestId = requestId, Result = result, Error = error };
+        return await CopilotClient.InvokeRpcAsync<SessionToolsHandlePendingToolCallResult>(_rpc, "session.tools.handlePendingToolCall", [request], cancellationToken);
+    }
+}
+
+public class PermissionsApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal PermissionsApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.permissions.handlePendingPermissionRequest".</summary>
+    public async Task<SessionPermissionsHandlePendingPermissionRequestResult> HandlePendingPermissionRequestAsync(string requestId, object result, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionPermissionsHandlePendingPermissionRequestRequest { SessionId = _sessionId, RequestId = requestId, Result = result };
+        return await CopilotClient.InvokeRpcAsync<SessionPermissionsHandlePendingPermissionRequestResult>(_rpc, "session.permissions.handlePendingPermissionRequest", [request], cancellationToken);
     }
 }
 
@@ -611,12 +885,7 @@ public class FleetApi
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(AccountGetQuotaResult))]
 [JsonSerializable(typeof(AccountGetQuotaResultQuotaSnapshotsValue))]
-[JsonSerializable(typeof(CreateFileRequest))]
-[JsonSerializable(typeof(DeleteRequest))]
-[JsonSerializable(typeof(GetCurrentRequest))]
-[JsonSerializable(typeof(GetRequest))]
-[JsonSerializable(typeof(ListFilesRequest))]
-[JsonSerializable(typeof(ListRequest))]
+[JsonSerializable(typeof(Agent))]
 [JsonSerializable(typeof(Model))]
 [JsonSerializable(typeof(ModelBilling))]
 [JsonSerializable(typeof(ModelCapabilities))]
@@ -626,23 +895,45 @@ public class FleetApi
 [JsonSerializable(typeof(ModelsListResult))]
 [JsonSerializable(typeof(PingRequest))]
 [JsonSerializable(typeof(PingResult))]
-[JsonSerializable(typeof(ReadFileRequest))]
-[JsonSerializable(typeof(ReadRequest))]
+[JsonSerializable(typeof(SessionAgentDeselectRequest))]
+[JsonSerializable(typeof(SessionAgentDeselectResult))]
+[JsonSerializable(typeof(SessionAgentGetCurrentRequest))]
+[JsonSerializable(typeof(SessionAgentGetCurrentResult))]
+[JsonSerializable(typeof(SessionAgentGetCurrentResultAgent))]
+[JsonSerializable(typeof(SessionAgentListRequest))]
+[JsonSerializable(typeof(SessionAgentListResult))]
+[JsonSerializable(typeof(SessionAgentSelectRequest))]
+[JsonSerializable(typeof(SessionAgentSelectResult))]
+[JsonSerializable(typeof(SessionAgentSelectResultAgent))]
+[JsonSerializable(typeof(SessionCompactionCompactRequest))]
+[JsonSerializable(typeof(SessionCompactionCompactResult))]
+[JsonSerializable(typeof(SessionFleetStartRequest))]
 [JsonSerializable(typeof(SessionFleetStartResult))]
+[JsonSerializable(typeof(SessionModeGetRequest))]
 [JsonSerializable(typeof(SessionModeGetResult))]
+[JsonSerializable(typeof(SessionModeSetRequest))]
 [JsonSerializable(typeof(SessionModeSetResult))]
+[JsonSerializable(typeof(SessionModelGetCurrentRequest))]
 [JsonSerializable(typeof(SessionModelGetCurrentResult))]
+[JsonSerializable(typeof(SessionModelSwitchToRequest))]
 [JsonSerializable(typeof(SessionModelSwitchToResult))]
+[JsonSerializable(typeof(SessionPermissionsHandlePendingPermissionRequestRequest))]
+[JsonSerializable(typeof(SessionPermissionsHandlePendingPermissionRequestResult))]
+[JsonSerializable(typeof(SessionPlanDeleteRequest))]
 [JsonSerializable(typeof(SessionPlanDeleteResult))]
+[JsonSerializable(typeof(SessionPlanReadRequest))]
 [JsonSerializable(typeof(SessionPlanReadResult))]
+[JsonSerializable(typeof(SessionPlanUpdateRequest))]
 [JsonSerializable(typeof(SessionPlanUpdateResult))]
+[JsonSerializable(typeof(SessionToolsHandlePendingToolCallRequest))]
+[JsonSerializable(typeof(SessionToolsHandlePendingToolCallResult))]
+[JsonSerializable(typeof(SessionWorkspaceCreateFileRequest))]
 [JsonSerializable(typeof(SessionWorkspaceCreateFileResult))]
+[JsonSerializable(typeof(SessionWorkspaceListFilesRequest))]
 [JsonSerializable(typeof(SessionWorkspaceListFilesResult))]
+[JsonSerializable(typeof(SessionWorkspaceReadFileRequest))]
 [JsonSerializable(typeof(SessionWorkspaceReadFileResult))]
-[JsonSerializable(typeof(SetRequest))]
-[JsonSerializable(typeof(StartRequest))]
-[JsonSerializable(typeof(SwitchToRequest))]
 [JsonSerializable(typeof(Tool))]
+[JsonSerializable(typeof(ToolsListRequest))]
 [JsonSerializable(typeof(ToolsListResult))]
-[JsonSerializable(typeof(UpdateRequest))]
 internal partial class RpcJsonContext : JsonSerializerContext;
