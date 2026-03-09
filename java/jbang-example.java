@@ -1,5 +1,5 @@
 
-//DEPS com.github:copilot-sdk:0.1.30
+//DEPS com.github:copilot-sdk:0.1.29
 import com.github.copilot.sdk.*;
 import com.github.copilot.sdk.events.*;
 import com.github.copilot.sdk.json.*;
