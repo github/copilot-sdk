@@ -4,14 +4,15 @@ Type definitions for the Copilot SDK
 
 from __future__ import annotations
 
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Literal, TypedDict, Union
-
-from typing_extensions import NotRequired
+from typing import Any, Literal, NotRequired, TypedDict
 
 # Import generated SessionEvent types
-from .generated.session_events import SessionEvent
+from .generated.session_events import (
+    PermissionRequest,
+    SessionEvent,
+)
 
 # SessionEvent is now imported from generated types
 # It provides proper type discrimination for all event types
@@ -65,7 +66,7 @@ class SelectionAttachment(TypedDict):
 
 
 # Attachment type - union of all attachment types
-Attachment = Union[FileAttachment, DirectoryAttachment, SelectionAttachment]
+Attachment = FileAttachment | DirectoryAttachment | SelectionAttachment
 
 
 # Options for creating a CopilotClient
@@ -97,37 +98,49 @@ class CopilotClientOptions(TypedDict, total=False):
     # When False, only explicit tokens (github_token or environment variables) are used.
     # Default: True (but defaults to False when github_token is provided)
     use_logged_in_user: bool
+    # Custom handler for listing available models.
+    # When provided, client.list_models() calls this handler instead of
+    # querying the CLI server. Useful in BYOK mode to return models
+    # available from your custom provider.
+    on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]]
 
 
 ToolResultType = Literal["success", "failure", "rejected", "denied"]
 
 
-class ToolBinaryResult(TypedDict, total=False):
-    data: str
-    mimeType: str
-    type: str
-    description: str
+@dataclass
+class ToolBinaryResult:
+    """Binary content returned by a tool."""
+
+    data: str = ""
+    mime_type: str = ""
+    type: str = ""
+    description: str = ""
 
 
-class ToolResult(TypedDict, total=False):
+@dataclass
+class ToolResult:
     """Result of a tool invocation."""
 
-    textResultForLlm: str
-    binaryResultsForLlm: list[ToolBinaryResult]
-    resultType: ToolResultType
-    error: str
-    sessionLog: str
-    toolTelemetry: dict[str, Any]
+    text_result_for_llm: str = ""
+    result_type: ToolResultType = "success"
+    error: str | None = None
+    binary_results_for_llm: list[ToolBinaryResult] | None = None
+    session_log: str | None = None
+    tool_telemetry: dict[str, Any] | None = None
 
 
-class ToolInvocation(TypedDict):
-    session_id: str
-    tool_call_id: str
-    tool_name: str
-    arguments: Any
+@dataclass
+class ToolInvocation:
+    """Context passed to a tool handler when invoked."""
+
+    session_id: str = ""
+    tool_call_id: str = ""
+    tool_name: str = ""
+    arguments: Any = None
 
 
-ToolHandler = Callable[[ToolInvocation], Union[ToolResult, Awaitable[ToolResult]]]
+ToolHandler = Callable[[ToolInvocation], ToolResult | Awaitable[ToolResult]]
 
 
 @dataclass
@@ -136,6 +149,7 @@ class Tool:
     description: str
     handler: ToolHandler
     parameters: dict[str, Any] | None = None
+    overrides_built_in_tool: bool = False
 
 
 # System message configuration (discriminated union)
@@ -162,40 +176,43 @@ class SystemMessageReplaceConfig(TypedDict):
 
 
 # Union type - use one or the other
-SystemMessageConfig = Union[SystemMessageAppendConfig, SystemMessageReplaceConfig]
+SystemMessageConfig = SystemMessageAppendConfig | SystemMessageReplaceConfig
 
 
-# Permission request types
-class PermissionRequest(TypedDict, total=False):
-    """Permission request from the server"""
+# Permission result types
 
-    kind: Literal["shell", "write", "mcp", "read", "url", "custom-tool"]
-    toolCallId: str
-    # Additional fields vary by kind
+PermissionRequestResultKind = Literal[
+    "approved",
+    "denied-by-rules",
+    "denied-by-content-exclusion-policy",
+    "denied-no-approval-rule-and-could-not-request-from-user",
+    "denied-interactively-by-user",
+]
 
 
-class PermissionRequestResult(TypedDict, total=False):
-    """Result of a permission request"""
+@dataclass
+class PermissionRequestResult:
+    """Result of a permission request."""
 
-    kind: Literal[
-        "approved",
-        "denied-by-rules",
-        "denied-no-approval-rule-and-could-not-request-from-user",
-        "denied-interactively-by-user",
-    ]
-    rules: list[Any]
+    kind: PermissionRequestResultKind = "denied-no-approval-rule-and-could-not-request-from-user"
+    rules: list[Any] | None = None
+    feedback: str | None = None
+    message: str | None = None
+    path: str | None = None
 
 
 _PermissionHandlerFn = Callable[
     [PermissionRequest, dict[str, str]],
-    Union[PermissionRequestResult, Awaitable[PermissionRequestResult]],
+    PermissionRequestResult | Awaitable[PermissionRequestResult],
 ]
 
 
 class PermissionHandler:
     @staticmethod
-    def approve_all(request: Any, invocation: Any) -> dict:
-        return {"kind": "approved"}
+    def approve_all(
+        request: PermissionRequest, invocation: dict[str, str]
+    ) -> PermissionRequestResult:
+        return PermissionRequestResult(kind="approved")
 
 
 # ============================================================================
@@ -220,7 +237,7 @@ class UserInputResponse(TypedDict):
 
 UserInputHandler = Callable[
     [UserInputRequest, dict[str, str]],
-    Union[UserInputResponse, Awaitable[UserInputResponse]],
+    UserInputResponse | Awaitable[UserInputResponse],
 ]
 
 
@@ -257,7 +274,7 @@ class PreToolUseHookOutput(TypedDict, total=False):
 
 PreToolUseHandler = Callable[
     [PreToolUseHookInput, dict[str, str]],
-    Union[PreToolUseHookOutput, None, Awaitable[Union[PreToolUseHookOutput, None]]],
+    PreToolUseHookOutput | None | Awaitable[PreToolUseHookOutput | None],
 ]
 
 
@@ -281,7 +298,7 @@ class PostToolUseHookOutput(TypedDict, total=False):
 
 PostToolUseHandler = Callable[
     [PostToolUseHookInput, dict[str, str]],
-    Union[PostToolUseHookOutput, None, Awaitable[Union[PostToolUseHookOutput, None]]],
+    PostToolUseHookOutput | None | Awaitable[PostToolUseHookOutput | None],
 ]
 
 
@@ -303,11 +320,7 @@ class UserPromptSubmittedHookOutput(TypedDict, total=False):
 
 UserPromptSubmittedHandler = Callable[
     [UserPromptSubmittedHookInput, dict[str, str]],
-    Union[
-        UserPromptSubmittedHookOutput,
-        None,
-        Awaitable[Union[UserPromptSubmittedHookOutput, None]],
-    ],
+    UserPromptSubmittedHookOutput | None | Awaitable[UserPromptSubmittedHookOutput | None],
 ]
 
 
@@ -329,7 +342,7 @@ class SessionStartHookOutput(TypedDict, total=False):
 
 SessionStartHandler = Callable[
     [SessionStartHookInput, dict[str, str]],
-    Union[SessionStartHookOutput, None, Awaitable[Union[SessionStartHookOutput, None]]],
+    SessionStartHookOutput | None | Awaitable[SessionStartHookOutput | None],
 ]
 
 
@@ -353,7 +366,7 @@ class SessionEndHookOutput(TypedDict, total=False):
 
 SessionEndHandler = Callable[
     [SessionEndHookInput, dict[str, str]],
-    Union[SessionEndHookOutput, None, Awaitable[Union[SessionEndHookOutput, None]]],
+    SessionEndHookOutput | None | Awaitable[SessionEndHookOutput | None],
 ]
 
 
@@ -378,7 +391,7 @@ class ErrorOccurredHookOutput(TypedDict, total=False):
 
 ErrorOccurredHandler = Callable[
     [ErrorOccurredHookInput, dict[str, str]],
-    Union[ErrorOccurredHookOutput, None, Awaitable[Union[ErrorOccurredHookOutput, None]]],
+    ErrorOccurredHookOutput | None | Awaitable[ErrorOccurredHookOutput | None],
 ]
 
 
@@ -420,7 +433,7 @@ class MCPRemoteServerConfig(TypedDict, total=False):
     headers: NotRequired[dict[str, str]]  # HTTP headers
 
 
-MCPServerConfig = Union[MCPLocalServerConfig, MCPRemoteServerConfig]
+MCPServerConfig = MCPLocalServerConfig | MCPRemoteServerConfig
 
 
 # ============================================================================
@@ -499,6 +512,9 @@ class SessionConfig(TypedDict, total=False):
     mcp_servers: dict[str, MCPServerConfig]
     # Custom agent configurations for the session
     custom_agents: list[CustomAgentConfig]
+    # Name of the custom agent to activate when the session starts.
+    # Must match the name of one of the agents in custom_agents.
+    agent: str
     # Override the default configuration directory location.
     # When specified, the session will use this directory for storing config and state.
     config_dir: str
@@ -567,6 +583,9 @@ class ResumeSessionConfig(TypedDict, total=False):
     mcp_servers: dict[str, MCPServerConfig]
     # Custom agent configurations for the session
     custom_agents: list[CustomAgentConfig]
+    # Name of the custom agent to activate when the session starts.
+    # Must match the name of one of the agents in custom_agents.
+    agent: str
     # Directories to load skills from
     skill_directories: list[str]
     # List of skill names to disable
@@ -625,10 +644,13 @@ class PingResponse:
 
 # Error information from client stop
 @dataclass
-class StopError:
-    """Error information from client stop"""
+class StopError(Exception):
+    """Error that occurred during client stop cleanup."""
 
     message: str  # Error message describing what failed during cleanup
+
+    def __post_init__(self) -> None:
+        Exception.__init__(self, self.message)
 
     @staticmethod
     def from_dict(obj: Any) -> StopError:

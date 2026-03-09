@@ -26,7 +26,7 @@ async function main() {
 
     console.log("Minimal mode test complete");
 
-    await session.destroy();
+    await session.disconnect();
   } finally {
     await client.stop();
   }

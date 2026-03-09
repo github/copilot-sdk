@@ -41,6 +41,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/github/copilot-sdk/go/internal/embeddedcli"
@@ -68,26 +69,30 @@ import (
 //	}
 //	defer client.Stop()
 type Client struct {
-	options                ClientOptions
-	process                *exec.Cmd
-	client                 *jsonrpc2.Client
-	actualPort             int
-	actualHost             string
-	state                  ConnectionState
-	sessions               map[string]*Session
-	sessionsMux            sync.Mutex
-	isExternalServer       bool
-	conn                   net.Conn // stores net.Conn for external TCP connections
-	useStdio               bool     // resolved value from options
-	autoStart              bool     // resolved value from options
-	autoRestart            bool     // resolved value from options
-	modelsCache            []ModelInfo
-	modelsCacheMux         sync.Mutex
-	lifecycleHandlers      []SessionLifecycleHandler
-	typedLifecycleHandlers map[SessionLifecycleEventType][]SessionLifecycleHandler
-	lifecycleHandlersMux   sync.Mutex
-	processDone            chan struct{} // closed when CLI process exits
-	processError           error         // set before processDone is closed
+	options                   ClientOptions
+	process                   *exec.Cmd
+	client                    *jsonrpc2.Client
+	actualPort                int
+	actualHost                string
+	state                     ConnectionState
+	sessions                  map[string]*Session
+	sessionsMux               sync.Mutex
+	isExternalServer          bool
+	conn                      net.Conn // stores net.Conn for external TCP connections
+	useStdio                  bool     // resolved value from options
+	autoStart                 bool     // resolved value from options
+	autoRestart               bool     // resolved value from options
+	modelsCache               []ModelInfo
+	modelsCacheMux            sync.Mutex
+	lifecycleHandlers         []SessionLifecycleHandler
+	typedLifecycleHandlers    map[SessionLifecycleEventType][]SessionLifecycleHandler
+	lifecycleHandlersMux      sync.Mutex
+	startStopMux              sync.RWMutex // protects process and state during start/[force]stop
+	processDone               chan struct{}
+	processErrorPtr           *error
+	osProcess                 atomic.Pointer[os.Process]
+	negotiatedProtocolVersion int
+	onListModels              func(ctx context.Context) ([]ModelInfo, error)
 
 	// RPC provides typed server-scoped RPC methods.
 	// This field is nil until the client is connected via Start().
@@ -184,6 +189,9 @@ func NewClient(options *ClientOptions) *Client {
 		if options.UseLoggedInUser != nil {
 			opts.UseLoggedInUser = options.UseLoggedInUser
 		}
+		if options.OnListModels != nil {
+			client.onListModels = options.OnListModels
+		}
 	}
 
 	// Default Env to current environment if not set
@@ -251,6 +259,9 @@ func parseCliUrl(url string) (string, int) {
 //	}
 //	// Now ready to create sessions
 func (c *Client) Start(ctx context.Context) error {
+	c.startStopMux.Lock()
+	defer c.startStopMux.Unlock()
+
 	if c.state == StateConnected {
 		return nil
 	}
@@ -260,6 +271,7 @@ func (c *Client) Start(ctx context.Context) error {
 	// Only start CLI server process if not connecting to external server
 	if !c.isExternalServer {
 		if err := c.startCLIServer(ctx); err != nil {
+			c.process = nil
 			c.state = StateError
 			return err
 		}
@@ -267,14 +279,16 @@ func (c *Client) Start(ctx context.Context) error {
 
 	// Connect to the server
 	if err := c.connectToServer(ctx); err != nil {
+		killErr := c.killProcess()
 		c.state = StateError
-		return err
+		return errors.Join(err, killErr)
 	}
 
 	// Verify protocol version compatibility
 	if err := c.verifyProtocolVersion(ctx); err != nil {
+		killErr := c.killProcess()
 		c.state = StateError
-		return err
+		return errors.Join(err, killErr)
 	}
 
 	c.state = StateConnected
@@ -284,9 +298,13 @@ func (c *Client) Start(ctx context.Context) error {
 // Stop stops the CLI server and closes all active sessions.
 //
 // This method performs graceful cleanup:
-//  1. Destroys all active sessions
+//  1. Closes all active sessions (releases in-memory resources)
 //  2. Closes the JSON-RPC connection
 //  3. Terminates the CLI server process (if spawned by this client)
+//
+// Note: session data on disk is preserved, so sessions can be resumed later.
+// To permanently remove session data before stopping, call [Client.DeleteSession]
+// for each session first.
 //
 // Returns an error that aggregates all errors encountered during cleanup.
 //
@@ -298,7 +316,7 @@ func (c *Client) Start(ctx context.Context) error {
 func (c *Client) Stop() error {
 	var errs []error
 
-	// Destroy all active sessions
+	// Disconnect all active sessions
 	c.sessionsMux.Lock()
 	sessions := make([]*Session, 0, len(c.sessions))
 	for _, session := range c.sessions {
@@ -307,8 +325,8 @@ func (c *Client) Stop() error {
 	c.sessionsMux.Unlock()
 
 	for _, session := range sessions {
-		if err := session.Destroy(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to destroy session %s: %w", session.SessionID, err))
+		if err := session.Disconnect(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to disconnect session %s: %w", session.SessionID, err))
 		}
 	}
 
@@ -316,13 +334,16 @@ func (c *Client) Stop() error {
 	c.sessions = make(map[string]*Session)
 	c.sessionsMux.Unlock()
 
+	c.startStopMux.Lock()
+	defer c.startStopMux.Unlock()
+
 	// Kill CLI process FIRST (this closes stdout and unblocks readLoop) - only if we spawned it
 	if c.process != nil && !c.isExternalServer {
-		if err := c.process.Process.Kill(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to kill CLI process: %w", err))
+		if err := c.killProcess(); err != nil {
+			errs = append(errs, err)
 		}
-		c.process = nil
 	}
+	c.process = nil
 
 	// Close external TCP connection if exists
 	if c.isExternalServer && c.conn != nil {
@@ -375,16 +396,27 @@ func (c *Client) Stop() error {
 //	    client.ForceStop()
 //	}
 func (c *Client) ForceStop() {
+	// Kill the process without waiting for startStopMux, which Start may hold.
+	// This unblocks any I/O Start is doing (connect, version check).
+	if p := c.osProcess.Swap(nil); p != nil {
+		p.Kill()
+	}
+
 	// Clear sessions immediately without trying to destroy them
 	c.sessionsMux.Lock()
 	c.sessions = make(map[string]*Session)
 	c.sessionsMux.Unlock()
 
+	c.startStopMux.Lock()
+	defer c.startStopMux.Unlock()
+
 	// Kill CLI process (only if we spawned it)
+	// This is a fallback in case the process wasn't killed above (e.g. if Start hadn't set
+	// osProcess yet), or if the process was restarted and osProcess now points to a new process.
 	if c.process != nil && !c.isExternalServer {
-		c.process.Process.Kill() // Ignore errors
-		c.process = nil
+		_ = c.killProcess() // Ignore errors since we're force stopping
 	}
+	c.process = nil
 
 	// Close external TCP connection if exists
 	if c.isExternalServer && c.conn != nil {
@@ -474,6 +506,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.MCPServers = config.MCPServers
 	req.EnvValueMode = "direct"
 	req.CustomAgents = config.CustomAgents
+	req.Agent = config.Agent
 	req.SkillDirectories = config.SkillDirectories
 	req.DisabledSkills = config.DisabledSkills
 	req.InfiniteSessions = config.InfiniteSessions
@@ -588,6 +621,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.MCPServers = config.MCPServers
 	req.EnvValueMode = "direct"
 	req.CustomAgents = config.CustomAgents
+	req.Agent = config.Agent
 	req.SkillDirectories = config.SkillDirectories
 	req.DisabledSkills = config.DisabledSkills
 	req.InfiniteSessions = config.InfiniteSessions
@@ -662,8 +696,11 @@ func (c *Client) ListSessions(ctx context.Context, filter *SessionListFilter) ([
 	return response.Sessions, nil
 }
 
-// DeleteSession permanently deletes a session and all its conversation history.
+// DeleteSession permanently deletes a session and all its data from disk,
+// including conversation history, planning state, and artifacts.
 //
+// Unlike [Session.Disconnect], which only releases in-memory resources and
+// preserves session data for later resumption, DeleteSession is irreversible.
 // The session cannot be resumed after deletion. If the session is in the local
 // sessions map, it will be removed.
 //
@@ -701,6 +738,40 @@ func (c *Client) DeleteSession(ctx context.Context, sessionID string) error {
 	c.sessionsMux.Unlock()
 
 	return nil
+}
+
+// GetLastSessionID returns the ID of the most recently updated session.
+//
+// This is useful for resuming the last conversation when the session ID
+// was not stored. Returns nil if no sessions exist.
+//
+// Example:
+//
+//	lastID, err := client.GetLastSessionID(context.Background())
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	if lastID != nil {
+//	    session, err := client.ResumeSession(context.Background(), *lastID, &copilot.ResumeSessionConfig{
+//	        OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+//	    })
+//	}
+func (c *Client) GetLastSessionID(ctx context.Context) (*string, error) {
+	if err := c.ensureConnected(); err != nil {
+		return nil, err
+	}
+
+	result, err := c.client.Request("session.getLastId", getLastSessionIDRequest{})
+	if err != nil {
+		return nil, err
+	}
+
+	var response getLastSessionIDResponse
+	if err := json.Unmarshal(result, &response); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal getLastId response: %w", err)
+	}
+
+	return response.SessionID, nil
 }
 
 // GetForegroundSessionID returns the ID of the session currently displayed in the TUI.
@@ -886,7 +957,15 @@ func (c *Client) handleLifecycleEvent(event SessionLifecycleEvent) {
 //	    })
 //	}
 func (c *Client) State() ConnectionState {
+	c.startStopMux.RLock()
+	defer c.startStopMux.RUnlock()
 	return c.state
+}
+
+// ActualPort returns the TCP port the CLI server is listening on.
+// Returns 0 if the client is not connected or using stdio transport.
+func (c *Client) ActualPort() int {
+	return c.actualPort
 }
 
 // Ping sends a ping request to the server to verify connectivity.
@@ -960,58 +1039,75 @@ func (c *Client) GetAuthStatus(ctx context.Context) (*GetAuthStatusResponse, err
 // Results are cached after the first successful call to avoid rate limiting.
 // The cache is cleared when the client disconnects.
 func (c *Client) ListModels(ctx context.Context) ([]ModelInfo, error) {
-	if c.client == nil {
-		return nil, fmt.Errorf("client not connected")
-	}
-
 	// Use mutex for locking to prevent race condition with concurrent calls
 	c.modelsCacheMux.Lock()
 	defer c.modelsCacheMux.Unlock()
 
 	// Check cache (already inside lock)
 	if c.modelsCache != nil {
-		// Return a copy to prevent cache mutation
 		result := make([]ModelInfo, len(c.modelsCache))
 		copy(result, c.modelsCache)
 		return result, nil
 	}
 
-	// Cache miss - fetch from backend while holding lock
-	result, err := c.client.Request("models.list", listModelsRequest{})
-	if err != nil {
-		return nil, err
+	var models []ModelInfo
+	if c.onListModels != nil {
+		// Use custom handler instead of CLI RPC
+		var err error
+		models, err = c.onListModels(ctx)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		if c.client == nil {
+			return nil, fmt.Errorf("client not connected")
+		}
+		// Cache miss - fetch from backend while holding lock
+		result, err := c.client.Request("models.list", listModelsRequest{})
+		if err != nil {
+			return nil, err
+		}
+
+		var response listModelsResponse
+		if err := json.Unmarshal(result, &response); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal models response: %w", err)
+		}
+		models = response.Models
 	}
 
-	var response listModelsResponse
-	if err := json.Unmarshal(result, &response); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal models response: %w", err)
-	}
-
-	// Update cache before releasing lock
-	c.modelsCache = response.Models
+	// Update cache before releasing lock (copy to prevent external mutation)
+	cache := make([]ModelInfo, len(models))
+	copy(cache, models)
+	c.modelsCache = cache
 
 	// Return a copy to prevent cache mutation
-	models := make([]ModelInfo, len(response.Models))
-	copy(models, response.Models)
-	return models, nil
+	result := make([]ModelInfo, len(models))
+	copy(result, models)
+	return result, nil
 }
 
-// verifyProtocolVersion verifies that the server's protocol version matches the SDK's expected version
+// minProtocolVersion is the minimum protocol version this SDK can communicate with.
+const minProtocolVersion = 2
+
+// verifyProtocolVersion verifies that the server's protocol version is within the supported range
+// and stores the negotiated version.
 func (c *Client) verifyProtocolVersion(ctx context.Context) error {
-	expectedVersion := GetSdkProtocolVersion()
+	maxVersion := GetSdkProtocolVersion()
 	pingResult, err := c.Ping(ctx, "")
 	if err != nil {
 		return err
 	}
 
 	if pingResult.ProtocolVersion == nil {
-		return fmt.Errorf("SDK protocol version mismatch: SDK expects version %d, but server does not report a protocol version. Please update your server to ensure compatibility", expectedVersion)
+		return fmt.Errorf("SDK protocol version mismatch: SDK supports versions %d-%d, but server does not report a protocol version. Please update your server to ensure compatibility", minProtocolVersion, maxVersion)
 	}
 
-	if *pingResult.ProtocolVersion != expectedVersion {
-		return fmt.Errorf("SDK protocol version mismatch: SDK expects version %d, but server reports version %d. Please update your SDK or server to ensure compatibility", expectedVersion, *pingResult.ProtocolVersion)
+	serverVersion := *pingResult.ProtocolVersion
+	if serverVersion < minProtocolVersion || serverVersion > maxVersion {
+		return fmt.Errorf("SDK protocol version mismatch: SDK supports versions %d-%d, but server reports version %d. Please update your SDK or server to ensure compatibility", minProtocolVersion, maxVersion, serverVersion)
 	}
 
+	c.negotiatedProtocolVersion = serverVersion
 	return nil
 }
 
@@ -1096,21 +1192,11 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 			return fmt.Errorf("failed to start CLI server: %w", err)
 		}
 
-		// Monitor process exit to signal pending requests
-		c.processDone = make(chan struct{})
-		go func() {
-			waitErr := c.process.Wait()
-			if waitErr != nil {
-				c.processError = fmt.Errorf("CLI process exited: %v", waitErr)
-			} else {
-				c.processError = fmt.Errorf("CLI process exited unexpectedly")
-			}
-			close(c.processDone)
-		}()
+		c.monitorProcess()
 
 		// Create JSON-RPC client immediately
 		c.client = jsonrpc2.NewClient(stdin, stdout)
-		c.client.SetProcessDone(c.processDone, &c.processError)
+		c.client.SetProcessDone(c.processDone, c.processErrorPtr)
 		c.RPC = rpc.NewServerRpc(c.client)
 		c.setupNotificationHandler()
 		c.client.Start()
@@ -1127,7 +1213,8 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 			return fmt.Errorf("failed to start CLI server: %w", err)
 		}
 
-		// Wait for port announcement
+		c.monitorProcess()
+
 		scanner := bufio.NewScanner(stdout)
 		timeout := time.After(10 * time.Second)
 		portRegex := regexp.MustCompile(`listening on port (\d+)`)
@@ -1135,14 +1222,19 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		for {
 			select {
 			case <-timeout:
-				return fmt.Errorf("timeout waiting for CLI server to start")
+				killErr := c.killProcess()
+				return errors.Join(errors.New("timeout waiting for CLI server to start"), killErr)
+			case <-c.processDone:
+				killErr := c.killProcess()
+				return errors.Join(errors.New("CLI server process exited before reporting port"), killErr)
 			default:
 				if scanner.Scan() {
 					line := scanner.Text()
 					if matches := portRegex.FindStringSubmatch(line); len(matches) > 1 {
 						port, err := strconv.Atoi(matches[1])
 						if err != nil {
-							return fmt.Errorf("failed to parse port: %w", err)
+							killErr := c.killProcess()
+							return errors.Join(fmt.Errorf("failed to parse port: %w", err), killErr)
 						}
 						c.actualPort = port
 						return nil
@@ -1151,6 +1243,39 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+func (c *Client) killProcess() error {
+	if p := c.osProcess.Swap(nil); p != nil {
+		if err := p.Kill(); err != nil {
+			return fmt.Errorf("failed to kill CLI process: %w", err)
+		}
+	}
+	c.process = nil
+	return nil
+}
+
+// monitorProcess signals when the CLI process exits and captures any exit error.
+// processError is intentionally a local: each process lifecycle gets its own
+// error value, so goroutines from previous processes can't overwrite the
+// current one. Closing the channel synchronizes with readers, guaranteeing
+// they see the final processError value.
+func (c *Client) monitorProcess() {
+	done := make(chan struct{})
+	c.processDone = done
+	proc := c.process
+	c.osProcess.Store(proc.Process)
+	var processError error
+	c.processErrorPtr = &processError
+	go func() {
+		waitErr := proc.Wait()
+		if waitErr != nil {
+			processError = fmt.Errorf("CLI process exited: %w", waitErr)
+		} else {
+			processError = errors.New("CLI process exited unexpectedly")
+		}
+		close(done)
+	}()
 }
 
 // connectToServer establishes a connection to the server.
@@ -1184,6 +1309,9 @@ func (c *Client) connectViaTcp(ctx context.Context) error {
 
 	// Create JSON-RPC client with the connection
 	c.client = jsonrpc2.NewClient(conn, conn)
+	if c.processDone != nil {
+		c.client.SetProcessDone(c.processDone, c.processErrorPtr)
+	}
 	c.RPC = rpc.NewServerRpc(c.client)
 	c.setupNotificationHandler()
 	c.client.Start()
@@ -1191,12 +1319,16 @@ func (c *Client) connectViaTcp(ctx context.Context) error {
 	return nil
 }
 
-// setupNotificationHandler configures handlers for session events, tool calls, and permission requests.
+// setupNotificationHandler configures handlers for session events and RPC requests.
+// Protocol v3 servers send tool calls and permission requests as broadcast session events.
+// Protocol v2 servers use the older tool.call / permission.request RPC model.
+// We always register v2 adapters because handlers are set up before version negotiation;
+// a v3 server will simply never send these requests.
 func (c *Client) setupNotificationHandler() {
 	c.client.SetRequestHandler("session.event", jsonrpc2.NotificationHandlerFor(c.handleSessionEvent))
 	c.client.SetRequestHandler("session.lifecycle", jsonrpc2.NotificationHandlerFor(c.handleLifecycleEvent))
-	c.client.SetRequestHandler("tool.call", jsonrpc2.RequestHandlerFor(c.handleToolCallRequest))
-	c.client.SetRequestHandler("permission.request", jsonrpc2.RequestHandlerFor(c.handlePermissionRequest))
+	c.client.SetRequestHandler("tool.call", jsonrpc2.RequestHandlerFor(c.handleToolCallRequestV2))
+	c.client.SetRequestHandler("permission.request", jsonrpc2.RequestHandlerFor(c.handlePermissionRequestV2))
 	c.client.SetRequestHandler("userInput.request", jsonrpc2.RequestHandlerFor(c.handleUserInputRequest))
 	c.client.SetRequestHandler("hooks.invoke", jsonrpc2.RequestHandlerFor(c.handleHooksInvoke))
 }
@@ -1213,84 +1345,6 @@ func (c *Client) handleSessionEvent(req sessionEventRequest) {
 	if ok {
 		session.dispatchEvent(req.Event)
 	}
-}
-
-// handleToolCallRequest handles a tool call request from the CLI server.
-func (c *Client) handleToolCallRequest(req toolCallRequest) (*toolCallResponse, *jsonrpc2.Error) {
-	if req.SessionID == "" || req.ToolCallID == "" || req.ToolName == "" {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid tool call payload"}
-	}
-
-	c.sessionsMux.Lock()
-	session, ok := c.sessions[req.SessionID]
-	c.sessionsMux.Unlock()
-	if !ok {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", req.SessionID)}
-	}
-
-	handler, ok := session.getToolHandler(req.ToolName)
-	if !ok {
-		return &toolCallResponse{Result: buildUnsupportedToolResult(req.ToolName)}, nil
-	}
-
-	result := c.executeToolCall(req.SessionID, req.ToolCallID, req.ToolName, req.Arguments, handler)
-	return &toolCallResponse{Result: result}, nil
-}
-
-// executeToolCall executes a tool handler and returns the result.
-func (c *Client) executeToolCall(
-	sessionID, toolCallID, toolName string,
-	arguments any,
-	handler ToolHandler,
-) (result ToolResult) {
-	invocation := ToolInvocation{
-		SessionID:  sessionID,
-		ToolCallID: toolCallID,
-		ToolName:   toolName,
-		Arguments:  arguments,
-	}
-
-	defer func() {
-		if r := recover(); r != nil {
-			result = buildFailedToolResult(fmt.Sprintf("tool panic: %v", r))
-		}
-	}()
-
-	if handler != nil {
-		var err error
-		result, err = handler(invocation)
-		if err != nil {
-			result = buildFailedToolResult(err.Error())
-		}
-	}
-
-	return result
-}
-
-// handlePermissionRequest handles a permission request from the CLI server.
-func (c *Client) handlePermissionRequest(req permissionRequestRequest) (*permissionRequestResponse, *jsonrpc2.Error) {
-	if req.SessionID == "" {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid permission request payload"}
-	}
-
-	c.sessionsMux.Lock()
-	session, ok := c.sessions[req.SessionID]
-	c.sessionsMux.Unlock()
-	if !ok {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", req.SessionID)}
-	}
-
-	result, err := session.handlePermissionRequest(req.Request)
-	if err != nil {
-		// Return denial on error
-		return &permissionRequestResponse{
-			Result: PermissionRequestResult{
-				Kind: "denied-no-approval-rule-and-could-not-request-from-user",
-			},
-		}, nil
-	}
-
-	return &permissionRequestResponse{Result: result}, nil
 }
 
 // handleUserInputRequest handles a user input request from the CLI server.
@@ -1343,22 +1397,106 @@ func (c *Client) handleHooksInvoke(req hooksInvokeRequest) (map[string]any, *jso
 	return result, nil
 }
 
-// The detailed error is stored in the Error field but not exposed to the LLM for security.
-func buildFailedToolResult(internalError string) ToolResult {
-	return ToolResult{
-		TextResultForLLM: "Invoking this tool produced an error. Detailed information is not available.",
-		ResultType:       "failure",
-		Error:            internalError,
-		ToolTelemetry:    map[string]any{},
-	}
+// ========================================================================
+// Protocol v2 backward-compatibility adapters
+// ========================================================================
+
+// toolCallRequestV2 is the v2 RPC request payload for tool.call.
+type toolCallRequestV2 struct {
+	SessionID  string `json:"sessionId"`
+	ToolCallID string `json:"toolCallId"`
+	ToolName   string `json:"toolName"`
+	Arguments  any    `json:"arguments"`
 }
 
-// buildUnsupportedToolResult creates a failure ToolResult for an unsupported tool.
-func buildUnsupportedToolResult(toolName string) ToolResult {
-	return ToolResult{
-		TextResultForLLM: fmt.Sprintf("Tool '%s' is not supported by this client instance.", toolName),
-		ResultType:       "failure",
-		Error:            fmt.Sprintf("tool '%s' not supported", toolName),
-		ToolTelemetry:    map[string]any{},
+// toolCallResponseV2 is the v2 RPC response payload for tool.call.
+type toolCallResponseV2 struct {
+	Result ToolResult `json:"result"`
+}
+
+// permissionRequestV2 is the v2 RPC request payload for permission.request.
+type permissionRequestV2 struct {
+	SessionID string            `json:"sessionId"`
+	Request   PermissionRequest `json:"permissionRequest"`
+}
+
+// permissionResponseV2 is the v2 RPC response payload for permission.request.
+type permissionResponseV2 struct {
+	Result PermissionRequestResult `json:"result"`
+}
+
+// handleToolCallRequestV2 handles a v2-style tool.call RPC request from the server.
+func (c *Client) handleToolCallRequestV2(req toolCallRequestV2) (*toolCallResponseV2, *jsonrpc2.Error) {
+	if req.SessionID == "" || req.ToolCallID == "" || req.ToolName == "" {
+		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid tool call payload"}
 	}
+
+	c.sessionsMux.Lock()
+	session, ok := c.sessions[req.SessionID]
+	c.sessionsMux.Unlock()
+	if !ok {
+		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", req.SessionID)}
+	}
+
+	handler, ok := session.getToolHandler(req.ToolName)
+	if !ok {
+		return &toolCallResponseV2{Result: ToolResult{
+			TextResultForLLM: fmt.Sprintf("Tool '%s' is not supported by this client instance.", req.ToolName),
+			ResultType:       "failure",
+			Error:            fmt.Sprintf("tool '%s' not supported", req.ToolName),
+			ToolTelemetry:    map[string]any{},
+		}}, nil
+	}
+
+	invocation := ToolInvocation(req)
+
+	result, err := handler(invocation)
+	if err != nil {
+		return &toolCallResponseV2{Result: ToolResult{
+			TextResultForLLM: "Invoking this tool produced an error. Detailed information is not available.",
+			ResultType:       "failure",
+			Error:            err.Error(),
+			ToolTelemetry:    map[string]any{},
+		}}, nil
+	}
+
+	return &toolCallResponseV2{Result: result}, nil
+}
+
+// handlePermissionRequestV2 handles a v2-style permission.request RPC request from the server.
+func (c *Client) handlePermissionRequestV2(req permissionRequestV2) (*permissionResponseV2, *jsonrpc2.Error) {
+	if req.SessionID == "" {
+		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid permission request payload"}
+	}
+
+	c.sessionsMux.Lock()
+	session, ok := c.sessions[req.SessionID]
+	c.sessionsMux.Unlock()
+	if !ok {
+		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", req.SessionID)}
+	}
+
+	handler := session.getPermissionHandler()
+	if handler == nil {
+		return &permissionResponseV2{
+			Result: PermissionRequestResult{
+				Kind: PermissionRequestResultKindDeniedCouldNotRequestFromUser,
+			},
+		}, nil
+	}
+
+	invocation := PermissionInvocation{
+		SessionID: session.SessionID,
+	}
+
+	result, err := handler(req.Request, invocation)
+	if err != nil {
+		return &permissionResponseV2{
+			Result: PermissionRequestResult{
+				Kind: PermissionRequestResultKindDeniedCouldNotRequestFromUser,
+			},
+		}, nil
+	}
+
+	return &permissionResponseV2{Result: result}, nil
 }

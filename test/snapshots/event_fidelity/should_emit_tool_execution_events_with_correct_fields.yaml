@@ -1,0 +1,47 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Read the file 'data.txt'.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Reading data.txt"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/data.txt"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Read the file 'data.txt'.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Reading data.txt"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/data.txt"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: 1. test data
+      - role: assistant
+        content: "The file 'data.txt' contains: `test data`"

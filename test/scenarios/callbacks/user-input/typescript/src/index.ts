@@ -29,7 +29,7 @@ async function main() {
       console.log(response.data.content);
     }
 
-    await session.destroy();
+    await session.disconnect();
 
     console.log("\n--- User input log ---");
     for (const entry of inputLog) {

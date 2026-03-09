@@ -6,7 +6,7 @@ SDK Protocol Version for the Copilot SDK.
 This must match the version expected by the copilot-agent-runtime server.
 """
 
-SDK_PROTOCOL_VERSION = 2
+SDK_PROTOCOL_VERSION = 3
 
 
 def get_sdk_protocol_version() -> int:

@@ -39,7 +39,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer session.Destroy()
+	defer session.Disconnect()
 
 	prompts := []string{
 		"What is the capital of France?",

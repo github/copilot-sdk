@@ -5,6 +5,9 @@
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: api.schema.json
 
+// Generated code does not have XML doc comments; suppress CS1591 to avoid warnings.
+#pragma warning disable CS1591
+
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using StreamJsonRpc;
@@ -35,11 +38,11 @@ internal class PingRequest
 public class ModelCapabilitiesSupports
 {
     [JsonPropertyName("vision")]
-    public bool Vision { get; set; }
+    public bool? Vision { get; set; }
 
     /// <summary>Whether this model supports reasoning effort configuration</summary>
     [JsonPropertyName("reasoningEffort")]
-    public bool ReasoningEffort { get; set; }
+    public bool? ReasoningEffort { get; set; }
 }
 
 public class ModelCapabilitiesLimits
@@ -116,7 +119,7 @@ public class ModelsListResult
 {
     /// <summary>List of available models with full metadata</summary>
     [JsonPropertyName("models")]
-    public List<Model> Models { get; set; } = new();
+    public List<Model> Models { get; set; } = [];
 }
 
 public class Tool
@@ -146,7 +149,7 @@ public class ToolsListResult
 {
     /// <summary>List of available built-in tools with metadata</summary>
     [JsonPropertyName("tools")]
-    public List<Tool> Tools { get; set; } = new();
+    public List<Tool> Tools { get; set; } = [];
 }
 
 internal class ToolsListRequest
@@ -186,7 +189,29 @@ public class AccountGetQuotaResult
 {
     /// <summary>Quota snapshots keyed by type (e.g., chat, completions, premium_interactions)</summary>
     [JsonPropertyName("quotaSnapshots")]
-    public Dictionary<string, AccountGetQuotaResultQuotaSnapshotsValue> QuotaSnapshots { get; set; } = new();
+    public Dictionary<string, AccountGetQuotaResultQuotaSnapshotsValue> QuotaSnapshots { get; set; } = [];
+}
+
+public class SessionLogResult
+{
+    /// <summary>The unique identifier of the emitted session event</summary>
+    [JsonPropertyName("eventId")]
+    public Guid EventId { get; set; }
+}
+
+internal class SessionLogRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+
+    [JsonPropertyName("level")]
+    public SessionLogRequestLevel? Level { get; set; }
+
+    [JsonPropertyName("ephemeral")]
+    public bool? Ephemeral { get; set; }
 }
 
 public class SessionModelGetCurrentResult
@@ -214,6 +239,9 @@ internal class SessionModelSwitchToRequest
 
     [JsonPropertyName("modelId")]
     public string ModelId { get; set; } = string.Empty;
+
+    [JsonPropertyName("reasoningEffort")]
+    public SessionModelSwitchToRequestReasoningEffort? ReasoningEffort { get; set; }
 }
 
 public class SessionModeGetResult
@@ -247,13 +275,17 @@ internal class SessionModeSetRequest
 
 public class SessionPlanReadResult
 {
-    /// <summary>Whether plan.md exists in the workspace</summary>
+    /// <summary>Whether the plan file exists in the workspace</summary>
     [JsonPropertyName("exists")]
     public bool Exists { get; set; }
 
-    /// <summary>The content of plan.md, or null if it does not exist</summary>
+    /// <summary>The content of the plan file, or null if it does not exist</summary>
     [JsonPropertyName("content")]
     public string? Content { get; set; }
+
+    /// <summary>Absolute file path of the plan file, or null if workspace is not enabled</summary>
+    [JsonPropertyName("path")]
+    public string? Path { get; set; }
 }
 
 internal class SessionPlanReadRequest
@@ -289,7 +321,7 @@ public class SessionWorkspaceListFilesResult
 {
     /// <summary>Relative file paths in the workspace files directory</summary>
     [JsonPropertyName("files")]
-    public List<string> Files { get; set; } = new();
+    public List<string> Files { get; set; } = [];
 }
 
 internal class SessionWorkspaceListFilesRequest
@@ -365,7 +397,7 @@ public class SessionAgentListResult
 {
     /// <summary>Available custom agents</summary>
     [JsonPropertyName("agents")]
-    public List<Agent> Agents { get; set; } = new();
+    public List<Agent> Agents { get; set; } = [];
 }
 
 internal class SessionAgentListRequest
@@ -465,6 +497,71 @@ internal class SessionCompactionCompactRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+public class SessionToolsHandlePendingToolCallResult
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+internal class SessionToolsHandlePendingToolCallRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    [JsonPropertyName("requestId")]
+    public string RequestId { get; set; } = string.Empty;
+
+    [JsonPropertyName("result")]
+    public object? Result { get; set; }
+
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+}
+
+public class SessionPermissionsHandlePendingPermissionRequestResult
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+internal class SessionPermissionsHandlePendingPermissionRequestRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    [JsonPropertyName("requestId")]
+    public string RequestId { get; set; } = string.Empty;
+
+    [JsonPropertyName("result")]
+    public object Result { get; set; } = null!;
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<SessionLogRequestLevel>))]
+public enum SessionLogRequestLevel
+{
+    [JsonStringEnumMemberName("info")]
+    Info,
+    [JsonStringEnumMemberName("warning")]
+    Warning,
+    [JsonStringEnumMemberName("error")]
+    Error,
+}
+
+
+[JsonConverter(typeof(JsonStringEnumConverter<SessionModelSwitchToRequestReasoningEffort>))]
+public enum SessionModelSwitchToRequestReasoningEffort
+{
+    [JsonStringEnumMemberName("low")]
+    Low,
+    [JsonStringEnumMemberName("medium")]
+    Medium,
+    [JsonStringEnumMemberName("high")]
+    High,
+    [JsonStringEnumMemberName("xhigh")]
+    Xhigh,
+}
+
+
 [JsonConverter(typeof(JsonStringEnumConverter<SessionModeGetResultMode>))]
 public enum SessionModeGetResultMode
 {
@@ -485,9 +582,9 @@ public class ServerRpc
     internal ServerRpc(JsonRpc rpc)
     {
         _rpc = rpc;
-        Models = new ModelsApi(rpc);
-        Tools = new ToolsApi(rpc);
-        Account = new AccountApi(rpc);
+        Models = new ServerModelsApi(rpc);
+        Tools = new ServerToolsApi(rpc);
+        Account = new ServerAccountApi(rpc);
     }
 
     /// <summary>Calls "ping".</summary>
@@ -498,21 +595,21 @@ public class ServerRpc
     }
 
     /// <summary>Models APIs.</summary>
-    public ModelsApi Models { get; }
+    public ServerModelsApi Models { get; }
 
     /// <summary>Tools APIs.</summary>
-    public ToolsApi Tools { get; }
+    public ServerToolsApi Tools { get; }
 
     /// <summary>Account APIs.</summary>
-    public AccountApi Account { get; }
+    public ServerAccountApi Account { get; }
 }
 
 /// <summary>Server-scoped Models APIs.</summary>
-public class ModelsApi
+public class ServerModelsApi
 {
     private readonly JsonRpc _rpc;
 
-    internal ModelsApi(JsonRpc rpc)
+    internal ServerModelsApi(JsonRpc rpc)
     {
         _rpc = rpc;
     }
@@ -525,11 +622,11 @@ public class ModelsApi
 }
 
 /// <summary>Server-scoped Tools APIs.</summary>
-public class ToolsApi
+public class ServerToolsApi
 {
     private readonly JsonRpc _rpc;
 
-    internal ToolsApi(JsonRpc rpc)
+    internal ServerToolsApi(JsonRpc rpc)
     {
         _rpc = rpc;
     }
@@ -543,11 +640,11 @@ public class ToolsApi
 }
 
 /// <summary>Server-scoped Account APIs.</summary>
-public class AccountApi
+public class ServerAccountApi
 {
     private readonly JsonRpc _rpc;
 
-    internal AccountApi(JsonRpc rpc)
+    internal ServerAccountApi(JsonRpc rpc)
     {
         _rpc = rpc;
     }
@@ -576,6 +673,8 @@ public class SessionRpc
         Fleet = new FleetApi(rpc, sessionId);
         Agent = new AgentApi(rpc, sessionId);
         Compaction = new CompactionApi(rpc, sessionId);
+        Tools = new ToolsApi(rpc, sessionId);
+        Permissions = new PermissionsApi(rpc, sessionId);
     }
 
     public ModelApi Model { get; }
@@ -591,6 +690,17 @@ public class SessionRpc
     public AgentApi Agent { get; }
 
     public CompactionApi Compaction { get; }
+
+    public ToolsApi Tools { get; }
+
+    public PermissionsApi Permissions { get; }
+
+    /// <summary>Calls "session.log".</summary>
+    public async Task<SessionLogResult> LogAsync(string message, SessionLogRequestLevel? level = null, bool? ephemeral = null, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionLogRequest { SessionId = _sessionId, Message = message, Level = level, Ephemeral = ephemeral };
+        return await CopilotClient.InvokeRpcAsync<SessionLogResult>(_rpc, "session.log", [request], cancellationToken);
+    }
 }
 
 public class ModelApi
@@ -612,9 +722,9 @@ public class ModelApi
     }
 
     /// <summary>Calls "session.model.switchTo".</summary>
-    public async Task<SessionModelSwitchToResult> SwitchToAsync(string modelId, CancellationToken cancellationToken = default)
+    public async Task<SessionModelSwitchToResult> SwitchToAsync(string modelId, SessionModelSwitchToRequestReasoningEffort? reasoningEffort = null, CancellationToken cancellationToken = default)
     {
-        var request = new SessionModelSwitchToRequest { SessionId = _sessionId, ModelId = modelId };
+        var request = new SessionModelSwitchToRequest { SessionId = _sessionId, ModelId = modelId, ReasoningEffort = reasoningEffort };
         return await CopilotClient.InvokeRpcAsync<SessionModelSwitchToResult>(_rpc, "session.model.switchTo", [request], cancellationToken);
     }
 }
@@ -723,7 +833,7 @@ public class FleetApi
     }
 
     /// <summary>Calls "session.fleet.start".</summary>
-    public async Task<SessionFleetStartResult> StartAsync(string? prompt, CancellationToken cancellationToken = default)
+    public async Task<SessionFleetStartResult> StartAsync(string? prompt = null, CancellationToken cancellationToken = default)
     {
         var request = new SessionFleetStartRequest { SessionId = _sessionId, Prompt = prompt };
         return await CopilotClient.InvokeRpcAsync<SessionFleetStartResult>(_rpc, "session.fleet.start", [request], cancellationToken);
@@ -789,6 +899,44 @@ public class CompactionApi
     }
 }
 
+public class ToolsApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal ToolsApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.tools.handlePendingToolCall".</summary>
+    public async Task<SessionToolsHandlePendingToolCallResult> HandlePendingToolCallAsync(string requestId, object? result = null, string? error = null, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionToolsHandlePendingToolCallRequest { SessionId = _sessionId, RequestId = requestId, Result = result, Error = error };
+        return await CopilotClient.InvokeRpcAsync<SessionToolsHandlePendingToolCallResult>(_rpc, "session.tools.handlePendingToolCall", [request], cancellationToken);
+    }
+}
+
+public class PermissionsApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal PermissionsApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.permissions.handlePendingPermissionRequest".</summary>
+    public async Task<SessionPermissionsHandlePendingPermissionRequestResult> HandlePendingPermissionRequestAsync(string requestId, object result, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionPermissionsHandlePendingPermissionRequestRequest { SessionId = _sessionId, RequestId = requestId, Result = result };
+        return await CopilotClient.InvokeRpcAsync<SessionPermissionsHandlePendingPermissionRequestResult>(_rpc, "session.permissions.handlePendingPermissionRequest", [request], cancellationToken);
+    }
+}
+
 [JsonSourceGenerationOptions(
     JsonSerializerDefaults.Web,
     AllowOutOfOrderMetadataProperties = true,
@@ -819,6 +967,8 @@ public class CompactionApi
 [JsonSerializable(typeof(SessionCompactionCompactResult))]
 [JsonSerializable(typeof(SessionFleetStartRequest))]
 [JsonSerializable(typeof(SessionFleetStartResult))]
+[JsonSerializable(typeof(SessionLogRequest))]
+[JsonSerializable(typeof(SessionLogResult))]
 [JsonSerializable(typeof(SessionModeGetRequest))]
 [JsonSerializable(typeof(SessionModeGetResult))]
 [JsonSerializable(typeof(SessionModeSetRequest))]
@@ -827,12 +977,16 @@ public class CompactionApi
 [JsonSerializable(typeof(SessionModelGetCurrentResult))]
 [JsonSerializable(typeof(SessionModelSwitchToRequest))]
 [JsonSerializable(typeof(SessionModelSwitchToResult))]
+[JsonSerializable(typeof(SessionPermissionsHandlePendingPermissionRequestRequest))]
+[JsonSerializable(typeof(SessionPermissionsHandlePendingPermissionRequestResult))]
 [JsonSerializable(typeof(SessionPlanDeleteRequest))]
 [JsonSerializable(typeof(SessionPlanDeleteResult))]
 [JsonSerializable(typeof(SessionPlanReadRequest))]
 [JsonSerializable(typeof(SessionPlanReadResult))]
 [JsonSerializable(typeof(SessionPlanUpdateRequest))]
 [JsonSerializable(typeof(SessionPlanUpdateResult))]
+[JsonSerializable(typeof(SessionToolsHandlePendingToolCallRequest))]
+[JsonSerializable(typeof(SessionToolsHandlePendingToolCallResult))]
 [JsonSerializable(typeof(SessionWorkspaceCreateFileRequest))]
 [JsonSerializable(typeof(SessionWorkspaceCreateFileResult))]
 [JsonSerializable(typeof(SessionWorkspaceListFilesRequest))]

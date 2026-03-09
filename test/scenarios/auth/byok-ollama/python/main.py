@@ -1,6 +1,5 @@
 import asyncio
 import os
-import sys
 from copilot import CopilotClient
 
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
@@ -38,7 +37,7 @@ async def main():
         if response:
             print(response.data.content)
 
-        await session.destroy()
+        await session.disconnect()
     finally:
         await client.stop()
 

@@ -43,7 +43,7 @@ async function main() {
       console.log("\nNo MCP servers configured (set MCP_SERVER_CMD to test with a real server)");
     }
 
-    await session.destroy();
+    await session.disconnect();
   } finally {
     await client.stop();
   }

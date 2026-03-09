@@ -21,7 +21,7 @@ async function main() {
 
     console.log("Default mode test complete");
 
-    await session.destroy();
+    await session.disconnect();
   } finally {
     await client.stop();
   }

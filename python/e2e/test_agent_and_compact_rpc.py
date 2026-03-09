@@ -46,7 +46,7 @@ class TestAgentSelectionRpc:
             assert result.agents[0].description == "A test agent"
             assert result.agents[1].name == "another-agent"
 
-            await session.destroy()
+            await session.disconnect()
             await client.stop()
         finally:
             await client.force_stop()
@@ -75,7 +75,7 @@ class TestAgentSelectionRpc:
             result = await session.rpc.agent.get_current()
             assert result.agent is None
 
-            await session.destroy()
+            await session.disconnect()
             await client.stop()
         finally:
             await client.force_stop()
@@ -114,7 +114,7 @@ class TestAgentSelectionRpc:
             assert current_result.agent is not None
             assert current_result.agent.name == "test-agent"
 
-            await session.destroy()
+            await session.disconnect()
             await client.stop()
         finally:
             await client.force_stop()
@@ -148,7 +148,7 @@ class TestAgentSelectionRpc:
             current_result = await session.rpc.agent.get_current()
             assert current_result.agent is None
 
-            await session.destroy()
+            await session.disconnect()
             await client.stop()
         finally:
             await client.force_stop()
@@ -167,7 +167,7 @@ class TestAgentSelectionRpc:
             result = await session.rpc.agent.list()
             assert result.agents == []
 
-            await session.destroy()
+            await session.disconnect()
             await client.stop()
         finally:
             await client.force_stop()
@@ -190,4 +190,4 @@ class TestSessionCompactionRpc:
         assert isinstance(result.tokens_removed, (int, float))
         assert isinstance(result.messages_removed, (int, float))
 
-        await session.destroy()
+        await session.disconnect()

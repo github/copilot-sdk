@@ -38,7 +38,7 @@ describe("User input (ask_user)", async () => {
         // The request should have a question
         expect(userInputRequests.some((req) => req.question && req.question.length > 0)).toBe(true);
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should receive choices in user input request", async () => {
@@ -69,7 +69,7 @@ describe("User input (ask_user)", async () => {
         );
         expect(requestWithChoices).toBeDefined();
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should handle freeform user input response", async () => {
@@ -99,6 +99,6 @@ describe("User input (ask_user)", async () => {
         // (This is a soft check since the model may paraphrase)
         expect(response).toBeDefined();
 
-        await session.destroy();
+        await session.disconnect();
     });
 });

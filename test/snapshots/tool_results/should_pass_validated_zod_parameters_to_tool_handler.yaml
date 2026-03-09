@@ -1,0 +1,47 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use calculate to add 17 and 25
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Calculating sum"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: calculate
+              arguments: '{"operation":"add","a":17,"b":25}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use calculate to add 17 and 25
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Calculating sum"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: calculate
+              arguments: '{"operation":"add","a":17,"b":25}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: "42"
+      - role: assistant
+        content: 17 + 25 = 42

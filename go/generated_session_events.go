@@ -26,285 +26,893 @@ func (r *SessionEvent) Marshal() ([]byte, error) {
 }
 
 type SessionEvent struct {
-	Data      Data             `json:"data"`
-	Ephemeral *bool            `json:"ephemeral,omitempty"`
-	ID        string           `json:"id"`
-	ParentID  *string          `json:"parentId"`
+	// Payload indicating the agent is idle; includes any background tasks still in flight
+	//
+	// Empty payload; the event signals that LLM-powered conversation compaction has begun
+	//
+	// Empty payload; the event signals that the pending message queue has changed
+	//
+	// Empty payload; the event signals that the custom agent was deselected, returning to the
+	// default agent
+	Data Data `json:"data"`
+	// When true, the event is transient and not persisted to the session event log on disk
+	Ephemeral *bool `json:"ephemeral,omitempty"`
+	// Unique event identifier (UUID v4), generated when the event is emitted
+	ID string `json:"id"`
+	// ID of the chronologically preceding event in the session, forming a linked chain. Null
+	// for the first event.
+	ParentID *string `json:"parentId"`
+	// ISO 8601 timestamp when the event was created
 	Timestamp time.Time        `json:"timestamp"`
 	Type      SessionEventType `json:"type"`
 }
 
+// Payload indicating the agent is idle; includes any background tasks still in flight
+//
+// Empty payload; the event signals that LLM-powered conversation compaction has begun
+//
+// Empty payload; the event signals that the pending message queue has changed
+//
+// Empty payload; the event signals that the custom agent was deselected, returning to the
+// default agent
 type Data struct {
-	Context        *ContextUnion `json:"context"`
-	CopilotVersion *string       `json:"copilotVersion,omitempty"`
-	Producer       *string       `json:"producer,omitempty"`
-	SelectedModel  *string       `json:"selectedModel,omitempty"`
-	SessionID      *string       `json:"sessionId,omitempty"`
-	StartTime      *time.Time    `json:"startTime,omitempty"`
-	Version        *float64      `json:"version,omitempty"`
-	EventCount     *float64      `json:"eventCount,omitempty"`
-	ResumeTime     *time.Time    `json:"resumeTime,omitempty"`
-	ErrorType      *string       `json:"errorType,omitempty"`
-	Message        *string       `json:"message,omitempty"`
-	ProviderCallID *string       `json:"providerCallId,omitempty"`
-	Stack          *string       `json:"stack,omitempty"`
-	StatusCode     *int64        `json:"statusCode,omitempty"`
-	Title          *string       `json:"title,omitempty"`
-	InfoType       *string       `json:"infoType,omitempty"`
-	WarningType    *string       `json:"warningType,omitempty"`
-	NewModel       *string       `json:"newModel,omitempty"`
-	PreviousModel  *string       `json:"previousModel,omitempty"`
-	NewMode        *string       `json:"newMode,omitempty"`
-	PreviousMode   *string       `json:"previousMode,omitempty"`
-	Operation      *Operation    `json:"operation,omitempty"`
-	// Relative path within the workspace files directory
-	Path                            *string                  `json:"path,omitempty"`
-	HandoffTime                     *time.Time               `json:"handoffTime,omitempty"`
-	RemoteSessionID                 *string                  `json:"remoteSessionId,omitempty"`
-	Repository                      *RepositoryUnion         `json:"repository"`
-	SourceType                      *SourceType              `json:"sourceType,omitempty"`
-	Summary                         *string                  `json:"summary,omitempty"`
-	MessagesRemovedDuringTruncation *float64                 `json:"messagesRemovedDuringTruncation,omitempty"`
-	PerformedBy                     *string                  `json:"performedBy,omitempty"`
-	PostTruncationMessagesLength    *float64                 `json:"postTruncationMessagesLength,omitempty"`
-	PostTruncationTokensInMessages  *float64                 `json:"postTruncationTokensInMessages,omitempty"`
-	PreTruncationMessagesLength     *float64                 `json:"preTruncationMessagesLength,omitempty"`
-	PreTruncationTokensInMessages   *float64                 `json:"preTruncationTokensInMessages,omitempty"`
-	TokenLimit                      *float64                 `json:"tokenLimit,omitempty"`
-	TokensRemovedDuringTruncation   *float64                 `json:"tokensRemovedDuringTruncation,omitempty"`
-	EventsRemoved                   *float64                 `json:"eventsRemoved,omitempty"`
-	UpToEventID                     *string                  `json:"upToEventId,omitempty"`
-	CodeChanges                     *CodeChanges             `json:"codeChanges,omitempty"`
-	CurrentModel                    *string                  `json:"currentModel,omitempty"`
-	ErrorReason                     *string                  `json:"errorReason,omitempty"`
-	ModelMetrics                    map[string]ModelMetric   `json:"modelMetrics,omitempty"`
-	SessionStartTime                *float64                 `json:"sessionStartTime,omitempty"`
-	ShutdownType                    *ShutdownType            `json:"shutdownType,omitempty"`
-	TotalAPIDurationMS              *float64                 `json:"totalApiDurationMs,omitempty"`
-	TotalPremiumRequests            *float64                 `json:"totalPremiumRequests,omitempty"`
-	Branch                          *string                  `json:"branch,omitempty"`
-	Cwd                             *string                  `json:"cwd,omitempty"`
-	GitRoot                         *string                  `json:"gitRoot,omitempty"`
-	CurrentTokens                   *float64                 `json:"currentTokens,omitempty"`
-	MessagesLength                  *float64                 `json:"messagesLength,omitempty"`
-	CheckpointNumber                *float64                 `json:"checkpointNumber,omitempty"`
-	CheckpointPath                  *string                  `json:"checkpointPath,omitempty"`
-	CompactionTokensUsed            *CompactionTokensUsed    `json:"compactionTokensUsed,omitempty"`
-	Error                           *ErrorUnion              `json:"error"`
-	MessagesRemoved                 *float64                 `json:"messagesRemoved,omitempty"`
-	PostCompactionTokens            *float64                 `json:"postCompactionTokens,omitempty"`
-	PreCompactionMessagesLength     *float64                 `json:"preCompactionMessagesLength,omitempty"`
-	PreCompactionTokens             *float64                 `json:"preCompactionTokens,omitempty"`
-	RequestID                       *string                  `json:"requestId,omitempty"`
-	Success                         *bool                    `json:"success,omitempty"`
-	SummaryContent                  *string                  `json:"summaryContent,omitempty"`
-	TokensRemoved                   *float64                 `json:"tokensRemoved,omitempty"`
-	AgentMode                       *AgentMode               `json:"agentMode,omitempty"`
-	Attachments                     []Attachment             `json:"attachments,omitempty"`
-	Content                         *string                  `json:"content,omitempty"`
-	Source                          *string                  `json:"source,omitempty"`
-	TransformedContent              *string                  `json:"transformedContent,omitempty"`
-	TurnID                          *string                  `json:"turnId,omitempty"`
-	Intent                          *string                  `json:"intent,omitempty"`
-	ReasoningID                     *string                  `json:"reasoningId,omitempty"`
-	DeltaContent                    *string                  `json:"deltaContent,omitempty"`
-	TotalResponseSizeBytes          *float64                 `json:"totalResponseSizeBytes,omitempty"`
-	EncryptedContent                *string                  `json:"encryptedContent,omitempty"`
-	MessageID                       *string                  `json:"messageId,omitempty"`
-	ParentToolCallID                *string                  `json:"parentToolCallId,omitempty"`
-	Phase                           *string                  `json:"phase,omitempty"`
-	ReasoningOpaque                 *string                  `json:"reasoningOpaque,omitempty"`
-	ReasoningText                   *string                  `json:"reasoningText,omitempty"`
-	ToolRequests                    []ToolRequest            `json:"toolRequests,omitempty"`
-	APICallID                       *string                  `json:"apiCallId,omitempty"`
-	CacheReadTokens                 *float64                 `json:"cacheReadTokens,omitempty"`
-	CacheWriteTokens                *float64                 `json:"cacheWriteTokens,omitempty"`
-	Cost                            *float64                 `json:"cost,omitempty"`
-	Duration                        *float64                 `json:"duration,omitempty"`
-	Initiator                       *string                  `json:"initiator,omitempty"`
-	InputTokens                     *float64                 `json:"inputTokens,omitempty"`
-	Model                           *string                  `json:"model,omitempty"`
-	OutputTokens                    *float64                 `json:"outputTokens,omitempty"`
-	QuotaSnapshots                  map[string]QuotaSnapshot `json:"quotaSnapshots,omitempty"`
-	Reason                          *string                  `json:"reason,omitempty"`
-	Arguments                       interface{}              `json:"arguments"`
-	ToolCallID                      *string                  `json:"toolCallId,omitempty"`
-	ToolName                        *string                  `json:"toolName,omitempty"`
-	MCPServerName                   *string                  `json:"mcpServerName,omitempty"`
-	MCPToolName                     *string                  `json:"mcpToolName,omitempty"`
-	PartialOutput                   *string                  `json:"partialOutput,omitempty"`
-	ProgressMessage                 *string                  `json:"progressMessage,omitempty"`
-	IsUserRequested                 *bool                    `json:"isUserRequested,omitempty"`
-	Result                          *Result                  `json:"result,omitempty"`
-	ToolTelemetry                   map[string]interface{}   `json:"toolTelemetry,omitempty"`
-	AllowedTools                    []string                 `json:"allowedTools,omitempty"`
-	Name                            *string                  `json:"name,omitempty"`
-	AgentDescription                *string                  `json:"agentDescription,omitempty"`
-	AgentDisplayName                *string                  `json:"agentDisplayName,omitempty"`
-	AgentName                       *string                  `json:"agentName,omitempty"`
-	Tools                           []string                 `json:"tools"`
-	HookInvocationID                *string                  `json:"hookInvocationId,omitempty"`
-	HookType                        *string                  `json:"hookType,omitempty"`
-	Input                           interface{}              `json:"input"`
-	Output                          interface{}              `json:"output"`
-	Metadata                        *Metadata                `json:"metadata,omitempty"`
-	Role                            *Role                    `json:"role,omitempty"`
+	AlreadyInUse *bool `json:"alreadyInUse,omitempty"`
+	// Working directory and git context at session start
+	//
+	// Updated working directory and git context at resume time
+	//
+	// Additional context information for the handoff
+	Context *ContextUnion `json:"context"`
+	// Version string of the Copilot application
+	CopilotVersion *string `json:"copilotVersion,omitempty"`
+	// Identifier of the software producing the events (e.g., "copilot-agent")
+	Producer *string `json:"producer,omitempty"`
+	// Model selected at session creation time, if any
+	SelectedModel *string `json:"selectedModel,omitempty"`
+	// Unique identifier for the session
+	//
+	// Session ID that this external tool request belongs to
+	SessionID *string `json:"sessionId,omitempty"`
+	// ISO 8601 timestamp when the session was created
+	StartTime *time.Time `json:"startTime,omitempty"`
+	// Schema version number for the session event format
+	Version *float64 `json:"version,omitempty"`
+	// Total number of persisted events in the session at the time of resume
+	EventCount *float64 `json:"eventCount,omitempty"`
+	// ISO 8601 timestamp when the session was resumed
+	ResumeTime *time.Time `json:"resumeTime,omitempty"`
+	// Category of error (e.g., "authentication", "authorization", "quota", "rate_limit",
+	// "query")
+	ErrorType *string `json:"errorType,omitempty"`
+	// Human-readable error message
+	//
+	// Human-readable informational message for display in the timeline
+	//
+	// Human-readable warning message for display in the timeline
+	//
+	// Message describing what information is needed from the user
+	Message *string `json:"message,omitempty"`
+	// GitHub request tracing ID (x-github-request-id header) for correlating with server-side
+	// logs
+	//
+	// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
+	ProviderCallID *string `json:"providerCallId,omitempty"`
+	// Error stack trace, when available
+	Stack *string `json:"stack,omitempty"`
+	// HTTP status code from the upstream request, if applicable
+	StatusCode *int64 `json:"statusCode,omitempty"`
+	// Background tasks still running when the agent became idle
+	BackgroundTasks *BackgroundTasks `json:"backgroundTasks,omitempty"`
+	// The new display title for the session
+	Title *string `json:"title,omitempty"`
+	// Category of informational message (e.g., "notification", "timing", "context_window",
+	// "mcp", "snapshot", "configuration", "authentication", "model")
+	InfoType *string `json:"infoType,omitempty"`
+	// Category of warning (e.g., "subscription", "policy", "mcp")
+	WarningType *string `json:"warningType,omitempty"`
+	// Newly selected model identifier
+	NewModel *string `json:"newModel,omitempty"`
+	// Model that was previously selected, if any
+	PreviousModel *string `json:"previousModel,omitempty"`
+	// Agent mode after the change (e.g., "interactive", "plan", "autopilot")
+	NewMode *string `json:"newMode,omitempty"`
+	// Agent mode before the change (e.g., "interactive", "plan", "autopilot")
+	PreviousMode *string `json:"previousMode,omitempty"`
+	// The type of operation performed on the plan file
+	//
+	// Whether the file was newly created or updated
+	Operation *Operation `json:"operation,omitempty"`
+	// Relative path within the session workspace files directory
+	//
+	// File path to the SKILL.md definition
+	Path *string `json:"path,omitempty"`
+	// ISO 8601 timestamp when the handoff occurred
+	HandoffTime *time.Time `json:"handoffTime,omitempty"`
+	// Session ID of the remote session being handed off
+	RemoteSessionID *string `json:"remoteSessionId,omitempty"`
+	// Repository context for the handed-off session
+	//
+	// Repository identifier in "owner/name" format, derived from the git remote URL
+	Repository *RepositoryUnion `json:"repository"`
+	// Origin type of the session being handed off
+	SourceType *SourceType `json:"sourceType,omitempty"`
+	// Summary of the work done in the source session
+	//
+	// Optional summary of the completed task, provided by the agent
+	//
+	// Summary of the plan that was created
+	Summary *string `json:"summary,omitempty"`
+	// Number of messages removed by truncation
+	MessagesRemovedDuringTruncation *float64 `json:"messagesRemovedDuringTruncation,omitempty"`
+	// Identifier of the component that performed truncation (e.g., "BasicTruncator")
+	PerformedBy *string `json:"performedBy,omitempty"`
+	// Number of conversation messages after truncation
+	PostTruncationMessagesLength *float64 `json:"postTruncationMessagesLength,omitempty"`
+	// Total tokens in conversation messages after truncation
+	PostTruncationTokensInMessages *float64 `json:"postTruncationTokensInMessages,omitempty"`
+	// Number of conversation messages before truncation
+	PreTruncationMessagesLength *float64 `json:"preTruncationMessagesLength,omitempty"`
+	// Total tokens in conversation messages before truncation
+	PreTruncationTokensInMessages *float64 `json:"preTruncationTokensInMessages,omitempty"`
+	// Maximum token count for the model's context window
+	TokenLimit *float64 `json:"tokenLimit,omitempty"`
+	// Number of tokens removed by truncation
+	TokensRemovedDuringTruncation *float64 `json:"tokensRemovedDuringTruncation,omitempty"`
+	// Number of events that were removed by the rewind
+	EventsRemoved *float64 `json:"eventsRemoved,omitempty"`
+	// Event ID that was rewound to; all events after this one were removed
+	UpToEventID *string `json:"upToEventId,omitempty"`
+	// Aggregate code change metrics for the session
+	CodeChanges *CodeChanges `json:"codeChanges,omitempty"`
+	// Model that was selected at the time of shutdown
+	CurrentModel *string `json:"currentModel,omitempty"`
+	// Error description when shutdownType is "error"
+	ErrorReason *string `json:"errorReason,omitempty"`
+	// Per-model usage breakdown, keyed by model identifier
+	ModelMetrics map[string]ModelMetric `json:"modelMetrics,omitempty"`
+	// Unix timestamp (milliseconds) when the session started
+	SessionStartTime *float64 `json:"sessionStartTime,omitempty"`
+	// Whether the session ended normally ("routine") or due to a crash/fatal error ("error")
+	ShutdownType *ShutdownType `json:"shutdownType,omitempty"`
+	// Cumulative time spent in API calls during the session, in milliseconds
+	TotalAPIDurationMS *float64 `json:"totalApiDurationMs,omitempty"`
+	// Total number of premium API requests used during the session
+	TotalPremiumRequests *float64 `json:"totalPremiumRequests,omitempty"`
+	// Current git branch name
+	Branch *string `json:"branch,omitempty"`
+	// Current working directory path
+	Cwd *string `json:"cwd,omitempty"`
+	// Root directory of the git repository, resolved via git rev-parse
+	GitRoot *string `json:"gitRoot,omitempty"`
+	// Current number of tokens in the context window
+	CurrentTokens *float64 `json:"currentTokens,omitempty"`
+	// Current number of messages in the conversation
+	MessagesLength *float64 `json:"messagesLength,omitempty"`
+	// Checkpoint snapshot number created for recovery
+	CheckpointNumber *float64 `json:"checkpointNumber,omitempty"`
+	// File path where the checkpoint was stored
+	CheckpointPath *string `json:"checkpointPath,omitempty"`
+	// Token usage breakdown for the compaction LLM call
+	CompactionTokensUsed *CompactionTokensUsed `json:"compactionTokensUsed,omitempty"`
+	// Error message if compaction failed
+	//
+	// Error details when the tool execution failed
+	//
+	// Error message describing why the sub-agent failed
+	//
+	// Error details when the hook failed
+	Error *ErrorUnion `json:"error"`
+	// Number of messages removed during compaction
+	MessagesRemoved *float64 `json:"messagesRemoved,omitempty"`
+	// Total tokens in conversation after compaction
+	PostCompactionTokens *float64 `json:"postCompactionTokens,omitempty"`
+	// Number of messages before compaction
+	PreCompactionMessagesLength *float64 `json:"preCompactionMessagesLength,omitempty"`
+	// Total tokens in conversation before compaction
+	PreCompactionTokens *float64 `json:"preCompactionTokens,omitempty"`
+	// GitHub request tracing ID (x-github-request-id header) for the compaction LLM call
+	//
+	// Unique identifier for this permission request; used to respond via
+	// session.respondToPermission()
+	//
+	// Request ID of the resolved permission request; clients should dismiss any UI for this
+	// request
+	//
+	// Unique identifier for this input request; used to respond via
+	// session.respondToUserInput()
+	//
+	// Request ID of the resolved user input request; clients should dismiss any UI for this
+	// request
+	//
+	// Unique identifier for this elicitation request; used to respond via
+	// session.respondToElicitation()
+	//
+	// Request ID of the resolved elicitation request; clients should dismiss any UI for this
+	// request
+	//
+	// Unique identifier for this request; used to respond via session.respondToExternalTool()
+	//
+	// Request ID of the resolved external tool request; clients should dismiss any UI for this
+	// request
+	//
+	// Unique identifier for this request; used to respond via session.respondToQueuedCommand()
+	//
+	// Request ID of the resolved command request; clients should dismiss any UI for this
+	// request
+	//
+	// Unique identifier for this request; used to respond via session.respondToExitPlanMode()
+	//
+	// Request ID of the resolved exit plan mode request; clients should dismiss any UI for this
+	// request
+	RequestID *string `json:"requestId,omitempty"`
+	// Whether compaction completed successfully
+	//
+	// Whether the tool execution completed successfully
+	//
+	// Whether the hook completed successfully
+	Success *bool `json:"success,omitempty"`
+	// LLM-generated summary of the compacted conversation history
+	SummaryContent *string `json:"summaryContent,omitempty"`
+	// Number of tokens removed during compaction
+	TokensRemoved *float64 `json:"tokensRemoved,omitempty"`
+	// The agent mode that was active when this message was sent
+	AgentMode *AgentMode `json:"agentMode,omitempty"`
+	// Files, selections, or GitHub references attached to the message
+	Attachments []Attachment `json:"attachments,omitempty"`
+	// The user's message text as displayed in the timeline
+	//
+	// The complete extended thinking text from the model
+	//
+	// The assistant's text response content
+	//
+	// Full content of the skill file, injected into the conversation for the model
+	//
+	// The system or developer prompt text
+	//
+	// The notification text, typically wrapped in <system_notification> XML tags
+	Content *string `json:"content,omitempty"`
+	// CAPI interaction ID for correlating this user message with its turn
+	//
+	// CAPI interaction ID for correlating this turn with upstream telemetry
+	//
+	// CAPI interaction ID for correlating this message with upstream telemetry
+	//
+	// CAPI interaction ID for correlating this tool execution with upstream telemetry
+	InteractionID *string `json:"interactionId,omitempty"`
+	// Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected
+	// messages that should be hidden from the user)
+	Source *string `json:"source,omitempty"`
+	// Transformed version of the message sent to the model, with XML wrapping, timestamps, and
+	// other augmentations for prompt caching
+	TransformedContent *string `json:"transformedContent,omitempty"`
+	// Identifier for this turn within the agentic loop, typically a stringified turn number
+	//
+	// Identifier of the turn that has ended, matching the corresponding assistant.turn_start
+	// event
+	TurnID *string `json:"turnId,omitempty"`
+	// Short description of what the agent is currently doing or planning to do
+	Intent *string `json:"intent,omitempty"`
+	// Unique identifier for this reasoning block
+	//
+	// Reasoning block ID this delta belongs to, matching the corresponding assistant.reasoning
+	// event
+	ReasoningID *string `json:"reasoningId,omitempty"`
+	// Incremental text chunk to append to the reasoning content
+	//
+	// Incremental text chunk to append to the message content
+	DeltaContent *string `json:"deltaContent,omitempty"`
+	// Cumulative total bytes received from the streaming response so far
+	TotalResponseSizeBytes *float64 `json:"totalResponseSizeBytes,omitempty"`
+	// Encrypted reasoning content from OpenAI models. Session-bound and stripped on resume.
+	EncryptedContent *string `json:"encryptedContent,omitempty"`
+	// Unique identifier for this assistant message
+	//
+	// Message ID this delta belongs to, matching the corresponding assistant.message event
+	MessageID *string `json:"messageId,omitempty"`
+	// Actual output token count from the API response (completion_tokens), used for accurate
+	// token accounting
+	//
+	// Number of output tokens produced
+	OutputTokens *float64 `json:"outputTokens,omitempty"`
+	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
+	//
+	// Parent tool call ID when this usage originates from a sub-agent
+	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
+	// Generation phase for phased-output models (e.g., thinking vs. response phases)
+	Phase *string `json:"phase,omitempty"`
+	// Opaque/encrypted extended thinking data from Anthropic models. Session-bound and stripped
+	// on resume.
+	ReasoningOpaque *string `json:"reasoningOpaque,omitempty"`
+	// Readable reasoning text from the model's extended thinking
+	ReasoningText *string `json:"reasoningText,omitempty"`
+	// Tool invocations requested by the assistant in this message
+	ToolRequests []ToolRequest `json:"toolRequests,omitempty"`
+	// Completion ID from the model provider (e.g., chatcmpl-abc123)
+	APICallID *string `json:"apiCallId,omitempty"`
+	// Number of tokens read from prompt cache
+	CacheReadTokens *float64 `json:"cacheReadTokens,omitempty"`
+	// Number of tokens written to prompt cache
+	CacheWriteTokens *float64 `json:"cacheWriteTokens,omitempty"`
+	// Per-request cost and usage data from the CAPI copilot_usage response field
+	CopilotUsage *CopilotUsage `json:"copilotUsage,omitempty"`
+	// Model multiplier cost for billing purposes
+	Cost *float64 `json:"cost,omitempty"`
+	// Duration of the API call in milliseconds
+	Duration *float64 `json:"duration,omitempty"`
+	// What initiated this API call (e.g., "sub-agent"); absent for user-initiated calls
+	Initiator *string `json:"initiator,omitempty"`
+	// Number of input tokens consumed
+	InputTokens *float64 `json:"inputTokens,omitempty"`
+	// Model identifier used for this API call
+	//
+	// Model identifier that generated this tool call
+	Model *string `json:"model,omitempty"`
+	// Per-quota resource usage snapshots, keyed by quota identifier
+	QuotaSnapshots map[string]QuotaSnapshot `json:"quotaSnapshots,omitempty"`
+	// Reason the current turn was aborted (e.g., "user initiated")
+	Reason *string `json:"reason,omitempty"`
+	// Arguments for the tool invocation
+	//
+	// Arguments passed to the tool
+	//
+	// Arguments to pass to the external tool
+	Arguments interface{} `json:"arguments"`
+	// Unique identifier for this tool call
+	//
+	// Tool call ID this partial result belongs to
+	//
+	// Tool call ID this progress notification belongs to
+	//
+	// Unique identifier for the completed tool call
+	//
+	// Tool call ID of the parent tool invocation that spawned this sub-agent
+	//
+	// Tool call ID assigned to this external tool invocation
+	ToolCallID *string `json:"toolCallId,omitempty"`
+	// Name of the tool the user wants to invoke
+	//
+	// Name of the tool being executed
+	//
+	// Name of the external tool to invoke
+	ToolName *string `json:"toolName,omitempty"`
+	// Name of the MCP server hosting this tool, when the tool is an MCP tool
+	MCPServerName *string `json:"mcpServerName,omitempty"`
+	// Original tool name on the MCP server, when the tool is an MCP tool
+	MCPToolName *string `json:"mcpToolName,omitempty"`
+	// Incremental output chunk from the running tool
+	PartialOutput *string `json:"partialOutput,omitempty"`
+	// Human-readable progress status message (e.g., from an MCP server)
+	ProgressMessage *string `json:"progressMessage,omitempty"`
+	// Whether this tool call was explicitly requested by the user rather than the assistant
+	IsUserRequested *bool `json:"isUserRequested,omitempty"`
+	// Tool execution result on success
+	//
+	// The result of the permission request
+	Result *Result `json:"result,omitempty"`
+	// Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts)
+	ToolTelemetry map[string]interface{} `json:"toolTelemetry,omitempty"`
+	// Tool names that should be auto-approved when this skill is active
+	AllowedTools []string `json:"allowedTools,omitempty"`
+	// Name of the invoked skill
+	//
+	// Optional name identifier for the message source
+	Name *string `json:"name,omitempty"`
+	// Name of the plugin this skill originated from, when applicable
+	PluginName *string `json:"pluginName,omitempty"`
+	// Version of the plugin this skill originated from, when applicable
+	PluginVersion *string `json:"pluginVersion,omitempty"`
+	// Description of what the sub-agent does
+	AgentDescription *string `json:"agentDescription,omitempty"`
+	// Human-readable display name of the sub-agent
+	//
+	// Human-readable display name of the selected custom agent
+	AgentDisplayName *string `json:"agentDisplayName,omitempty"`
+	// Internal name of the sub-agent
+	//
+	// Internal name of the selected custom agent
+	AgentName *string `json:"agentName,omitempty"`
+	// List of tool names available to this agent, or null for all tools
+	Tools []string `json:"tools"`
+	// Unique identifier for this hook invocation
+	//
+	// Identifier matching the corresponding hook.start event
+	HookInvocationID *string `json:"hookInvocationId,omitempty"`
+	// Type of hook being invoked (e.g., "preToolUse", "postToolUse", "sessionStart")
+	//
+	// Type of hook that was invoked (e.g., "preToolUse", "postToolUse", "sessionStart")
+	HookType *string `json:"hookType,omitempty"`
+	// Input data passed to the hook
+	Input interface{} `json:"input"`
+	// Output data produced by the hook
+	Output interface{} `json:"output"`
+	// Metadata about the prompt template and its construction
+	Metadata *Metadata `json:"metadata,omitempty"`
+	// Message role: "system" for system prompts, "developer" for developer-injected instructions
+	Role *Role `json:"role,omitempty"`
+	// Structured metadata identifying what triggered this notification
+	Kind *KindClass `json:"kind,omitempty"`
+	// Details of the permission being requested
+	PermissionRequest *PermissionRequest `json:"permissionRequest,omitempty"`
+	// Whether the user can provide a free-form text response in addition to predefined choices
+	AllowFreeform *bool `json:"allowFreeform,omitempty"`
+	// Predefined choices for the user to select from, if applicable
+	Choices []string `json:"choices,omitempty"`
+	// The question or prompt to present to the user
+	Question *string `json:"question,omitempty"`
+	// Elicitation mode; currently only "form" is supported. Defaults to "form" when absent.
+	Mode *Mode `json:"mode,omitempty"`
+	// JSON Schema describing the form fields to present to the user
+	RequestedSchema *RequestedSchema `json:"requestedSchema,omitempty"`
+	// The slash command text to be executed (e.g., /help, /clear)
+	Command *string `json:"command,omitempty"`
+	// Available actions the user can take (e.g., approve, edit, reject)
+	Actions []string `json:"actions,omitempty"`
+	// Full content of the plan file
+	PlanContent *string `json:"planContent,omitempty"`
+	// The recommended action for the user to take
+	RecommendedAction *string `json:"recommendedAction,omitempty"`
 }
 
 type Attachment struct {
-	DisplayName string          `json:"displayName"`
-	LineRange   *LineRange      `json:"lineRange,omitempty"`
-	Path        *string         `json:"path,omitempty"`
-	Type        AttachmentType  `json:"type"`
-	FilePath    *string         `json:"filePath,omitempty"`
-	Selection   *SelectionClass `json:"selection,omitempty"`
-	Text        *string         `json:"text,omitempty"`
+	// User-facing display name for the attachment
+	//
+	// User-facing display name for the selection
+	DisplayName *string `json:"displayName,omitempty"`
+	// Optional line range to scope the attachment to a specific section of the file
+	LineRange *LineRange `json:"lineRange,omitempty"`
+	// Absolute file or directory path
+	Path *string `json:"path,omitempty"`
+	// Attachment type discriminator
+	Type AttachmentType `json:"type"`
+	// Absolute path to the file containing the selection
+	FilePath *string `json:"filePath,omitempty"`
+	// Position range of the selection within the file
+	Selection *SelectionClass `json:"selection,omitempty"`
+	// The selected text content
+	Text *string `json:"text,omitempty"`
+	// Issue, pull request, or discussion number
+	Number *float64 `json:"number,omitempty"`
+	// Type of GitHub reference
+	ReferenceType *ReferenceType `json:"referenceType,omitempty"`
+	// Current state of the referenced item (e.g., open, closed, merged)
+	State *string `json:"state,omitempty"`
+	// Title of the referenced item
+	Title *string `json:"title,omitempty"`
+	// URL to the referenced item on GitHub
+	URL *string `json:"url,omitempty"`
 }
 
+// Optional line range to scope the attachment to a specific section of the file
 type LineRange struct {
-	End   float64 `json:"end"`
+	// End line number (1-based, inclusive)
+	End float64 `json:"end"`
+	// Start line number (1-based)
 	Start float64 `json:"start"`
 }
 
+// Position range of the selection within the file
 type SelectionClass struct {
 	End   End   `json:"end"`
 	Start Start `json:"start"`
 }
 
 type End struct {
+	// End character offset within the line (0-based)
 	Character float64 `json:"character"`
-	Line      float64 `json:"line"`
+	// End line number (0-based)
+	Line float64 `json:"line"`
 }
 
 type Start struct {
+	// Start character offset within the line (0-based)
 	Character float64 `json:"character"`
-	Line      float64 `json:"line"`
+	// Start line number (0-based)
+	Line float64 `json:"line"`
 }
 
+// Background tasks still running when the agent became idle
+type BackgroundTasks struct {
+	// Currently running background agents
+	Agents []Agent `json:"agents"`
+	// Currently running background shell commands
+	Shells []Shell `json:"shells"`
+}
+
+type Agent struct {
+	// Unique identifier of the background agent
+	AgentID string `json:"agentId"`
+	// Type of the background agent
+	AgentType string `json:"agentType"`
+	// Human-readable description of the agent task
+	Description *string `json:"description,omitempty"`
+}
+
+type Shell struct {
+	// Human-readable description of the shell command
+	Description *string `json:"description,omitempty"`
+	// Unique identifier of the background shell
+	ShellID string `json:"shellId"`
+}
+
+// Aggregate code change metrics for the session
 type CodeChanges struct {
+	// List of file paths that were modified during the session
 	FilesModified []string `json:"filesModified"`
-	LinesAdded    float64  `json:"linesAdded"`
-	LinesRemoved  float64  `json:"linesRemoved"`
+	// Total number of lines added during the session
+	LinesAdded float64 `json:"linesAdded"`
+	// Total number of lines removed during the session
+	LinesRemoved float64 `json:"linesRemoved"`
 }
 
+// Token usage breakdown for the compaction LLM call
 type CompactionTokensUsed struct {
+	// Cached input tokens reused in the compaction LLM call
 	CachedInput float64 `json:"cachedInput"`
-	Input       float64 `json:"input"`
-	Output      float64 `json:"output"`
+	// Input tokens consumed by the compaction LLM call
+	Input float64 `json:"input"`
+	// Output tokens produced by the compaction LLM call
+	Output float64 `json:"output"`
 }
 
+// Working directory and git context at session start
+//
+// Updated working directory and git context at resume time
 type ContextClass struct {
-	Branch     *string `json:"branch,omitempty"`
-	Cwd        string  `json:"cwd"`
-	GitRoot    *string `json:"gitRoot,omitempty"`
+	// Current git branch name
+	Branch *string `json:"branch,omitempty"`
+	// Current working directory path
+	Cwd string `json:"cwd"`
+	// Root directory of the git repository, resolved via git rev-parse
+	GitRoot *string `json:"gitRoot,omitempty"`
+	// Repository identifier in "owner/name" format, derived from the git remote URL
 	Repository *string `json:"repository,omitempty"`
 }
 
-type ErrorClass struct {
-	Code    *string `json:"code,omitempty"`
-	Message string  `json:"message"`
-	Stack   *string `json:"stack,omitempty"`
+// Per-request cost and usage data from the CAPI copilot_usage response field
+type CopilotUsage struct {
+	// Itemized token usage breakdown
+	TokenDetails []TokenDetail `json:"tokenDetails"`
+	// Total cost in nano-AIU (AI Units) for this request
+	TotalNanoAiu float64 `json:"totalNanoAiu"`
 }
 
+type TokenDetail struct {
+	// Number of tokens in this billing batch
+	BatchSize float64 `json:"batchSize"`
+	// Cost per batch of tokens
+	CostPerBatch float64 `json:"costPerBatch"`
+	// Total token count for this entry
+	TokenCount float64 `json:"tokenCount"`
+	// Token category (e.g., "input", "output")
+	TokenType string `json:"tokenType"`
+}
+
+// Error details when the tool execution failed
+//
+// Error details when the hook failed
+type ErrorClass struct {
+	// Machine-readable error code
+	Code *string `json:"code,omitempty"`
+	// Human-readable error message
+	Message string `json:"message"`
+	// Error stack trace, when available
+	Stack *string `json:"stack,omitempty"`
+}
+
+// Structured metadata identifying what triggered this notification
+type KindClass struct {
+	// Unique identifier of the background agent
+	AgentID *string `json:"agentId,omitempty"`
+	// Type of the agent (e.g., explore, task, general-purpose)
+	AgentType *string `json:"agentType,omitempty"`
+	// Human-readable description of the agent task
+	//
+	// Human-readable description of the command
+	Description *string `json:"description,omitempty"`
+	// The full prompt given to the background agent
+	Prompt *string `json:"prompt,omitempty"`
+	// Whether the agent completed successfully or failed
+	Status *Status  `json:"status,omitempty"`
+	Type   KindType `json:"type"`
+	// Exit code of the shell command, if available
+	ExitCode *float64 `json:"exitCode,omitempty"`
+	// Unique identifier of the shell session
+	//
+	// Unique identifier of the detached shell session
+	ShellID *string `json:"shellId,omitempty"`
+}
+
+// Metadata about the prompt template and its construction
 type Metadata struct {
-	PromptVersion *string                `json:"promptVersion,omitempty"`
-	Variables     map[string]interface{} `json:"variables,omitempty"`
+	// Version identifier of the prompt template used
+	PromptVersion *string `json:"promptVersion,omitempty"`
+	// Template variables used when constructing the prompt
+	Variables map[string]interface{} `json:"variables,omitempty"`
 }
 
 type ModelMetric struct {
+	// Request count and cost metrics
 	Requests Requests `json:"requests"`
-	Usage    Usage    `json:"usage"`
+	// Token usage breakdown
+	Usage Usage `json:"usage"`
 }
 
+// Request count and cost metrics
 type Requests struct {
-	Cost  float64 `json:"cost"`
+	// Cumulative cost multiplier for requests to this model
+	Cost float64 `json:"cost"`
+	// Total number of API requests made to this model
 	Count float64 `json:"count"`
 }
 
+// Token usage breakdown
 type Usage struct {
-	CacheReadTokens  float64 `json:"cacheReadTokens"`
+	// Total tokens read from prompt cache across all requests
+	CacheReadTokens float64 `json:"cacheReadTokens"`
+	// Total tokens written to prompt cache across all requests
 	CacheWriteTokens float64 `json:"cacheWriteTokens"`
-	InputTokens      float64 `json:"inputTokens"`
-	OutputTokens     float64 `json:"outputTokens"`
+	// Total input tokens consumed across all requests to this model
+	InputTokens float64 `json:"inputTokens"`
+	// Total output tokens produced across all requests to this model
+	OutputTokens float64 `json:"outputTokens"`
+}
+
+// Details of the permission being requested
+type PermissionRequest struct {
+	// Whether the UI can offer session-wide approval for this command pattern
+	CanOfferSessionApproval *bool `json:"canOfferSessionApproval,omitempty"`
+	// Parsed command identifiers found in the command text
+	Commands []Command `json:"commands,omitempty"`
+	// The complete shell command text to be executed
+	FullCommandText *string `json:"fullCommandText,omitempty"`
+	// Whether the command includes a file write redirection (e.g., > or >>)
+	HasWriteFileRedirection *bool `json:"hasWriteFileRedirection,omitempty"`
+	// Human-readable description of what the command intends to do
+	//
+	// Human-readable description of the intended file change
+	//
+	// Human-readable description of why the file is being read
+	//
+	// Human-readable description of why the URL is being accessed
+	Intention *string `json:"intention,omitempty"`
+	// Permission kind discriminator
+	Kind PermissionRequestKind `json:"kind"`
+	// File paths that may be read or written by the command
+	PossiblePaths []string `json:"possiblePaths,omitempty"`
+	// URLs that may be accessed by the command
+	PossibleUrls []PossibleURL `json:"possibleUrls,omitempty"`
+	// Tool call ID that triggered this permission request
+	ToolCallID *string `json:"toolCallId,omitempty"`
+	// Optional warning message about risks of running this command
+	Warning *string `json:"warning,omitempty"`
+	// Unified diff showing the proposed changes
+	Diff *string `json:"diff,omitempty"`
+	// Path of the file being written to
+	FileName *string `json:"fileName,omitempty"`
+	// Complete new file contents for newly created files
+	NewFileContents *string `json:"newFileContents,omitempty"`
+	// Path of the file or directory being read
+	Path *string `json:"path,omitempty"`
+	// Arguments to pass to the MCP tool
+	//
+	// Arguments to pass to the custom tool
+	Args interface{} `json:"args"`
+	// Whether this MCP tool is read-only (no side effects)
+	ReadOnly *bool `json:"readOnly,omitempty"`
+	// Name of the MCP server providing the tool
+	ServerName *string `json:"serverName,omitempty"`
+	// Internal name of the MCP tool
+	//
+	// Name of the custom tool
+	ToolName *string `json:"toolName,omitempty"`
+	// Human-readable title of the MCP tool
+	ToolTitle *string `json:"toolTitle,omitempty"`
+	// URL to be fetched
+	URL *string `json:"url,omitempty"`
+	// Source references for the stored fact
+	Citations *string `json:"citations,omitempty"`
+	// The fact or convention being stored
+	Fact *string `json:"fact,omitempty"`
+	// Topic or subject of the memory being stored
+	Subject *string `json:"subject,omitempty"`
+	// Description of what the custom tool does
+	ToolDescription *string `json:"toolDescription,omitempty"`
+}
+
+type Command struct {
+	// Command identifier (e.g., executable name)
+	Identifier string `json:"identifier"`
+	// Whether this command is read-only (no side effects)
+	ReadOnly bool `json:"readOnly"`
+}
+
+type PossibleURL struct {
+	// URL that may be accessed by the command
+	URL string `json:"url"`
 }
 
 type QuotaSnapshot struct {
-	EntitlementRequests              float64    `json:"entitlementRequests"`
-	IsUnlimitedEntitlement           bool       `json:"isUnlimitedEntitlement"`
-	Overage                          float64    `json:"overage"`
-	OverageAllowedWithExhaustedQuota bool       `json:"overageAllowedWithExhaustedQuota"`
-	RemainingPercentage              float64    `json:"remainingPercentage"`
-	ResetDate                        *time.Time `json:"resetDate,omitempty"`
-	UsageAllowedWithExhaustedQuota   bool       `json:"usageAllowedWithExhaustedQuota"`
-	UsedRequests                     float64    `json:"usedRequests"`
+	// Total requests allowed by the entitlement
+	EntitlementRequests float64 `json:"entitlementRequests"`
+	// Whether the user has an unlimited usage entitlement
+	IsUnlimitedEntitlement bool `json:"isUnlimitedEntitlement"`
+	// Number of requests over the entitlement limit
+	Overage float64 `json:"overage"`
+	// Whether overage is allowed when quota is exhausted
+	OverageAllowedWithExhaustedQuota bool `json:"overageAllowedWithExhaustedQuota"`
+	// Percentage of quota remaining (0.0 to 1.0)
+	RemainingPercentage float64 `json:"remainingPercentage"`
+	// Date when the quota resets
+	ResetDate *time.Time `json:"resetDate,omitempty"`
+	// Whether usage is still permitted after quota exhaustion
+	UsageAllowedWithExhaustedQuota bool `json:"usageAllowedWithExhaustedQuota"`
+	// Number of requests already consumed
+	UsedRequests float64 `json:"usedRequests"`
 }
 
+// Repository context for the handed-off session
 type RepositoryClass struct {
+	// Git branch name, if applicable
 	Branch *string `json:"branch,omitempty"`
-	Name   string  `json:"name"`
-	Owner  string  `json:"owner"`
+	// Repository name
+	Name string `json:"name"`
+	// Repository owner (user or organization)
+	Owner string `json:"owner"`
 }
 
+// JSON Schema describing the form fields to present to the user
+type RequestedSchema struct {
+	// Form field definitions, keyed by field name
+	Properties map[string]interface{} `json:"properties"`
+	// List of required field names
+	Required []string            `json:"required,omitempty"`
+	Type     RequestedSchemaType `json:"type"`
+}
+
+// Tool execution result on success
+//
+// The result of the permission request
 type Result struct {
-	Content         string    `json:"content"`
-	Contents        []Content `json:"contents,omitempty"`
-	DetailedContent *string   `json:"detailedContent,omitempty"`
+	// Concise tool result text sent to the LLM for chat completion, potentially truncated for
+	// token efficiency
+	Content *string `json:"content,omitempty"`
+	// Structured content blocks (text, images, audio, resources) returned by the tool in their
+	// native format
+	Contents []Content `json:"contents,omitempty"`
+	// Full detailed tool result for UI/timeline display, preserving complete content such as
+	// diffs. Falls back to content when absent.
+	DetailedContent *string `json:"detailedContent,omitempty"`
+	// The outcome of the permission request
+	Kind *ResultKind `json:"kind,omitempty"`
 }
 
 type Content struct {
-	Text        *string        `json:"text,omitempty"`
-	Type        ContentType    `json:"type"`
-	Cwd         *string        `json:"cwd,omitempty"`
-	ExitCode    *float64       `json:"exitCode,omitempty"`
-	Data        *string        `json:"data,omitempty"`
-	MIMEType    *string        `json:"mimeType,omitempty"`
-	Description *string        `json:"description,omitempty"`
-	Icons       []Icon         `json:"icons,omitempty"`
-	Name        *string        `json:"name,omitempty"`
-	Size        *float64       `json:"size,omitempty"`
-	Title       *string        `json:"title,omitempty"`
-	URI         *string        `json:"uri,omitempty"`
-	Resource    *ResourceClass `json:"resource,omitempty"`
+	// The text content
+	//
+	// Terminal/shell output text
+	Text *string `json:"text,omitempty"`
+	// Content block type discriminator
+	Type ContentType `json:"type"`
+	// Working directory where the command was executed
+	Cwd *string `json:"cwd,omitempty"`
+	// Process exit code, if the command has completed
+	ExitCode *float64 `json:"exitCode,omitempty"`
+	// Base64-encoded image data
+	//
+	// Base64-encoded audio data
+	Data *string `json:"data,omitempty"`
+	// MIME type of the image (e.g., image/png, image/jpeg)
+	//
+	// MIME type of the audio (e.g., audio/wav, audio/mpeg)
+	//
+	// MIME type of the resource content
+	MIMEType *string `json:"mimeType,omitempty"`
+	// Human-readable description of the resource
+	Description *string `json:"description,omitempty"`
+	// Icons associated with this resource
+	Icons []Icon `json:"icons,omitempty"`
+	// Resource name identifier
+	Name *string `json:"name,omitempty"`
+	// Size of the resource in bytes
+	Size *float64 `json:"size,omitempty"`
+	// Human-readable display title for the resource
+	Title *string `json:"title,omitempty"`
+	// URI identifying the resource
+	URI *string `json:"uri,omitempty"`
+	// The embedded resource contents, either text or base64-encoded binary
+	Resource *ResourceClass `json:"resource,omitempty"`
 }
 
 type Icon struct {
-	MIMEType *string  `json:"mimeType,omitempty"`
-	Sizes    []string `json:"sizes,omitempty"`
-	Src      string   `json:"src"`
-	Theme    *Theme   `json:"theme,omitempty"`
+	// MIME type of the icon image
+	MIMEType *string `json:"mimeType,omitempty"`
+	// Available icon sizes (e.g., ['16x16', '32x32'])
+	Sizes []string `json:"sizes,omitempty"`
+	// URL or path to the icon image
+	Src string `json:"src"`
+	// Theme variant this icon is intended for
+	Theme *Theme `json:"theme,omitempty"`
 }
 
+// The embedded resource contents, either text or base64-encoded binary
 type ResourceClass struct {
+	// MIME type of the text content
+	//
+	// MIME type of the blob content
 	MIMEType *string `json:"mimeType,omitempty"`
-	Text     *string `json:"text,omitempty"`
-	URI      string  `json:"uri"`
-	Blob     *string `json:"blob,omitempty"`
+	// Text content of the resource
+	Text *string `json:"text,omitempty"`
+	// URI identifying the resource
+	URI string `json:"uri"`
+	// Base64-encoded binary content of the resource
+	Blob *string `json:"blob,omitempty"`
 }
 
 type ToolRequest struct {
-	Arguments  interface{}      `json:"arguments"`
-	Name       string           `json:"name"`
-	ToolCallID string           `json:"toolCallId"`
-	Type       *ToolRequestType `json:"type,omitempty"`
+	// Arguments to pass to the tool, format depends on the tool
+	Arguments interface{} `json:"arguments"`
+	// Name of the tool being invoked
+	Name string `json:"name"`
+	// Unique identifier for this tool call
+	ToolCallID string `json:"toolCallId"`
+	// Tool call type: "function" for standard tool calls, "custom" for grammar-based tool
+	// calls. Defaults to "function" when absent.
+	Type *ToolRequestType `json:"type,omitempty"`
 }
 
+// The agent mode that was active when this message was sent
 type AgentMode string
 
 const (
-	Autopilot   AgentMode = "autopilot"
-	Interactive AgentMode = "interactive"
-	Plan        AgentMode = "plan"
-	Shell       AgentMode = "shell"
+	AgentModeShell AgentMode = "shell"
+	Autopilot      AgentMode = "autopilot"
+	Interactive    AgentMode = "interactive"
+	Plan           AgentMode = "plan"
+)
+
+// Type of GitHub reference
+type ReferenceType string
+
+const (
+	Discussion ReferenceType = "discussion"
+	Issue      ReferenceType = "issue"
+	PR         ReferenceType = "pr"
 )
 
 type AttachmentType string
 
 const (
-	Directory AttachmentType = "directory"
-	File      AttachmentType = "file"
-	Selection AttachmentType = "selection"
+	Directory       AttachmentType = "directory"
+	File            AttachmentType = "file"
+	GithubReference AttachmentType = "github_reference"
+	Selection       AttachmentType = "selection"
 )
 
+// Whether the agent completed successfully or failed
+type Status string
+
+const (
+	Completed Status = "completed"
+	Failed    Status = "failed"
+)
+
+type KindType string
+
+const (
+	AgentCompleted         KindType = "agent_completed"
+	ShellCompleted         KindType = "shell_completed"
+	ShellDetachedCompleted KindType = "shell_detached_completed"
+)
+
+type Mode string
+
+const (
+	Form Mode = "form"
+)
+
+// The type of operation performed on the plan file
+//
+// Whether the file was newly created or updated
 type Operation string
 
 const (
@@ -313,6 +921,25 @@ const (
 	Update Operation = "update"
 )
 
+type PermissionRequestKind string
+
+const (
+	CustomTool PermissionRequestKind = "custom-tool"
+	KindShell  PermissionRequestKind = "shell"
+	MCP        PermissionRequestKind = "mcp"
+	Memory     PermissionRequestKind = "memory"
+	Read       PermissionRequestKind = "read"
+	URL        PermissionRequestKind = "url"
+	Write      PermissionRequestKind = "write"
+)
+
+type RequestedSchemaType string
+
+const (
+	Object RequestedSchemaType = "object"
+)
+
+// Theme variant this icon is intended for
 type Theme string
 
 const (
@@ -331,6 +958,18 @@ const (
 	Text         ContentType = "text"
 )
 
+// The outcome of the permission request
+type ResultKind string
+
+const (
+	Approved                                       ResultKind = "approved"
+	DeniedByContentExclusionPolicy                 ResultKind = "denied-by-content-exclusion-policy"
+	DeniedByRules                                  ResultKind = "denied-by-rules"
+	DeniedInteractivelyByUser                      ResultKind = "denied-interactively-by-user"
+	DeniedNoApprovalRuleAndCouldNotRequestFromUser ResultKind = "denied-no-approval-rule-and-could-not-request-from-user"
+)
+
+// Message role: "system" for system prompts, "developer" for developer-injected instructions
 type Role string
 
 const (
@@ -338,6 +977,7 @@ const (
 	System    Role = "system"
 )
 
+// Whether the session ended normally ("routine") or due to a crash/fatal error ("error")
 type ShutdownType string
 
 const (
@@ -345,6 +985,7 @@ const (
 	Routine ShutdownType = "routine"
 )
 
+// Origin type of the session being handed off
 type SourceType string
 
 const (
@@ -352,6 +993,8 @@ const (
 	Remote SourceType = "remote"
 )
 
+// Tool call type: "function" for standard tool calls, "custom" for grammar-based tool
+// calls. Defaults to "function" when absent.
 type ToolRequestType string
 
 const (
@@ -372,9 +1015,19 @@ const (
 	AssistantTurnEnd            SessionEventType = "assistant.turn_end"
 	AssistantTurnStart          SessionEventType = "assistant.turn_start"
 	AssistantUsage              SessionEventType = "assistant.usage"
+	CommandCompleted            SessionEventType = "command.completed"
+	CommandQueued               SessionEventType = "command.queued"
+	ElicitationCompleted        SessionEventType = "elicitation.completed"
+	ElicitationRequested        SessionEventType = "elicitation.requested"
+	ExitPlanModeCompleted       SessionEventType = "exit_plan_mode.completed"
+	ExitPlanModeRequested       SessionEventType = "exit_plan_mode.requested"
+	ExternalToolCompleted       SessionEventType = "external_tool.completed"
+	ExternalToolRequested       SessionEventType = "external_tool.requested"
 	HookEnd                     SessionEventType = "hook.end"
 	HookStart                   SessionEventType = "hook.start"
 	PendingMessagesModified     SessionEventType = "pending_messages.modified"
+	PermissionCompleted         SessionEventType = "permission.completed"
+	PermissionRequested         SessionEventType = "permission.requested"
 	SessionCompactionComplete   SessionEventType = "session.compaction_complete"
 	SessionCompactionStart      SessionEventType = "session.compaction_start"
 	SessionContextChanged       SessionEventType = "session.context_changed"
@@ -397,15 +1050,19 @@ const (
 	SessionWorkspaceFileChanged SessionEventType = "session.workspace_file_changed"
 	SkillInvoked                SessionEventType = "skill.invoked"
 	SubagentCompleted           SessionEventType = "subagent.completed"
+	SubagentDeselected          SessionEventType = "subagent.deselected"
 	SubagentFailed              SessionEventType = "subagent.failed"
 	SubagentSelected            SessionEventType = "subagent.selected"
 	SubagentStarted             SessionEventType = "subagent.started"
 	SystemMessage               SessionEventType = "system.message"
+	SystemNotification          SessionEventType = "system.notification"
 	ToolExecutionComplete       SessionEventType = "tool.execution_complete"
 	ToolExecutionPartialResult  SessionEventType = "tool.execution_partial_result"
 	ToolExecutionProgress       SessionEventType = "tool.execution_progress"
 	ToolExecutionStart          SessionEventType = "tool.execution_start"
 	ToolUserRequested           SessionEventType = "tool.user_requested"
+	UserInputCompleted          SessionEventType = "user_input.completed"
+	UserInputRequested          SessionEventType = "user_input.requested"
 	UserMessage                 SessionEventType = "user.message"
 )
 

@@ -1,0 +1,65 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: "Edit the file 'edit_me.txt': replace 'Hello World' with 'Hi Universe'. Then read it back and tell me its
+          contents."
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Editing file"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: edit
+              arguments: '{"path":"${workdir}/edit_me.txt","old_str":"Hello World","new_str":"Hi Universe"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: "Edit the file 'edit_me.txt': replace 'Hello World' with 'Hi Universe'. Then read it back and tell me its
+          contents."
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Editing file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: edit
+              arguments: '{"path":"${workdir}/edit_me.txt","old_str":"Hello World","new_str":"Hi Universe"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: File ${workdir}/edit_me.txt updated with changes.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/edit_me.txt"}'
+      - role: tool
+        tool_call_id: toolcall_2
+        content: |-
+          1. Hi Universe
+          2. Goodbye World
+          3.
+      - role: assistant
+        content: |-
+          The file now contains:
+          1. Hi Universe
+          2. Goodbye World

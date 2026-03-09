@@ -1,0 +1,52 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Search for lines starting with 'ap' in the file 'data.txt'. Tell me which lines matched.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Searching file for pattern"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: grep
+              arguments: '{"pattern":"^ap","path":"${workdir}/data.txt","output_mode":"content","-n":true}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Search for lines starting with 'ap' in the file 'data.txt'. Tell me which lines matched.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Searching file for pattern"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: grep
+              arguments: '{"pattern":"^ap","path":"${workdir}/data.txt","output_mode":"content","-n":true}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: |-
+          ${workdir}/data.txt:1:apple
+          ${workdir}/data.txt:3:apricot
+      - role: assistant
+        content: |-
+          Two lines matched:
+          - Line 1: `apple`
+          - Line 3: `apricot`

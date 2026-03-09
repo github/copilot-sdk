@@ -41,6 +41,6 @@ const result2 = await session.sendAndWait({ prompt: "Use lookup_fact to tell me 
 console.log("📝 Response:", result2?.data.content);
 
 // Clean up
-await session.destroy();
+await session.disconnect();
 await client.stop();
 console.log("✅ Done!");

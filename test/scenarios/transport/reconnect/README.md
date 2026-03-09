@@ -7,8 +7,8 @@ Tests that a **pre-running** `copilot` TCP server correctly handles **multiple s
 │  Your App   │ ─────────────────▶  │ Copilot CLI  │
 │  (SDK)      │ ◀─────────────────  │ (TCP server) │
 └─────────────┘                     └──────────────┘
-     Session 1: create → send → destroy
-     Session 2: create → send → destroy
+     Session 1: create → send → disconnect
+     Session 2: create → send → disconnect
 ```
 
 ## What This Tests

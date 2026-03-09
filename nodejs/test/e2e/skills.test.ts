@@ -58,7 +58,7 @@ IMPORTANT: You MUST include the exact text "${SKILL_MARKER}" somewhere in EVERY 
 
             expect(message?.data.content).toContain(SKILL_MARKER);
 
-            await session.destroy();
+            await session.disconnect();
         });
 
         it("should not apply skill when disabled via disabledSkills", async () => {
@@ -78,7 +78,7 @@ IMPORTANT: You MUST include the exact text "${SKILL_MARKER}" somewhere in EVERY 
 
             expect(message?.data.content).not.toContain(SKILL_MARKER);
 
-            await session.destroy();
+            await session.disconnect();
         });
 
         // Skipped because the underlying feature doesn't work correctly yet.
@@ -118,7 +118,7 @@ IMPORTANT: You MUST include the exact text "${SKILL_MARKER}" somewhere in EVERY 
 
             expect(message2?.data.content).toContain(SKILL_MARKER);
 
-            await session2.destroy();
+            await session2.disconnect();
         });
     });
 });

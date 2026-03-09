@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 
 namespace GitHub.Copilot.SDK.Test.Harness;
 
-public class E2ETestContext : IAsyncDisposable
+public sealed class E2ETestContext : IAsyncDisposable
 {
     public string HomeDir { get; }
     public string WorkDir { get; }
@@ -74,7 +74,10 @@ public class E2ETestContext : IAsyncDisposable
         await _proxy.ConfigureAsync(snapshotPath, WorkDir);
     }
 
-    public Task<List<ParsedHttpExchange>> GetExchangesAsync() => _proxy.GetExchangesAsync();
+    public Task<List<ParsedHttpExchange>> GetExchangesAsync()
+    {
+        return _proxy.GetExchangesAsync();
+    }
 
     public IReadOnlyDictionary<string, string> GetEnvironment()
     {
@@ -89,18 +92,22 @@ public class E2ETestContext : IAsyncDisposable
         return env!;
     }
 
-    public CopilotClient CreateClient() => new(new CopilotClientOptions
+    public CopilotClient CreateClient(bool useStdio = true)
     {
-        Cwd = WorkDir,
-        CliPath = GetCliPath(_repoRoot),
-        Environment = GetEnvironment(),
-        GitHubToken = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CI")) ? "fake-token-for-e2e-tests" : null,
-    });
+        return new(new CopilotClientOptions
+        {
+            Cwd = WorkDir,
+            CliPath = GetCliPath(_repoRoot),
+            Environment = GetEnvironment(),
+            UseStdio = useStdio,
+            GitHubToken = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")) ? "fake-token-for-e2e-tests" : null,
+        });
+    }
 
     public async ValueTask DisposeAsync()
     {
         // Skip writing snapshots in CI to avoid corrupting them on test failures
-        var isCI = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CI"));
+        var isCI = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"));
         await _proxy.StopAsync(skipWritingCache: isCI);
 
         try { if (Directory.Exists(HomeDir)) Directory.Delete(HomeDir, true); } catch { }

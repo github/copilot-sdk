@@ -8,3 +8,7 @@ conversations:
         content: What is 1+1?
       - role: assistant
         content: 1 + 1 = 2
+      - role: user
+        content: Now if you double that, what do you get?
+      - role: assistant
+        content: 2 doubled is 4.

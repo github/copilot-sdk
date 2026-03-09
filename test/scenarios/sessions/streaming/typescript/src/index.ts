@@ -26,7 +26,7 @@ async function main() {
     }
     console.log(`\nStreaming chunks received: ${chunkCount}`);
 
-    await session.destroy();
+    await session.disconnect();
   } finally {
     await client.stop();
   }

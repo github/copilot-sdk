@@ -35,7 +35,7 @@ async function main() {
       console.log("Session 2 (robot):", response2.data.content);
     }
 
-    await Promise.all([session1.destroy(), session2.destroy()]);
+    await Promise.all([session1.disconnect(), session2.disconnect()]);
   } finally {
     await client.stop();
     process.exit(0);

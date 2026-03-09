@@ -24,11 +24,29 @@ import {
 
 const execFileAsync = promisify(execFile);
 
+// ── C# type rename overrides ────────────────────────────────────────────────
+// Map generated class names to shorter public-facing names.
+// Applied to base classes AND their derived variants (e.g., FooBar → Bar, FooBazShell → BarShell).
+const TYPE_RENAMES: Record<string, string> = {
+    PermissionRequestedDataPermissionRequest: "PermissionRequest",
+};
+
+/** Apply rename to a generated class name, checking both exact match and prefix replacement for derived types. */
+function applyTypeRename(className: string): string {
+    if (TYPE_RENAMES[className]) return TYPE_RENAMES[className];
+    for (const [from, to] of Object.entries(TYPE_RENAMES)) {
+        if (className.startsWith(from)) {
+            return to + className.slice(from.length);
+        }
+    }
+    return className;
+}
+
 // ── C# utilities ────────────────────────────────────────────────────────────
 
 function toPascalCase(name: string): string {
-    if (name.includes("_")) {
-        return name.split("_").map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join("");
+    if (name.includes("_") || name.includes("-")) {
+        return name.split(/[-_]/).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join("");
     }
     return name.charAt(0).toUpperCase() + name.slice(1);
 }
@@ -208,17 +226,18 @@ function generatePolymorphicClasses(
 ): string {
     const lines: string[] = [];
     const discriminatorInfo = findDiscriminator(variants)!;
+    const renamedBase = applyTypeRename(baseClassName);
 
     lines.push(`[JsonPolymorphic(`);
     lines.push(`    TypeDiscriminatorPropertyName = "${discriminatorProperty}",`);
     lines.push(`    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]`);
 
     for (const [constValue] of discriminatorInfo.mapping) {
-        const derivedClassName = `${baseClassName}${toPascalCase(constValue)}`;
+        const derivedClassName = applyTypeRename(`${baseClassName}${toPascalCase(constValue)}`);
         lines.push(`[JsonDerivedType(typeof(${derivedClassName}), "${constValue}")]`);
     }
 
-    lines.push(`public partial class ${baseClassName}`);
+    lines.push(`public partial class ${renamedBase}`);
     lines.push(`{`);
     lines.push(`    [JsonPropertyName("${discriminatorProperty}")]`);
     lines.push(`    public virtual string ${toPascalCase(discriminatorProperty)} { get; set; } = string.Empty;`);
@@ -226,8 +245,8 @@ function generatePolymorphicClasses(
     lines.push("");
 
     for (const [constValue, variant] of discriminatorInfo.mapping) {
-        const derivedClassName = `${baseClassName}${toPascalCase(constValue)}`;
-        const derivedCode = generateDerivedClass(derivedClassName, baseClassName, discriminatorProperty, constValue, variant, knownTypes, nestedClasses, enumOutput);
+        const derivedClassName = applyTypeRename(`${baseClassName}${toPascalCase(constValue)}`);
+        const derivedCode = generateDerivedClass(derivedClassName, renamedBase, discriminatorProperty, constValue, variant, knownTypes, nestedClasses, enumOutput);
         nestedClasses.set(derivedClassName, derivedCode);
     }
 
@@ -319,6 +338,18 @@ function resolveSessionPropertyType(
         if (nonNull.length === 1) {
             return resolveSessionPropertyType(nonNull[0] as JSONSchema7, parentClassName, propName, isRequired && !hasNull, knownTypes, nestedClasses, enumOutput);
         }
+        // Discriminated union: anyOf with multiple object variants sharing a const discriminator
+        if (nonNull.length > 1) {
+            const variants = nonNull as JSONSchema7[];
+            const discriminatorInfo = findDiscriminator(variants);
+            if (discriminatorInfo) {
+                const baseClassName = `${parentClassName}${propName}`;
+                const renamedBase = applyTypeRename(baseClassName);
+                const polymorphicCode = generatePolymorphicClasses(baseClassName, discriminatorInfo.property, variants, knownTypes, nestedClasses, enumOutput);
+                nestedClasses.set(renamedBase, polymorphicCode);
+                return isRequired && !hasNull ? renamedBase : `${renamedBase}?`;
+            }
+        }
         return hasNull || !isRequired ? "object?" : "object";
     }
     if (propSchema.enum && Array.isArray(propSchema.enum)) {
@@ -338,9 +369,10 @@ function resolveSessionPropertyType(
             const discriminatorInfo = findDiscriminator(variants);
             if (discriminatorInfo) {
                 const baseClassName = `${parentClassName}${propName}Item`;
+                const renamedBase = applyTypeRename(baseClassName);
                 const polymorphicCode = generatePolymorphicClasses(baseClassName, discriminatorInfo.property, variants, knownTypes, nestedClasses, enumOutput);
-                nestedClasses.set(baseClassName, polymorphicCode);
-                return isRequired ? `${baseClassName}[]` : `${baseClassName}[]?`;
+                nestedClasses.set(renamedBase, polymorphicCode);
+                return isRequired ? `${renamedBase}[]` : `${renamedBase}[]?`;
             }
         }
         if (items.type === "object" && items.properties) {
@@ -392,6 +424,9 @@ function generateSessionEventsCode(schema: JSONSchema7): string {
 
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: session-events.schema.json
+
+// Generated code does not have XML doc comments; suppress CS1591 to avoid warnings.
+#pragma warning disable CS1591
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -532,7 +567,9 @@ function emitRpcClass(className: string, schema: JSONSchema7, visibility: "publi
         let defaultVal = "";
         if (isReq && !csharpType.endsWith("?")) {
             if (csharpType === "string") defaultVal = " = string.Empty;";
-            else if (csharpType.startsWith("List<") || csharpType.startsWith("Dictionary<") || emittedRpcClasses.has(csharpType)) defaultVal = " = new();";
+            else if (csharpType === "object") defaultVal = " = null!;";
+            else if (csharpType.startsWith("List<") || csharpType.startsWith("Dictionary<")) defaultVal = " = [];";
+            else if (emittedRpcClasses.has(csharpType)) defaultVal = " = new();";
         }
         lines.push(`    public ${csharpType} ${csharpName} { get; set; }${defaultVal}`);
         if (i < props.length - 1) lines.push("");
@@ -563,7 +600,7 @@ function emitServerRpcClasses(node: Record<string, unknown>, classes: string[]):
     srLines.push(`    {`);
     srLines.push(`        _rpc = rpc;`);
     for (const [groupName] of groups) {
-        srLines.push(`        ${toPascalCase(groupName)} = new ${toPascalCase(groupName)}Api(rpc);`);
+        srLines.push(`        ${toPascalCase(groupName)} = new Server${toPascalCase(groupName)}Api(rpc);`);
     }
     srLines.push(`    }`);
 
@@ -577,7 +614,7 @@ function emitServerRpcClasses(node: Record<string, unknown>, classes: string[]):
     for (const [groupName] of groups) {
         srLines.push("");
         srLines.push(`    /// <summary>${toPascalCase(groupName)} APIs.</summary>`);
-        srLines.push(`    public ${toPascalCase(groupName)}Api ${toPascalCase(groupName)} { get; }`);
+        srLines.push(`    public Server${toPascalCase(groupName)}Api ${toPascalCase(groupName)} { get; }`);
     }
 
     srLines.push(`}`);
@@ -585,7 +622,7 @@ function emitServerRpcClasses(node: Record<string, unknown>, classes: string[]):
 
     // Per-group API classes
     for (const [groupName, groupNode] of groups) {
-        result.push(emitServerApiClass(`${toPascalCase(groupName)}Api`, groupNode as Record<string, unknown>, classes));
+        result.push(emitServerApiClass(`Server${toPascalCase(groupName)}Api`, groupNode as Record<string, unknown>, classes));
     }
 
     return result;
@@ -593,7 +630,8 @@ function emitServerRpcClasses(node: Record<string, unknown>, classes: string[]):
 
 function emitServerApiClass(className: string, node: Record<string, unknown>, classes: string[]): string {
     const lines: string[] = [];
-    lines.push(`/// <summary>Server-scoped ${className.replace("Api", "")} APIs.</summary>`);
+    const displayName = className.replace(/^Server/, "").replace(/Api$/, "");
+    lines.push(`/// <summary>Server-scoped ${displayName} APIs.</summary>`);
     lines.push(`public class ${className}`);
     lines.push(`{`);
     lines.push(`    private readonly JsonRpc _rpc;`);
@@ -663,12 +701,21 @@ function emitServerInstanceMethod(
 function emitSessionRpcClasses(node: Record<string, unknown>, classes: string[]): string[] {
     const result: string[] = [];
     const groups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
+    const topLevelMethods = Object.entries(node).filter(([, v]) => isRpcMethod(v));
 
     const srLines = [`/// <summary>Typed session-scoped RPC methods.</summary>`, `public class SessionRpc`, `{`, `    private readonly JsonRpc _rpc;`, `    private readonly string _sessionId;`, ""];
     srLines.push(`    internal SessionRpc(JsonRpc rpc, string sessionId)`, `    {`, `        _rpc = rpc;`, `        _sessionId = sessionId;`);
     for (const [groupName] of groups) srLines.push(`        ${toPascalCase(groupName)} = new ${toPascalCase(groupName)}Api(rpc, sessionId);`);
     srLines.push(`    }`);
     for (const [groupName] of groups) srLines.push("", `    public ${toPascalCase(groupName)}Api ${toPascalCase(groupName)} { get; }`);
+
+    // Emit top-level session RPC methods directly on the SessionRpc class
+    const topLevelLines: string[] = [];
+    for (const [key, value] of topLevelMethods) {
+        emitSessionMethod(key, value as RpcMethod, topLevelLines, classes, "    ");
+    }
+    srLines.push(...topLevelLines);
+
     srLines.push(`}`);
     result.push(srLines.join("\n"));
 
@@ -678,42 +725,53 @@ function emitSessionRpcClasses(node: Record<string, unknown>, classes: string[])
     return result;
 }
 
+function emitSessionMethod(key: string, method: RpcMethod, lines: string[], classes: string[], indent: string): void {
+    const methodName = toPascalCase(key);
+    const resultClassName = `${typeToClassName(method.rpcMethod)}Result`;
+    const resultClass = emitRpcClass(resultClassName, method.result, "public", classes);
+    if (resultClass) classes.push(resultClass);
+
+    const paramEntries = (method.params?.properties ? Object.entries(method.params.properties) : []).filter(([k]) => k !== "sessionId");
+    const requiredSet = new Set(method.params?.required || []);
+
+    // Sort so required params come before optional (C# requires defaults at end)
+    paramEntries.sort((a, b) => {
+        const aReq = requiredSet.has(a[0]) ? 0 : 1;
+        const bReq = requiredSet.has(b[0]) ? 0 : 1;
+        return aReq - bReq;
+    });
+
+    const requestClassName = `${typeToClassName(method.rpcMethod)}Request`;
+    if (method.params) {
+        const reqClass = emitRpcClass(requestClassName, method.params, "internal", classes);
+        if (reqClass) classes.push(reqClass);
+    }
+
+    lines.push("", `${indent}/// <summary>Calls "${method.rpcMethod}".</summary>`);
+    const sigParams: string[] = [];
+    const bodyAssignments = [`SessionId = _sessionId`];
+
+    for (const [pName, pSchema] of paramEntries) {
+        if (typeof pSchema !== "object") continue;
+        const isReq = requiredSet.has(pName);
+        const csType = resolveRpcType(pSchema as JSONSchema7, isReq, requestClassName, toPascalCase(pName), classes);
+        sigParams.push(`${csType} ${pName}${isReq ? "" : " = null"}`);
+        bodyAssignments.push(`${toPascalCase(pName)} = ${pName}`);
+    }
+    sigParams.push("CancellationToken cancellationToken = default");
+
+    lines.push(`${indent}public async Task<${resultClassName}> ${methodName}Async(${sigParams.join(", ")})`);
+    lines.push(`${indent}{`, `${indent}    var request = new ${requestClassName} { ${bodyAssignments.join(", ")} };`);
+    lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [request], cancellationToken);`, `${indent}}`);
+}
+
 function emitSessionApiClass(className: string, node: Record<string, unknown>, classes: string[]): string {
     const lines = [`public class ${className}`, `{`, `    private readonly JsonRpc _rpc;`, `    private readonly string _sessionId;`, ""];
     lines.push(`    internal ${className}(JsonRpc rpc, string sessionId)`, `    {`, `        _rpc = rpc;`, `        _sessionId = sessionId;`, `    }`);
 
     for (const [key, value] of Object.entries(node)) {
         if (!isRpcMethod(value)) continue;
-        const method = value;
-        const methodName = toPascalCase(key);
-        const resultClassName = `${typeToClassName(method.rpcMethod)}Result`;
-        const resultClass = emitRpcClass(resultClassName, method.result, "public", classes);
-        if (resultClass) classes.push(resultClass);
-
-        const paramEntries = (method.params?.properties ? Object.entries(method.params.properties) : []).filter(([k]) => k !== "sessionId");
-        const requiredSet = new Set(method.params?.required || []);
-
-        const requestClassName = `${typeToClassName(method.rpcMethod)}Request`;
-        if (method.params) {
-            const reqClass = emitRpcClass(requestClassName, method.params, "internal", classes);
-            if (reqClass) classes.push(reqClass);
-        }
-
-        lines.push("", `    /// <summary>Calls "${method.rpcMethod}".</summary>`);
-        const sigParams: string[] = [];
-        const bodyAssignments = [`SessionId = _sessionId`];
-
-        for (const [pName, pSchema] of paramEntries) {
-            if (typeof pSchema !== "object") continue;
-            const csType = resolveRpcType(pSchema as JSONSchema7, requiredSet.has(pName), requestClassName, toPascalCase(pName), classes);
-            sigParams.push(`${csType} ${pName}`);
-            bodyAssignments.push(`${toPascalCase(pName)} = ${pName}`);
-        }
-        sigParams.push("CancellationToken cancellationToken = default");
-
-        lines.push(`    public async Task<${resultClassName}> ${methodName}Async(${sigParams.join(", ")})`);
-        lines.push(`    {`, `        var request = new ${requestClassName} { ${bodyAssignments.join(", ")} };`);
-        lines.push(`        return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [request], cancellationToken);`, `    }`);
+        emitSessionMethod(key, value, lines, classes, "    ");
     }
     lines.push(`}`);
     return lines.join("\n");
@@ -737,6 +795,9 @@ function generateRpcCode(schema: ApiSchema): string {
 
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: api.schema.json
+
+// Generated code does not have XML doc comments; suppress CS1591 to avoid warnings.
+#pragma warning disable CS1591
 
 using System.Text.Json;
 using System.Text.Json.Serialization;

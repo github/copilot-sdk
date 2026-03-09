@@ -49,7 +49,7 @@ try
                 "List all files in the virtual filesystem"),
         ],
         OnPermissionRequest = (request, invocation) =>
-            Task.FromResult(new PermissionRequestResult { Kind = "approved" }),
+            Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
         Hooks = new SessionHooks
         {
             OnPreToolUse = (input, invocation) =>

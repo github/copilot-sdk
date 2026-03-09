@@ -31,7 +31,7 @@ func TestPermissions(t *testing.T) {
 				t.Error("Expected non-empty session ID in invocation")
 			}
 
-			return copilot.PermissionRequestResult{Kind: "approved"}, nil
+			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
 		}
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
@@ -82,7 +82,7 @@ func TestPermissions(t *testing.T) {
 			permissionRequests = append(permissionRequests, request)
 			mu.Unlock()
 
-			return copilot.PermissionRequestResult{Kind: "approved"}, nil
+			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
 		}
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
@@ -117,7 +117,7 @@ func TestPermissions(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		onPermissionRequest := func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-			return copilot.PermissionRequestResult{Kind: "denied-interactively-by-user"}, nil
+			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindDeniedInteractivelyByUser}, nil
 		}
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
@@ -162,7 +162,7 @@ func TestPermissions(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-				return copilot.PermissionRequestResult{Kind: "denied-no-approval-rule-and-could-not-request-from-user"}, nil
+				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindDeniedCouldNotRequestFromUser}, nil
 			},
 		})
 		if err != nil {
@@ -212,7 +212,7 @@ func TestPermissions(t *testing.T) {
 
 		session2, err := client.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-				return copilot.PermissionRequestResult{Kind: "denied-no-approval-rule-and-could-not-request-from-user"}, nil
+				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindDeniedCouldNotRequestFromUser}, nil
 			},
 		})
 		if err != nil {

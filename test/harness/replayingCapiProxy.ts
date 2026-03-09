@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { retrieveAvailableModels } from "@github/copilot/sdk";
 import { existsSync } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import type {
@@ -281,11 +280,38 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
 
             return;
           }
+
+          // Check if this request matches a snapshot with no response (e.g., timeout tests).
+          // If so, hang forever so the client-side timeout can trigger.
+          if (
+            await isRequestOnlySnapshot(
+              state.storedData,
+              options.body,
+              state.workDir,
+              state.toolResultNormalizers,
+            )
+          ) {
+            const streamingIsRequested =
+              options.body &&
+              (JSON.parse(options.body) as { stream?: boolean }).stream ===
+                true;
+            const headers = {
+              "content-type": streamingIsRequested
+                ? "text/event-stream"
+                : "application/json",
+              ...commonResponseHeaders,
+            };
+            options.onResponseStart(200, headers);
+            // Never call onResponseEnd - hang indefinitely for timeout tests.
+            // Returning here keeps the HTTP response open without leaking a pending Promise.
+            return;
+          }
         }
 
         // Fallback to normal proxying if no cached response found
         // This implicitly captures the new exchange too
-        if (process.env.CI === "true") {
+        const isCI = process.env.GITHUB_ACTIONS === "true";
+        if (isCI) {
           await exitWithNoMatchingRequestError(
             options,
             state.testInfo,
@@ -393,6 +419,35 @@ async function findSavedChatCompletionResponse(
   }
 
   return undefined;
+}
+
+// Checks if the request matches a snapshot that has no assistant response.
+// This handles timeout test scenarios where the snapshot only records the request.
+async function isRequestOnlySnapshot(
+  storedData: NormalizedData,
+  requestBody: string | undefined,
+  workDir: string,
+  toolResultNormalizers: ToolResultNormalizer[],
+): Promise<boolean> {
+  const normalized = await parseAndNormalizeRequest(
+    requestBody,
+    workDir,
+    toolResultNormalizers,
+  );
+  const requestMessages = normalized.conversations[0]?.messages ?? [];
+
+  for (const conversation of storedData.conversations) {
+    if (
+      requestMessages.length === conversation.messages.length &&
+      requestMessages.every(
+        (msg, i) =>
+          JSON.stringify(msg) === JSON.stringify(conversation.messages[i]),
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 async function parseAndNormalizeRequest(
@@ -607,9 +662,23 @@ function transformOpenAIRequestMessage(
   } else if (m.role === "user" && typeof m.content === "string") {
     content = normalizeUserMessage(m.content);
   } else if (m.role === "tool" && typeof m.content === "string") {
-    // If it's a JSON tool call result, normalize the whitespace and property ordering
+    // If it's a JSON tool call result, normalize the whitespace and property ordering.
+    // For successful tool results wrapped in {resultType, textResultForLlm}, unwrap to
+    // just the inner value so snapshots stay stable across envelope format changes.
     try {
-      content = JSON.stringify(sortJsonKeys(JSON.parse(m.content)));
+      const parsed = JSON.parse(m.content);
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        parsed.resultType === "success" &&
+        "textResultForLlm" in parsed
+      ) {
+        content = typeof parsed.textResultForLlm === "string"
+          ? parsed.textResultForLlm
+          : JSON.stringify(sortJsonKeys(parsed.textResultForLlm));
+      } else {
+        content = JSON.stringify(sortJsonKeys(parsed));
+      }
     } catch {
       content = m.content.trim();
     }
@@ -894,9 +963,7 @@ function convertToStreamingResponseChunks(
   return chunks;
 }
 
-function createGetModelsResponse(modelIds: string[]): {
-  data: Awaited<ReturnType<typeof retrieveAvailableModels>>;
-} {
+function createGetModelsResponse(modelIds: string[]) {
   // Obviously the following might not match any given model. We could track the original responses from /models,
   // but that risks invalidating the caches too frequently and making this unmaintainable. If this approximation
   // turns out to be insufficient, we can tweak the logic here based on known model IDs.

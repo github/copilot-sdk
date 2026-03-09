@@ -31,7 +31,7 @@ async function main() {
       console.log(response.data.content);
     }
 
-    await session.destroy();
+    await session.disconnect();
 
     console.log("\n--- Permission request log ---");
     for (const entry of permissionLog) {

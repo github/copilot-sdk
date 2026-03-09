@@ -21,6 +21,54 @@ import {
 
 // ── Utilities ───────────────────────────────────────────────────────────────
 
+/**
+ * Modernize quicktype's Python 3.7 output to Python 3.11+ syntax:
+ * - Optional[T] → T | None
+ * - List[T] → list[T]
+ * - Dict[K, V] → dict[K, V]
+ * - Type[T] → type[T]
+ * - Callable from collections.abc instead of typing
+ * - Clean up unused typing imports
+ */
+function modernizePython(code: string): string {
+    // Replace Optional[X] with X | None (handles nested brackets)
+    code = code.replace(/Optional\[([^\[\]]*(?:\[[^\[\]]*\])*[^\[\]]*)\]/g, "$1 | None");
+
+    // Replace Union[X, Y] with X | Y
+    code = code.replace(/Union\[([^\[\]]*(?:\[[^\[\]]*\])*[^\[\]]*)\]/g, (_match, inner: string) => {
+        return inner.split(",").map((s: string) => s.trim()).join(" | ");
+    });
+
+    // Replace List[X] with list[X]
+    code = code.replace(/\bList\[/g, "list[");
+
+    // Replace Dict[K, V] with dict[K, V]
+    code = code.replace(/\bDict\[/g, "dict[");
+
+    // Replace Type[T] with type[T]
+    code = code.replace(/\bType\[/g, "type[");
+
+    // Move Callable from typing to collections.abc
+    code = code.replace(
+        /from typing import (.*), Callable$/m,
+        "from typing import $1\nfrom collections.abc import Callable"
+    );
+    code = code.replace(
+        /from typing import Callable, (.*)$/m,
+        "from typing import $1\nfrom collections.abc import Callable"
+    );
+
+    // Remove now-unused imports from typing (Optional, List, Dict, Type)
+    code = code.replace(/from typing import (.+)$/m, (_match, imports: string) => {
+        const items = imports.split(",").map((s: string) => s.trim());
+        const remove = new Set(["Optional", "List", "Dict", "Type", "Union"]);
+        const kept = items.filter((i: string) => !remove.has(i));
+        return `from typing import ${kept.join(", ")}`;
+    });
+
+    return code;
+}
+
 function toSnakeCase(s: string): string {
     return s
         .replace(/([a-z])([A-Z])/g, "$1_$2")
@@ -75,6 +123,8 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
     code = code.replace(/: Any$/gm, ": Any = None");
     // Fix bare except: to use Exception (required by ruff/pylint)
     code = code.replace(/except:/g, "except Exception:");
+    // Modernize to Python 3.11+ syntax
+    code = modernizePython(code);
 
     // Add UNKNOWN enum value for forward compatibility
     code = code.replace(
@@ -162,6 +212,8 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     typesCode = typesCode.replace(/except:/g, "except Exception:");
     // Remove unnecessary pass when class has methods (quicktype generates pass for empty schemas)
     typesCode = typesCode.replace(/^(\s*)pass\n\n(\s*@staticmethod)/gm, "$2");
+    // Modernize to Python 3.11+ syntax
+    typesCode = modernizePython(typesCode);
 
     const lines: string[] = [];
     lines.push(`"""
@@ -176,7 +228,14 @@ if TYPE_CHECKING:
 
 `);
     lines.push(typesCode);
-    lines.push(``);
+    lines.push(`
+def _timeout_kwargs(timeout: float | None) -> dict:
+    """Build keyword arguments for optional timeout forwarding."""
+    if timeout is not None:
+        return {"timeout": timeout}
+    return {}
+
+`);
 
     // Emit RPC wrapper classes
     if (schema.server) {
@@ -198,7 +257,8 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
 
     // Emit API classes for groups
     for (const [groupName, groupNode] of groups) {
-        const apiName = toPascalCase(groupName) + "Api";
+        const prefix = isSession ? "" : "Server";
+        const apiName = prefix + toPascalCase(groupName) + "Api";
         if (isSession) {
             lines.push(`class ${apiName}:`);
             lines.push(`    def __init__(self, client: "JsonRpcClient", session_id: str):`);
@@ -233,7 +293,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
         lines.push(`    def __init__(self, client: "JsonRpcClient"):`);
         lines.push(`        self._client = client`);
         for (const [groupName] of groups) {
-            lines.push(`        self.${toSnakeCase(groupName)} = ${toPascalCase(groupName)}Api(client)`);
+            lines.push(`        self.${toSnakeCase(groupName)} = Server${toPascalCase(groupName)}Api(client)`);
         }
     }
     lines.push(``);
@@ -255,10 +315,10 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
     const hasParams = isSession ? nonSessionParams.length > 0 : Object.keys(paramProps).length > 0;
     const paramsType = toPascalCase(method.rpcMethod) + "Params";
 
-    // Build signature with typed params
+    // Build signature with typed params + optional timeout
     const sig = hasParams
-        ? `    async def ${methodName}(self, params: ${paramsType}) -> ${resultType}:`
-        : `    async def ${methodName}(self) -> ${resultType}:`;
+        ? `    async def ${methodName}(self, params: ${paramsType}, *, timeout: float | None = None) -> ${resultType}:`
+        : `    async def ${methodName}(self, *, timeout: float | None = None) -> ${resultType}:`;
 
     lines.push(sig);
 
@@ -267,16 +327,16 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
         if (hasParams) {
             lines.push(`        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}`);
             lines.push(`        params_dict["sessionId"] = self._session_id`);
-            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", params_dict))`);
+            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", params_dict, **_timeout_kwargs(timeout)))`);
         } else {
-            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", {"sessionId": self._session_id}))`);
+            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))`);
         }
     } else {
         if (hasParams) {
             lines.push(`        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}`);
-            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", params_dict))`);
+            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", params_dict, **_timeout_kwargs(timeout)))`);
         } else {
-            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", {}))`);
+            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", {}, **_timeout_kwargs(timeout)))`);
         }
     }
     lines.push(``);
