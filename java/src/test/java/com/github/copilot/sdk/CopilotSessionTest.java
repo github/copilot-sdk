@@ -60,7 +60,7 @@ public class CopilotSessionTest {
     }
 
     /**
-     * Verifies that a session can be created and destroyed properly.
+     * Verifies that a session can be created and closed properly.
      *
      * @see Snapshot: session/should_receive_session_events
      */
