@@ -699,6 +699,13 @@ function emitSessionApiClass(className: string, node: Record<string, unknown>, c
         const paramEntries = (method.params?.properties ? Object.entries(method.params.properties) : []).filter(([k]) => k !== "sessionId");
         const requiredSet = new Set(method.params?.required || []);
 
+        // Sort so required params come before optional (C# requires defaults at end)
+        paramEntries.sort((a, b) => {
+            const aReq = requiredSet.has(a[0]) ? 0 : 1;
+            const bReq = requiredSet.has(b[0]) ? 0 : 1;
+            return aReq - bReq;
+        });
+
         const requestClassName = `${typeToClassName(method.rpcMethod)}Request`;
         if (method.params) {
             const reqClass = emitRpcClass(requestClassName, method.params, "internal", classes);
@@ -711,8 +718,9 @@ function emitSessionApiClass(className: string, node: Record<string, unknown>, c
 
         for (const [pName, pSchema] of paramEntries) {
             if (typeof pSchema !== "object") continue;
-            const csType = resolveRpcType(pSchema as JSONSchema7, requiredSet.has(pName), requestClassName, toPascalCase(pName), classes);
-            sigParams.push(`${csType} ${pName}`);
+            const isReq = requiredSet.has(pName);
+            const csType = resolveRpcType(pSchema as JSONSchema7, isReq, requestClassName, toPascalCase(pName), classes);
+            sigParams.push(`${csType} ${pName}${isReq ? "" : " = null"}`);
             bodyAssignments.push(`${toPascalCase(pName)} = ${pName}`);
         }
         sigParams.push("CancellationToken cancellationToken = default");

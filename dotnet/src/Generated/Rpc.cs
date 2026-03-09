@@ -775,7 +775,7 @@ public class FleetApi
     }
 
     /// <summary>Calls "session.fleet.start".</summary>
-    public async Task<SessionFleetStartResult> StartAsync(string? prompt, CancellationToken cancellationToken = default)
+    public async Task<SessionFleetStartResult> StartAsync(string? prompt = null, CancellationToken cancellationToken = default)
     {
         var request = new SessionFleetStartRequest { SessionId = _sessionId, Prompt = prompt };
         return await CopilotClient.InvokeRpcAsync<SessionFleetStartResult>(_rpc, "session.fleet.start", [request], cancellationToken);
@@ -853,7 +853,7 @@ public class ToolsApi
     }
 
     /// <summary>Calls "session.tools.handlePendingToolCall".</summary>
-    public async Task<SessionToolsHandlePendingToolCallResult> HandlePendingToolCallAsync(string requestId, object? result, string? error, CancellationToken cancellationToken = default)
+    public async Task<SessionToolsHandlePendingToolCallResult> HandlePendingToolCallAsync(string requestId, object? result = null, string? error = null, CancellationToken cancellationToken = default)
     {
         var request = new SessionToolsHandlePendingToolCallRequest { SessionId = _sessionId, RequestId = requestId, Result = result, Error = error };
         return await CopilotClient.InvokeRpcAsync<SessionToolsHandlePendingToolCallResult>(_rpc, "session.tools.handlePendingToolCall", [request], cancellationToken);
