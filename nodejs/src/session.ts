@@ -7,8 +7,8 @@
  * @module session
  */
 
-import type { MessageConnection } from "vscode-jsonrpc/node";
-import { ConnectionError, ResponseError } from "vscode-jsonrpc/node";
+import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import { ConnectionError, ResponseError } from "vscode-jsonrpc/node.js";
 import { createSessionRpc } from "./generated/rpc.js";
 import type {
     MessageOptions,
