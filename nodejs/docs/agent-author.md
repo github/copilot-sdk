@@ -20,8 +20,7 @@ For user-scoped extensions (persist across all repos), add `location: "user"`.
 Modify the generated `extension.mjs` using `edit` or `create` tools. The file must:
 - Be named `extension.mjs` (only `.mjs` is supported)
 - Use ES module syntax (`import`/`export`)
-- Call `extension.resumeSession(process.env.SESSION_ID, { ... })`
-- Set `disableResume: true`
+- Call `joinSession({ ... })`
 
 ### Step 3: Reload extensions
 
@@ -61,10 +60,9 @@ Discovery rules:
 
 ```js
 import { approveAll } from "@github/copilot-sdk";
-import { extension } from "@github/copilot-sdk/extension";
+import { joinSession } from "@github/copilot-sdk/extension";
 
-await extension.resumeSession(process.env.SESSION_ID, {
-    disableResume: true,           // Required — extensions attach to existing sessions
+await joinSession({
     onPermissionRequest: approveAll, // Required — handle permission requests
     tools: [],                     // Optional — custom tools
     hooks: {},                     // Optional — lifecycle hooks
@@ -194,7 +192,7 @@ All handlers may return `void`/`undefined` (no-op) or an output object.
 
 ## Session Object
 
-After `resumeSession()`, the returned `session` provides:
+After `joinSession()`, the returned `session` provides:
 
 ### session.send(options)
 
@@ -259,10 +257,9 @@ Low-level typed RPC access to all session APIs (model, mode, plan, workspace, et
 
 ## Gotchas
 
-1. **stdout is reserved for JSON-RPC.** Don't use `console.log()` — it will corrupt the protocol. Use `session.log()` to surface messages to the user.
-2. **Tool name collisions are fatal.** If two extensions register the same tool name, the second extension fails to initialize.
-3. **`disableResume: true` is required.** Extensions always attach to existing sessions.
-4. **Don't call `session.send()` synchronously from `onUserPromptSubmitted`.** Use `setTimeout(() => session.send(...), 0)` to avoid infinite loops.
-5. **Extensions are reloaded on `/clear`.** Any in-memory state is lost between sessions.
-6. **Only `.mjs` is supported.** TypeScript (`.ts`) is not yet supported.
-7. **The handler's return value is the tool result.** Returning `undefined` sends an empty success. Throwing sends a failure with the error message.
+- **stdout is reserved for JSON-RPC.** Don't use `console.log()` — it will corrupt the protocol. Use `session.log()` to surface messages to the user.
+- **Tool name collisions are fatal.** If two extensions register the same tool name, the second extension fails to initialize.
+- **Don't call `session.send()` synchronously from `onUserPromptSubmitted`.** Use `setTimeout(() => session.send(...), 0)` to avoid infinite loops.
+- **Extensions are reloaded on `/clear`.** Any in-memory state is lost between sessions.
+- **Only `.mjs` is supported.** TypeScript (`.ts`) is not yet supported.
+- **The handler's return value is the tool result.** Returning `undefined` sends an empty success. Throwing sends a failure with the error message.

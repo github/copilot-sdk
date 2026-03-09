@@ -18,9 +18,9 @@ Extensions add custom tools, hooks, and behaviors to the Copilot CLI. They run a
 
 1. **Discovery**: The CLI scans `.github/extensions/` (project) and the user's copilot config extensions directory for subdirectories containing `extension.mjs`.
 2. **Launch**: Each extension is forked as a child process with `@github/copilot-sdk` available via an automatic module resolver.
-3. **Connection**: The extension calls `extension.resumeSession()` which establishes a JSON-RPC connection over stdio to the CLI.
+3. **Connection**: The extension calls `joinSession()` which establishes a JSON-RPC connection over stdio to the CLI and attaches to the user's current foreground session.
 4. **Registration**: Tools and hooks declared in the session options are registered with the CLI and become available to the agent.
-5. **Lifecycle**: Extensions are reloaded on `/clear` (new session) and stopped on CLI exit (SIGTERM, then SIGKILL after 5s).
+5. **Lifecycle**: Extensions are reloaded on `/clear` (or if the foreground session is replaced) and stopped on CLI exit (SIGTERM, then SIGKILL after 5s).
 
 ## File Structure
 
@@ -33,7 +33,6 @@ Extensions add custom tools, hooks, and behaviors to the Copilot CLI. They run a
 - Only `.mjs` files are supported (ES modules). The file must be named `extension.mjs`.
 - Each extension lives in its own subdirectory.
 - The `@github/copilot-sdk` import is resolved automatically — you don't install it.
-- `process.env.SESSION_ID` provides the session ID to connect to.
 
 ## The SDK
 
@@ -41,13 +40,16 @@ Extensions use `@github/copilot-sdk` for all interactions with the CLI:
 
 ```js
 import { approveAll } from "@github/copilot-sdk";
-import { extension } from "@github/copilot-sdk/extension";
+import { joinSession } from "@github/copilot-sdk/extension";
 
-const session = await extension.resumeSession(process.env.SESSION_ID, {
-    disableResume: true,
+const session = await joinSession({
     onPermissionRequest: approveAll,
-    tools: [ /* ... */ ],
-    hooks: { /* ... */ },
+    tools: [
+        /* ... */
+    ],
+    hooks: {
+        /* ... */
+    },
 });
 ```
 

@@ -8,17 +8,16 @@ Every extension starts with the same boilerplate:
 
 ```js
 import { approveAll } from "@github/copilot-sdk";
-import { extension } from "@github/copilot-sdk/extension";
+import { joinSession } from "@github/copilot-sdk/extension";
 
-const session = await extension.resumeSession(process.env.SESSION_ID, {
-    disableResume: true,
+const session = await joinSession({
     onPermissionRequest: approveAll,
     hooks: { /* ... */ },
     tools: [ /* ... */ ],
 });
 ```
 
-`resumeSession` returns a `CopilotSession` object you can use to send messages and subscribe to events.
+`joinSession` returns a `CopilotSession` object you can use to send messages and subscribe to events.
 
 > **Platform notes (Windows vs macOS/Linux):**
 > - Use `process.platform === "win32"` to detect Windows at runtime.
@@ -33,8 +32,7 @@ const session = await extension.resumeSession(process.env.SESSION_ID, {
 Use `session.log()` to surface messages to the user in the CLI timeline:
 
 ```js
-const session = await extension.resumeSession(process.env.SESSION_ID, {
-    disableResume: true,
+const session = await joinSession({
     onPermissionRequest: approveAll,
     hooks: {
         onSessionStart: async () => {
@@ -337,7 +335,7 @@ hooks: {
 
 ## Session Events
 
-After calling `resumeSession`, use `session.on()` to react to events in real time.
+After calling `joinSession`, use `session.on()` to react to events in real time.
 
 ### Listening to a specific event type
 
@@ -384,8 +382,7 @@ function copyToClipboard(text) {
     proc.stdin.end();
 }
 
-const session = await extension.resumeSession(process.env.SESSION_ID, {
-    disableResume: true,
+const session = await joinSession({
     onPermissionRequest: approveAll,
     hooks: {
         onUserPromptSubmitted: async (input) => {
@@ -429,13 +426,12 @@ Correlate `tool.execution_start` / `tool.execution_complete` events by `toolCall
 import { existsSync, watchFile, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { approveAll } from "@github/copilot-sdk";
-import { extension } from "@github/copilot-sdk/extension";
+import { joinSession } from "@github/copilot-sdk/extension";
 
 const agentEdits = new Set(); // toolCallIds for in-flight agent edits
 const recentAgentPaths = new Set(); // paths recently written by the agent
 
-const session = await extension.resumeSession(process.env.SESSION_ID, {
-    disableResume: true,
+const session = await joinSession({
     onPermissionRequest: approveAll,
 });
 
@@ -485,12 +481,11 @@ Filter out agent edits by tracking `tool.execution_start` / `tool.execution_comp
 import { watch, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { approveAll } from "@github/copilot-sdk";
-import { extension } from "@github/copilot-sdk/extension";
+import { joinSession } from "@github/copilot-sdk/extension";
 
 const agentEditPaths = new Set();
 
-const session = await extension.resumeSession(process.env.SESSION_ID, {
-    disableResume: true,
+const session = await joinSession({
     onPermissionRequest: approveAll,
 });
 
@@ -567,7 +562,7 @@ await session.send({
 ### Custom permission logic
 
 ```js
-const session = await extension.resumeSession(process.env.SESSION_ID, {
+const session = await joinSession({
     onPermissionRequest: async (request) => {
         if (request.kind === "shell") {
             // request.fullCommandText has the shell command
@@ -586,7 +581,7 @@ const session = await extension.resumeSession(process.env.SESSION_ID, {
 Register `onUserInputRequest` to enable the agent's `ask_user` tool:
 
 ```js
-const session = await extension.resumeSession(process.env.SESSION_ID, {
+const session = await joinSession({
     onPermissionRequest: approveAll,
     onUserInputRequest: async (request) => {
         // request.question has the agent's question
@@ -605,7 +600,7 @@ An extension that combines tools, hooks, and events.
 ```js
 import { execFile, exec } from "node:child_process";
 import { approveAll } from "@github/copilot-sdk";
-import { extension } from "@github/copilot-sdk/extension";
+import { joinSession } from "@github/copilot-sdk/extension";
 
 const isWindows = process.platform === "win32";
 let copyNextResponse = false;
@@ -621,8 +616,7 @@ function openInEditor(filePath) {
     else execFile("code", [filePath], () => {});
 }
 
-const session = await extension.resumeSession(process.env.SESSION_ID, {
-    disableResume: true,
+const session = await joinSession({
     onPermissionRequest: approveAll,
     hooks: {
         onUserPromptSubmitted: async (input) => {
