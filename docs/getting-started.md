@@ -286,7 +286,7 @@ async def main():
 
     session = await client.create_session({
         "model": "gpt-4.1",
-		"on_permission_request": PermissionHandler.approve_all,
+        "on_permission_request": PermissionHandler.approve_all,
         "streaming": True,
     })
 
