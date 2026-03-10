@@ -136,8 +136,8 @@ async def main():
     await client.start()
 
     session = await client.create_session({
-		"on_permission_request": PermissionHandler.approve_all,
-		"model": "gpt-4.1"
+		"model": "gpt-4.1",
+		"on_permission_request": PermissionHandler.approve_all
 	})
 
     response = await session.send_and_wait({"prompt": "What is 2 + 2?"})
@@ -277,7 +277,7 @@ Update `main.py`:
 ```python
 import asyncio
 import sys
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 from copilot.generated.session_events import SessionEventType
 
 async def main():
@@ -286,6 +286,7 @@ async def main():
 
     session = await client.create_session({
         "model": "gpt-4.1",
+		"on_permission_request": PermissionHandler.approve_all,
         "streaming": True,
     })
 
@@ -656,7 +657,7 @@ Update `main.py`:
 import asyncio
 import random
 import sys
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 from copilot.tools import define_tool
 from copilot.generated.session_events import SessionEventType
 from pydantic import BaseModel, Field
@@ -681,6 +682,7 @@ async def main():
 
     session = await client.create_session({
         "model": "gpt-4.1",
+		"on_permission_request": PermissionHandler.approve_all,
         "streaming": True,
         "tools": [get_weather],
     })
@@ -928,7 +930,7 @@ Create `weather_assistant.py`:
 import asyncio
 import random
 import sys
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 from copilot.tools import define_tool
 from copilot.generated.session_events import SessionEventType
 from pydantic import BaseModel, Field
@@ -950,6 +952,7 @@ async def main():
 
     session = await client.create_session({
         "model": "gpt-4.1",
+        "on_permission_request": PermissionHandler.approve_all,
         "streaming": True,
         "tools": [get_weather],
     })
