@@ -77,7 +77,7 @@ export class CopilotSession {
     constructor(
         public readonly sessionId: string,
         private connection: MessageConnection,
-        private readonly _workspacePath?: string
+        private _workspacePath?: string
     ) {}
 
     /**

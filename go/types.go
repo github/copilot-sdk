@@ -402,9 +402,13 @@ type SessionConfig struct {
 	// InfiniteSessions configures infinite sessions for persistent workspaces and automatic compaction.
 	// When enabled (default), sessions automatically manage context limits and persist state.
 	InfiniteSessions *InfiniteSessionConfig
+	// OnEvent is an optional event handler that is registered on the session before
+	// the session.create RPC is issued. This guarantees that early events emitted
+	// by the CLI during session creation (e.g. session.start) are delivered to the
+	// handler. Equivalent to calling session.On(handler) immediately after creation,
+	// but executes earlier in the lifecycle so no events are missed.
+	OnEvent SessionEventHandler
 }
-
-// Tool describes a caller-implemented tool that can be invoked by Copilot
 type Tool struct {
 	Name                 string         `json:"name"`
 	Description          string         `json:"description,omitempty"`
@@ -490,9 +494,10 @@ type ResumeSessionConfig struct {
 	// DisableResume, when true, skips emitting the session.resume event.
 	// Useful for reconnecting to a session without triggering resume-related side effects.
 	DisableResume bool
+	// OnEvent is an optional event handler registered before the session.resume RPC
+	// is issued, ensuring early events are delivered. See SessionConfig.OnEvent.
+	OnEvent SessionEventHandler
 }
-
-// ProviderConfig configures a custom model provider
 type ProviderConfig struct {
 	// Type is the provider type: "openai", "azure", or "anthropic". Defaults to "openai".
 	Type string `json:"type,omitempty"`

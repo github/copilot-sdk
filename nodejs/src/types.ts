@@ -756,6 +756,17 @@ export interface SessionConfig {
      * Set to `{ enabled: false }` to disable.
      */
     infiniteSessions?: InfiniteSessionConfig;
+
+    /**
+     * Optional event handler that is registered on the session before the
+     * session.create RPC is issued. This guarantees that early events emitted
+     * by the CLI during session creation (e.g. session.start) are delivered to
+     * the handler.
+     *
+     * Equivalent to calling `session.on(handler)` immediately after creation,
+     * but executes earlier in the lifecycle so no events are missed.
+     */
+    onEvent?: SessionEventHandler;
 }
 
 /**
@@ -783,6 +794,7 @@ export type ResumeSessionConfig = Pick<
     | "skillDirectories"
     | "disabledSkills"
     | "infiniteSessions"
+    | "onEvent"
 > & {
     /**
      * When true, skips emitting the session.resume event.
