@@ -91,7 +91,7 @@ Yes, the GitHub Copilot SDK allows you to define custom agents, skills, and tool
 
 ### Are there instructions for Copilot to speed up development with the SDK?
 
-Yes, check out the custom instructions at [`github/awesome-copilot`](https://github.com/github/awesome-copilot/blob/main/collections/copilot-sdk.md).
+Yes, check out the custom instructions at [`github/awesome-copilot`](https://github.com/github/awesome-copilot/tree/main/instructions).
 
 ### What models are supported?
 
