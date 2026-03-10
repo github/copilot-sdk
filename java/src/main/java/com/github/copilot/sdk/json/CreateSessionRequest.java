@@ -76,6 +76,9 @@ public final class CreateSessionRequest {
     @JsonProperty("customAgents")
     private List<CustomAgentConfig> customAgents;
 
+    @JsonProperty("agent")
+    private String agent;
+
     @JsonProperty("infiniteSessions")
     private InfiniteSessionConfig infiniteSessions;
 
@@ -258,6 +261,16 @@ public final class CreateSessionRequest {
     /** Sets custom agents. @param customAgents the agents */
     public void setCustomAgents(List<CustomAgentConfig> customAgents) {
         this.customAgents = customAgents;
+    }
+
+    /** Gets the pre-selected agent name. @return the agent name */
+    public String getAgent() {
+        return agent;
+    }
+
+    /** Sets the pre-selected agent name. @param agent the agent name */
+    public void setAgent(String agent) {
+        this.agent = agent;
     }
 
     /** Gets infinite sessions config. @return the config */

@@ -63,6 +63,10 @@ public abstract sealed class AbstractSessionEvent permits
         // Tool events
         ToolUserRequestedEvent, ToolExecutionStartEvent, ToolExecutionPartialResultEvent, ToolExecutionProgressEvent,
         ToolExecutionCompleteEvent,
+        // Broadcast request/completion events (protocol v3)
+        ExternalToolRequestedEvent, ExternalToolCompletedEvent, PermissionRequestedEvent, PermissionCompletedEvent,
+        CommandQueuedEvent, CommandCompletedEvent, ExitPlanModeRequestedEvent, ExitPlanModeCompletedEvent,
+        SystemNotificationEvent,
         // User events
         UserMessageEvent, PendingMessagesModifiedEvent,
         // Skill events

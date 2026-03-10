@@ -93,6 +93,15 @@ public class SessionEventParser {
         TYPE_MAP.put("system.message", SystemMessageEvent.class);
         TYPE_MAP.put("session.shutdown", SessionShutdownEvent.class);
         TYPE_MAP.put("skill.invoked", SkillInvokedEvent.class);
+        TYPE_MAP.put("external_tool.requested", ExternalToolRequestedEvent.class);
+        TYPE_MAP.put("external_tool.completed", ExternalToolCompletedEvent.class);
+        TYPE_MAP.put("permission.requested", PermissionRequestedEvent.class);
+        TYPE_MAP.put("permission.completed", PermissionCompletedEvent.class);
+        TYPE_MAP.put("command.queued", CommandQueuedEvent.class);
+        TYPE_MAP.put("command.completed", CommandCompletedEvent.class);
+        TYPE_MAP.put("exit_plan_mode.requested", ExitPlanModeRequestedEvent.class);
+        TYPE_MAP.put("exit_plan_mode.completed", ExitPlanModeCompletedEvent.class);
+        TYPE_MAP.put("system.notification", SystemNotificationEvent.class);
     }
 
     /**

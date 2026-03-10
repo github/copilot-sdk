@@ -2198,4 +2198,186 @@ public class SessionEventParserTest {
         assertEquals(0, att.selection().start().line());
         assertEquals(14, att.selection().end().character());
     }
+
+    @Test
+    void testParseExternalToolRequestedEvent() throws Exception {
+        String json = """
+                {
+                    "type": "external_tool.requested",
+                    "data": {
+                        "requestId": "req-123",
+                        "sessionId": "sess-456",
+                        "toolCallId": "call-789",
+                        "toolName": "get_weather",
+                        "arguments": {"location": "Seattle"}
+                    }
+                }
+                """;
+
+        var event = (ExternalToolRequestedEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals("external_tool.requested", event.getType());
+        assertNotNull(event.getData());
+        assertEquals("req-123", event.getData().requestId());
+        assertEquals("sess-456", event.getData().sessionId());
+        assertEquals("call-789", event.getData().toolCallId());
+        assertEquals("get_weather", event.getData().toolName());
+    }
+
+    @Test
+    void testParseExternalToolCompletedEvent() throws Exception {
+        String json = """
+                {
+                    "type": "external_tool.completed",
+                    "data": {
+                        "requestId": "req-123"
+                    }
+                }
+                """;
+
+        var event = (ExternalToolCompletedEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals("external_tool.completed", event.getType());
+        assertEquals("req-123", event.getData().requestId());
+    }
+
+    @Test
+    void testParsePermissionRequestedEvent() throws Exception {
+        String json = """
+                {
+                    "type": "permission.requested",
+                    "data": {
+                        "requestId": "perm-req-456",
+                        "permissionRequest": {
+                            "kind": "shell",
+                            "toolCallId": "call-001"
+                        }
+                    }
+                }
+                """;
+
+        var event = (PermissionRequestedEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals("permission.requested", event.getType());
+        assertEquals("perm-req-456", event.getData().requestId());
+        assertNotNull(event.getData().permissionRequest());
+        assertEquals("shell", event.getData().permissionRequest().getKind());
+    }
+
+    @Test
+    void testParsePermissionCompletedEvent() throws Exception {
+        String json = """
+                {
+                    "type": "permission.completed",
+                    "data": {
+                        "requestId": "perm-req-456",
+                        "result": {
+                            "kind": "approved"
+                        }
+                    }
+                }
+                """;
+
+        var event = (PermissionCompletedEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals("permission.completed", event.getType());
+        assertEquals("perm-req-456", event.getData().requestId());
+        assertEquals("approved", event.getData().result().kind());
+    }
+
+    @Test
+    void testParseCommandQueuedEvent() throws Exception {
+        String json = """
+                {
+                    "type": "command.queued",
+                    "data": {
+                        "requestId": "cmd-req-789",
+                        "command": "/help"
+                    }
+                }
+                """;
+
+        var event = (CommandQueuedEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals("command.queued", event.getType());
+        assertEquals("cmd-req-789", event.getData().requestId());
+        assertEquals("/help", event.getData().command());
+    }
+
+    @Test
+    void testParseCommandCompletedEvent() throws Exception {
+        String json = """
+                {
+                    "type": "command.completed",
+                    "data": {
+                        "requestId": "cmd-req-789"
+                    }
+                }
+                """;
+
+        var event = (CommandCompletedEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals("command.completed", event.getType());
+        assertEquals("cmd-req-789", event.getData().requestId());
+    }
+
+    @Test
+    void testParseExitPlanModeRequestedEvent() throws Exception {
+        String json = """
+                {
+                    "type": "exit_plan_mode.requested",
+                    "data": {
+                        "requestId": "plan-req-001",
+                        "summary": "Plan is ready",
+                        "planContent": "## Plan\\n1. Do thing",
+                        "actions": ["approve", "edit", "reject"],
+                        "recommendedAction": "approve"
+                    }
+                }
+                """;
+
+        var event = (ExitPlanModeRequestedEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals("exit_plan_mode.requested", event.getType());
+        assertEquals("plan-req-001", event.getData().requestId());
+        assertEquals("Plan is ready", event.getData().summary());
+        assertEquals(3, event.getData().actions().length);
+        assertEquals("approve", event.getData().recommendedAction());
+    }
+
+    @Test
+    void testParseExitPlanModeCompletedEvent() throws Exception {
+        String json = """
+                {
+                    "type": "exit_plan_mode.completed",
+                    "data": {
+                        "requestId": "plan-req-001"
+                    }
+                }
+                """;
+
+        var event = (ExitPlanModeCompletedEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals("exit_plan_mode.completed", event.getType());
+        assertEquals("plan-req-001", event.getData().requestId());
+    }
+
+    @Test
+    void testParseSystemNotificationEvent() throws Exception {
+        String json = """
+                {
+                    "type": "system.notification",
+                    "data": {
+                        "content": "<system_notification>Agent completed</system_notification>",
+                        "kind": {"type": "agent_completed", "agentId": "agent-1", "agentType": "task", "status": "completed"}
+                    }
+                }
+                """;
+
+        var event = (SystemNotificationEvent) parseJson(json);
+        assertNotNull(event);
+        assertEquals("system.notification", event.getType());
+        assertNotNull(event.getData());
+        assertTrue(event.getData().content().contains("Agent completed"));
+    }
 }

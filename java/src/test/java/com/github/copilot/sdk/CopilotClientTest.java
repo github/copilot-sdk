@@ -494,4 +494,69 @@ public class CopilotClientTest {
             assertEquals(ConnectionState.DISCONNECTED, client.getState());
         }
     }
+
+    // ===== OnListModels =====
+
+    @Test
+    void testListModels_WithCustomHandler_CallsHandler() throws Exception {
+        var customModels = new ArrayList<com.github.copilot.sdk.json.ModelInfo>();
+        var model = new com.github.copilot.sdk.json.ModelInfo();
+        model.setId("my-custom-model");
+        customModels.add(model);
+
+        var callCount = new int[]{0};
+        var options = new CopilotClientOptions().setOnListModels(() -> {
+            callCount[0]++;
+            return CompletableFuture.completedFuture(new ArrayList<>(customModels));
+        });
+
+        try (var client = new CopilotClient(options)) {
+            var models = client.listModels().get();
+            assertEquals(1, callCount[0]);
+            assertEquals(1, models.size());
+            assertEquals("my-custom-model", models.get(0).getId());
+        }
+    }
+
+    @Test
+    void testListModels_WithCustomHandler_CachesResults() throws Exception {
+        var customModels = new ArrayList<com.github.copilot.sdk.json.ModelInfo>();
+        var model = new com.github.copilot.sdk.json.ModelInfo();
+        model.setId("cached-model");
+        customModels.add(model);
+
+        var callCount = new int[]{0};
+        var options = new CopilotClientOptions().setOnListModels(() -> {
+            callCount[0]++;
+            return CompletableFuture.completedFuture(new ArrayList<>(customModels));
+        });
+
+        try (var client = new CopilotClient(options)) {
+            client.listModels().get();
+            client.listModels().get();
+            assertEquals(1, callCount[0], "Handler should be called only once due to caching");
+        }
+    }
+
+    @Test
+    void testListModels_WithCustomHandler_WorksWithoutStart() throws Exception {
+        var customModels = new ArrayList<com.github.copilot.sdk.json.ModelInfo>();
+        var model = new com.github.copilot.sdk.json.ModelInfo();
+        model.setId("no-start-model");
+        customModels.add(model);
+
+        var callCount = new int[]{0};
+        var options = new CopilotClientOptions().setOnListModels(() -> {
+            callCount[0]++;
+            return CompletableFuture.completedFuture(new ArrayList<>(customModels));
+        });
+
+        // No start() needed when onListModels is provided
+        try (var client = new CopilotClient(options)) {
+            var models = client.listModels().get();
+            assertEquals(1, callCount[0]);
+            assertEquals(1, models.size());
+            assertEquals("no-start-model", models.get(0).getId());
+        }
+    }
 }

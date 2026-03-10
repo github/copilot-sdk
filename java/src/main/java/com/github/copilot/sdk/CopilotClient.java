@@ -188,6 +188,8 @@ public final class CopilotClient implements AutoCloseable {
         });
     }
 
+    private static final int MIN_PROTOCOL_VERSION = 2;
+
     private void verifyProtocolVersion(Connection connection) throws Exception {
         int expectedVersion = SdkProtocolVersion.get();
         var params = new HashMap<String, Object>();
@@ -200,9 +202,10 @@ public final class CopilotClient implements AutoCloseable {
                     + "Please update your server to ensure compatibility.");
         }
 
-        if (pingResponse.protocolVersion() != expectedVersion) {
+        int serverVersion = pingResponse.protocolVersion();
+        if (serverVersion < MIN_PROTOCOL_VERSION || serverVersion > expectedVersion) {
             throw new RuntimeException("SDK protocol version mismatch: SDK expects version " + expectedVersion
-                    + ", but server reports version " + pingResponse.protocolVersion() + ". "
+                    + " (minimum " + MIN_PROTOCOL_VERSION + "), but server reports version " + serverVersion + ". "
                     + "Please update your SDK or server to ensure compatibility.");
         }
     }
@@ -319,13 +322,32 @@ public final class CopilotClient implements AutoCloseable {
                             + "new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)"));
         }
         return ensureConnected().thenCompose(connection -> {
-            var request = SessionRequestBuilder.buildCreateRequest(config);
+            // Pre-generate session ID so the session can be registered before the RPC call,
+            // ensuring no events emitted by the CLI during creation are lost.
+            String sessionId = config.getSessionId() != null
+                    ? config.getSessionId()
+                    : java.util.UUID.randomUUID().toString();
+
+            var session = new CopilotSession(sessionId, connection.rpc);
+            SessionRequestBuilder.configureSession(session, config);
+            sessions.put(sessionId, session);
+
+            var request = SessionRequestBuilder.buildCreateRequest(config, sessionId);
 
             return connection.rpc.invoke("session.create", request, CreateSessionResponse.class).thenApply(response -> {
-                var session = new CopilotSession(response.sessionId(), connection.rpc, response.workspacePath());
-                SessionRequestBuilder.configureSession(session, config);
-                sessions.put(response.sessionId(), session);
+                session.setWorkspacePath(response.workspacePath());
+                // If the server returned a different sessionId (e.g. a v2 CLI that ignores
+                // the client-supplied ID), re-key the sessions map.
+                String returnedId = response.sessionId();
+                if (returnedId != null && !returnedId.equals(sessionId)) {
+                    sessions.remove(sessionId);
+                    session.setActiveSessionId(returnedId);
+                    sessions.put(returnedId, session);
+                }
                 return session;
+            }).exceptionally(ex -> {
+                sessions.remove(sessionId);
+                throw ex instanceof RuntimeException re ? re : new RuntimeException(ex);
             });
         });
     }
@@ -363,13 +385,26 @@ public final class CopilotClient implements AutoCloseable {
                             + "new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)"));
         }
         return ensureConnected().thenCompose(connection -> {
+            // Register the session before the RPC call to avoid missing early events.
+            var session = new CopilotSession(sessionId, connection.rpc);
+            SessionRequestBuilder.configureSession(session, config);
+            sessions.put(sessionId, session);
+
             var request = SessionRequestBuilder.buildResumeRequest(sessionId, config);
 
             return connection.rpc.invoke("session.resume", request, ResumeSessionResponse.class).thenApply(response -> {
-                var session = new CopilotSession(response.sessionId(), connection.rpc, response.workspacePath());
-                SessionRequestBuilder.configureSession(session, config);
-                sessions.put(response.sessionId(), session);
+                session.setWorkspacePath(response.workspacePath());
+                // If the server returned a different sessionId than what was requested, re-key.
+                String returnedId = response.sessionId();
+                if (returnedId != null && !returnedId.equals(sessionId)) {
+                    sessions.remove(sessionId);
+                    session.setActiveSessionId(returnedId);
+                    sessions.put(returnedId, session);
+                }
                 return session;
+            }).exceptionally(ex -> {
+                sessions.remove(sessionId);
+                throw ex instanceof RuntimeException re ? re : new RuntimeException(ex);
             });
         });
     }
@@ -434,6 +469,10 @@ public final class CopilotClient implements AutoCloseable {
      * <p>
      * Results are cached after the first successful call to avoid rate limiting.
      * The cache is cleared when the client disconnects.
+     * <p>
+     * If an {@code onListModels} handler was provided in
+     * {@link com.github.copilot.sdk.json.CopilotClientOptions}, it is called
+     * instead of querying the CLI server. This is useful in BYOK mode.
      *
      * @return a future that resolves with a list of available models
      * @see ModelInfo
@@ -443,6 +482,22 @@ public final class CopilotClient implements AutoCloseable {
         List<ModelInfo> cached = modelsCache;
         if (cached != null) {
             return CompletableFuture.completedFuture(new ArrayList<>(cached));
+        }
+
+        // If a custom handler is configured, use it instead of querying the CLI server
+        var onListModels = options.getOnListModels();
+        if (onListModels != null) {
+            synchronized (modelsCacheLock) {
+                if (modelsCache != null) {
+                    return CompletableFuture.completedFuture(new ArrayList<>(modelsCache));
+                }
+            }
+            return onListModels.get().thenApply(models -> {
+                synchronized (modelsCacheLock) {
+                    modelsCache = models;
+                }
+                return new ArrayList<>(models);
+            });
         }
 
         return ensureConnected().thenCompose(connection -> {

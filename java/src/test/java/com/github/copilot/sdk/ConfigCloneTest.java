@@ -10,13 +10,17 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 import org.junit.jupiter.api.Test;
 
+import com.github.copilot.sdk.events.AbstractSessionEvent;
 import com.github.copilot.sdk.json.CopilotClientOptions;
-import com.github.copilot.sdk.json.SessionConfig;
-import com.github.copilot.sdk.json.ResumeSessionConfig;
 import com.github.copilot.sdk.json.MessageOptions;
+import com.github.copilot.sdk.json.ModelInfo;
+import com.github.copilot.sdk.json.ResumeSessionConfig;
+import com.github.copilot.sdk.json.SessionConfig;
 
 class ConfigCloneTest {
 
@@ -69,6 +73,18 @@ class ConfigCloneTest {
     }
 
     @Test
+    void copilotClientOptionsOnListModelsCloned() {
+        CopilotClientOptions original = new CopilotClientOptions();
+        List<ModelInfo> models = List.of(new ModelInfo());
+        original.setOnListModels(() -> CompletableFuture.completedFuture(models));
+
+        CopilotClientOptions cloned = original.clone();
+
+        assertNotNull(cloned.getOnListModels());
+        assertSame(original.getOnListModels(), cloned.getOnListModels());
+    }
+
+    @Test
     void sessionConfigCloneBasic() {
         SessionConfig original = new SessionConfig();
         original.setSessionId("my-session");
@@ -103,6 +119,20 @@ class ConfigCloneTest {
     }
 
     @Test
+    void sessionConfigAgentAndOnEventCloned() {
+        Consumer<AbstractSessionEvent> handler = event -> {
+        };
+        SessionConfig original = new SessionConfig();
+        original.setAgent("my-agent");
+        original.setOnEvent(handler);
+
+        SessionConfig cloned = original.clone();
+
+        assertEquals("my-agent", cloned.getAgent());
+        assertSame(handler, cloned.getOnEvent());
+    }
+
+    @Test
     void resumeSessionConfigCloneBasic() {
         ResumeSessionConfig original = new ResumeSessionConfig();
         original.setModel("o1");
@@ -112,6 +142,20 @@ class ConfigCloneTest {
 
         assertEquals(original.getModel(), cloned.getModel());
         assertEquals(original.isStreaming(), cloned.isStreaming());
+    }
+
+    @Test
+    void resumeSessionConfigAgentAndOnEventCloned() {
+        Consumer<AbstractSessionEvent> handler = event -> {
+        };
+        ResumeSessionConfig original = new ResumeSessionConfig();
+        original.setAgent("my-agent");
+        original.setOnEvent(handler);
+
+        ResumeSessionConfig cloned = original.clone();
+
+        assertEquals("my-agent", cloned.getAgent());
+        assertSame(handler, cloned.getOnEvent());
     }
 
     @Test
