@@ -509,6 +509,7 @@ function generateSessionEventsCode(schema: JSONSchema7): string {
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: session-events.schema.json
 
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -519,6 +520,7 @@ namespace GitHub.Copilot.SDK;
     lines.push(`/// <summary>`);
     lines.push(`/// Provides the base class from which all session events derive.`);
     lines.push(`/// </summary>`);
+    lines.push(`[DebuggerDisplay("{DebuggerDisplay,nq}")]`);
     lines.push(`[JsonPolymorphic(`, `    TypeDiscriminatorPropertyName = "type",`, `    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]`);
     for (const variant of [...variants].sort((a, b) => a.typeName.localeCompare(b.typeName))) {
         lines.push(`[JsonDerivedType(typeof(${variant.className}), "${variant.typeName}")]`);
@@ -537,7 +539,9 @@ namespace GitHub.Copilot.SDK;
     lines.push(`    /// <summary>Deserializes a JSON string into a <see cref="SessionEvent"/>.</summary>`);
     lines.push(`    public static SessionEvent FromJson(string json) =>`, `        JsonSerializer.Deserialize(json, SessionEventsJsonContext.Default.SessionEvent)!;`, "");
     lines.push(`    /// <summary>Serializes this event to a JSON string.</summary>`);
-    lines.push(`    public string ToJson() =>`, `        JsonSerializer.Serialize(this, SessionEventsJsonContext.Default.SessionEvent);`, `}`, "");
+    lines.push(`    public string ToJson() =>`, `        JsonSerializer.Serialize(this, SessionEventsJsonContext.Default.SessionEvent);`, "");
+    lines.push(`    [DebuggerBrowsable(DebuggerBrowsableState.Never)]`, `    private string DebuggerDisplay => ToJson();`);
+    lines.push(`}`, "");
 
     // Event classes with XML docs
     for (const variant of variants) {
