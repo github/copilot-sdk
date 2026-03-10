@@ -68,11 +68,11 @@ public class ModelCapabilities
 {
     /// <summary>Gets or sets the <c>supports</c> value.</summary>
     [JsonPropertyName("supports")]
-    public ModelCapabilitiesSupports Supports { get; set; } = new();
+    public ModelCapabilitiesSupports Supports { get => field ??= new(); set; }
 
     /// <summary>Gets or sets the <c>limits</c> value.</summary>
     [JsonPropertyName("limits")]
-    public ModelCapabilitiesLimits Limits { get; set; } = new();
+    public ModelCapabilitiesLimits Limits { get => field ??= new(); set; }
 }
 
 /// <summary>Policy state (if applicable).</summary>
@@ -108,7 +108,7 @@ public class Model
 
     /// <summary>Model capabilities and limits.</summary>
     [JsonPropertyName("capabilities")]
-    public ModelCapabilities Capabilities { get; set; } = new();
+    public ModelCapabilities Capabilities { get => field ??= new(); set; }
 
     /// <summary>Policy state (if applicable).</summary>
     [JsonPropertyName("policy")]
@@ -132,7 +132,7 @@ public class ModelsListResult
 {
     /// <summary>List of available models with full metadata.</summary>
     [JsonPropertyName("models")]
-    public List<Model> Models { get; set; } = [];
+    public List<Model> Models { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for Tool operations.</summary>
@@ -164,7 +164,7 @@ public class ToolsListResult
 {
     /// <summary>List of available built-in tools with metadata.</summary>
     [JsonPropertyName("tools")]
-    public List<Tool> Tools { get; set; } = [];
+    public List<Tool> Tools { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for ToolsList operations.</summary>
@@ -208,7 +208,7 @@ public class AccountGetQuotaResult
 {
     /// <summary>Quota snapshots keyed by type (e.g., chat, completions, premium_interactions).</summary>
     [JsonPropertyName("quotaSnapshots")]
-    public Dictionary<string, AccountGetQuotaResultQuotaSnapshotsValue> QuotaSnapshots { get; set; } = [];
+    public Dictionary<string, AccountGetQuotaResultQuotaSnapshotsValue> QuotaSnapshots { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for SessionLog operations.</summary>
@@ -374,7 +374,7 @@ public class SessionWorkspaceListFilesResult
 {
     /// <summary>Relative file paths in the workspace files directory.</summary>
     [JsonPropertyName("files")]
-    public List<string> Files { get; set; } = [];
+    public List<string> Files { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for SessionWorkspaceListFiles operations.</summary>
@@ -467,7 +467,7 @@ public class SessionAgentListResult
 {
     /// <summary>Available custom agents.</summary>
     [JsonPropertyName("agents")]
-    public List<Agent> Agents { get; set; } = [];
+    public List<Agent> Agents { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for SessionAgentList operations.</summary>
@@ -531,7 +531,7 @@ public class SessionAgentSelectResult
 {
     /// <summary>The newly selected custom agent.</summary>
     [JsonPropertyName("agent")]
-    public SessionAgentSelectResultAgent Agent { get; set; } = new();
+    public SessionAgentSelectResultAgent Agent { get => field ??= new(); set; }
 }
 
 /// <summary>RPC data type for SessionAgentSelect operations.</summary>

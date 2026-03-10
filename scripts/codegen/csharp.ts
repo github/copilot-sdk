@@ -662,13 +662,17 @@ function emitRpcClass(className: string, schema: JSONSchema7, visibility: "publi
         lines.push(`    [JsonPropertyName("${propName}")]`);
 
         let defaultVal = "";
+        let propAccessors = "{ get; set; }";
         if (isReq && !csharpType.endsWith("?")) {
             if (csharpType === "string") defaultVal = " = string.Empty;";
             else if (csharpType === "object") defaultVal = " = null!;";
-            else if (csharpType.startsWith("List<") || csharpType.startsWith("Dictionary<")) defaultVal = " = [];";
-            else if (emittedRpcClasses.has(csharpType)) defaultVal = " = new();";
+            else if (csharpType.startsWith("List<") || csharpType.startsWith("Dictionary<")) {
+                propAccessors = "{ get => field ??= []; set; }";
+            } else if (emittedRpcClasses.has(csharpType)) {
+                propAccessors = "{ get => field ??= new(); set; }";
+            }
         }
-        lines.push(`    public ${csharpType} ${csharpName} { get; set; }${defaultVal}`);
+        lines.push(`    public ${csharpType} ${csharpName} ${propAccessors}${defaultVal}`);
         if (i < props.length - 1) lines.push("");
     }
     lines.push(`}`);
