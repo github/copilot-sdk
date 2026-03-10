@@ -129,7 +129,8 @@ type SessionModelSwitchToResult struct {
 }
 
 type SessionModelSwitchToParams struct {
-	ModelID string `json:"modelId"`
+	ModelID         string           `json:"modelId"`
+	ReasoningEffort *ReasoningEffort `json:"reasoningEffort,omitempty"`
 }
 
 type SessionModeGetResult struct {
@@ -296,6 +297,30 @@ type SessionPermissionsHandlePendingPermissionRequestParamsResult struct {
 	Path     *string       `json:"path,omitempty"`
 }
 
+type SessionLogResult struct {
+	// The unique identifier of the emitted session event
+	EventID string `json:"eventId"`
+}
+
+type SessionLogParams struct {
+	// When true, the message is transient and not persisted to the session event log on disk
+	Ephemeral *bool `json:"ephemeral,omitempty"`
+	// Log severity level. Determines how the message is displayed in the timeline. Defaults to
+	// "info".
+	Level *Level `json:"level,omitempty"`
+	// Human-readable message
+	Message string `json:"message"`
+}
+
+type ReasoningEffort string
+
+const (
+	High   ReasoningEffort = "high"
+	Low    ReasoningEffort = "low"
+	Medium ReasoningEffort = "medium"
+	Xhigh  ReasoningEffort = "xhigh"
+)
+
 // The current agent mode.
 //
 // The agent mode after switching.
@@ -317,6 +342,16 @@ const (
 	DeniedByRules                                  Kind = "denied-by-rules"
 	DeniedInteractivelyByUser                      Kind = "denied-interactively-by-user"
 	DeniedNoApprovalRuleAndCouldNotRequestFromUser Kind = "denied-no-approval-rule-and-could-not-request-from-user"
+)
+
+// Log severity level. Determines how the message is displayed in the timeline. Defaults to
+// "info".
+type Level string
+
+const (
+	Error   Level = "error"
+	Info    Level = "info"
+	Warning Level = "warning"
 )
 
 type ResultUnion struct {
@@ -416,6 +451,9 @@ func (a *ModelRpcApi) SwitchTo(ctx context.Context, params *SessionModelSwitchTo
 	req := map[string]interface{}{"sessionId": a.sessionID}
 	if params != nil {
 		req["modelId"] = params.ModelID
+		if params.ReasoningEffort != nil {
+			req["reasoningEffort"] = *params.ReasoningEffort
+		}
 	}
 	raw, err := a.client.Request("session.model.switchTo", req)
 	if err != nil {
@@ -723,6 +761,28 @@ type SessionRpc struct {
 	Compaction  *CompactionRpcApi
 	Tools       *ToolsRpcApi
 	Permissions *PermissionsRpcApi
+}
+
+func (a *SessionRpc) Log(ctx context.Context, params *SessionLogParams) (*SessionLogResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["message"] = params.Message
+		if params.Level != nil {
+			req["level"] = *params.Level
+		}
+		if params.Ephemeral != nil {
+			req["ephemeral"] = *params.Ephemeral
+		}
+	}
+	raw, err := a.client.Request("session.log", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionLogResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
 }
 
 func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {

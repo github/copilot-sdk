@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any, TypeVar, cast
 from collections.abc import Callable
 from enum import Enum
+from uuid import UUID
 
 
 T = TypeVar("T")
@@ -465,19 +466,30 @@ class SessionModelSwitchToResult:
         return result
 
 
+class ReasoningEffort(Enum):
+    HIGH = "high"
+    LOW = "low"
+    MEDIUM = "medium"
+    XHIGH = "xhigh"
+
+
 @dataclass
 class SessionModelSwitchToParams:
     model_id: str
+    reasoning_effort: ReasoningEffort | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'SessionModelSwitchToParams':
         assert isinstance(obj, dict)
         model_id = from_str(obj.get("modelId"))
-        return SessionModelSwitchToParams(model_id)
+        reasoning_effort = from_union([ReasoningEffort, from_none], obj.get("reasoningEffort"))
+        return SessionModelSwitchToParams(model_id, reasoning_effort)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["modelId"] = from_str(self.model_id)
+        if self.reasoning_effort is not None:
+            result["reasoningEffort"] = from_union([lambda x: to_enum(ReasoningEffort, x), from_none], self.reasoning_effort)
         return result
 
 
@@ -1065,6 +1077,63 @@ class SessionPermissionsHandlePendingPermissionRequestParams:
         return result
 
 
+@dataclass
+class SessionLogResult:
+    event_id: UUID
+    """The unique identifier of the emitted session event"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionLogResult':
+        assert isinstance(obj, dict)
+        event_id = UUID(obj.get("eventId"))
+        return SessionLogResult(event_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["eventId"] = str(self.event_id)
+        return result
+
+
+class Level(Enum):
+    """Log severity level. Determines how the message is displayed in the timeline. Defaults to
+    "info".
+    """
+    ERROR = "error"
+    INFO = "info"
+    WARNING = "warning"
+
+
+@dataclass
+class SessionLogParams:
+    message: str
+    """Human-readable message"""
+
+    ephemeral: bool | None = None
+    """When true, the message is transient and not persisted to the session event log on disk"""
+
+    level: Level | None = None
+    """Log severity level. Determines how the message is displayed in the timeline. Defaults to
+    "info".
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionLogParams':
+        assert isinstance(obj, dict)
+        message = from_str(obj.get("message"))
+        ephemeral = from_union([from_bool, from_none], obj.get("ephemeral"))
+        level = from_union([Level, from_none], obj.get("level"))
+        return SessionLogParams(message, ephemeral, level)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["message"] = from_str(self.message)
+        if self.ephemeral is not None:
+            result["ephemeral"] = from_union([from_bool, from_none], self.ephemeral)
+        if self.level is not None:
+            result["level"] = from_union([lambda x: to_enum(Level, x), from_none], self.level)
+        return result
+
+
 def ping_result_from_dict(s: Any) -> PingResult:
     return PingResult.from_dict(s)
 
@@ -1329,6 +1398,22 @@ def session_permissions_handle_pending_permission_request_params_to_dict(x: Sess
     return to_class(SessionPermissionsHandlePendingPermissionRequestParams, x)
 
 
+def session_log_result_from_dict(s: Any) -> SessionLogResult:
+    return SessionLogResult.from_dict(s)
+
+
+def session_log_result_to_dict(x: SessionLogResult) -> Any:
+    return to_class(SessionLogResult, x)
+
+
+def session_log_params_from_dict(s: Any) -> SessionLogParams:
+    return SessionLogParams.from_dict(s)
+
+
+def session_log_params_to_dict(x: SessionLogParams) -> Any:
+    return to_class(SessionLogParams, x)
+
+
 def _timeout_kwargs(timeout: float | None) -> dict:
     """Build keyword arguments for optional timeout forwarding."""
     if timeout is not None:
@@ -1514,4 +1599,9 @@ class SessionRpc:
         self.compaction = CompactionApi(client, session_id)
         self.tools = ToolsApi(client, session_id)
         self.permissions = PermissionsApi(client, session_id)
+
+    async def log(self, params: SessionLogParams, *, timeout: float | None = None) -> SessionLogResult:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return SessionLogResult.from_dict(await self._client.request("session.log", params_dict, **_timeout_kwargs(timeout)))
 

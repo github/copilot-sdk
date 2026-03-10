@@ -192,6 +192,28 @@ public class AccountGetQuotaResult
     public Dictionary<string, AccountGetQuotaResultQuotaSnapshotsValue> QuotaSnapshots { get; set; } = [];
 }
 
+public class SessionLogResult
+{
+    /// <summary>The unique identifier of the emitted session event</summary>
+    [JsonPropertyName("eventId")]
+    public Guid EventId { get; set; }
+}
+
+internal class SessionLogRequest
+{
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+
+    [JsonPropertyName("level")]
+    public SessionLogRequestLevel? Level { get; set; }
+
+    [JsonPropertyName("ephemeral")]
+    public bool? Ephemeral { get; set; }
+}
+
 public class SessionModelGetCurrentResult
 {
     [JsonPropertyName("modelId")]
@@ -217,6 +239,9 @@ internal class SessionModelSwitchToRequest
 
     [JsonPropertyName("modelId")]
     public string ModelId { get; set; } = string.Empty;
+
+    [JsonPropertyName("reasoningEffort")]
+    public SessionModelSwitchToRequestReasoningEffort? ReasoningEffort { get; set; }
 }
 
 public class SessionModeGetResult
@@ -511,6 +536,32 @@ internal class SessionPermissionsHandlePendingPermissionRequestRequest
     public object Result { get; set; } = null!;
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter<SessionLogRequestLevel>))]
+public enum SessionLogRequestLevel
+{
+    [JsonStringEnumMemberName("info")]
+    Info,
+    [JsonStringEnumMemberName("warning")]
+    Warning,
+    [JsonStringEnumMemberName("error")]
+    Error,
+}
+
+
+[JsonConverter(typeof(JsonStringEnumConverter<SessionModelSwitchToRequestReasoningEffort>))]
+public enum SessionModelSwitchToRequestReasoningEffort
+{
+    [JsonStringEnumMemberName("low")]
+    Low,
+    [JsonStringEnumMemberName("medium")]
+    Medium,
+    [JsonStringEnumMemberName("high")]
+    High,
+    [JsonStringEnumMemberName("xhigh")]
+    Xhigh,
+}
+
+
 [JsonConverter(typeof(JsonStringEnumConverter<SessionModeGetResultMode>))]
 public enum SessionModeGetResultMode
 {
@@ -643,6 +694,13 @@ public class SessionRpc
     public ToolsApi Tools { get; }
 
     public PermissionsApi Permissions { get; }
+
+    /// <summary>Calls "session.log".</summary>
+    public async Task<SessionLogResult> LogAsync(string message, SessionLogRequestLevel? level = null, bool? ephemeral = null, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionLogRequest { SessionId = _sessionId, Message = message, Level = level, Ephemeral = ephemeral };
+        return await CopilotClient.InvokeRpcAsync<SessionLogResult>(_rpc, "session.log", [request], cancellationToken);
+    }
 }
 
 public class ModelApi
@@ -664,9 +722,9 @@ public class ModelApi
     }
 
     /// <summary>Calls "session.model.switchTo".</summary>
-    public async Task<SessionModelSwitchToResult> SwitchToAsync(string modelId, CancellationToken cancellationToken = default)
+    public async Task<SessionModelSwitchToResult> SwitchToAsync(string modelId, SessionModelSwitchToRequestReasoningEffort? reasoningEffort = null, CancellationToken cancellationToken = default)
     {
-        var request = new SessionModelSwitchToRequest { SessionId = _sessionId, ModelId = modelId };
+        var request = new SessionModelSwitchToRequest { SessionId = _sessionId, ModelId = modelId, ReasoningEffort = reasoningEffort };
         return await CopilotClient.InvokeRpcAsync<SessionModelSwitchToResult>(_rpc, "session.model.switchTo", [request], cancellationToken);
     }
 }
@@ -909,6 +967,8 @@ public class PermissionsApi
 [JsonSerializable(typeof(SessionCompactionCompactResult))]
 [JsonSerializable(typeof(SessionFleetStartRequest))]
 [JsonSerializable(typeof(SessionFleetStartResult))]
+[JsonSerializable(typeof(SessionLogRequest))]
+[JsonSerializable(typeof(SessionLogResult))]
 [JsonSerializable(typeof(SessionModeGetRequest))]
 [JsonSerializable(typeof(SessionModeGetResult))]
 [JsonSerializable(typeof(SessionModeSetRequest))]

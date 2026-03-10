@@ -56,6 +56,7 @@ type SessionEvent struct {
 // Empty payload; the event signals that the custom agent was deselected, returning to the
 // default agent
 type Data struct {
+	AlreadyInUse *bool `json:"alreadyInUse,omitempty"`
 	// Working directory and git context at session start
 	//
 	// Updated working directory and git context at resume time
@@ -267,6 +268,8 @@ type Data struct {
 	// Full content of the skill file, injected into the conversation for the model
 	//
 	// The system or developer prompt text
+	//
+	// The notification text, typically wrapped in <system_notification> XML tags
 	Content *string `json:"content,omitempty"`
 	// CAPI interaction ID for correlating this user message with its turn
 	//
@@ -426,6 +429,8 @@ type Data struct {
 	Metadata *Metadata `json:"metadata,omitempty"`
 	// Message role: "system" for system prompts, "developer" for developer-injected instructions
 	Role *Role `json:"role,omitempty"`
+	// Structured metadata identifying what triggered this notification
+	Kind *KindClass `json:"kind,omitempty"`
 	// Details of the permission being requested
 	PermissionRequest *PermissionRequest `json:"permissionRequest,omitempty"`
 	// Whether the user can provide a free-form text response in addition to predefined choices
@@ -592,6 +597,29 @@ type ErrorClass struct {
 	Message string `json:"message"`
 	// Error stack trace, when available
 	Stack *string `json:"stack,omitempty"`
+}
+
+// Structured metadata identifying what triggered this notification
+type KindClass struct {
+	// Unique identifier of the background agent
+	AgentID *string `json:"agentId,omitempty"`
+	// Type of the agent (e.g., explore, task, general-purpose)
+	AgentType *string `json:"agentType,omitempty"`
+	// Human-readable description of the agent task
+	//
+	// Human-readable description of the command
+	Description *string `json:"description,omitempty"`
+	// The full prompt given to the background agent
+	Prompt *string `json:"prompt,omitempty"`
+	// Whether the agent completed successfully or failed
+	Status *Status  `json:"status,omitempty"`
+	Type   KindType `json:"type"`
+	// Exit code of the shell command, if available
+	ExitCode *float64 `json:"exitCode,omitempty"`
+	// Unique identifier of the shell session
+	//
+	// Unique identifier of the detached shell session
+	ShellID *string `json:"shellId,omitempty"`
 }
 
 // Metadata about the prompt template and its construction
@@ -860,6 +888,22 @@ const (
 	Selection       AttachmentType = "selection"
 )
 
+// Whether the agent completed successfully or failed
+type Status string
+
+const (
+	Completed Status = "completed"
+	Failed    Status = "failed"
+)
+
+type KindType string
+
+const (
+	AgentCompleted         KindType = "agent_completed"
+	ShellCompleted         KindType = "shell_completed"
+	ShellDetachedCompleted KindType = "shell_detached_completed"
+)
+
 type Mode string
 
 const (
@@ -1011,6 +1055,7 @@ const (
 	SubagentSelected            SessionEventType = "subagent.selected"
 	SubagentStarted             SessionEventType = "subagent.started"
 	SystemMessage               SessionEventType = "system.message"
+	SystemNotification          SessionEventType = "system.notification"
 	ToolExecutionComplete       SessionEventType = "tool.execution_complete"
 	ToolExecutionPartialResult  SessionEventType = "tool.execution_partial_result"
 	ToolExecutionProgress       SessionEventType = "tool.execution_progress"

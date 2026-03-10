@@ -77,6 +77,26 @@ function toJsonSchema(parameters: Tool["parameters"]): Record<string, unknown> |
     return parameters;
 }
 
+function getNodeExecPath(): string {
+    if (process.versions.bun) {
+        return "node";
+    }
+    return process.execPath;
+}
+
+/**
+ * Gets the path to the bundled CLI from the @github/copilot package.
+ * Uses index.js directly rather than npm-loader.js (which spawns the native binary).
+ */
+function getBundledCliPath(): string {
+    // Find the actual location of the @github/copilot package by resolving its sdk export
+    const sdkUrl = import.meta.resolve("@github/copilot/sdk");
+    const sdkPath = fileURLToPath(sdkUrl);
+    // sdkPath is like .../node_modules/@github/copilot/sdk/index.js
+    // Go up two levels to get the package root, then append index.js
+    return join(dirname(dirname(sdkPath)), "index.js");
+}
+
 /**
  * Main client for interacting with the Copilot CLI.
  *
@@ -110,27 +130,6 @@ function toJsonSchema(parameters: Tool["parameters"]): Record<string, unknown> |
  * await client.stop();
  * ```
  */
-
-function getNodeExecPath(): string {
-    if (process.versions.bun) {
-        return "node";
-    }
-    return process.execPath;
-}
-
-/**
- * Gets the path to the bundled CLI from the @github/copilot package.
- * Uses index.js directly rather than npm-loader.js (which spawns the native binary).
- */
-function getBundledCliPath(): string {
-    // Find the actual location of the @github/copilot package by resolving its sdk export
-    const sdkUrl = import.meta.resolve("@github/copilot/sdk");
-    const sdkPath = fileURLToPath(sdkUrl);
-    // sdkPath is like .../node_modules/@github/copilot/sdk/index.js
-    // Go up two levels to get the package root, then append index.js
-    return join(dirname(dirname(sdkPath)), "index.js");
-}
-
 export class CopilotClient {
     private cliProcess: ChildProcess | null = null;
     private connection: MessageConnection | null = null;

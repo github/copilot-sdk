@@ -173,6 +173,7 @@ export interface SessionModelSwitchToParams {
    */
   sessionId: string;
   modelId: string;
+  reasoningEffort?: "low" | "medium" | "high" | "xhigh";
 }
 
 export interface SessionModeGetResult {
@@ -489,6 +490,32 @@ export interface SessionPermissionsHandlePendingPermissionRequestParams {
       };
 }
 
+export interface SessionLogResult {
+  /**
+   * The unique identifier of the emitted session event
+   */
+  eventId: string;
+}
+
+export interface SessionLogParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Human-readable message
+   */
+  message: string;
+  /**
+   * Log severity level. Determines how the message is displayed in the timeline. Defaults to "info".
+   */
+  level?: "info" | "warning" | "error";
+  /**
+   * When true, the message is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+}
+
 /** Create typed server-scoped RPC methods (no session required). */
 export function createServerRpc(connection: MessageConnection) {
     return {
@@ -566,5 +593,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             handlePendingPermissionRequest: async (params: Omit<SessionPermissionsHandlePendingPermissionRequestParams, "sessionId">): Promise<SessionPermissionsHandlePendingPermissionRequestResult> =>
                 connection.sendRequest("session.permissions.handlePendingPermissionRequest", { sessionId, ...params }),
         },
+        log: async (params: Omit<SessionLogParams, "sessionId">): Promise<SessionLogResult> =>
+            connection.sendRequest("session.log", { sessionId, ...params }),
     };
 }
