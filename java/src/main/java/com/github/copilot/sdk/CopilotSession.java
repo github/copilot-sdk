@@ -618,27 +618,33 @@ public final class CopilotSession implements AutoCloseable {
      *            the event to handle
      */
     private void handleBroadcastEventAsync(AbstractSessionEvent event) {
-        if (event instanceof ExternalToolRequestedEvent toolEvent) {
-            var data = toolEvent.getData();
-            if (data == null || data.requestId() == null || data.toolName() == null) {
-                return;
+        switch (event) {
+            case ExternalToolRequestedEvent toolEvent -> {
+                var data = toolEvent.getData();
+                if (data == null || data.requestId() == null || data.toolName() == null) {
+                    return;
+                }
+                ToolDefinition tool = getTool(data.toolName());
+                if (tool == null) {
+                    return; // This client doesn't handle this tool; another client will
+                }
+                executeToolAndRespondAsync(data.requestId(), data.toolName(), data.toolCallId(), data.arguments(),
+                        tool);
             }
-            ToolDefinition tool = getTool(data.toolName());
-            if (tool == null) {
-                return; // This client doesn't handle this tool; another client will
+            case PermissionRequestedEvent permEvent -> {
+                var data = permEvent.getData();
+                if (data == null || data.requestId() == null || data.permissionRequest() == null) {
+                    return;
+                }
+                PermissionHandler handler = permissionHandler.get();
+                if (handler == null) {
+                    return; // This client doesn't handle permissions; another client will
+                }
+                executePermissionAndRespondAsync(data.requestId(), data.permissionRequest(), handler);
             }
-            executeToolAndRespondAsync(data.requestId(), data.toolName(), data.toolCallId(), data.arguments(), tool);
-
-        } else if (event instanceof PermissionRequestedEvent permEvent) {
-            var data = permEvent.getData();
-            if (data == null || data.requestId() == null || data.permissionRequest() == null) {
-                return;
+            default -> {
+                // Other event types are not handled here
             }
-            PermissionHandler handler = permissionHandler.get();
-            if (handler == null) {
-                return; // This client doesn't handle permissions; another client will
-            }
-            executePermissionAndRespondAsync(data.requestId(), data.permissionRequest(), handler);
         }
     }
 
