@@ -245,7 +245,17 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     [Fact]
     public async Task Should_Receive_Session_Events()
     {
-        var session = await CreateSessionAsync();
+        // Use OnEvent to capture events dispatched during session creation.
+        // session.start is emitted during the session.create RPC; if the session
+        // weren't registered in the sessions map before the RPC, it would be dropped.
+        var earlyEvents = new List<SessionEvent>();
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            OnEvent = evt => earlyEvents.Add(evt),
+        });
+
+        Assert.Contains(earlyEvents, evt => evt is SessionStartEvent);
+
         var receivedEvents = new List<SessionEvent>();
         var idleReceived = new TaskCompletionSource<bool>();
 

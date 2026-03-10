@@ -588,9 +588,29 @@ func TestSession(t *testing.T) {
 	t.Run("should receive session events", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{OnPermissionRequest: copilot.PermissionHandler.ApproveAll})
+		// Use OnEvent to capture events dispatched during session creation.
+		// session.start is emitted during the session.create RPC; if the session
+		// weren't registered in the sessions map before the RPC, it would be dropped.
+		var earlyEvents []copilot.SessionEvent
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			OnEvent: func(event copilot.SessionEvent) {
+				earlyEvents = append(earlyEvents, event)
+			},
+		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		hasSessionStart := false
+		for _, evt := range earlyEvents {
+			if evt.Type == "session.start" {
+				hasSessionStart = true
+				break
+			}
+		}
+		if !hasSessionStart {
+			t.Error("Expected session.start event via OnEvent during creation")
 		}
 
 		var receivedEvents []copilot.SessionEvent
@@ -737,10 +757,10 @@ func TestSession(t *testing.T) {
 
 		// Verify both sessions are in the list
 		if !contains(sessionIDs, session1.SessionID) {
-			t.Errorf("Expected session1 ID %s to be in sessions list", session1.SessionID)
+			t.Errorf("Expected session1 ID %s to be in sessions list %v", session1.SessionID, sessionIDs)
 		}
 		if !contains(sessionIDs, session2.SessionID) {
-			t.Errorf("Expected session2 ID %s to be in sessions list", session2.SessionID)
+			t.Errorf("Expected session2 ID %s to be in sessions list %v", session2.SessionID, sessionIDs)
 		}
 
 		// Verify session metadata structure

@@ -44,6 +44,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/github/copilot-sdk/go/internal/embeddedcli"
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
 	"github.com/github/copilot-sdk/go/rpc"
@@ -493,7 +495,6 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 
 	req := createSessionRequest{}
 	req.Model = config.Model
-	req.SessionID = config.SessionID
 	req.ClientName = config.ClientName
 	req.ReasoningEffort = config.ReasoningEffort
 	req.ConfigDir = config.ConfigDir
@@ -527,17 +528,15 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	}
 	req.RequestPermission = Bool(true)
 
-	result, err := c.client.Request("session.create", req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create session: %w", err)
+	sessionID := config.SessionID
+	if sessionID == "" {
+		sessionID = uuid.New().String()
 	}
+	req.SessionID = sessionID
 
-	var response createSessionResponse
-	if err := json.Unmarshal(result, &response); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
-	}
-
-	session := newSession(response.SessionID, c.client, response.WorkspacePath)
+	// Create and register the session before issuing the RPC so that
+	// events emitted by the CLI (e.g. session.start) are not dropped.
+	session := newSession(sessionID, c.client, "")
 
 	session.registerTools(config.Tools)
 	session.registerPermissionHandler(config.OnPermissionRequest)
@@ -547,10 +546,31 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	if config.Hooks != nil {
 		session.registerHooks(config.Hooks)
 	}
+	if config.OnEvent != nil {
+		session.On(config.OnEvent)
+	}
 
 	c.sessionsMux.Lock()
-	c.sessions[response.SessionID] = session
+	c.sessions[sessionID] = session
 	c.sessionsMux.Unlock()
+
+	result, err := c.client.Request("session.create", req)
+	if err != nil {
+		c.sessionsMux.Lock()
+		delete(c.sessions, sessionID)
+		c.sessionsMux.Unlock()
+		return nil, fmt.Errorf("failed to create session: %w", err)
+	}
+
+	var response createSessionResponse
+	if err := json.Unmarshal(result, &response); err != nil {
+		c.sessionsMux.Lock()
+		delete(c.sessions, sessionID)
+		c.sessionsMux.Unlock()
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	session.workspacePath = response.WorkspacePath
 
 	return session, nil
 }
@@ -627,17 +647,10 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.InfiniteSessions = config.InfiniteSessions
 	req.RequestPermission = Bool(true)
 
-	result, err := c.client.Request("session.resume", req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resume session: %w", err)
-	}
+	// Create and register the session before issuing the RPC so that
+	// events emitted by the CLI (e.g. session.start) are not dropped.
+	session := newSession(sessionID, c.client, "")
 
-	var response resumeSessionResponse
-	if err := json.Unmarshal(result, &response); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
-	}
-
-	session := newSession(response.SessionID, c.client, response.WorkspacePath)
 	session.registerTools(config.Tools)
 	session.registerPermissionHandler(config.OnPermissionRequest)
 	if config.OnUserInputRequest != nil {
@@ -646,10 +659,31 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	if config.Hooks != nil {
 		session.registerHooks(config.Hooks)
 	}
+	if config.OnEvent != nil {
+		session.On(config.OnEvent)
+	}
 
 	c.sessionsMux.Lock()
-	c.sessions[response.SessionID] = session
+	c.sessions[sessionID] = session
 	c.sessionsMux.Unlock()
+
+	result, err := c.client.Request("session.resume", req)
+	if err != nil {
+		c.sessionsMux.Lock()
+		delete(c.sessions, sessionID)
+		c.sessionsMux.Unlock()
+		return nil, fmt.Errorf("failed to resume session: %w", err)
+	}
+
+	var response resumeSessionResponse
+	if err := json.Unmarshal(result, &response); err != nil {
+		c.sessionsMux.Lock()
+		delete(c.sessions, sessionID)
+		c.sessionsMux.Unlock()
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	session.workspacePath = response.WorkspacePath
 
 	return session, nil
 }

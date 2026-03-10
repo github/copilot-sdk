@@ -1183,6 +1183,7 @@ public class SessionConfig
             ? new Dictionary<string, object>(other.McpServers, other.McpServers.Comparer)
             : null;
         Model = other.Model;
+        OnEvent = other.OnEvent;
         OnPermissionRequest = other.OnPermissionRequest;
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
@@ -1308,6 +1309,18 @@ public class SessionConfig
     public InfiniteSessionConfig? InfiniteSessions { get; set; }
 
     /// <summary>
+    /// Optional event handler that is registered on the session before the
+    /// session.create RPC is issued.
+    /// </summary>
+    /// <remarks>
+    /// Equivalent to calling <see cref="CopilotSession.On"/> immediately
+    /// after creation, but executes earlier in the lifecycle so no events are missed.
+    /// Using this property rather than <see cref="CopilotSession.On"/> guarantees that early events emitted 
+    /// by the CLI during session creation (e.g. session.start) are delivered to the handler.
+    /// </remarks>
+    public SessionEventHandler? OnEvent { get; set; }
+
+    /// <summary>
     /// Creates a shallow clone of this <see cref="SessionConfig"/> instance.
     /// </summary>
     /// <remarks>
@@ -1355,6 +1368,7 @@ public class ResumeSessionConfig
             ? new Dictionary<string, object>(other.McpServers, other.McpServers.Comparer)
             : null;
         Model = other.Model;
+        OnEvent = other.OnEvent;
         OnPermissionRequest = other.OnPermissionRequest;
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
@@ -1481,6 +1495,12 @@ public class ResumeSessionConfig
     /// Infinite session configuration for persistent workspaces and automatic compaction.
     /// </summary>
     public InfiniteSessionConfig? InfiniteSessions { get; set; }
+
+    /// <summary>
+    /// Optional event handler registered before the session.resume RPC is issued,
+    /// ensuring early events are delivered. See <see cref="SessionConfig.OnEvent"/>.
+    /// </summary>
+    public SessionEventHandler? OnEvent { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="ResumeSessionConfig"/> instance.

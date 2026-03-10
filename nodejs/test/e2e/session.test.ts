@@ -297,7 +297,19 @@ describe("Sessions", async () => {
     });
 
     it("should receive session events", async () => {
-        const session = await client.createSession({ onPermissionRequest: approveAll });
+        // Use onEvent to capture events dispatched during session creation.
+        // session.start is emitted during the session.create RPC; if the session
+        // weren't registered in the sessions map before the RPC, it would be dropped.
+        const earlyEvents: Array<{ type: string }> = [];
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            onEvent: (event) => {
+                earlyEvents.push(event);
+            },
+        });
+
+        expect(earlyEvents.some((e) => e.type === "session.start")).toBe(true);
+
         const receivedEvents: Array<{ type: string }> = [];
 
         session.on((event) => {

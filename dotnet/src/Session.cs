@@ -86,7 +86,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// The path to the workspace containing checkpoints/, plan.md, and files/ subdirectories,
     /// or null if infinite sessions are disabled.
     /// </value>
-    public string? WorkspacePath { get; }
+    public string? WorkspacePath { get; internal set; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CopilotSession"/> class.

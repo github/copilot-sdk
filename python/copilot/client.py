@@ -19,6 +19,7 @@ import re
 import subprocess
 import sys
 import threading
+import uuid
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
@@ -507,8 +508,6 @@ class CopilotClient:
         payload: dict[str, Any] = {}
         if cfg.get("model"):
             payload["model"] = cfg["model"]
-        if cfg.get("session_id"):
-            payload["sessionId"] = cfg["session_id"]
         if cfg.get("client_name"):
             payload["clientName"] = cfg["client_name"]
         if cfg.get("reasoning_effort"):
@@ -609,19 +608,32 @@ class CopilotClient:
 
         if not self._client:
             raise RuntimeError("Client not connected")
-        response = await self._client.request("session.create", payload)
 
-        session_id = response["sessionId"]
-        workspace_path = response.get("workspacePath")
-        session = CopilotSession(session_id, self._client, workspace_path)
+        session_id = cfg.get("session_id") or str(uuid.uuid4())
+        payload["sessionId"] = session_id
+
+        # Create and register the session before issuing the RPC so that
+        # events emitted by the CLI (e.g. session.start) are not dropped.
+        session = CopilotSession(session_id, self._client, None)
         session._register_tools(tools)
         session._register_permission_handler(on_permission_request)
         if on_user_input_request:
             session._register_user_input_handler(on_user_input_request)
         if hooks:
             session._register_hooks(hooks)
+        on_event = cfg.get("on_event")
+        if on_event:
+            session.on(on_event)
         with self._sessions_lock:
             self._sessions[session_id] = session
+
+        try:
+            response = await self._client.request("session.create", payload)
+            session._workspace_path = response.get("workspacePath")
+        except BaseException:
+            with self._sessions_lock:
+                self._sessions.pop(session_id, None)
+            raise
 
         return session
 
@@ -798,19 +810,29 @@ class CopilotClient:
 
         if not self._client:
             raise RuntimeError("Client not connected")
-        response = await self._client.request("session.resume", payload)
 
-        resumed_session_id = response["sessionId"]
-        workspace_path = response.get("workspacePath")
-        session = CopilotSession(resumed_session_id, self._client, workspace_path)
+        # Create and register the session before issuing the RPC so that
+        # events emitted by the CLI (e.g. session.start) are not dropped.
+        session = CopilotSession(session_id, self._client, None)
         session._register_tools(cfg.get("tools"))
         session._register_permission_handler(on_permission_request)
         if on_user_input_request:
             session._register_user_input_handler(on_user_input_request)
         if hooks:
             session._register_hooks(hooks)
+        on_event = cfg.get("on_event")
+        if on_event:
+            session.on(on_event)
         with self._sessions_lock:
-            self._sessions[resumed_session_id] = session
+            self._sessions[session_id] = session
+
+        try:
+            response = await self._client.request("session.resume", payload)
+            session._workspace_path = response.get("workspacePath")
+        except BaseException:
+            with self._sessions_lock:
+                self._sessions.pop(session_id, None)
+            raise
 
         return session
 
