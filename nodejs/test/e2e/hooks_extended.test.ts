@@ -37,7 +37,7 @@ describe("Extended session hooks", async () => {
         expect(sessionStartInputs[0].timestamp).toBeGreaterThan(0);
         expect(sessionStartInputs[0].cwd).toBeDefined();
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should invoke onUserPromptSubmitted hook when sending a message", async () => {
@@ -62,10 +62,10 @@ describe("Extended session hooks", async () => {
         expect(userPromptInputs[0].timestamp).toBeGreaterThan(0);
         expect(userPromptInputs[0].cwd).toBeDefined();
 
-        await session.destroy();
+        await session.disconnect();
     });
 
-    it("should invoke onSessionEnd hook when session is destroyed", async () => {
+    it("should invoke onSessionEnd hook when session is disconnected", async () => {
         const sessionEndInputs: SessionEndHookInput[] = [];
 
         const session = await client.createSession({
@@ -82,7 +82,7 @@ describe("Extended session hooks", async () => {
             prompt: "Say hi",
         });
 
-        await session.destroy();
+        await session.disconnect();
 
         // Wait briefly for async hook
         await new Promise((resolve) => setTimeout(resolve, 100));
@@ -120,6 +120,6 @@ describe("Extended session hooks", async () => {
         // If the hook did fire, the assertions inside it would have run.
         expect(session.sessionId).toBeDefined();
 
-        await session.destroy();
+        await session.disconnect();
     });
 });

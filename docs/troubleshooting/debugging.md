@@ -44,7 +44,21 @@ client = CopilotClient({"log_level": "debug"})
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import copilot "github.com/github/copilot-sdk/go"
+
+func main() {
+	client := copilot.NewClient(&copilot.ClientOptions{
+		LogLevel: "debug",
+	})
+	_ = client
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 import copilot "github.com/github/copilot-sdk/go"
 
@@ -59,6 +73,7 @@ client := copilot.NewClient(&copilot.ClientOptions{
 <summary><strong>.NET</strong></summary>
 
 <!-- docs-validate: skip -->
+
 ```csharp
 using GitHub.Copilot.SDK;
 using Microsoft.Extensions.Logging;
@@ -110,7 +125,18 @@ const client = new CopilotClient({
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+func main() {
+	// The Go SDK does not currently support passing extra CLI arguments.
+	// For custom log directories, run the CLI manually with --log-dir
+	// and connect via CLIUrl option.
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 // The Go SDK does not currently support passing extra CLI arguments.
 // For custom log directories, run the CLI manually with --log-dir
@@ -248,9 +274,9 @@ var client = new CopilotClient(new CopilotClientOptions
 
 **Solution:**
 
-1. Ensure you're not calling methods after `destroy()`:
+1. Ensure you're not calling methods after `disconnect()`:
    ```typescript
-   await session.destroy();
+   await session.disconnect();
    // Don't use session after this!
    ```
 
@@ -290,7 +316,7 @@ var client = new CopilotClient(new CopilotClientOptions
 
 ## MCP Server Debugging
 
-MCP (Model Context Protocol) servers can be tricky to debug. For comprehensive MCP debugging guidance, see the dedicated **[MCP Debugging Guide](./mcp/debugging.md)**.
+MCP (Model Context Protocol) servers can be tricky to debug. For comprehensive MCP debugging guidance, see the dedicated **[MCP Debugging Guide](./mcp-debugging.md)**.
 
 ### Quick MCP Checklist
 
@@ -308,7 +334,7 @@ Before integrating with the SDK, verify your MCP server works:
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | /path/to/your/mcp-server
 ```
 
-See [MCP Debugging Guide](./mcp/debugging.md) for detailed troubleshooting.
+See [MCP Debugging Guide](./mcp-debugging.md) for detailed troubleshooting.
 
 ---
 
@@ -493,7 +519,7 @@ If you're still stuck:
 
 ## See Also
 
-- [Getting Started Guide](./getting-started.md)
-- [MCP Overview](./mcp/overview.md) - MCP configuration and setup
-- [MCP Debugging Guide](./mcp/debugging.md) - Detailed MCP troubleshooting
+- [Getting Started Guide](../getting-started.md)
+- [MCP Overview](../features/mcp.md) - MCP configuration and setup
+- [MCP Debugging Guide](./mcp-debugging.md) - Detailed MCP troubleshooting
 - [API Reference](https://github.com/github/copilot-sdk)

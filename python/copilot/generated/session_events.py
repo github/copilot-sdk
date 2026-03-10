@@ -80,6 +80,8 @@ def from_int(x: Any) -> int:
 
 
 class AgentMode(Enum):
+    """The agent mode that was active when this message was sent"""
+
     AUTOPILOT = "autopilot"
     INTERACTIVE = "interactive"
     PLAN = "plan"
@@ -88,8 +90,13 @@ class AgentMode(Enum):
 
 @dataclass
 class LineRange:
+    """Optional line range to scope the attachment to a specific section of the file"""
+
     end: float
+    """End line number (1-based, inclusive)"""
+
     start: float
+    """Start line number (1-based)"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'LineRange':
@@ -106,6 +113,8 @@ class LineRange:
 
 
 class ReferenceType(Enum):
+    """Type of GitHub reference"""
+
     DISCUSSION = "discussion"
     ISSUE = "issue"
     PR = "pr"
@@ -114,7 +123,10 @@ class ReferenceType(Enum):
 @dataclass
 class End:
     character: float
+    """End character offset within the line (0-based)"""
+
     line: float
+    """End line number (0-based)"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'End':
@@ -133,7 +145,10 @@ class End:
 @dataclass
 class Start:
     character: float
+    """Start character offset within the line (0-based)"""
+
     line: float
+    """Start line number (0-based)"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'Start':
@@ -151,6 +166,8 @@ class Start:
 
 @dataclass
 class Selection:
+    """Position range of the selection within the file"""
+
     end: End
     start: Start
 
@@ -178,17 +195,42 @@ class AttachmentType(Enum):
 @dataclass
 class Attachment:
     type: AttachmentType
+    """Attachment type discriminator"""
+
     display_name: str | None = None
+    """User-facing display name for the attachment
+    
+    User-facing display name for the selection
+    """
     line_range: LineRange | None = None
+    """Optional line range to scope the attachment to a specific section of the file"""
+
     path: str | None = None
+    """Absolute file or directory path"""
+
     file_path: str | None = None
+    """Absolute path to the file containing the selection"""
+
     selection: Selection | None = None
+    """Position range of the selection within the file"""
+
     text: str | None = None
+    """The selected text content"""
+
     number: float | None = None
+    """Issue, pull request, or discussion number"""
+
     reference_type: ReferenceType | None = None
+    """Type of GitHub reference"""
+
     state: str | None = None
+    """Current state of the referenced item (e.g., open, closed, merged)"""
+
     title: str | None = None
+    """Title of the referenced item"""
+
     url: str | None = None
+    """URL to the referenced item on GitHub"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'Attachment':
@@ -236,10 +278,92 @@ class Attachment:
 
 
 @dataclass
+class Agent:
+    agent_id: str
+    """Unique identifier of the background agent"""
+
+    agent_type: str
+    """Type of the background agent"""
+
+    description: str | None = None
+    """Human-readable description of the agent task"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'Agent':
+        assert isinstance(obj, dict)
+        agent_id = from_str(obj.get("agentId"))
+        agent_type = from_str(obj.get("agentType"))
+        description = from_union([from_str, from_none], obj.get("description"))
+        return Agent(agent_id, agent_type, description)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["agentId"] = from_str(self.agent_id)
+        result["agentType"] = from_str(self.agent_type)
+        if self.description is not None:
+            result["description"] = from_union([from_str, from_none], self.description)
+        return result
+
+
+@dataclass
+class Shell:
+    shell_id: str
+    """Unique identifier of the background shell"""
+
+    description: str | None = None
+    """Human-readable description of the shell command"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'Shell':
+        assert isinstance(obj, dict)
+        shell_id = from_str(obj.get("shellId"))
+        description = from_union([from_str, from_none], obj.get("description"))
+        return Shell(shell_id, description)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["shellId"] = from_str(self.shell_id)
+        if self.description is not None:
+            result["description"] = from_union([from_str, from_none], self.description)
+        return result
+
+
+@dataclass
+class BackgroundTasks:
+    """Background tasks still running when the agent became idle"""
+
+    agents: list[Agent]
+    """Currently running background agents"""
+
+    shells: list[Shell]
+    """Currently running background shell commands"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'BackgroundTasks':
+        assert isinstance(obj, dict)
+        agents = from_list(Agent.from_dict, obj.get("agents"))
+        shells = from_list(Shell.from_dict, obj.get("shells"))
+        return BackgroundTasks(agents, shells)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["agents"] = from_list(lambda x: to_class(Agent, x), self.agents)
+        result["shells"] = from_list(lambda x: to_class(Shell, x), self.shells)
+        return result
+
+
+@dataclass
 class CodeChanges:
+    """Aggregate code change metrics for the session"""
+
     files_modified: list[str]
+    """List of file paths that were modified during the session"""
+
     lines_added: float
+    """Total number of lines added during the session"""
+
     lines_removed: float
+    """Total number of lines removed during the session"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'CodeChanges':
@@ -259,9 +383,16 @@ class CodeChanges:
 
 @dataclass
 class CompactionTokensUsed:
+    """Token usage breakdown for the compaction LLM call"""
+
     cached_input: float
+    """Cached input tokens reused in the compaction LLM call"""
+
     input: float
+    """Input tokens consumed by the compaction LLM call"""
+
     output: float
+    """Output tokens produced by the compaction LLM call"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'CompactionTokensUsed':
@@ -281,10 +412,21 @@ class CompactionTokensUsed:
 
 @dataclass
 class ContextClass:
+    """Working directory and git context at session start
+    
+    Updated working directory and git context at resume time
+    """
     cwd: str
+    """Current working directory path"""
+
     branch: str | None = None
+    """Current git branch name"""
+
     git_root: str | None = None
+    """Root directory of the git repository, resolved via git rev-parse"""
+
     repository: str | None = None
+    """Repository identifier in "owner/name" format, derived from the git remote URL"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'ContextClass':
@@ -310,9 +452,16 @@ class ContextClass:
 @dataclass
 class TokenDetail:
     batch_size: float
+    """Number of tokens in this billing batch"""
+
     cost_per_batch: float
+    """Cost per batch of tokens"""
+
     token_count: float
+    """Total token count for this entry"""
+
     token_type: str
+    """Token category (e.g., "input", "output")"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'TokenDetail':
@@ -334,8 +483,13 @@ class TokenDetail:
 
 @dataclass
 class CopilotUsage:
+    """Per-request cost and usage data from the CAPI copilot_usage response field"""
+
     token_details: list[TokenDetail]
+    """Itemized token usage breakdown"""
+
     total_nano_aiu: float
+    """Total cost in nano-AIU (AI Units) for this request"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'CopilotUsage':
@@ -353,9 +507,18 @@ class CopilotUsage:
 
 @dataclass
 class ErrorClass:
+    """Error details when the tool execution failed
+    
+    Error details when the hook failed
+    """
     message: str
+    """Human-readable error message"""
+
     code: str | None = None
+    """Machine-readable error code"""
+
     stack: str | None = None
+    """Error stack trace, when available"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'ErrorClass':
@@ -375,10 +538,92 @@ class ErrorClass:
         return result
 
 
+class Status(Enum):
+    """Whether the agent completed successfully or failed"""
+
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class KindType(Enum):
+    AGENT_COMPLETED = "agent_completed"
+    SHELL_COMPLETED = "shell_completed"
+    SHELL_DETACHED_COMPLETED = "shell_detached_completed"
+
+
+@dataclass
+class KindClass:
+    """Structured metadata identifying what triggered this notification"""
+
+    type: KindType
+    agent_id: str | None = None
+    """Unique identifier of the background agent"""
+
+    agent_type: str | None = None
+    """Type of the agent (e.g., explore, task, general-purpose)"""
+
+    description: str | None = None
+    """Human-readable description of the agent task
+    
+    Human-readable description of the command
+    """
+    prompt: str | None = None
+    """The full prompt given to the background agent"""
+
+    status: Status | None = None
+    """Whether the agent completed successfully or failed"""
+
+    exit_code: float | None = None
+    """Exit code of the shell command, if available"""
+
+    shell_id: str | None = None
+    """Unique identifier of the shell session
+    
+    Unique identifier of the detached shell session
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'KindClass':
+        assert isinstance(obj, dict)
+        type = KindType(obj.get("type"))
+        agent_id = from_union([from_str, from_none], obj.get("agentId"))
+        agent_type = from_union([from_str, from_none], obj.get("agentType"))
+        description = from_union([from_str, from_none], obj.get("description"))
+        prompt = from_union([from_str, from_none], obj.get("prompt"))
+        status = from_union([Status, from_none], obj.get("status"))
+        exit_code = from_union([from_float, from_none], obj.get("exitCode"))
+        shell_id = from_union([from_str, from_none], obj.get("shellId"))
+        return KindClass(type, agent_id, agent_type, description, prompt, status, exit_code, shell_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["type"] = to_enum(KindType, self.type)
+        if self.agent_id is not None:
+            result["agentId"] = from_union([from_str, from_none], self.agent_id)
+        if self.agent_type is not None:
+            result["agentType"] = from_union([from_str, from_none], self.agent_type)
+        if self.description is not None:
+            result["description"] = from_union([from_str, from_none], self.description)
+        if self.prompt is not None:
+            result["prompt"] = from_union([from_str, from_none], self.prompt)
+        if self.status is not None:
+            result["status"] = from_union([lambda x: to_enum(Status, x), from_none], self.status)
+        if self.exit_code is not None:
+            result["exitCode"] = from_union([to_float, from_none], self.exit_code)
+        if self.shell_id is not None:
+            result["shellId"] = from_union([from_str, from_none], self.shell_id)
+        return result
+
+
 @dataclass
 class Metadata:
+    """Metadata about the prompt template and its construction"""
+
     prompt_version: str | None = None
+    """Version identifier of the prompt template used"""
+
     variables: dict[str, Any] | None = None
+    """Template variables used when constructing the prompt"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'Metadata':
@@ -402,8 +647,13 @@ class Mode(Enum):
 
 @dataclass
 class Requests:
+    """Request count and cost metrics"""
+
     cost: float
+    """Cumulative cost multiplier for requests to this model"""
+
     count: float
+    """Total number of API requests made to this model"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'Requests':
@@ -421,10 +671,19 @@ class Requests:
 
 @dataclass
 class Usage:
+    """Token usage breakdown"""
+
     cache_read_tokens: float
+    """Total tokens read from prompt cache across all requests"""
+
     cache_write_tokens: float
+    """Total tokens written to prompt cache across all requests"""
+
     input_tokens: float
+    """Total input tokens consumed across all requests to this model"""
+
     output_tokens: float
+    """Total output tokens produced across all requests to this model"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'Usage':
@@ -447,7 +706,10 @@ class Usage:
 @dataclass
 class ModelMetric:
     requests: Requests
+    """Request count and cost metrics"""
+
     usage: Usage
+    """Token usage breakdown"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'ModelMetric':
@@ -464,6 +726,10 @@ class ModelMetric:
 
 
 class Operation(Enum):
+    """The type of operation performed on the plan file
+    
+    Whether the file was newly created or updated
+    """
     CREATE = "create"
     DELETE = "delete"
     UPDATE = "update"
@@ -472,7 +738,10 @@ class Operation(Enum):
 @dataclass
 class Command:
     identifier: str
+    """Command identifier (e.g., executable name)"""
+
     read_only: bool
+    """Whether this command is read-only (no side effects)"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'Command':
@@ -488,7 +757,7 @@ class Command:
         return result
 
 
-class Kind(Enum):
+class PermissionRequestKind(Enum):
     CUSTOM_TOOL = "custom-tool"
     MCP = "mcp"
     MEMORY = "memory"
@@ -501,6 +770,7 @@ class Kind(Enum):
 @dataclass
 class PossibleURL:
     url: str
+    """URL that may be accessed by the command"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PossibleURL':
@@ -516,35 +786,94 @@ class PossibleURL:
 
 @dataclass
 class PermissionRequest:
-    kind: Kind
+    """Details of the permission being requested"""
+
+    kind: PermissionRequestKind
+    """Permission kind discriminator"""
+
     can_offer_session_approval: bool | None = None
+    """Whether the UI can offer session-wide approval for this command pattern"""
+
     commands: list[Command] | None = None
+    """Parsed command identifiers found in the command text"""
+
     full_command_text: str | None = None
+    """The complete shell command text to be executed"""
+
     has_write_file_redirection: bool | None = None
+    """Whether the command includes a file write redirection (e.g., > or >>)"""
+
     intention: str | None = None
+    """Human-readable description of what the command intends to do
+    
+    Human-readable description of the intended file change
+    
+    Human-readable description of why the file is being read
+    
+    Human-readable description of why the URL is being accessed
+    """
     possible_paths: list[str] | None = None
+    """File paths that may be read or written by the command"""
+
     possible_urls: list[PossibleURL] | None = None
+    """URLs that may be accessed by the command"""
+
     tool_call_id: str | None = None
+    """Tool call ID that triggered this permission request"""
+
     warning: str | None = None
+    """Optional warning message about risks of running this command"""
+
     diff: str | None = None
+    """Unified diff showing the proposed changes"""
+
     file_name: str | None = None
+    """Path of the file being written to"""
+
     new_file_contents: str | None = None
+    """Complete new file contents for newly created files"""
+
     path: str | None = None
+    """Path of the file or directory being read"""
+
     args: Any = None
+    """Arguments to pass to the MCP tool
+    
+    Arguments to pass to the custom tool
+    """
     read_only: bool | None = None
+    """Whether this MCP tool is read-only (no side effects)"""
+
     server_name: str | None = None
+    """Name of the MCP server providing the tool"""
+
     tool_name: str | None = None
+    """Internal name of the MCP tool
+    
+    Name of the custom tool
+    """
     tool_title: str | None = None
+    """Human-readable title of the MCP tool"""
+
     url: str | None = None
+    """URL to be fetched"""
+
     citations: str | None = None
+    """Source references for the stored fact"""
+
     fact: str | None = None
+    """The fact or convention being stored"""
+
     subject: str | None = None
+    """Topic or subject of the memory being stored"""
+
     tool_description: str | None = None
+    """Description of what the custom tool does"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionRequest':
         assert isinstance(obj, dict)
-        kind = Kind(obj.get("kind"))
+        kind = PermissionRequestKind(obj.get("kind"))
         can_offer_session_approval = from_union([from_bool, from_none], obj.get("canOfferSessionApproval"))
         commands = from_union([lambda x: from_list(Command.from_dict, x), from_none], obj.get("commands"))
         full_command_text = from_union([from_str, from_none], obj.get("fullCommandText"))
@@ -572,7 +901,7 @@ class PermissionRequest:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(Kind, self.kind)
+        result["kind"] = to_enum(PermissionRequestKind, self.kind)
         if self.can_offer_session_approval is not None:
             result["canOfferSessionApproval"] = from_union([from_bool, from_none], self.can_offer_session_approval)
         if self.commands is not None:
@@ -625,13 +954,28 @@ class PermissionRequest:
 @dataclass
 class QuotaSnapshot:
     entitlement_requests: float
+    """Total requests allowed by the entitlement"""
+
     is_unlimited_entitlement: bool
+    """Whether the user has an unlimited usage entitlement"""
+
     overage: float
+    """Number of requests over the entitlement limit"""
+
     overage_allowed_with_exhausted_quota: bool
+    """Whether overage is allowed when quota is exhausted"""
+
     remaining_percentage: float
+    """Percentage of quota remaining (0.0 to 1.0)"""
+
     usage_allowed_with_exhausted_quota: bool
+    """Whether usage is still permitted after quota exhaustion"""
+
     used_requests: float
+    """Number of requests already consumed"""
+
     reset_date: datetime | None = None
+    """Date when the quota resets"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'QuotaSnapshot':
@@ -662,9 +1006,16 @@ class QuotaSnapshot:
 
 @dataclass
 class RepositoryClass:
+    """Repository context for the handed-off session"""
+
     name: str
+    """Repository name"""
+
     owner: str
+    """Repository owner (user or organization)"""
+
     branch: str | None = None
+    """Git branch name, if applicable"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'RepositoryClass':
@@ -689,9 +1040,14 @@ class RequestedSchemaType(Enum):
 
 @dataclass
 class RequestedSchema:
+    """JSON Schema describing the form fields to present to the user"""
+
     properties: dict[str, Any]
+    """Form field definitions, keyed by field name"""
+
     type: RequestedSchemaType
     required: list[str] | None = None
+    """List of required field names"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'RequestedSchema':
@@ -711,6 +1067,8 @@ class RequestedSchema:
 
 
 class Theme(Enum):
+    """Theme variant this icon is intended for"""
+
     DARK = "dark"
     LIGHT = "light"
 
@@ -718,9 +1076,16 @@ class Theme(Enum):
 @dataclass
 class Icon:
     src: str
+    """URL or path to the icon image"""
+
     mime_type: str | None = None
+    """MIME type of the icon image"""
+
     sizes: list[str] | None = None
+    """Available icon sizes (e.g., ['16x16', '32x32'])"""
+
     theme: Theme | None = None
+    """Theme variant this icon is intended for"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'Icon':
@@ -745,10 +1110,21 @@ class Icon:
 
 @dataclass
 class Resource:
+    """The embedded resource contents, either text or base64-encoded binary"""
+
     uri: str
+    """URI identifying the resource"""
+
     mime_type: str | None = None
+    """MIME type of the text content
+    
+    MIME type of the blob content
+    """
     text: str | None = None
+    """Text content of the resource"""
+
     blob: str | None = None
+    """Base64-encoded binary content of the resource"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'Resource':
@@ -783,18 +1159,51 @@ class ContentType(Enum):
 @dataclass
 class Content:
     type: ContentType
+    """Content block type discriminator"""
+
     text: str | None = None
+    """The text content
+    
+    Terminal/shell output text
+    """
     cwd: str | None = None
+    """Working directory where the command was executed"""
+
     exit_code: float | None = None
+    """Process exit code, if the command has completed"""
+
     data: str | None = None
+    """Base64-encoded image data
+    
+    Base64-encoded audio data
+    """
     mime_type: str | None = None
+    """MIME type of the image (e.g., image/png, image/jpeg)
+    
+    MIME type of the audio (e.g., audio/wav, audio/mpeg)
+    
+    MIME type of the resource content
+    """
     description: str | None = None
+    """Human-readable description of the resource"""
+
     icons: list[Icon] | None = None
+    """Icons associated with this resource"""
+
     name: str | None = None
+    """Resource name identifier"""
+
     size: float | None = None
+    """Size of the resource in bytes"""
+
     title: str | None = None
+    """Human-readable display title for the resource"""
+
     uri: str | None = None
+    """URI identifying the resource"""
+
     resource: Resource | None = None
+    """The embedded resource contents, either text or base64-encoded binary"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'Content':
@@ -844,46 +1253,84 @@ class Content:
         return result
 
 
+class ResultKind(Enum):
+    """The outcome of the permission request"""
+
+    APPROVED = "approved"
+    DENIED_BY_CONTENT_EXCLUSION_POLICY = "denied-by-content-exclusion-policy"
+    DENIED_BY_RULES = "denied-by-rules"
+    DENIED_INTERACTIVELY_BY_USER = "denied-interactively-by-user"
+    DENIED_NO_APPROVAL_RULE_AND_COULD_NOT_REQUEST_FROM_USER = "denied-no-approval-rule-and-could-not-request-from-user"
+
+
 @dataclass
 class Result:
-    content: str
+    """Tool execution result on success
+    
+    The result of the permission request
+    """
+    content: str | None = None
+    """Concise tool result text sent to the LLM for chat completion, potentially truncated for
+    token efficiency
+    """
     contents: list[Content] | None = None
+    """Structured content blocks (text, images, audio, resources) returned by the tool in their
+    native format
+    """
     detailed_content: str | None = None
+    """Full detailed tool result for UI/timeline display, preserving complete content such as
+    diffs. Falls back to content when absent.
+    """
+    kind: ResultKind | None = None
+    """The outcome of the permission request"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'Result':
         assert isinstance(obj, dict)
-        content = from_str(obj.get("content"))
+        content = from_union([from_str, from_none], obj.get("content"))
         contents = from_union([lambda x: from_list(Content.from_dict, x), from_none], obj.get("contents"))
         detailed_content = from_union([from_str, from_none], obj.get("detailedContent"))
-        return Result(content, contents, detailed_content)
+        kind = from_union([ResultKind, from_none], obj.get("kind"))
+        return Result(content, contents, detailed_content, kind)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["content"] = from_str(self.content)
+        if self.content is not None:
+            result["content"] = from_union([from_str, from_none], self.content)
         if self.contents is not None:
             result["contents"] = from_union([lambda x: from_list(lambda x: to_class(Content, x), x), from_none], self.contents)
         if self.detailed_content is not None:
             result["detailedContent"] = from_union([from_str, from_none], self.detailed_content)
+        if self.kind is not None:
+            result["kind"] = from_union([lambda x: to_enum(ResultKind, x), from_none], self.kind)
         return result
 
 
 class Role(Enum):
+    """Message role: "system" for system prompts, "developer" for developer-injected instructions"""
+
     DEVELOPER = "developer"
     SYSTEM = "system"
 
 
 class ShutdownType(Enum):
+    """Whether the session ended normally ("routine") or due to a crash/fatal error ("error")"""
+
     ERROR = "error"
     ROUTINE = "routine"
 
 
 class SourceType(Enum):
+    """Origin type of the session being handed off"""
+
     LOCAL = "local"
     REMOTE = "remote"
 
 
 class ToolRequestType(Enum):
+    """Tool call type: "function" for standard tool calls, "custom" for grammar-based tool
+    calls. Defaults to "function" when absent.
+    """
     CUSTOM = "custom"
     FUNCTION = "function"
 
@@ -891,9 +1338,18 @@ class ToolRequestType(Enum):
 @dataclass
 class ToolRequest:
     name: str
+    """Name of the tool being invoked"""
+
     tool_call_id: str
+    """Unique identifier for this tool call"""
+
     arguments: Any = None
+    """Arguments to pass to the tool, format depends on the tool"""
+
     type: ToolRequestType | None = None
+    """Tool call type: "function" for standard tool calls, "custom" for grammar-based tool
+    calls. Defaults to "function" when absent.
+    """
 
     @staticmethod
     def from_dict(obj: Any) -> 'ToolRequest':
@@ -917,135 +1373,543 @@ class ToolRequest:
 
 @dataclass
 class Data:
+    """Payload indicating the agent is idle; includes any background tasks still in flight
+    
+    Empty payload; the event signals that LLM-powered conversation compaction has begun
+    
+    Empty payload; the event signals that the pending message queue has changed
+    
+    Empty payload; the event signals that the custom agent was deselected, returning to the
+    default agent
+    """
+    already_in_use: bool | None = None
     context: ContextClass | str | None = None
+    """Working directory and git context at session start
+    
+    Updated working directory and git context at resume time
+    
+    Additional context information for the handoff
+    """
     copilot_version: str | None = None
-    producer: str | None = None
-    selected_model: str | None = None
-    session_id: str | None = None
-    start_time: datetime | None = None
-    version: float | None = None
-    event_count: float | None = None
-    resume_time: datetime | None = None
-    error_type: str | None = None
-    message: str | None = None
-    provider_call_id: str | None = None
-    stack: str | None = None
-    status_code: int | None = None
-    title: str | None = None
-    info_type: str | None = None
-    warning_type: str | None = None
-    new_model: str | None = None
-    previous_model: str | None = None
-    new_mode: str | None = None
-    previous_mode: str | None = None
-    operation: Operation | None = None
-    path: str | None = None
-    """Relative path within the workspace files directory"""
+    """Version string of the Copilot application"""
 
+    producer: str | None = None
+    """Identifier of the software producing the events (e.g., "copilot-agent")"""
+
+    selected_model: str | None = None
+    """Model selected at session creation time, if any"""
+
+    session_id: str | None = None
+    """Unique identifier for the session
+    
+    Session ID that this external tool request belongs to
+    """
+    start_time: datetime | None = None
+    """ISO 8601 timestamp when the session was created"""
+
+    version: float | None = None
+    """Schema version number for the session event format"""
+
+    event_count: float | None = None
+    """Total number of persisted events in the session at the time of resume"""
+
+    resume_time: datetime | None = None
+    """ISO 8601 timestamp when the session was resumed"""
+
+    error_type: str | None = None
+    """Category of error (e.g., "authentication", "authorization", "quota", "rate_limit",
+    "query")
+    """
+    message: str | None = None
+    """Human-readable error message
+    
+    Human-readable informational message for display in the timeline
+    
+    Human-readable warning message for display in the timeline
+    
+    Message describing what information is needed from the user
+    """
+    provider_call_id: str | None = None
+    """GitHub request tracing ID (x-github-request-id header) for correlating with server-side
+    logs
+    
+    GitHub request tracing ID (x-github-request-id header) for server-side log correlation
+    """
+    stack: str | None = None
+    """Error stack trace, when available"""
+
+    status_code: int | None = None
+    """HTTP status code from the upstream request, if applicable"""
+
+    background_tasks: BackgroundTasks | None = None
+    """Background tasks still running when the agent became idle"""
+
+    title: str | None = None
+    """The new display title for the session"""
+
+    info_type: str | None = None
+    """Category of informational message (e.g., "notification", "timing", "context_window",
+    "mcp", "snapshot", "configuration", "authentication", "model")
+    """
+    warning_type: str | None = None
+    """Category of warning (e.g., "subscription", "policy", "mcp")"""
+
+    new_model: str | None = None
+    """Newly selected model identifier"""
+
+    previous_model: str | None = None
+    """Model that was previously selected, if any"""
+
+    new_mode: str | None = None
+    """Agent mode after the change (e.g., "interactive", "plan", "autopilot")"""
+
+    previous_mode: str | None = None
+    """Agent mode before the change (e.g., "interactive", "plan", "autopilot")"""
+
+    operation: Operation | None = None
+    """The type of operation performed on the plan file
+    
+    Whether the file was newly created or updated
+    """
+    path: str | None = None
+    """Relative path within the session workspace files directory
+    
+    File path to the SKILL.md definition
+    """
     handoff_time: datetime | None = None
+    """ISO 8601 timestamp when the handoff occurred"""
+
     remote_session_id: str | None = None
+    """Session ID of the remote session being handed off"""
+
     repository: RepositoryClass | str | None = None
+    """Repository context for the handed-off session
+    
+    Repository identifier in "owner/name" format, derived from the git remote URL
+    """
     source_type: SourceType | None = None
+    """Origin type of the session being handed off"""
+
     summary: str | None = None
+    """Summary of the work done in the source session
+    
+    Optional summary of the completed task, provided by the agent
+    
+    Summary of the plan that was created
+    """
     messages_removed_during_truncation: float | None = None
+    """Number of messages removed by truncation"""
+
     performed_by: str | None = None
+    """Identifier of the component that performed truncation (e.g., "BasicTruncator")"""
+
     post_truncation_messages_length: float | None = None
+    """Number of conversation messages after truncation"""
+
     post_truncation_tokens_in_messages: float | None = None
+    """Total tokens in conversation messages after truncation"""
+
     pre_truncation_messages_length: float | None = None
+    """Number of conversation messages before truncation"""
+
     pre_truncation_tokens_in_messages: float | None = None
+    """Total tokens in conversation messages before truncation"""
+
     token_limit: float | None = None
+    """Maximum token count for the model's context window"""
+
     tokens_removed_during_truncation: float | None = None
+    """Number of tokens removed by truncation"""
+
     events_removed: float | None = None
+    """Number of events that were removed by the rewind"""
+
     up_to_event_id: str | None = None
+    """Event ID that was rewound to; all events after this one were removed"""
+
     code_changes: CodeChanges | None = None
+    """Aggregate code change metrics for the session"""
+
     current_model: str | None = None
+    """Model that was selected at the time of shutdown"""
+
     error_reason: str | None = None
+    """Error description when shutdownType is "error\""""
+
     model_metrics: dict[str, ModelMetric] | None = None
+    """Per-model usage breakdown, keyed by model identifier"""
+
     session_start_time: float | None = None
+    """Unix timestamp (milliseconds) when the session started"""
+
     shutdown_type: ShutdownType | None = None
+    """Whether the session ended normally ("routine") or due to a crash/fatal error ("error")"""
+
     total_api_duration_ms: float | None = None
+    """Cumulative time spent in API calls during the session, in milliseconds"""
+
     total_premium_requests: float | None = None
+    """Total number of premium API requests used during the session"""
+
     branch: str | None = None
+    """Current git branch name"""
+
     cwd: str | None = None
+    """Current working directory path"""
+
     git_root: str | None = None
+    """Root directory of the git repository, resolved via git rev-parse"""
+
     current_tokens: float | None = None
+    """Current number of tokens in the context window"""
+
     messages_length: float | None = None
+    """Current number of messages in the conversation"""
+
     checkpoint_number: float | None = None
+    """Checkpoint snapshot number created for recovery"""
+
     checkpoint_path: str | None = None
+    """File path where the checkpoint was stored"""
+
     compaction_tokens_used: CompactionTokensUsed | None = None
+    """Token usage breakdown for the compaction LLM call"""
+
     error: ErrorClass | str | None = None
+    """Error message if compaction failed
+    
+    Error details when the tool execution failed
+    
+    Error message describing why the sub-agent failed
+    
+    Error details when the hook failed
+    """
     messages_removed: float | None = None
+    """Number of messages removed during compaction"""
+
     post_compaction_tokens: float | None = None
+    """Total tokens in conversation after compaction"""
+
     pre_compaction_messages_length: float | None = None
+    """Number of messages before compaction"""
+
     pre_compaction_tokens: float | None = None
+    """Total tokens in conversation before compaction"""
+
     request_id: str | None = None
+    """GitHub request tracing ID (x-github-request-id header) for the compaction LLM call
+    
+    Unique identifier for this permission request; used to respond via
+    session.respondToPermission()
+    
+    Request ID of the resolved permission request; clients should dismiss any UI for this
+    request
+    
+    Unique identifier for this input request; used to respond via
+    session.respondToUserInput()
+    
+    Request ID of the resolved user input request; clients should dismiss any UI for this
+    request
+    
+    Unique identifier for this elicitation request; used to respond via
+    session.respondToElicitation()
+    
+    Request ID of the resolved elicitation request; clients should dismiss any UI for this
+    request
+    
+    Unique identifier for this request; used to respond via session.respondToExternalTool()
+    
+    Request ID of the resolved external tool request; clients should dismiss any UI for this
+    request
+    
+    Unique identifier for this request; used to respond via session.respondToQueuedCommand()
+    
+    Request ID of the resolved command request; clients should dismiss any UI for this
+    request
+    
+    Unique identifier for this request; used to respond via session.respondToExitPlanMode()
+    
+    Request ID of the resolved exit plan mode request; clients should dismiss any UI for this
+    request
+    """
     success: bool | None = None
+    """Whether compaction completed successfully
+    
+    Whether the tool execution completed successfully
+    
+    Whether the hook completed successfully
+    """
     summary_content: str | None = None
+    """LLM-generated summary of the compacted conversation history"""
+
     tokens_removed: float | None = None
+    """Number of tokens removed during compaction"""
+
     agent_mode: AgentMode | None = None
+    """The agent mode that was active when this message was sent"""
+
     attachments: list[Attachment] | None = None
+    """Files, selections, or GitHub references attached to the message"""
+
     content: str | None = None
+    """The user's message text as displayed in the timeline
+    
+    The complete extended thinking text from the model
+    
+    The assistant's text response content
+    
+    Full content of the skill file, injected into the conversation for the model
+    
+    The system or developer prompt text
+    
+    The notification text, typically wrapped in <system_notification> XML tags
+    """
     interaction_id: str | None = None
+    """CAPI interaction ID for correlating this user message with its turn
+    
+    CAPI interaction ID for correlating this turn with upstream telemetry
+    
+    CAPI interaction ID for correlating this message with upstream telemetry
+    
+    CAPI interaction ID for correlating this tool execution with upstream telemetry
+    """
     source: str | None = None
+    """Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected
+    messages that should be hidden from the user)
+    """
     transformed_content: str | None = None
+    """Transformed version of the message sent to the model, with XML wrapping, timestamps, and
+    other augmentations for prompt caching
+    """
     turn_id: str | None = None
+    """Identifier for this turn within the agentic loop, typically a stringified turn number
+    
+    Identifier of the turn that has ended, matching the corresponding assistant.turn_start
+    event
+    """
     intent: str | None = None
+    """Short description of what the agent is currently doing or planning to do"""
+
     reasoning_id: str | None = None
+    """Unique identifier for this reasoning block
+    
+    Reasoning block ID this delta belongs to, matching the corresponding assistant.reasoning
+    event
+    """
     delta_content: str | None = None
+    """Incremental text chunk to append to the reasoning content
+    
+    Incremental text chunk to append to the message content
+    """
     total_response_size_bytes: float | None = None
+    """Cumulative total bytes received from the streaming response so far"""
+
     encrypted_content: str | None = None
+    """Encrypted reasoning content from OpenAI models. Session-bound and stripped on resume."""
+
     message_id: str | None = None
-    parent_tool_call_id: str | None = None
-    phase: str | None = None
-    reasoning_opaque: str | None = None
-    reasoning_text: str | None = None
-    tool_requests: list[ToolRequest] | None = None
-    api_call_id: str | None = None
-    cache_read_tokens: float | None = None
-    cache_write_tokens: float | None = None
-    copilot_usage: CopilotUsage | None = None
-    cost: float | None = None
-    duration: float | None = None
-    initiator: str | None = None
-    input_tokens: float | None = None
-    model: str | None = None
+    """Unique identifier for this assistant message
+    
+    Message ID this delta belongs to, matching the corresponding assistant.message event
+    """
     output_tokens: float | None = None
+    """Actual output token count from the API response (completion_tokens), used for accurate
+    token accounting
+    
+    Number of output tokens produced
+    """
+    parent_tool_call_id: str | None = None
+    """Tool call ID of the parent tool invocation when this event originates from a sub-agent
+    
+    Parent tool call ID when this usage originates from a sub-agent
+    """
+    phase: str | None = None
+    """Generation phase for phased-output models (e.g., thinking vs. response phases)"""
+
+    reasoning_opaque: str | None = None
+    """Opaque/encrypted extended thinking data from Anthropic models. Session-bound and stripped
+    on resume.
+    """
+    reasoning_text: str | None = None
+    """Readable reasoning text from the model's extended thinking"""
+
+    tool_requests: list[ToolRequest] | None = None
+    """Tool invocations requested by the assistant in this message"""
+
+    api_call_id: str | None = None
+    """Completion ID from the model provider (e.g., chatcmpl-abc123)"""
+
+    cache_read_tokens: float | None = None
+    """Number of tokens read from prompt cache"""
+
+    cache_write_tokens: float | None = None
+    """Number of tokens written to prompt cache"""
+
+    copilot_usage: CopilotUsage | None = None
+    """Per-request cost and usage data from the CAPI copilot_usage response field"""
+
+    cost: float | None = None
+    """Model multiplier cost for billing purposes"""
+
+    duration: float | None = None
+    """Duration of the API call in milliseconds"""
+
+    initiator: str | None = None
+    """What initiated this API call (e.g., "sub-agent"); absent for user-initiated calls"""
+
+    input_tokens: float | None = None
+    """Number of input tokens consumed"""
+
+    model: str | None = None
+    """Model identifier used for this API call
+    
+    Model identifier that generated this tool call
+    """
     quota_snapshots: dict[str, QuotaSnapshot] | None = None
+    """Per-quota resource usage snapshots, keyed by quota identifier"""
+
     reason: str | None = None
+    """Reason the current turn was aborted (e.g., "user initiated")"""
+
     arguments: Any = None
+    """Arguments for the tool invocation
+    
+    Arguments passed to the tool
+    
+    Arguments to pass to the external tool
+    """
     tool_call_id: str | None = None
+    """Unique identifier for this tool call
+    
+    Tool call ID this partial result belongs to
+    
+    Tool call ID this progress notification belongs to
+    
+    Unique identifier for the completed tool call
+    
+    Tool call ID of the parent tool invocation that spawned this sub-agent
+    
+    Tool call ID assigned to this external tool invocation
+    """
     tool_name: str | None = None
+    """Name of the tool the user wants to invoke
+    
+    Name of the tool being executed
+    
+    Name of the external tool to invoke
+    """
     mcp_server_name: str | None = None
+    """Name of the MCP server hosting this tool, when the tool is an MCP tool"""
+
     mcp_tool_name: str | None = None
+    """Original tool name on the MCP server, when the tool is an MCP tool"""
+
     partial_output: str | None = None
+    """Incremental output chunk from the running tool"""
+
     progress_message: str | None = None
+    """Human-readable progress status message (e.g., from an MCP server)"""
+
     is_user_requested: bool | None = None
+    """Whether this tool call was explicitly requested by the user rather than the assistant"""
+
     result: Result | None = None
+    """Tool execution result on success
+    
+    The result of the permission request
+    """
     tool_telemetry: dict[str, Any] | None = None
+    """Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts)"""
+
     allowed_tools: list[str] | None = None
+    """Tool names that should be auto-approved when this skill is active"""
+
     name: str | None = None
+    """Name of the invoked skill
+    
+    Optional name identifier for the message source
+    """
     plugin_name: str | None = None
+    """Name of the plugin this skill originated from, when applicable"""
+
     plugin_version: str | None = None
+    """Version of the plugin this skill originated from, when applicable"""
+
     agent_description: str | None = None
+    """Description of what the sub-agent does"""
+
     agent_display_name: str | None = None
+    """Human-readable display name of the sub-agent
+    
+    Human-readable display name of the selected custom agent
+    """
     agent_name: str | None = None
+    """Internal name of the sub-agent
+    
+    Internal name of the selected custom agent
+    """
     tools: list[str] | None = None
+    """List of tool names available to this agent, or null for all tools"""
+
     hook_invocation_id: str | None = None
+    """Unique identifier for this hook invocation
+    
+    Identifier matching the corresponding hook.start event
+    """
     hook_type: str | None = None
+    """Type of hook being invoked (e.g., "preToolUse", "postToolUse", "sessionStart")
+    
+    Type of hook that was invoked (e.g., "preToolUse", "postToolUse", "sessionStart")
+    """
     input: Any = None
+    """Input data passed to the hook"""
+
     output: Any = None
+    """Output data produced by the hook"""
+
     metadata: Metadata | None = None
+    """Metadata about the prompt template and its construction"""
+
     role: Role | None = None
+    """Message role: "system" for system prompts, "developer" for developer-injected instructions"""
+
+    kind: KindClass | None = None
+    """Structured metadata identifying what triggered this notification"""
+
     permission_request: PermissionRequest | None = None
+    """Details of the permission being requested"""
+
     allow_freeform: bool | None = None
+    """Whether the user can provide a free-form text response in addition to predefined choices"""
+
     choices: list[str] | None = None
+    """Predefined choices for the user to select from, if applicable"""
+
     question: str | None = None
+    """The question or prompt to present to the user"""
+
     mode: Mode | None = None
+    """Elicitation mode; currently only "form" is supported. Defaults to "form" when absent."""
+
     requested_schema: RequestedSchema | None = None
+    """JSON Schema describing the form fields to present to the user"""
+
+    command: str | None = None
+    """The slash command text to be executed (e.g., /help, /clear)"""
+
+    actions: list[str] | None = None
+    """Available actions the user can take (e.g., approve, edit, reject)"""
+
+    plan_content: str | None = None
+    """Full content of the plan file"""
+
+    recommended_action: str | None = None
+    """The recommended action for the user to take"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'Data':
         assert isinstance(obj, dict)
+        already_in_use = from_union([from_bool, from_none], obj.get("alreadyInUse"))
         context = from_union([ContextClass.from_dict, from_str, from_none], obj.get("context"))
         copilot_version = from_union([from_str, from_none], obj.get("copilotVersion"))
         producer = from_union([from_str, from_none], obj.get("producer"))
@@ -1060,6 +1924,7 @@ class Data:
         provider_call_id = from_union([from_str, from_none], obj.get("providerCallId"))
         stack = from_union([from_str, from_none], obj.get("stack"))
         status_code = from_union([from_int, from_none], obj.get("statusCode"))
+        background_tasks = from_union([BackgroundTasks.from_dict, from_none], obj.get("backgroundTasks"))
         title = from_union([from_str, from_none], obj.get("title"))
         info_type = from_union([from_str, from_none], obj.get("infoType"))
         warning_type = from_union([from_str, from_none], obj.get("warningType"))
@@ -1122,6 +1987,7 @@ class Data:
         total_response_size_bytes = from_union([from_float, from_none], obj.get("totalResponseSizeBytes"))
         encrypted_content = from_union([from_str, from_none], obj.get("encryptedContent"))
         message_id = from_union([from_str, from_none], obj.get("messageId"))
+        output_tokens = from_union([from_float, from_none], obj.get("outputTokens"))
         parent_tool_call_id = from_union([from_str, from_none], obj.get("parentToolCallId"))
         phase = from_union([from_str, from_none], obj.get("phase"))
         reasoning_opaque = from_union([from_str, from_none], obj.get("reasoningOpaque"))
@@ -1136,7 +2002,6 @@ class Data:
         initiator = from_union([from_str, from_none], obj.get("initiator"))
         input_tokens = from_union([from_float, from_none], obj.get("inputTokens"))
         model = from_union([from_str, from_none], obj.get("model"))
-        output_tokens = from_union([from_float, from_none], obj.get("outputTokens"))
         quota_snapshots = from_union([lambda x: from_dict(QuotaSnapshot.from_dict, x), from_none], obj.get("quotaSnapshots"))
         reason = from_union([from_str, from_none], obj.get("reason"))
         arguments = obj.get("arguments")
@@ -1163,16 +2028,23 @@ class Data:
         output = obj.get("output")
         metadata = from_union([Metadata.from_dict, from_none], obj.get("metadata"))
         role = from_union([Role, from_none], obj.get("role"))
+        kind = from_union([KindClass.from_dict, from_none], obj.get("kind"))
         permission_request = from_union([PermissionRequest.from_dict, from_none], obj.get("permissionRequest"))
         allow_freeform = from_union([from_bool, from_none], obj.get("allowFreeform"))
         choices = from_union([lambda x: from_list(from_str, x), from_none], obj.get("choices"))
         question = from_union([from_str, from_none], obj.get("question"))
         mode = from_union([Mode, from_none], obj.get("mode"))
         requested_schema = from_union([RequestedSchema.from_dict, from_none], obj.get("requestedSchema"))
-        return Data(context, copilot_version, producer, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, title, info_type, warning_type, new_model, previous_model, new_mode, previous_mode, operation, path, handoff_time, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, current_model, error_reason, model_metrics, session_start_time, shutdown_type, total_api_duration_ms, total_premium_requests, branch, cwd, git_root, current_tokens, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, interaction_id, source, transformed_content, turn_id, intent, reasoning_id, delta_content, total_response_size_bytes, encrypted_content, message_id, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, api_call_id, cache_read_tokens, cache_write_tokens, copilot_usage, cost, duration, initiator, input_tokens, model, output_tokens, quota_snapshots, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, name, plugin_name, plugin_version, agent_description, agent_display_name, agent_name, tools, hook_invocation_id, hook_type, input, output, metadata, role, permission_request, allow_freeform, choices, question, mode, requested_schema)
+        command = from_union([from_str, from_none], obj.get("command"))
+        actions = from_union([lambda x: from_list(from_str, x), from_none], obj.get("actions"))
+        plan_content = from_union([from_str, from_none], obj.get("planContent"))
+        recommended_action = from_union([from_str, from_none], obj.get("recommendedAction"))
+        return Data(already_in_use, context, copilot_version, producer, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, background_tasks, title, info_type, warning_type, new_model, previous_model, new_mode, previous_mode, operation, path, handoff_time, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, current_model, error_reason, model_metrics, session_start_time, shutdown_type, total_api_duration_ms, total_premium_requests, branch, cwd, git_root, current_tokens, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, interaction_id, source, transformed_content, turn_id, intent, reasoning_id, delta_content, total_response_size_bytes, encrypted_content, message_id, output_tokens, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, api_call_id, cache_read_tokens, cache_write_tokens, copilot_usage, cost, duration, initiator, input_tokens, model, quota_snapshots, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, name, plugin_name, plugin_version, agent_description, agent_display_name, agent_name, tools, hook_invocation_id, hook_type, input, output, metadata, role, kind, permission_request, allow_freeform, choices, question, mode, requested_schema, command, actions, plan_content, recommended_action)
 
     def to_dict(self) -> dict:
         result: dict = {}
+        if self.already_in_use is not None:
+            result["alreadyInUse"] = from_union([from_bool, from_none], self.already_in_use)
         if self.context is not None:
             result["context"] = from_union([lambda x: to_class(ContextClass, x), from_str, from_none], self.context)
         if self.copilot_version is not None:
@@ -1201,6 +2073,8 @@ class Data:
             result["stack"] = from_union([from_str, from_none], self.stack)
         if self.status_code is not None:
             result["statusCode"] = from_union([from_int, from_none], self.status_code)
+        if self.background_tasks is not None:
+            result["backgroundTasks"] = from_union([lambda x: to_class(BackgroundTasks, x), from_none], self.background_tasks)
         if self.title is not None:
             result["title"] = from_union([from_str, from_none], self.title)
         if self.info_type is not None:
@@ -1325,6 +2199,8 @@ class Data:
             result["encryptedContent"] = from_union([from_str, from_none], self.encrypted_content)
         if self.message_id is not None:
             result["messageId"] = from_union([from_str, from_none], self.message_id)
+        if self.output_tokens is not None:
+            result["outputTokens"] = from_union([to_float, from_none], self.output_tokens)
         if self.parent_tool_call_id is not None:
             result["parentToolCallId"] = from_union([from_str, from_none], self.parent_tool_call_id)
         if self.phase is not None:
@@ -1353,8 +2229,6 @@ class Data:
             result["inputTokens"] = from_union([to_float, from_none], self.input_tokens)
         if self.model is not None:
             result["model"] = from_union([from_str, from_none], self.model)
-        if self.output_tokens is not None:
-            result["outputTokens"] = from_union([to_float, from_none], self.output_tokens)
         if self.quota_snapshots is not None:
             result["quotaSnapshots"] = from_union([lambda x: from_dict(lambda x: to_class(QuotaSnapshot, x), x), from_none], self.quota_snapshots)
         if self.reason is not None:
@@ -1407,6 +2281,8 @@ class Data:
             result["metadata"] = from_union([lambda x: to_class(Metadata, x), from_none], self.metadata)
         if self.role is not None:
             result["role"] = from_union([lambda x: to_enum(Role, x), from_none], self.role)
+        if self.kind is not None:
+            result["kind"] = from_union([lambda x: to_class(KindClass, x), from_none], self.kind)
         if self.permission_request is not None:
             result["permissionRequest"] = from_union([lambda x: to_class(PermissionRequest, x), from_none], self.permission_request)
         if self.allow_freeform is not None:
@@ -1419,6 +2295,14 @@ class Data:
             result["mode"] = from_union([lambda x: to_enum(Mode, x), from_none], self.mode)
         if self.requested_schema is not None:
             result["requestedSchema"] = from_union([lambda x: to_class(RequestedSchema, x), from_none], self.requested_schema)
+        if self.command is not None:
+            result["command"] = from_union([from_str, from_none], self.command)
+        if self.actions is not None:
+            result["actions"] = from_union([lambda x: from_list(from_str, x), from_none], self.actions)
+        if self.plan_content is not None:
+            result["planContent"] = from_union([from_str, from_none], self.plan_content)
+        if self.recommended_action is not None:
+            result["recommendedAction"] = from_union([from_str, from_none], self.recommended_action)
         return result
 
 
@@ -1433,8 +2317,14 @@ class SessionEventType(Enum):
     ASSISTANT_TURN_END = "assistant.turn_end"
     ASSISTANT_TURN_START = "assistant.turn_start"
     ASSISTANT_USAGE = "assistant.usage"
+    COMMAND_COMPLETED = "command.completed"
+    COMMAND_QUEUED = "command.queued"
     ELICITATION_COMPLETED = "elicitation.completed"
     ELICITATION_REQUESTED = "elicitation.requested"
+    EXIT_PLAN_MODE_COMPLETED = "exit_plan_mode.completed"
+    EXIT_PLAN_MODE_REQUESTED = "exit_plan_mode.requested"
+    EXTERNAL_TOOL_COMPLETED = "external_tool.completed"
+    EXTERNAL_TOOL_REQUESTED = "external_tool.requested"
     HOOK_END = "hook.end"
     HOOK_START = "hook.start"
     PENDING_MESSAGES_MODIFIED = "pending_messages.modified"
@@ -1467,6 +2357,7 @@ class SessionEventType(Enum):
     SUBAGENT_SELECTED = "subagent.selected"
     SUBAGENT_STARTED = "subagent.started"
     SYSTEM_MESSAGE = "system.message"
+    SYSTEM_NOTIFICATION = "system.notification"
     TOOL_EXECUTION_COMPLETE = "tool.execution_complete"
     TOOL_EXECUTION_PARTIAL_RESULT = "tool.execution_partial_result"
     TOOL_EXECUTION_PROGRESS = "tool.execution_progress"
@@ -1488,11 +2379,29 @@ class SessionEventType(Enum):
 @dataclass
 class SessionEvent:
     data: Data
+    """Payload indicating the agent is idle; includes any background tasks still in flight
+    
+    Empty payload; the event signals that LLM-powered conversation compaction has begun
+    
+    Empty payload; the event signals that the pending message queue has changed
+    
+    Empty payload; the event signals that the custom agent was deselected, returning to the
+    default agent
+    """
     id: UUID
+    """Unique event identifier (UUID v4), generated when the event is emitted"""
+
     timestamp: datetime
+    """ISO 8601 timestamp when the event was created"""
+
     type: SessionEventType
     ephemeral: bool | None = None
+    """When true, the event is transient and not persisted to the session event log on disk"""
+
     parent_id: UUID | None = None
+    """ID of the chronologically preceding event in the session, forming a linked chain. Null
+    for the first event.
+    """
 
     @staticmethod
     def from_dict(obj: Any) -> 'SessionEvent':

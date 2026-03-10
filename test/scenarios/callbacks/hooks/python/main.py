@@ -70,7 +70,7 @@ async def main():
         if response:
             print(response.data.content)
 
-        await session.destroy()
+        await session.disconnect()
 
         print("\n--- Hook execution log ---")
         for entry in hook_log:

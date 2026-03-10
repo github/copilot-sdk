@@ -40,7 +40,7 @@ describe("Agent Selection RPC", async () => {
         expect(result.agents[0].description).toBe("A test agent");
         expect(result.agents[1].name).toBe("another-agent");
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should return null when no agent is selected", async () => {
@@ -61,7 +61,7 @@ describe("Agent Selection RPC", async () => {
         const result = await session.rpc.agent.getCurrent();
         expect(result.agent).toBeNull();
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should select and get current agent", async () => {
@@ -90,7 +90,7 @@ describe("Agent Selection RPC", async () => {
         expect(currentResult.agent).not.toBeNull();
         expect(currentResult.agent!.name).toBe("test-agent");
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should deselect current agent", async () => {
@@ -116,7 +116,7 @@ describe("Agent Selection RPC", async () => {
         const currentResult = await session.rpc.agent.getCurrent();
         expect(currentResult.agent).toBeNull();
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should return empty list when no custom agents configured", async () => {
@@ -125,7 +125,7 @@ describe("Agent Selection RPC", async () => {
         const result = await session.rpc.agent.list();
         expect(result.agents).toEqual([]);
 
-        await session.destroy();
+        await session.disconnect();
     });
 });
 
@@ -144,6 +144,6 @@ describe("Session Compact RPC", async () => {
         expect(typeof result.tokensRemoved).toBe("number");
         expect(typeof result.messagesRemoved).toBe("number");
 
-        await session.destroy();
+        await session.disconnect();
     }, 60000);
 });

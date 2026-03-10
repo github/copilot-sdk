@@ -76,7 +76,7 @@ func TestSkills(t *testing.T) {
 			t.Errorf("Expected message to contain skill marker '%s', got: %v", skillMarker, message.Data.Content)
 		}
 
-		session.Destroy()
+		session.Disconnect()
 	})
 
 	t.Run("should not apply skill when disabled via disabledSkills", func(t *testing.T) {
@@ -105,7 +105,7 @@ func TestSkills(t *testing.T) {
 			t.Errorf("Expected message to NOT contain skill marker '%s' when disabled, got: %v", skillMarker, *message.Data.Content)
 		}
 
-		session.Destroy()
+		session.Disconnect()
 	})
 
 	t.Run("should apply skill on session resume with skillDirectories", func(t *testing.T) {
@@ -154,6 +154,6 @@ func TestSkills(t *testing.T) {
 			t.Errorf("Expected message to contain skill marker '%s' after resume, got: %v", skillMarker, message2.Data.Content)
 		}
 
-		session2.Destroy()
+		session2.Disconnect()
 	})
 }

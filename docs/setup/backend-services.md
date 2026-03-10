@@ -131,7 +131,39 @@ response = await session.send_and_wait({"prompt": message})
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"time"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	userID := "user1"
+	message := "Hello"
+
+	client := copilot.NewClient(&copilot.ClientOptions{
+		CLIUrl: "localhost:4321",
+	})
+	client.Start(ctx)
+	defer client.Stop()
+
+	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
+		SessionID: fmt.Sprintf("user-%s-%d", userID, time.Now().Unix()),
+		Model:     "gpt-4.1",
+	})
+
+	response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: message})
+	_ = response
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
     CLIUrl:"localhost:4321",
@@ -152,7 +184,30 @@ response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: message})
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot.SDK;
+
+var userId = "user1";
+var message = "Hello";
+
+var client = new CopilotClient(new CopilotClientOptions
+{
+    CliUrl = "localhost:4321",
+    UseStdio = false,
+});
+
+await using var session = await client.CreateSessionAsync(new SessionConfig
+{
+    SessionId = $"user-{userId}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}",
+    Model = "gpt-4.1",
+});
+
+var response = await session.SendAndWaitAsync(
+    new MessageOptions { Prompt = message });
+```
+<!-- /docs-validate: hidden -->
+
 ```csharp
 var client = new CopilotClient(new CopilotClientOptions
 {
@@ -225,7 +280,7 @@ app.post("/chat", authMiddleware, async (req, res) => {
 
 ### BYOK (No GitHub Auth)
 
-Use your own API keys for the model provider. See [BYOK](./byok.md) for details.
+Use your own API keys for the model provider. See [BYOK](../auth/byok.md) for details.
 
 ```typescript
 const client = new CopilotClient({
@@ -319,7 +374,7 @@ async function processJob(job: Job) {
     });
 
     await saveResult(job.id, response?.data.content);
-    await session.destroy();  // Clean up after job completes
+    await session.disconnect();  // Clean up after job completes
 }
 ```
 
@@ -423,10 +478,10 @@ setInterval(() => cleanupSessions(24 * 60 * 60 * 1000), 60 * 60 * 1000);
 |------|-----------|
 | Multiple CLI servers / high availability | [Scaling & Multi-Tenancy](./scaling.md) |
 | GitHub account auth for users | [GitHub OAuth](./github-oauth.md) |
-| Your own model keys | [BYOK](./byok.md) |
+| Your own model keys | [BYOK](../auth/byok.md) |
 
 ## Next Steps
 
 - **[Scaling & Multi-Tenancy](./scaling.md)** — Handle more users, add redundancy
-- **[Session Persistence](../session-persistence.md)** — Resume sessions across restarts
+- **[Session Persistence](../features/session-persistence.md)** — Resume sessions across restarts
 - **[GitHub OAuth](./github-oauth.md)** — Add user authentication

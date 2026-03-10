@@ -43,6 +43,7 @@ await session.sendAndWait({ prompt: "Review this code for security issues" });
 
 ```python
 from copilot import CopilotClient
+from copilot.types import PermissionRequestResult
 
 async def main():
     client = CopilotClient()
@@ -54,7 +55,7 @@ async def main():
             "./skills/code-review",
             "./skills/documentation",
         ],
-        "on_permission_request": lambda req: {"kind": "approved"},
+        "on_permission_request": lambda req, inv: PermissionRequestResult(kind="approved"),
     })
 
     # Copilot now has access to skills in those directories
@@ -170,7 +171,31 @@ session = await client.create_session({
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+
+	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
+		SkillDirectories: []string{"./skills"},
+		DisabledSkills:   []string{"experimental-feature", "deprecated-tool"},
+		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+		},
+	})
+	_ = session
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     SkillDirectories: []string{"./skills"},
@@ -183,7 +208,28 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot.SDK;
+
+public static class SkillsExample
+{
+    public static async Task Main()
+    {
+        await using var client = new CopilotClient();
+
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            SkillDirectories = new List<string> { "./skills" },
+            DisabledSkills = new List<string> { "experimental-feature", "deprecated-tool" },
+            OnPermissionRequest = (req, inv) =>
+                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
+        });
+    }
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {
@@ -319,4 +365,4 @@ If multiple skills provide conflicting instructions:
 
 - [Custom Agents](../getting-started.md#create-custom-agents) - Define specialized AI personas
 - [Custom Tools](../getting-started.md#step-4-add-a-custom-tool) - Build your own tools
-- [MCP Servers](../mcp/overview.md) - Connect external tool providers
+- [MCP Servers](./mcp.md) - Connect external tool providers

@@ -9,16 +9,16 @@ import { createSdkTestContext } from "./harness/sdkTestContext";
 describe("Error Resilience", async () => {
     const { copilotClient: client } = await createSdkTestContext();
 
-    it("should throw when sending to destroyed session", async () => {
+    it("should throw when sending to disconnected session", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
-        await session.destroy();
+        await session.disconnect();
 
         await expect(session.sendAndWait({ prompt: "Hello" })).rejects.toThrow();
     });
 
-    it("should throw when getting messages from destroyed session", async () => {
+    it("should throw when getting messages from disconnected session", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
-        await session.destroy();
+        await session.disconnect();
 
         await expect(session.getMessages()).rejects.toThrow();
     });
@@ -31,8 +31,8 @@ describe("Error Resilience", async () => {
         // Second abort should not throw
         await session.abort();
 
-        // Session should still be destroyable
-        await session.destroy();
+        // Session should still be disconnectable
+        await session.disconnect();
     });
 
     it("should throw when resuming non-existent session", async () => {

@@ -7,6 +7,7 @@ This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py
 import pytest
 
 from copilot import CopilotClient, PermissionHandler, define_tool
+from copilot.types import ModelCapabilities, ModelInfo, ModelLimits, ModelSupports
 from e2e.testharness import CLI_PATH
 
 
@@ -31,32 +32,6 @@ class TestPermissionHandlerRequired:
             )
             with pytest.raises(ValueError, match="on_permission_request.*is required"):
                 await client.resume_session(session.session_id, {})
-        finally:
-            await client.force_stop()
-
-
-class TestHandleToolCallRequest:
-    @pytest.mark.asyncio
-    async def test_returns_failure_when_tool_not_registered(self):
-        client = CopilotClient({"cli_path": CLI_PATH})
-        await client.start()
-
-        try:
-            session = await client.create_session(
-                {"on_permission_request": PermissionHandler.approve_all}
-            )
-
-            response = await client._handle_tool_call_request(
-                {
-                    "sessionId": session.session_id,
-                    "toolCallId": "123",
-                    "toolName": "missing_tool",
-                    "arguments": {},
-                }
-            )
-
-            assert response["result"]["resultType"] == "failure"
-            assert response["result"]["error"] == "tool 'missing_tool' not supported"
         finally:
             await client.force_stop()
 
@@ -240,6 +215,116 @@ class TestOverridesBuiltInTool:
             await client.force_stop()
 
 
+class TestOnListModels:
+    @pytest.mark.asyncio
+    async def test_list_models_with_custom_handler(self):
+        """Test that on_list_models handler is called instead of RPC"""
+        custom_models = [
+            ModelInfo(
+                id="my-custom-model",
+                name="My Custom Model",
+                capabilities=ModelCapabilities(
+                    supports=ModelSupports(vision=False, reasoning_effort=False),
+                    limits=ModelLimits(max_context_window_tokens=128000),
+                ),
+            )
+        ]
+
+        handler_calls = []
+
+        def handler():
+            handler_calls.append(1)
+            return custom_models
+
+        client = CopilotClient({"cli_path": CLI_PATH, "on_list_models": handler})
+        await client.start()
+        try:
+            models = await client.list_models()
+            assert len(handler_calls) == 1
+            assert models == custom_models
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_list_models_handler_caches_results(self):
+        """Test that on_list_models results are cached"""
+        custom_models = [
+            ModelInfo(
+                id="cached-model",
+                name="Cached Model",
+                capabilities=ModelCapabilities(
+                    supports=ModelSupports(vision=False, reasoning_effort=False),
+                    limits=ModelLimits(max_context_window_tokens=128000),
+                ),
+            )
+        ]
+
+        handler_calls = []
+
+        def handler():
+            handler_calls.append(1)
+            return custom_models
+
+        client = CopilotClient({"cli_path": CLI_PATH, "on_list_models": handler})
+        await client.start()
+        try:
+            await client.list_models()
+            await client.list_models()
+            assert len(handler_calls) == 1  # Only called once due to caching
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_list_models_async_handler(self):
+        """Test that async on_list_models handler works"""
+        custom_models = [
+            ModelInfo(
+                id="async-model",
+                name="Async Model",
+                capabilities=ModelCapabilities(
+                    supports=ModelSupports(vision=False, reasoning_effort=False),
+                    limits=ModelLimits(max_context_window_tokens=128000),
+                ),
+            )
+        ]
+
+        async def handler():
+            return custom_models
+
+        client = CopilotClient({"cli_path": CLI_PATH, "on_list_models": handler})
+        await client.start()
+        try:
+            models = await client.list_models()
+            assert models == custom_models
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_list_models_handler_without_start(self):
+        """Test that on_list_models works without starting the CLI connection"""
+        custom_models = [
+            ModelInfo(
+                id="no-start-model",
+                name="No Start Model",
+                capabilities=ModelCapabilities(
+                    supports=ModelSupports(vision=False, reasoning_effort=False),
+                    limits=ModelLimits(max_context_window_tokens=128000),
+                ),
+            )
+        ]
+
+        handler_calls = []
+
+        def handler():
+            handler_calls.append(1)
+            return custom_models
+
+        client = CopilotClient({"cli_path": CLI_PATH, "on_list_models": handler})
+        models = await client.list_models()
+        assert len(handler_calls) == 1
+        assert models == custom_models
+
+
 class TestSessionConfigForwarding:
     @pytest.mark.asyncio
     async def test_create_session_forwards_client_name(self):
@@ -288,6 +373,63 @@ class TestSessionConfigForwarding:
                 {"client_name": "my-app", "on_permission_request": PermissionHandler.approve_all},
             )
             assert captured["session.resume"]["clientName"] == "my-app"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_session_forwards_agent(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            await client.create_session(
+                {
+                    "agent": "test-agent",
+                    "custom_agents": [{"name": "test-agent", "prompt": "You are a test agent."}],
+                    "on_permission_request": PermissionHandler.approve_all,
+                }
+            )
+            assert captured["session.create"]["agent"] == "test-agent"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_resume_session_forwards_agent(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            session = await client.create_session(
+                {"on_permission_request": PermissionHandler.approve_all}
+            )
+
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.resume":
+                    return {"sessionId": session.session_id}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            await client.resume_session(
+                session.session_id,
+                {
+                    "agent": "test-agent",
+                    "custom_agents": [{"name": "test-agent", "prompt": "You are a test agent."}],
+                    "on_permission_request": PermissionHandler.approve_all,
+                },
+            )
+            assert captured["session.resume"]["agent"] == "test-agent"
         finally:
             await client.force_stop()
 

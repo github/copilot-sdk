@@ -38,7 +38,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// 3. Get the session ID (don't destroy — resume needs the session to persist)
+	// 3. Get the session ID (don't disconnect — resume needs the session to persist)
 	sessionID := session.SessionID
 
 	// 4. Resume the session with the same ID
@@ -49,7 +49,7 @@ func main() {
 		log.Fatal(err)
 	}
 	fmt.Println("Session resumed")
-	defer resumed.Destroy()
+	defer resumed.Disconnect()
 
 	// 5. Ask for the secret word
 	response, err := resumed.SendAndWait(ctx, copilot.MessageOptions{

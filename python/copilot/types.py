@@ -9,7 +9,10 @@ from dataclasses import dataclass
 from typing import Any, Literal, NotRequired, TypedDict
 
 # Import generated SessionEvent types
-from .generated.session_events import SessionEvent
+from .generated.session_events import (
+    PermissionRequest,
+    SessionEvent,
+)
 
 # SessionEvent is now imported from generated types
 # It provides proper type discrimination for all event types
@@ -95,34 +98,46 @@ class CopilotClientOptions(TypedDict, total=False):
     # When False, only explicit tokens (github_token or environment variables) are used.
     # Default: True (but defaults to False when github_token is provided)
     use_logged_in_user: bool
+    # Custom handler for listing available models.
+    # When provided, client.list_models() calls this handler instead of
+    # querying the CLI server. Useful in BYOK mode to return models
+    # available from your custom provider.
+    on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]]
 
 
 ToolResultType = Literal["success", "failure", "rejected", "denied"]
 
 
-class ToolBinaryResult(TypedDict, total=False):
-    data: str
-    mimeType: str
-    type: str
-    description: str
+@dataclass
+class ToolBinaryResult:
+    """Binary content returned by a tool."""
+
+    data: str = ""
+    mime_type: str = ""
+    type: str = ""
+    description: str = ""
 
 
-class ToolResult(TypedDict, total=False):
+@dataclass
+class ToolResult:
     """Result of a tool invocation."""
 
-    textResultForLlm: str
-    binaryResultsForLlm: list[ToolBinaryResult]
-    resultType: ToolResultType
-    error: str
-    sessionLog: str
-    toolTelemetry: dict[str, Any]
+    text_result_for_llm: str = ""
+    result_type: ToolResultType = "success"
+    error: str | None = None
+    binary_results_for_llm: list[ToolBinaryResult] | None = None
+    session_log: str | None = None
+    tool_telemetry: dict[str, Any] | None = None
 
 
-class ToolInvocation(TypedDict):
-    session_id: str
-    tool_call_id: str
-    tool_name: str
-    arguments: Any
+@dataclass
+class ToolInvocation:
+    """Context passed to a tool handler when invoked."""
+
+    session_id: str = ""
+    tool_call_id: str = ""
+    tool_name: str = ""
+    arguments: Any = None
 
 
 ToolHandler = Callable[[ToolInvocation], ToolResult | Awaitable[ToolResult]]
@@ -164,25 +179,26 @@ class SystemMessageReplaceConfig(TypedDict):
 SystemMessageConfig = SystemMessageAppendConfig | SystemMessageReplaceConfig
 
 
-# Permission request types
-class PermissionRequest(TypedDict, total=False):
-    """Permission request from the server"""
+# Permission result types
 
-    kind: Literal["shell", "write", "mcp", "read", "url", "custom-tool"]
-    toolCallId: str
-    # Additional fields vary by kind
+PermissionRequestResultKind = Literal[
+    "approved",
+    "denied-by-rules",
+    "denied-by-content-exclusion-policy",
+    "denied-no-approval-rule-and-could-not-request-from-user",
+    "denied-interactively-by-user",
+]
 
 
-class PermissionRequestResult(TypedDict, total=False):
-    """Result of a permission request"""
+@dataclass
+class PermissionRequestResult:
+    """Result of a permission request."""
 
-    kind: Literal[
-        "approved",
-        "denied-by-rules",
-        "denied-no-approval-rule-and-could-not-request-from-user",
-        "denied-interactively-by-user",
-    ]
-    rules: list[Any]
+    kind: PermissionRequestResultKind = "denied-no-approval-rule-and-could-not-request-from-user"
+    rules: list[Any] | None = None
+    feedback: str | None = None
+    message: str | None = None
+    path: str | None = None
 
 
 _PermissionHandlerFn = Callable[
@@ -496,6 +512,9 @@ class SessionConfig(TypedDict, total=False):
     mcp_servers: dict[str, MCPServerConfig]
     # Custom agent configurations for the session
     custom_agents: list[CustomAgentConfig]
+    # Name of the custom agent to activate when the session starts.
+    # Must match the name of one of the agents in custom_agents.
+    agent: str
     # Override the default configuration directory location.
     # When specified, the session will use this directory for storing config and state.
     config_dir: str
@@ -507,9 +526,13 @@ class SessionConfig(TypedDict, total=False):
     # When enabled (default), sessions automatically manage context limits and persist state.
     # Set to {"enabled": False} to disable.
     infinite_sessions: InfiniteSessionConfig
+    # Optional event handler that is registered on the session before the
+    # session.create RPC is issued, ensuring early events (e.g. session.start)
+    # are delivered. Equivalent to calling session.on(handler) immediately
+    # after creation, but executes earlier in the lifecycle so no events are missed.
+    on_event: Callable[[SessionEvent], None]
 
 
-# Azure-specific provider options
 class AzureProviderOptions(TypedDict, total=False):
     """Azure-specific provider configuration"""
 
@@ -564,6 +587,9 @@ class ResumeSessionConfig(TypedDict, total=False):
     mcp_servers: dict[str, MCPServerConfig]
     # Custom agent configurations for the session
     custom_agents: list[CustomAgentConfig]
+    # Name of the custom agent to activate when the session starts.
+    # Must match the name of one of the agents in custom_agents.
+    agent: str
     # Directories to load skills from
     skill_directories: list[str]
     # List of skill names to disable
@@ -573,6 +599,9 @@ class ResumeSessionConfig(TypedDict, total=False):
     # When True, skips emitting the session.resume event.
     # Useful for reconnecting to a session without triggering resume-related side effects.
     disable_resume: bool
+    # Optional event handler registered before the session.resume RPC is issued,
+    # ensuring early events are delivered. See SessionConfig.on_event.
+    on_event: Callable[[SessionEvent], None]
 
 
 # Options for sending a message to a session

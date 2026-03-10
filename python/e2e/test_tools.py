@@ -5,7 +5,12 @@ import os
 import pytest
 from pydantic import BaseModel, Field
 
-from copilot import PermissionHandler, ToolInvocation, define_tool
+from copilot import (
+    PermissionHandler,
+    PermissionRequestResult,
+    ToolInvocation,
+    define_tool,
+)
 
 from .testharness import E2ETestContext, get_final_assistant_message
 
@@ -105,7 +110,7 @@ class TestTools:
             assert params.query.table == "cities"
             assert params.query.ids == [12, 19]
             assert params.query.sortAscending is True
-            assert invocation["session_id"] == expected_session_id
+            assert invocation.session_id == expected_session_id
 
             return [
                 City(countryId=19, cityName="Passos", population=135460),
@@ -165,7 +170,7 @@ class TestTools:
 
         def on_permission_request(request, invocation):
             permission_requests.append(request)
-            return {"kind": "approved"}
+            return PermissionRequestResult(kind="approved")
 
         session = await ctx.client.create_session(
             {
@@ -179,9 +184,9 @@ class TestTools:
         assert "HELLO" in assistant_message.data.content
 
         # Should have received a custom-tool permission request
-        custom_tool_requests = [r for r in permission_requests if r.get("kind") == "custom-tool"]
+        custom_tool_requests = [r for r in permission_requests if r.kind.value == "custom-tool"]
         assert len(custom_tool_requests) > 0
-        assert custom_tool_requests[0].get("toolName") == "encrypt_string"
+        assert custom_tool_requests[0].tool_name == "encrypt_string"
 
     async def test_denies_custom_tool_when_permission_denied(self, ctx: E2ETestContext):
         tool_handler_called = False
@@ -196,7 +201,7 @@ class TestTools:
             return params.input.upper()
 
         def on_permission_request(request, invocation):
-            return {"kind": "denied-interactively-by-user"}
+            return PermissionRequestResult(kind="denied-interactively-by-user")
 
         session = await ctx.client.create_session(
             {

@@ -68,7 +68,33 @@ await client.stop()
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+
+	client := copilot.NewClient(nil)
+	if err := client.Start(ctx); err != nil {
+		log.Fatal(err)
+	}
+	defer client.Stop()
+
+	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{Model: "gpt-4.1"})
+	response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Hello!"})
+	fmt.Println(*response.Data.Content)
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 client := copilot.NewClient(nil)
 if err := client.Start(ctx); err != nil {
@@ -199,10 +225,10 @@ If you need any of these, it's time to pick a more advanced setup:
 | Ship your app to others | [Bundled CLI](./bundled-cli.md) |
 | Multiple users signing in | [GitHub OAuth](./github-oauth.md) |
 | Run on a server | [Backend Services](./backend-services.md) |
-| Use your own model keys | [BYOK](./byok.md) |
+| Use your own model keys | [BYOK](../auth/byok.md) |
 
 ## Next Steps
 
-- **[Getting Started tutorial](../../getting-started.md)** — Build a complete interactive app
-- **[Authentication docs](../../auth/index.md)** — All auth methods in detail
-- **[Session Persistence](../session-persistence.md)** — Advanced session management
+- **[Getting Started tutorial](../getting-started.md)** — Build a complete interactive app
+- **[Authentication docs](../auth/index.md)** — All auth methods in detail
+- **[Session Persistence](../features/session-persistence.md)** — Advanced session management

@@ -412,8 +412,8 @@ class SessionManager {
     private async evictOldestSession(): Promise<void> {
         const [oldestId] = this.activeSessions.keys();
         const session = this.activeSessions.get(oldestId)!;
-        // Session state is persisted automatically — safe to destroy
-        await session.destroy();
+        // Session state is persisted automatically — safe to disconnect
+        await session.disconnect();
         this.activeSessions.delete(oldestId);
     }
 }
@@ -457,7 +457,7 @@ app.post("/api/analyze", async (req, res) => {
         });
         res.json({ result: response?.data.content });
     } finally {
-        await session.destroy();  // Clean up immediately
+        await session.disconnect();  // Clean up immediately
     }
 });
 ```
@@ -629,7 +629,7 @@ flowchart TB
 
 ## Next Steps
 
-- **[Session Persistence](../session-persistence.md)** — Deep dive on resumable sessions
+- **[Session Persistence](../features/session-persistence.md)** — Deep dive on resumable sessions
 - **[Backend Services](./backend-services.md)** — Core server-side setup
 - **[GitHub OAuth](./github-oauth.md)** — Multi-user authentication
-- **[BYOK](./byok.md)** — Use your own model provider
+- **[BYOK](../auth/byok.md)** — Use your own model provider

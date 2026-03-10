@@ -138,7 +138,7 @@ class TestSessionRpc:
             )
             assert interactive_result.mode == Mode.INTERACTIVE
 
-            await session.destroy()
+            await session.disconnect()
             await client.stop()
         finally:
             await client.force_stop()
@@ -178,7 +178,7 @@ class TestSessionRpc:
             assert after_delete.exists is False
             assert after_delete.content is None
 
-            await session.destroy()
+            await session.disconnect()
             await client.stop()
         finally:
             await client.force_stop()
@@ -228,7 +228,7 @@ class TestSessionRpc:
             assert "test.txt" in after_nested.files
             assert any("nested.txt" in f for f in after_nested.files)
 
-            await session.destroy()
+            await session.disconnect()
             await client.stop()
         finally:
             await client.force_stop()

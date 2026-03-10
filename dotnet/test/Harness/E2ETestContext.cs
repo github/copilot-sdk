@@ -92,13 +92,14 @@ public sealed class E2ETestContext : IAsyncDisposable
         return env!;
     }
 
-    public CopilotClient CreateClient()
+    public CopilotClient CreateClient(bool useStdio = true)
     {
         return new(new CopilotClientOptions
         {
             Cwd = WorkDir,
             CliPath = GetCliPath(_repoRoot),
             Environment = GetEnvironment(),
+            UseStdio = useStdio,
             GitHubToken = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")) ? "fake-token-for-e2e-tests" : null,
         });
     }

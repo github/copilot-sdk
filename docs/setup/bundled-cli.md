@@ -105,7 +105,35 @@ await client.stop()
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+
+	client := copilot.NewClient(&copilot.ClientOptions{
+		CLIPath: "./vendor/copilot",
+	})
+	if err := client.Start(ctx); err != nil {
+		log.Fatal(err)
+	}
+	defer client.Stop()
+
+	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{Model: "gpt-4.1"})
+	response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Hello!"})
+	fmt.Println(*response.Data.Content)
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
     CLIPath:"./vendor/copilot",
@@ -203,7 +231,7 @@ const session = await client.createSession({
 });
 ```
 
-See the **[BYOK guide](./byok.md)** for full details.
+See the **[BYOK guide](../auth/byok.md)** for full details.
 
 ## Session Management
 
@@ -318,10 +346,10 @@ const client = new CopilotClient({
 |------|-----------|
 | Users signing in with GitHub accounts | [GitHub OAuth](./github-oauth.md) |
 | Run on a server instead of user machines | [Backend Services](./backend-services.md) |
-| Use your own model keys | [BYOK](./byok.md) |
+| Use your own model keys | [BYOK](../auth/byok.md) |
 
 ## Next Steps
 
-- **[BYOK guide](./byok.md)** — Use your own model provider keys
-- **[Session Persistence](../session-persistence.md)** — Advanced session management
-- **[Getting Started tutorial](../../getting-started.md)** — Build a complete app
+- **[BYOK guide](../auth/byok.md)** — Use your own model provider keys
+- **[Session Persistence](../features/session-persistence.md)** — Advanced session management
+- **[Getting Started tutorial](../getting-started.md)** — Build a complete app

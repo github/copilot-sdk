@@ -24,6 +24,14 @@ namespace GitHub.Copilot.SDK;
 /// The session provides methods to send messages, subscribe to events, retrieve
 /// conversation history, and manage the session lifecycle.
 /// </para>
+/// <para>
+/// <see cref="CopilotSession"/> implements <see cref="IAsyncDisposable"/>. Use the
+/// <c>await using</c> pattern for automatic cleanup, or call <see cref="DisposeAsync"/>
+/// explicitly. Disposing a session releases in-memory resources but preserves session data
+/// on disk — the conversation can be resumed later via
+/// <see cref="CopilotClient.ResumeSessionAsync"/>. To permanently delete session data,
+/// use <see cref="CopilotClient.DeleteSessionAsync"/>.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -78,7 +86,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// The path to the workspace containing checkpoints/, plan.md, and files/ subdirectories,
     /// or null if infinite sessions are disabled.
     /// </value>
-    public string? WorkspacePath { get; }
+    public string? WorkspacePath { get; internal set; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CopilotSession"/> class.
@@ -261,9 +269,15 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <param name="sessionEvent">The session event to dispatch.</param>
     /// <remarks>
     /// This method is internal. Handler exceptions are allowed to propagate so they are not lost.
+    /// Broadcast request events (external_tool.requested, permission.requested) are handled
+    /// internally before being forwarded to user handlers.
     /// </remarks>
     internal void DispatchEvent(SessionEvent sessionEvent)
     {
+        // Handle broadcast request events (protocol v3) before dispatching to user handlers.
+        // Fire-and-forget: the response is sent asynchronously via RPC.
+        HandleBroadcastEventAsync(sessionEvent);
+
         // Reading the field once gives us a snapshot; delegates are immutable.
         EventHandlers?.Invoke(sessionEvent);
     }
@@ -325,7 +339,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             };
         }
 
-        var request = JsonSerializer.Deserialize(permissionRequestData.GetRawText(), SessionJsonContext.Default.PermissionRequest)
+        var request = JsonSerializer.Deserialize(permissionRequestData.GetRawText(), SessionEventsJsonContext.Default.PermissionRequest)
             ?? throw new InvalidOperationException("Failed to deserialize permission request");
 
         var invocation = new PermissionInvocation
@@ -334,6 +348,145 @@ public sealed partial class CopilotSession : IAsyncDisposable
         };
 
         return await handler(request, invocation);
+    }
+
+    /// <summary>
+    /// Handles broadcast request events by executing local handlers and responding via RPC.
+    /// Implements the protocol v3 broadcast model where tool calls and permission requests
+    /// are broadcast as session events to all clients.
+    /// </summary>
+    private async void HandleBroadcastEventAsync(SessionEvent sessionEvent)
+    {
+        switch (sessionEvent)
+        {
+            case ExternalToolRequestedEvent toolEvent:
+                {
+                    var data = toolEvent.Data;
+                    if (string.IsNullOrEmpty(data.RequestId) || string.IsNullOrEmpty(data.ToolName))
+                        return;
+
+                    var tool = GetTool(data.ToolName);
+                    if (tool is null)
+                        return; // This client doesn't handle this tool; another client will.
+
+                    await ExecuteToolAndRespondAsync(data.RequestId, data.ToolName, data.ToolCallId, data.Arguments, tool);
+                    break;
+                }
+
+            case PermissionRequestedEvent permEvent:
+                {
+                    var data = permEvent.Data;
+                    if (string.IsNullOrEmpty(data.RequestId) || data.PermissionRequest is null)
+                        return;
+
+                    var handler = _permissionHandler;
+                    if (handler is null)
+                        return; // This client doesn't handle permissions; another client will.
+
+                    await ExecutePermissionAndRespondAsync(data.RequestId, data.PermissionRequest, handler);
+                    break;
+                }
+        }
+    }
+
+    /// <summary>
+    /// Executes a tool handler and sends the result back via the HandlePendingToolCall RPC.
+    /// </summary>
+    private async Task ExecuteToolAndRespondAsync(string requestId, string toolName, string toolCallId, object? arguments, AIFunction tool)
+    {
+        try
+        {
+            var invocation = new ToolInvocation
+            {
+                SessionId = SessionId,
+                ToolCallId = toolCallId,
+                ToolName = toolName,
+                Arguments = arguments
+            };
+
+            var aiFunctionArgs = new AIFunctionArguments
+            {
+                Context = new Dictionary<object, object?>
+                {
+                    [typeof(ToolInvocation)] = invocation
+                }
+            };
+
+            if (arguments is not null)
+            {
+                if (arguments is not JsonElement incomingJsonArgs)
+                {
+                    throw new InvalidOperationException($"Incoming arguments must be a {nameof(JsonElement)}; received {arguments.GetType().Name}");
+                }
+
+                foreach (var prop in incomingJsonArgs.EnumerateObject())
+                {
+                    aiFunctionArgs[prop.Name] = prop.Value;
+                }
+            }
+
+            var result = await tool.InvokeAsync(aiFunctionArgs);
+
+            var toolResultObject = result is ToolResultAIContent trac ? trac.Result : new ToolResultObject
+            {
+                ResultType = "success",
+                TextResultForLlm = result is JsonElement { ValueKind: JsonValueKind.String } je
+                    ? je.GetString()!
+                    : JsonSerializer.Serialize(result, tool.JsonSerializerOptions.GetTypeInfo(typeof(object))),
+            };
+
+            await Rpc.Tools.HandlePendingToolCallAsync(requestId, toolResultObject, error: null);
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                await Rpc.Tools.HandlePendingToolCallAsync(requestId, result: null, error: ex.Message);
+            }
+            catch (IOException)
+            {
+                // Connection lost or RPC error — nothing we can do
+            }
+            catch (ObjectDisposedException)
+            {
+                // Connection already disposed — nothing we can do
+            }
+        }
+    }
+
+    /// <summary>
+    /// Executes a permission handler and sends the result back via the HandlePendingPermissionRequest RPC.
+    /// </summary>
+    private async Task ExecutePermissionAndRespondAsync(string requestId, PermissionRequest permissionRequest, PermissionRequestHandler handler)
+    {
+        try
+        {
+            var invocation = new PermissionInvocation
+            {
+                SessionId = SessionId
+            };
+
+            var result = await handler(permissionRequest, invocation);
+            await Rpc.Permissions.HandlePendingPermissionRequestAsync(requestId, result);
+        }
+        catch (Exception)
+        {
+            try
+            {
+                await Rpc.Permissions.HandlePendingPermissionRequestAsync(requestId, new PermissionRequestResult
+                {
+                    Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser
+                });
+            }
+            catch (IOException)
+            {
+                // Connection lost or RPC error — nothing we can do
+            }
+            catch (ObjectDisposedException)
+            {
+                // Connection already disposed — nothing we can do
+            }
+        }
     }
 
     /// <summary>
@@ -518,26 +671,51 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </example>
     public async Task SetModelAsync(string model, CancellationToken cancellationToken = default)
     {
-        await Rpc.Model.SwitchToAsync(model, cancellationToken);
+        await Rpc.Model.SwitchToAsync(model, cancellationToken: cancellationToken);
     }
 
     /// <summary>
-    /// Disposes the <see cref="CopilotSession"/> and releases all associated resources.
+    /// Log a message to the session timeline.
+    /// The message appears in the session event stream and is visible to SDK consumers
+    /// and (for non-ephemeral messages) persisted to the session event log on disk.
+    /// </summary>
+    /// <param name="message">The message to log.</param>
+    /// <param name="level">Log level (default: info).</param>
+    /// <param name="ephemeral">When <c>true</c>, the message is not persisted to disk.</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    /// <example>
+    /// <code>
+    /// await session.LogAsync("Build completed successfully");
+    /// await session.LogAsync("Disk space low", level: SessionLogRequestLevel.Warning);
+    /// await session.LogAsync("Connection failed", level: SessionLogRequestLevel.Error);
+    /// await session.LogAsync("Temporary status", ephemeral: true);
+    /// </code>
+    /// </example>
+    public async Task LogAsync(string message, SessionLogRequestLevel? level = null, bool? ephemeral = null, CancellationToken cancellationToken = default)
+    {
+        await Rpc.LogAsync(message, level, ephemeral, cancellationToken);
+    }
+
+    /// <summary>
+    /// Closes this session and releases all in-memory resources (event handlers,
+    /// tool handlers, permission handlers).
     /// </summary>
     /// <returns>A task representing the dispose operation.</returns>
     /// <remarks>
     /// <para>
-    /// After calling this method, the session can no longer be used. All event handlers
-    /// and tool handlers are cleared.
+    /// Session state on disk (conversation history, planning state, artifacts) is
+    /// preserved, so the conversation can be resumed later by calling
+    /// <see cref="CopilotClient.ResumeSessionAsync"/> with the session ID. To
+    /// permanently remove all session data including files on disk, use
+    /// <see cref="CopilotClient.DeleteSessionAsync"/> instead.
     /// </para>
     /// <para>
-    /// To continue the conversation, use <see cref="CopilotClient.ResumeSessionAsync"/>
-    /// with the session ID.
+    /// After calling this method, the session object can no longer be used.
     /// </para>
     /// </remarks>
     /// <example>
     /// <code>
-    /// // Using 'await using' for automatic disposal
+    /// // Using 'await using' for automatic disposal — session can still be resumed later
     /// await using var session = await client.CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll });
     ///
     /// // Or manually dispose
@@ -613,7 +791,6 @@ public sealed partial class CopilotSession : IAsyncDisposable
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonSerializable(typeof(GetMessagesRequest))]
     [JsonSerializable(typeof(GetMessagesResponse))]
-    [JsonSerializable(typeof(PermissionRequest))]
     [JsonSerializable(typeof(SendMessageRequest))]
     [JsonSerializable(typeof(SendMessageResponse))]
     [JsonSerializable(typeof(SessionAbortRequest))]

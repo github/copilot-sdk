@@ -43,7 +43,7 @@ class TestMCPServers:
         assert message is not None
         assert "4" in message.data.content
 
-        await session.destroy()
+        await session.disconnect()
 
     async def test_should_accept_mcp_server_configuration_on_session_resume(
         self, ctx: E2ETestContext
@@ -77,7 +77,7 @@ class TestMCPServers:
         assert message is not None
         assert "6" in message.data.content
 
-        await session2.destroy()
+        await session2.disconnect()
 
     async def test_should_pass_literal_env_values_to_mcp_server_subprocess(
         self, ctx: E2ETestContext
@@ -112,7 +112,7 @@ class TestMCPServers:
         assert message is not None
         assert "hunter2" in message.data.content
 
-        await session.destroy()
+        await session.disconnect()
 
 
 class TestCustomAgents:
@@ -141,7 +141,7 @@ class TestCustomAgents:
         assert message is not None
         assert "10" in message.data.content
 
-        await session.destroy()
+        await session.disconnect()
 
     async def test_should_accept_custom_agent_configuration_on_session_resume(
         self, ctx: E2ETestContext
@@ -178,7 +178,7 @@ class TestCustomAgents:
         assert message is not None
         assert "12" in message.data.content
 
-        await session2.destroy()
+        await session2.disconnect()
 
 
 class TestCombinedConfiguration:
@@ -216,4 +216,4 @@ class TestCombinedConfiguration:
         message = await get_final_assistant_message(session)
         assert "14" in message.data.content
 
-        await session.destroy()
+        await session.disconnect()

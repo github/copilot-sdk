@@ -62,7 +62,7 @@ describe("Client", () => {
 
         const errors = await client.stop();
         expect(errors.length).toBeGreaterThan(0);
-        expect(errors[0].message).toContain("Failed to destroy session");
+        expect(errors[0].message).toContain("Failed to disconnect session");
     });
 
     it("should forceStop without cleanup", async () => {

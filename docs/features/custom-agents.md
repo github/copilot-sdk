@@ -65,6 +65,7 @@ const session = await client.createSession({
 
 ```python
 from copilot import CopilotClient
+from copilot.types import PermissionRequestResult
 
 client = CopilotClient()
 await client.start()
@@ -87,7 +88,7 @@ session = await client.create_session({
             "prompt": "You are a code editor. Make minimal, surgical changes to files as requested.",
         },
     ],
-    "on_permission_request": lambda req: {"kind": "approved"},
+    "on_permission_request": lambda req, inv: PermissionRequestResult(kind="approved"),
 })
 ```
 
@@ -96,7 +97,47 @@ session = await client.create_session({
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+	client.Start(ctx)
+
+	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
+		Model: "gpt-4.1",
+		CustomAgents: []copilot.CustomAgentConfig{
+			{
+				Name:        "researcher",
+				DisplayName: "Research Agent",
+				Description: "Explores codebases and answers questions using read-only tools",
+				Tools:       []string{"grep", "glob", "view"},
+				Prompt:      "You are a research assistant. Analyze code and answer questions. Do not modify any files.",
+			},
+			{
+				Name:        "editor",
+				DisplayName: "Editor Agent",
+				Description: "Makes targeted code changes",
+				Tools:       []string{"view", "edit", "bash"},
+				Prompt:      "You are a code editor. Make minimal, surgical changes to files as requested.",
+			},
+		},
+		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+		},
+	})
+	_ = session
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 ctx := context.Background()
 client := copilot.NewClient(nil)
@@ -177,6 +218,102 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
 | `infer` | `boolean` | | Whether the runtime can auto-select this agent (default: `true`) |
 
 > **Tip:** A good `description` helps the runtime match user intent to the right agent. Be specific about the agent's expertise and capabilities.
+
+In addition to per-agent configuration above, you can set `agent` on the **session config** itself to pre-select which custom agent is active when the session starts. See [Selecting an Agent at Session Creation](#selecting-an-agent-at-session-creation) below.
+
+| Session Config Property | Type | Description |
+|-------------------------|------|-------------|
+| `agent` | `string` | Name of the custom agent to pre-select at session creation. Must match a `name` in `customAgents`. |
+
+## Selecting an Agent at Session Creation
+
+You can pass `agent` in the session config to pre-select which custom agent should be active when the session starts. The value must match the `name` of one of the agents defined in `customAgents`.
+
+This is equivalent to calling `session.rpc.agent.select()` after creation, but avoids the extra API call and ensures the agent is active from the very first prompt.
+
+<details open>
+<summary><strong>Node.js / TypeScript</strong></summary>
+
+<!-- docs-validate: skip -->
+```typescript
+const session = await client.createSession({
+    customAgents: [
+        {
+            name: "researcher",
+            prompt: "You are a research assistant. Analyze code and answer questions.",
+        },
+        {
+            name: "editor",
+            prompt: "You are a code editor. Make minimal, surgical changes.",
+        },
+    ],
+    agent: "researcher", // Pre-select the researcher agent
+});
+```
+
+</details>
+
+<details>
+<summary><strong>Python</strong></summary>
+
+<!-- docs-validate: skip -->
+```python
+session = await client.create_session({
+    "custom_agents": [
+        {
+            "name": "researcher",
+            "prompt": "You are a research assistant. Analyze code and answer questions.",
+        },
+        {
+            "name": "editor",
+            "prompt": "You are a code editor. Make minimal, surgical changes.",
+        },
+    ],
+    "agent": "researcher",  # Pre-select the researcher agent
+})
+```
+
+</details>
+
+<details>
+<summary><strong>Go</strong></summary>
+
+<!-- docs-validate: skip -->
+```go
+session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
+    CustomAgents: []copilot.CustomAgentConfig{
+        {
+            Name:   "researcher",
+            Prompt: "You are a research assistant. Analyze code and answer questions.",
+        },
+        {
+            Name:   "editor",
+            Prompt: "You are a code editor. Make minimal, surgical changes.",
+        },
+    },
+    Agent: "researcher", // Pre-select the researcher agent
+})
+```
+
+</details>
+
+<details>
+<summary><strong>.NET</strong></summary>
+
+<!-- docs-validate: skip -->
+```csharp
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    CustomAgents = new List<CustomAgentConfig>
+    {
+        new() { Name = "researcher", Prompt = "You are a research assistant. Analyze code and answer questions." },
+        new() { Name = "editor", Prompt = "You are a code editor. Make minimal, surgical changes." },
+    },
+    Agent = "researcher", // Pre-select the researcher agent
+});
+```
+
+</details>
 
 ## How Sub-Agent Delegation Works
 
@@ -286,7 +423,51 @@ response = await session.send_and_wait({
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+	client.Start(ctx)
+
+	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
+		Model: "gpt-4.1",
+		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+		},
+	})
+
+	session.On(func(event copilot.SessionEvent) {
+		switch event.Type {
+		case "subagent.started":
+			fmt.Printf("▶ Sub-agent started: %s\n", *event.Data.AgentDisplayName)
+			fmt.Printf("  Description: %s\n", *event.Data.AgentDescription)
+			fmt.Printf("  Tool call ID: %s\n", *event.Data.ToolCallID)
+		case "subagent.completed":
+			fmt.Printf("✅ Sub-agent completed: %s\n", *event.Data.AgentDisplayName)
+		case "subagent.failed":
+			fmt.Printf("❌ Sub-agent failed: %s — %v\n", *event.Data.AgentDisplayName, event.Data.Error)
+		case "subagent.selected":
+			fmt.Printf("🎯 Agent selected: %s\n", *event.Data.AgentDisplayName)
+		}
+	})
+
+	_, err := session.SendAndWait(ctx, copilot.MessageOptions{
+		Prompt: "Research how authentication works in this codebase",
+	})
+	_ = err
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 session.On(func(event copilot.SessionEvent) {
     switch event.Type {

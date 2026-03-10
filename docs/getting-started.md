@@ -1224,7 +1224,7 @@ const session = await client.createSession({
 });
 ```
 
-📖 **[Full MCP documentation →](./mcp/overview.md)** - Learn about local vs remote servers, all configuration options, and troubleshooting.
+📖 **[Full MCP documentation →](./features/mcp.md)** - Learn about local vs remote servers, all configuration options, and troubleshooting.
 
 ### Create Custom Agents
 
@@ -1240,6 +1240,8 @@ const session = await client.createSession({
     }],
 });
 ```
+
+> **Tip:** You can also set `agent: "pr-reviewer"` in the session config to pre-select this agent from the start. See the [Custom Agents guide](./guides/custom-agents.md#selecting-an-agent-at-session-creation) for details.
 
 ### Customize the System Message
 
@@ -1401,7 +1403,7 @@ await using var session = await client.CreateSessionAsync(new()
 - [Python SDK Reference](../python/README.md)
 - [Go SDK Reference](../go/README.md)
 - [.NET SDK Reference](../dotnet/README.md)
-- [Using MCP Servers](./mcp) - Integrate external tools via Model Context Protocol
+- [Using MCP Servers](./features/mcp.md) - Integrate external tools via Model Context Protocol
 - [GitHub MCP Server Documentation](https://github.com/github/github-mcp-server)
 - [MCP Servers Directory](https://github.com/modelcontextprotocol/servers) - Explore more MCP servers
 

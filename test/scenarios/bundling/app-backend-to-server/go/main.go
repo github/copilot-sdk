@@ -70,7 +70,7 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, chatResponse{Error: err.Error()})
 		return
 	}
-	defer session.Destroy()
+	defer session.Disconnect()
 
 	response, err := session.SendAndWait(ctx, copilot.MessageOptions{
 		Prompt: req.Prompt,

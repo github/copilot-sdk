@@ -52,8 +52,15 @@ await session.send({ prompt: "What is 2+2?" });
 await done;
 
 // Clean up
-await session.destroy();
+await session.disconnect();
 await client.stop();
+```
+
+Sessions also support `Symbol.asyncDispose` for use with [`await using`](https://github.com/tc39/proposal-explicit-resource-management) (TypeScript 5.2+/Node.js 18.0+):
+
+```typescript
+await using session = await client.createSession({ model: "gpt-5" });
+// session is automatically disconnected when leaving scope
 ```
 
 ## API Reference
@@ -265,9 +272,13 @@ Abort the currently processing message in this session.
 
 Get all events/messages from this session.
 
-##### `destroy(): Promise<void>`
+##### `disconnect(): Promise<void>`
 
-Destroy the session and free resources.
+Disconnect the session and free resources. Session data on disk is preserved for later resumption.
+
+##### `destroy(): Promise<void>` *(deprecated)*
+
+Deprecated — use `disconnect()` instead.
 
 ---
 

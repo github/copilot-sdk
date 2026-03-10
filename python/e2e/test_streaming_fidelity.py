@@ -42,7 +42,7 @@ class TestStreamingFidelity:
         last_assistant_idx = len(types) - 1 - types[::-1].index("assistant.message")
         assert first_delta_idx < last_assistant_idx
 
-        await session.destroy()
+        await session.disconnect()
 
     async def test_should_not_produce_deltas_when_streaming_is_disabled(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
@@ -63,14 +63,14 @@ class TestStreamingFidelity:
         assistant_events = [e for e in events if e.type.value == "assistant.message"]
         assert len(assistant_events) >= 1
 
-        await session.destroy()
+        await session.disconnect()
 
     async def test_should_produce_deltas_after_session_resume(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
             {"streaming": False, "on_permission_request": PermissionHandler.approve_all}
         )
         await session.send_and_wait({"prompt": "What is 3 + 6?"})
-        await session.destroy()
+        await session.disconnect()
 
         # Resume using a new client
         github_token = (
@@ -109,6 +109,6 @@ class TestStreamingFidelity:
                 assert delta_content is not None
                 assert isinstance(delta_content, str)
 
-            await session2.destroy()
+            await session2.disconnect()
         finally:
             await new_client.force_stop()

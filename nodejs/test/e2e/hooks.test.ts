@@ -45,7 +45,7 @@ describe("Session hooks", async () => {
         // Should have received the tool name
         expect(preToolUseInputs.some((input) => input.toolName)).toBe(true);
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should invoke postToolUse hook after model runs a tool", async () => {
@@ -76,7 +76,7 @@ describe("Session hooks", async () => {
         expect(postToolUseInputs.some((input) => input.toolName)).toBe(true);
         expect(postToolUseInputs.some((input) => input.toolResult !== undefined)).toBe(true);
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should invoke both preToolUse and postToolUse hooks for a single tool call", async () => {
@@ -113,7 +113,7 @@ describe("Session hooks", async () => {
         const commonTool = preToolNames.find((name) => postToolNames.includes(name));
         expect(commonTool).toBeDefined();
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should deny tool execution when preToolUse returns deny", async () => {
@@ -145,6 +145,6 @@ describe("Session hooks", async () => {
         // At minimum, we verify the hook was invoked
         expect(response).toBeDefined();
 
-        await session.destroy();
+        await session.disconnect();
     });
 });

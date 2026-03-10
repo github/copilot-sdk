@@ -26,8 +26,8 @@ describe("Session Lifecycle", async () => {
         expect(sessionIds).toContain(session1.sessionId);
         expect(sessionIds).toContain(session2.sessionId);
 
-        await session1.destroy();
-        await session2.destroy();
+        await session1.disconnect();
+        await session2.disconnect();
     });
 
     it("should delete session permanently", async () => {
@@ -44,7 +44,7 @@ describe("Session Lifecycle", async () => {
         const before = await client.listSessions();
         expect(before.map((s) => s.sessionId)).toContain(sessionId);
 
-        await session.destroy();
+        await session.disconnect();
         await client.deleteSession(sessionId);
 
         // After delete, the session should not be in the list
@@ -68,7 +68,7 @@ describe("Session Lifecycle", async () => {
         expect(types).toContain("user.message");
         expect(types).toContain("assistant.message");
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should support multiple concurrent sessions", async () => {
@@ -84,7 +84,7 @@ describe("Session Lifecycle", async () => {
         expect(msg1?.data.content).toContain("2");
         expect(msg2?.data.content).toContain("6");
 
-        await session1.destroy();
-        await session2.destroy();
+        await session1.disconnect();
+        await session2.disconnect();
     });
 });

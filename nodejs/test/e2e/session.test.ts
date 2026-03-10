@@ -1,5 +1,5 @@
 import { rm } from "fs/promises";
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { ParsedHttpExchange } from "../../../test/harness/replayingCapiProxy.js";
 import { CopilotClient, approveAll } from "../../src/index.js";
 import { createSdkTestContext, isCI } from "./harness/sdkTestContext.js";
@@ -8,7 +8,7 @@ import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestH
 describe("Sessions", async () => {
     const { copilotClient: client, openAiEndpoint, homeDir, env } = await createSdkTestContext();
 
-    it("should create and destroy sessions", async () => {
+    it("should create and disconnect sessions", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             model: "fake-test-model",
@@ -22,7 +22,7 @@ describe("Sessions", async () => {
             },
         ]);
 
-        await session.destroy();
+        await session.disconnect();
         await expect(() => session.getMessages()).rejects.toThrow(/Session not found/);
     });
 
@@ -155,8 +155,8 @@ describe("Sessions", async () => {
             ]);
         }
 
-        // All can be destroyed
-        await Promise.all([s1.destroy(), s2.destroy(), s3.destroy()]);
+        // All can be disconnected
+        await Promise.all([s1.disconnect(), s2.disconnect(), s3.disconnect()]);
         for (const s of [s1, s2, s3]) {
             await expect(() => s.getMessages()).rejects.toThrow(/Session not found/);
         }
@@ -297,7 +297,19 @@ describe("Sessions", async () => {
     });
 
     it("should receive session events", async () => {
-        const session = await client.createSession({ onPermissionRequest: approveAll });
+        // Use onEvent to capture events dispatched during session creation.
+        // session.start is emitted during the session.create RPC; if the session
+        // weren't registered in the sessions map before the RPC, it would be dropped.
+        const earlyEvents: Array<{ type: string }> = [];
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            onEvent: (event) => {
+                earlyEvents.push(event);
+            },
+        });
+
+        expect(earlyEvents.some((e) => e.type === "session.start")).toBe(true);
+
         const receivedEvents: Array<{ type: string }> = [];
 
         session.on((event) => {
@@ -333,6 +345,57 @@ describe("Sessions", async () => {
         await session.send({ prompt: "What is 1+1?" });
         const assistantMessage = await getFinalAssistantMessage(session);
         expect(assistantMessage.data.content).toContain("2");
+    });
+
+    it("should log messages at all levels and emit matching session events", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        const events: Array<{ type: string; id?: string; data?: Record<string, unknown> }> = [];
+        session.on((event) => {
+            events.push(event as (typeof events)[number]);
+        });
+
+        await session.log("Info message");
+        await session.log("Warning message", { level: "warning" });
+        await session.log("Error message", { level: "error" });
+        await session.log("Ephemeral message", { ephemeral: true });
+
+        await vi.waitFor(
+            () => {
+                const notifications = events.filter(
+                    (e) =>
+                        e.data &&
+                        ("infoType" in e.data || "warningType" in e.data || "errorType" in e.data)
+                );
+                expect(notifications).toHaveLength(4);
+            },
+            { timeout: 10_000 }
+        );
+
+        const byMessage = (msg: string) => events.find((e) => e.data?.message === msg)!;
+        expect(byMessage("Info message").type).toBe("session.info");
+        expect(byMessage("Info message").data).toEqual({
+            infoType: "notification",
+            message: "Info message",
+        });
+
+        expect(byMessage("Warning message").type).toBe("session.warning");
+        expect(byMessage("Warning message").data).toEqual({
+            warningType: "notification",
+            message: "Warning message",
+        });
+
+        expect(byMessage("Error message").type).toBe("session.error");
+        expect(byMessage("Error message").data).toEqual({
+            errorType: "notification",
+            message: "Error message",
+        });
+
+        expect(byMessage("Ephemeral message").type).toBe("session.info");
+        expect(byMessage("Ephemeral message").data).toEqual({
+            infoType: "notification",
+            message: "Ephemeral message",
+        });
     });
 });
 

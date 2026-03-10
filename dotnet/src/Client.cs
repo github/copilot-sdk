@@ -54,6 +54,11 @@ namespace GitHub.Copilot.SDK;
 /// </example>
 public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 {
+    /// <summary>
+    /// Minimum protocol version this SDK can communicate with.
+    /// </summary>
+    private const int MinProtocolVersion = 2;
+
     private readonly ConcurrentDictionary<string, CopilotSession> _sessions = new();
     private readonly CopilotClientOptions _options;
     private readonly ILogger _logger;
@@ -61,8 +66,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private bool _disposed;
     private readonly int? _optionsPort;
     private readonly string? _optionsHost;
+    private int? _actualPort;
+    private int? _negotiatedProtocolVersion;
     private List<ModelInfo>? _modelsCache;
     private readonly SemaphoreSlim _modelsCacheLock = new(1, 1);
+    private readonly Func<CancellationToken, Task<List<ModelInfo>>>? _onListModels;
     private readonly List<Action<SessionLifecycleEvent>> _lifecycleHandlers = [];
     private readonly Dictionary<string, List<Action<SessionLifecycleEvent>>> _typedLifecycleHandlers = [];
     private readonly object _lifecycleHandlersLock = new();
@@ -79,6 +87,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     public ServerRpc Rpc => _disposed
         ? throw new ObjectDisposedException(nameof(CopilotClient))
         : _rpc ?? throw new InvalidOperationException("Client is not started. Call StartAsync first.");
+
+    /// <summary>
+    /// Gets the actual TCP port the CLI server is listening on, if using TCP transport.
+    /// </summary>
+    public int? ActualPort => _actualPort;
 
     /// <summary>
     /// Creates a new instance of <see cref="CopilotClient"/>.
@@ -124,6 +137,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
 
         _logger = _options.Logger ?? NullLogger.Instance;
+        _onListModels = _options.OnListModels;
 
         // Parse CliUrl if provided
         if (!string.IsNullOrEmpty(_options.CliUrl))
@@ -191,12 +205,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             if (_optionsHost is not null && _optionsPort is not null)
             {
                 // External server (TCP)
+                _actualPort = _optionsPort;
                 result = ConnectToServerAsync(null, _optionsHost, _optionsPort, null, ct);
             }
             else
             {
                 // Child process (stdio or TCP)
                 var (cliProcess, portOrNull, stderrBuffer) = await StartCliServerAsync(_options, _logger, ct);
+                _actualPort = portOrNull;
                 result = ConnectToServerAsync(cliProcess, portOrNull is null ? null : "localhost", portOrNull, stderrBuffer, ct);
             }
 
@@ -211,17 +227,22 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
-    /// Disconnects from the Copilot server and stops all active sessions.
+    /// Disconnects from the Copilot server and closes all active sessions.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     /// <remarks>
     /// <para>
     /// This method performs graceful cleanup:
     /// <list type="number">
-    ///     <item>Destroys all active sessions</item>
+    ///     <item>Closes all active sessions (releases in-memory resources)</item>
     ///     <item>Closes the JSON-RPC connection</item>
     ///     <item>Terminates the CLI server process (if spawned by this client)</item>
     /// </list>
+    /// </para>
+    /// <para>
+    /// Note: session data on disk is preserved, so sessions can be resumed later.
+    /// To permanently remove session data before stopping, call
+    /// <see cref="DeleteSessionAsync"/> for each session first.
     /// </para>
     /// </remarks>
     /// <exception cref="AggregateException">Thrown when multiple errors occur during cleanup.</exception>
@@ -242,7 +263,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             }
             catch (Exception ex)
             {
-                errors.Add(new IOException($"Failed to destroy session {session.SessionId}: {ex.Message}", ex));
+                errors.Add(new Exception($"Failed to dispose session {session.SessionId}: {ex.Message}", ex));
             }
         }
 
@@ -382,33 +403,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.Hooks.OnSessionEnd != null ||
             config.Hooks.OnErrorOccurred != null);
 
-        var request = new CreateSessionRequest(
-            config.Model,
-            config.SessionId,
-            config.ClientName,
-            config.ReasoningEffort,
-            config.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
-            config.SystemMessage,
-            config.AvailableTools,
-            config.ExcludedTools,
-            config.Provider,
-            (bool?)true,
-            config.OnUserInputRequest != null ? true : null,
-            hasHooks ? true : null,
-            config.WorkingDirectory,
-            config.Streaming is true ? true : null,
-            config.McpServers,
-            "direct",
-            config.CustomAgents,
-            config.ConfigDir,
-            config.SkillDirectories,
-            config.DisabledSkills,
-            config.InfiniteSessions);
+        var sessionId = config.SessionId ?? Guid.NewGuid().ToString();
 
-        var response = await InvokeRpcAsync<CreateSessionResponse>(
-            connection.Rpc, "session.create", [request], cancellationToken);
-
-        var session = new CopilotSession(response.SessionId, connection.Rpc, response.WorkspacePath);
+        // Create and register the session before issuing the RPC so that
+        // events emitted by the CLI (e.g. session.start) are not dropped.
+        var session = new CopilotSession(sessionId, connection.Rpc);
         session.RegisterTools(config.Tools ?? []);
         session.RegisterPermissionHandler(config.OnPermissionRequest);
         if (config.OnUserInputRequest != null)
@@ -419,10 +418,47 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             session.RegisterHooks(config.Hooks);
         }
-
-        if (!_sessions.TryAdd(response.SessionId, session))
+        if (config.OnEvent != null)
         {
-            throw new InvalidOperationException($"Session {response.SessionId} already exists");
+            session.On(config.OnEvent);
+        }
+        _sessions[sessionId] = session;
+
+        try
+        {
+            var request = new CreateSessionRequest(
+                config.Model,
+                sessionId,
+                config.ClientName,
+                config.ReasoningEffort,
+                config.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
+                config.SystemMessage,
+                config.AvailableTools,
+                config.ExcludedTools,
+                config.Provider,
+                (bool?)true,
+                config.OnUserInputRequest != null ? true : null,
+                hasHooks ? true : null,
+                config.WorkingDirectory,
+                config.Streaming is true ? true : null,
+                config.McpServers,
+                "direct",
+                config.CustomAgents,
+                config.Agent,
+                config.ConfigDir,
+                config.SkillDirectories,
+                config.DisabledSkills,
+                config.InfiniteSessions);
+
+            var response = await InvokeRpcAsync<CreateSessionResponse>(
+                connection.Rpc, "session.create", [request], cancellationToken);
+
+            session.WorkspacePath = response.WorkspacePath;
+        }
+        catch
+        {
+            _sessions.TryRemove(sessionId, out _);
+            throw;
         }
 
         return session;
@@ -473,34 +509,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.Hooks.OnSessionEnd != null ||
             config.Hooks.OnErrorOccurred != null);
 
-        var request = new ResumeSessionRequest(
-            sessionId,
-            config.ClientName,
-            config.Model,
-            config.ReasoningEffort,
-            config.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
-            config.SystemMessage,
-            config.AvailableTools,
-            config.ExcludedTools,
-            config.Provider,
-            (bool?)true,
-            config.OnUserInputRequest != null ? true : null,
-            hasHooks ? true : null,
-            config.WorkingDirectory,
-            config.ConfigDir,
-            config.DisableResume is true ? true : null,
-            config.Streaming is true ? true : null,
-            config.McpServers,
-            "direct",
-            config.CustomAgents,
-            config.SkillDirectories,
-            config.DisabledSkills,
-            config.InfiniteSessions);
-
-        var response = await InvokeRpcAsync<ResumeSessionResponse>(
-            connection.Rpc, "session.resume", [request], cancellationToken);
-
-        var session = new CopilotSession(response.SessionId, connection.Rpc, response.WorkspacePath);
+        // Create and register the session before issuing the RPC so that
+        // events emitted by the CLI (e.g. session.start) are not dropped.
+        var session = new CopilotSession(sessionId, connection.Rpc);
         session.RegisterTools(config.Tools ?? []);
         session.RegisterPermissionHandler(config.OnPermissionRequest);
         if (config.OnUserInputRequest != null)
@@ -511,9 +522,50 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             session.RegisterHooks(config.Hooks);
         }
+        if (config.OnEvent != null)
+        {
+            session.On(config.OnEvent);
+        }
+        _sessions[sessionId] = session;
 
-        // Replace any existing session entry to ensure new config (like permission handler) is used
-        _sessions[response.SessionId] = session;
+        try
+        {
+            var request = new ResumeSessionRequest(
+                sessionId,
+                config.ClientName,
+                config.Model,
+                config.ReasoningEffort,
+                config.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
+                config.SystemMessage,
+                config.AvailableTools,
+                config.ExcludedTools,
+                config.Provider,
+                (bool?)true,
+                config.OnUserInputRequest != null ? true : null,
+                hasHooks ? true : null,
+                config.WorkingDirectory,
+                config.ConfigDir,
+                config.DisableResume is true ? true : null,
+                config.Streaming is true ? true : null,
+                config.McpServers,
+                "direct",
+                config.CustomAgents,
+                config.Agent,
+                config.SkillDirectories,
+                config.DisabledSkills,
+                config.InfiniteSessions);
+
+            var response = await InvokeRpcAsync<ResumeSessionResponse>(
+                connection.Rpc, "session.resume", [request], cancellationToken);
+
+            session.WorkspacePath = response.WorkspacePath;
+        }
+        catch
+        {
+            _sessions.TryRemove(sessionId, out _);
+            throw;
+        }
+
         return session;
     }
 
@@ -603,9 +655,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <exception cref="InvalidOperationException">Thrown when the client is not connected or not authenticated.</exception>
     public async Task<List<ModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
     {
-        var connection = await EnsureConnectedAsync(cancellationToken);
-
-        // Use semaphore for async locking to prevent race condition with concurrent calls
         await _modelsCacheLock.WaitAsync(cancellationToken);
         try
         {
@@ -615,14 +664,26 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 return [.. _modelsCache]; // Return a copy to prevent cache mutation
             }
 
-            // Cache miss - fetch from backend while holding lock
-            var response = await InvokeRpcAsync<GetModelsResponse>(
-                connection.Rpc, "models.list", [], cancellationToken);
+            List<ModelInfo> models;
+            if (_onListModels is not null)
+            {
+                // Use custom handler instead of CLI RPC
+                models = await _onListModels(cancellationToken);
+            }
+            else
+            {
+                var connection = await EnsureConnectedAsync(cancellationToken);
 
-            // Update cache before releasing lock
-            _modelsCache = response.Models;
+                // Cache miss - fetch from backend while holding lock
+                var response = await InvokeRpcAsync<GetModelsResponse>(
+                    connection.Rpc, "models.list", [], cancellationToken);
+                models = response.Models;
+            }
 
-            return [.. response.Models]; // Return a copy to prevent cache mutation
+            // Update cache before releasing lock (copy to prevent external mutation)
+            _modelsCache = [.. models];
+
+            return [.. models]; // Return a copy to prevent cache mutation
         }
         finally
         {
@@ -656,15 +717,17 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
-    /// Deletes a Copilot session by its ID.
+    /// Permanently deletes a session and all its data from disk, including
+    /// conversation history, planning state, and artifacts.
     /// </summary>
     /// <param name="sessionId">The ID of the session to delete.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
     /// <returns>A task that represents the asynchronous delete operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the session does not exist or deletion fails.</exception>
     /// <remarks>
-    /// This permanently removes the session and all its conversation history.
-    /// The session cannot be resumed after deletion.
+    /// Unlike <see cref="CopilotSession.DisposeAsync"/>, which only releases in-memory
+    /// resources and preserves session data for later resumption, this method is
+    /// irreversible. The session cannot be resumed after deletion.
     /// </remarks>
     /// <example>
     /// <code>
@@ -908,27 +971,30 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         return (Task<Connection>)StartAsync(cancellationToken);
     }
 
-    private static async Task VerifyProtocolVersionAsync(Connection connection, CancellationToken cancellationToken)
+    private async Task VerifyProtocolVersionAsync(Connection connection, CancellationToken cancellationToken)
     {
-        var expectedVersion = SdkProtocolVersion.GetVersion();
+        var maxVersion = SdkProtocolVersion.GetVersion();
         var pingResponse = await InvokeRpcAsync<PingResponse>(
             connection.Rpc, "ping", [new PingRequest()], connection.StderrBuffer, cancellationToken);
 
         if (!pingResponse.ProtocolVersion.HasValue)
         {
             throw new InvalidOperationException(
-                $"SDK protocol version mismatch: SDK expects version {expectedVersion}, " +
+                $"SDK protocol version mismatch: SDK supports versions {MinProtocolVersion}-{maxVersion}, " +
                 $"but server does not report a protocol version. " +
                 $"Please update your server to ensure compatibility.");
         }
 
-        if (pingResponse.ProtocolVersion.Value != expectedVersion)
+        var serverVersion = pingResponse.ProtocolVersion.Value;
+        if (serverVersion < MinProtocolVersion || serverVersion > maxVersion)
         {
             throw new InvalidOperationException(
-                $"SDK protocol version mismatch: SDK expects version {expectedVersion}, " +
-                $"but server reports version {pingResponse.ProtocolVersion.Value}. " +
+                $"SDK protocol version mismatch: SDK supports versions {MinProtocolVersion}-{maxVersion}, " +
+                $"but server reports version {serverVersion}. " +
                 $"Please update your SDK or server to ensure compatibility.");
         }
+
+        _negotiatedProtocolVersion = serverVersion;
     }
 
     private static async Task<(Process Process, int? DetectedLocalhostTcpPort, StringBuilder StderrBuffer)> StartCliServerAsync(CopilotClientOptions options, ILogger logger, CancellationToken cancellationToken)
@@ -1122,8 +1188,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var handler = new RpcHandler(this);
         rpc.AddLocalRpcMethod("session.event", handler.OnSessionEvent);
         rpc.AddLocalRpcMethod("session.lifecycle", handler.OnSessionLifecycle);
-        rpc.AddLocalRpcMethod("tool.call", handler.OnToolCall);
-        rpc.AddLocalRpcMethod("permission.request", handler.OnPermissionRequest);
+        // Protocol v3 servers send tool calls / permission requests as broadcast events.
+        // Protocol v2 servers use the older tool.call / permission.request RPC model.
+        // We always register v2 adapters because handlers are set up before version
+        // negotiation; a v3 server will simply never send these requests.
+        rpc.AddLocalRpcMethod("tool.call", handler.OnToolCallV2);
+        rpc.AddLocalRpcMethod("permission.request", handler.OnPermissionRequestV2);
         rpc.AddLocalRpcMethod("userInput.request", handler.OnUserInputRequest);
         rpc.AddLocalRpcMethod("hooks.invoke", handler.OnHooksInvoke);
         rpc.StartListening();
@@ -1224,116 +1294,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             client.DispatchLifecycleEvent(evt);
         }
 
-        public async Task<ToolCallResponse> OnToolCall(string sessionId,
-            string toolCallId,
-            string toolName,
-            object? arguments)
-        {
-            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
-            if (session.GetTool(toolName) is not { } tool)
-            {
-                return new ToolCallResponse(new ToolResultObject
-                {
-                    TextResultForLlm = $"Tool '{toolName}' is not supported.",
-                    ResultType = "failure",
-                    Error = $"tool '{toolName}' not supported"
-                });
-            }
-
-            try
-            {
-                var invocation = new ToolInvocation
-                {
-                    SessionId = sessionId,
-                    ToolCallId = toolCallId,
-                    ToolName = toolName,
-                    Arguments = arguments
-                };
-
-                // Map args from JSON into AIFunction format
-                var aiFunctionArgs = new AIFunctionArguments
-                {
-                    Context = new Dictionary<object, object?>
-                    {
-                        // Allow recipient to access the raw ToolInvocation if they want, e.g., to get SessionId
-                        // This is an alternative to using MEAI's ConfigureParameterBinding, which we can't use
-                        // because we're not the ones producing the AIFunction.
-                        [typeof(ToolInvocation)] = invocation
-                    }
-                };
-
-                if (arguments is not null)
-                {
-                    if (arguments is not JsonElement incomingJsonArgs)
-                    {
-                        throw new InvalidOperationException($"Incoming arguments must be a {nameof(JsonElement)}; received {arguments.GetType().Name}");
-                    }
-
-                    foreach (var prop in incomingJsonArgs.EnumerateObject())
-                    {
-                        // MEAI will deserialize the JsonElement value respecting the delegate's parameter types
-                        aiFunctionArgs[prop.Name] = prop.Value;
-                    }
-                }
-
-                var result = await tool.InvokeAsync(aiFunctionArgs);
-
-                // If the function returns a ToolResultObject, use it directly; otherwise, wrap the result
-                // This lets the developer provide BinaryResult, SessionLog, etc. if they deal with that themselves
-                var toolResultObject = result is ToolResultAIContent trac ? trac.Result : new ToolResultObject
-                {
-                    ResultType = "success",
-
-                    // In most cases, result will already have been converted to JsonElement by the AIFunction.
-                    // We special-case string for consistency with our Node/Python/Go clients.
-                    // TODO: I don't think it's right to special-case string here, and all the clients should
-                    // always serialize the result to JSON (otherwise what stringification is going to happen?
-                    // something we don't control? an error?)
-                    TextResultForLlm = result is JsonElement { ValueKind: JsonValueKind.String } je
-                        ? je.GetString()!
-                        : JsonSerializer.Serialize(result, tool.JsonSerializerOptions.GetTypeInfo(typeof(object))),
-                };
-                return new ToolCallResponse(toolResultObject);
-            }
-            catch (Exception ex)
-            {
-                return new ToolCallResponse(new()
-                {
-                    // TODO: We should offer some way to control whether or not to expose detailed exception information to the LLM.
-                    //       For security, the default must be false, but developers can opt into allowing it.
-                    TextResultForLlm = $"Invoking this tool produced an error. Detailed information is not available.",
-                    ResultType = "failure",
-                    Error = ex.Message
-                });
-            }
-        }
-
-        public async Task<PermissionRequestResponse> OnPermissionRequest(string sessionId, JsonElement permissionRequest)
-        {
-            var session = client.GetSession(sessionId);
-            if (session == null)
-            {
-                return new PermissionRequestResponse(new PermissionRequestResult
-                {
-                    Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser
-                });
-            }
-
-            try
-            {
-                var result = await session.HandlePermissionRequestAsync(permissionRequest);
-                return new PermissionRequestResponse(result);
-            }
-            catch
-            {
-                // If permission handler fails, deny the permission
-                return new PermissionRequestResponse(new PermissionRequestResult
-                {
-                    Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser
-                });
-            }
-        }
-
         public async Task<UserInputRequestResponse> OnUserInputRequest(string sessionId, string question, List<string>? choices = null, bool? allowFreeform = null)
         {
             var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
@@ -1353,6 +1313,96 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
             var output = await session.HandleHooksInvokeAsync(hookType, input);
             return new HooksInvokeResponse(output);
+        }
+
+        // Protocol v2 backward-compatibility adapters
+
+        public async Task<ToolCallResponseV2> OnToolCallV2(string sessionId,
+            string toolCallId,
+            string toolName,
+            object? arguments)
+        {
+            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
+            if (session.GetTool(toolName) is not { } tool)
+            {
+                return new ToolCallResponseV2(new ToolResultObject
+                {
+                    TextResultForLlm = $"Tool '{toolName}' is not supported.",
+                    ResultType = "failure",
+                    Error = $"tool '{toolName}' not supported"
+                });
+            }
+
+            try
+            {
+                var invocation = new ToolInvocation
+                {
+                    SessionId = sessionId,
+                    ToolCallId = toolCallId,
+                    ToolName = toolName,
+                    Arguments = arguments
+                };
+
+                var aiFunctionArgs = new AIFunctionArguments
+                {
+                    Context = new Dictionary<object, object?>
+                    {
+                        [typeof(ToolInvocation)] = invocation
+                    }
+                };
+
+                if (arguments is not null)
+                {
+                    if (arguments is not JsonElement incomingJsonArgs)
+                    {
+                        throw new InvalidOperationException($"Incoming arguments must be a {nameof(JsonElement)}; received {arguments.GetType().Name}");
+                    }
+
+                    foreach (var prop in incomingJsonArgs.EnumerateObject())
+                    {
+                        aiFunctionArgs[prop.Name] = prop.Value;
+                    }
+                }
+
+                var result = await tool.InvokeAsync(aiFunctionArgs);
+
+                var toolResultObject = result is ToolResultAIContent trac ? trac.Result : new ToolResultObject
+                {
+                    ResultType = "success",
+                    TextResultForLlm = result is JsonElement { ValueKind: JsonValueKind.String } je
+                        ? je.GetString()!
+                        : JsonSerializer.Serialize(result, tool.JsonSerializerOptions.GetTypeInfo(typeof(object))),
+                };
+                return new ToolCallResponseV2(toolResultObject);
+            }
+            catch (Exception ex)
+            {
+                return new ToolCallResponseV2(new ToolResultObject
+                {
+                    TextResultForLlm = "Invoking this tool produced an error. Detailed information is not available.",
+                    ResultType = "failure",
+                    Error = ex.Message
+                });
+            }
+        }
+
+        public async Task<PermissionRequestResponseV2> OnPermissionRequestV2(string sessionId, JsonElement permissionRequest)
+        {
+            var session = client.GetSession(sessionId)
+                ?? throw new ArgumentException($"Unknown session {sessionId}");
+
+            try
+            {
+                var result = await session.HandlePermissionRequestAsync(permissionRequest);
+                return new PermissionRequestResponseV2(result);
+            }
+            catch (Exception)
+            {
+                return new PermissionRequestResponseV2(new PermissionRequestResult
+                {
+                    Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser
+                });
+            }
         }
     }
 
@@ -1399,6 +1449,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         Dictionary<string, object>? McpServers,
         string? EnvValueMode,
         List<CustomAgentConfig>? CustomAgents,
+        string? Agent,
         string? ConfigDir,
         List<string>? SkillDirectories,
         List<string>? DisabledSkills,
@@ -1442,6 +1493,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         Dictionary<string, object>? McpServers,
         string? EnvValueMode,
         List<CustomAgentConfig>? CustomAgents,
+        string? Agent,
         List<string>? SkillDirectories,
         List<string>? DisabledSkills,
         InfiniteSessionConfig? InfiniteSessions);
@@ -1466,18 +1518,19 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     internal record ListSessionsResponse(
         List<SessionMetadata> Sessions);
 
-    internal record ToolCallResponse(
-        ToolResultObject? Result);
-
-    internal record PermissionRequestResponse(
-        PermissionRequestResult Result);
-
     internal record UserInputRequestResponse(
         string Answer,
         bool WasFreeform);
 
     internal record HooksInvokeResponse(
         object? Output);
+
+    // Protocol v2 backward-compatibility response types
+    internal record ToolCallResponseV2(
+        ToolResultObject Result);
+
+    internal record PermissionRequestResponseV2(
+        PermissionRequestResult Result);
 
     /// <summary>Trace source that forwards all logs to the ILogger.</summary>
     internal sealed class LoggerTraceSource : TraceSource
@@ -1571,14 +1624,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(HooksInvokeResponse))]
     [JsonSerializable(typeof(ListSessionsRequest))]
     [JsonSerializable(typeof(ListSessionsResponse))]
-    [JsonSerializable(typeof(PermissionRequestResponse))]
     [JsonSerializable(typeof(PermissionRequestResult))]
+    [JsonSerializable(typeof(PermissionRequestResponseV2))]
     [JsonSerializable(typeof(ProviderConfig))]
     [JsonSerializable(typeof(ResumeSessionRequest))]
     [JsonSerializable(typeof(ResumeSessionResponse))]
     [JsonSerializable(typeof(SessionMetadata))]
     [JsonSerializable(typeof(SystemMessageConfig))]
-    [JsonSerializable(typeof(ToolCallResponse))]
+    [JsonSerializable(typeof(ToolCallResponseV2))]
     [JsonSerializable(typeof(ToolDefinition))]
     [JsonSerializable(typeof(ToolResultAIContent))]
     [JsonSerializable(typeof(ToolResultObject))]

@@ -40,7 +40,7 @@ describe("MCP Servers and Custom Agents", async () => {
             });
             expect(message?.data.content).toContain("4");
 
-            await session.destroy();
+            await session.disconnect();
         });
 
         it("should accept MCP server configuration on session resume", async () => {
@@ -71,7 +71,7 @@ describe("MCP Servers and Custom Agents", async () => {
             });
             expect(message?.data.content).toContain("6");
 
-            await session2.destroy();
+            await session2.disconnect();
         });
 
         it("should handle multiple MCP servers", async () => {
@@ -96,7 +96,7 @@ describe("MCP Servers and Custom Agents", async () => {
             });
 
             expect(session.sessionId).toBeDefined();
-            await session.destroy();
+            await session.disconnect();
         });
 
         it("should pass literal env values to MCP server subprocess", async () => {
@@ -122,7 +122,7 @@ describe("MCP Servers and Custom Agents", async () => {
             });
             expect(message?.data.content).toContain("hunter2");
 
-            await session.destroy();
+            await session.disconnect();
         });
     });
 
@@ -151,7 +151,7 @@ describe("MCP Servers and Custom Agents", async () => {
             });
             expect(message?.data.content).toContain("10");
 
-            await session.destroy();
+            await session.disconnect();
         });
 
         it("should accept custom agent configuration on session resume", async () => {
@@ -182,7 +182,7 @@ describe("MCP Servers and Custom Agents", async () => {
             });
             expect(message?.data.content).toContain("12");
 
-            await session2.destroy();
+            await session2.disconnect();
         });
 
         it("should handle custom agent with tools configuration", async () => {
@@ -203,7 +203,7 @@ describe("MCP Servers and Custom Agents", async () => {
             });
 
             expect(session.sessionId).toBeDefined();
-            await session.destroy();
+            await session.disconnect();
         });
 
         it("should handle custom agent with MCP servers", async () => {
@@ -230,7 +230,7 @@ describe("MCP Servers and Custom Agents", async () => {
             });
 
             expect(session.sessionId).toBeDefined();
-            await session.destroy();
+            await session.disconnect();
         });
 
         it("should handle multiple custom agents", async () => {
@@ -256,7 +256,7 @@ describe("MCP Servers and Custom Agents", async () => {
             });
 
             expect(session.sessionId).toBeDefined();
-            await session.destroy();
+            await session.disconnect();
         });
     });
 
@@ -293,7 +293,7 @@ describe("MCP Servers and Custom Agents", async () => {
             });
             expect(message?.data.content).toContain("14");
 
-            await session.destroy();
+            await session.disconnect();
         });
     });
 });

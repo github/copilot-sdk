@@ -55,7 +55,7 @@ func TestMCPServers(t *testing.T) {
 			t.Errorf("Expected message to contain '4', got: %v", message.Data.Content)
 		}
 
-		session.Destroy()
+		session.Disconnect()
 	})
 
 	t.Run("accept MCP server config on resume", func(t *testing.T) {
@@ -104,7 +104,7 @@ func TestMCPServers(t *testing.T) {
 			t.Errorf("Expected message to contain '6', got: %v", message.Data.Content)
 		}
 
-		session2.Destroy()
+		session2.Disconnect()
 	})
 
 	t.Run("should pass literal env values to MCP server subprocess", func(t *testing.T) {
@@ -150,7 +150,7 @@ func TestMCPServers(t *testing.T) {
 			t.Errorf("Expected message to contain 'hunter2', got: %v", message.Data.Content)
 		}
 
-		session.Destroy()
+		session.Disconnect()
 	})
 
 	t.Run("handle multiple MCP servers", func(t *testing.T) {
@@ -183,7 +183,7 @@ func TestMCPServers(t *testing.T) {
 			t.Error("Expected non-empty session ID")
 		}
 
-		session.Destroy()
+		session.Disconnect()
 	})
 }
 
@@ -235,7 +235,7 @@ func TestCustomAgents(t *testing.T) {
 			t.Errorf("Expected message to contain '10', got: %v", message.Data.Content)
 		}
 
-		session.Destroy()
+		session.Disconnect()
 	})
 
 	t.Run("accept custom agent config on resume", func(t *testing.T) {
@@ -284,7 +284,7 @@ func TestCustomAgents(t *testing.T) {
 			t.Errorf("Expected message to contain '12', got: %v", message.Data.Content)
 		}
 
-		session2.Destroy()
+		session2.Disconnect()
 	})
 
 	t.Run("handle custom agent with tools", func(t *testing.T) {
@@ -314,7 +314,7 @@ func TestCustomAgents(t *testing.T) {
 			t.Error("Expected non-empty session ID")
 		}
 
-		session.Destroy()
+		session.Disconnect()
 	})
 
 	t.Run("handle custom agent with MCP servers", func(t *testing.T) {
@@ -349,7 +349,7 @@ func TestCustomAgents(t *testing.T) {
 			t.Error("Expected non-empty session ID")
 		}
 
-		session.Destroy()
+		session.Disconnect()
 	})
 
 	t.Run("handle multiple custom agents", func(t *testing.T) {
@@ -386,7 +386,7 @@ func TestCustomAgents(t *testing.T) {
 			t.Error("Expected non-empty session ID")
 		}
 
-		session.Destroy()
+		session.Disconnect()
 	})
 }
 
@@ -445,6 +445,6 @@ func TestCombinedConfiguration(t *testing.T) {
 			t.Errorf("Expected message to contain '14', got: %v", message.Data.Content)
 		}
 
-		session.Destroy()
+		session.Disconnect()
 	})
 }

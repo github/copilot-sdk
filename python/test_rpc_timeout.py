@@ -8,11 +8,11 @@ from copilot.generated.rpc import (
     FleetApi,
     Mode,
     ModeApi,
-    ModelsApi,
     PlanApi,
+    ServerModelsApi,
+    ServerToolsApi,
     SessionFleetStartParams,
     SessionModeSetParams,
-    ToolsApi,
     ToolsListParams,
 )
 
@@ -91,7 +91,7 @@ class TestRpcTimeout:
     async def test_timeout_on_server_params_method(self):
         client = AsyncMock()
         client.request = AsyncMock(return_value={"tools": []})
-        api = ToolsApi(client)
+        api = ServerToolsApi(client)
 
         await api.list(ToolsListParams(), timeout=60.0)
 
@@ -102,7 +102,7 @@ class TestRpcTimeout:
     async def test_default_timeout_on_server_params_method(self):
         client = AsyncMock()
         client.request = AsyncMock(return_value={"tools": []})
-        api = ToolsApi(client)
+        api = ServerToolsApi(client)
 
         await api.list(ToolsListParams())
 
@@ -115,7 +115,7 @@ class TestRpcTimeout:
     async def test_timeout_on_server_no_params_method(self):
         client = AsyncMock()
         client.request = AsyncMock(return_value={"models": []})
-        api = ModelsApi(client)
+        api = ServerModelsApi(client)
 
         await api.list(timeout=45.0)
 
@@ -126,7 +126,7 @@ class TestRpcTimeout:
     async def test_default_timeout_on_server_no_params_method(self):
         client = AsyncMock()
         client.request = AsyncMock(return_value={"models": []})
-        api = ModelsApi(client)
+        api = ServerModelsApi(client)
 
         await api.list()
 

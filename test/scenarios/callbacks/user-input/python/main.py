@@ -47,7 +47,7 @@ async def main():
         if response:
             print(response.data.content)
 
-        await session.destroy()
+        await session.disconnect()
 
         print("\n--- User input log ---")
         for entry in input_log:

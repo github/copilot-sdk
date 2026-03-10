@@ -170,7 +170,41 @@ response = await session.send_and_wait({"prompt": "Hello!"})
 <details>
 <summary><strong>Go</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func createClientForUser(userToken string) *copilot.Client {
+	return copilot.NewClient(&copilot.ClientOptions{
+		GitHubToken:     userToken,
+		UseLoggedInUser: copilot.Bool(false),
+	})
+}
+
+func main() {
+	ctx := context.Background()
+	userID := "user1"
+
+	client := createClientForUser("gho_user_access_token")
+	client.Start(ctx)
+	defer client.Stop()
+
+	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
+		SessionID: fmt.Sprintf("user-%s-session", userID),
+		Model:     "gpt-4.1",
+	})
+	response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Hello!"})
+	_ = response
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 func createClientForUser(userToken string) *copilot.Client {
     return copilot.NewClient(&copilot.ClientOptions{
@@ -196,7 +230,31 @@ response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Hello!"}
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot.SDK;
+
+CopilotClient CreateClientForUser(string userToken) =>
+    new CopilotClient(new CopilotClientOptions
+    {
+        GithubToken = userToken,
+        UseLoggedInUser = false,
+    });
+
+var userId = "user1";
+
+await using var client = CreateClientForUser("gho_user_access_token");
+await using var session = await client.CreateSessionAsync(new SessionConfig
+{
+    SessionId = $"user-{userId}-session",
+    Model = "gpt-4.1",
+});
+
+var response = await session.SendAndWaitAsync(
+    new MessageOptions { Prompt = "Hello!" });
+```
+<!-- /docs-validate: hidden -->
+
 ```csharp
 CopilotClient CreateClientForUser(string userToken) =>
     new CopilotClient(new CopilotClientOptions
@@ -374,12 +432,12 @@ For a lighter resource footprint, you can run a single external CLI server and p
 
 | Need | Next Guide |
 |------|-----------|
-| Users without GitHub accounts | [BYOK](./byok.md) |
+| Users without GitHub accounts | [BYOK](../auth/byok.md) |
 | Run the SDK on servers | [Backend Services](./backend-services.md) |
 | Handle many concurrent users | [Scaling & Multi-Tenancy](./scaling.md) |
 
 ## Next Steps
 
-- **[Authentication docs](../../auth/index.md)** — Full auth method reference
+- **[Authentication docs](../auth/index.md)** — Full auth method reference
 - **[Backend Services](./backend-services.md)** — Run the SDK server-side
 - **[Scaling & Multi-Tenancy](./scaling.md)** — Handle many users at scale

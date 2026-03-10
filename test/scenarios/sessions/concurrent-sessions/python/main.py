@@ -44,7 +44,7 @@ async def main():
         if response2:
             print("Session 2 (robot):", response2.data.content)
 
-        await asyncio.gather(session1.destroy(), session2.destroy())
+        await asyncio.gather(session1.disconnect(), session2.disconnect())
     finally:
         await client.stop()
 

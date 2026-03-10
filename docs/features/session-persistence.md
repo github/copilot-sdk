@@ -65,7 +65,33 @@ await session.send_and_wait({"prompt": "Analyze my codebase"})
 
 ### Go
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+
+	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
+		SessionID: "user-123-task-456",
+		Model:     "gpt-5.2-codex",
+		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+		},
+	})
+
+	session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Analyze my codebase"})
+	_ = session
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 ctx := context.Background()
 client := copilot.NewClient(nil)
@@ -142,7 +168,27 @@ await session.send_and_wait({"prompt": "What did we discuss earlier?"})
 
 ### Go
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+
+	session, _ := client.ResumeSession(ctx, "user-123-task-456", nil)
+
+	session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "What did we discuss earlier?"})
+	_ = session
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 ctx := context.Background()
 
@@ -155,7 +201,28 @@ session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "What did we discuss ear
 
 ### C# (.NET)
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot.SDK;
+
+public static class ResumeSessionExample
+{
+    public static async Task Main()
+    {
+        await using var client = new CopilotClient();
+
+        var session = await client.ResumeSessionAsync("user-123-task-456", new ResumeSessionConfig
+        {
+            OnPermissionRequest = (req, inv) =>
+                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
+        });
+
+        await session.SendAndWaitAsync(new MessageOptions { Prompt = "What did we discuss earlier?" });
+    }
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```csharp
 // Resume from a different client instance (or after restart)
 var session = await client.ResumeSessionAsync("user-123-task-456");
@@ -181,6 +248,7 @@ When resuming a session, you can optionally reconfigure many settings. This is u
 | `configDir` | Override configuration directory |
 | `mcpServers` | Configure MCP servers |
 | `customAgents` | Configure custom agents |
+| `agent` | Pre-select a custom agent by name |
 | `skillDirectories` | Directories to load skills from |
 | `disabledSkills` | Skills to disable |
 | `infiniteSessions` | Configure infinite session behavior |
@@ -325,23 +393,45 @@ async function cleanupExpiredSessions(maxAgeMs: number) {
 await cleanupExpiredSessions(24 * 60 * 60 * 1000);
 ```
 
-### Explicit Session Destruction
+### Disconnecting from a Session (`disconnect`)
 
-When a task completes, destroy the session explicitly rather than waiting for timeouts:
+When a task completes, disconnect from the session explicitly rather than waiting for timeouts. This releases in-memory resources but **preserves session data on disk**, so the session can still be resumed later:
 
 ```typescript
 try {
   // Do work...
   await session.sendAndWait({ prompt: "Complete the task" });
   
-  // Task complete - clean up
-  await session.destroy();
+  // Task complete — release in-memory resources (session can be resumed later)
+  await session.disconnect();
 } catch (error) {
   // Clean up even on error
-  await session.destroy();
+  await session.disconnect();
   throw error;
 }
 ```
+
+Each SDK also provides idiomatic automatic cleanup patterns:
+
+| Language | Pattern | Example |
+|----------|---------|---------|
+| **TypeScript** | `Symbol.asyncDispose` | `await using session = await client.createSession(config);` |
+| **Python** | `async with` context manager | `async with await client.create_session(config) as session:` |
+| **C#** | `IAsyncDisposable` | `await using var session = await client.CreateSessionAsync(config);` |
+| **Go** | `defer` | `defer session.Disconnect()` |
+
+> **Note:** `destroy()` is deprecated in favor of `disconnect()`. Existing code using `destroy()` will continue to work but should be migrated.
+
+### Permanently Deleting a Session (`deleteSession`)
+
+To permanently remove a session and all its data from disk (conversation history, planning state, artifacts), use `deleteSession`. This is irreversible — the session **cannot** be resumed after deletion:
+
+```typescript
+// Permanently remove session data
+await client.deleteSession("user-123-task-456");
+```
+
+> **`disconnect()` vs `deleteSession()`:** `disconnect()` releases in-memory resources but keeps session data on disk for later resumption. `deleteSession()` permanently removes everything, including files on disk.
 
 ## Automatic Cleanup: Idle Timeout
 
@@ -472,7 +562,7 @@ const session = await client.createSession({
 });
 ```
 
-> **Note:** Thresholds are context utilization ratios (0.0-1.0), not absolute token counts. See the [Compatibility Guide](../compatibility.md) for details.
+> **Note:** Thresholds are context utilization ratios (0.0-1.0), not absolute token counts. See the [Compatibility Guide](../troubleshooting/compatibility.md) for details.
 
 ## Limitations & Considerations
 
@@ -526,12 +616,12 @@ await withSessionLock("user-123-task-456", async () => {
 | **Resume session** | `client.resumeSession(sessionId)` |
 | **BYOK resume** | Re-provide `provider` config |
 | **List sessions** | `client.listSessions(filter?)` |
-| **Delete session** | `client.deleteSession(sessionId)` |
-| **Destroy active session** | `session.destroy()` |
+| **Disconnect from active session** | `session.disconnect()` — releases in-memory resources; session data on disk is preserved for resumption |
+| **Delete session permanently** | `client.deleteSession(sessionId)` — permanently removes all session data from disk; cannot be resumed |
 | **Containerized deployment** | Mount `~/.copilot/session-state/` to persistent storage |
 
 ## Next Steps
 
-- [Hooks Overview](../hooks/overview.md) - Customize session behavior with hooks
-- [Compatibility Guide](../compatibility.md) - SDK vs CLI feature comparison
-- [Debugging Guide](../debugging.md) - Troubleshoot session issues
+- [Hooks Overview](../hooks/index.md) - Customize session behavior with hooks
+- [Compatibility Guide](../troubleshooting/compatibility.md) - SDK vs CLI feature comparison
+- [Debugging Guide](../troubleshooting/debugging.md) - Troubleshoot session issues
