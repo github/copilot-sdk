@@ -40,6 +40,7 @@ import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.PermissionInvocation;
 import com.github.copilot.sdk.json.PermissionRequest;
 import com.github.copilot.sdk.json.PermissionRequestResult;
+import com.github.copilot.sdk.json.PermissionRequestResultKind;
 import com.github.copilot.sdk.json.PostToolUseHookInput;
 import com.github.copilot.sdk.json.PreToolUseHookInput;
 import com.github.copilot.sdk.json.SendMessageRequest;
@@ -684,6 +685,14 @@ public final class CopilotSession implements AutoCloseable {
                 });
             } catch (Exception e) {
                 LOG.log(Level.WARNING, "Error executing tool for requestId=" + requestId, e);
+                try {
+                    rpc.invoke(
+                            "session.tools.handlePendingToolCall", Map.of("sessionId", sessionId, "requestId",
+                                    requestId, "error", e.getMessage() != null ? e.getMessage() : e.toString()),
+                            Object.class);
+                } catch (Exception sendEx) {
+                    LOG.log(Level.WARNING, "Error sending tool error for requestId=" + requestId, sendEx);
+                }
             }
         });
     }
@@ -708,7 +717,7 @@ public final class CopilotSession implements AutoCloseable {
                 }).exceptionally(ex -> {
                     try {
                         PermissionRequestResult denied = new PermissionRequestResult();
-                        denied.setKind("denied-could-not-request-from-user");
+                        denied.setKind(PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER);
                         rpc.invoke("session.permissions.handlePendingPermissionRequest",
                                 Map.of("sessionId", sessionId, "requestId", requestId, "result", denied), Object.class);
                     } catch (Exception e) {
@@ -718,6 +727,14 @@ public final class CopilotSession implements AutoCloseable {
                 });
             } catch (Exception e) {
                 LOG.log(Level.WARNING, "Error executing permission handler for requestId=" + requestId, e);
+                try {
+                    PermissionRequestResult denied = new PermissionRequestResult();
+                    denied.setKind(PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER);
+                    rpc.invoke("session.permissions.handlePendingPermissionRequest",
+                            Map.of("sessionId", sessionId, "requestId", requestId, "result", denied), Object.class);
+                } catch (Exception sendEx) {
+                    LOG.log(Level.WARNING, "Error sending permission denied for requestId=" + requestId, sendEx);
+                }
             }
         });
     }
