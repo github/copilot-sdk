@@ -230,7 +230,7 @@ export class CopilotClient {
         this.onListModels = options.onListModels;
 
         this.options = {
-            cliPath: options.cliPath || getBundledCliPath(),
+            cliPath: options.cliUrl ? undefined : (options.cliPath || getBundledCliPath()),
             cliArgs: options.cliArgs ?? [],
             cwd: options.cwd ?? process.cwd(),
             port: options.port || 0,
