@@ -210,6 +210,15 @@ describe("CopilotClient", () => {
 
             expect((client as any).isExternalServer).toBe(true);
         });
+
+        it("should not resolve cliPath when cliUrl is provided", () => {
+            const client = new CopilotClient({
+                cliUrl: "localhost:8080",
+                logLevel: "error",
+            });
+
+            expect(client["options"].cliPath).toBeUndefined();
+        });
     });
 
     describe("Auth options", () => {
