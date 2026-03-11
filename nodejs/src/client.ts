@@ -141,8 +141,12 @@ export class CopilotClient {
     private sessions: Map<string, CopilotSession> = new Map();
     private stderrBuffer: string = ""; // Captures CLI stderr for error messages
     private options: Required<
-        Omit<CopilotClientOptions, "cliUrl" | "githubToken" | "useLoggedInUser" | "onListModels">
+        Omit<
+            CopilotClientOptions,
+            "cliPath" | "cliUrl" | "githubToken" | "useLoggedInUser" | "onListModels"
+        >
     > & {
+        cliPath?: string;
         cliUrl?: string;
         githubToken?: string;
         useLoggedInUser?: boolean;
@@ -230,7 +234,7 @@ export class CopilotClient {
         this.onListModels = options.onListModels;
 
         this.options = {
-            cliPath: options.cliPath || getBundledCliPath(),
+            cliPath: options.cliUrl ? undefined : options.cliPath || getBundledCliPath(),
             cliArgs: options.cliArgs ?? [],
             cwd: options.cwd ?? process.cwd(),
             port: options.port || 0,
@@ -1133,6 +1137,12 @@ export class CopilotClient {
             // Set auth token in environment if provided
             if (this.options.githubToken) {
                 envWithoutNodeDebug.COPILOT_SDK_AUTH_TOKEN = this.options.githubToken;
+            }
+
+            if (!this.options.cliPath) {
+                throw new Error(
+                    "Path to Copilot CLI is required. Please provide it via the cliPath option, or use cliUrl to rely on a remote CLI."
+                );
             }
 
             // Verify CLI exists before attempting to spawn
