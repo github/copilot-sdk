@@ -8,8 +8,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+
+import com.github.copilot.sdk.events.AbstractSessionEvent;
 
 /**
  * Configuration for resuming an existing Copilot session.
@@ -50,9 +53,11 @@ public class ResumeSessionConfig {
     private boolean streaming;
     private Map<String, Object> mcpServers;
     private List<CustomAgentConfig> customAgents;
+    private String agent;
     private List<String> skillDirectories;
     private List<String> disabledSkills;
     private InfiniteSessionConfig infiniteSessions;
+    private Consumer<AbstractSessionEvent> onEvent;
 
     /**
      * Gets the AI model to use.
@@ -437,6 +442,29 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the name of the custom agent to activate at session start.
+     *
+     * @return the agent name, or {@code null} if not set
+     */
+    public String getAgent() {
+        return agent;
+    }
+
+    /**
+     * Sets the name of the custom agent to activate when the session starts.
+     * <p>
+     * Must match the name of one of the agents in {@link #setCustomAgents(List)}.
+     *
+     * @param agent
+     *            the agent name to pre-select
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setAgent(String agent) {
+        this.agent = agent;
+        return this;
+    }
+
+    /**
      * Gets the skill directories.
      *
      * @return the list of skill directory paths
@@ -502,6 +530,32 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the event handler registered before the session.resume RPC is issued.
+     *
+     * @return the event handler, or {@code null} if not set
+     */
+    public Consumer<AbstractSessionEvent> getOnEvent() {
+        return onEvent;
+    }
+
+    /**
+     * Sets an event handler that is registered on the session before the
+     * {@code session.resume} RPC is issued.
+     * <p>
+     * Equivalent to calling
+     * {@link com.github.copilot.sdk.CopilotSession#on(Consumer)} immediately after
+     * resumption, but executes earlier in the lifecycle so no events are missed.
+     *
+     * @param onEvent
+     *            the event handler to register before session resumption
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setOnEvent(Consumer<AbstractSessionEvent> onEvent) {
+        this.onEvent = onEvent;
+        return this;
+    }
+
+    /**
      * Creates a shallow clone of this {@code ResumeSessionConfig} instance.
      * <p>
      * Mutable collection properties are copied into new collection instances so
@@ -532,9 +586,11 @@ public class ResumeSessionConfig {
         copy.streaming = this.streaming;
         copy.mcpServers = this.mcpServers != null ? new java.util.HashMap<>(this.mcpServers) : null;
         copy.customAgents = this.customAgents != null ? new ArrayList<>(this.customAgents) : null;
+        copy.agent = this.agent;
         copy.skillDirectories = this.skillDirectories != null ? new ArrayList<>(this.skillDirectories) : null;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
         copy.infiniteSessions = this.infiniteSessions;
+        copy.onEvent = this.onEvent;
         return copy;
     }
 }
