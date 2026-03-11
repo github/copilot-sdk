@@ -79,13 +79,11 @@ async with await client.create_session({"model": "gpt-5"}) as session:
 ### CopilotClient
 
 ```python
-client = CopilotClient({
-    "cli_path": "copilot",  # Optional: path to CLI executable
-    "cli_url": None,        # Optional: URL of existing server (e.g., "localhost:8080")
-    "log_level": "info",    # Optional: log level (default: "info")
-    "auto_start": True,     # Optional: auto-start server (default: True)
-    "auto_restart": True,   # Optional: auto-restart on crash (default: True)
-})
+client = CopilotClient(
+    log_level="info",       # Optional: log level (default: "info")
+    auto_start=True,        # Optional: auto-start server (default: True)
+    auto_restart=True,      # Optional: auto-restart on crash (default: True)
+)
 await client.start()
 
 session = await client.create_session({"model": "gpt-5"})
@@ -102,18 +100,31 @@ await session.disconnect()
 await client.stop()
 ```
 
-**CopilotClient Options:**
+**CopilotClient Options (keyword-only):**
 
-- `cli_path` (str): Path to CLI executable (default: "copilot" or `COPILOT_CLI_PATH` env var)
-- `cli_url` (str): URL of existing CLI server (e.g., `"localhost:8080"`, `"http://127.0.0.1:9000"`, or just `"8080"`). When provided, the client will not spawn a CLI process.
-- `cwd` (str): Working directory for CLI process
-- `port` (int): Server port for TCP mode (default: 0 for random)
-- `use_stdio` (bool): Use stdio transport instead of TCP (default: True)
-- `log_level` (str): Log level (default: "info")
+The client operates in one of two modes: **spawning a local CLI process** (default) or **connecting to an external server** via `cli_url`. Some arguments only apply to one mode.
+
+*General options (always applicable):*
+
 - `auto_start` (bool): Auto-start server on first use (default: True)
+- `on_list_models` (callable | None): Custom handler for listing available models. When provided, `list_models()` calls this handler instead of querying the CLI server.
+
+*Local CLI process options (not allowed when `cli_url` is provided):*
+
+- `cli_path` (str | None): Path to the Copilot CLI executable. When ``None`` (default), uses the bundled CLI binary shipped with the platform-specific wheel.
+- `cli_args` (list[str] | None): Extra arguments to pass to the CLI executable (inserted before SDK-managed args).
+- `cwd` (str | None): Working directory for the CLI process. Defaults to the current working directory.
+- `port` (int): Server port for TCP mode (default: 0 for random). Ignored in stdio mode.
+- `use_stdio` (bool | None): Use stdio transport instead of TCP (default: True). Passing explicitly alongside `cli_url` raises an error.
+- `log_level` (str): Log level (default: "info")
 - `auto_restart` (bool): Auto-restart on crash (default: True)
-- `github_token` (str): GitHub token for authentication. When provided, takes priority over other auth methods.
-- `use_logged_in_user` (bool): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided). Cannot be used with `cli_url`.
+- `env` (dict[str, str] | None): Environment variables for the CLI process. When ``None``, the current process's environment is used.
+- `github_token` (str | None): GitHub token for authentication. When provided, takes priority over other auth methods. Cannot be used with `cli_url`.
+- `use_logged_in_user` (bool | None): Whether to use the logged-in user for authentication. Defaults to ``True`` when no `github_token` is given, ``False`` otherwise. Cannot be used with `cli_url`.
+
+*External server options:*
+
+- `cli_url` (str | None): URL of an existing CLI server (e.g., `"localhost:8080"`, `"http://127.0.0.1:9000"`, or just `"8080"`). When provided, the client connects over TCP instead of spawning a process. Mutually exclusive with `cli_path` and its exclusive arguments.
 
 **SessionConfig Options (for `create_session`):**
 

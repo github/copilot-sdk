@@ -13,7 +13,7 @@ CLI_URL = os.environ.get("CLI_URL", os.environ.get("COPILOT_CLI_URL", "localhost
 
 
 async def ask_copilot(prompt: str) -> str:
-    client = CopilotClient({"cli_url": CLI_URL})
+    client = CopilotClient(cli_url=CLI_URL)
 
     try:
         session = await client.create_session({"model": "claude-haiku-4.5"})

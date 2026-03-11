@@ -78,10 +78,10 @@ async def main():
     display_name = f" ({user.get('name')})" if user.get("name") else ""
     print(f"Authenticated as: {user.get('login')}{display_name}")
 
-    opts = {"github_token": token}
-    if os.environ.get("COPILOT_CLI_PATH"):
-        opts["cli_path"] = os.environ["COPILOT_CLI_PATH"]
-    client = CopilotClient(opts)
+    client = CopilotClient(
+        github_token=token,
+        cli_path=os.environ.get("COPILOT_CLI_PATH"),
+    )
 
     try:
         session = await client.create_session({"model": "claude-haiku-4.5"})

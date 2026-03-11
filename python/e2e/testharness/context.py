@@ -64,12 +64,10 @@ class E2ETestContext:
             "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
         )
         self._client = CopilotClient(
-            {
-                "cli_path": self.cli_path,
-                "cwd": self.work_dir,
-                "env": self.get_env(),
-                "github_token": github_token,
-            }
+            cli_path=self.cli_path,
+            cwd=self.work_dir,
+            env=self.get_env(),
+            github_token=github_token,
         )
 
     async def teardown(self, test_failed: bool = False):
