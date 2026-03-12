@@ -122,7 +122,6 @@ Every major SDK feature should be documented. Core features include:
 - Client initialization and configuration
 - Connection modes (stdio vs TCP)
 - Authentication options
-- Auto-start and auto-restart behavior
 
 **Session Management:**
 - Creating sessions
@@ -342,7 +341,7 @@ cat nodejs/src/types.ts | grep -A 10 "export interface ExportSessionOptions"
 ```
 
 **Must match:**
-- `CopilotClient` constructor options: `cliPath`, `cliUrl`, `useStdio`, `port`, `logLevel`, `autoStart`, `autoRestart`, `env`, `githubToken`, `useLoggedInUser`
+- `CopilotClient` constructor options: `cliPath`, `cliUrl`, `useStdio`, `port`, `logLevel`, `autoStart`, `env`, `githubToken`, `useLoggedInUser`
 - `createSession()` config: `model`, `tools`, `hooks`, `systemMessage`, `mcpServers`, `availableTools`, `excludedTools`, `streaming`, `reasoningEffort`, `provider`, `infiniteSessions`, `customAgents`, `workingDirectory`
 - `CopilotSession` methods: `send()`, `sendAndWait()`, `getMessages()`, `disconnect()`, `abort()`, `on()`, `once()`, `off()`
 - Hook names: `onPreToolUse`, `onPostToolUse`, `onUserPromptSubmitted`, `onSessionStart`, `onSessionEnd`, `onErrorOccurred`
@@ -360,7 +359,7 @@ cat python/copilot/types.py | grep -A 15 "class SessionHooks"
 ```
 
 **Must match (snake_case):**
-- `CopilotClient` options: `cli_path`, `cli_url`, `use_stdio`, `port`, `log_level`, `auto_start`, `auto_restart`, `env`, `github_token`, `use_logged_in_user`
+- `CopilotClient` options: `cli_path`, `cli_url`, `use_stdio`, `port`, `log_level`, `auto_start`, `env`, `github_token`, `use_logged_in_user`
 - `create_session()` config keys: `model`, `tools`, `hooks`, `system_message`, `mcp_servers`, `available_tools`, `excluded_tools`, `streaming`, `reasoning_effort`, `provider`, `infinite_sessions`, `custom_agents`, `working_directory`
 - `CopilotSession` methods: `send()`, `send_and_wait()`, `get_messages()`, `disconnect()`, `abort()`, `export_session()`
 - Hook names: `on_pre_tool_use`, `on_post_tool_use`, `on_user_prompt_submitted`, `on_session_start`, `on_session_end`, `on_error_occurred`
@@ -378,7 +377,7 @@ cat go/types.go | grep -A 15 "type SessionHooks struct"
 ```
 
 **Must match (PascalCase for exported):**
-- `ClientOptions` fields: `CLIPath`, `CLIUrl`, `UseStdio`, `Port`, `LogLevel`, `AutoStart`, `AutoRestart`, `Env`, `GithubToken`, `UseLoggedInUser`
+- `ClientOptions` fields: `CLIPath`, `CLIUrl`, `UseStdio`, `Port`, `LogLevel`, `AutoStart`, `Env`, `GithubToken`, `UseLoggedInUser`
 - `SessionConfig` fields: `Model`, `Tools`, `Hooks`, `SystemMessage`, `MCPServers`, `AvailableTools`, `ExcludedTools`, `Streaming`, `ReasoningEffort`, `Provider`, `InfiniteSessions`, `CustomAgents`, `WorkingDirectory`
 - `Session` methods: `Send()`, `SendAndWait()`, `GetMessages()`, `Disconnect()`, `Abort()`, `ExportSession()`
 - Hook fields: `OnPreToolUse`, `OnPostToolUse`, `OnUserPromptSubmitted`, `OnSessionStart`, `OnSessionEnd`, `OnErrorOccurred`
@@ -396,7 +395,7 @@ cat dotnet/src/Types.cs | grep -A 15 "public class SessionHooks"
 ```
 
 **Must match (PascalCase):**
-- `CopilotClientOptions` properties: `CliPath`, `CliUrl`, `UseStdio`, `Port`, `LogLevel`, `AutoStart`, `AutoRestart`, `Environment`, `GithubToken`, `UseLoggedInUser`
+- `CopilotClientOptions` properties: `CliPath`, `CliUrl`, `UseStdio`, `Port`, `LogLevel`, `AutoStart`, `Environment`, `GithubToken`, `UseLoggedInUser`
 - `SessionConfig` properties: `Model`, `Tools`, `Hooks`, `SystemMessage`, `McpServers`, `AvailableTools`, `ExcludedTools`, `Streaming`, `ReasoningEffort`, `Provider`, `InfiniteSessions`, `CustomAgents`, `WorkingDirectory`
 - `CopilotSession` methods: `SendAsync()`, `SendAndWaitAsync()`, `GetMessagesAsync()`, `DisposeAsync()`, `AbortAsync()`, `ExportSessionAsync()`
 - Hook properties: `OnPreToolUse`, `OnPostToolUse`, `OnUserPromptSubmitted`, `OnSessionStart`, `OnSessionEnd`, `OnErrorOccurred`

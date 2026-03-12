@@ -82,7 +82,6 @@ new CopilotClient(options?: CopilotClientOptions)
 - `useStdio?: boolean` - Use stdio transport instead of TCP (default: true)
 - `logLevel?: string` - Log level (default: "info")
 - `autoStart?: boolean` - Auto-start server (default: true)
-- `autoRestart?: boolean` - Auto-restart on crash (default: true)
 - `githubToken?: string` - GitHub token for authentication. When provided, takes priority over other auth methods.
 - `useLoggedInUser?: boolean` - Whether to use logged-in user for authentication (default: true, but false when `githubToken` is provided). Cannot be used with `cliUrl`.
 

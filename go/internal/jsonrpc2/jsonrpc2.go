@@ -61,6 +61,7 @@ type Client struct {
 	processDone     chan struct{} // closed when the underlying process exits
 	processError    error         // set before processDone is closed
 	processErrorMu  sync.RWMutex  // protects processError
+	onClose         func()        // called when the read loop exits unexpectedly
 }
 
 // NewClient creates a new JSON-RPC client
@@ -293,9 +294,22 @@ func (c *Client) sendMessage(message any) error {
 	return nil
 }
 
+// SetOnClose sets a callback invoked when the read loop exits unexpectedly
+// (e.g. the underlying connection or process was lost).
+func (c *Client) SetOnClose(fn func()) {
+	c.onClose = fn
+}
+
 // readLoop reads messages from stdout in a background goroutine
 func (c *Client) readLoop() {
 	defer c.wg.Done()
+	defer func() {
+		// If still running, the read loop exited unexpectedly (process died or
+		// connection dropped). Notify the caller so it can update its state.
+		if c.onClose != nil && c.running.Load() {
+			c.onClose()
+		}
+	}()
 
 	reader := bufio.NewReader(c.stdout)
 

@@ -38,8 +38,7 @@ type ClientOptions struct {
 	// AutoStart automatically starts the CLI server on first use (default: true).
 	// Use Bool(false) to disable.
 	AutoStart *bool
-	// AutoRestart automatically restarts the CLI server if it crashes (default: true).
-	// Use Bool(false) to disable.
+	// Deprecated: AutoRestart has no effect and will be removed in a future release.
 	AutoRestart *bool
 	// Env is the environment variables for the CLI process (default: inherits from current process).
 	// Each entry is of the form "key=value".
@@ -65,7 +64,7 @@ type ClientOptions struct {
 }
 
 // Bool returns a pointer to the given bool value.
-// Use for setting AutoStart or AutoRestart: AutoStart: Bool(false)
+// Use for setting AutoStart: AutoStart: Bool(false)
 func Bool(v bool) *bool {
 	return &v
 }

@@ -171,9 +171,6 @@ const client = new CopilotClient({
 
     // Set working directory
     cwd: "/path/to/project",
-
-    // Auto-restart CLI if it crashes (default: true)
-    autoRestart: true,
 });
 ```
 

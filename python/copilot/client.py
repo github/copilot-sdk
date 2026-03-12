@@ -193,7 +193,6 @@ class CopilotClient:
             "use_stdio": False if opts.get("cli_url") else opts.get("use_stdio", True),
             "log_level": opts.get("log_level", "info"),
             "auto_start": opts.get("auto_start", True),
-            "auto_restart": opts.get("auto_restart", True),
             "use_logged_in_user": use_logged_in_user,
         }
         if opts.get("cli_args"):
@@ -1410,6 +1409,7 @@ class CopilotClient:
 
         # Create JSON-RPC client with the process
         self._client = JsonRpcClient(self._process)
+        self._client.on_close = lambda: setattr(self, "_state", "disconnected")
         self._rpc = ServerRpc(self._client)
 
         # Set up notification handler for session events
@@ -1497,6 +1497,7 @@ class CopilotClient:
 
         self._process = SocketWrapper(sock_file, sock)  # type: ignore
         self._client = JsonRpcClient(self._process)
+        self._client.on_close = lambda: setattr(self, "_state", "disconnected")
         self._rpc = ServerRpc(self._client)
 
         # Set up notification handler for session events

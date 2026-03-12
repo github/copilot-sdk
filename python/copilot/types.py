@@ -86,8 +86,6 @@ class CopilotClientOptions(TypedDict, total=False):
     # Mutually exclusive with cli_path, use_stdio
     log_level: LogLevel  # Log level
     auto_start: bool  # Auto-start the CLI server on first use (default: True)
-    # Auto-restart the CLI server if it crashes (default: True)
-    auto_restart: bool
     env: dict[str, str]  # Environment variables for the CLI process
     # GitHub token to use for authentication.
     # When provided, the token is passed to the CLI server via environment variable.

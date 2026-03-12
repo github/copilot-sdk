@@ -84,7 +84,6 @@ client = CopilotClient({
     "cli_url": None,        # Optional: URL of existing server (e.g., "localhost:8080")
     "log_level": "info",    # Optional: log level (default: "info")
     "auto_start": True,     # Optional: auto-start server (default: True)
-    "auto_restart": True,   # Optional: auto-restart on crash (default: True)
 })
 await client.start()
 
@@ -111,7 +110,6 @@ await client.stop()
 - `use_stdio` (bool): Use stdio transport instead of TCP (default: True)
 - `log_level` (str): Log level (default: "info")
 - `auto_start` (bool): Auto-start server on first use (default: True)
-- `auto_restart` (bool): Auto-restart on crash (default: True)
 - `github_token` (str): GitHub token for authentication. When provided, takes priority over other auth methods.
 - `use_logged_in_user` (bool): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided). Cannot be used with `cli_url`.
 

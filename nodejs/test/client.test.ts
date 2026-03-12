@@ -516,4 +516,23 @@ describe("CopilotClient", () => {
             expect(models).toEqual(customModels);
         });
     });
+
+    describe("unexpected disconnection", () => {
+        it("transitions to disconnected when child process is killed", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            expect(client.getState()).toBe("connected");
+
+            // Kill the child process to simulate unexpected termination
+            const proc = (client as any).cliProcess as import("node:child_process").ChildProcess;
+            proc.kill();
+
+            // Wait for the connection.onClose handler to fire
+            await vi.waitFor(() => {
+                expect(client.getState()).toBe("disconnected");
+            });
+        });
+    });
 });

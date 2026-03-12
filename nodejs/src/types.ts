@@ -72,8 +72,7 @@ export interface CopilotClientOptions {
     autoStart?: boolean;
 
     /**
-     * Auto-restart the CLI server if it crashes
-     * @default true
+     * @deprecated This option has no effect and will be removed in a future release.
      */
     autoRestart?: boolean;
 

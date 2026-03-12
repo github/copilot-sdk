@@ -66,6 +66,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private readonly CopilotClientOptions _options;
     private readonly ILogger _logger;
     private Task<Connection>? _connectionTask;
+    private volatile bool _disconnected;
     private bool _disposed;
     private readonly int? _optionsPort;
     private readonly string? _optionsHost;
@@ -202,6 +203,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         async Task<Connection> StartCoreAsync(CancellationToken ct)
         {
             _logger.LogDebug("Starting Copilot client");
+            _disconnected = false;
 
             Task<Connection> result;
 
@@ -593,6 +595,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             if (_connectionTask == null) return ConnectionState.Disconnected;
             if (_connectionTask.IsFaulted) return ConnectionState.Error;
             if (!_connectionTask.IsCompleted) return ConnectionState.Connecting;
+            if (_disconnected) return ConnectionState.Disconnected;
             return ConnectionState.Connected;
         }
     }
@@ -1200,6 +1203,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         rpc.AddLocalRpcMethod("userInput.request", handler.OnUserInputRequest);
         rpc.AddLocalRpcMethod("hooks.invoke", handler.OnHooksInvoke);
         rpc.StartListening();
+
+        // Transition state to Disconnected if the JSON-RPC connection drops
+        _ = rpc.Completion.ContinueWith(_ => _disconnected = true, TaskScheduler.Default);
 
         _rpc = new ServerRpc(rpc);
 

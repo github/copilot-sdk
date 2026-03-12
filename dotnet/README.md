@@ -73,7 +73,6 @@ new CopilotClient(CopilotClientOptions? options = null)
 - `UseStdio` - Use stdio transport instead of TCP (default: true)
 - `LogLevel` - Log level (default: "info")
 - `AutoStart` - Auto-start server (default: true)
-- `AutoRestart` - Auto-restart on crash (default: true)
 - `Cwd` - Working directory for the CLI process
 - `Environment` - Environment variables to pass to the CLI process
 - `Logger` - `ILogger` instance for SDK logging

@@ -73,19 +73,19 @@ const noResultPermissionV2Error = "permission handlers cannot return 'no-result'
 //	}
 //	defer client.Stop()
 type Client struct {
-	options                   ClientOptions
-	process                   *exec.Cmd
-	client                    *jsonrpc2.Client
-	actualPort                int
-	actualHost                string
-	state                     ConnectionState
-	sessions                  map[string]*Session
-	sessionsMux               sync.Mutex
-	isExternalServer          bool
-	conn                      net.Conn // stores net.Conn for external TCP connections
-	useStdio                  bool     // resolved value from options
-	autoStart                 bool     // resolved value from options
-	autoRestart               bool     // resolved value from options
+	options          ClientOptions
+	process          *exec.Cmd
+	client           *jsonrpc2.Client
+	actualPort       int
+	actualHost       string
+	state            ConnectionState
+	sessions         map[string]*Session
+	sessionsMux      sync.Mutex
+	isExternalServer bool
+	conn             net.Conn // stores net.Conn for external TCP connections
+	useStdio         bool     // resolved value from options
+	autoStart        bool     // resolved value from options
+
 	modelsCache               []ModelInfo
 	modelsCacheMux            sync.Mutex
 	lifecycleHandlers         []SessionLifecycleHandler
@@ -134,7 +134,6 @@ func NewClient(options *ClientOptions) *Client {
 		isExternalServer: false,
 		useStdio:         true,
 		autoStart:        true, // default
-		autoRestart:      true, // default
 	}
 
 	if options != nil {
@@ -183,9 +182,6 @@ func NewClient(options *ClientOptions) *Client {
 		}
 		if options.AutoStart != nil {
 			client.autoStart = *options.AutoStart
-		}
-		if options.AutoRestart != nil {
-			client.autoRestart = *options.AutoRestart
 		}
 		if options.GitHubToken != "" {
 			opts.GitHubToken = options.GitHubToken
@@ -1233,6 +1229,15 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		// Create JSON-RPC client immediately
 		c.client = jsonrpc2.NewClient(stdin, stdout)
 		c.client.SetProcessDone(c.processDone, c.processErrorPtr)
+		c.client.SetOnClose(func() {
+			// Run in a goroutine to avoid deadlocking with Stop/ForceStop,
+			// which hold startStopMux while waiting for readLoop to finish.
+			go func() {
+				c.startStopMux.Lock()
+				defer c.startStopMux.Unlock()
+				c.state = StateDisconnected
+			}()
+		})
 		c.RPC = rpc.NewServerRpc(c.client)
 		c.setupNotificationHandler()
 		c.client.Start()
@@ -1348,6 +1353,13 @@ func (c *Client) connectViaTcp(ctx context.Context) error {
 	if c.processDone != nil {
 		c.client.SetProcessDone(c.processDone, c.processErrorPtr)
 	}
+	c.client.SetOnClose(func() {
+		go func() {
+			c.startStopMux.Lock()
+			defer c.startStopMux.Unlock()
+			c.state = StateDisconnected
+		}()
+	})
 	c.RPC = rpc.NewServerRpc(c.client)
 	c.setupNotificationHandler()
 	c.client.Start()

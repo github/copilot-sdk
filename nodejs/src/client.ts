@@ -243,7 +243,8 @@ export class CopilotClient {
             cliUrl: options.cliUrl,
             logLevel: options.logLevel || "debug",
             autoStart: options.autoStart ?? true,
-            autoRestart: options.autoRestart ?? true,
+            autoRestart: false,
+
             env: options.env ?? process.env,
             githubToken: options.githubToken,
             // Default useLoggedInUser to false when githubToken is provided, otherwise true
@@ -1259,8 +1260,6 @@ export class CopilotClient {
                     } else {
                         reject(new Error(`CLI server exited with code ${code}`));
                     }
-                } else if (this.options.autoRestart && this.state === "connected") {
-                    void this.reconnect();
                 }
             });
 
@@ -1412,13 +1411,11 @@ export class CopilotClient {
         );
 
         this.connection.onClose(() => {
-            if (this.state === "connected" && this.options.autoRestart) {
-                void this.reconnect();
-            }
+            this.state = "disconnected";
         });
 
         this.connection.onError((_error) => {
-            // Connection errors are handled via autoRestart if enabled
+            this.state = "disconnected";
         });
     }
 
@@ -1646,18 +1643,5 @@ export class CopilotClient {
             typeof (value as ToolResultObject).textResultForLlm === "string" &&
             "resultType" in value
         );
-    }
-
-    /**
-     * Attempt to reconnect to the server
-     */
-    private async reconnect(): Promise<void> {
-        this.state = "disconnected";
-        try {
-            await this.stop();
-            await this.start();
-        } catch (_error) {
-            // Reconnection failed
-        }
     }
 }

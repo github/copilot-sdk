@@ -50,8 +50,10 @@ public class CopilotClientOptions
     {
         if (other is null) return;
 
-        AutoRestart = other.AutoRestart;
         AutoStart = other.AutoStart;
+#pragma warning disable CS0618 // Obsolete member
+        AutoRestart = other.AutoRestart;
+#pragma warning restore CS0618
         CliArgs = (string[]?)other.CliArgs?.Clone();
         CliPath = other.CliPath;
         CliUrl = other.CliUrl;
@@ -99,9 +101,10 @@ public class CopilotClientOptions
     /// </summary>
     public bool AutoStart { get; set; } = true;
     /// <summary>
-    /// Whether to automatically restart the CLI server if it exits unexpectedly.
+    /// Obsolete. This option has no effect.
     /// </summary>
-    public bool AutoRestart { get; set; } = true;
+    [Obsolete("AutoRestart has no effect and will be removed in a future release.")]
+    public bool AutoRestart { get; set; }
     /// <summary>
     /// Environment variables to pass to the CLI process.
     /// </summary>
