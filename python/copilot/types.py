@@ -187,6 +187,7 @@ PermissionRequestResultKind = Literal[
     "denied-by-content-exclusion-policy",
     "denied-no-approval-rule-and-could-not-request-from-user",
     "denied-interactively-by-user",
+    "no-result",
 ]
 
 

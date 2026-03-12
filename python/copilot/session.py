@@ -139,15 +139,16 @@ class CopilotSession:
             ...     "attachments": [{"type": "file", "path": "./src/main.py"}]
             ... })
         """
-        response = await self._client.request(
-            "session.send",
-            {
-                "sessionId": self.session_id,
-                "prompt": options["prompt"],
-                "attachments": options.get("attachments"),
-                "mode": options.get("mode"),
-            },
-        )
+        params: dict[str, Any] = {
+            "sessionId": self.session_id,
+            "prompt": options["prompt"],
+        }
+        if "attachments" in options:
+            params["attachments"] = options["attachments"]
+        if "mode" in options:
+            params["mode"] = options["mode"]
+
+        response = await self._client.request("session.send", params)
         return response["messageId"]
 
     async def send_and_wait(
@@ -387,6 +388,8 @@ class CopilotSession:
                 result = await result
 
             result = cast(PermissionRequestResult, result)
+            if result.kind == "no-result":
+                return
 
             perm_result = SessionPermissionsHandlePendingPermissionRequestParamsResult(
                 kind=Kind(result.kind),

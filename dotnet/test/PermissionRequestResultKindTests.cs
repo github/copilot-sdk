@@ -21,6 +21,7 @@ public class PermissionRequestResultKindTests
         Assert.Equal("denied-by-rules", PermissionRequestResultKind.DeniedByRules.Value);
         Assert.Equal("denied-no-approval-rule-and-could-not-request-from-user", PermissionRequestResultKind.DeniedCouldNotRequestFromUser.Value);
         Assert.Equal("denied-interactively-by-user", PermissionRequestResultKind.DeniedInteractivelyByUser.Value);
+        Assert.Equal("no-result", new PermissionRequestResultKind("no-result").Value);
     }
 
     [Fact]
@@ -115,6 +116,7 @@ public class PermissionRequestResultKindTests
             PermissionRequestResultKind.DeniedByRules,
             PermissionRequestResultKind.DeniedCouldNotRequestFromUser,
             PermissionRequestResultKind.DeniedInteractivelyByUser,
+            new PermissionRequestResultKind("no-result"),
         };
 
         foreach (var kind in kinds)

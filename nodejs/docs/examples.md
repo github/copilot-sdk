@@ -7,11 +7,9 @@ A practical guide to writing extensions using the `@github/copilot-sdk` extensio
 Every extension starts with the same boilerplate:
 
 ```js
-import { approveAll } from "@github/copilot-sdk";
 import { joinSession } from "@github/copilot-sdk/extension";
 
 const session = await joinSession({
-    onPermissionRequest: approveAll,
     hooks: { /* ... */ },
     tools: [ /* ... */ ],
 });
@@ -33,7 +31,6 @@ Use `session.log()` to surface messages to the user in the CLI timeline:
 
 ```js
 const session = await joinSession({
-    onPermissionRequest: approveAll,
     hooks: {
         onSessionStart: async () => {
             await session.log("My extension loaded");
@@ -383,7 +380,6 @@ function copyToClipboard(text) {
 }
 
 const session = await joinSession({
-    onPermissionRequest: approveAll,
     hooks: {
         onUserPromptSubmitted: async (input) => {
             if (/\\bcopy\\b/i.test(input.prompt)) {
@@ -425,15 +421,12 @@ Correlate `tool.execution_start` / `tool.execution_complete` events by `toolCall
 ```js
 import { existsSync, watchFile, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { approveAll } from "@github/copilot-sdk";
 import { joinSession } from "@github/copilot-sdk/extension";
 
 const agentEdits = new Set(); // toolCallIds for in-flight agent edits
 const recentAgentPaths = new Set(); // paths recently written by the agent
 
-const session = await joinSession({
-    onPermissionRequest: approveAll,
-});
+const session = await joinSession();
 
 const workspace = session.workspacePath; // e.g. ~/.copilot/session-state/<id>
 if (workspace) {
@@ -480,14 +473,11 @@ Filter out agent edits by tracking `tool.execution_start` / `tool.execution_comp
 ```js
 import { watch, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { approveAll } from "@github/copilot-sdk";
 import { joinSession } from "@github/copilot-sdk/extension";
 
 const agentEditPaths = new Set();
 
-const session = await joinSession({
-    onPermissionRequest: approveAll,
-});
+const session = await joinSession();
 
 const cwd = process.cwd();
 const IGNORE = new Set(["node_modules", ".git", "dist"]);
@@ -582,7 +572,6 @@ Register `onUserInputRequest` to enable the agent's `ask_user` tool:
 
 ```js
 const session = await joinSession({
-    onPermissionRequest: approveAll,
     onUserInputRequest: async (request) => {
         // request.question has the agent's question
         // request.choices has the options (if multiple choice)
@@ -599,7 +588,6 @@ An extension that combines tools, hooks, and events.
 
 ```js
 import { execFile, exec } from "node:child_process";
-import { approveAll } from "@github/copilot-sdk";
 import { joinSession } from "@github/copilot-sdk/extension";
 
 const isWindows = process.platform === "win32";
@@ -617,7 +605,6 @@ function openInEditor(filePath) {
 }
 
 const session = await joinSession({
-    onPermissionRequest: approveAll,
     hooks: {
         onUserPromptSubmitted: async (input) => {
             if (/\\bcopy this\\b/i.test(input.prompt)) {

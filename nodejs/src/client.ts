@@ -25,7 +25,7 @@ import {
 } from "vscode-jsonrpc/node.js";
 import { createServerRpc } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
-import { CopilotSession } from "./session.js";
+import { CopilotSession, NO_RESULT_PERMISSION_V2_ERROR } from "./session.js";
 import type {
     ConnectionState,
     CopilotClientOptions,
@@ -1604,7 +1604,10 @@ export class CopilotClient {
         try {
             const result = await session._handlePermissionRequestV2(params.permissionRequest);
             return { result };
-        } catch (_error) {
+        } catch (error) {
+            if (error instanceof Error && error.message === NO_RESULT_PERMISSION_V2_ERROR) {
+                throw error;
+            }
             return {
                 result: {
                     kind: "denied-no-approval-rule-and-could-not-request-from-user",

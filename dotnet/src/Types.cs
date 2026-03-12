@@ -350,6 +350,7 @@ public class PermissionRequestResult
     /// <item><description><c>"denied-by-rules"</c> — denied by configured permission rules.</description></item>
     /// <item><description><c>"denied-interactively-by-user"</c> — the user explicitly denied the request.</description></item>
     /// <item><description><c>"denied-no-approval-rule-and-could-not-request-from-user"</c> — no rule matched and user approval was unavailable.</description></item>
+    /// <item><description><c>"no-result"</c> — leave the pending permission request unanswered.</description></item>
     /// </list>
     /// </summary>
     [JsonPropertyName("kind")]

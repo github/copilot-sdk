@@ -6,7 +6,7 @@ This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py
 
 import pytest
 
-from copilot import CopilotClient, PermissionHandler, define_tool
+from copilot import CopilotClient, PermissionHandler, PermissionRequestResult, define_tool
 from copilot.types import ModelCapabilities, ModelInfo, ModelLimits, ModelSupports
 from e2e.testharness import CLI_PATH
 
@@ -19,6 +19,28 @@ class TestPermissionHandlerRequired:
         try:
             with pytest.raises(ValueError, match="on_permission_request.*is required"):
                 await client.create_session({})
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_v2_permission_adapter_rejects_no_result(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+        try:
+            session = await client.create_session(
+                {
+                    "on_permission_request": lambda request, invocation: PermissionRequestResult(
+                        kind="no-result"
+                    )
+                }
+            )
+            with pytest.raises(ValueError, match="protocol v2 server"):
+                await client._handle_permission_request_v2(
+                    {
+                        "sessionId": session.session_id,
+                        "permissionRequest": {"kind": "write"},
+                    }
+                )
         finally:
             await client.force_stop()
 

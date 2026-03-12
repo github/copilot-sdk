@@ -26,6 +26,38 @@ describe("CopilotClient", () => {
         );
     });
 
+    it("does not respond to v3 permission requests when handler returns no-result", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({
+            onPermissionRequest: () => ({ kind: "no-result" }),
+        });
+        const spy = vi.spyOn(session.rpc.permissions, "handlePendingPermissionRequest");
+
+        await (session as any)._executePermissionAndRespond("request-1", { kind: "write" });
+
+        expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("throws when a v2 permission handler returns no-result", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({
+            onPermissionRequest: () => ({ kind: "no-result" }),
+        });
+
+        await expect(
+            (client as any).handlePermissionRequestV2({
+                sessionId: session.sessionId,
+                permissionRequest: { kind: "write" },
+            })
+        ).rejects.toThrow(/protocol v2 server/);
+    });
+
     it("forwards clientName in session.create request", async () => {
         const client = new CopilotClient();
         await client.start();

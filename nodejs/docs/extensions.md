@@ -39,11 +39,9 @@ Extensions add custom tools, hooks, and behaviors to the Copilot CLI. They run a
 Extensions use `@github/copilot-sdk` for all interactions with the CLI:
 
 ```js
-import { approveAll } from "@github/copilot-sdk";
 import { joinSession } from "@github/copilot-sdk/extension";
 
 const session = await joinSession({
-    onPermissionRequest: approveAll,
     tools: [
         /* ... */
     ],

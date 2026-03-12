@@ -54,6 +54,9 @@ namespace GitHub.Copilot.SDK;
 /// </example>
 public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 {
+    internal const string NoResultPermissionV2ErrorMessage =
+        "Permission handlers cannot return 'no-result' when connected to a protocol v2 server.";
+
     /// <summary>
     /// Minimum protocol version this SDK can communicate with.
     /// </summary>
@@ -1394,7 +1397,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             try
             {
                 var result = await session.HandlePermissionRequestAsync(permissionRequest);
+                if (result.Kind == new PermissionRequestResultKind("no-result"))
+                {
+                    throw new InvalidOperationException(NoResultPermissionV2ErrorMessage);
+                }
                 return new PermissionRequestResponseV2(result);
+            }
+            catch (InvalidOperationException ex) when (ex.Message == NoResultPermissionV2ErrorMessage)
+            {
+                throw;
             }
             catch (Exception)
             {
