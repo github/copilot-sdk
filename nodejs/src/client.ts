@@ -243,6 +243,7 @@ export class CopilotClient {
             cliUrl: options.cliUrl,
             logLevel: options.logLevel || "debug",
             autoStart: options.autoStart ?? true,
+            autoRestart: false,
 
             env: options.env ?? process.env,
             githubToken: options.githubToken,
@@ -1640,5 +1641,4 @@ export class CopilotClient {
             "resultType" in value
         );
     }
-
 }

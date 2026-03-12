@@ -72,6 +72,11 @@ export interface CopilotClientOptions {
     autoStart?: boolean;
 
     /**
+     * @deprecated This option has no effect and will be removed in a future release.
+     */
+    autoRestart?: boolean;
+
+    /**
      * Environment variables to pass to the CLI process. If not set, inherits process.env.
      */
     env?: Record<string, string | undefined>;

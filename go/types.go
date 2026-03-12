@@ -38,6 +38,8 @@ type ClientOptions struct {
 	// AutoStart automatically starts the CLI server on first use (default: true).
 	// Use Bool(false) to disable.
 	AutoStart *bool
+	// Deprecated: AutoRestart has no effect and will be removed in a future release.
+	AutoRestart *bool
 	// Env is the environment variables for the CLI process (default: inherits from current process).
 	// Each entry is of the form "key=value".
 	// If Env is nil, the new process uses the current process's environment.
