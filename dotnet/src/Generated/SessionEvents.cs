@@ -41,6 +41,7 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(PendingMessagesModifiedEvent), "pending_messages.modified")]
 [JsonDerivedType(typeof(PermissionCompletedEvent), "permission.completed")]
 [JsonDerivedType(typeof(PermissionRequestedEvent), "permission.requested")]
+[JsonDerivedType(typeof(SessionBackgroundTasksChangedEvent), "session.background_tasks_changed")]
 [JsonDerivedType(typeof(SessionCompactionCompleteEvent), "session.compaction_complete")]
 [JsonDerivedType(typeof(SessionCompactionStartEvent), "session.compaction_start")]
 [JsonDerivedType(typeof(SessionContextChangedEvent), "session.context_changed")]
@@ -57,6 +58,7 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(SessionStartEvent), "session.start")]
 [JsonDerivedType(typeof(SessionTaskCompleteEvent), "session.task_complete")]
 [JsonDerivedType(typeof(SessionTitleChangedEvent), "session.title_changed")]
+[JsonDerivedType(typeof(SessionToolsUpdatedEvent), "session.tools_updated")]
 [JsonDerivedType(typeof(SessionTruncationEvent), "session.truncation")]
 [JsonDerivedType(typeof(SessionUsageInfoEvent), "session.usage_info")]
 [JsonDerivedType(typeof(SessionWarningEvent), "session.warning")]
@@ -114,7 +116,8 @@ public abstract partial class SessionEvent
     private string DebuggerDisplay => ToJson();
 }
 
-/// <summary>Represents the <c>session.start</c> event.</summary>
+/// <summary>Session initialization metadata including context and configuration.</summary>
+/// <remarks>Represents the <c>session.start</c> event.</remarks>
 public partial class SessionStartEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -126,7 +129,8 @@ public partial class SessionStartEvent : SessionEvent
     public required SessionStartData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.resume</c> event.</summary>
+/// <summary>Session resume metadata including current context and event count.</summary>
+/// <remarks>Represents the <c>session.resume</c> event.</remarks>
 public partial class SessionResumeEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -138,7 +142,8 @@ public partial class SessionResumeEvent : SessionEvent
     public required SessionResumeData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.error</c> event.</summary>
+/// <summary>Error details for timeline display including message and optional diagnostic information.</summary>
+/// <remarks>Represents the <c>session.error</c> event.</remarks>
 public partial class SessionErrorEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -163,7 +168,8 @@ public partial class SessionIdleEvent : SessionEvent
     public required SessionIdleData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.title_changed</c> event.</summary>
+/// <summary>Session title change payload containing the new display title.</summary>
+/// <remarks>Represents the <c>session.title_changed</c> event.</remarks>
 public partial class SessionTitleChangedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -175,7 +181,8 @@ public partial class SessionTitleChangedEvent : SessionEvent
     public required SessionTitleChangedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.info</c> event.</summary>
+/// <summary>Informational message for timeline display with categorization.</summary>
+/// <remarks>Represents the <c>session.info</c> event.</remarks>
 public partial class SessionInfoEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -187,7 +194,8 @@ public partial class SessionInfoEvent : SessionEvent
     public required SessionInfoData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.warning</c> event.</summary>
+/// <summary>Warning message for timeline display with categorization.</summary>
+/// <remarks>Represents the <c>session.warning</c> event.</remarks>
 public partial class SessionWarningEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -199,7 +207,8 @@ public partial class SessionWarningEvent : SessionEvent
     public required SessionWarningData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.model_change</c> event.</summary>
+/// <summary>Model change details including previous and new model identifiers.</summary>
+/// <remarks>Represents the <c>session.model_change</c> event.</remarks>
 public partial class SessionModelChangeEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -211,7 +220,8 @@ public partial class SessionModelChangeEvent : SessionEvent
     public required SessionModelChangeData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.mode_changed</c> event.</summary>
+/// <summary>Agent mode change details including previous and new modes.</summary>
+/// <remarks>Represents the <c>session.mode_changed</c> event.</remarks>
 public partial class SessionModeChangedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -223,7 +233,8 @@ public partial class SessionModeChangedEvent : SessionEvent
     public required SessionModeChangedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.plan_changed</c> event.</summary>
+/// <summary>Plan file operation details indicating what changed.</summary>
+/// <remarks>Represents the <c>session.plan_changed</c> event.</remarks>
 public partial class SessionPlanChangedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -235,7 +246,8 @@ public partial class SessionPlanChangedEvent : SessionEvent
     public required SessionPlanChangedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.workspace_file_changed</c> event.</summary>
+/// <summary>Workspace file change details including path and operation type.</summary>
+/// <remarks>Represents the <c>session.workspace_file_changed</c> event.</remarks>
 public partial class SessionWorkspaceFileChangedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -247,7 +259,8 @@ public partial class SessionWorkspaceFileChangedEvent : SessionEvent
     public required SessionWorkspaceFileChangedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.handoff</c> event.</summary>
+/// <summary>Session handoff metadata including source, context, and repository information.</summary>
+/// <remarks>Represents the <c>session.handoff</c> event.</remarks>
 public partial class SessionHandoffEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -259,7 +272,8 @@ public partial class SessionHandoffEvent : SessionEvent
     public required SessionHandoffData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.truncation</c> event.</summary>
+/// <summary>Conversation truncation statistics including token counts and removed content metrics.</summary>
+/// <remarks>Represents the <c>session.truncation</c> event.</remarks>
 public partial class SessionTruncationEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -271,7 +285,8 @@ public partial class SessionTruncationEvent : SessionEvent
     public required SessionTruncationData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.snapshot_rewind</c> event.</summary>
+/// <summary>Session rewind details including target event and count of removed events.</summary>
+/// <remarks>Represents the <c>session.snapshot_rewind</c> event.</remarks>
 public partial class SessionSnapshotRewindEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -283,7 +298,8 @@ public partial class SessionSnapshotRewindEvent : SessionEvent
     public required SessionSnapshotRewindData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.shutdown</c> event.</summary>
+/// <summary>Session termination metrics including usage statistics, code changes, and shutdown reason.</summary>
+/// <remarks>Represents the <c>session.shutdown</c> event.</remarks>
 public partial class SessionShutdownEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -295,7 +311,8 @@ public partial class SessionShutdownEvent : SessionEvent
     public required SessionShutdownData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.context_changed</c> event.</summary>
+/// <summary>Updated working directory and git context after the change.</summary>
+/// <remarks>Represents the <c>session.context_changed</c> event.</remarks>
 public partial class SessionContextChangedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -307,7 +324,8 @@ public partial class SessionContextChangedEvent : SessionEvent
     public required SessionContextChangedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.usage_info</c> event.</summary>
+/// <summary>Current context window usage statistics including token and message counts.</summary>
+/// <remarks>Represents the <c>session.usage_info</c> event.</remarks>
 public partial class SessionUsageInfoEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -332,7 +350,8 @@ public partial class SessionCompactionStartEvent : SessionEvent
     public required SessionCompactionStartData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.compaction_complete</c> event.</summary>
+/// <summary>Conversation compaction results including success status, metrics, and optional error details.</summary>
+/// <remarks>Represents the <c>session.compaction_complete</c> event.</remarks>
 public partial class SessionCompactionCompleteEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -344,7 +363,8 @@ public partial class SessionCompactionCompleteEvent : SessionEvent
     public required SessionCompactionCompleteData Data { get; set; }
 }
 
-/// <summary>Represents the <c>session.task_complete</c> event.</summary>
+/// <summary>Task completion notification with optional summary from the agent.</summary>
+/// <remarks>Represents the <c>session.task_complete</c> event.</remarks>
 public partial class SessionTaskCompleteEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -356,7 +376,8 @@ public partial class SessionTaskCompleteEvent : SessionEvent
     public required SessionTaskCompleteData Data { get; set; }
 }
 
-/// <summary>Represents the <c>user.message</c> event.</summary>
+/// <summary>User message content with optional attachments, source information, and interaction metadata.</summary>
+/// <remarks>Represents the <c>user.message</c> event.</remarks>
 public partial class UserMessageEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -381,7 +402,8 @@ public partial class PendingMessagesModifiedEvent : SessionEvent
     public required PendingMessagesModifiedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>assistant.turn_start</c> event.</summary>
+/// <summary>Turn initialization metadata including identifier and interaction tracking.</summary>
+/// <remarks>Represents the <c>assistant.turn_start</c> event.</remarks>
 public partial class AssistantTurnStartEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -393,7 +415,8 @@ public partial class AssistantTurnStartEvent : SessionEvent
     public required AssistantTurnStartData Data { get; set; }
 }
 
-/// <summary>Represents the <c>assistant.intent</c> event.</summary>
+/// <summary>Agent intent description for current activity or plan.</summary>
+/// <remarks>Represents the <c>assistant.intent</c> event.</remarks>
 public partial class AssistantIntentEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -405,7 +428,8 @@ public partial class AssistantIntentEvent : SessionEvent
     public required AssistantIntentData Data { get; set; }
 }
 
-/// <summary>Represents the <c>assistant.reasoning</c> event.</summary>
+/// <summary>Assistant reasoning content for timeline display with complete thinking text.</summary>
+/// <remarks>Represents the <c>assistant.reasoning</c> event.</remarks>
 public partial class AssistantReasoningEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -417,7 +441,8 @@ public partial class AssistantReasoningEvent : SessionEvent
     public required AssistantReasoningData Data { get; set; }
 }
 
-/// <summary>Represents the <c>assistant.reasoning_delta</c> event.</summary>
+/// <summary>Streaming reasoning delta for incremental extended thinking updates.</summary>
+/// <remarks>Represents the <c>assistant.reasoning_delta</c> event.</remarks>
 public partial class AssistantReasoningDeltaEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -429,7 +454,8 @@ public partial class AssistantReasoningDeltaEvent : SessionEvent
     public required AssistantReasoningDeltaData Data { get; set; }
 }
 
-/// <summary>Represents the <c>assistant.streaming_delta</c> event.</summary>
+/// <summary>Streaming response progress with cumulative byte count.</summary>
+/// <remarks>Represents the <c>assistant.streaming_delta</c> event.</remarks>
 public partial class AssistantStreamingDeltaEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -441,7 +467,8 @@ public partial class AssistantStreamingDeltaEvent : SessionEvent
     public required AssistantStreamingDeltaData Data { get; set; }
 }
 
-/// <summary>Represents the <c>assistant.message</c> event.</summary>
+/// <summary>Assistant response containing text content, optional tool requests, and interaction metadata.</summary>
+/// <remarks>Represents the <c>assistant.message</c> event.</remarks>
 public partial class AssistantMessageEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -453,7 +480,8 @@ public partial class AssistantMessageEvent : SessionEvent
     public required AssistantMessageData Data { get; set; }
 }
 
-/// <summary>Represents the <c>assistant.message_delta</c> event.</summary>
+/// <summary>Streaming assistant message delta for incremental response updates.</summary>
+/// <remarks>Represents the <c>assistant.message_delta</c> event.</remarks>
 public partial class AssistantMessageDeltaEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -465,7 +493,8 @@ public partial class AssistantMessageDeltaEvent : SessionEvent
     public required AssistantMessageDeltaData Data { get; set; }
 }
 
-/// <summary>Represents the <c>assistant.turn_end</c> event.</summary>
+/// <summary>Turn completion metadata including the turn identifier.</summary>
+/// <remarks>Represents the <c>assistant.turn_end</c> event.</remarks>
 public partial class AssistantTurnEndEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -477,7 +506,8 @@ public partial class AssistantTurnEndEvent : SessionEvent
     public required AssistantTurnEndData Data { get; set; }
 }
 
-/// <summary>Represents the <c>assistant.usage</c> event.</summary>
+/// <summary>LLM API call usage metrics including tokens, costs, quotas, and billing information.</summary>
+/// <remarks>Represents the <c>assistant.usage</c> event.</remarks>
 public partial class AssistantUsageEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -489,7 +519,8 @@ public partial class AssistantUsageEvent : SessionEvent
     public required AssistantUsageData Data { get; set; }
 }
 
-/// <summary>Represents the <c>abort</c> event.</summary>
+/// <summary>Turn abort information including the reason for termination.</summary>
+/// <remarks>Represents the <c>abort</c> event.</remarks>
 public partial class AbortEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -501,7 +532,8 @@ public partial class AbortEvent : SessionEvent
     public required AbortData Data { get; set; }
 }
 
-/// <summary>Represents the <c>tool.user_requested</c> event.</summary>
+/// <summary>User-initiated tool invocation request with tool name and arguments.</summary>
+/// <remarks>Represents the <c>tool.user_requested</c> event.</remarks>
 public partial class ToolUserRequestedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -513,7 +545,8 @@ public partial class ToolUserRequestedEvent : SessionEvent
     public required ToolUserRequestedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>tool.execution_start</c> event.</summary>
+/// <summary>Tool execution startup details including MCP server information when applicable.</summary>
+/// <remarks>Represents the <c>tool.execution_start</c> event.</remarks>
 public partial class ToolExecutionStartEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -525,7 +558,8 @@ public partial class ToolExecutionStartEvent : SessionEvent
     public required ToolExecutionStartData Data { get; set; }
 }
 
-/// <summary>Represents the <c>tool.execution_partial_result</c> event.</summary>
+/// <summary>Streaming tool execution output for incremental result display.</summary>
+/// <remarks>Represents the <c>tool.execution_partial_result</c> event.</remarks>
 public partial class ToolExecutionPartialResultEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -537,7 +571,8 @@ public partial class ToolExecutionPartialResultEvent : SessionEvent
     public required ToolExecutionPartialResultData Data { get; set; }
 }
 
-/// <summary>Represents the <c>tool.execution_progress</c> event.</summary>
+/// <summary>Tool execution progress notification with status message.</summary>
+/// <remarks>Represents the <c>tool.execution_progress</c> event.</remarks>
 public partial class ToolExecutionProgressEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -549,7 +584,8 @@ public partial class ToolExecutionProgressEvent : SessionEvent
     public required ToolExecutionProgressData Data { get; set; }
 }
 
-/// <summary>Represents the <c>tool.execution_complete</c> event.</summary>
+/// <summary>Tool execution completion results including success status, detailed output, and error information.</summary>
+/// <remarks>Represents the <c>tool.execution_complete</c> event.</remarks>
 public partial class ToolExecutionCompleteEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -561,7 +597,8 @@ public partial class ToolExecutionCompleteEvent : SessionEvent
     public required ToolExecutionCompleteData Data { get; set; }
 }
 
-/// <summary>Represents the <c>skill.invoked</c> event.</summary>
+/// <summary>Skill invocation details including content, allowed tools, and plugin metadata.</summary>
+/// <remarks>Represents the <c>skill.invoked</c> event.</remarks>
 public partial class SkillInvokedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -573,7 +610,8 @@ public partial class SkillInvokedEvent : SessionEvent
     public required SkillInvokedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>subagent.started</c> event.</summary>
+/// <summary>Sub-agent startup details including parent tool call and agent information.</summary>
+/// <remarks>Represents the <c>subagent.started</c> event.</remarks>
 public partial class SubagentStartedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -585,7 +623,8 @@ public partial class SubagentStartedEvent : SessionEvent
     public required SubagentStartedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>subagent.completed</c> event.</summary>
+/// <summary>Sub-agent completion details for successful execution.</summary>
+/// <remarks>Represents the <c>subagent.completed</c> event.</remarks>
 public partial class SubagentCompletedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -597,7 +636,8 @@ public partial class SubagentCompletedEvent : SessionEvent
     public required SubagentCompletedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>subagent.failed</c> event.</summary>
+/// <summary>Sub-agent failure details including error message and agent information.</summary>
+/// <remarks>Represents the <c>subagent.failed</c> event.</remarks>
 public partial class SubagentFailedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -609,7 +649,8 @@ public partial class SubagentFailedEvent : SessionEvent
     public required SubagentFailedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>subagent.selected</c> event.</summary>
+/// <summary>Custom agent selection details including name and available tools.</summary>
+/// <remarks>Represents the <c>subagent.selected</c> event.</remarks>
 public partial class SubagentSelectedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -634,7 +675,8 @@ public partial class SubagentDeselectedEvent : SessionEvent
     public required SubagentDeselectedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>hook.start</c> event.</summary>
+/// <summary>Hook invocation start details including type and input data.</summary>
+/// <remarks>Represents the <c>hook.start</c> event.</remarks>
 public partial class HookStartEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -646,7 +688,8 @@ public partial class HookStartEvent : SessionEvent
     public required HookStartData Data { get; set; }
 }
 
-/// <summary>Represents the <c>hook.end</c> event.</summary>
+/// <summary>Hook invocation completion details including output, success status, and error information.</summary>
+/// <remarks>Represents the <c>hook.end</c> event.</remarks>
 public partial class HookEndEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -658,7 +701,8 @@ public partial class HookEndEvent : SessionEvent
     public required HookEndData Data { get; set; }
 }
 
-/// <summary>Represents the <c>system.message</c> event.</summary>
+/// <summary>System or developer message content with role and optional template metadata.</summary>
+/// <remarks>Represents the <c>system.message</c> event.</remarks>
 public partial class SystemMessageEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -670,7 +714,8 @@ public partial class SystemMessageEvent : SessionEvent
     public required SystemMessageData Data { get; set; }
 }
 
-/// <summary>Represents the <c>system.notification</c> event.</summary>
+/// <summary>System-generated notification for runtime events like background task completion.</summary>
+/// <remarks>Represents the <c>system.notification</c> event.</remarks>
 public partial class SystemNotificationEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -682,7 +727,8 @@ public partial class SystemNotificationEvent : SessionEvent
     public required SystemNotificationData Data { get; set; }
 }
 
-/// <summary>Represents the <c>permission.requested</c> event.</summary>
+/// <summary>Permission request notification requiring client approval with request details.</summary>
+/// <remarks>Represents the <c>permission.requested</c> event.</remarks>
 public partial class PermissionRequestedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -694,7 +740,8 @@ public partial class PermissionRequestedEvent : SessionEvent
     public required PermissionRequestedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>permission.completed</c> event.</summary>
+/// <summary>Permission request completion notification signaling UI dismissal.</summary>
+/// <remarks>Represents the <c>permission.completed</c> event.</remarks>
 public partial class PermissionCompletedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -706,7 +753,8 @@ public partial class PermissionCompletedEvent : SessionEvent
     public required PermissionCompletedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>user_input.requested</c> event.</summary>
+/// <summary>User input request notification with question and optional predefined choices.</summary>
+/// <remarks>Represents the <c>user_input.requested</c> event.</remarks>
 public partial class UserInputRequestedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -718,7 +766,8 @@ public partial class UserInputRequestedEvent : SessionEvent
     public required UserInputRequestedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>user_input.completed</c> event.</summary>
+/// <summary>User input request completion notification signaling UI dismissal.</summary>
+/// <remarks>Represents the <c>user_input.completed</c> event.</remarks>
 public partial class UserInputCompletedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -730,7 +779,8 @@ public partial class UserInputCompletedEvent : SessionEvent
     public required UserInputCompletedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>elicitation.requested</c> event.</summary>
+/// <summary>Structured form elicitation request with JSON schema definition for form fields.</summary>
+/// <remarks>Represents the <c>elicitation.requested</c> event.</remarks>
 public partial class ElicitationRequestedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -742,7 +792,8 @@ public partial class ElicitationRequestedEvent : SessionEvent
     public required ElicitationRequestedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>elicitation.completed</c> event.</summary>
+/// <summary>Elicitation request completion notification signaling UI dismissal.</summary>
+/// <remarks>Represents the <c>elicitation.completed</c> event.</remarks>
 public partial class ElicitationCompletedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -754,7 +805,8 @@ public partial class ElicitationCompletedEvent : SessionEvent
     public required ElicitationCompletedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>external_tool.requested</c> event.</summary>
+/// <summary>External tool invocation request for client-side tool execution.</summary>
+/// <remarks>Represents the <c>external_tool.requested</c> event.</remarks>
 public partial class ExternalToolRequestedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -766,7 +818,8 @@ public partial class ExternalToolRequestedEvent : SessionEvent
     public required ExternalToolRequestedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>external_tool.completed</c> event.</summary>
+/// <summary>External tool completion notification signaling UI dismissal.</summary>
+/// <remarks>Represents the <c>external_tool.completed</c> event.</remarks>
 public partial class ExternalToolCompletedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -778,7 +831,8 @@ public partial class ExternalToolCompletedEvent : SessionEvent
     public required ExternalToolCompletedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>command.queued</c> event.</summary>
+/// <summary>Queued slash command dispatch request for client execution.</summary>
+/// <remarks>Represents the <c>command.queued</c> event.</remarks>
 public partial class CommandQueuedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -790,7 +844,8 @@ public partial class CommandQueuedEvent : SessionEvent
     public required CommandQueuedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>command.completed</c> event.</summary>
+/// <summary>Queued command completion notification signaling UI dismissal.</summary>
+/// <remarks>Represents the <c>command.completed</c> event.</remarks>
 public partial class CommandCompletedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -802,7 +857,8 @@ public partial class CommandCompletedEvent : SessionEvent
     public required CommandCompletedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>exit_plan_mode.requested</c> event.</summary>
+/// <summary>Plan approval request with plan content and available user actions.</summary>
+/// <remarks>Represents the <c>exit_plan_mode.requested</c> event.</remarks>
 public partial class ExitPlanModeRequestedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -814,7 +870,8 @@ public partial class ExitPlanModeRequestedEvent : SessionEvent
     public required ExitPlanModeRequestedData Data { get; set; }
 }
 
-/// <summary>Represents the <c>exit_plan_mode.completed</c> event.</summary>
+/// <summary>Plan mode exit completion notification signaling UI dismissal.</summary>
+/// <remarks>Represents the <c>exit_plan_mode.completed</c> event.</remarks>
 public partial class ExitPlanModeCompletedEvent : SessionEvent
 {
     /// <inheritdoc />
@@ -826,7 +883,31 @@ public partial class ExitPlanModeCompletedEvent : SessionEvent
     public required ExitPlanModeCompletedData Data { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionStartEvent"/>.</summary>
+/// <summary>Represents the <c>session.tools_updated</c> event.</summary>
+public partial class SessionToolsUpdatedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.tools_updated";
+
+    /// <summary>The <c>session.tools_updated</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionToolsUpdatedData Data { get; set; }
+}
+
+/// <summary>Represents the <c>session.background_tasks_changed</c> event.</summary>
+public partial class SessionBackgroundTasksChangedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.background_tasks_changed";
+
+    /// <summary>The <c>session.background_tasks_changed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionBackgroundTasksChangedData Data { get; set; }
+}
+
+/// <summary>Session initialization metadata including context and configuration.</summary>
 public partial class SessionStartData
 {
     /// <summary>Unique identifier for the session.</summary>
@@ -854,18 +935,23 @@ public partial class SessionStartData
     [JsonPropertyName("selectedModel")]
     public string? SelectedModel { get; set; }
 
+    /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh").</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningEffort")]
+    public string? ReasoningEffort { get; set; }
+
     /// <summary>Working directory and git context at session start.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("context")]
     public SessionStartDataContext? Context { get; set; }
 
-    /// <summary>Gets or sets the <c>alreadyInUse</c> value.</summary>
+    /// <summary>Whether the session was already in use by another client at start time.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("alreadyInUse")]
     public bool? AlreadyInUse { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionResumeEvent"/>.</summary>
+/// <summary>Session resume metadata including current context and event count.</summary>
 public partial class SessionResumeData
 {
     /// <summary>ISO 8601 timestamp when the session was resumed.</summary>
@@ -876,18 +962,28 @@ public partial class SessionResumeData
     [JsonPropertyName("eventCount")]
     public required double EventCount { get; set; }
 
+    /// <summary>Model currently selected at resume time.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("selectedModel")]
+    public string? SelectedModel { get; set; }
+
+    /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh").</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningEffort")]
+    public string? ReasoningEffort { get; set; }
+
     /// <summary>Updated working directory and git context at resume time.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("context")]
     public SessionResumeDataContext? Context { get; set; }
 
-    /// <summary>Gets or sets the <c>alreadyInUse</c> value.</summary>
+    /// <summary>Whether the session was already in use by another client at resume time.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("alreadyInUse")]
     public bool? AlreadyInUse { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionErrorEvent"/>.</summary>
+/// <summary>Error details for timeline display including message and optional diagnostic information.</summary>
 public partial class SessionErrorData
 {
     /// <summary>Category of error (e.g., "authentication", "authorization", "quota", "rate_limit", "query").</summary>
@@ -923,7 +1019,7 @@ public partial class SessionIdleData
     public SessionIdleDataBackgroundTasks? BackgroundTasks { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionTitleChangedEvent"/>.</summary>
+/// <summary>Session title change payload containing the new display title.</summary>
 public partial class SessionTitleChangedData
 {
     /// <summary>The new display title for the session.</summary>
@@ -931,7 +1027,7 @@ public partial class SessionTitleChangedData
     public required string Title { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionInfoEvent"/>.</summary>
+/// <summary>Informational message for timeline display with categorization.</summary>
 public partial class SessionInfoData
 {
     /// <summary>Category of informational message (e.g., "notification", "timing", "context_window", "mcp", "snapshot", "configuration", "authentication", "model").</summary>
@@ -943,7 +1039,7 @@ public partial class SessionInfoData
     public required string Message { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionWarningEvent"/>.</summary>
+/// <summary>Warning message for timeline display with categorization.</summary>
 public partial class SessionWarningData
 {
     /// <summary>Category of warning (e.g., "subscription", "policy", "mcp").</summary>
@@ -955,7 +1051,7 @@ public partial class SessionWarningData
     public required string Message { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionModelChangeEvent"/>.</summary>
+/// <summary>Model change details including previous and new model identifiers.</summary>
 public partial class SessionModelChangeData
 {
     /// <summary>Model that was previously selected, if any.</summary>
@@ -966,9 +1062,19 @@ public partial class SessionModelChangeData
     /// <summary>Newly selected model identifier.</summary>
     [JsonPropertyName("newModel")]
     public required string NewModel { get; set; }
+
+    /// <summary>Reasoning effort level before the model change, if applicable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("previousReasoningEffort")]
+    public string? PreviousReasoningEffort { get; set; }
+
+    /// <summary>Reasoning effort level after the model change, if applicable.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningEffort")]
+    public string? ReasoningEffort { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionModeChangedEvent"/>.</summary>
+/// <summary>Agent mode change details including previous and new modes.</summary>
 public partial class SessionModeChangedData
 {
     /// <summary>Agent mode before the change (e.g., "interactive", "plan", "autopilot").</summary>
@@ -980,7 +1086,7 @@ public partial class SessionModeChangedData
     public required string NewMode { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionPlanChangedEvent"/>.</summary>
+/// <summary>Plan file operation details indicating what changed.</summary>
 public partial class SessionPlanChangedData
 {
     /// <summary>The type of operation performed on the plan file.</summary>
@@ -988,7 +1094,7 @@ public partial class SessionPlanChangedData
     public required SessionPlanChangedDataOperation Operation { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionWorkspaceFileChangedEvent"/>.</summary>
+/// <summary>Workspace file change details including path and operation type.</summary>
 public partial class SessionWorkspaceFileChangedData
 {
     /// <summary>Relative path within the session workspace files directory.</summary>
@@ -1000,7 +1106,7 @@ public partial class SessionWorkspaceFileChangedData
     public required SessionWorkspaceFileChangedDataOperation Operation { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionHandoffEvent"/>.</summary>
+/// <summary>Session handoff metadata including source, context, and repository information.</summary>
 public partial class SessionHandoffData
 {
     /// <summary>ISO 8601 timestamp when the handoff occurred.</summary>
@@ -1032,7 +1138,7 @@ public partial class SessionHandoffData
     public string? RemoteSessionId { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionTruncationEvent"/>.</summary>
+/// <summary>Conversation truncation statistics including token counts and removed content metrics.</summary>
 public partial class SessionTruncationData
 {
     /// <summary>Maximum token count for the model's context window.</summary>
@@ -1068,7 +1174,7 @@ public partial class SessionTruncationData
     public required string PerformedBy { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionSnapshotRewindEvent"/>.</summary>
+/// <summary>Session rewind details including target event and count of removed events.</summary>
 public partial class SessionSnapshotRewindData
 {
     /// <summary>Event ID that was rewound to; all events after this one were removed.</summary>
@@ -1080,7 +1186,7 @@ public partial class SessionSnapshotRewindData
     public required double EventsRemoved { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionShutdownEvent"/>.</summary>
+/// <summary>Session termination metrics including usage statistics, code changes, and shutdown reason.</summary>
 public partial class SessionShutdownData
 {
     /// <summary>Whether the session ended normally ("routine") or due to a crash/fatal error ("error").</summary>
@@ -1118,7 +1224,7 @@ public partial class SessionShutdownData
     public string? CurrentModel { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionContextChangedEvent"/>.</summary>
+/// <summary>Updated working directory and git context after the change.</summary>
 public partial class SessionContextChangedData
 {
     /// <summary>Current working directory path.</summary>
@@ -1130,18 +1236,33 @@ public partial class SessionContextChangedData
     [JsonPropertyName("gitRoot")]
     public string? GitRoot { get; set; }
 
-    /// <summary>Repository identifier in "owner/name" format, derived from the git remote URL.</summary>
+    /// <summary>Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("repository")]
     public string? Repository { get; set; }
+
+    /// <summary>Hosting platform type of the repository (github or ado).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("hostType")]
+    public SessionStartDataContextHostType? HostType { get; set; }
 
     /// <summary>Current git branch name.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("branch")]
     public string? Branch { get; set; }
+
+    /// <summary>Head commit of current git branch at session start time.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("headCommit")]
+    public string? HeadCommit { get; set; }
+
+    /// <summary>Base commit of current git branch at session start time.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("baseCommit")]
+    public string? BaseCommit { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionUsageInfoEvent"/>.</summary>
+/// <summary>Current context window usage statistics including token and message counts.</summary>
 public partial class SessionUsageInfoData
 {
     /// <summary>Maximum token count for the model's context window.</summary>
@@ -1162,7 +1283,7 @@ public partial class SessionCompactionStartData
 {
 }
 
-/// <summary>Event payload for <see cref="SessionCompactionCompleteEvent"/>.</summary>
+/// <summary>Conversation compaction results including success status, metrics, and optional error details.</summary>
 public partial class SessionCompactionCompleteData
 {
     /// <summary>Whether compaction completed successfully.</summary>
@@ -1225,7 +1346,7 @@ public partial class SessionCompactionCompleteData
     public string? RequestId { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SessionTaskCompleteEvent"/>.</summary>
+/// <summary>Task completion notification with optional summary from the agent.</summary>
 public partial class SessionTaskCompleteData
 {
     /// <summary>Optional summary of the completed task, provided by the agent.</summary>
@@ -1234,7 +1355,7 @@ public partial class SessionTaskCompleteData
     public string? Summary { get; set; }
 }
 
-/// <summary>Event payload for <see cref="UserMessageEvent"/>.</summary>
+/// <summary>User message content with optional attachments, source information, and interaction metadata.</summary>
 public partial class UserMessageData
 {
     /// <summary>The user's message text as displayed in the timeline.</summary>
@@ -1251,10 +1372,10 @@ public partial class UserMessageData
     [JsonPropertyName("attachments")]
     public UserMessageDataAttachmentsItem[]? Attachments { get; set; }
 
-    /// <summary>Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected messages that should be hidden from the user).</summary>
+    /// <summary>Origin of this message, used for timeline filtering and telemetry (e.g., "user", "autopilot", "skill", or "command").</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("source")]
-    public string? Source { get; set; }
+    public UserMessageDataSource? Source { get; set; }
 
     /// <summary>The agent mode that was active when this message was sent.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1272,7 +1393,7 @@ public partial class PendingMessagesModifiedData
 {
 }
 
-/// <summary>Event payload for <see cref="AssistantTurnStartEvent"/>.</summary>
+/// <summary>Turn initialization metadata including identifier and interaction tracking.</summary>
 public partial class AssistantTurnStartData
 {
     /// <summary>Identifier for this turn within the agentic loop, typically a stringified turn number.</summary>
@@ -1285,7 +1406,7 @@ public partial class AssistantTurnStartData
     public string? InteractionId { get; set; }
 }
 
-/// <summary>Event payload for <see cref="AssistantIntentEvent"/>.</summary>
+/// <summary>Agent intent description for current activity or plan.</summary>
 public partial class AssistantIntentData
 {
     /// <summary>Short description of what the agent is currently doing or planning to do.</summary>
@@ -1293,7 +1414,7 @@ public partial class AssistantIntentData
     public required string Intent { get; set; }
 }
 
-/// <summary>Event payload for <see cref="AssistantReasoningEvent"/>.</summary>
+/// <summary>Assistant reasoning content for timeline display with complete thinking text.</summary>
 public partial class AssistantReasoningData
 {
     /// <summary>Unique identifier for this reasoning block.</summary>
@@ -1305,7 +1426,7 @@ public partial class AssistantReasoningData
     public required string Content { get; set; }
 }
 
-/// <summary>Event payload for <see cref="AssistantReasoningDeltaEvent"/>.</summary>
+/// <summary>Streaming reasoning delta for incremental extended thinking updates.</summary>
 public partial class AssistantReasoningDeltaData
 {
     /// <summary>Reasoning block ID this delta belongs to, matching the corresponding assistant.reasoning event.</summary>
@@ -1317,7 +1438,7 @@ public partial class AssistantReasoningDeltaData
     public required string DeltaContent { get; set; }
 }
 
-/// <summary>Event payload for <see cref="AssistantStreamingDeltaEvent"/>.</summary>
+/// <summary>Streaming response progress with cumulative byte count.</summary>
 public partial class AssistantStreamingDeltaData
 {
     /// <summary>Cumulative total bytes received from the streaming response so far.</summary>
@@ -1325,7 +1446,7 @@ public partial class AssistantStreamingDeltaData
     public required double TotalResponseSizeBytes { get; set; }
 }
 
-/// <summary>Event payload for <see cref="AssistantMessageEvent"/>.</summary>
+/// <summary>Assistant response containing text content, optional tool requests, and interaction metadata.</summary>
 public partial class AssistantMessageData
 {
     /// <summary>Unique identifier for this assistant message.</summary>
@@ -1377,7 +1498,7 @@ public partial class AssistantMessageData
     public string? ParentToolCallId { get; set; }
 }
 
-/// <summary>Event payload for <see cref="AssistantMessageDeltaEvent"/>.</summary>
+/// <summary>Streaming assistant message delta for incremental response updates.</summary>
 public partial class AssistantMessageDeltaData
 {
     /// <summary>Message ID this delta belongs to, matching the corresponding assistant.message event.</summary>
@@ -1394,7 +1515,7 @@ public partial class AssistantMessageDeltaData
     public string? ParentToolCallId { get; set; }
 }
 
-/// <summary>Event payload for <see cref="AssistantTurnEndEvent"/>.</summary>
+/// <summary>Turn completion metadata including the turn identifier.</summary>
 public partial class AssistantTurnEndData
 {
     /// <summary>Identifier of the turn that has ended, matching the corresponding assistant.turn_start event.</summary>
@@ -1402,7 +1523,7 @@ public partial class AssistantTurnEndData
     public required string TurnId { get; set; }
 }
 
-/// <summary>Event payload for <see cref="AssistantUsageEvent"/>.</summary>
+/// <summary>LLM API call usage metrics including tokens, costs, quotas, and billing information.</summary>
 public partial class AssistantUsageData
 {
     /// <summary>Model identifier used for this API call.</summary>
@@ -1468,9 +1589,14 @@ public partial class AssistantUsageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("copilotUsage")]
     public AssistantUsageDataCopilotUsage? CopilotUsage { get; set; }
+
+    /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh").</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningEffort")]
+    public string? ReasoningEffort { get; set; }
 }
 
-/// <summary>Event payload for <see cref="AbortEvent"/>.</summary>
+/// <summary>Turn abort information including the reason for termination.</summary>
 public partial class AbortData
 {
     /// <summary>Reason the current turn was aborted (e.g., "user initiated").</summary>
@@ -1478,7 +1604,7 @@ public partial class AbortData
     public required string Reason { get; set; }
 }
 
-/// <summary>Event payload for <see cref="ToolUserRequestedEvent"/>.</summary>
+/// <summary>User-initiated tool invocation request with tool name and arguments.</summary>
 public partial class ToolUserRequestedData
 {
     /// <summary>Unique identifier for this tool call.</summary>
@@ -1495,7 +1621,7 @@ public partial class ToolUserRequestedData
     public object? Arguments { get; set; }
 }
 
-/// <summary>Event payload for <see cref="ToolExecutionStartEvent"/>.</summary>
+/// <summary>Tool execution startup details including MCP server information when applicable.</summary>
 public partial class ToolExecutionStartData
 {
     /// <summary>Unique identifier for this tool call.</summary>
@@ -1527,7 +1653,7 @@ public partial class ToolExecutionStartData
     public string? ParentToolCallId { get; set; }
 }
 
-/// <summary>Event payload for <see cref="ToolExecutionPartialResultEvent"/>.</summary>
+/// <summary>Streaming tool execution output for incremental result display.</summary>
 public partial class ToolExecutionPartialResultData
 {
     /// <summary>Tool call ID this partial result belongs to.</summary>
@@ -1539,7 +1665,7 @@ public partial class ToolExecutionPartialResultData
     public required string PartialOutput { get; set; }
 }
 
-/// <summary>Event payload for <see cref="ToolExecutionProgressEvent"/>.</summary>
+/// <summary>Tool execution progress notification with status message.</summary>
 public partial class ToolExecutionProgressData
 {
     /// <summary>Tool call ID this progress notification belongs to.</summary>
@@ -1551,7 +1677,7 @@ public partial class ToolExecutionProgressData
     public required string ProgressMessage { get; set; }
 }
 
-/// <summary>Event payload for <see cref="ToolExecutionCompleteEvent"/>.</summary>
+/// <summary>Tool execution completion results including success status, detailed output, and error information.</summary>
 public partial class ToolExecutionCompleteData
 {
     /// <summary>Unique identifier for the completed tool call.</summary>
@@ -1598,7 +1724,7 @@ public partial class ToolExecutionCompleteData
     public string? ParentToolCallId { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SkillInvokedEvent"/>.</summary>
+/// <summary>Skill invocation details including content, allowed tools, and plugin metadata.</summary>
 public partial class SkillInvokedData
 {
     /// <summary>Name of the invoked skill.</summary>
@@ -1629,7 +1755,7 @@ public partial class SkillInvokedData
     public string? PluginVersion { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SubagentStartedEvent"/>.</summary>
+/// <summary>Sub-agent startup details including parent tool call and agent information.</summary>
 public partial class SubagentStartedData
 {
     /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
@@ -1649,7 +1775,7 @@ public partial class SubagentStartedData
     public required string AgentDescription { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SubagentCompletedEvent"/>.</summary>
+/// <summary>Sub-agent completion details for successful execution.</summary>
 public partial class SubagentCompletedData
 {
     /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
@@ -1665,7 +1791,7 @@ public partial class SubagentCompletedData
     public required string AgentDisplayName { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SubagentFailedEvent"/>.</summary>
+/// <summary>Sub-agent failure details including error message and agent information.</summary>
 public partial class SubagentFailedData
 {
     /// <summary>Tool call ID of the parent tool invocation that spawned this sub-agent.</summary>
@@ -1685,7 +1811,7 @@ public partial class SubagentFailedData
     public required string Error { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SubagentSelectedEvent"/>.</summary>
+/// <summary>Custom agent selection details including name and available tools.</summary>
 public partial class SubagentSelectedData
 {
     /// <summary>Internal name of the selected custom agent.</summary>
@@ -1706,7 +1832,7 @@ public partial class SubagentDeselectedData
 {
 }
 
-/// <summary>Event payload for <see cref="HookStartEvent"/>.</summary>
+/// <summary>Hook invocation start details including type and input data.</summary>
 public partial class HookStartData
 {
     /// <summary>Unique identifier for this hook invocation.</summary>
@@ -1723,7 +1849,7 @@ public partial class HookStartData
     public object? Input { get; set; }
 }
 
-/// <summary>Event payload for <see cref="HookEndEvent"/>.</summary>
+/// <summary>Hook invocation completion details including output, success status, and error information.</summary>
 public partial class HookEndData
 {
     /// <summary>Identifier matching the corresponding hook.start event.</summary>
@@ -1749,7 +1875,7 @@ public partial class HookEndData
     public HookEndDataError? Error { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SystemMessageEvent"/>.</summary>
+/// <summary>System or developer message content with role and optional template metadata.</summary>
 public partial class SystemMessageData
 {
     /// <summary>The system or developer prompt text.</summary>
@@ -1771,7 +1897,7 @@ public partial class SystemMessageData
     public SystemMessageDataMetadata? Metadata { get; set; }
 }
 
-/// <summary>Event payload for <see cref="SystemNotificationEvent"/>.</summary>
+/// <summary>System-generated notification for runtime events like background task completion.</summary>
 public partial class SystemNotificationData
 {
     /// <summary>The notification text, typically wrapped in &lt;system_notification&gt; XML tags.</summary>
@@ -1783,7 +1909,7 @@ public partial class SystemNotificationData
     public required SystemNotificationDataKind Kind { get; set; }
 }
 
-/// <summary>Event payload for <see cref="PermissionRequestedEvent"/>.</summary>
+/// <summary>Permission request notification requiring client approval with request details.</summary>
 public partial class PermissionRequestedData
 {
     /// <summary>Unique identifier for this permission request; used to respond via session.respondToPermission().</summary>
@@ -1795,7 +1921,7 @@ public partial class PermissionRequestedData
     public required PermissionRequest PermissionRequest { get; set; }
 }
 
-/// <summary>Event payload for <see cref="PermissionCompletedEvent"/>.</summary>
+/// <summary>Permission request completion notification signaling UI dismissal.</summary>
 public partial class PermissionCompletedData
 {
     /// <summary>Request ID of the resolved permission request; clients should dismiss any UI for this request.</summary>
@@ -1807,7 +1933,7 @@ public partial class PermissionCompletedData
     public required PermissionCompletedDataResult Result { get; set; }
 }
 
-/// <summary>Event payload for <see cref="UserInputRequestedEvent"/>.</summary>
+/// <summary>User input request notification with question and optional predefined choices.</summary>
 public partial class UserInputRequestedData
 {
     /// <summary>Unique identifier for this input request; used to respond via session.respondToUserInput().</summary>
@@ -1829,7 +1955,7 @@ public partial class UserInputRequestedData
     public bool? AllowFreeform { get; set; }
 }
 
-/// <summary>Event payload for <see cref="UserInputCompletedEvent"/>.</summary>
+/// <summary>User input request completion notification signaling UI dismissal.</summary>
 public partial class UserInputCompletedData
 {
     /// <summary>Request ID of the resolved user input request; clients should dismiss any UI for this request.</summary>
@@ -1837,7 +1963,7 @@ public partial class UserInputCompletedData
     public required string RequestId { get; set; }
 }
 
-/// <summary>Event payload for <see cref="ElicitationRequestedEvent"/>.</summary>
+/// <summary>Structured form elicitation request with JSON schema definition for form fields.</summary>
 public partial class ElicitationRequestedData
 {
     /// <summary>Unique identifier for this elicitation request; used to respond via session.respondToElicitation().</summary>
@@ -1858,7 +1984,7 @@ public partial class ElicitationRequestedData
     public required ElicitationRequestedDataRequestedSchema RequestedSchema { get; set; }
 }
 
-/// <summary>Event payload for <see cref="ElicitationCompletedEvent"/>.</summary>
+/// <summary>Elicitation request completion notification signaling UI dismissal.</summary>
 public partial class ElicitationCompletedData
 {
     /// <summary>Request ID of the resolved elicitation request; clients should dismiss any UI for this request.</summary>
@@ -1866,7 +1992,7 @@ public partial class ElicitationCompletedData
     public required string RequestId { get; set; }
 }
 
-/// <summary>Event payload for <see cref="ExternalToolRequestedEvent"/>.</summary>
+/// <summary>External tool invocation request for client-side tool execution.</summary>
 public partial class ExternalToolRequestedData
 {
     /// <summary>Unique identifier for this request; used to respond via session.respondToExternalTool().</summary>
@@ -1889,9 +2015,19 @@ public partial class ExternalToolRequestedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("arguments")]
     public object? Arguments { get; set; }
+
+    /// <summary>W3C Trace Context traceparent header for the execute_tool span.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("traceparent")]
+    public string? Traceparent { get; set; }
+
+    /// <summary>W3C Trace Context tracestate header for the execute_tool span.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("tracestate")]
+    public string? Tracestate { get; set; }
 }
 
-/// <summary>Event payload for <see cref="ExternalToolCompletedEvent"/>.</summary>
+/// <summary>External tool completion notification signaling UI dismissal.</summary>
 public partial class ExternalToolCompletedData
 {
     /// <summary>Request ID of the resolved external tool request; clients should dismiss any UI for this request.</summary>
@@ -1899,7 +2035,7 @@ public partial class ExternalToolCompletedData
     public required string RequestId { get; set; }
 }
 
-/// <summary>Event payload for <see cref="CommandQueuedEvent"/>.</summary>
+/// <summary>Queued slash command dispatch request for client execution.</summary>
 public partial class CommandQueuedData
 {
     /// <summary>Unique identifier for this request; used to respond via session.respondToQueuedCommand().</summary>
@@ -1911,7 +2047,7 @@ public partial class CommandQueuedData
     public required string Command { get; set; }
 }
 
-/// <summary>Event payload for <see cref="CommandCompletedEvent"/>.</summary>
+/// <summary>Queued command completion notification signaling UI dismissal.</summary>
 public partial class CommandCompletedData
 {
     /// <summary>Request ID of the resolved command request; clients should dismiss any UI for this request.</summary>
@@ -1919,7 +2055,7 @@ public partial class CommandCompletedData
     public required string RequestId { get; set; }
 }
 
-/// <summary>Event payload for <see cref="ExitPlanModeRequestedEvent"/>.</summary>
+/// <summary>Plan approval request with plan content and available user actions.</summary>
 public partial class ExitPlanModeRequestedData
 {
     /// <summary>Unique identifier for this request; used to respond via session.respondToExitPlanMode().</summary>
@@ -1943,12 +2079,25 @@ public partial class ExitPlanModeRequestedData
     public required string RecommendedAction { get; set; }
 }
 
-/// <summary>Event payload for <see cref="ExitPlanModeCompletedEvent"/>.</summary>
+/// <summary>Plan mode exit completion notification signaling UI dismissal.</summary>
 public partial class ExitPlanModeCompletedData
 {
     /// <summary>Request ID of the resolved exit plan mode request; clients should dismiss any UI for this request.</summary>
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
+}
+
+/// <summary>Event payload for <see cref="SessionToolsUpdatedEvent"/>.</summary>
+public partial class SessionToolsUpdatedData
+{
+    /// <summary>Gets or sets the <c>model</c> value.</summary>
+    [JsonPropertyName("model")]
+    public required string Model { get; set; }
+}
+
+/// <summary>Event payload for <see cref="SessionBackgroundTasksChangedEvent"/>.</summary>
+public partial class SessionBackgroundTasksChangedData
+{
 }
 
 /// <summary>Working directory and git context at session start.</summary>
@@ -1964,15 +2113,30 @@ public partial class SessionStartDataContext
     [JsonPropertyName("gitRoot")]
     public string? GitRoot { get; set; }
 
-    /// <summary>Repository identifier in "owner/name" format, derived from the git remote URL.</summary>
+    /// <summary>Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("repository")]
     public string? Repository { get; set; }
+
+    /// <summary>Hosting platform type of the repository (github or ado).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("hostType")]
+    public SessionStartDataContextHostType? HostType { get; set; }
 
     /// <summary>Current git branch name.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("branch")]
     public string? Branch { get; set; }
+
+    /// <summary>Head commit of current git branch at session start time.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("headCommit")]
+    public string? HeadCommit { get; set; }
+
+    /// <summary>Base commit of current git branch at session start time.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("baseCommit")]
+    public string? BaseCommit { get; set; }
 }
 
 /// <summary>Updated working directory and git context at resume time.</summary>
@@ -1988,18 +2152,34 @@ public partial class SessionResumeDataContext
     [JsonPropertyName("gitRoot")]
     public string? GitRoot { get; set; }
 
-    /// <summary>Repository identifier in "owner/name" format, derived from the git remote URL.</summary>
+    /// <summary>Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("repository")]
     public string? Repository { get; set; }
+
+    /// <summary>Hosting platform type of the repository (github or ado).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("hostType")]
+    public SessionStartDataContextHostType? HostType { get; set; }
 
     /// <summary>Current git branch name.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("branch")]
     public string? Branch { get; set; }
+
+    /// <summary>Head commit of current git branch at session start time.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("headCommit")]
+    public string? HeadCommit { get; set; }
+
+    /// <summary>Base commit of current git branch at session start time.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("baseCommit")]
+    public string? BaseCommit { get; set; }
 }
 
-/// <summary>Nested data type for <c>SessionIdleDataBackgroundTasksAgentsItem</c>.</summary>
+/// <summary>A background agent task.</summary>
+/// <remarks>Nested data type for <c>SessionIdleDataBackgroundTasksAgentsItem</c>.</remarks>
 public partial class SessionIdleDataBackgroundTasksAgentsItem
 {
     /// <summary>Unique identifier of the background agent.</summary>
@@ -2016,7 +2196,8 @@ public partial class SessionIdleDataBackgroundTasksAgentsItem
     public string? Description { get; set; }
 }
 
-/// <summary>Nested data type for <c>SessionIdleDataBackgroundTasksShellsItem</c>.</summary>
+/// <summary>A background shell command.</summary>
+/// <remarks>Nested data type for <c>SessionIdleDataBackgroundTasksShellsItem</c>.</remarks>
 public partial class SessionIdleDataBackgroundTasksShellsItem
 {
     /// <summary>Unique identifier of the background shell.</summary>
@@ -2107,14 +2288,15 @@ public partial class UserMessageDataAttachmentsItemFileLineRange
     public required double End { get; set; }
 }
 
-/// <summary>The <c>file</c> variant of <see cref="UserMessageDataAttachmentsItem"/>.</summary>
+/// <summary>File attachment.</summary>
+/// <remarks>The <c>file</c> variant of <see cref="UserMessageDataAttachmentsItem"/>.</remarks>
 public partial class UserMessageDataAttachmentsItemFile : UserMessageDataAttachmentsItem
 {
     /// <inheritdoc />
     [JsonIgnore]
     public override string Type => "file";
 
-    /// <summary>Absolute file or directory path.</summary>
+    /// <summary>Absolute file path.</summary>
     [JsonPropertyName("path")]
     public required string Path { get; set; }
 
@@ -2128,41 +2310,25 @@ public partial class UserMessageDataAttachmentsItemFile : UserMessageDataAttachm
     public UserMessageDataAttachmentsItemFileLineRange? LineRange { get; set; }
 }
 
-/// <summary>Optional line range to scope the attachment to a specific section of the file.</summary>
-/// <remarks>Nested data type for <c>UserMessageDataAttachmentsItemDirectoryLineRange</c>.</remarks>
-public partial class UserMessageDataAttachmentsItemDirectoryLineRange
-{
-    /// <summary>Start line number (1-based).</summary>
-    [JsonPropertyName("start")]
-    public required double Start { get; set; }
-
-    /// <summary>End line number (1-based, inclusive).</summary>
-    [JsonPropertyName("end")]
-    public required double End { get; set; }
-}
-
-/// <summary>The <c>directory</c> variant of <see cref="UserMessageDataAttachmentsItem"/>.</summary>
+/// <summary>Directory attachment.</summary>
+/// <remarks>The <c>directory</c> variant of <see cref="UserMessageDataAttachmentsItem"/>.</remarks>
 public partial class UserMessageDataAttachmentsItemDirectory : UserMessageDataAttachmentsItem
 {
     /// <inheritdoc />
     [JsonIgnore]
     public override string Type => "directory";
 
-    /// <summary>Absolute file or directory path.</summary>
+    /// <summary>Absolute directory path.</summary>
     [JsonPropertyName("path")]
     public required string Path { get; set; }
 
     /// <summary>User-facing display name for the attachment.</summary>
     [JsonPropertyName("displayName")]
     public required string DisplayName { get; set; }
-
-    /// <summary>Optional line range to scope the attachment to a specific section of the file.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("lineRange")]
-    public UserMessageDataAttachmentsItemDirectoryLineRange? LineRange { get; set; }
 }
 
-/// <summary>Nested data type for <c>UserMessageDataAttachmentsItemSelectionSelectionStart</c>.</summary>
+/// <summary>Start position of the selection.</summary>
+/// <remarks>Nested data type for <c>UserMessageDataAttachmentsItemSelectionSelectionStart</c>.</remarks>
 public partial class UserMessageDataAttachmentsItemSelectionSelectionStart
 {
     /// <summary>Start line number (0-based).</summary>
@@ -2174,7 +2340,8 @@ public partial class UserMessageDataAttachmentsItemSelectionSelectionStart
     public required double Character { get; set; }
 }
 
-/// <summary>Nested data type for <c>UserMessageDataAttachmentsItemSelectionSelectionEnd</c>.</summary>
+/// <summary>End position of the selection.</summary>
+/// <remarks>Nested data type for <c>UserMessageDataAttachmentsItemSelectionSelectionEnd</c>.</remarks>
 public partial class UserMessageDataAttachmentsItemSelectionSelectionEnd
 {
     /// <summary>End line number (0-based).</summary>
@@ -2190,16 +2357,17 @@ public partial class UserMessageDataAttachmentsItemSelectionSelectionEnd
 /// <remarks>Nested data type for <c>UserMessageDataAttachmentsItemSelectionSelection</c>.</remarks>
 public partial class UserMessageDataAttachmentsItemSelectionSelection
 {
-    /// <summary>Gets or sets the <c>start</c> value.</summary>
+    /// <summary>Start position of the selection.</summary>
     [JsonPropertyName("start")]
     public required UserMessageDataAttachmentsItemSelectionSelectionStart Start { get; set; }
 
-    /// <summary>Gets or sets the <c>end</c> value.</summary>
+    /// <summary>End position of the selection.</summary>
     [JsonPropertyName("end")]
     public required UserMessageDataAttachmentsItemSelectionSelectionEnd End { get; set; }
 }
 
-/// <summary>The <c>selection</c> variant of <see cref="UserMessageDataAttachmentsItem"/>.</summary>
+/// <summary>Code selection attachment from an editor.</summary>
+/// <remarks>The <c>selection</c> variant of <see cref="UserMessageDataAttachmentsItem"/>.</remarks>
 public partial class UserMessageDataAttachmentsItemSelection : UserMessageDataAttachmentsItem
 {
     /// <inheritdoc />
@@ -2223,7 +2391,8 @@ public partial class UserMessageDataAttachmentsItemSelection : UserMessageDataAt
     public required UserMessageDataAttachmentsItemSelectionSelection Selection { get; set; }
 }
 
-/// <summary>The <c>github_reference</c> variant of <see cref="UserMessageDataAttachmentsItem"/>.</summary>
+/// <summary>GitHub issue, pull request, or discussion reference.</summary>
+/// <remarks>The <c>github_reference</c> variant of <see cref="UserMessageDataAttachmentsItem"/>.</remarks>
 public partial class UserMessageDataAttachmentsItemGithubReference : UserMessageDataAttachmentsItem
 {
     /// <inheritdoc />
@@ -2251,7 +2420,30 @@ public partial class UserMessageDataAttachmentsItemGithubReference : UserMessage
     public required string Url { get; set; }
 }
 
-/// <summary>Polymorphic base type discriminated by <c>type</c>.</summary>
+/// <summary>Blob attachment with inline base64-encoded data.</summary>
+/// <remarks>The <c>blob</c> variant of <see cref="UserMessageDataAttachmentsItem"/>.</remarks>
+public partial class UserMessageDataAttachmentsItemBlob : UserMessageDataAttachmentsItem
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "blob";
+
+    /// <summary>Base64-encoded content.</summary>
+    [JsonPropertyName("data")]
+    public required string Data { get; set; }
+
+    /// <summary>MIME type of the inline data.</summary>
+    [JsonPropertyName("mimeType")]
+    public required string MimeType { get; set; }
+
+    /// <summary>User-facing display name for the attachment.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("displayName")]
+    public string? DisplayName { get; set; }
+}
+
+/// <summary>A user message attachment — a file, directory, code selection, blob, or GitHub reference.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
@@ -2259,6 +2451,7 @@ public partial class UserMessageDataAttachmentsItemGithubReference : UserMessage
 [JsonDerivedType(typeof(UserMessageDataAttachmentsItemDirectory), "directory")]
 [JsonDerivedType(typeof(UserMessageDataAttachmentsItemSelection), "selection")]
 [JsonDerivedType(typeof(UserMessageDataAttachmentsItemGithubReference), "github_reference")]
+[JsonDerivedType(typeof(UserMessageDataAttachmentsItemBlob), "blob")]
 public partial class UserMessageDataAttachmentsItem
 {
     /// <summary>The type discriminator.</summary>
@@ -2267,7 +2460,8 @@ public partial class UserMessageDataAttachmentsItem
 }
 
 
-/// <summary>Nested data type for <c>AssistantMessageDataToolRequestsItem</c>.</summary>
+/// <summary>A tool invocation request from the assistant.</summary>
+/// <remarks>Nested data type for <c>AssistantMessageDataToolRequestsItem</c>.</remarks>
 public partial class AssistantMessageDataToolRequestsItem
 {
     /// <summary>Unique identifier for this tool call.</summary>
@@ -2287,9 +2481,20 @@ public partial class AssistantMessageDataToolRequestsItem
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("type")]
     public AssistantMessageDataToolRequestsItemType? Type { get; set; }
+
+    /// <summary>Human-readable display title for the tool.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolTitle")]
+    public string? ToolTitle { get; set; }
+
+    /// <summary>Resolved intention summary describing what this specific call does.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("intentionSummary")]
+    public string? IntentionSummary { get; set; }
 }
 
-/// <summary>Nested data type for <c>AssistantUsageDataCopilotUsageTokenDetailsItem</c>.</summary>
+/// <summary>Token usage detail for a single billing category.</summary>
+/// <remarks>Nested data type for <c>AssistantUsageDataCopilotUsageTokenDetailsItem</c>.</remarks>
 public partial class AssistantUsageDataCopilotUsageTokenDetailsItem
 {
     /// <summary>Number of tokens in this billing batch.</summary>
@@ -2322,7 +2527,8 @@ public partial class AssistantUsageDataCopilotUsage
     public required double TotalNanoAiu { get; set; }
 }
 
-/// <summary>The <c>text</c> variant of <see cref="ToolExecutionCompleteDataResultContentsItem"/>.</summary>
+/// <summary>Plain text content block.</summary>
+/// <remarks>The <c>text</c> variant of <see cref="ToolExecutionCompleteDataResultContentsItem"/>.</remarks>
 public partial class ToolExecutionCompleteDataResultContentsItemText : ToolExecutionCompleteDataResultContentsItem
 {
     /// <inheritdoc />
@@ -2334,7 +2540,8 @@ public partial class ToolExecutionCompleteDataResultContentsItemText : ToolExecu
     public required string Text { get; set; }
 }
 
-/// <summary>The <c>terminal</c> variant of <see cref="ToolExecutionCompleteDataResultContentsItem"/>.</summary>
+/// <summary>Terminal/shell output content block with optional exit code and working directory.</summary>
+/// <remarks>The <c>terminal</c> variant of <see cref="ToolExecutionCompleteDataResultContentsItem"/>.</remarks>
 public partial class ToolExecutionCompleteDataResultContentsItemTerminal : ToolExecutionCompleteDataResultContentsItem
 {
     /// <inheritdoc />
@@ -2356,7 +2563,8 @@ public partial class ToolExecutionCompleteDataResultContentsItemTerminal : ToolE
     public string? Cwd { get; set; }
 }
 
-/// <summary>The <c>image</c> variant of <see cref="ToolExecutionCompleteDataResultContentsItem"/>.</summary>
+/// <summary>Image content block with base64-encoded data.</summary>
+/// <remarks>The <c>image</c> variant of <see cref="ToolExecutionCompleteDataResultContentsItem"/>.</remarks>
 public partial class ToolExecutionCompleteDataResultContentsItemImage : ToolExecutionCompleteDataResultContentsItem
 {
     /// <inheritdoc />
@@ -2372,7 +2580,8 @@ public partial class ToolExecutionCompleteDataResultContentsItemImage : ToolExec
     public required string MimeType { get; set; }
 }
 
-/// <summary>The <c>audio</c> variant of <see cref="ToolExecutionCompleteDataResultContentsItem"/>.</summary>
+/// <summary>Audio content block with base64-encoded data.</summary>
+/// <remarks>The <c>audio</c> variant of <see cref="ToolExecutionCompleteDataResultContentsItem"/>.</remarks>
 public partial class ToolExecutionCompleteDataResultContentsItemAudio : ToolExecutionCompleteDataResultContentsItem
 {
     /// <inheritdoc />
@@ -2388,7 +2597,8 @@ public partial class ToolExecutionCompleteDataResultContentsItemAudio : ToolExec
     public required string MimeType { get; set; }
 }
 
-/// <summary>Nested data type for <c>ToolExecutionCompleteDataResultContentsItemResourceLinkIconsItem</c>.</summary>
+/// <summary>Icon image for a resource.</summary>
+/// <remarks>Nested data type for <c>ToolExecutionCompleteDataResultContentsItemResourceLinkIconsItem</c>.</remarks>
 public partial class ToolExecutionCompleteDataResultContentsItemResourceLinkIconsItem
 {
     /// <summary>URL or path to the icon image.</summary>
@@ -2411,7 +2621,8 @@ public partial class ToolExecutionCompleteDataResultContentsItemResourceLinkIcon
     public ToolExecutionCompleteDataResultContentsItemResourceLinkIconsItemTheme? Theme { get; set; }
 }
 
-/// <summary>The <c>resource_link</c> variant of <see cref="ToolExecutionCompleteDataResultContentsItem"/>.</summary>
+/// <summary>Resource link content block referencing an external resource.</summary>
+/// <remarks>The <c>resource_link</c> variant of <see cref="ToolExecutionCompleteDataResultContentsItem"/>.</remarks>
 public partial class ToolExecutionCompleteDataResultContentsItemResourceLink : ToolExecutionCompleteDataResultContentsItem
 {
     /// <inheritdoc />
@@ -2452,7 +2663,8 @@ public partial class ToolExecutionCompleteDataResultContentsItemResourceLink : T
     public double? Size { get; set; }
 }
 
-/// <summary>The <c>resource</c> variant of <see cref="ToolExecutionCompleteDataResultContentsItem"/>.</summary>
+/// <summary>Embedded resource content block with inline text or binary data.</summary>
+/// <remarks>The <c>resource</c> variant of <see cref="ToolExecutionCompleteDataResultContentsItem"/>.</remarks>
 public partial class ToolExecutionCompleteDataResultContentsItemResource : ToolExecutionCompleteDataResultContentsItem
 {
     /// <inheritdoc />
@@ -2464,7 +2676,8 @@ public partial class ToolExecutionCompleteDataResultContentsItemResource : ToolE
     public required object Resource { get; set; }
 }
 
-/// <summary>Polymorphic base type discriminated by <c>type</c>.</summary>
+/// <summary>A content block within a tool result, which may be text, terminal output, image, audio, or a resource.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
@@ -2649,7 +2862,8 @@ public partial class PermissionRequestShellPossibleUrlsItem
     public required string Url { get; set; }
 }
 
-/// <summary>The <c>shell</c> variant of <see cref="PermissionRequest"/>.</summary>
+/// <summary>Shell command permission request.</summary>
+/// <remarks>The <c>shell</c> variant of <see cref="PermissionRequest"/>.</remarks>
 public partial class PermissionRequestShell : PermissionRequest
 {
     /// <inheritdoc />
@@ -2695,7 +2909,8 @@ public partial class PermissionRequestShell : PermissionRequest
     public string? Warning { get; set; }
 }
 
-/// <summary>The <c>write</c> variant of <see cref="PermissionRequest"/>.</summary>
+/// <summary>File write permission request.</summary>
+/// <remarks>The <c>write</c> variant of <see cref="PermissionRequest"/>.</remarks>
 public partial class PermissionRequestWrite : PermissionRequest
 {
     /// <inheritdoc />
@@ -2725,7 +2940,8 @@ public partial class PermissionRequestWrite : PermissionRequest
     public string? NewFileContents { get; set; }
 }
 
-/// <summary>The <c>read</c> variant of <see cref="PermissionRequest"/>.</summary>
+/// <summary>File or directory read permission request.</summary>
+/// <remarks>The <c>read</c> variant of <see cref="PermissionRequest"/>.</remarks>
 public partial class PermissionRequestRead : PermissionRequest
 {
     /// <inheritdoc />
@@ -2746,7 +2962,8 @@ public partial class PermissionRequestRead : PermissionRequest
     public required string Path { get; set; }
 }
 
-/// <summary>The <c>mcp</c> variant of <see cref="PermissionRequest"/>.</summary>
+/// <summary>MCP tool invocation permission request.</summary>
+/// <remarks>The <c>mcp</c> variant of <see cref="PermissionRequest"/>.</remarks>
 public partial class PermissionRequestMcp : PermissionRequest
 {
     /// <inheritdoc />
@@ -2780,7 +2997,8 @@ public partial class PermissionRequestMcp : PermissionRequest
     public required bool ReadOnly { get; set; }
 }
 
-/// <summary>The <c>url</c> variant of <see cref="PermissionRequest"/>.</summary>
+/// <summary>URL access permission request.</summary>
+/// <remarks>The <c>url</c> variant of <see cref="PermissionRequest"/>.</remarks>
 public partial class PermissionRequestUrl : PermissionRequest
 {
     /// <inheritdoc />
@@ -2801,7 +3019,8 @@ public partial class PermissionRequestUrl : PermissionRequest
     public required string Url { get; set; }
 }
 
-/// <summary>The <c>memory</c> variant of <see cref="PermissionRequest"/>.</summary>
+/// <summary>Memory storage permission request.</summary>
+/// <remarks>The <c>memory</c> variant of <see cref="PermissionRequest"/>.</remarks>
 public partial class PermissionRequestMemory : PermissionRequest
 {
     /// <inheritdoc />
@@ -2826,7 +3045,8 @@ public partial class PermissionRequestMemory : PermissionRequest
     public required string Citations { get; set; }
 }
 
-/// <summary>The <c>custom-tool</c> variant of <see cref="PermissionRequest"/>.</summary>
+/// <summary>Custom tool invocation permission request.</summary>
+/// <remarks>The <c>custom-tool</c> variant of <see cref="PermissionRequest"/>.</remarks>
 public partial class PermissionRequestCustomTool : PermissionRequest
 {
     /// <inheritdoc />
@@ -2852,6 +3072,34 @@ public partial class PermissionRequestCustomTool : PermissionRequest
     public object? Args { get; set; }
 }
 
+/// <summary>Hook confirmation permission request.</summary>
+/// <remarks>The <c>hook</c> variant of <see cref="PermissionRequest"/>.</remarks>
+public partial class PermissionRequestHook : PermissionRequest
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "hook";
+
+    /// <summary>Tool call ID that triggered this permission request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+
+    /// <summary>Name of the tool the hook is gating.</summary>
+    [JsonPropertyName("toolName")]
+    public required string ToolName { get; set; }
+
+    /// <summary>Arguments of the tool call being gated.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolArgs")]
+    public object? ToolArgs { get; set; }
+
+    /// <summary>Optional message from the hook explaining why confirmation is needed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("hookMessage")]
+    public string? HookMessage { get; set; }
+}
+
 /// <summary>Details of the permission being requested.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
 [JsonPolymorphic(
@@ -2864,6 +3112,7 @@ public partial class PermissionRequestCustomTool : PermissionRequest
 [JsonDerivedType(typeof(PermissionRequestUrl), "url")]
 [JsonDerivedType(typeof(PermissionRequestMemory), "memory")]
 [JsonDerivedType(typeof(PermissionRequestCustomTool), "custom-tool")]
+[JsonDerivedType(typeof(PermissionRequestHook), "hook")]
 public partial class PermissionRequest
 {
     /// <summary>The type discriminator.</summary>
@@ -2885,7 +3134,7 @@ public partial class PermissionCompletedDataResult
 /// <remarks>Nested data type for <c>ElicitationRequestedDataRequestedSchema</c>.</remarks>
 public partial class ElicitationRequestedDataRequestedSchema
 {
-    /// <summary>Gets or sets the <c>type</c> value.</summary>
+    /// <summary>Schema type indicator (always 'object').</summary>
     [JsonPropertyName("type")]
     public required string Type { get; set; }
 
@@ -2897,6 +3146,18 @@ public partial class ElicitationRequestedDataRequestedSchema
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("required")]
     public string[]? Required { get; set; }
+}
+
+/// <summary>Hosting platform type of the repository (github or ado).</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<SessionStartDataContextHostType>))]
+public enum SessionStartDataContextHostType
+{
+    /// <summary>The <c>github</c> variant.</summary>
+    [JsonStringEnumMemberName("github")]
+    Github,
+    /// <summary>The <c>ado</c> variant.</summary>
+    [JsonStringEnumMemberName("ado")]
+    Ado,
 }
 
 /// <summary>The type of operation performed on the plan file.</summary>
@@ -2963,6 +3224,42 @@ public enum UserMessageDataAttachmentsItemGithubReferenceReferenceType
     /// <summary>The <c>discussion</c> variant.</summary>
     [JsonStringEnumMemberName("discussion")]
     Discussion,
+}
+
+/// <summary>Origin of this message, used for timeline filtering and telemetry (e.g., "user", "autopilot", "skill", or "command").</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<UserMessageDataSource>))]
+public enum UserMessageDataSource
+{
+    /// <summary>The <c>user</c> variant.</summary>
+    [JsonStringEnumMemberName("user")]
+    User,
+    /// <summary>The <c>autopilot</c> variant.</summary>
+    [JsonStringEnumMemberName("autopilot")]
+    Autopilot,
+    /// <summary>The <c>skill</c> variant.</summary>
+    [JsonStringEnumMemberName("skill")]
+    Skill,
+    /// <summary>The <c>system</c> variant.</summary>
+    [JsonStringEnumMemberName("system")]
+    System,
+    /// <summary>The <c>command</c> variant.</summary>
+    [JsonStringEnumMemberName("command")]
+    Command,
+    /// <summary>The <c>immediate-prompt</c> variant.</summary>
+    [JsonStringEnumMemberName("immediate-prompt")]
+    ImmediatePrompt,
+    /// <summary>The <c>jit-instruction</c> variant.</summary>
+    [JsonStringEnumMemberName("jit-instruction")]
+    JitInstruction,
+    /// <summary>The <c>snippy-blocking</c> variant.</summary>
+    [JsonStringEnumMemberName("snippy-blocking")]
+    SnippyBlocking,
+    /// <summary>The <c>thinking-exhausted-continuation</c> variant.</summary>
+    [JsonStringEnumMemberName("thinking-exhausted-continuation")]
+    ThinkingExhaustedContinuation,
+    /// <summary>The <c>other</c> variant.</summary>
+    [JsonStringEnumMemberName("other")]
+    Other,
 }
 
 /// <summary>The agent mode that was active when this message was sent.</summary>
@@ -3109,6 +3406,7 @@ public enum PermissionCompletedDataResultKind
 [JsonSerializable(typeof(PermissionCompletedEvent))]
 [JsonSerializable(typeof(PermissionRequest))]
 [JsonSerializable(typeof(PermissionRequestCustomTool))]
+[JsonSerializable(typeof(PermissionRequestHook))]
 [JsonSerializable(typeof(PermissionRequestMcp))]
 [JsonSerializable(typeof(PermissionRequestMemory))]
 [JsonSerializable(typeof(PermissionRequestRead))]
@@ -3119,6 +3417,8 @@ public enum PermissionCompletedDataResultKind
 [JsonSerializable(typeof(PermissionRequestWrite))]
 [JsonSerializable(typeof(PermissionRequestedData))]
 [JsonSerializable(typeof(PermissionRequestedEvent))]
+[JsonSerializable(typeof(SessionBackgroundTasksChangedData))]
+[JsonSerializable(typeof(SessionBackgroundTasksChangedEvent))]
 [JsonSerializable(typeof(SessionCompactionCompleteData))]
 [JsonSerializable(typeof(SessionCompactionCompleteDataCompactionTokensUsed))]
 [JsonSerializable(typeof(SessionCompactionCompleteEvent))]
@@ -3160,6 +3460,8 @@ public enum PermissionCompletedDataResultKind
 [JsonSerializable(typeof(SessionTaskCompleteEvent))]
 [JsonSerializable(typeof(SessionTitleChangedData))]
 [JsonSerializable(typeof(SessionTitleChangedEvent))]
+[JsonSerializable(typeof(SessionToolsUpdatedData))]
+[JsonSerializable(typeof(SessionToolsUpdatedEvent))]
 [JsonSerializable(typeof(SessionTruncationData))]
 [JsonSerializable(typeof(SessionTruncationEvent))]
 [JsonSerializable(typeof(SessionUsageInfoData))]
@@ -3215,8 +3517,8 @@ public enum PermissionCompletedDataResultKind
 [JsonSerializable(typeof(UserInputRequestedEvent))]
 [JsonSerializable(typeof(UserMessageData))]
 [JsonSerializable(typeof(UserMessageDataAttachmentsItem))]
+[JsonSerializable(typeof(UserMessageDataAttachmentsItemBlob))]
 [JsonSerializable(typeof(UserMessageDataAttachmentsItemDirectory))]
-[JsonSerializable(typeof(UserMessageDataAttachmentsItemDirectoryLineRange))]
 [JsonSerializable(typeof(UserMessageDataAttachmentsItemFile))]
 [JsonSerializable(typeof(UserMessageDataAttachmentsItemFileLineRange))]
 [JsonSerializable(typeof(UserMessageDataAttachmentsItemGithubReference))]

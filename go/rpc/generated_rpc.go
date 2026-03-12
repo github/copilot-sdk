@@ -48,30 +48,41 @@ type Model struct {
 
 // Billing information
 type Billing struct {
+	// Billing cost multiplier relative to the base rate
 	Multiplier float64 `json:"multiplier"`
 }
 
 // Model capabilities and limits
 type Capabilities struct {
-	Limits   Limits   `json:"limits"`
+	// Token limits for prompts, outputs, and context window
+	Limits Limits `json:"limits"`
+	// Feature flags indicating what the model supports
 	Supports Supports `json:"supports"`
 }
 
+// Token limits for prompts, outputs, and context window
 type Limits struct {
-	MaxContextWindowTokens float64  `json:"max_context_window_tokens"`
-	MaxOutputTokens        *float64 `json:"max_output_tokens,omitempty"`
-	MaxPromptTokens        *float64 `json:"max_prompt_tokens,omitempty"`
+	// Maximum total context window size in tokens
+	MaxContextWindowTokens float64 `json:"max_context_window_tokens"`
+	// Maximum number of output/completion tokens
+	MaxOutputTokens *float64 `json:"max_output_tokens,omitempty"`
+	// Maximum number of prompt/input tokens
+	MaxPromptTokens *float64 `json:"max_prompt_tokens,omitempty"`
 }
 
+// Feature flags indicating what the model supports
 type Supports struct {
 	// Whether this model supports reasoning effort configuration
 	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
-	Vision          *bool `json:"vision,omitempty"`
+	// Whether this model supports vision/image input
+	Vision *bool `json:"vision,omitempty"`
 }
 
 // Policy state (if applicable)
 type Policy struct {
+	// Current policy state for this model
 	State string `json:"state"`
+	// Usage terms or conditions for this model
 	Terms string `json:"terms"`
 }
 
@@ -121,16 +132,20 @@ type QuotaSnapshot struct {
 }
 
 type SessionModelGetCurrentResult struct {
+	// Currently active model identifier
 	ModelID *string `json:"modelId,omitempty"`
 }
 
 type SessionModelSwitchToResult struct {
+	// Currently active model identifier after the switch
 	ModelID *string `json:"modelId,omitempty"`
 }
 
 type SessionModelSwitchToParams struct {
-	ModelID         string           `json:"modelId"`
-	ReasoningEffort *ReasoningEffort `json:"reasoningEffort,omitempty"`
+	// Model identifier to switch to
+	ModelID string `json:"modelId"`
+	// Reasoning effort level to use for the model
+	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 }
 
 type SessionModeGetResult struct {
@@ -264,6 +279,7 @@ type SessionCompactionCompactResult struct {
 }
 
 type SessionToolsHandlePendingToolCallResult struct {
+	// Whether the tool call result was handled successfully
 	Success bool `json:"success"`
 }
 
@@ -281,6 +297,7 @@ type ResultResult struct {
 }
 
 type SessionPermissionsHandlePendingPermissionRequestResult struct {
+	// Whether the permission request was handled successfully
 	Success bool `json:"success"`
 }
 
@@ -312,14 +329,31 @@ type SessionLogParams struct {
 	Message string `json:"message"`
 }
 
-type ReasoningEffort string
+type SessionShellExecResult struct {
+	// Unique identifier for tracking streamed output
+	ProcessID string `json:"processId"`
+}
 
-const (
-	High   ReasoningEffort = "high"
-	Low    ReasoningEffort = "low"
-	Medium ReasoningEffort = "medium"
-	Xhigh  ReasoningEffort = "xhigh"
-)
+type SessionShellExecParams struct {
+	// Shell command to execute
+	Command string `json:"command"`
+	// Working directory (defaults to session working directory)
+	Cwd *string `json:"cwd,omitempty"`
+	// Timeout in milliseconds (default: 30000)
+	Timeout *float64 `json:"timeout,omitempty"`
+}
+
+type SessionShellKillResult struct {
+	// Whether the signal was sent successfully
+	Killed bool `json:"killed"`
+}
+
+type SessionShellKillParams struct {
+	// Process identifier returned by shell.exec
+	ProcessID string `json:"processId"`
+	// Signal to send (default: SIGTERM)
+	Signal *Signal `json:"signal,omitempty"`
+}
 
 // The current agent mode.
 //
@@ -352,6 +386,15 @@ const (
 	Error   Level = "error"
 	Info    Level = "info"
 	Warning Level = "warning"
+)
+
+// Signal to send (default: SIGTERM)
+type Signal string
+
+const (
+	Sigint  Signal = "SIGINT"
+	Sigkill Signal = "SIGKILL"
+	Sigterm Signal = "SIGTERM"
 )
 
 type ResultUnion struct {
@@ -748,6 +791,52 @@ func (a *PermissionsRpcApi) HandlePendingPermissionRequest(ctx context.Context, 
 	return &result, nil
 }
 
+type ShellRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
+
+func (a *ShellRpcApi) Exec(ctx context.Context, params *SessionShellExecParams) (*SessionShellExecResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["command"] = params.Command
+		if params.Cwd != nil {
+			req["cwd"] = *params.Cwd
+		}
+		if params.Timeout != nil {
+			req["timeout"] = *params.Timeout
+		}
+	}
+	raw, err := a.client.Request("session.shell.exec", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionShellExecResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *ShellRpcApi) Kill(ctx context.Context, params *SessionShellKillParams) (*SessionShellKillResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["processId"] = params.ProcessID
+		if params.Signal != nil {
+			req["signal"] = *params.Signal
+		}
+	}
+	raw, err := a.client.Request("session.shell.kill", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionShellKillResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // SessionRpc provides typed session-scoped RPC methods.
 type SessionRpc struct {
 	client      *jsonrpc2.Client
@@ -761,6 +850,7 @@ type SessionRpc struct {
 	Compaction  *CompactionRpcApi
 	Tools       *ToolsRpcApi
 	Permissions *PermissionsRpcApi
+	Shell       *ShellRpcApi
 }
 
 func (a *SessionRpc) Log(ctx context.Context, params *SessionLogParams) (*SessionLogResult, error) {
@@ -796,5 +886,6 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 		Compaction:  &CompactionRpcApi{client: client, sessionID: sessionID},
 		Tools:       &ToolsRpcApi{client: client, sessionID: sessionID},
 		Permissions: &PermissionsRpcApi{client: client, sessionID: sessionID},
+		Shell:       &ShellRpcApi{client: client, sessionID: sessionID},
 	}
 }

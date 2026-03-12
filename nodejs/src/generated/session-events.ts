@@ -22,6 +22,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "session.start";
+      /**
+       * Session initialization metadata including context and configuration
+       */
       data: {
         /**
          * Unique identifier for the session
@@ -48,6 +51,10 @@ export type SessionEvent =
          */
         selectedModel?: string;
         /**
+         * Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh")
+         */
+        reasoningEffort?: string;
+        /**
          * Working directory and git context at session start
          */
         context?: {
@@ -60,14 +67,29 @@ export type SessionEvent =
            */
           gitRoot?: string;
           /**
-           * Repository identifier in "owner/name" format, derived from the git remote URL
+           * Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps)
            */
           repository?: string;
+          /**
+           * Hosting platform type of the repository (github or ado)
+           */
+          hostType?: "github" | "ado";
           /**
            * Current git branch name
            */
           branch?: string;
+          /**
+           * Head commit of current git branch at session start time
+           */
+          headCommit?: string;
+          /**
+           * Base commit of current git branch at session start time
+           */
+          baseCommit?: string;
         };
+        /**
+         * Whether the session was already in use by another client at start time
+         */
         alreadyInUse?: boolean;
       };
     }
@@ -89,6 +111,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "session.resume";
+      /**
+       * Session resume metadata including current context and event count
+       */
       data: {
         /**
          * ISO 8601 timestamp when the session was resumed
@@ -98,6 +123,14 @@ export type SessionEvent =
          * Total number of persisted events in the session at the time of resume
          */
         eventCount: number;
+        /**
+         * Model currently selected at resume time
+         */
+        selectedModel?: string;
+        /**
+         * Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh")
+         */
+        reasoningEffort?: string;
         /**
          * Updated working directory and git context at resume time
          */
@@ -111,14 +144,29 @@ export type SessionEvent =
            */
           gitRoot?: string;
           /**
-           * Repository identifier in "owner/name" format, derived from the git remote URL
+           * Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps)
            */
           repository?: string;
+          /**
+           * Hosting platform type of the repository (github or ado)
+           */
+          hostType?: "github" | "ado";
           /**
            * Current git branch name
            */
           branch?: string;
+          /**
+           * Head commit of current git branch at session start time
+           */
+          headCommit?: string;
+          /**
+           * Base commit of current git branch at session start time
+           */
+          baseCommit?: string;
         };
+        /**
+         * Whether the session was already in use by another client at resume time
+         */
         alreadyInUse?: boolean;
       };
     }
@@ -140,6 +188,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "session.error";
+      /**
+       * Error details for timeline display including message and optional diagnostic information
+       */
       data: {
         /**
          * Category of error (e.g., "authentication", "authorization", "quota", "rate_limit", "query")
@@ -234,6 +285,9 @@ export type SessionEvent =
       parentId: string | null;
       ephemeral: true;
       type: "session.title_changed";
+      /**
+       * Session title change payload containing the new display title
+       */
       data: {
         /**
          * The new display title for the session
@@ -259,6 +313,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "session.info";
+      /**
+       * Informational message for timeline display with categorization
+       */
       data: {
         /**
          * Category of informational message (e.g., "notification", "timing", "context_window", "mcp", "snapshot", "configuration", "authentication", "model")
@@ -288,6 +345,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "session.warning";
+      /**
+       * Warning message for timeline display with categorization
+       */
       data: {
         /**
          * Category of warning (e.g., "subscription", "policy", "mcp")
@@ -317,6 +377,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "session.model_change";
+      /**
+       * Model change details including previous and new model identifiers
+       */
       data: {
         /**
          * Model that was previously selected, if any
@@ -326,6 +389,14 @@ export type SessionEvent =
          * Newly selected model identifier
          */
         newModel: string;
+        /**
+         * Reasoning effort level before the model change, if applicable
+         */
+        previousReasoningEffort?: string;
+        /**
+         * Reasoning effort level after the model change, if applicable
+         */
+        reasoningEffort?: string;
       };
     }
   | {
@@ -346,6 +417,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "session.mode_changed";
+      /**
+       * Agent mode change details including previous and new modes
+       */
       data: {
         /**
          * Agent mode before the change (e.g., "interactive", "plan", "autopilot")
@@ -375,6 +449,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "session.plan_changed";
+      /**
+       * Plan file operation details indicating what changed
+       */
       data: {
         /**
          * The type of operation performed on the plan file
@@ -400,6 +477,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "session.workspace_file_changed";
+      /**
+       * Workspace file change details including path and operation type
+       */
       data: {
         /**
          * Relative path within the session workspace files directory
@@ -429,6 +509,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "session.handoff";
+      /**
+       * Session handoff metadata including source, context, and repository information
+       */
       data: {
         /**
          * ISO 8601 timestamp when the handoff occurred
@@ -487,6 +570,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "session.truncation";
+      /**
+       * Conversation truncation statistics including token counts and removed content metrics
+       */
       data: {
         /**
          * Maximum token count for the model's context window
@@ -537,6 +623,9 @@ export type SessionEvent =
       parentId: string | null;
       ephemeral: true;
       type: "session.snapshot_rewind";
+      /**
+       * Session rewind details including target event and count of removed events
+       */
       data: {
         /**
          * Event ID that was rewound to; all events after this one were removed
@@ -566,6 +655,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "session.shutdown";
+      /**
+       * Session termination metrics including usage statistics, code changes, and shutdown reason
+       */
       data: {
         /**
          * Whether the session ended normally ("routine") or due to a crash/fatal error ("error")
@@ -669,6 +761,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "session.context_changed";
+      /**
+       * Updated working directory and git context after the change
+       */
       data: {
         /**
          * Current working directory path
@@ -679,13 +774,25 @@ export type SessionEvent =
          */
         gitRoot?: string;
         /**
-         * Repository identifier in "owner/name" format, derived from the git remote URL
+         * Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps)
          */
         repository?: string;
+        /**
+         * Hosting platform type of the repository (github or ado)
+         */
+        hostType?: "github" | "ado";
         /**
          * Current git branch name
          */
         branch?: string;
+        /**
+         * Head commit of current git branch at session start time
+         */
+        headCommit?: string;
+        /**
+         * Base commit of current git branch at session start time
+         */
+        baseCommit?: string;
       };
     }
   | {
@@ -703,6 +810,9 @@ export type SessionEvent =
       parentId: string | null;
       ephemeral: true;
       type: "session.usage_info";
+      /**
+       * Current context window usage statistics including token and message counts
+       */
       data: {
         /**
          * Maximum token count for the model's context window
@@ -759,6 +869,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "session.compaction_complete";
+      /**
+       * Conversation compaction results including success status, metrics, and optional error details
+       */
       data: {
         /**
          * Whether compaction completed successfully
@@ -841,6 +954,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "session.task_complete";
+      /**
+       * Task completion notification with optional summary from the agent
+       */
       data: {
         /**
          * Optional summary of the completed task, provided by the agent
@@ -866,6 +982,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "user.message";
+      /**
+       * User message content with optional attachments, source information, and interaction metadata
+       */
       data: {
         /**
          * The user's message text as displayed in the timeline
@@ -880,33 +999,12 @@ export type SessionEvent =
          */
         attachments?: (
           | {
+              /**
+               * Attachment type discriminator
+               */
               type: "file";
               /**
-               * Absolute file or directory path
-               */
-              path: string;
-              /**
-               * User-facing display name for the attachment
-               */
-              displayName: string;
-              /**
-               * Optional line range to scope the attachment to a specific section of the file
-               */
-              lineRange?: {
-                /**
-                 * Start line number (1-based)
-                 */
-                start: number;
-                /**
-                 * End line number (1-based, inclusive)
-                 */
-                end: number;
-              };
-            }
-          | {
-              type: "directory";
-              /**
-               * Absolute file or directory path
+               * Absolute file path
                */
               path: string;
               /**
@@ -931,6 +1029,20 @@ export type SessionEvent =
               /**
                * Attachment type discriminator
                */
+              type: "directory";
+              /**
+               * Absolute directory path
+               */
+              path: string;
+              /**
+               * User-facing display name for the attachment
+               */
+              displayName: string;
+            }
+          | {
+              /**
+               * Attachment type discriminator
+               */
               type: "selection";
               /**
                * Absolute path to the file containing the selection
@@ -948,6 +1060,9 @@ export type SessionEvent =
                * Position range of the selection within the file
                */
               selection: {
+                /**
+                 * Start position of the selection
+                 */
                 start: {
                   /**
                    * Start line number (0-based)
@@ -958,6 +1073,9 @@ export type SessionEvent =
                    */
                   character: number;
                 };
+                /**
+                 * End position of the selection
+                 */
                 end: {
                   /**
                    * End line number (0-based)
@@ -996,11 +1114,39 @@ export type SessionEvent =
                */
               url: string;
             }
+          | {
+              /**
+               * Attachment type discriminator
+               */
+              type: "blob";
+              /**
+               * Base64-encoded content
+               */
+              data: string;
+              /**
+               * MIME type of the inline data
+               */
+              mimeType: string;
+              /**
+               * User-facing display name for the attachment
+               */
+              displayName?: string;
+            }
         )[];
         /**
-         * Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected messages that should be hidden from the user)
+         * Origin of this message, used for timeline filtering and telemetry (e.g., "user", "autopilot", "skill", or "command")
          */
-        source?: string;
+        source?:
+          | "user"
+          | "autopilot"
+          | "skill"
+          | "system"
+          | "command"
+          | "immediate-prompt"
+          | "jit-instruction"
+          | "snippy-blocking"
+          | "thinking-exhausted-continuation"
+          | "other";
         /**
          * The agent mode that was active when this message was sent
          */
@@ -1049,6 +1195,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "assistant.turn_start";
+      /**
+       * Turn initialization metadata including identifier and interaction tracking
+       */
       data: {
         /**
          * Identifier for this turn within the agentic loop, typically a stringified turn number
@@ -1075,6 +1224,9 @@ export type SessionEvent =
       parentId: string | null;
       ephemeral: true;
       type: "assistant.intent";
+      /**
+       * Agent intent description for current activity or plan
+       */
       data: {
         /**
          * Short description of what the agent is currently doing or planning to do
@@ -1100,6 +1252,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "assistant.reasoning";
+      /**
+       * Assistant reasoning content for timeline display with complete thinking text
+       */
       data: {
         /**
          * Unique identifier for this reasoning block
@@ -1126,6 +1281,9 @@ export type SessionEvent =
       parentId: string | null;
       ephemeral: true;
       type: "assistant.reasoning_delta";
+      /**
+       * Streaming reasoning delta for incremental extended thinking updates
+       */
       data: {
         /**
          * Reasoning block ID this delta belongs to, matching the corresponding assistant.reasoning event
@@ -1152,6 +1310,9 @@ export type SessionEvent =
       parentId: string | null;
       ephemeral: true;
       type: "assistant.streaming_delta";
+      /**
+       * Streaming response progress with cumulative byte count
+       */
       data: {
         /**
          * Cumulative total bytes received from the streaming response so far
@@ -1177,6 +1338,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "assistant.message";
+      /**
+       * Assistant response containing text content, optional tool requests, and interaction metadata
+       */
       data: {
         /**
          * Unique identifier for this assistant message
@@ -1208,6 +1372,14 @@ export type SessionEvent =
            * Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
            */
           type?: "function" | "custom";
+          /**
+           * Human-readable display title for the tool
+           */
+          toolTitle?: string;
+          /**
+           * Resolved intention summary describing what this specific call does
+           */
+          intentionSummary?: string | null;
         }[];
         /**
          * Opaque/encrypted extended thinking data from Anthropic models. Session-bound and stripped on resume.
@@ -1254,6 +1426,9 @@ export type SessionEvent =
       parentId: string | null;
       ephemeral: true;
       type: "assistant.message_delta";
+      /**
+       * Streaming assistant message delta for incremental response updates
+       */
       data: {
         /**
          * Message ID this delta belongs to, matching the corresponding assistant.message event
@@ -1287,6 +1462,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "assistant.turn_end";
+      /**
+       * Turn completion metadata including the turn identifier
+       */
       data: {
         /**
          * Identifier of the turn that has ended, matching the corresponding assistant.turn_start event
@@ -1309,6 +1487,9 @@ export type SessionEvent =
       parentId: string | null;
       ephemeral: true;
       type: "assistant.usage";
+      /**
+       * LLM API call usage metrics including tokens, costs, quotas, and billing information
+       */
       data: {
         /**
          * Model identifier used for this API call
@@ -1423,6 +1604,10 @@ export type SessionEvent =
            */
           totalNanoAiu: number;
         };
+        /**
+         * Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh")
+         */
+        reasoningEffort?: string;
       };
     }
   | {
@@ -1443,6 +1628,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "abort";
+      /**
+       * Turn abort information including the reason for termination
+       */
       data: {
         /**
          * Reason the current turn was aborted (e.g., "user initiated")
@@ -1468,6 +1656,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "tool.user_requested";
+      /**
+       * User-initiated tool invocation request with tool name and arguments
+       */
       data: {
         /**
          * Unique identifier for this tool call
@@ -1503,6 +1694,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "tool.execution_start";
+      /**
+       * Tool execution startup details including MCP server information when applicable
+       */
       data: {
         /**
          * Unique identifier for this tool call
@@ -1547,6 +1741,9 @@ export type SessionEvent =
       parentId: string | null;
       ephemeral: true;
       type: "tool.execution_partial_result";
+      /**
+       * Streaming tool execution output for incremental result display
+       */
       data: {
         /**
          * Tool call ID this partial result belongs to
@@ -1573,6 +1770,9 @@ export type SessionEvent =
       parentId: string | null;
       ephemeral: true;
       type: "tool.execution_progress";
+      /**
+       * Tool execution progress notification with status message
+       */
       data: {
         /**
          * Tool call ID this progress notification belongs to
@@ -1602,6 +1802,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "tool.execution_complete";
+      /**
+       * Tool execution completion results including success status, detailed output, and error information
+       */
       data: {
         /**
          * Unique identifier for the completed tool call
@@ -1829,6 +2032,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "skill.invoked";
+      /**
+       * Skill invocation details including content, allowed tools, and plugin metadata
+       */
       data: {
         /**
          * Name of the invoked skill
@@ -1874,6 +2080,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "subagent.started";
+      /**
+       * Sub-agent startup details including parent tool call and agent information
+       */
       data: {
         /**
          * Tool call ID of the parent tool invocation that spawned this sub-agent
@@ -1911,6 +2120,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "subagent.completed";
+      /**
+       * Sub-agent completion details for successful execution
+       */
       data: {
         /**
          * Tool call ID of the parent tool invocation that spawned this sub-agent
@@ -1944,6 +2156,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "subagent.failed";
+      /**
+       * Sub-agent failure details including error message and agent information
+       */
       data: {
         /**
          * Tool call ID of the parent tool invocation that spawned this sub-agent
@@ -1981,6 +2196,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "subagent.selected";
+      /**
+       * Custom agent selection details including name and available tools
+       */
       data: {
         /**
          * Internal name of the selected custom agent
@@ -2037,6 +2255,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "hook.start";
+      /**
+       * Hook invocation start details including type and input data
+       */
       data: {
         /**
          * Unique identifier for this hook invocation
@@ -2072,6 +2293,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "hook.end";
+      /**
+       * Hook invocation completion details including output, success status, and error information
+       */
       data: {
         /**
          * Identifier matching the corresponding hook.start event
@@ -2124,6 +2348,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "system.message";
+      /**
+       * System or developer message content with role and optional template metadata
+       */
       data: {
         /**
          * The system or developer prompt text
@@ -2172,6 +2399,9 @@ export type SessionEvent =
        */
       ephemeral?: boolean;
       type: "system.notification";
+      /**
+       * System-generated notification for runtime events like background task completion
+       */
       data: {
         /**
          * The notification text, typically wrapped in <system_notification> XML tags
@@ -2247,6 +2477,9 @@ export type SessionEvent =
       parentId: string | null;
       ephemeral: true;
       type: "permission.requested";
+      /**
+       * Permission request notification requiring client approval with request details
+       */
       data: {
         /**
          * Unique identifier for this permission request; used to respond via session.respondToPermission()
@@ -2451,6 +2684,30 @@ export type SessionEvent =
               args?: {
                 [k: string]: unknown;
               };
+            }
+          | {
+              /**
+               * Permission kind discriminator
+               */
+              kind: "hook";
+              /**
+               * Tool call ID that triggered this permission request
+               */
+              toolCallId?: string;
+              /**
+               * Name of the tool the hook is gating
+               */
+              toolName: string;
+              /**
+               * Arguments of the tool call being gated
+               */
+              toolArgs?: {
+                [k: string]: unknown;
+              };
+              /**
+               * Optional message from the hook explaining why confirmation is needed
+               */
+              hookMessage?: string;
             };
       };
     }
@@ -2469,6 +2726,9 @@ export type SessionEvent =
       parentId: string | null;
       ephemeral: true;
       type: "permission.completed";
+      /**
+       * Permission request completion notification signaling UI dismissal
+       */
       data: {
         /**
          * Request ID of the resolved permission request; clients should dismiss any UI for this request
@@ -2505,6 +2765,9 @@ export type SessionEvent =
       parentId: string | null;
       ephemeral: true;
       type: "user_input.requested";
+      /**
+       * User input request notification with question and optional predefined choices
+       */
       data: {
         /**
          * Unique identifier for this input request; used to respond via session.respondToUserInput()
@@ -2539,6 +2802,9 @@ export type SessionEvent =
       parentId: string | null;
       ephemeral: true;
       type: "user_input.completed";
+      /**
+       * User input request completion notification signaling UI dismissal
+       */
       data: {
         /**
          * Request ID of the resolved user input request; clients should dismiss any UI for this request
@@ -2561,6 +2827,9 @@ export type SessionEvent =
       parentId: string | null;
       ephemeral: true;
       type: "elicitation.requested";
+      /**
+       * Structured form elicitation request with JSON schema definition for form fields
+       */
       data: {
         /**
          * Unique identifier for this elicitation request; used to respond via session.respondToElicitation()
@@ -2578,6 +2847,9 @@ export type SessionEvent =
          * JSON Schema describing the form fields to present to the user
          */
         requestedSchema: {
+          /**
+           * Schema type indicator (always 'object')
+           */
           type: "object";
           /**
            * Form field definitions, keyed by field name
@@ -2608,6 +2880,9 @@ export type SessionEvent =
       parentId: string | null;
       ephemeral: true;
       type: "elicitation.completed";
+      /**
+       * Elicitation request completion notification signaling UI dismissal
+       */
       data: {
         /**
          * Request ID of the resolved elicitation request; clients should dismiss any UI for this request
@@ -2630,6 +2905,9 @@ export type SessionEvent =
       parentId: string | null;
       ephemeral: true;
       type: "external_tool.requested";
+      /**
+       * External tool invocation request for client-side tool execution
+       */
       data: {
         /**
          * Unique identifier for this request; used to respond via session.respondToExternalTool()
@@ -2653,6 +2931,14 @@ export type SessionEvent =
         arguments?: {
           [k: string]: unknown;
         };
+        /**
+         * W3C Trace Context traceparent header for the execute_tool span
+         */
+        traceparent?: string;
+        /**
+         * W3C Trace Context tracestate header for the execute_tool span
+         */
+        tracestate?: string;
       };
     }
   | {
@@ -2670,6 +2956,9 @@ export type SessionEvent =
       parentId: string | null;
       ephemeral: true;
       type: "external_tool.completed";
+      /**
+       * External tool completion notification signaling UI dismissal
+       */
       data: {
         /**
          * Request ID of the resolved external tool request; clients should dismiss any UI for this request
@@ -2692,6 +2981,9 @@ export type SessionEvent =
       parentId: string | null;
       ephemeral: true;
       type: "command.queued";
+      /**
+       * Queued slash command dispatch request for client execution
+       */
       data: {
         /**
          * Unique identifier for this request; used to respond via session.respondToQueuedCommand()
@@ -2718,6 +3010,9 @@ export type SessionEvent =
       parentId: string | null;
       ephemeral: true;
       type: "command.completed";
+      /**
+       * Queued command completion notification signaling UI dismissal
+       */
       data: {
         /**
          * Request ID of the resolved command request; clients should dismiss any UI for this request
@@ -2740,6 +3035,9 @@ export type SessionEvent =
       parentId: string | null;
       ephemeral: true;
       type: "exit_plan_mode.requested";
+      /**
+       * Plan approval request with plan content and available user actions
+       */
       data: {
         /**
          * Unique identifier for this request; used to respond via session.respondToExitPlanMode()
@@ -2778,10 +3076,49 @@ export type SessionEvent =
       parentId: string | null;
       ephemeral: true;
       type: "exit_plan_mode.completed";
+      /**
+       * Plan mode exit completion notification signaling UI dismissal
+       */
       data: {
         /**
          * Request ID of the resolved exit plan mode request; clients should dismiss any UI for this request
          */
         requestId: string;
       };
+    }
+  | {
+      /**
+       * Unique event identifier (UUID v4), generated when the event is emitted
+       */
+      id: string;
+      /**
+       * ISO 8601 timestamp when the event was created
+       */
+      timestamp: string;
+      /**
+       * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+       */
+      parentId: string | null;
+      ephemeral: true;
+      type: "session.tools_updated";
+      data: {
+        model: string;
+      };
+    }
+  | {
+      /**
+       * Unique event identifier (UUID v4), generated when the event is emitted
+       */
+      id: string;
+      /**
+       * ISO 8601 timestamp when the event was created
+       */
+      timestamp: string;
+      /**
+       * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+       */
+      parentId: string | null;
+      ephemeral: true;
+      type: "session.background_tasks_changed";
+      data: {};
     };

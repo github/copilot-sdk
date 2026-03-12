@@ -44,16 +44,34 @@ export interface ModelsListResult {
      * Model capabilities and limits
      */
     capabilities: {
+      /**
+       * Feature flags indicating what the model supports
+       */
       supports: {
+        /**
+         * Whether this model supports vision/image input
+         */
         vision?: boolean;
         /**
          * Whether this model supports reasoning effort configuration
          */
         reasoningEffort?: boolean;
       };
+      /**
+       * Token limits for prompts, outputs, and context window
+       */
       limits: {
+        /**
+         * Maximum number of prompt/input tokens
+         */
         max_prompt_tokens?: number;
+        /**
+         * Maximum number of output/completion tokens
+         */
         max_output_tokens?: number;
+        /**
+         * Maximum total context window size in tokens
+         */
         max_context_window_tokens: number;
       };
     };
@@ -61,13 +79,22 @@ export interface ModelsListResult {
      * Policy state (if applicable)
      */
     policy?: {
+      /**
+       * Current policy state for this model
+       */
       state: string;
+      /**
+       * Usage terms or conditions for this model
+       */
       terms: string;
     };
     /**
      * Billing information
      */
     billing?: {
+      /**
+       * Billing cost multiplier relative to the base rate
+       */
       multiplier: number;
     };
     /**
@@ -153,6 +180,9 @@ export interface AccountGetQuotaResult {
 }
 
 export interface SessionModelGetCurrentResult {
+  /**
+   * Currently active model identifier
+   */
   modelId?: string;
 }
 
@@ -164,6 +194,9 @@ export interface SessionModelGetCurrentParams {
 }
 
 export interface SessionModelSwitchToResult {
+  /**
+   * Currently active model identifier after the switch
+   */
   modelId?: string;
 }
 
@@ -172,8 +205,14 @@ export interface SessionModelSwitchToParams {
    * Target session identifier
    */
   sessionId: string;
+  /**
+   * Model identifier to switch to
+   */
   modelId: string;
-  reasoningEffort?: "low" | "medium" | "high" | "xhigh";
+  /**
+   * Reasoning effort level to use for the model
+   */
+  reasoningEffort?: string;
 }
 
 export interface SessionModeGetResult {
@@ -436,6 +475,9 @@ export interface SessionCompactionCompactParams {
 }
 
 export interface SessionToolsHandlePendingToolCallResult {
+  /**
+   * Whether the tool call result was handled successfully
+   */
   success: boolean;
 }
 
@@ -459,6 +501,9 @@ export interface SessionToolsHandlePendingToolCallParams {
 }
 
 export interface SessionPermissionsHandlePendingPermissionRequestResult {
+  /**
+   * Whether the permission request was handled successfully
+   */
   success: boolean;
 }
 
@@ -514,6 +559,54 @@ export interface SessionLogParams {
    * When true, the message is transient and not persisted to the session event log on disk
    */
   ephemeral?: boolean;
+}
+
+export interface SessionShellExecResult {
+  /**
+   * Unique identifier for tracking streamed output
+   */
+  processId: string;
+}
+
+export interface SessionShellExecParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Shell command to execute
+   */
+  command: string;
+  /**
+   * Working directory (defaults to session working directory)
+   */
+  cwd?: string;
+  /**
+   * Timeout in milliseconds (default: 30000)
+   */
+  timeout?: number;
+}
+
+export interface SessionShellKillResult {
+  /**
+   * Whether the signal was sent successfully
+   */
+  killed: boolean;
+}
+
+export interface SessionShellKillParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Process identifier returned by shell.exec
+   */
+  processId: string;
+  /**
+   * Signal to send (default: SIGTERM)
+   */
+  signal?: "SIGTERM" | "SIGKILL" | "SIGINT";
 }
 
 /** Create typed server-scoped RPC methods (no session required). */
@@ -595,5 +688,11 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         },
         log: async (params: Omit<SessionLogParams, "sessionId">): Promise<SessionLogResult> =>
             connection.sendRequest("session.log", { sessionId, ...params }),
+        shell: {
+            exec: async (params: Omit<SessionShellExecParams, "sessionId">): Promise<SessionShellExecResult> =>
+                connection.sendRequest("session.shell.exec", { sessionId, ...params }),
+            kill: async (params: Omit<SessionShellKillParams, "sessionId">): Promise<SessionShellKillResult> =>
+                connection.sendRequest("session.shell.kill", { sessionId, ...params }),
+        },
     };
 }

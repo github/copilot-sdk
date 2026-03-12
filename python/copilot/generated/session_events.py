@@ -122,6 +122,8 @@ class ReferenceType(Enum):
 
 @dataclass
 class End:
+    """End position of the selection"""
+
     character: float
     """End character offset within the line (0-based)"""
 
@@ -144,6 +146,8 @@ class End:
 
 @dataclass
 class Start:
+    """Start position of the selection"""
+
     character: float
     """Start character offset within the line (0-based)"""
 
@@ -169,7 +173,10 @@ class Selection:
     """Position range of the selection within the file"""
 
     end: End
+    """End position of the selection"""
+
     start: Start
+    """Start position of the selection"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'Selection':
@@ -186,6 +193,7 @@ class Selection:
 
 
 class AttachmentType(Enum):
+    BLOB = "blob"
     DIRECTORY = "directory"
     FILE = "file"
     GITHUB_REFERENCE = "github_reference"
@@ -194,6 +202,18 @@ class AttachmentType(Enum):
 
 @dataclass
 class Attachment:
+    """A user message attachment — a file, directory, code selection, blob, or GitHub reference
+    
+    File attachment
+    
+    Directory attachment
+    
+    Code selection attachment from an editor
+    
+    GitHub issue, pull request, or discussion reference
+    
+    Blob attachment with inline base64-encoded data
+    """
     type: AttachmentType
     """Attachment type discriminator"""
 
@@ -206,8 +226,10 @@ class Attachment:
     """Optional line range to scope the attachment to a specific section of the file"""
 
     path: str | None = None
-    """Absolute file or directory path"""
-
+    """Absolute file path
+    
+    Absolute directory path
+    """
     file_path: str | None = None
     """Absolute path to the file containing the selection"""
 
@@ -232,6 +254,12 @@ class Attachment:
     url: str | None = None
     """URL to the referenced item on GitHub"""
 
+    data: str | None = None
+    """Base64-encoded content"""
+
+    mime_type: str | None = None
+    """MIME type of the inline data"""
+
     @staticmethod
     def from_dict(obj: Any) -> 'Attachment':
         assert isinstance(obj, dict)
@@ -247,7 +275,9 @@ class Attachment:
         state = from_union([from_str, from_none], obj.get("state"))
         title = from_union([from_str, from_none], obj.get("title"))
         url = from_union([from_str, from_none], obj.get("url"))
-        return Attachment(type, display_name, line_range, path, file_path, selection, text, number, reference_type, state, title, url)
+        data = from_union([from_str, from_none], obj.get("data"))
+        mime_type = from_union([from_str, from_none], obj.get("mimeType"))
+        return Attachment(type, display_name, line_range, path, file_path, selection, text, number, reference_type, state, title, url, data, mime_type)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -274,11 +304,17 @@ class Attachment:
             result["title"] = from_union([from_str, from_none], self.title)
         if self.url is not None:
             result["url"] = from_union([from_str, from_none], self.url)
+        if self.data is not None:
+            result["data"] = from_union([from_str, from_none], self.data)
+        if self.mime_type is not None:
+            result["mimeType"] = from_union([from_str, from_none], self.mime_type)
         return result
 
 
 @dataclass
 class Agent:
+    """A background agent task"""
+
     agent_id: str
     """Unique identifier of the background agent"""
 
@@ -307,6 +343,8 @@ class Agent:
 
 @dataclass
 class Shell:
+    """A background shell command"""
+
     shell_id: str
     """Unique identifier of the background shell"""
 
@@ -410,6 +448,13 @@ class CompactionTokensUsed:
         return result
 
 
+class HostType(Enum):
+    """Hosting platform type of the repository (github or ado)"""
+
+    ADO = "ado"
+    GITHUB = "github"
+
+
 @dataclass
 class ContextClass:
     """Working directory and git context at session start
@@ -419,31 +464,51 @@ class ContextClass:
     cwd: str
     """Current working directory path"""
 
+    base_commit: str | None = None
+    """Base commit of current git branch at session start time"""
+
     branch: str | None = None
     """Current git branch name"""
 
     git_root: str | None = None
     """Root directory of the git repository, resolved via git rev-parse"""
 
+    head_commit: str | None = None
+    """Head commit of current git branch at session start time"""
+
+    host_type: HostType | None = None
+    """Hosting platform type of the repository (github or ado)"""
+
     repository: str | None = None
-    """Repository identifier in "owner/name" format, derived from the git remote URL"""
+    """Repository identifier derived from the git remote URL ("owner/name" for GitHub,
+    "org/project/repo" for Azure DevOps)
+    """
 
     @staticmethod
     def from_dict(obj: Any) -> 'ContextClass':
         assert isinstance(obj, dict)
         cwd = from_str(obj.get("cwd"))
+        base_commit = from_union([from_str, from_none], obj.get("baseCommit"))
         branch = from_union([from_str, from_none], obj.get("branch"))
         git_root = from_union([from_str, from_none], obj.get("gitRoot"))
+        head_commit = from_union([from_str, from_none], obj.get("headCommit"))
+        host_type = from_union([HostType, from_none], obj.get("hostType"))
         repository = from_union([from_str, from_none], obj.get("repository"))
-        return ContextClass(cwd, branch, git_root, repository)
+        return ContextClass(cwd, base_commit, branch, git_root, head_commit, host_type, repository)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["cwd"] = from_str(self.cwd)
+        if self.base_commit is not None:
+            result["baseCommit"] = from_union([from_str, from_none], self.base_commit)
         if self.branch is not None:
             result["branch"] = from_union([from_str, from_none], self.branch)
         if self.git_root is not None:
             result["gitRoot"] = from_union([from_str, from_none], self.git_root)
+        if self.head_commit is not None:
+            result["headCommit"] = from_union([from_str, from_none], self.head_commit)
+        if self.host_type is not None:
+            result["hostType"] = from_union([lambda x: to_enum(HostType, x), from_none], self.host_type)
         if self.repository is not None:
             result["repository"] = from_union([from_str, from_none], self.repository)
         return result
@@ -451,6 +516,8 @@ class ContextClass:
 
 @dataclass
 class TokenDetail:
+    """Token usage detail for a single billing category"""
+
     batch_size: float
     """Number of tokens in this billing batch"""
 
@@ -759,6 +826,7 @@ class Command:
 
 class PermissionRequestKind(Enum):
     CUSTOM_TOOL = "custom-tool"
+    HOOK = "hook"
     MCP = "mcp"
     MEMORY = "memory"
     READ = "read"
@@ -786,8 +854,24 @@ class PossibleURL:
 
 @dataclass
 class PermissionRequest:
-    """Details of the permission being requested"""
-
+    """Details of the permission being requested
+    
+    Shell command permission request
+    
+    File write permission request
+    
+    File or directory read permission request
+    
+    MCP tool invocation permission request
+    
+    URL access permission request
+    
+    Memory storage permission request
+    
+    Custom tool invocation permission request
+    
+    Hook confirmation permission request
+    """
     kind: PermissionRequestKind
     """Permission kind discriminator"""
 
@@ -851,6 +935,8 @@ class PermissionRequest:
     """Internal name of the MCP tool
     
     Name of the custom tool
+    
+    Name of the tool the hook is gating
     """
     tool_title: str | None = None
     """Human-readable title of the MCP tool"""
@@ -869,6 +955,12 @@ class PermissionRequest:
 
     tool_description: str | None = None
     """Description of what the custom tool does"""
+
+    hook_message: str | None = None
+    """Optional message from the hook explaining why confirmation is needed"""
+
+    tool_args: Any = None
+    """Arguments of the tool call being gated"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionRequest':
@@ -897,7 +989,9 @@ class PermissionRequest:
         fact = from_union([from_str, from_none], obj.get("fact"))
         subject = from_union([from_str, from_none], obj.get("subject"))
         tool_description = from_union([from_str, from_none], obj.get("toolDescription"))
-        return PermissionRequest(kind, can_offer_session_approval, commands, full_command_text, has_write_file_redirection, intention, possible_paths, possible_urls, tool_call_id, warning, diff, file_name, new_file_contents, path, args, read_only, server_name, tool_name, tool_title, url, citations, fact, subject, tool_description)
+        hook_message = from_union([from_str, from_none], obj.get("hookMessage"))
+        tool_args = obj.get("toolArgs")
+        return PermissionRequest(kind, can_offer_session_approval, commands, full_command_text, has_write_file_redirection, intention, possible_paths, possible_urls, tool_call_id, warning, diff, file_name, new_file_contents, path, args, read_only, server_name, tool_name, tool_title, url, citations, fact, subject, tool_description, hook_message, tool_args)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -948,6 +1042,10 @@ class PermissionRequest:
             result["subject"] = from_union([from_str, from_none], self.subject)
         if self.tool_description is not None:
             result["toolDescription"] = from_union([from_str, from_none], self.tool_description)
+        if self.hook_message is not None:
+            result["hookMessage"] = from_union([from_str, from_none], self.hook_message)
+        if self.tool_args is not None:
+            result["toolArgs"] = self.tool_args
         return result
 
 
@@ -1046,6 +1144,8 @@ class RequestedSchema:
     """Form field definitions, keyed by field name"""
 
     type: RequestedSchemaType
+    """Schema type indicator (always 'object')"""
+
     required: list[str] | None = None
     """List of required field names"""
 
@@ -1075,6 +1175,8 @@ class Theme(Enum):
 
 @dataclass
 class Icon:
+    """Icon image for a resource"""
+
     src: str
     """URL or path to the icon image"""
 
@@ -1158,6 +1260,21 @@ class ContentType(Enum):
 
 @dataclass
 class Content:
+    """A content block within a tool result, which may be text, terminal output, image, audio,
+    or a resource
+    
+    Plain text content block
+    
+    Terminal/shell output content block with optional exit code and working directory
+    
+    Image content block with base64-encoded data
+    
+    Audio content block with base64-encoded data
+    
+    Resource link content block referencing an external resource
+    
+    Embedded resource content block with inline text or binary data
+    """
     type: ContentType
     """Content block type discriminator"""
 
@@ -1320,6 +1437,22 @@ class ShutdownType(Enum):
     ROUTINE = "routine"
 
 
+class Source(Enum):
+    """Origin of this message, used for timeline filtering and telemetry (e.g., "user",
+    "autopilot", "skill", or "command")
+    """
+    AUTOPILOT = "autopilot"
+    COMMAND = "command"
+    IMMEDIATE_PROMPT = "immediate-prompt"
+    JIT_INSTRUCTION = "jit-instruction"
+    OTHER = "other"
+    SKILL = "skill"
+    SNIPPY_BLOCKING = "snippy-blocking"
+    SYSTEM = "system"
+    THINKING_EXHAUSTED_CONTINUATION = "thinking-exhausted-continuation"
+    USER = "user"
+
+
 class SourceType(Enum):
     """Origin type of the session being handed off"""
 
@@ -1337,6 +1470,8 @@ class ToolRequestType(Enum):
 
 @dataclass
 class ToolRequest:
+    """A tool invocation request from the assistant"""
+
     name: str
     """Name of the tool being invoked"""
 
@@ -1345,6 +1480,12 @@ class ToolRequest:
 
     arguments: Any = None
     """Arguments to pass to the tool, format depends on the tool"""
+
+    intention_summary: str | None = None
+    """Resolved intention summary describing what this specific call does"""
+
+    tool_title: str | None = None
+    """Human-readable display title for the tool"""
 
     type: ToolRequestType | None = None
     """Tool call type: "function" for standard tool calls, "custom" for grammar-based tool
@@ -1357,8 +1498,10 @@ class ToolRequest:
         name = from_str(obj.get("name"))
         tool_call_id = from_str(obj.get("toolCallId"))
         arguments = obj.get("arguments")
+        intention_summary = from_union([from_none, from_str], obj.get("intentionSummary"))
+        tool_title = from_union([from_str, from_none], obj.get("toolTitle"))
         type = from_union([ToolRequestType, from_none], obj.get("type"))
-        return ToolRequest(name, tool_call_id, arguments, type)
+        return ToolRequest(name, tool_call_id, arguments, intention_summary, tool_title, type)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -1366,6 +1509,10 @@ class ToolRequest:
         result["toolCallId"] = from_str(self.tool_call_id)
         if self.arguments is not None:
             result["arguments"] = self.arguments
+        if self.intention_summary is not None:
+            result["intentionSummary"] = from_union([from_none, from_str], self.intention_summary)
+        if self.tool_title is not None:
+            result["toolTitle"] = from_union([from_str, from_none], self.tool_title)
         if self.type is not None:
             result["type"] = from_union([lambda x: to_enum(ToolRequestType, x), from_none], self.type)
         return result
@@ -1373,16 +1520,136 @@ class ToolRequest:
 
 @dataclass
 class Data:
-    """Payload indicating the agent is idle; includes any background tasks still in flight
+    """Session initialization metadata including context and configuration
+    
+    Session resume metadata including current context and event count
+    
+    Error details for timeline display including message and optional diagnostic information
+    
+    Payload indicating the agent is idle; includes any background tasks still in flight
+    
+    Session title change payload containing the new display title
+    
+    Informational message for timeline display with categorization
+    
+    Warning message for timeline display with categorization
+    
+    Model change details including previous and new model identifiers
+    
+    Agent mode change details including previous and new modes
+    
+    Plan file operation details indicating what changed
+    
+    Workspace file change details including path and operation type
+    
+    Session handoff metadata including source, context, and repository information
+    
+    Conversation truncation statistics including token counts and removed content metrics
+    
+    Session rewind details including target event and count of removed events
+    
+    Session termination metrics including usage statistics, code changes, and shutdown
+    reason
+    
+    Updated working directory and git context after the change
+    
+    Current context window usage statistics including token and message counts
     
     Empty payload; the event signals that LLM-powered conversation compaction has begun
     
+    Conversation compaction results including success status, metrics, and optional error
+    details
+    
+    Task completion notification with optional summary from the agent
+    
+    User message content with optional attachments, source information, and interaction
+    metadata
+    
     Empty payload; the event signals that the pending message queue has changed
+    
+    Turn initialization metadata including identifier and interaction tracking
+    
+    Agent intent description for current activity or plan
+    
+    Assistant reasoning content for timeline display with complete thinking text
+    
+    Streaming reasoning delta for incremental extended thinking updates
+    
+    Streaming response progress with cumulative byte count
+    
+    Assistant response containing text content, optional tool requests, and interaction
+    metadata
+    
+    Streaming assistant message delta for incremental response updates
+    
+    Turn completion metadata including the turn identifier
+    
+    LLM API call usage metrics including tokens, costs, quotas, and billing information
+    
+    Turn abort information including the reason for termination
+    
+    User-initiated tool invocation request with tool name and arguments
+    
+    Tool execution startup details including MCP server information when applicable
+    
+    Streaming tool execution output for incremental result display
+    
+    Tool execution progress notification with status message
+    
+    Tool execution completion results including success status, detailed output, and error
+    information
+    
+    Skill invocation details including content, allowed tools, and plugin metadata
+    
+    Sub-agent startup details including parent tool call and agent information
+    
+    Sub-agent completion details for successful execution
+    
+    Sub-agent failure details including error message and agent information
+    
+    Custom agent selection details including name and available tools
     
     Empty payload; the event signals that the custom agent was deselected, returning to the
     default agent
+    
+    Hook invocation start details including type and input data
+    
+    Hook invocation completion details including output, success status, and error
+    information
+    
+    System or developer message content with role and optional template metadata
+    
+    System-generated notification for runtime events like background task completion
+    
+    Permission request notification requiring client approval with request details
+    
+    Permission request completion notification signaling UI dismissal
+    
+    User input request notification with question and optional predefined choices
+    
+    User input request completion notification signaling UI dismissal
+    
+    Structured form elicitation request with JSON schema definition for form fields
+    
+    Elicitation request completion notification signaling UI dismissal
+    
+    External tool invocation request for client-side tool execution
+    
+    External tool completion notification signaling UI dismissal
+    
+    Queued slash command dispatch request for client execution
+    
+    Queued command completion notification signaling UI dismissal
+    
+    Plan approval request with plan content and available user actions
+    
+    Plan mode exit completion notification signaling UI dismissal
     """
     already_in_use: bool | None = None
+    """Whether the session was already in use by another client at start time
+    
+    Whether the session was already in use by another client at resume time
+    """
     context: ContextClass | str | None = None
     """Working directory and git context at session start
     
@@ -1396,9 +1663,17 @@ class Data:
     producer: str | None = None
     """Identifier of the software producing the events (e.g., "copilot-agent")"""
 
+    reasoning_effort: str | None = None
+    """Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high",
+    "xhigh")
+    
+    Reasoning effort level after the model change, if applicable
+    """
     selected_model: str | None = None
-    """Model selected at session creation time, if any"""
-
+    """Model selected at session creation time, if any
+    
+    Model currently selected at resume time
+    """
     session_id: str | None = None
     """Unique identifier for the session
     
@@ -1460,6 +1735,9 @@ class Data:
     previous_model: str | None = None
     """Model that was previously selected, if any"""
 
+    previous_reasoning_effort: str | None = None
+    """Reasoning effort level before the model change, if applicable"""
+
     new_mode: str | None = None
     """Agent mode after the change (e.g., "interactive", "plan", "autopilot")"""
 
@@ -1485,7 +1763,8 @@ class Data:
     repository: RepositoryClass | str | None = None
     """Repository context for the handed-off session
     
-    Repository identifier in "owner/name" format, derived from the git remote URL
+    Repository identifier derived from the git remote URL ("owner/name" for GitHub,
+    "org/project/repo" for Azure DevOps)
     """
     source_type: SourceType | None = None
     """Origin type of the session being handed off"""
@@ -1551,6 +1830,9 @@ class Data:
     total_premium_requests: float | None = None
     """Total number of premium API requests used during the session"""
 
+    base_commit: str | None = None
+    """Base commit of current git branch at session start time"""
+
     branch: str | None = None
     """Current git branch name"""
 
@@ -1559,6 +1841,12 @@ class Data:
 
     git_root: str | None = None
     """Root directory of the git repository, resolved via git rev-parse"""
+
+    head_commit: str | None = None
+    """Head commit of current git branch at session start time"""
+
+    host_type: HostType | None = None
+    """Hosting platform type of the repository (github or ado)"""
 
     current_tokens: float | None = None
     """Current number of tokens in the context window"""
@@ -1673,9 +1961,9 @@ class Data:
     
     CAPI interaction ID for correlating this tool execution with upstream telemetry
     """
-    source: str | None = None
-    """Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected
-    messages that should be hidden from the user)
+    source: Source | None = None
+    """Origin of this message, used for timeline filtering and telemetry (e.g., "user",
+    "autopilot", "skill", or "command")
     """
     transformed_content: str | None = None
     """Transformed version of the message sent to the model, with XML wrapping, timestamps, and
@@ -1894,6 +2182,12 @@ class Data:
     requested_schema: RequestedSchema | None = None
     """JSON Schema describing the form fields to present to the user"""
 
+    traceparent: str | None = None
+    """W3C Trace Context traceparent header for the execute_tool span"""
+
+    tracestate: str | None = None
+    """W3C Trace Context tracestate header for the execute_tool span"""
+
     command: str | None = None
     """The slash command text to be executed (e.g., /help, /clear)"""
 
@@ -1913,6 +2207,7 @@ class Data:
         context = from_union([ContextClass.from_dict, from_str, from_none], obj.get("context"))
         copilot_version = from_union([from_str, from_none], obj.get("copilotVersion"))
         producer = from_union([from_str, from_none], obj.get("producer"))
+        reasoning_effort = from_union([from_str, from_none], obj.get("reasoningEffort"))
         selected_model = from_union([from_str, from_none], obj.get("selectedModel"))
         session_id = from_union([from_str, from_none], obj.get("sessionId"))
         start_time = from_union([from_datetime, from_none], obj.get("startTime"))
@@ -1930,6 +2225,7 @@ class Data:
         warning_type = from_union([from_str, from_none], obj.get("warningType"))
         new_model = from_union([from_str, from_none], obj.get("newModel"))
         previous_model = from_union([from_str, from_none], obj.get("previousModel"))
+        previous_reasoning_effort = from_union([from_str, from_none], obj.get("previousReasoningEffort"))
         new_mode = from_union([from_str, from_none], obj.get("newMode"))
         previous_mode = from_union([from_str, from_none], obj.get("previousMode"))
         operation = from_union([Operation, from_none], obj.get("operation"))
@@ -1957,9 +2253,12 @@ class Data:
         shutdown_type = from_union([ShutdownType, from_none], obj.get("shutdownType"))
         total_api_duration_ms = from_union([from_float, from_none], obj.get("totalApiDurationMs"))
         total_premium_requests = from_union([from_float, from_none], obj.get("totalPremiumRequests"))
+        base_commit = from_union([from_str, from_none], obj.get("baseCommit"))
         branch = from_union([from_str, from_none], obj.get("branch"))
         cwd = from_union([from_str, from_none], obj.get("cwd"))
         git_root = from_union([from_str, from_none], obj.get("gitRoot"))
+        head_commit = from_union([from_str, from_none], obj.get("headCommit"))
+        host_type = from_union([HostType, from_none], obj.get("hostType"))
         current_tokens = from_union([from_float, from_none], obj.get("currentTokens"))
         messages_length = from_union([from_float, from_none], obj.get("messagesLength"))
         checkpoint_number = from_union([from_float, from_none], obj.get("checkpointNumber"))
@@ -1978,7 +2277,7 @@ class Data:
         attachments = from_union([lambda x: from_list(Attachment.from_dict, x), from_none], obj.get("attachments"))
         content = from_union([from_str, from_none], obj.get("content"))
         interaction_id = from_union([from_str, from_none], obj.get("interactionId"))
-        source = from_union([from_str, from_none], obj.get("source"))
+        source = from_union([Source, from_none], obj.get("source"))
         transformed_content = from_union([from_str, from_none], obj.get("transformedContent"))
         turn_id = from_union([from_str, from_none], obj.get("turnId"))
         intent = from_union([from_str, from_none], obj.get("intent"))
@@ -2035,11 +2334,13 @@ class Data:
         question = from_union([from_str, from_none], obj.get("question"))
         mode = from_union([Mode, from_none], obj.get("mode"))
         requested_schema = from_union([RequestedSchema.from_dict, from_none], obj.get("requestedSchema"))
+        traceparent = from_union([from_str, from_none], obj.get("traceparent"))
+        tracestate = from_union([from_str, from_none], obj.get("tracestate"))
         command = from_union([from_str, from_none], obj.get("command"))
         actions = from_union([lambda x: from_list(from_str, x), from_none], obj.get("actions"))
         plan_content = from_union([from_str, from_none], obj.get("planContent"))
         recommended_action = from_union([from_str, from_none], obj.get("recommendedAction"))
-        return Data(already_in_use, context, copilot_version, producer, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, background_tasks, title, info_type, warning_type, new_model, previous_model, new_mode, previous_mode, operation, path, handoff_time, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, current_model, error_reason, model_metrics, session_start_time, shutdown_type, total_api_duration_ms, total_premium_requests, branch, cwd, git_root, current_tokens, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, interaction_id, source, transformed_content, turn_id, intent, reasoning_id, delta_content, total_response_size_bytes, encrypted_content, message_id, output_tokens, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, api_call_id, cache_read_tokens, cache_write_tokens, copilot_usage, cost, duration, initiator, input_tokens, model, quota_snapshots, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, name, plugin_name, plugin_version, agent_description, agent_display_name, agent_name, tools, hook_invocation_id, hook_type, input, output, metadata, role, kind, permission_request, allow_freeform, choices, question, mode, requested_schema, command, actions, plan_content, recommended_action)
+        return Data(already_in_use, context, copilot_version, producer, reasoning_effort, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, background_tasks, title, info_type, warning_type, new_model, previous_model, previous_reasoning_effort, new_mode, previous_mode, operation, path, handoff_time, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, current_model, error_reason, model_metrics, session_start_time, shutdown_type, total_api_duration_ms, total_premium_requests, base_commit, branch, cwd, git_root, head_commit, host_type, current_tokens, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, interaction_id, source, transformed_content, turn_id, intent, reasoning_id, delta_content, total_response_size_bytes, encrypted_content, message_id, output_tokens, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, api_call_id, cache_read_tokens, cache_write_tokens, copilot_usage, cost, duration, initiator, input_tokens, model, quota_snapshots, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, name, plugin_name, plugin_version, agent_description, agent_display_name, agent_name, tools, hook_invocation_id, hook_type, input, output, metadata, role, kind, permission_request, allow_freeform, choices, question, mode, requested_schema, traceparent, tracestate, command, actions, plan_content, recommended_action)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -2051,6 +2352,8 @@ class Data:
             result["copilotVersion"] = from_union([from_str, from_none], self.copilot_version)
         if self.producer is not None:
             result["producer"] = from_union([from_str, from_none], self.producer)
+        if self.reasoning_effort is not None:
+            result["reasoningEffort"] = from_union([from_str, from_none], self.reasoning_effort)
         if self.selected_model is not None:
             result["selectedModel"] = from_union([from_str, from_none], self.selected_model)
         if self.session_id is not None:
@@ -2085,6 +2388,8 @@ class Data:
             result["newModel"] = from_union([from_str, from_none], self.new_model)
         if self.previous_model is not None:
             result["previousModel"] = from_union([from_str, from_none], self.previous_model)
+        if self.previous_reasoning_effort is not None:
+            result["previousReasoningEffort"] = from_union([from_str, from_none], self.previous_reasoning_effort)
         if self.new_mode is not None:
             result["newMode"] = from_union([from_str, from_none], self.new_mode)
         if self.previous_mode is not None:
@@ -2139,12 +2444,18 @@ class Data:
             result["totalApiDurationMs"] = from_union([to_float, from_none], self.total_api_duration_ms)
         if self.total_premium_requests is not None:
             result["totalPremiumRequests"] = from_union([to_float, from_none], self.total_premium_requests)
+        if self.base_commit is not None:
+            result["baseCommit"] = from_union([from_str, from_none], self.base_commit)
         if self.branch is not None:
             result["branch"] = from_union([from_str, from_none], self.branch)
         if self.cwd is not None:
             result["cwd"] = from_union([from_str, from_none], self.cwd)
         if self.git_root is not None:
             result["gitRoot"] = from_union([from_str, from_none], self.git_root)
+        if self.head_commit is not None:
+            result["headCommit"] = from_union([from_str, from_none], self.head_commit)
+        if self.host_type is not None:
+            result["hostType"] = from_union([lambda x: to_enum(HostType, x), from_none], self.host_type)
         if self.current_tokens is not None:
             result["currentTokens"] = from_union([to_float, from_none], self.current_tokens)
         if self.messages_length is not None:
@@ -2182,7 +2493,7 @@ class Data:
         if self.interaction_id is not None:
             result["interactionId"] = from_union([from_str, from_none], self.interaction_id)
         if self.source is not None:
-            result["source"] = from_union([from_str, from_none], self.source)
+            result["source"] = from_union([lambda x: to_enum(Source, x), from_none], self.source)
         if self.transformed_content is not None:
             result["transformedContent"] = from_union([from_str, from_none], self.transformed_content)
         if self.turn_id is not None:
@@ -2295,6 +2606,10 @@ class Data:
             result["mode"] = from_union([lambda x: to_enum(Mode, x), from_none], self.mode)
         if self.requested_schema is not None:
             result["requestedSchema"] = from_union([lambda x: to_class(RequestedSchema, x), from_none], self.requested_schema)
+        if self.traceparent is not None:
+            result["traceparent"] = from_union([from_str, from_none], self.traceparent)
+        if self.tracestate is not None:
+            result["tracestate"] = from_union([from_str, from_none], self.tracestate)
         if self.command is not None:
             result["command"] = from_union([from_str, from_none], self.command)
         if self.actions is not None:
@@ -2330,6 +2645,7 @@ class SessionEventType(Enum):
     PENDING_MESSAGES_MODIFIED = "pending_messages.modified"
     PERMISSION_COMPLETED = "permission.completed"
     PERMISSION_REQUESTED = "permission.requested"
+    SESSION_BACKGROUND_TASKS_CHANGED = "session.background_tasks_changed"
     SESSION_COMPACTION_COMPLETE = "session.compaction_complete"
     SESSION_COMPACTION_START = "session.compaction_start"
     SESSION_CONTEXT_CHANGED = "session.context_changed"
@@ -2346,6 +2662,7 @@ class SessionEventType(Enum):
     SESSION_START = "session.start"
     SESSION_TASK_COMPLETE = "session.task_complete"
     SESSION_TITLE_CHANGED = "session.title_changed"
+    SESSION_TOOLS_UPDATED = "session.tools_updated"
     SESSION_TRUNCATION = "session.truncation"
     SESSION_USAGE_INFO = "session.usage_info"
     SESSION_WARNING = "session.warning"
@@ -2379,14 +2696,130 @@ class SessionEventType(Enum):
 @dataclass
 class SessionEvent:
     data: Data
-    """Payload indicating the agent is idle; includes any background tasks still in flight
+    """Session initialization metadata including context and configuration
+    
+    Session resume metadata including current context and event count
+    
+    Error details for timeline display including message and optional diagnostic information
+    
+    Payload indicating the agent is idle; includes any background tasks still in flight
+    
+    Session title change payload containing the new display title
+    
+    Informational message for timeline display with categorization
+    
+    Warning message for timeline display with categorization
+    
+    Model change details including previous and new model identifiers
+    
+    Agent mode change details including previous and new modes
+    
+    Plan file operation details indicating what changed
+    
+    Workspace file change details including path and operation type
+    
+    Session handoff metadata including source, context, and repository information
+    
+    Conversation truncation statistics including token counts and removed content metrics
+    
+    Session rewind details including target event and count of removed events
+    
+    Session termination metrics including usage statistics, code changes, and shutdown
+    reason
+    
+    Updated working directory and git context after the change
+    
+    Current context window usage statistics including token and message counts
     
     Empty payload; the event signals that LLM-powered conversation compaction has begun
     
+    Conversation compaction results including success status, metrics, and optional error
+    details
+    
+    Task completion notification with optional summary from the agent
+    
+    User message content with optional attachments, source information, and interaction
+    metadata
+    
     Empty payload; the event signals that the pending message queue has changed
+    
+    Turn initialization metadata including identifier and interaction tracking
+    
+    Agent intent description for current activity or plan
+    
+    Assistant reasoning content for timeline display with complete thinking text
+    
+    Streaming reasoning delta for incremental extended thinking updates
+    
+    Streaming response progress with cumulative byte count
+    
+    Assistant response containing text content, optional tool requests, and interaction
+    metadata
+    
+    Streaming assistant message delta for incremental response updates
+    
+    Turn completion metadata including the turn identifier
+    
+    LLM API call usage metrics including tokens, costs, quotas, and billing information
+    
+    Turn abort information including the reason for termination
+    
+    User-initiated tool invocation request with tool name and arguments
+    
+    Tool execution startup details including MCP server information when applicable
+    
+    Streaming tool execution output for incremental result display
+    
+    Tool execution progress notification with status message
+    
+    Tool execution completion results including success status, detailed output, and error
+    information
+    
+    Skill invocation details including content, allowed tools, and plugin metadata
+    
+    Sub-agent startup details including parent tool call and agent information
+    
+    Sub-agent completion details for successful execution
+    
+    Sub-agent failure details including error message and agent information
+    
+    Custom agent selection details including name and available tools
     
     Empty payload; the event signals that the custom agent was deselected, returning to the
     default agent
+    
+    Hook invocation start details including type and input data
+    
+    Hook invocation completion details including output, success status, and error
+    information
+    
+    System or developer message content with role and optional template metadata
+    
+    System-generated notification for runtime events like background task completion
+    
+    Permission request notification requiring client approval with request details
+    
+    Permission request completion notification signaling UI dismissal
+    
+    User input request notification with question and optional predefined choices
+    
+    User input request completion notification signaling UI dismissal
+    
+    Structured form elicitation request with JSON schema definition for form fields
+    
+    Elicitation request completion notification signaling UI dismissal
+    
+    External tool invocation request for client-side tool execution
+    
+    External tool completion notification signaling UI dismissal
+    
+    Queued slash command dispatch request for client execution
+    
+    Queued command completion notification signaling UI dismissal
+    
+    Plan approval request with plan content and available user actions
+    
+    Plan mode exit completion notification signaling UI dismissal
     """
     id: UUID
     """Unique event identifier (UUID v4), generated when the event is emitted"""
