@@ -78,7 +78,7 @@ async def main():
             print(f"\n[{path}]")
             print(content)
 
-        await session.destroy()
+        await session.disconnect()
     finally:
         await client.stop()
 

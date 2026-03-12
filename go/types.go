@@ -1,6 +1,9 @@
 package copilot
 
-import "encoding/json"
+import (
+	"context"
+	"encoding/json"
+)
 
 // ConnectionState represents the client connection state
 type ConnectionState string
@@ -54,6 +57,11 @@ type ClientOptions struct {
 	// Default: true (but defaults to false when GitHubToken is provided).
 	// Use Bool(false) to explicitly disable.
 	UseLoggedInUser *bool
+	// OnListModels is a custom handler for listing available models.
+	// When provided, client.ListModels() calls this handler instead of
+	// querying the CLI server. Useful in BYOK mode to return models
+	// available from your custom provider.
+	OnListModels func(ctx context.Context) ([]ModelInfo, error)
 }
 
 // Bool returns a pointer to the given bool value.
@@ -99,43 +107,28 @@ type SystemMessageConfig struct {
 	Content string `json:"content,omitempty"`
 }
 
-// PermissionRequest represents a permission request from the server
-type PermissionRequest struct {
-	Kind       string         `json:"kind"`
-	ToolCallID string         `json:"toolCallId,omitempty"`
-	Extra      map[string]any `json:"-"` // Additional fields vary by kind
-}
+// PermissionRequestResultKind represents the kind of a permission request result.
+type PermissionRequestResultKind string
 
-// UnmarshalJSON implements custom JSON unmarshaling for PermissionRequest
-// to capture additional fields (varying by kind) into the Extra map.
-func (p *PermissionRequest) UnmarshalJSON(data []byte) error {
-	// Unmarshal known fields via an alias to avoid infinite recursion
-	type Alias PermissionRequest
-	var alias Alias
-	if err := json.Unmarshal(data, &alias); err != nil {
-		return err
-	}
-	*p = PermissionRequest(alias)
+const (
+	// PermissionRequestResultKindApproved indicates the permission was approved.
+	PermissionRequestResultKindApproved PermissionRequestResultKind = "approved"
 
-	// Unmarshal all fields into a generic map
-	var raw map[string]any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
+	// PermissionRequestResultKindDeniedByRules indicates the permission was denied by rules.
+	PermissionRequestResultKindDeniedByRules PermissionRequestResultKind = "denied-by-rules"
 
-	// Remove known fields, keep the rest as Extra
-	delete(raw, "kind")
-	delete(raw, "toolCallId")
-	if len(raw) > 0 {
-		p.Extra = raw
-	}
-	return nil
-}
+	// PermissionRequestResultKindDeniedCouldNotRequestFromUser indicates the permission was denied because
+	// no approval rule was found and the user could not be prompted.
+	PermissionRequestResultKindDeniedCouldNotRequestFromUser PermissionRequestResultKind = "denied-no-approval-rule-and-could-not-request-from-user"
+
+	// PermissionRequestResultKindDeniedInteractivelyByUser indicates the permission was denied interactively by the user.
+	PermissionRequestResultKindDeniedInteractivelyByUser PermissionRequestResultKind = "denied-interactively-by-user"
+)
 
 // PermissionRequestResult represents the result of a permission request
 type PermissionRequestResult struct {
-	Kind  string `json:"kind"`
-	Rules []any  `json:"rules,omitempty"`
+	Kind  PermissionRequestResultKind `json:"kind"`
+	Rules []any                       `json:"rules,omitempty"`
 }
 
 // PermissionHandlerFunc executes a permission request
@@ -399,6 +392,9 @@ type SessionConfig struct {
 	MCPServers map[string]MCPServerConfig
 	// CustomAgents configures custom agents for the session
 	CustomAgents []CustomAgentConfig
+	// Agent is the name of the custom agent to activate when the session starts.
+	// Must match the Name of one of the agents in CustomAgents.
+	Agent string
 	// SkillDirectories is a list of directories to load skills from
 	SkillDirectories []string
 	// DisabledSkills is a list of skill names to disable
@@ -406,14 +402,19 @@ type SessionConfig struct {
 	// InfiniteSessions configures infinite sessions for persistent workspaces and automatic compaction.
 	// When enabled (default), sessions automatically manage context limits and persist state.
 	InfiniteSessions *InfiniteSessionConfig
+	// OnEvent is an optional event handler that is registered on the session before
+	// the session.create RPC is issued. This guarantees that early events emitted
+	// by the CLI during session creation (e.g. session.start) are delivered to the
+	// handler. Equivalent to calling session.On(handler) immediately after creation,
+	// but executes earlier in the lifecycle so no events are missed.
+	OnEvent SessionEventHandler
 }
-
-// Tool describes a caller-implemented tool that can be invoked by Copilot
 type Tool struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description,omitempty"`
-	Parameters  map[string]any `json:"parameters,omitempty"`
-	Handler     ToolHandler    `json:"-"`
+	Name                 string         `json:"name"`
+	Description          string         `json:"description,omitempty"`
+	Parameters           map[string]any `json:"parameters,omitempty"`
+	OverridesBuiltInTool bool           `json:"overridesBuiltInTool,omitempty"`
+	Handler              ToolHandler    `json:"-"`
 }
 
 // ToolInvocation describes a tool call initiated by Copilot
@@ -481,6 +482,9 @@ type ResumeSessionConfig struct {
 	MCPServers map[string]MCPServerConfig
 	// CustomAgents configures custom agents for the session
 	CustomAgents []CustomAgentConfig
+	// Agent is the name of the custom agent to activate when the session starts.
+	// Must match the Name of one of the agents in CustomAgents.
+	Agent string
 	// SkillDirectories is a list of directories to load skills from
 	SkillDirectories []string
 	// DisabledSkills is a list of skill names to disable
@@ -490,9 +494,10 @@ type ResumeSessionConfig struct {
 	// DisableResume, when true, skips emitting the session.resume event.
 	// Useful for reconnecting to a session without triggering resume-related side effects.
 	DisableResume bool
+	// OnEvent is an optional event handler registered before the session.resume RPC
+	// is issued, ensuring early events are delivered. See SessionConfig.OnEvent.
+	OnEvent SessionEventHandler
 }
-
-// ProviderConfig configures a custom model provider
 type ProviderConfig struct {
 	// Type is the provider type: "openai", "azure", or "anthropic". Defaults to "openai".
 	Type string `json:"type,omitempty"`
@@ -647,17 +652,6 @@ type SessionLifecycleEventMetadata struct {
 // SessionLifecycleHandler is a callback for session lifecycle events
 type SessionLifecycleHandler func(event SessionLifecycleEvent)
 
-// permissionRequestRequest represents the request data for a permission request
-type permissionRequestRequest struct {
-	SessionID string            `json:"sessionId"`
-	Request   PermissionRequest `json:"permissionRequest"`
-}
-
-// permissionRequestResponse represents the response to a permission request
-type permissionRequestResponse struct {
-	Result PermissionRequestResult `json:"result"`
-}
-
 // createSessionRequest is the request for session.create
 type createSessionRequest struct {
 	Model             string                     `json:"model,omitempty"`
@@ -677,6 +671,7 @@ type createSessionRequest struct {
 	MCPServers        map[string]MCPServerConfig `json:"mcpServers,omitempty"`
 	EnvValueMode      string                     `json:"envValueMode,omitempty"`
 	CustomAgents      []CustomAgentConfig        `json:"customAgents,omitempty"`
+	Agent             string                     `json:"agent,omitempty"`
 	ConfigDir         string                     `json:"configDir,omitempty"`
 	SkillDirectories  []string                   `json:"skillDirectories,omitempty"`
 	DisabledSkills    []string                   `json:"disabledSkills,omitempty"`
@@ -710,6 +705,7 @@ type resumeSessionRequest struct {
 	MCPServers        map[string]MCPServerConfig `json:"mcpServers,omitempty"`
 	EnvValueMode      string                     `json:"envValueMode,omitempty"`
 	CustomAgents      []CustomAgentConfig        `json:"customAgents,omitempty"`
+	Agent             string                     `json:"agent,omitempty"`
 	SkillDirectories  []string                   `json:"skillDirectories,omitempty"`
 	DisabledSkills    []string                   `json:"disabledSkills,omitempty"`
 	InfiniteSessions  *InfiniteSessionConfig     `json:"infiniteSessions,omitempty"`
@@ -746,6 +742,14 @@ type deleteSessionRequest struct {
 type deleteSessionResponse struct {
 	Success bool    `json:"success"`
 	Error   *string `json:"error,omitempty"`
+}
+
+// getLastSessionIDRequest is the request for session.getLastId
+type getLastSessionIDRequest struct{}
+
+// getLastSessionIDResponse is the response from session.getLastId
+type getLastSessionIDResponse struct {
+	SessionID *string `json:"sessionId,omitempty"`
 }
 
 // getForegroundSessionRequest is the request for session.getForeground
@@ -844,21 +848,6 @@ type sessionSendResponse struct {
 type sessionEventRequest struct {
 	SessionID string       `json:"sessionId"`
 	Event     SessionEvent `json:"event"`
-}
-
-// toolCallRequest represents a tool call request from the server
-// to the client for execution.
-type toolCallRequest struct {
-	SessionID  string `json:"sessionId"`
-	ToolCallID string `json:"toolCallId"`
-	ToolName   string `json:"toolName"`
-	Arguments  any    `json:"arguments"`
-}
-
-// toolCallResponse represents the response to a tool call request
-// from the client back to the server.
-type toolCallResponse struct {
-	Result ToolResult `json:"result"`
 }
 
 // userInputRequest represents a request for user input from the agent

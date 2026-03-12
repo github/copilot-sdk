@@ -11,8 +11,19 @@ import threading
 from collections.abc import Callable
 from typing import Any, cast
 
-from .generated.rpc import SessionRpc
+from .generated.rpc import (
+    Kind,
+    Level,
+    ResultResult,
+    SessionLogParams,
+    SessionModelSwitchToParams,
+    SessionPermissionsHandlePendingPermissionRequestParams,
+    SessionPermissionsHandlePendingPermissionRequestParamsResult,
+    SessionRpc,
+    SessionToolsHandlePendingToolCallParams,
+)
 from .generated.session_events import SessionEvent, SessionEventType, session_event_from_dict
+from .jsonrpc import JsonRpcError, ProcessExitedError
 from .types import (
     MessageOptions,
     PermissionRequest,
@@ -20,6 +31,8 @@ from .types import (
     SessionHooks,
     Tool,
     ToolHandler,
+    ToolInvocation,
+    ToolResult,
     UserInputHandler,
     UserInputRequest,
     UserInputResponse,
@@ -118,7 +131,7 @@ class CopilotSession:
             The message ID of the response, which can be used to correlate events.
 
         Raises:
-            Exception: If the session has been destroyed or the connection fails.
+            Exception: If the session has been disconnected or the connection fails.
 
         Example:
             >>> message_id = await session.send({
@@ -126,15 +139,16 @@ class CopilotSession:
             ...     "attachments": [{"type": "file", "path": "./src/main.py"}]
             ... })
         """
-        response = await self._client.request(
-            "session.send",
-            {
-                "sessionId": self.session_id,
-                "prompt": options["prompt"],
-                "attachments": options.get("attachments"),
-                "mode": options.get("mode"),
-            },
-        )
+        params: dict[str, Any] = {
+            "sessionId": self.session_id,
+            "prompt": options["prompt"],
+        }
+        if "attachments" in options:
+            params["attachments"] = options["attachments"]
+        if "mode" in options:
+            params["mode"] = options["mode"]
+
+        response = await self._client.request("session.send", params)
         return response["messageId"]
 
     async def send_and_wait(
@@ -159,7 +173,7 @@ class CopilotSession:
 
         Raises:
             TimeoutError: If the timeout is reached before session becomes idle.
-            Exception: If the session has been destroyed or the connection fails.
+            Exception: If the session has been disconnected or the connection fails.
 
         Example:
             >>> response = await session.send_and_wait({"prompt": "What is 2+2?"})
@@ -236,12 +250,19 @@ class CopilotSession:
         """
         Dispatch an event to all registered handlers.
 
+        Broadcast request events (external_tool.requested, permission.requested) are handled
+        internally before being forwarded to user handlers.
+
         Note:
             This method is internal and should not be called directly.
 
         Args:
             event: The session event to dispatch to all handlers.
         """
+        # Handle broadcast request events (protocol v3) before dispatching to user handlers.
+        # Fire-and-forget: the response is sent asynchronously via RPC.
+        self._handle_broadcast_event(event)
+
         with self._event_handlers_lock:
             handlers = list(self._event_handlers)
 
@@ -250,6 +271,152 @@ class CopilotSession:
                 handler(event)
             except Exception as e:
                 print(f"Error in session event handler: {e}")
+
+    def _handle_broadcast_event(self, event: SessionEvent) -> None:
+        """Handle broadcast request events by executing local handlers and responding via RPC.
+
+        Implements the protocol v3 broadcast model where tool calls and permission requests
+        are broadcast as session events to all clients.
+        """
+        if event.type == SessionEventType.EXTERNAL_TOOL_REQUESTED:
+            request_id = event.data.request_id
+            tool_name = event.data.tool_name
+            if not request_id or not tool_name:
+                return
+
+            handler = self._get_tool_handler(tool_name)
+            if not handler:
+                return  # This client doesn't handle this tool; another client will.
+
+            tool_call_id = event.data.tool_call_id or ""
+            arguments = event.data.arguments
+            asyncio.ensure_future(
+                self._execute_tool_and_respond(
+                    request_id, tool_name, tool_call_id, arguments, handler
+                )
+            )
+
+        elif event.type == SessionEventType.PERMISSION_REQUESTED:
+            request_id = event.data.request_id
+            permission_request = event.data.permission_request
+            if not request_id or not permission_request:
+                return
+
+            with self._permission_handler_lock:
+                perm_handler = self._permission_handler
+            if not perm_handler:
+                return  # This client doesn't handle permissions; another client will.
+
+            asyncio.ensure_future(
+                self._execute_permission_and_respond(request_id, permission_request, perm_handler)
+            )
+
+    async def _execute_tool_and_respond(
+        self,
+        request_id: str,
+        tool_name: str,
+        tool_call_id: str,
+        arguments: Any,
+        handler: ToolHandler,
+    ) -> None:
+        """Execute a tool handler and send the result back via HandlePendingToolCall RPC."""
+        try:
+            invocation = ToolInvocation(
+                session_id=self.session_id,
+                tool_call_id=tool_call_id,
+                tool_name=tool_name,
+                arguments=arguments,
+            )
+
+            result = handler(invocation)
+            if inspect.isawaitable(result):
+                result = await result
+
+            tool_result: ToolResult
+            if result is None:
+                tool_result = ToolResult(
+                    text_result_for_llm="Tool returned no result.",
+                    result_type="failure",
+                    error="tool returned no result",
+                    tool_telemetry={},
+                )
+            else:
+                tool_result = result  # type: ignore[assignment]
+
+            # If the tool reported a failure with an error message, send it via the
+            # top-level error param so the server formats the tool message consistently
+            # with other SDKs (e.g., "Failed to execute 'tool' ... due to error: ...").
+            if tool_result.result_type == "failure" and tool_result.error:
+                await self.rpc.tools.handle_pending_tool_call(
+                    SessionToolsHandlePendingToolCallParams(
+                        request_id=request_id,
+                        error=tool_result.error,
+                    )
+                )
+            else:
+                await self.rpc.tools.handle_pending_tool_call(
+                    SessionToolsHandlePendingToolCallParams(
+                        request_id=request_id,
+                        result=ResultResult(
+                            text_result_for_llm=tool_result.text_result_for_llm,
+                            result_type=tool_result.result_type,
+                            tool_telemetry=tool_result.tool_telemetry,
+                        ),
+                    )
+                )
+        except Exception as exc:
+            try:
+                await self.rpc.tools.handle_pending_tool_call(
+                    SessionToolsHandlePendingToolCallParams(
+                        request_id=request_id,
+                        error=str(exc),
+                    )
+                )
+            except (JsonRpcError, ProcessExitedError, OSError):
+                pass  # Connection lost or RPC error — nothing we can do
+
+    async def _execute_permission_and_respond(
+        self,
+        request_id: str,
+        permission_request: Any,
+        handler: _PermissionHandlerFn,
+    ) -> None:
+        """Execute a permission handler and respond via RPC."""
+        try:
+            result = handler(permission_request, {"session_id": self.session_id})
+            if inspect.isawaitable(result):
+                result = await result
+
+            result = cast(PermissionRequestResult, result)
+            if result.kind == "no-result":
+                return
+
+            perm_result = SessionPermissionsHandlePendingPermissionRequestParamsResult(
+                kind=Kind(result.kind),
+                rules=result.rules,
+                feedback=result.feedback,
+                message=result.message,
+                path=result.path,
+            )
+
+            await self.rpc.permissions.handle_pending_permission_request(
+                SessionPermissionsHandlePendingPermissionRequestParams(
+                    request_id=request_id,
+                    result=perm_result,
+                )
+            )
+        except Exception:
+            try:
+                await self.rpc.permissions.handle_pending_permission_request(
+                    SessionPermissionsHandlePendingPermissionRequestParams(
+                        request_id=request_id,
+                        result=SessionPermissionsHandlePendingPermissionRequestParamsResult(
+                            kind=Kind.DENIED_NO_APPROVAL_RULE_AND_COULD_NOT_REQUEST_FROM_USER,
+                        ),
+                    )
+                )
+            except (JsonRpcError, ProcessExitedError, OSError):
+                pass  # Connection lost or RPC error — nothing we can do
 
     def _register_tools(self, tools: list[Tool] | None) -> None:
         """
@@ -329,7 +496,7 @@ class CopilotSession:
 
         if not handler:
             # No handler registered, deny permission
-            return {"kind": "denied-no-approval-rule-and-could-not-request-from-user"}
+            return PermissionRequestResult()
 
         try:
             result = handler(request, {"session_id": self.session_id})
@@ -338,7 +505,7 @@ class CopilotSession:
             return cast(PermissionRequestResult, result)
         except Exception:  # pylint: disable=broad-except
             # Handler failed, deny permission
-            return {"kind": "denied-no-approval-rule-and-could-not-request-from-user"}
+            return PermissionRequestResult()
 
     def _register_user_input_handler(self, handler: UserInputHandler | None) -> None:
         """
@@ -461,7 +628,7 @@ class CopilotSession:
             A list of all session events in chronological order.
 
         Raises:
-            Exception: If the session has been destroyed or the connection fails.
+            Exception: If the session has been disconnected or the connection fails.
 
         Example:
             >>> events = await session.get_messages()
@@ -474,20 +641,25 @@ class CopilotSession:
         events_dicts = response["events"]
         return [session_event_from_dict(event_dict) for event_dict in events_dicts]
 
-    async def destroy(self) -> None:
+    async def disconnect(self) -> None:
         """
-        Destroy this session and release all associated resources.
+        Disconnect this session and release all in-memory resources (event handlers,
+        tool handlers, permission handlers).
 
-        After calling this method, the session can no longer be used. All event
-        handlers and tool handlers are cleared. To continue the conversation,
-        use :meth:`CopilotClient.resume_session` with the session ID.
+        Session state on disk (conversation history, planning state, artifacts)
+        is preserved, so the conversation can be resumed later by calling
+        :meth:`CopilotClient.resume_session` with the session ID. To
+        permanently remove all session data including files on disk, use
+        :meth:`CopilotClient.delete_session` instead.
+
+        After calling this method, the session object can no longer be used.
 
         Raises:
             Exception: If the connection fails.
 
         Example:
-            >>> # Clean up when done
-            >>> await session.destroy()
+            >>> # Clean up when done — session can still be resumed later
+            >>> await session.disconnect()
         """
         await self._client.request("session.destroy", {"sessionId": self.session_id})
         with self._event_handlers_lock:
@@ -497,6 +669,34 @@ class CopilotSession:
         with self._permission_handler_lock:
             self._permission_handler = None
 
+    async def destroy(self) -> None:
+        """
+        .. deprecated::
+            Use :meth:`disconnect` instead. This method will be removed in a future release.
+
+        Disconnect this session and release all in-memory resources.
+        Session data on disk is preserved for later resumption.
+
+        Raises:
+            Exception: If the connection fails.
+        """
+        import warnings
+
+        warnings.warn(
+            "destroy() is deprecated, use disconnect() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        await self.disconnect()
+
+    async def __aenter__(self) -> "CopilotSession":
+        """Enable use as an async context manager."""
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Disconnect the session when exiting the context manager."""
+        await self.disconnect()
+
     async def abort(self) -> None:
         """
         Abort the currently processing message in this session.
@@ -505,7 +705,7 @@ class CopilotSession:
         and can continue to be used for new messages.
 
         Raises:
-            Exception: If the session has been destroyed or the connection fails.
+            Exception: If the session has been disconnected or the connection fails.
 
         Example:
             >>> import asyncio
@@ -520,3 +720,55 @@ class CopilotSession:
             >>> await session.abort()
         """
         await self._client.request("session.abort", {"sessionId": self.session_id})
+
+    async def set_model(self, model: str) -> None:
+        """
+        Change the model for this session.
+
+        The new model takes effect for the next message. Conversation history
+        is preserved.
+
+        Args:
+            model: Model ID to switch to (e.g., "gpt-4.1", "claude-sonnet-4").
+
+        Raises:
+            Exception: If the session has been destroyed or the connection fails.
+
+        Example:
+            >>> await session.set_model("gpt-4.1")
+        """
+        await self.rpc.model.switch_to(SessionModelSwitchToParams(model_id=model))
+
+    async def log(
+        self,
+        message: str,
+        *,
+        level: str | None = None,
+        ephemeral: bool | None = None,
+    ) -> None:
+        """
+        Log a message to the session timeline.
+
+        The message appears in the session event stream and is visible to SDK consumers
+        and (for non-ephemeral messages) persisted to the session event log on disk.
+
+        Args:
+            message: The human-readable message to log.
+            level: Log severity level ("info", "warning", "error"). Defaults to "info".
+            ephemeral: When True, the message is transient and not persisted to disk.
+
+        Raises:
+            Exception: If the session has been destroyed or the connection fails.
+
+        Example:
+            >>> await session.log("Processing started")
+            >>> await session.log("Something looks off", level="warning")
+            >>> await session.log("Operation failed", level="error")
+            >>> await session.log("Temporary status update", ephemeral=True)
+        """
+        params = SessionLogParams(
+            message=message,
+            level=Level(level) if level is not None else None,
+            ephemeral=ephemeral,
+        )
+        await self.rpc.log(params)

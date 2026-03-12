@@ -66,7 +66,7 @@ class TestSkillBehavior:
         assert message is not None
         assert SKILL_MARKER in message.data.content
 
-        await session.destroy()
+        await session.disconnect()
 
     async def test_should_not_apply_skill_when_disabled_via_disabledskills(
         self, ctx: E2ETestContext
@@ -86,7 +86,7 @@ class TestSkillBehavior:
         assert message is not None
         assert SKILL_MARKER not in message.data.content
 
-        await session.destroy()
+        await session.disconnect()
 
     @pytest.mark.skip(
         reason="See the big comment around the equivalent test in the Node SDK. "
@@ -123,4 +123,4 @@ class TestSkillBehavior:
         assert message2 is not None
         assert SKILL_MARKER in message2.data.content
 
-        await session2.destroy()
+        await session2.disconnect()

@@ -35,7 +35,7 @@ describe("Tool Results", async () => {
         const content = assistantMessage?.data.content ?? "";
         expect(content).toMatch(/sunny|72/i);
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should handle tool result with failure resultType", async () => {
@@ -60,7 +60,7 @@ describe("Tool Results", async () => {
         const failureContent = assistantMessage?.data.content ?? "";
         expect(failureContent).toMatch(/service is down/i);
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should pass validated Zod parameters to tool handler", async () => {
@@ -96,6 +96,6 @@ describe("Tool Results", async () => {
 
         expect(assistantMessage?.data.content).toContain("42");
 
-        await session.destroy();
+        await session.disconnect();
     });
 });

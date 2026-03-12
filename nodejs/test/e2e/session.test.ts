@@ -1,14 +1,14 @@
 import { rm } from "fs/promises";
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { ParsedHttpExchange } from "../../../test/harness/replayingCapiProxy.js";
 import { CopilotClient, approveAll } from "../../src/index.js";
-import { createSdkTestContext } from "./harness/sdkTestContext.js";
+import { createSdkTestContext, isCI } from "./harness/sdkTestContext.js";
 import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
 
 describe("Sessions", async () => {
     const { copilotClient: client, openAiEndpoint, homeDir, env } = await createSdkTestContext();
 
-    it("should create and destroy sessions", async () => {
+    it("should create and disconnect sessions", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             model: "fake-test-model",
@@ -22,7 +22,7 @@ describe("Sessions", async () => {
             },
         ]);
 
-        await session.destroy();
+        await session.disconnect();
         await expect(() => session.getMessages()).rejects.toThrow(/Session not found/);
     });
 
@@ -155,8 +155,8 @@ describe("Sessions", async () => {
             ]);
         }
 
-        // All can be destroyed
-        await Promise.all([s1.destroy(), s2.destroy(), s3.destroy()]);
+        // All can be disconnected
+        await Promise.all([s1.disconnect(), s2.disconnect(), s3.disconnect()]);
         for (const s of [s1, s2, s3]) {
             await expect(() => s.getMessages()).rejects.toThrow(/Session not found/);
         }
@@ -175,6 +175,12 @@ describe("Sessions", async () => {
         const messages = await session2.getMessages();
         const assistantMessages = messages.filter((m) => m.type === "assistant.message");
         expect(assistantMessages[assistantMessages.length - 1].data.content).toContain("2");
+
+        // Can continue the conversation statefully
+        const secondAssistantMessage = await session2.sendAndWait({
+            prompt: "Now if you double that, what do you get?",
+        });
+        expect(secondAssistantMessage?.data.content).toContain("4");
     });
 
     it("should resume a session using a new client", async () => {
@@ -187,7 +193,7 @@ describe("Sessions", async () => {
         // Resume using a new client
         const newClient = new CopilotClient({
             env,
-            githubToken: process.env.CI === "true" ? "fake-token-for-e2e-tests" : undefined,
+            githubToken: isCI ? "fake-token-for-e2e-tests" : undefined,
         });
 
         onTestFinished(() => newClient.forceStop());
@@ -202,6 +208,12 @@ describe("Sessions", async () => {
         const messages = await session2.getMessages();
         expect(messages).toContainEqual(expect.objectContaining({ type: "user.message" }));
         expect(messages).toContainEqual(expect.objectContaining({ type: "session.resume" }));
+
+        // Can continue the conversation statefully
+        const secondAssistantMessage = await session2.sendAndWait({
+            prompt: "Now if you double that, what do you get?",
+        });
+        expect(secondAssistantMessage?.data.content).toContain("4");
     });
 
     it("should throw error when resuming non-existent session", async () => {
@@ -284,58 +296,20 @@ describe("Sessions", async () => {
         expect(answer?.data.content).toContain("4");
     });
 
-    it("should receive streaming delta events when streaming is enabled", async () => {
-        const session = await client.createSession({
-            onPermissionRequest: approveAll,
-            streaming: true,
-        });
-
-        const deltaContents: string[] = [];
-        let _finalMessage: string | undefined;
-
-        // Set up event listener before sending
-        const unsubscribe = session.on((event) => {
-            if (event.type === "assistant.message_delta") {
-                const delta = (event.data as { deltaContent?: string }).deltaContent;
-                if (delta) {
-                    deltaContents.push(delta);
-                }
-            } else if (event.type === "assistant.message") {
-                _finalMessage = event.data.content;
-            }
-        });
-
-        const assistantMessage = await session.sendAndWait({ prompt: "What is 2+2?" });
-
-        unsubscribe();
-
-        // Should have received delta events
-        expect(deltaContents.length).toBeGreaterThan(0);
-
-        // Accumulated deltas should equal the final message
-        const accumulated = deltaContents.join("");
-        expect(accumulated).toBe(assistantMessage?.data.content);
-
-        // Final message should contain the answer
-        expect(assistantMessage?.data.content).toContain("4");
-    });
-
-    it("should pass streaming option to session creation", async () => {
-        // Verify that the streaming option is accepted without errors
-        const session = await client.createSession({
-            onPermissionRequest: approveAll,
-            streaming: true,
-        });
-
-        expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
-
-        // Session should still work normally
-        const assistantMessage = await session.sendAndWait({ prompt: "What is 1+1?" });
-        expect(assistantMessage?.data.content).toContain("2");
-    });
-
     it("should receive session events", async () => {
-        const session = await client.createSession({ onPermissionRequest: approveAll });
+        // Use onEvent to capture events dispatched during session creation.
+        // session.start is emitted during the session.create RPC; if the session
+        // weren't registered in the sessions map before the RPC, it would be dropped.
+        const earlyEvents: Array<{ type: string }> = [];
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            onEvent: (event) => {
+                earlyEvents.push(event);
+            },
+        });
+
+        expect(earlyEvents.some((e) => e.type === "session.start")).toBe(true);
+
         const receivedEvents: Array<{ type: string }> = [];
 
         session.on((event) => {
@@ -371,6 +345,57 @@ describe("Sessions", async () => {
         await session.send({ prompt: "What is 1+1?" });
         const assistantMessage = await getFinalAssistantMessage(session);
         expect(assistantMessage.data.content).toContain("2");
+    });
+
+    it("should log messages at all levels and emit matching session events", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        const events: Array<{ type: string; id?: string; data?: Record<string, unknown> }> = [];
+        session.on((event) => {
+            events.push(event as (typeof events)[number]);
+        });
+
+        await session.log("Info message");
+        await session.log("Warning message", { level: "warning" });
+        await session.log("Error message", { level: "error" });
+        await session.log("Ephemeral message", { ephemeral: true });
+
+        await vi.waitFor(
+            () => {
+                const notifications = events.filter(
+                    (e) =>
+                        e.data &&
+                        ("infoType" in e.data || "warningType" in e.data || "errorType" in e.data)
+                );
+                expect(notifications).toHaveLength(4);
+            },
+            { timeout: 10_000 }
+        );
+
+        const byMessage = (msg: string) => events.find((e) => e.data?.message === msg)!;
+        expect(byMessage("Info message").type).toBe("session.info");
+        expect(byMessage("Info message").data).toEqual({
+            infoType: "notification",
+            message: "Info message",
+        });
+
+        expect(byMessage("Warning message").type).toBe("session.warning");
+        expect(byMessage("Warning message").data).toEqual({
+            warningType: "notification",
+            message: "Warning message",
+        });
+
+        expect(byMessage("Error message").type).toBe("session.error");
+        expect(byMessage("Error message").data).toEqual({
+            errorType: "notification",
+            message: "Error message",
+        });
+
+        expect(byMessage("Ephemeral message").type).toBe("session.info");
+        expect(byMessage("Ephemeral message").data).toEqual({
+            infoType: "notification",
+            message: "Ephemeral message",
+        });
     });
 });
 

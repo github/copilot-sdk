@@ -26,7 +26,7 @@ async def main():
         if response:
             print(response.data.content)
 
-        await session.destroy()
+        await session.disconnect()
     finally:
         await client.stop()
 

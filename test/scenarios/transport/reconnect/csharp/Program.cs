@@ -28,7 +28,7 @@ try
         Console.Error.WriteLine("No response content received for session 1");
         Environment.Exit(1);
     }
-    Console.WriteLine("Session 1 destroyed\n");
+    Console.WriteLine("Session 1 disconnected\n");
 
     // Second session — tests that the server accepts new sessions
     Console.WriteLine("--- Session 2 ---");
@@ -51,7 +51,7 @@ try
         Console.Error.WriteLine("No response content received for session 2");
         Environment.Exit(1);
     }
-    Console.WriteLine("Session 2 destroyed");
+    Console.WriteLine("Session 2 disconnected");
 
     Console.WriteLine("\nReconnect test passed — both sessions completed successfully");
 }

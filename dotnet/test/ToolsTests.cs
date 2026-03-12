@@ -4,6 +4,7 @@
 
 using GitHub.Copilot.SDK.Test.Harness;
 using Microsoft.Extensions.AI;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Text.Json;
@@ -136,7 +137,7 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
         City[] PerformDbQuery(DbQueryOptions query, AIFunctionArguments rawArgs)
         {
             Assert.Equal("cities", query.Table);
-            Assert.Equal(new[] { 12, 19 }, query.Ids);
+            Assert.Equal([12, 19], query.Ids);
             Assert.True(query.SortAscending);
             receivedInvocation = (ToolInvocation)rawArgs.Context![typeof(ToolInvocation)]!;
             return [new(19, "Passos", 135460), new(12, "San Lorenzo", 204356)];
@@ -151,6 +152,34 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
     [JsonSerializable(typeof(City[]))]
     [JsonSerializable(typeof(JsonElement))]
     private partial class ToolsTestsJsonContext : JsonSerializerContext;
+
+    [Fact]
+    public async Task Overrides_Built_In_Tool_With_Custom_Tool()
+    {
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            Tools = [AIFunctionFactory.Create((Delegate)CustomGrep, new AIFunctionFactoryOptions
+            {
+                Name = "grep",
+                AdditionalProperties = new ReadOnlyDictionary<string, object?>(
+                    new Dictionary<string, object?> { ["is_override"] = true })
+            })],
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Use grep to search for the word 'hello'"
+        });
+
+        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        Assert.NotNull(assistantMessage);
+        Assert.Contains("CUSTOM_GREP_RESULT", assistantMessage!.Data.Content ?? string.Empty);
+
+        [Description("A custom grep implementation that overrides the built-in")]
+        static string CustomGrep([Description("Search query")] string query)
+            => $"CUSTOM_GREP_RESULT: {query}";
+    }
 
     [Fact(Skip = "Behaves as if no content was in the result. Likely that binary results aren't fully implemented yet.")]
     public async Task Can_Return_Binary_Result()
@@ -171,7 +200,7 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
 
         Assert.Contains("yellow", assistantMessage!.Data.Content?.ToLowerInvariant() ?? string.Empty);
 
-        static ToolResultAIContent GetImage() => new ToolResultAIContent(new()
+        static ToolResultAIContent GetImage() => new(new()
         {
             BinaryResultsForLlm = [new() {
                 // 2x2 yellow square
@@ -194,7 +223,7 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
             OnPermissionRequest = (request, invocation) =>
             {
                 permissionRequests.Add(request);
-                return Task.FromResult(new PermissionRequestResult { Kind = "approved" });
+                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
             },
         });
 
@@ -208,11 +237,9 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
         Assert.Contains("HELLO", assistantMessage!.Data.Content ?? string.Empty);
 
         // Should have received a custom-tool permission request with the correct tool name
-        var customToolRequest = permissionRequests.FirstOrDefault(r => r.Kind == "custom-tool");
+        var customToolRequest = permissionRequests.OfType<PermissionRequestCustomTool>().FirstOrDefault();
         Assert.NotNull(customToolRequest);
-        Assert.True(customToolRequest!.ExtensionData?.ContainsKey("toolName") ?? false);
-        var toolName = ((JsonElement)customToolRequest.ExtensionData!["toolName"]).GetString();
-        Assert.Equal("encrypt_string", toolName);
+        Assert.Equal("encrypt_string", customToolRequest!.ToolName);
 
         [Description("Encrypts a string")]
         static string EncryptStringForPermission([Description("String to encrypt")] string input)
@@ -227,10 +254,7 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
         var session = await Client.CreateSessionAsync(new SessionConfig
         {
             Tools = [AIFunctionFactory.Create(EncryptStringDenied, "encrypt_string")],
-            OnPermissionRequest = (request, invocation) =>
-            {
-                return Task.FromResult(new PermissionRequestResult { Kind = "denied-interactively-by-user" });
-            },
+            OnPermissionRequest = async (request, invocation) => new() { Kind = PermissionRequestResultKind.DeniedInteractivelyByUser },
         });
 
         await session.SendAsync(new MessageOptions

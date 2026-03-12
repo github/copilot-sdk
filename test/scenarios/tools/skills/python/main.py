@@ -32,7 +32,7 @@ async def main():
 
         print("\nSkill directories configured successfully")
 
-        await session.destroy()
+        await session.disconnect()
     finally:
         await client.stop()
 

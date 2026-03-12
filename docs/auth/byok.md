@@ -51,7 +51,7 @@ async def main():
     await session.send({"prompt": "What is 2+2?"})
     await done.wait()
 
-    await session.destroy()
+    await session.disconnect()
     await client.stop()
 
 asyncio.run(main())
@@ -303,6 +303,116 @@ provider: {
 
 > **Note:** The `bearerToken` option accepts a **static token string** only. The SDK does not refresh this token automatically. If your token expires, requests will fail and you'll need to create a new session with a fresh token.
 
+## Custom Model Listing
+
+When using BYOK, the CLI server may not know which models your provider supports. You can supply a custom `onListModels` handler at the client level so that `client.listModels()` returns your provider's models in the standard `ModelInfo` format. This lets downstream consumers discover available models without querying the CLI.
+
+<details open>
+<summary><strong>Node.js / TypeScript</strong></summary>
+
+```typescript
+import { CopilotClient } from "@github/copilot-sdk";
+import type { ModelInfo } from "@github/copilot-sdk";
+
+const client = new CopilotClient({
+    onListModels: () => [
+        {
+            id: "my-custom-model",
+            name: "My Custom Model",
+            capabilities: {
+                supports: { vision: false, reasoningEffort: false },
+                limits: { max_context_window_tokens: 128000 },
+            },
+        },
+    ],
+});
+```
+
+</details>
+
+<details>
+<summary><strong>Python</strong></summary>
+
+```python
+from copilot import CopilotClient
+from copilot.types import ModelInfo, ModelCapabilities, ModelSupports, ModelLimits
+
+client = CopilotClient({
+    "on_list_models": lambda: [
+        ModelInfo(
+            id="my-custom-model",
+            name="My Custom Model",
+            capabilities=ModelCapabilities(
+                supports=ModelSupports(vision=False, reasoning_effort=False),
+                limits=ModelLimits(max_context_window_tokens=128000),
+            ),
+        )
+    ],
+})
+```
+
+</details>
+
+<details>
+<summary><strong>Go</strong></summary>
+
+```go
+package main
+
+import (
+    "context"
+    copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+    client := copilot.NewClient(&copilot.ClientOptions{
+        OnListModels: func(ctx context.Context) ([]copilot.ModelInfo, error) {
+            return []copilot.ModelInfo{
+                {
+                    ID:   "my-custom-model",
+                    Name: "My Custom Model",
+                    Capabilities: copilot.ModelCapabilities{
+                        Supports: copilot.ModelSupports{Vision: false, ReasoningEffort: false},
+                        Limits:   copilot.ModelLimits{MaxContextWindowTokens: 128000},
+                    },
+                },
+            }, nil
+        },
+    })
+    _ = client
+}
+```
+
+</details>
+
+<details>
+<summary><strong>.NET</strong></summary>
+
+```csharp
+using GitHub.Copilot.SDK;
+
+var client = new CopilotClient(new CopilotClientOptions
+{
+    OnListModels = (ct) => Task.FromResult(new List<ModelInfo>
+    {
+        new()
+        {
+            Id = "my-custom-model",
+            Name = "My Custom Model",
+            Capabilities = new ModelCapabilities
+            {
+                Supports = new ModelSupports { Vision = false, ReasoningEffort = false },
+                Limits = new ModelLimits { MaxContextWindowTokens = 128000 }
+            }
+        }
+    })
+});
+```
+
+</details>
+
+Results are cached after the first call, just like the default behavior. The handler completely replaces the CLI's `models.list` RPC — no fallback to the server occurs.
+
 ## Limitations
 
 When using BYOK, be aware of these limitations:
@@ -360,7 +470,21 @@ const session = await client.createSession({
 
 For Azure OpenAI endpoints (`*.openai.azure.com`), use the correct type:
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```typescript
+import { CopilotClient } from "@github/copilot-sdk";
+
+const client = new CopilotClient();
+const session = await client.createSession({
+    model: "gpt-4.1",
+    provider: {
+        type: "azure",
+        baseUrl: "https://my-resource.openai.azure.com",
+    },
+});
+```
+<!-- /docs-validate: hidden -->
+
 ```typescript
 // ❌ Wrong: Using "openai" type with native Azure endpoint
 provider: {
@@ -377,7 +501,21 @@ provider: {
 
 However, if your Azure AI Foundry deployment provides an OpenAI-compatible endpoint path (e.g., `/openai/v1/`), use `type: "openai"`:
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```typescript
+import { CopilotClient } from "@github/copilot-sdk";
+
+const client = new CopilotClient();
+const session = await client.createSession({
+    model: "gpt-4.1",
+    provider: {
+        type: "openai",
+        baseUrl: "https://your-resource.openai.azure.com/openai/v1/",
+    },
+});
+```
+<!-- /docs-validate: hidden -->
+
 ```typescript
 // ✅ Correct: OpenAI-compatible Azure AI Foundry endpoint
 provider: {

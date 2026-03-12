@@ -1,6 +1,7 @@
 package copilot
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -11,41 +12,6 @@ import (
 )
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.go instead
-
-func TestClient_HandleToolCallRequest(t *testing.T) {
-	t.Run("returns a standardized failure result when a tool is not registered", func(t *testing.T) {
-		cliPath := findCLIPathForTest()
-		if cliPath == "" {
-			t.Skip("CLI not found")
-		}
-
-		client := NewClient(&ClientOptions{CLIPath: cliPath})
-		t.Cleanup(func() { client.ForceStop() })
-
-		session, err := client.CreateSession(t.Context(), &SessionConfig{
-			OnPermissionRequest: PermissionHandler.ApproveAll,
-		})
-		if err != nil {
-			t.Fatalf("Failed to create session: %v", err)
-		}
-
-		params := toolCallRequest{
-			SessionID:  session.SessionID,
-			ToolCallID: "123",
-			ToolName:   "missing_tool",
-			Arguments:  map[string]any{},
-		}
-		response, _ := client.handleToolCallRequest(params)
-
-		if response.Result.ResultType != "failure" {
-			t.Errorf("Expected resultType to be 'failure', got %q", response.Result.ResultType)
-		}
-
-		if response.Result.Error != "tool 'missing_tool' not supported" {
-			t.Errorf("Expected error to be \"tool 'missing_tool' not supported\", got %q", response.Result.Error)
-		}
-	})
-}
 
 func TestClient_URLParsing(t *testing.T) {
 	t.Run("should parse port-only URL format", func(t *testing.T) {
@@ -448,6 +414,101 @@ func TestResumeSessionRequest_ClientName(t *testing.T) {
 	})
 }
 
+func TestCreateSessionRequest_Agent(t *testing.T) {
+	t.Run("includes agent in JSON when set", func(t *testing.T) {
+		req := createSessionRequest{Agent: "test-agent"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["agent"] != "test-agent" {
+			t.Errorf("Expected agent to be 'test-agent', got %v", m["agent"])
+		}
+	})
+
+	t.Run("omits agent from JSON when empty", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["agent"]; ok {
+			t.Error("Expected agent to be omitted when empty")
+		}
+	})
+}
+
+func TestResumeSessionRequest_Agent(t *testing.T) {
+	t.Run("includes agent in JSON when set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", Agent: "test-agent"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["agent"] != "test-agent" {
+			t.Errorf("Expected agent to be 'test-agent', got %v", m["agent"])
+		}
+	})
+
+	t.Run("omits agent from JSON when empty", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["agent"]; ok {
+			t.Error("Expected agent to be omitted when empty")
+		}
+	})
+}
+
+func TestOverridesBuiltInTool(t *testing.T) {
+	t.Run("OverridesBuiltInTool is serialized in tool definition", func(t *testing.T) {
+		tool := Tool{
+			Name:                 "grep",
+			Description:          "Custom grep",
+			OverridesBuiltInTool: true,
+			Handler:              func(_ ToolInvocation) (ToolResult, error) { return ToolResult{}, nil },
+		}
+		data, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("failed to unmarshal: %v", err)
+		}
+		if v, ok := m["overridesBuiltInTool"]; !ok || v != true {
+			t.Errorf("expected overridesBuiltInTool=true, got %v", m)
+		}
+	})
+
+	t.Run("OverridesBuiltInTool omitted when false", func(t *testing.T) {
+		tool := Tool{
+			Name:        "custom_tool",
+			Description: "A custom tool",
+			Handler:     func(_ ToolInvocation) (ToolResult, error) { return ToolResult{}, nil },
+		}
+		data, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("failed to unmarshal: %v", err)
+		}
+		if _, ok := m["overridesBuiltInTool"]; ok {
+			t.Errorf("expected overridesBuiltInTool to be omitted, got %v", m)
+		}
+	})
+}
+
 func TestClient_CreateSession_RequiresPermissionHandler(t *testing.T) {
 	t.Run("returns error when config is nil", func(t *testing.T) {
 		client := NewClient(nil)
@@ -486,6 +547,65 @@ func TestClient_ResumeSession_RequiresPermissionHandler(t *testing.T) {
 			t.Errorf("Expected error about OnPermissionRequest being required, got: %v", err)
 		}
 	})
+}
+
+func TestListModelsWithCustomHandler(t *testing.T) {
+	customModels := []ModelInfo{
+		{
+			ID:   "my-custom-model",
+			Name: "My Custom Model",
+			Capabilities: ModelCapabilities{
+				Supports: ModelSupports{Vision: false, ReasoningEffort: false},
+				Limits:   ModelLimits{MaxContextWindowTokens: 128000},
+			},
+		},
+	}
+
+	callCount := 0
+	handler := func(ctx context.Context) ([]ModelInfo, error) {
+		callCount++
+		return customModels, nil
+	}
+
+	client := NewClient(&ClientOptions{OnListModels: handler})
+
+	models, err := client.ListModels(t.Context())
+	if err != nil {
+		t.Fatalf("ListModels failed: %v", err)
+	}
+	if callCount != 1 {
+		t.Errorf("expected handler called once, got %d", callCount)
+	}
+	if len(models) != 1 || models[0].ID != "my-custom-model" {
+		t.Errorf("unexpected models: %+v", models)
+	}
+}
+
+func TestListModelsHandlerCachesResults(t *testing.T) {
+	customModels := []ModelInfo{
+		{
+			ID:   "cached-model",
+			Name: "Cached Model",
+			Capabilities: ModelCapabilities{
+				Supports: ModelSupports{Vision: false, ReasoningEffort: false},
+				Limits:   ModelLimits{MaxContextWindowTokens: 128000},
+			},
+		},
+	}
+
+	callCount := 0
+	handler := func(ctx context.Context) ([]ModelInfo, error) {
+		callCount++
+		return customModels, nil
+	}
+
+	client := NewClient(&ClientOptions{OnListModels: handler})
+
+	_, _ = client.ListModels(t.Context())
+	_, _ = client.ListModels(t.Context())
+	if callCount != 1 {
+		t.Errorf("expected handler called once due to caching, got %d", callCount)
+	}
 }
 
 func TestClient_StartStopRace(t *testing.T) {

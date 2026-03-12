@@ -25,6 +25,7 @@ def define_tool(
     name: str | None = None,
     *,
     description: str | None = None,
+    overrides_built_in_tool: bool = False,
 ) -> Callable[[Callable[..., Any]], Tool]: ...
 
 
@@ -35,6 +36,7 @@ def define_tool(
     description: str | None = None,
     handler: Callable[[T, ToolInvocation], R],
     params_type: type[T],
+    overrides_built_in_tool: bool = False,
 ) -> Tool: ...
 
 
@@ -44,6 +46,7 @@ def define_tool(
     description: str | None = None,
     handler: Callable[[Any, ToolInvocation], Any] | None = None,
     params_type: type[BaseModel] | None = None,
+    overrides_built_in_tool: bool = False,
 ) -> Tool | Callable[[Callable[[Any, ToolInvocation], Any]], Tool]:
     """
     Define a tool with automatic JSON schema generation from Pydantic models.
@@ -119,7 +122,7 @@ def define_tool(
                 # Build args based on detected signature
                 call_args = []
                 if takes_params:
-                    args = invocation["arguments"] or {}
+                    args = invocation.arguments or {}
                     if ptype is not None and _is_pydantic_model(ptype):
                         call_args.append(ptype.model_validate(args))
                     else:
@@ -138,11 +141,11 @@ def define_tool(
                 # Don't expose detailed error information to the LLM for security reasons.
                 # The actual error is stored in the 'error' field for debugging.
                 return ToolResult(
-                    textResultForLlm="Invoking this tool produced an error. "
+                    text_result_for_llm="Invoking this tool produced an error. "
                     "Detailed information is not available.",
-                    resultType="failure",
+                    result_type="failure",
                     error=str(exc),
-                    toolTelemetry={},
+                    tool_telemetry={},
                 )
 
         return Tool(
@@ -150,6 +153,7 @@ def define_tool(
             description=description or "",
             parameters=schema,
             handler=wrapped_handler,
+            overrides_built_in_tool=overrides_built_in_tool,
         )
 
     # If handler is provided, call decorator immediately
@@ -181,19 +185,19 @@ def _normalize_result(result: Any) -> ToolResult:
     """
     if result is None:
         return ToolResult(
-            textResultForLlm="",
-            resultType="success",
+            text_result_for_llm="",
+            result_type="success",
         )
 
-    # ToolResult passes through directly
-    if isinstance(result, dict) and "resultType" in result and "textResultForLlm" in result:
+    # ToolResult dataclass passes through directly
+    if isinstance(result, ToolResult):
         return result
 
     # Strings pass through directly
     if isinstance(result, str):
         return ToolResult(
-            textResultForLlm=result,
-            resultType="success",
+            text_result_for_llm=result,
+            result_type="success",
         )
 
     # Everything else gets JSON-serialized (with Pydantic model support)
@@ -208,6 +212,6 @@ def _normalize_result(result: Any) -> ToolResult:
         raise TypeError(f"Failed to serialize tool result: {exc}") from exc
 
     return ToolResult(
-        textResultForLlm=json_str,
-        resultType="success",
+        text_result_for_llm=json_str,
+        result_type="success",
     )

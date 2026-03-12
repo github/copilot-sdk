@@ -1,0 +1,117 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the city_lookup tool with countryCode 'US' and tell me the result.
+      - role: assistant
+        content: I'll call the city_lookup tool with the country code 'US' for you.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Looking up city information"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: city_lookup
+              arguments: '{"countryCode":"US"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the city_lookup tool with countryCode 'US' and tell me the result.
+      - role: assistant
+        content: I'll call the city_lookup tool with the country code 'US' for you.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Looking up city information"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: city_lookup
+              arguments: '{"countryCode":"US"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: CITY_FOR_US
+      - role: assistant
+        content: The city_lookup tool returned **"CITY_FOR_US"** for the country code 'US'.
+      - role: user
+        content: Now use the currency_lookup tool with countryCode 'US' and tell me the result.
+      - role: assistant
+        content: I'll call the currency_lookup tool with the country code 'US' for you.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Looking up currency information"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_3
+            type: function
+            function:
+              name: currency_lookup
+              arguments: '{"countryCode":"US"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the city_lookup tool with countryCode 'US' and tell me the result.
+      - role: assistant
+        content: I'll call the city_lookup tool with the country code 'US' for you.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Looking up city information"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: city_lookup
+              arguments: '{"countryCode":"US"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: CITY_FOR_US
+      - role: assistant
+        content: The city_lookup tool returned **"CITY_FOR_US"** for the country code 'US'.
+      - role: user
+        content: Now use the currency_lookup tool with countryCode 'US' and tell me the result.
+      - role: assistant
+        content: I'll call the currency_lookup tool with the country code 'US' for you.
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Looking up currency information"}'
+          - id: toolcall_3
+            type: function
+            function:
+              name: currency_lookup
+              arguments: '{"countryCode":"US"}'
+      - role: tool
+        tool_call_id: toolcall_2
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_3
+        content: CURRENCY_FOR_US
+      - role: assistant
+        content: The currency_lookup tool returned **"CURRENCY_FOR_US"** for the country code 'US'.

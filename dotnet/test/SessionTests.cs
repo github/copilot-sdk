@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.SDK.Rpc;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
 using Xunit;
@@ -13,7 +14,7 @@ namespace GitHub.Copilot.SDK.Test;
 public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "session", output)
 {
     [Fact]
-    public async Task ShouldCreateAndDestroySessions()
+    public async Task ShouldCreateAndDisconnectSessions()
     {
         var session = await CreateSessionAsync(new SessionConfig { Model = "fake-test-model" });
 
@@ -95,7 +96,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     {
         var session = await CreateSessionAsync(new SessionConfig
         {
-            AvailableTools = new List<string> { "view", "edit" }
+            AvailableTools = ["view", "edit"]
         });
 
         await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
@@ -115,7 +116,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     {
         var session = await CreateSessionAsync(new SessionConfig
         {
-            ExcludedTools = new List<string> { "view" }
+            ExcludedTools = ["view"]
         });
 
         await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
@@ -167,6 +168,11 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         var answer2 = await TestHelper.GetFinalAssistantMessageAsync(session2);
         Assert.NotNull(answer2);
         Assert.Contains("2", answer2!.Data.Content ?? string.Empty);
+
+        // Can continue the conversation statefully
+        var answer3 = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "Now if you double that, what do you get?" });
+        Assert.NotNull(answer3);
+        Assert.Contains("4", answer3!.Data.Content ?? string.Empty);
     }
 
     [Fact]
@@ -187,6 +193,11 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         var messages = await session2.GetMessagesAsync();
         Assert.Contains(messages, m => m is UserMessageEvent);
         Assert.Contains(messages, m => m is SessionResumeEvent);
+
+        // Can continue the conversation statefully
+        var answer2 = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "Now if you double that, what do you get?" });
+        Assert.NotNull(answer2);
+        Assert.Contains("4", answer2!.Data.Content ?? string.Empty);
     }
 
     [Fact]
@@ -231,72 +242,20 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         Assert.Contains("4", answer!.Data.Content ?? string.Empty);
     }
 
-    // TODO: This test requires the session-events.schema.json to include assistant.message_delta.
-    // The CLI v0.0.376 emits delta events at runtime, but the schema hasn't been updated yet.
-    // Once the schema is updated and types are regenerated, this test can be enabled.
-    [Fact(Skip = "Requires schema update for AssistantMessageDeltaEvent type")]
-    public async Task Should_Receive_Streaming_Delta_Events_When_Streaming_Is_Enabled()
-    {
-        var session = await CreateSessionAsync(new SessionConfig { Streaming = true });
-
-        var deltaContents = new List<string>();
-        var doneEvent = new TaskCompletionSource<bool>();
-
-        session.On(evt =>
-        {
-            switch (evt)
-            {
-                // TODO: Uncomment once AssistantMessageDeltaEvent is generated
-                // case AssistantMessageDeltaEvent delta:
-                //     if (!string.IsNullOrEmpty(delta.Data.DeltaContent))
-                //         deltaContents.Add(delta.Data.DeltaContent);
-                //     break;
-                case SessionIdleEvent:
-                    doneEvent.TrySetResult(true);
-                    break;
-            }
-        });
-
-        await session.SendAsync(new MessageOptions { Prompt = "What is 2+2?" });
-
-        // Wait for completion
-        var completed = await Task.WhenAny(doneEvent.Task, Task.Delay(TimeSpan.FromSeconds(60)));
-        Assert.Equal(doneEvent.Task, completed);
-
-        // Should have received delta events
-        Assert.NotEmpty(deltaContents);
-
-        // Get the final message to compare
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
-        Assert.NotNull(assistantMessage);
-
-        // Accumulated deltas should equal the final message
-        var accumulated = string.Join("", deltaContents);
-        Assert.Equal(assistantMessage!.Data.Content, accumulated);
-
-        // Final message should contain the answer
-        Assert.Contains("4", assistantMessage.Data.Content ?? string.Empty);
-    }
-
-    [Fact]
-    public async Task Should_Pass_Streaming_Option_To_Session_Creation()
-    {
-        // Verify that the streaming option is accepted without errors
-        var session = await CreateSessionAsync(new SessionConfig { Streaming = true });
-
-        Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
-
-        // Session should still work normally
-        await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
-        Assert.NotNull(assistantMessage);
-        Assert.Contains("2", assistantMessage!.Data.Content);
-    }
-
     [Fact]
     public async Task Should_Receive_Session_Events()
     {
-        var session = await CreateSessionAsync();
+        // Use OnEvent to capture events dispatched during session creation.
+        // session.start is emitted during the session.create RPC; if the session
+        // weren't registered in the sessions map before the RPC, it would be dropped.
+        var earlyEvents = new List<SessionEvent>();
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            OnEvent = evt => earlyEvents.Add(evt),
+        });
+
+        Assert.Contains(earlyEvents, evt => evt is SessionStartEvent);
+
         var receivedEvents = new List<SessionEvent>();
         var idleReceived = new TaskCompletionSource<bool>();
 
@@ -440,5 +399,67 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
         Assert.NotNull(assistantMessage);
         Assert.Contains("2", assistantMessage!.Data.Content);
+    }
+
+    [Fact]
+    public async Task Should_Set_Model_On_Existing_Session()
+    {
+        var session = await CreateSessionAsync();
+
+        // Subscribe for the model change event before calling SetModelAsync
+        var modelChangedTask = TestHelper.GetNextEventOfTypeAsync<SessionModelChangeEvent>(session);
+
+        await session.SetModelAsync("gpt-4.1");
+
+        // Verify a model_change event was emitted with the new model
+        var modelChanged = await modelChangedTask;
+        Assert.Equal("gpt-4.1", modelChanged.Data.NewModel);
+    }
+
+    [Fact]
+    public async Task Should_Log_Messages_At_Various_Levels()
+    {
+        var session = await CreateSessionAsync();
+        var events = new List<SessionEvent>();
+        session.On(evt => events.Add(evt));
+
+        await session.LogAsync("Info message");
+        await session.LogAsync("Warning message", level: SessionLogRequestLevel.Warning);
+        await session.LogAsync("Error message", level: SessionLogRequestLevel.Error);
+        await session.LogAsync("Ephemeral message", ephemeral: true);
+
+        // Poll until all 4 notification events arrive
+        await WaitForAsync(() =>
+        {
+            var notifications = events.Where(e =>
+                e is SessionInfoEvent info && info.Data.InfoType == "notification" ||
+                e is SessionWarningEvent warn && warn.Data.WarningType == "notification" ||
+                e is SessionErrorEvent err && err.Data.ErrorType == "notification"
+            ).ToList();
+            return notifications.Count >= 4;
+        }, timeout: TimeSpan.FromSeconds(10));
+
+        var infoEvent = events.OfType<SessionInfoEvent>().First(e => e.Data.Message == "Info message");
+        Assert.Equal("notification", infoEvent.Data.InfoType);
+
+        var warningEvent = events.OfType<SessionWarningEvent>().First(e => e.Data.Message == "Warning message");
+        Assert.Equal("notification", warningEvent.Data.WarningType);
+
+        var errorEvent = events.OfType<SessionErrorEvent>().First(e => e.Data.Message == "Error message");
+        Assert.Equal("notification", errorEvent.Data.ErrorType);
+
+        var ephemeralEvent = events.OfType<SessionInfoEvent>().First(e => e.Data.Message == "Ephemeral message");
+        Assert.Equal("notification", ephemeralEvent.Data.InfoType);
+    }
+
+    private static async Task WaitForAsync(Func<bool> condition, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (!condition())
+        {
+            if (DateTime.UtcNow > deadline)
+                throw new TimeoutException($"Condition not met within {timeout}");
+            await Task.Delay(100);
+        }
     }
 }

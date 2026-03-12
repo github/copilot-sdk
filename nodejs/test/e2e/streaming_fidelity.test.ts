@@ -2,12 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { describe, expect, it } from "vitest";
-import { SessionEvent, approveAll } from "../../src/index.js";
-import { createSdkTestContext } from "./harness/sdkTestContext";
+import { describe, expect, it, onTestFinished } from "vitest";
+import { CopilotClient, SessionEvent, approveAll } from "../../src/index.js";
+import { createSdkTestContext, isCI } from "./harness/sdkTestContext";
 
 describe("Streaming Fidelity", async () => {
-    const { copilotClient: client } = await createSdkTestContext();
+    const { copilotClient: client, env } = await createSdkTestContext();
 
     it("should produce delta events when streaming is enabled", async () => {
         const session = await client.createSession({
@@ -43,7 +43,7 @@ describe("Streaming Fidelity", async () => {
         const lastAssistantIdx = types.lastIndexOf("assistant.message");
         expect(firstDeltaIdx).toBeLessThan(lastAssistantIdx);
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should not produce deltas when streaming is disabled", async () => {
@@ -69,6 +69,45 @@ describe("Streaming Fidelity", async () => {
         const assistantEvents = events.filter((e) => e.type === "assistant.message");
         expect(assistantEvents.length).toBeGreaterThanOrEqual(1);
 
-        await session.destroy();
+        await session.disconnect();
+    });
+
+    it("should produce deltas after session resume", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            streaming: false,
+        });
+        await session.sendAndWait({ prompt: "What is 3 + 6?" });
+        await session.disconnect();
+
+        // Resume using a new client
+        const newClient = new CopilotClient({
+            env,
+            githubToken: isCI ? "fake-token-for-e2e-tests" : undefined,
+        });
+        onTestFinished(() => newClient.forceStop());
+        const session2 = await newClient.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            streaming: true,
+        });
+        const events: SessionEvent[] = [];
+        session2.on((event) => events.push(event));
+
+        const secondAssistantMessage = await session2.sendAndWait({
+            prompt: "Now if you double that, what do you get?",
+        });
+        expect(secondAssistantMessage?.data.content).toContain("18");
+
+        // Should have streaming deltas before the final message
+        const deltaEvents = events.filter((e) => e.type === "assistant.message_delta");
+        expect(deltaEvents.length).toBeGreaterThanOrEqual(1);
+
+        // Deltas should have content
+        for (const delta of deltaEvents) {
+            expect(delta.data.deltaContent).toBeDefined();
+            expect(typeof delta.data.deltaContent).toBe("string");
+        }
+
+        await session2.disconnect();
     });
 });

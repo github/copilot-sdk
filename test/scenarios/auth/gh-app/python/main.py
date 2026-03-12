@@ -88,7 +88,7 @@ async def main():
         response = await session.send_and_wait({"prompt": "What is the capital of France?"})
         if response:
             print(response.data.content)
-        await session.destroy()
+        await session.disconnect()
     finally:
         await client.stop()
 

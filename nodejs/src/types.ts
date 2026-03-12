@@ -45,6 +45,13 @@ export interface CopilotClientOptions {
     useStdio?: boolean;
 
     /**
+     * When true, indicates the SDK is running as a child process of the Copilot CLI server, and should
+     * use its own stdio for communicating with the existing parent process. Can only be used in combination
+     * with useStdio: true.
+     */
+    isChildProcess?: boolean;
+
+    /**
      * URL of an existing Copilot CLI server to connect to over TCP
      * When provided, the client will not spawn a CLI process
      * Format: "host:port" or "http://host:port" or just "port" (defaults to localhost)
@@ -89,6 +96,14 @@ export interface CopilotClientOptions {
      * @default true (but defaults to false when githubToken is provided)
      */
     useLoggedInUser?: boolean;
+
+    /**
+     * Custom handler for listing available models.
+     * When provided, client.listModels() calls this handler instead of
+     * querying the CLI server. Useful in BYOK mode to return models
+     * available from your custom provider.
+     */
+    onListModels?: () => Promise<ModelInfo[]> | ModelInfo[];
 }
 
 /**
@@ -146,6 +161,12 @@ export interface Tool<TArgs = unknown> {
     description?: string;
     parameters?: ZodSchema<TArgs> | Record<string, unknown>;
     handler: ToolHandler<TArgs>;
+    /**
+     * When true, explicitly indicates this tool is intended to override a built-in tool
+     * of the same name. If not set and the name clashes with a built-in tool, the runtime
+     * will return an error.
+     */
+    overridesBuiltInTool?: boolean;
 }
 
 /**
@@ -158,6 +179,7 @@ export function defineTool<T = unknown>(
         description?: string;
         parameters?: ZodSchema<T> | Record<string, unknown>;
         handler: ToolHandler<T>;
+        overridesBuiltInTool?: boolean;
     }
 ): Tool<T> {
     return { name, ...config };
@@ -216,14 +238,11 @@ export interface PermissionRequest {
     [key: string]: unknown;
 }
 
-export interface PermissionRequestResult {
-    kind:
-        | "approved"
-        | "denied-by-rules"
-        | "denied-no-approval-rule-and-could-not-request-from-user"
-        | "denied-interactively-by-user";
-    rules?: unknown[];
-}
+import type { SessionPermissionsHandlePendingPermissionRequestParams } from "./generated/rpc.js";
+
+export type PermissionRequestResult =
+    | SessionPermissionsHandlePendingPermissionRequestParams["result"]
+    | { kind: "no-result" };
 
 export type PermissionHandler = (
     request: PermissionRequest,
@@ -716,6 +735,13 @@ export interface SessionConfig {
     customAgents?: CustomAgentConfig[];
 
     /**
+     * Name of the custom agent to activate when the session starts.
+     * Must match the `name` of one of the agents in `customAgents`.
+     * Equivalent to calling `session.rpc.agent.select({ name })` after creation.
+     */
+    agent?: string;
+
+    /**
      * Directories to load skills from.
      */
     skillDirectories?: string[];
@@ -731,6 +757,17 @@ export interface SessionConfig {
      * Set to `{ enabled: false }` to disable.
      */
     infiniteSessions?: InfiniteSessionConfig;
+
+    /**
+     * Optional event handler that is registered on the session before the
+     * session.create RPC is issued. This guarantees that early events emitted
+     * by the CLI during session creation (e.g. session.start) are delivered to
+     * the handler.
+     *
+     * Equivalent to calling `session.on(handler)` immediately after creation,
+     * but executes earlier in the lifecycle so no events are missed.
+     */
+    onEvent?: SessionEventHandler;
 }
 
 /**
@@ -754,9 +791,11 @@ export type ResumeSessionConfig = Pick<
     | "configDir"
     | "mcpServers"
     | "customAgents"
+    | "agent"
     | "skillDirectories"
     | "disabledSkills"
     | "infiniteSessions"
+    | "onEvent"
 > & {
     /**
      * When true, skips emitting the session.resume event.

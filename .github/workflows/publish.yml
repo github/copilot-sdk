@@ -14,6 +14,7 @@ on:
         options:
           - latest
           - prerelease
+          - unstable
       version:
         description: "Version override (optional, e.g., 1.0.0). If empty, auto-increments."
         type: string
@@ -22,6 +23,7 @@ on:
 permissions:
   contents: write
   id-token: write # Required for OIDC
+  actions: write # Required to trigger changelog workflow
 
 concurrency:
   group: publish
@@ -65,8 +67,8 @@ jobs:
               fi
             else
               if [[ "$VERSION" != *-* ]]; then
-                echo "❌ Error: Version '$VERSION' has no prerelease suffix but dist-tag is 'prerelease'" >> $GITHUB_STEP_SUMMARY
-                echo "Use a version with suffix (e.g., '1.0.0-preview.0') for prerelease"
+                echo "❌ Error: Version '$VERSION' has no prerelease suffix but dist-tag is '${{ github.event.inputs.dist-tag }}'" >> $GITHUB_STEP_SUMMARY
+                echo "Use a version with suffix (e.g., '1.0.0-preview.0') for prerelease/unstable"
                 exit 1
               fi
             fi
@@ -101,16 +103,17 @@ jobs:
       - name: Pack
         run: npm pack
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7.0.0
         with:
           name: nodejs-package
           path: nodejs/*.tgz
       - name: Publish to npm
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || github.event.inputs.dist-tag == 'unstable'
         run: npm publish --tag ${{ github.event.inputs.dist-tag }} --access public --registry https://registry.npmjs.org
 
   publish-dotnet:
     name: Publish .NET SDK
+    if: github.event.inputs.dist-tag != 'unstable'
     needs: version
     runs-on: ubuntu-latest
     defaults:
@@ -120,13 +123,13 @@ jobs:
       - uses: actions/checkout@v6.0.2
       - uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: "10.0.x"
       - name: Restore dependencies
         run: dotnet restore
       - name: Build and pack
         run: dotnet pack src/GitHub.Copilot.SDK.csproj -c Release -p:Version=${{ needs.version.outputs.version }} -o ./artifacts
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7.0.0
         with:
           name: dotnet-package
           path: dotnet/artifacts/*.nupkg
@@ -146,6 +149,7 @@ jobs:
 
   publish-python:
     name: Publish Python SDK
+    if: github.event.inputs.dist-tag != 'unstable'
     needs: version
     runs-on: ubuntu-latest
     defaults:
@@ -169,7 +173,7 @@ jobs:
       - name: Build platform wheels
         run: node scripts/build-wheels.mjs --output-dir dist
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7.0.0
         with:
           name: python-package
           path: python/dist/*
@@ -182,7 +186,7 @@ jobs:
   github-release:
     name: Create GitHub Release
     needs: [version, publish-nodejs, publish-dotnet, publish-python]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event.inputs.dist-tag != 'unstable'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
@@ -211,6 +215,10 @@ jobs:
             --title "v${{ needs.version.outputs.version }}" \
             --generate-notes $NOTES_FLAG \
             --target ${{ github.sha }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Trigger changelog generation
+        run: gh workflow run release-changelog.lock.yml -f tag="v${{ needs.version.outputs.version }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Tag Go SDK submodule

@@ -12,6 +12,7 @@
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { Socket } from "node:net";
 import { dirname, join } from "node:path";
@@ -24,7 +25,7 @@ import {
 } from "vscode-jsonrpc/node.js";
 import { createServerRpc } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
-import { CopilotSession } from "./session.js";
+import { CopilotSession, NO_RESULT_PERMISSION_V2_ERROR } from "./session.js";
 import type {
     ConnectionState,
     CopilotClientOptions,
@@ -44,11 +45,15 @@ import type {
     Tool,
     ToolCallRequestPayload,
     ToolCallResponsePayload,
-    ToolHandler,
-    ToolResult,
     ToolResultObject,
     TypedSessionLifecycleHandler,
 } from "./types.js";
+
+/**
+ * Minimum protocol version this SDK can communicate with.
+ * Servers reporting a version below this are rejected.
+ */
+const MIN_PROTOCOL_VERSION = 2;
 
 /**
  * Check if value is a Zod schema (has toJSONSchema method)
@@ -71,6 +76,26 @@ function toJsonSchema(parameters: Tool["parameters"]): Record<string, unknown> |
         return parameters.toJSONSchema();
     }
     return parameters;
+}
+
+function getNodeExecPath(): string {
+    if (process.versions.bun) {
+        return "node";
+    }
+    return process.execPath;
+}
+
+/**
+ * Gets the path to the bundled CLI from the @github/copilot package.
+ * Uses index.js directly rather than npm-loader.js (which spawns the native binary).
+ */
+function getBundledCliPath(): string {
+    // Find the actual location of the @github/copilot package by resolving its sdk export
+    const sdkUrl = import.meta.resolve("@github/copilot/sdk");
+    const sdkPath = fileURLToPath(sdkUrl);
+    // sdkPath is like .../node_modules/@github/copilot/sdk/index.js
+    // Go up two levels to get the package root, then append index.js
+    return join(dirname(dirname(sdkPath)), "index.js");
 }
 
 /**
@@ -102,31 +127,10 @@ function toJsonSchema(parameters: Tool["parameters"]): Record<string, unknown> |
  * await session.send({ prompt: "Hello!" });
  *
  * // Clean up
- * await session.destroy();
+ * await session.disconnect();
  * await client.stop();
  * ```
  */
-
-function getNodeExecPath(): string {
-    if (process.versions.bun) {
-        return "node";
-    }
-    return process.execPath;
-}
-
-/**
- * Gets the path to the bundled CLI from the @github/copilot package.
- * Uses index.js directly rather than npm-loader.js (which spawns the native binary).
- */
-function getBundledCliPath(): string {
-    // Find the actual location of the @github/copilot package by resolving its sdk export
-    const sdkUrl = import.meta.resolve("@github/copilot/sdk");
-    const sdkPath = fileURLToPath(sdkUrl);
-    // sdkPath is like .../node_modules/@github/copilot/sdk/index.js
-    // Go up two levels to get the package root, then append index.js
-    return join(dirname(dirname(sdkPath)), "index.js");
-}
-
 export class CopilotClient {
     private cliProcess: ChildProcess | null = null;
     private connection: MessageConnection | null = null;
@@ -137,14 +141,19 @@ export class CopilotClient {
     private sessions: Map<string, CopilotSession> = new Map();
     private stderrBuffer: string = ""; // Captures CLI stderr for error messages
     private options: Required<
-        Omit<CopilotClientOptions, "cliUrl" | "githubToken" | "useLoggedInUser">
+        Omit<
+            CopilotClientOptions,
+            "cliPath" | "cliUrl" | "githubToken" | "useLoggedInUser" | "onListModels"
+        >
     > & {
+        cliPath?: string;
         cliUrl?: string;
         githubToken?: string;
         useLoggedInUser?: boolean;
     };
     private isExternalServer: boolean = false;
     private forceStopping: boolean = false;
+    private onListModels?: () => Promise<ModelInfo[]> | ModelInfo[];
     private modelsCache: ModelInfo[] | null = null;
     private modelsCacheLock: Promise<void> = Promise.resolve();
     private sessionLifecycleHandlers: Set<SessionLifecycleHandler> = new Set();
@@ -154,6 +163,7 @@ export class CopilotClient {
     > = new Map();
     private _rpc: ReturnType<typeof createServerRpc> | null = null;
     private processExitPromise: Promise<never> | null = null; // Rejects when CLI process exits
+    private negotiatedProtocolVersion: number | null = null;
 
     /**
      * Typed server-scoped RPC methods.
@@ -196,6 +206,12 @@ export class CopilotClient {
             throw new Error("cliUrl is mutually exclusive with useStdio and cliPath");
         }
 
+        if (options.isChildProcess && (options.cliUrl || options.useStdio === false)) {
+            throw new Error(
+                "isChildProcess must be used in conjunction with useStdio and not with cliUrl"
+            );
+        }
+
         // Validate auth options with external server
         if (options.cliUrl && (options.githubToken || options.useLoggedInUser !== undefined)) {
             throw new Error(
@@ -211,12 +227,19 @@ export class CopilotClient {
             this.isExternalServer = true;
         }
 
+        if (options.isChildProcess) {
+            this.isExternalServer = true;
+        }
+
+        this.onListModels = options.onListModels;
+
         this.options = {
-            cliPath: options.cliPath || getBundledCliPath(),
+            cliPath: options.cliUrl ? undefined : options.cliPath || getBundledCliPath(),
             cliArgs: options.cliArgs ?? [],
             cwd: options.cwd ?? process.cwd(),
             port: options.port || 0,
             useStdio: options.cliUrl ? false : (options.useStdio ?? true), // Default to stdio unless cliUrl is provided
+            isChildProcess: options.isChildProcess ?? false,
             cliUrl: options.cliUrl,
             logLevel: options.logLevel || "debug",
             autoStart: options.autoStart ?? true,
@@ -307,9 +330,13 @@ export class CopilotClient {
      * Stops the CLI server and closes all active sessions.
      *
      * This method performs graceful cleanup:
-     * 1. Destroys all active sessions with retry logic
+     * 1. Closes all active sessions (releases in-memory resources)
      * 2. Closes the JSON-RPC connection
      * 3. Terminates the CLI server process (if spawned by this client)
+     *
+     * Note: session data on disk is preserved, so sessions can be resumed later.
+     * To permanently remove session data before stopping, call
+     * {@link deleteSession} for each session first.
      *
      * @returns A promise that resolves with an array of errors encountered during cleanup.
      *          An empty array indicates all cleanup succeeded.
@@ -325,7 +352,7 @@ export class CopilotClient {
     async stop(): Promise<Error[]> {
         const errors: Error[] = [];
 
-        // Destroy all active sessions with retry logic
+        // Disconnect all active sessions with retry logic
         for (const session of this.sessions.values()) {
             const sessionId = session.sessionId;
             let lastError: Error | null = null;
@@ -333,7 +360,7 @@ export class CopilotClient {
             // Try up to 3 times with exponential backoff
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
-                    await session.destroy();
+                    await session.disconnect();
                     lastError = null;
                     break; // Success
                 } catch (error) {
@@ -350,7 +377,7 @@ export class CopilotClient {
             if (lastError) {
                 errors.push(
                     new Error(
-                        `Failed to destroy session ${sessionId} after 3 attempts: ${lastError.message}`
+                        `Failed to disconnect session ${sessionId} after 3 attempts: ${lastError.message}`
                     )
                 );
             }
@@ -524,39 +551,11 @@ export class CopilotClient {
             }
         }
 
-        const response = await this.connection!.sendRequest("session.create", {
-            model: config.model,
-            sessionId: config.sessionId,
-            clientName: config.clientName,
-            reasoningEffort: config.reasoningEffort,
-            tools: config.tools?.map((tool) => ({
-                name: tool.name,
-                description: tool.description,
-                parameters: toJsonSchema(tool.parameters),
-            })),
-            systemMessage: config.systemMessage,
-            availableTools: config.availableTools,
-            excludedTools: config.excludedTools,
-            provider: config.provider,
-            requestPermission: true,
-            requestUserInput: !!config.onUserInputRequest,
-            hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
-            workingDirectory: config.workingDirectory,
-            streaming: config.streaming,
-            mcpServers: config.mcpServers,
-            envValueMode: "direct",
-            customAgents: config.customAgents,
-            configDir: config.configDir,
-            skillDirectories: config.skillDirectories,
-            disabledSkills: config.disabledSkills,
-            infiniteSessions: config.infiniteSessions,
-        });
+        const sessionId = config.sessionId ?? randomUUID();
 
-        const { sessionId, workspacePath } = response as {
-            sessionId: string;
-            workspacePath?: string;
-        };
-        const session = new CopilotSession(sessionId, this.connection!, workspacePath);
+        // Create and register the session before issuing the RPC so that
+        // events emitted by the CLI (e.g. session.start) are not dropped.
+        const session = new CopilotSession(sessionId, this.connection!);
         session.registerTools(config.tools);
         session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
@@ -565,7 +564,51 @@ export class CopilotClient {
         if (config.hooks) {
             session.registerHooks(config.hooks);
         }
+        if (config.onEvent) {
+            session.on(config.onEvent);
+        }
         this.sessions.set(sessionId, session);
+
+        try {
+            const response = await this.connection!.sendRequest("session.create", {
+                model: config.model,
+                sessionId,
+                clientName: config.clientName,
+                reasoningEffort: config.reasoningEffort,
+                tools: config.tools?.map((tool) => ({
+                    name: tool.name,
+                    description: tool.description,
+                    parameters: toJsonSchema(tool.parameters),
+                    overridesBuiltInTool: tool.overridesBuiltInTool,
+                })),
+                systemMessage: config.systemMessage,
+                availableTools: config.availableTools,
+                excludedTools: config.excludedTools,
+                provider: config.provider,
+                requestPermission: true,
+                requestUserInput: !!config.onUserInputRequest,
+                hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
+                workingDirectory: config.workingDirectory,
+                streaming: config.streaming,
+                mcpServers: config.mcpServers,
+                envValueMode: "direct",
+                customAgents: config.customAgents,
+                agent: config.agent,
+                configDir: config.configDir,
+                skillDirectories: config.skillDirectories,
+                disabledSkills: config.disabledSkills,
+                infiniteSessions: config.infiniteSessions,
+            });
+
+            const { workspacePath } = response as {
+                sessionId: string;
+                workspacePath?: string;
+            };
+            session["_workspacePath"] = workspacePath;
+        } catch (e) {
+            this.sessions.delete(sessionId);
+            throw e;
+        }
 
         return session;
     }
@@ -609,40 +652,9 @@ export class CopilotClient {
             }
         }
 
-        const response = await this.connection!.sendRequest("session.resume", {
-            sessionId,
-            clientName: config.clientName,
-            model: config.model,
-            reasoningEffort: config.reasoningEffort,
-            systemMessage: config.systemMessage,
-            availableTools: config.availableTools,
-            excludedTools: config.excludedTools,
-            tools: config.tools?.map((tool) => ({
-                name: tool.name,
-                description: tool.description,
-                parameters: toJsonSchema(tool.parameters),
-            })),
-            provider: config.provider,
-            requestPermission: true,
-            requestUserInput: !!config.onUserInputRequest,
-            hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
-            workingDirectory: config.workingDirectory,
-            configDir: config.configDir,
-            streaming: config.streaming,
-            mcpServers: config.mcpServers,
-            envValueMode: "direct",
-            customAgents: config.customAgents,
-            skillDirectories: config.skillDirectories,
-            disabledSkills: config.disabledSkills,
-            infiniteSessions: config.infiniteSessions,
-            disableResume: config.disableResume,
-        });
-
-        const { sessionId: resumedSessionId, workspacePath } = response as {
-            sessionId: string;
-            workspacePath?: string;
-        };
-        const session = new CopilotSession(resumedSessionId, this.connection!, workspacePath);
+        // Create and register the session before issuing the RPC so that
+        // events emitted by the CLI (e.g. session.start) are not dropped.
+        const session = new CopilotSession(sessionId, this.connection!);
         session.registerTools(config.tools);
         session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
@@ -651,7 +663,52 @@ export class CopilotClient {
         if (config.hooks) {
             session.registerHooks(config.hooks);
         }
-        this.sessions.set(resumedSessionId, session);
+        if (config.onEvent) {
+            session.on(config.onEvent);
+        }
+        this.sessions.set(sessionId, session);
+
+        try {
+            const response = await this.connection!.sendRequest("session.resume", {
+                sessionId,
+                clientName: config.clientName,
+                model: config.model,
+                reasoningEffort: config.reasoningEffort,
+                systemMessage: config.systemMessage,
+                availableTools: config.availableTools,
+                excludedTools: config.excludedTools,
+                tools: config.tools?.map((tool) => ({
+                    name: tool.name,
+                    description: tool.description,
+                    parameters: toJsonSchema(tool.parameters),
+                    overridesBuiltInTool: tool.overridesBuiltInTool,
+                })),
+                provider: config.provider,
+                requestPermission: true,
+                requestUserInput: !!config.onUserInputRequest,
+                hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
+                workingDirectory: config.workingDirectory,
+                configDir: config.configDir,
+                streaming: config.streaming,
+                mcpServers: config.mcpServers,
+                envValueMode: "direct",
+                customAgents: config.customAgents,
+                agent: config.agent,
+                skillDirectories: config.skillDirectories,
+                disabledSkills: config.disabledSkills,
+                infiniteSessions: config.infiniteSessions,
+                disableResume: config.disableResume,
+            });
+
+            const { workspacePath } = response as {
+                sessionId: string;
+                workspacePath?: string;
+            };
+            session["_workspacePath"] = workspacePath;
+        } catch (e) {
+            this.sessions.delete(sessionId);
+            throw e;
+        }
 
         return session;
     }
@@ -727,16 +784,15 @@ export class CopilotClient {
     /**
      * List available models with their metadata.
      *
+     * If an `onListModels` handler was provided in the client options,
+     * it is called instead of querying the CLI server.
+     *
      * Results are cached after the first successful call to avoid rate limiting.
      * The cache is cleared when the client disconnects.
      *
-     * @throws Error if not authenticated
+     * @throws Error if not connected (when no custom handler is set)
      */
     async listModels(): Promise<ModelInfo[]> {
-        if (!this.connection) {
-            throw new Error("Client not connected");
-        }
-
         // Use promise-based locking to prevent race condition with concurrent calls
         await this.modelsCacheLock;
 
@@ -751,13 +807,22 @@ export class CopilotClient {
                 return [...this.modelsCache]; // Return a copy to prevent cache mutation
             }
 
-            // Cache miss - fetch from backend while holding lock
-            const result = await this.connection.sendRequest("models.list", {});
-            const response = result as { models: ModelInfo[] };
-            const models = response.models;
+            let models: ModelInfo[];
+            if (this.onListModels) {
+                // Use custom handler instead of CLI RPC
+                models = await this.onListModels();
+            } else {
+                if (!this.connection) {
+                    throw new Error("Client not connected");
+                }
+                // Cache miss - fetch from backend while holding lock
+                const result = await this.connection.sendRequest("models.list", {});
+                const response = result as { models: ModelInfo[] };
+                models = response.models;
+            }
 
-            // Update cache before releasing lock
-            this.modelsCache = models;
+            // Update cache before releasing lock (copy to prevent external mutation)
+            this.modelsCache = [...models];
 
             return [...models]; // Return a copy to prevent cache mutation
         } finally {
@@ -766,10 +831,11 @@ export class CopilotClient {
     }
 
     /**
-     * Verify that the server's protocol version matches the SDK's expected version
+     * Verify that the server's protocol version is within the supported range
+     * and store the negotiated version.
      */
     private async verifyProtocolVersion(): Promise<void> {
-        const expectedVersion = getSdkProtocolVersion();
+        const maxVersion = getSdkProtocolVersion();
 
         // Race ping against process exit to detect early CLI failures
         let pingResult: Awaited<ReturnType<typeof this.ping>>;
@@ -783,17 +849,19 @@ export class CopilotClient {
 
         if (serverVersion === undefined) {
             throw new Error(
-                `SDK protocol version mismatch: SDK expects version ${expectedVersion}, but server does not report a protocol version. ` +
+                `SDK protocol version mismatch: SDK supports versions ${MIN_PROTOCOL_VERSION}-${maxVersion}, but server does not report a protocol version. ` +
                     `Please update your server to ensure compatibility.`
             );
         }
 
-        if (serverVersion !== expectedVersion) {
+        if (serverVersion < MIN_PROTOCOL_VERSION || serverVersion > maxVersion) {
             throw new Error(
-                `SDK protocol version mismatch: SDK expects version ${expectedVersion}, but server reports version ${serverVersion}. ` +
+                `SDK protocol version mismatch: SDK supports versions ${MIN_PROTOCOL_VERSION}-${maxVersion}, but server reports version ${serverVersion}. ` +
                     `Please update your SDK or server to ensure compatibility.`
             );
         }
+
+        this.negotiatedProtocolVersion = serverVersion;
     }
 
     /**
@@ -823,10 +891,12 @@ export class CopilotClient {
     }
 
     /**
-     * Deletes a session and its data from disk.
+     * Permanently deletes a session and all its data from disk, including
+     * conversation history, planning state, and artifacts.
      *
-     * This permanently removes the session and all its conversation history.
-     * The session cannot be resumed after deletion.
+     * Unlike {@link CopilotSession.disconnect}, which only releases in-memory
+     * resources and preserves session data for later resumption, this method
+     * is irreversible. The session cannot be resumed after deletion.
      *
      * @param sessionId - The ID of the session to delete
      * @returns A promise that resolves when the session is deleted
@@ -1069,6 +1139,12 @@ export class CopilotClient {
                 envWithoutNodeDebug.COPILOT_SDK_AUTH_TOKEN = this.options.githubToken;
             }
 
+            if (!this.options.cliPath) {
+                throw new Error(
+                    "Path to Copilot CLI is required. Please provide it via the cliPath option, or use cliUrl to rely on a remote CLI."
+                );
+            }
+
             // Verify CLI exists before attempting to spawn
             if (!existsSync(this.options.cliPath)) {
                 throw new Error(
@@ -1202,17 +1278,19 @@ export class CopilotClient {
      * Connect to the CLI server (via socket or stdio)
      */
     private async connectToServer(): Promise<void> {
-        if (this.options.useStdio) {
-            return this.connectViaStdio();
+        if (this.options.isChildProcess) {
+            return this.connectToParentProcessViaStdio();
+        } else if (this.options.useStdio) {
+            return this.connectToChildProcessViaStdio();
         } else {
             return this.connectViaTcp();
         }
     }
 
     /**
-     * Connect via stdio pipes
+     * Connect to child via stdio pipes
      */
-    private async connectViaStdio(): Promise<void> {
+    private async connectToChildProcessViaStdio(): Promise<void> {
         if (!this.cliProcess) {
             throw new Error("CLI process not started");
         }
@@ -1228,6 +1306,24 @@ export class CopilotClient {
         this.connection = createMessageConnection(
             new StreamMessageReader(this.cliProcess.stdout!),
             new StreamMessageWriter(this.cliProcess.stdin!)
+        );
+
+        this.attachConnectionHandlers();
+        this.connection.listen();
+    }
+
+    /**
+     * Connect to parent via stdio pipes
+     */
+    private async connectToParentProcessViaStdio(): Promise<void> {
+        if (this.cliProcess) {
+            throw new Error("CLI child process was unexpectedly started in parent process mode");
+        }
+
+        // Create JSON-RPC connection over stdin/stdout
+        this.connection = createMessageConnection(
+            new StreamMessageReader(process.stdin),
+            new StreamMessageWriter(process.stdout)
         );
 
         this.attachConnectionHandlers();
@@ -1276,10 +1372,15 @@ export class CopilotClient {
             this.handleSessionLifecycleNotification(notification);
         });
 
+        // Protocol v3 servers send tool calls and permission requests as broadcast events
+        // (external_tool.requested / permission.requested) handled in CopilotSession._dispatchEvent.
+        // Protocol v2 servers use the older tool.call / permission.request RPC model instead.
+        // We always register v2 adapters because handlers are set up before version negotiation;
+        // a v3 server will simply never send these requests.
         this.connection.onRequest(
             "tool.call",
             async (params: ToolCallRequestPayload): Promise<ToolCallResponsePayload> =>
-                await this.handleToolCallRequest(params)
+                await this.handleToolCallRequestV2(params)
         );
 
         this.connection.onRequest(
@@ -1287,7 +1388,7 @@ export class CopilotClient {
             async (params: {
                 sessionId: string;
                 permissionRequest: unknown;
-            }): Promise<{ result: unknown }> => await this.handlePermissionRequest(params)
+            }): Promise<{ result: unknown }> => await this.handlePermissionRequestV2(params)
         );
 
         this.connection.onRequest(
@@ -1374,86 +1475,6 @@ export class CopilotClient {
         }
     }
 
-    private async handleToolCallRequest(
-        params: ToolCallRequestPayload
-    ): Promise<ToolCallResponsePayload> {
-        if (
-            !params ||
-            typeof params.sessionId !== "string" ||
-            typeof params.toolCallId !== "string" ||
-            typeof params.toolName !== "string"
-        ) {
-            throw new Error("Invalid tool call payload");
-        }
-
-        const session = this.sessions.get(params.sessionId);
-        if (!session) {
-            throw new Error(`Unknown session ${params.sessionId}`);
-        }
-
-        const handler = session.getToolHandler(params.toolName);
-        if (!handler) {
-            return { result: this.buildUnsupportedToolResult(params.toolName) };
-        }
-
-        return await this.executeToolCall(handler, params);
-    }
-
-    private async executeToolCall(
-        handler: ToolHandler,
-        request: ToolCallRequestPayload
-    ): Promise<ToolCallResponsePayload> {
-        try {
-            const invocation = {
-                sessionId: request.sessionId,
-                toolCallId: request.toolCallId,
-                toolName: request.toolName,
-                arguments: request.arguments,
-            };
-            const result = await handler(request.arguments, invocation);
-
-            return { result: this.normalizeToolResult(result) };
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            return {
-                result: {
-                    // Don't expose detailed error information to the LLM for security reasons
-                    textResultForLlm:
-                        "Invoking this tool produced an error. Detailed information is not available.",
-                    resultType: "failure",
-                    error: message,
-                    toolTelemetry: {},
-                },
-            };
-        }
-    }
-
-    private async handlePermissionRequest(params: {
-        sessionId: string;
-        permissionRequest: unknown;
-    }): Promise<{ result: unknown }> {
-        if (!params || typeof params.sessionId !== "string" || !params.permissionRequest) {
-            throw new Error("Invalid permission request payload");
-        }
-
-        const session = this.sessions.get(params.sessionId);
-        if (!session) {
-            throw new Error(`Session not found: ${params.sessionId}`);
-        }
-
-        try {
-            const result = await session._handlePermissionRequest(params.permissionRequest);
-            return { result };
-        } catch (_error) {
-            // If permission handler fails, deny the permission
-            return {
-                result: {
-                    kind: "denied-no-approval-rule-and-could-not-request-from-user",
-                },
-            };
-        }
-    }
-
     private async handleUserInputRequest(params: {
         sessionId: string;
         question: string;
@@ -1503,7 +1524,99 @@ export class CopilotClient {
         return { output };
     }
 
-    private normalizeToolResult(result: unknown): ToolResultObject {
+    // ========================================================================
+    // Protocol v2 backward-compatibility adapters
+    // ========================================================================
+
+    /**
+     * Handles a v2-style tool.call RPC request from the server.
+     * Looks up the session and tool handler, executes it, and returns the result
+     * in the v2 response format.
+     */
+    private async handleToolCallRequestV2(
+        params: ToolCallRequestPayload
+    ): Promise<ToolCallResponsePayload> {
+        if (
+            !params ||
+            typeof params.sessionId !== "string" ||
+            typeof params.toolCallId !== "string" ||
+            typeof params.toolName !== "string"
+        ) {
+            throw new Error("Invalid tool call payload");
+        }
+
+        const session = this.sessions.get(params.sessionId);
+        if (!session) {
+            throw new Error(`Unknown session ${params.sessionId}`);
+        }
+
+        const handler = session.getToolHandler(params.toolName);
+        if (!handler) {
+            return {
+                result: {
+                    textResultForLlm: `Tool '${params.toolName}' is not supported by this client instance.`,
+                    resultType: "failure",
+                    error: `tool '${params.toolName}' not supported`,
+                    toolTelemetry: {},
+                },
+            };
+        }
+
+        try {
+            const invocation = {
+                sessionId: params.sessionId,
+                toolCallId: params.toolCallId,
+                toolName: params.toolName,
+                arguments: params.arguments,
+            };
+            const result = await handler(params.arguments, invocation);
+            return { result: this.normalizeToolResultV2(result) };
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            return {
+                result: {
+                    textResultForLlm:
+                        "Invoking this tool produced an error. Detailed information is not available.",
+                    resultType: "failure",
+                    error: message,
+                    toolTelemetry: {},
+                },
+            };
+        }
+    }
+
+    /**
+     * Handles a v2-style permission.request RPC request from the server.
+     */
+    private async handlePermissionRequestV2(params: {
+        sessionId: string;
+        permissionRequest: unknown;
+    }): Promise<{ result: unknown }> {
+        if (!params || typeof params.sessionId !== "string" || !params.permissionRequest) {
+            throw new Error("Invalid permission request payload");
+        }
+
+        const session = this.sessions.get(params.sessionId);
+        if (!session) {
+            throw new Error(`Session not found: ${params.sessionId}`);
+        }
+
+        try {
+            const result = await session._handlePermissionRequestV2(params.permissionRequest);
+            return { result };
+        } catch (error) {
+            if (error instanceof Error && error.message === NO_RESULT_PERMISSION_V2_ERROR) {
+                throw error;
+            }
+            return {
+                result: {
+                    kind: "denied-no-approval-rule-and-could-not-request-from-user",
+                },
+            };
+        }
+    }
+
+    private normalizeToolResultV2(result: unknown): ToolResultObject {
         if (result === undefined || result === null) {
             return {
                 textResultForLlm: "Tool returned no result",
@@ -1513,12 +1626,10 @@ export class CopilotClient {
             };
         }
 
-        // ToolResultObject passes through directly (duck-type check)
         if (this.isToolResultObject(result)) {
             return result;
         }
 
-        // Everything else gets wrapped as a successful ToolResultObject
         const textResult = typeof result === "string" ? result : JSON.stringify(result);
         return {
             textResultForLlm: textResult,
@@ -1535,15 +1646,6 @@ export class CopilotClient {
             typeof (value as ToolResultObject).textResultForLlm === "string" &&
             "resultType" in value
         );
-    }
-
-    private buildUnsupportedToolResult(toolName: string): ToolResult {
-        return {
-            textResultForLlm: `Tool '${toolName}' is not supported by this client instance.`,
-            resultType: "failure",
-            error: `tool '${toolName}' not supported`,
-            toolTelemetry: {},
-        };
     }
 
     /**

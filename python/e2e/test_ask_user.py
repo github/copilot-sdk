@@ -51,7 +51,7 @@ class TestAskUser:
             req.get("question") and len(req.get("question")) > 0 for req in user_input_requests
         )
 
-        await session.destroy()
+        await session.disconnect()
 
     async def test_should_receive_choices_in_user_input_request(self, ctx: E2ETestContext):
         """Test that choices are received in user input request"""
@@ -90,7 +90,7 @@ class TestAskUser:
         )
         assert request_with_choices is not None
 
-        await session.destroy()
+        await session.disconnect()
 
     async def test_should_handle_freeform_user_input_response(self, ctx: E2ETestContext):
         """Test that freeform user input responses work"""
@@ -126,4 +126,4 @@ class TestAskUser:
         # (This is a soft check since the model may paraphrase)
         assert response is not None
 
-        await session.destroy()
+        await session.disconnect()

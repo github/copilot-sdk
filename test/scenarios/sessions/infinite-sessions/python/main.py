@@ -39,7 +39,7 @@ async def main():
 
         print("Infinite sessions test complete — all messages processed successfully")
 
-        await session.destroy()
+        await session.disconnect()
     finally:
         await client.stop()
 

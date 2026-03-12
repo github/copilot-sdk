@@ -7,7 +7,8 @@
  * @module session
  */
 
-import type { MessageConnection } from "vscode-jsonrpc/node";
+import type { MessageConnection } from "vscode-jsonrpc/node.js";
+import { ConnectionError, ResponseError } from "vscode-jsonrpc/node.js";
 import { createSessionRpc } from "./generated/rpc.js";
 import type {
     MessageOptions,
@@ -26,6 +27,9 @@ import type {
     UserInputRequest,
     UserInputResponse,
 } from "./types.js";
+
+export const NO_RESULT_PERMISSION_V2_ERROR =
+    "Permission handlers cannot return 'no-result' when connected to a protocol v2 server.";
 
 /** Assistant message event - the final response from the assistant. */
 export type AssistantMessageEvent = Extract<SessionEvent, { type: "assistant.message" }>;
@@ -52,7 +56,7 @@ export type AssistantMessageEvent = Extract<SessionEvent, { type: "assistant.mes
  * await session.sendAndWait({ prompt: "Hello, world!" });
  *
  * // Clean up
- * await session.destroy();
+ * await session.disconnect();
  * ```
  */
 export class CopilotSession {
@@ -76,7 +80,7 @@ export class CopilotSession {
     constructor(
         public readonly sessionId: string,
         private connection: MessageConnection,
-        private readonly _workspacePath?: string
+        private _workspacePath?: string
     ) {}
 
     /**
@@ -106,7 +110,7 @@ export class CopilotSession {
      *
      * @param options - The message options including the prompt and optional attachments
      * @returns A promise that resolves with the message ID of the response
-     * @throws Error if the session has been destroyed or the connection fails
+     * @throws Error if the session has been disconnected or the connection fails
      *
      * @example
      * ```typescript
@@ -141,7 +145,7 @@ export class CopilotSession {
      * @returns A promise that resolves with the final assistant message when the session becomes idle,
      *          or undefined if no assistant message was received
      * @throws Error if the timeout is reached before the session becomes idle
-     * @throws Error if the session has been destroyed or the connection fails
+     * @throws Error if the session has been disconnected or the connection fails
      *
      * @example
      * ```typescript
@@ -284,11 +288,15 @@ export class CopilotSession {
 
     /**
      * Dispatches an event to all registered handlers.
+     * Also handles broadcast request events internally (external tool calls, permissions).
      *
      * @param event - The session event to dispatch
      * @internal This method is for internal use by the SDK.
      */
     _dispatchEvent(event: SessionEvent): void {
+        // Handle broadcast request events internally (fire-and-forget)
+        this._handleBroadcastEvent(event);
+
         // Dispatch to typed handlers for this specific event type
         const typedHandlers = this.typedEventHandlers.get(event.type);
         if (typedHandlers) {
@@ -307,6 +315,111 @@ export class CopilotSession {
                 handler(event);
             } catch (_error) {
                 // Handler error
+            }
+        }
+    }
+
+    /**
+     * Handles broadcast request events by executing local handlers and responding via RPC.
+     * Handlers are dispatched as fire-and-forget — rejections propagate as unhandled promise
+     * rejections, consistent with standard EventEmitter / event handler semantics.
+     * @internal
+     */
+    private _handleBroadcastEvent(event: SessionEvent): void {
+        if (event.type === "external_tool.requested") {
+            const { requestId, toolName } = event.data as {
+                requestId: string;
+                toolName: string;
+                arguments: unknown;
+                toolCallId: string;
+                sessionId: string;
+            };
+            const args = (event.data as { arguments: unknown }).arguments;
+            const toolCallId = (event.data as { toolCallId: string }).toolCallId;
+            const handler = this.toolHandlers.get(toolName);
+            if (handler) {
+                void this._executeToolAndRespond(requestId, toolName, toolCallId, args, handler);
+            }
+        } else if (event.type === "permission.requested") {
+            const { requestId, permissionRequest } = event.data as {
+                requestId: string;
+                permissionRequest: PermissionRequest;
+            };
+            if (this.permissionHandler) {
+                void this._executePermissionAndRespond(requestId, permissionRequest);
+            }
+        }
+    }
+
+    /**
+     * Executes a tool handler and sends the result back via RPC.
+     * @internal
+     */
+    private async _executeToolAndRespond(
+        requestId: string,
+        toolName: string,
+        toolCallId: string,
+        args: unknown,
+        handler: ToolHandler
+    ): Promise<void> {
+        try {
+            const rawResult = await handler(args, {
+                sessionId: this.sessionId,
+                toolCallId,
+                toolName,
+                arguments: args,
+            });
+            let result: string;
+            if (rawResult == null) {
+                result = "";
+            } else if (typeof rawResult === "string") {
+                result = rawResult;
+            } else {
+                result = JSON.stringify(rawResult);
+            }
+            await this.rpc.tools.handlePendingToolCall({ requestId, result });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            try {
+                await this.rpc.tools.handlePendingToolCall({ requestId, error: message });
+            } catch (rpcError) {
+                if (!(rpcError instanceof ConnectionError || rpcError instanceof ResponseError)) {
+                    throw rpcError;
+                }
+                // Connection lost or RPC error — nothing we can do
+            }
+        }
+    }
+
+    /**
+     * Executes a permission handler and sends the result back via RPC.
+     * @internal
+     */
+    private async _executePermissionAndRespond(
+        requestId: string,
+        permissionRequest: PermissionRequest
+    ): Promise<void> {
+        try {
+            const result = await this.permissionHandler!(permissionRequest, {
+                sessionId: this.sessionId,
+            });
+            if (result.kind === "no-result") {
+                return;
+            }
+            await this.rpc.permissions.handlePendingPermissionRequest({ requestId, result });
+        } catch (_error) {
+            try {
+                await this.rpc.permissions.handlePendingPermissionRequest({
+                    requestId,
+                    result: {
+                        kind: "denied-no-approval-rule-and-could-not-request-from-user",
+                    },
+                });
+            } catch (rpcError) {
+                if (!(rpcError instanceof ConnectionError || rpcError instanceof ResponseError)) {
+                    throw rpcError;
+                }
+                // Connection lost or RPC error — nothing we can do
             }
         }
     }
@@ -382,15 +495,15 @@ export class CopilotSession {
     }
 
     /**
-     * Handles a permission request from the Copilot CLI.
+     * Handles a permission request in the v2 protocol format (synchronous RPC).
+     * Used as a back-compat adapter when connected to a v2 server.
      *
      * @param request - The permission request data from the CLI
      * @returns A promise that resolves with the permission decision
      * @internal This method is for internal use by the SDK.
      */
-    async _handlePermissionRequest(request: unknown): Promise<PermissionRequestResult> {
+    async _handlePermissionRequestV2(request: unknown): Promise<PermissionRequestResult> {
         if (!this.permissionHandler) {
-            // No handler registered, deny permission
             return { kind: "denied-no-approval-rule-and-could-not-request-from-user" };
         }
 
@@ -398,9 +511,14 @@ export class CopilotSession {
             const result = await this.permissionHandler(request as PermissionRequest, {
                 sessionId: this.sessionId,
             });
+            if (result.kind === "no-result") {
+                throw new Error(NO_RESULT_PERMISSION_V2_ERROR);
+            }
             return result;
-        } catch (_error) {
-            // Handler failed, deny permission
+        } catch (error) {
+            if (error instanceof Error && error.message === NO_RESULT_PERMISSION_V2_ERROR) {
+                throw error;
+            }
             return { kind: "denied-no-approval-rule-and-could-not-request-from-user" };
         }
     }
@@ -478,7 +596,7 @@ export class CopilotSession {
      * assistant responses, tool executions, and other session events.
      *
      * @returns A promise that resolves with an array of all session events
-     * @throws Error if the session has been destroyed or the connection fails
+     * @throws Error if the session has been disconnected or the connection fails
      *
      * @example
      * ```typescript
@@ -499,22 +617,27 @@ export class CopilotSession {
     }
 
     /**
-     * Destroys this session and releases all associated resources.
+     * Disconnects this session and releases all in-memory resources (event handlers,
+     * tool handlers, permission handlers).
      *
-     * After calling this method, the session can no longer be used. All event
-     * handlers and tool handlers are cleared. To continue the conversation,
-     * use {@link CopilotClient.resumeSession} with the session ID.
+     * Session state on disk (conversation history, planning state, artifacts) is
+     * preserved, so the conversation can be resumed later by calling
+     * {@link CopilotClient.resumeSession} with the session ID. To permanently
+     * remove all session data including files on disk, use
+     * {@link CopilotClient.deleteSession} instead.
      *
-     * @returns A promise that resolves when the session is destroyed
+     * After calling this method, the session object can no longer be used.
+     *
+     * @returns A promise that resolves when the session is disconnected
      * @throws Error if the connection fails
      *
      * @example
      * ```typescript
-     * // Clean up when done
-     * await session.destroy();
+     * // Clean up when done — session can still be resumed later
+     * await session.disconnect();
      * ```
      */
-    async destroy(): Promise<void> {
+    async disconnect(): Promise<void> {
         await this.connection.sendRequest("session.destroy", {
             sessionId: this.sessionId,
         });
@@ -525,13 +648,31 @@ export class CopilotSession {
     }
 
     /**
+     * @deprecated Use {@link disconnect} instead. This method will be removed in a future release.
+     *
+     * Disconnects this session and releases all in-memory resources.
+     * Session data on disk is preserved for later resumption.
+     *
+     * @returns A promise that resolves when the session is disconnected
+     * @throws Error if the connection fails
+     */
+    async destroy(): Promise<void> {
+        return this.disconnect();
+    }
+
+    /** Enables `await using session = ...` syntax for automatic cleanup. */
+    async [Symbol.asyncDispose](): Promise<void> {
+        return this.disconnect();
+    }
+
+    /**
      * Aborts the currently processing message in this session.
      *
      * Use this to cancel a long-running request. The session remains valid
      * and can continue to be used for new messages.
      *
      * @returns A promise that resolves when the abort request is acknowledged
-     * @throws Error if the session has been destroyed or the connection fails
+     * @throws Error if the session has been disconnected or the connection fails
      *
      * @example
      * ```typescript
@@ -548,5 +689,43 @@ export class CopilotSession {
         await this.connection.sendRequest("session.abort", {
             sessionId: this.sessionId,
         });
+    }
+
+    /**
+     * Change the model for this session.
+     * The new model takes effect for the next message. Conversation history is preserved.
+     *
+     * @param model - Model ID to switch to
+     *
+     * @example
+     * ```typescript
+     * await session.setModel("gpt-4.1");
+     * ```
+     */
+    async setModel(model: string): Promise<void> {
+        await this.rpc.model.switchTo({ modelId: model });
+    }
+
+    /**
+     * Log a message to the session timeline.
+     * The message appears in the session event stream and is visible to SDK consumers
+     * and (for non-ephemeral messages) persisted to the session event log on disk.
+     *
+     * @param message - Human-readable message text
+     * @param options - Optional log level and ephemeral flag
+     *
+     * @example
+     * ```typescript
+     * await session.log("Processing started");
+     * await session.log("Disk usage high", { level: "warning" });
+     * await session.log("Connection failed", { level: "error" });
+     * await session.log("Debug info", { ephemeral: true });
+     * ```
+     */
+    async log(
+        message: string,
+        options?: { level?: "info" | "warning" | "error"; ephemeral?: boolean }
+    ): Promise<void> {
+        await this.rpc.log({ message, ...options });
     }
 }

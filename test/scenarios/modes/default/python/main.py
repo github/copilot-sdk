@@ -18,7 +18,7 @@ async def main():
 
         print("Default mode test complete")
 
-        await session.destroy()
+        await session.disconnect()
     finally:
         await client.stop()
 

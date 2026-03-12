@@ -30,7 +30,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer session.Destroy()
+	defer session.Disconnect()
 
 	session.On(func(event copilot.SessionEvent) {
 		var output string

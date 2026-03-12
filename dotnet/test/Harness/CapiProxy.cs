@@ -12,7 +12,7 @@ using System.Text.RegularExpressions;
 
 namespace GitHub.Copilot.SDK.Test.Harness;
 
-public partial class CapiProxy : IAsyncDisposable
+public sealed partial class CapiProxy : IAsyncDisposable
 {
     private Process? _process;
     private Task<string>? _startupTask;
@@ -129,10 +129,13 @@ public partial class CapiProxy : IAsyncDisposable
 
         using var client = new HttpClient();
         return await client.GetFromJsonAsync($"{url}/exchanges", CapiProxyJsonContext.Default.ListParsedHttpExchange)
-               ?? new List<ParsedHttpExchange>();
+               ?? [];
     }
 
-    public async ValueTask DisposeAsync() => await StopAsync();
+    public async ValueTask DisposeAsync()
+    {
+        await StopAsync();
+    }
 
     private static string FindRepoRoot()
     {

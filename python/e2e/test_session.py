@@ -5,7 +5,7 @@ import os
 import pytest
 
 from copilot import CopilotClient, PermissionHandler
-from copilot.types import Tool
+from copilot.types import Tool, ToolResult
 
 from .testharness import E2ETestContext, get_final_assistant_message, get_next_event_of_type
 
@@ -13,7 +13,7 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
 class TestSessions:
-    async def test_should_create_and_destroy_sessions(self, ctx: E2ETestContext):
+    async def test_should_create_and_disconnect_sessions(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(PermissionHandler.approve_all, "fake-test-model")
         assert session.session_id
 
@@ -23,7 +23,7 @@ class TestSessions:
         assert messages[0].data.session_id == session.session_id
         assert messages[0].data.selected_model == "fake-test-model"
 
-        await session.destroy()
+        await session.disconnect()
 
         with pytest.raises(Exception, match="Session not found"):
             await session.get_messages()
@@ -138,8 +138,8 @@ class TestSessions:
             assert messages[0].type.value == "session.start"
             assert messages[0].data.session_id == s.session_id
 
-        # All can be destroyed
-        await asyncio.gather(s1.destroy(), s2.destroy(), s3.destroy())
+        # All can be disconnected
+        await asyncio.gather(s1.disconnect(), s2.disconnect(), s3.disconnect())
         for s in [s1, s2, s3]:
             with pytest.raises(Exception, match="Session not found"):
                 await s.get_messages()
@@ -160,6 +160,13 @@ class TestSessions:
         answer2 = await get_final_assistant_message(session2)
         assert "2" in answer2.data.content
 
+        # Can continue the conversation statefully
+        answer3 = await session2.send_and_wait(
+            {"prompt": "Now if you double that, what do you get?"}
+        )
+        assert answer3 is not None
+        assert "4" in answer3.data.content
+
     async def test_should_resume_a_session_using_a_new_client(self, ctx: E2ETestContext):
         # Create initial session
         session1 = await ctx.client.create_session(PermissionHandler.approve_all)
@@ -169,7 +176,9 @@ class TestSessions:
         assert "2" in answer.data.content
 
         # Resume using a new client
-        github_token = "fake-token-for-e2e-tests" if os.environ.get("CI") == "true" else None
+        github_token = (
+            "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
+        )
         new_client = CopilotClient(
             {
                 "cli_path": ctx.cli_path,
@@ -185,13 +194,17 @@ class TestSessions:
             )
             assert session2.session_id == session_id
 
-            # TODO: There's an inconsistency here. When resuming with a new client,
-            # we don't see the session.idle message in the history, which means we
-            # can't use get_final_assistant_message.
             messages = await session2.get_messages()
             message_types = [m.type.value for m in messages]
             assert "user.message" in message_types
             assert "session.resume" in message_types
+
+            # Can continue the conversation statefully
+            answer2 = await session2.send_and_wait(
+                {"prompt": "Now if you double that, what do you get?"}
+            )
+            assert answer2 is not None
+            assert "4" in answer2.data.content
         finally:
             await new_client.force_stop()
 
@@ -270,14 +283,29 @@ class TestSessions:
                 session_id, {"on_permission_request": PermissionHandler.approve_all}
             )
 
+    async def test_should_get_last_session_id(self, ctx: E2ETestContext):
+        import asyncio
+
+        # Create a session and send a message to persist it
+        session = await ctx.client.create_session(PermissionHandler.approve_all)
+        await session.send_and_wait({"prompt": "Say hello"})
+
+        # Small delay to ensure session data is flushed to disk
+        await asyncio.sleep(0.5)
+
+        last_session_id = await ctx.client.get_last_session_id()
+        assert last_session_id == session.session_id
+
+        await session.disconnect()
+
     async def test_should_create_session_with_custom_tool(self, ctx: E2ETestContext):
         # This test uses the low-level Tool() API to show that Pydantic is optional
         def get_secret_number_handler(invocation):
-            key = invocation["arguments"].get("key", "")
-            return {
-                "textResultForLlm": "54321" if key == "ALPHA" else "unknown",
-                "resultType": "success",
-            }
+            key = invocation.arguments.get("key", "") if invocation.arguments else ""
+            return ToolResult(
+                text_result_for_llm="54321" if key == "ALPHA" else "unknown",
+                result_type="success",
+            )
 
         session = await ctx.client.create_session(
             PermissionHandler.approve_all,
@@ -387,65 +415,24 @@ class TestSessions:
         answer = await session.send_and_wait({"prompt": "What is 2+2?"})
         assert "4" in answer.data.content
 
-    async def test_should_receive_streaming_delta_events_when_streaming_is_enabled(
-        self, ctx: E2ETestContext
-    ):
-        import asyncio
-
-        session = await ctx.client.create_session(PermissionHandler.approve_all, streaming=True)
-
-        delta_contents = []
-        done_event = asyncio.Event()
-
-        def on_event(event):
-            if event.type.value == "assistant.message_delta":
-                delta = getattr(event.data, "delta_content", None)
-                if delta:
-                    delta_contents.append(delta)
-            elif event.type.value == "session.idle":
-                done_event.set()
-
-        session.on(on_event)
-
-        await session.send({"prompt": "What is 2+2?"})
-
-        # Wait for completion
-        try:
-            await asyncio.wait_for(done_event.wait(), timeout=60)
-        except TimeoutError:
-            pytest.fail("Timed out waiting for session.idle")
-
-        # Should have received delta events
-        assert len(delta_contents) > 0, "Expected to receive delta events"
-
-        # Get the final message to compare
-        assistant_message = await get_final_assistant_message(session)
-
-        # Accumulated deltas should equal the final message
-        accumulated = "".join(delta_contents)
-        assert accumulated == assistant_message.data.content, (
-            f"Accumulated deltas don't match final message.\n"
-            f"Accumulated: {accumulated!r}\nFinal: {assistant_message.data.content!r}"
-        )
-
-        # Final message should contain the answer
-        assert "4" in assistant_message.data.content
-
-    async def test_should_pass_streaming_option_to_session_creation(self, ctx: E2ETestContext):
-        # Verify that the streaming option is accepted without errors
-        session = await ctx.client.create_session(PermissionHandler.approve_all, streaming=True)
-
-        assert session.session_id
-
-        # Session should still work normally
-        await session.send({"prompt": "What is 1+1?"})
-        assistant_message = await get_final_assistant_message(session)
-        assert "2" in assistant_message.data.content
-
     async def test_should_receive_session_events(self, ctx: E2ETestContext):
         import asyncio
 
-        session = await ctx.client.create_session(PermissionHandler.approve_all)
+        # Use on_event to capture events dispatched during session creation.
+        # session.start is emitted during the session.create RPC; if the session
+        # weren't registered in the sessions map before the RPC, it would be dropped.
+        early_events = []
+
+        def capture_early(event):
+            early_events.append(event)
+
+        session = await ctx.client.create_session(
+            PermissionHandler.approve_all,
+            on_event=capture_early,
+        )
+
+        assert any(e.type.value == "session.start" for e in early_events)
+
         received_events = []
         idle_event = asyncio.Event()
 
@@ -490,6 +477,47 @@ class TestSessions:
         await session.send({"prompt": "What is 1+1?"})
         assistant_message = await get_final_assistant_message(session)
         assert "2" in assistant_message.data.content
+
+    async def test_session_log_emits_events_at_all_levels(self, ctx: E2ETestContext):
+        import asyncio
+
+        session = await ctx.client.create_session(PermissionHandler.approve_all)
+
+        received_events = []
+
+        def on_event(event):
+            if event.type.value in ("session.info", "session.warning", "session.error"):
+                received_events.append(event)
+
+        session.on(on_event)
+
+        await session.log("Info message")
+        await session.log("Warning message", level="warning")
+        await session.log("Error message", level="error")
+        await session.log("Ephemeral message", ephemeral=True)
+
+        # Poll until all 4 notification events arrive
+        deadline = asyncio.get_event_loop().time() + 10
+        while len(received_events) < 4:
+            if asyncio.get_event_loop().time() > deadline:
+                pytest.fail(
+                    f"Timed out waiting for 4 notification events, got {len(received_events)}"
+                )
+            await asyncio.sleep(0.1)
+
+        by_message = {e.data.message: e for e in received_events}
+
+        assert by_message["Info message"].type.value == "session.info"
+        assert by_message["Info message"].data.info_type == "notification"
+
+        assert by_message["Warning message"].type.value == "session.warning"
+        assert by_message["Warning message"].data.warning_type == "notification"
+
+        assert by_message["Error message"].type.value == "session.error"
+        assert by_message["Error message"].data.error_type == "notification"
+
+        assert by_message["Ephemeral message"].type.value == "session.info"
+        assert by_message["Ephemeral message"].data.info_type == "notification"
 
 
 def _get_system_message(exchange: dict) -> str:

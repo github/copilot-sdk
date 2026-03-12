@@ -26,7 +26,7 @@ async def main():
 
         print("Minimal mode test complete")
 
-        await session.destroy()
+        await session.disconnect()
     finally:
         await client.stop()
 

@@ -40,7 +40,10 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
         await Ctx.ConfigureForTestAsync(_snapshotCategory, _testName);
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public Task DisposeAsync()
+    {
+        return Task.CompletedTask;
+    }
 
     /// <summary>
     /// Creates a session with a default config that approves all permissions.
@@ -64,9 +67,13 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
         return Client.ResumeSessionAsync(sessionId, config);
     }
 
-    protected static string GetSystemMessage(ParsedHttpExchange exchange) =>
-        exchange.Request.Messages.FirstOrDefault(m => m.Role == "system")?.Content ?? string.Empty;
+    protected static string GetSystemMessage(ParsedHttpExchange exchange)
+    {
+        return exchange.Request.Messages.FirstOrDefault(m => m.Role == "system")?.Content ?? string.Empty;
+    }
 
-    protected static List<string> GetToolNames(ParsedHttpExchange exchange) =>
-        exchange.Request.Tools?.Select(t => t.Function.Name).ToList() ?? new();
+    protected static List<string> GetToolNames(ParsedHttpExchange exchange)
+    {
+        return exchange.Request.Tools?.Select(t => t.Function.Name).ToList() ?? [];
+    }
 }

@@ -17,4 +17,4 @@ conversations:
         tool_call_id: toolcall_0
         content: HELLO
       - role: assistant
-        content: "The encrypted result is: **HELLO**"
+        content: "The encrypted string is: **HELLO**"

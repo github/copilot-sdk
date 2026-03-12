@@ -22,7 +22,7 @@ describe("Session Configuration", async () => {
         });
         expect(assistantMessage?.data.content).toContain("subdirectory");
 
-        await session.destroy();
+        await session.disconnect();
     });
 
     it("should create session with custom provider config", async () => {
@@ -37,9 +37,9 @@ describe("Session Configuration", async () => {
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
 
         try {
-            await session.destroy();
+            await session.disconnect();
         } catch {
-            // destroy may fail since the provider is fake
+            // disconnect may fail since the provider is fake
         }
     });
 
@@ -54,6 +54,6 @@ describe("Session Configuration", async () => {
         });
 
         // Just verify send doesn't throw — attachment support varies by runtime
-        await session.destroy();
+        await session.disconnect();
     });
 });
