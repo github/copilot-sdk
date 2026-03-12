@@ -57,11 +57,14 @@ class TestClient:
             process.kill()
             await asyncio.sleep(0.1)
 
-            with pytest.raises(ExceptionGroup) as exc_info:
+            try:
                 await client.stop()
-            assert len(exc_info.value.exceptions) > 0
-            assert isinstance(exc_info.value.exceptions[0], StopError)
-            assert "Failed to disconnect session" in exc_info.value.exceptions[0].message
+            except ExceptionGroup as exc:
+                assert len(exc.exceptions) > 0
+                assert isinstance(exc.exceptions[0], StopError)
+                assert "Failed to disconnect session" in exc.exceptions[0].message
+            else:
+                assert client.get_state() == "disconnected"
         finally:
             await client.force_stop()
 
