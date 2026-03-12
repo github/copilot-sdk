@@ -1397,7 +1397,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             try
             {
                 var result = await session.HandlePermissionRequestAsync(permissionRequest);
-                if (result.Kind == PermissionRequestResultKind.NoResult)
+                if (result.Kind == new PermissionRequestResultKind("no-result"))
                 {
                     throw new InvalidOperationException(NoResultPermissionV2ErrorMessage);
                 }

@@ -562,7 +562,7 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 		})
 		return
 	}
-	if result.Kind == PermissionRequestResultKindNoResult {
+	if result.Kind == "no-result" {
 		return
 	}
 

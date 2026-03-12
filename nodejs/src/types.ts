@@ -240,13 +240,9 @@ export interface PermissionRequest {
 
 import type { SessionPermissionsHandlePendingPermissionRequestParams } from "./generated/rpc.js";
 
-export interface NoResultPermissionRequestResult {
-    kind: "no-result";
-}
-
 export type PermissionRequestResult =
     | SessionPermissionsHandlePendingPermissionRequestParams["result"]
-    | NoResultPermissionRequestResult;
+    | { kind: "no-result" };
 
 export type PermissionHandler = (
     request: PermissionRequest,

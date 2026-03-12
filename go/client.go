@@ -1533,7 +1533,7 @@ func (c *Client) handlePermissionRequestV2(req permissionRequestV2) (*permission
 			},
 		}, nil
 	}
-	if result.Kind == PermissionRequestResultKindNoResult {
+	if result.Kind == "no-result" {
 		return nil, &jsonrpc2.Error{Code: -32603, Message: noResultPermissionV2Error}
 	}
 
