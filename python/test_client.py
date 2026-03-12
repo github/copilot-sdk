@@ -197,9 +197,7 @@ class TestOverridesBuiltInTool:
             def grep(params) -> str:
                 return "ok"
 
-            await client.create_session(
-                PermissionHandler.approve_all, tools=[grep]
-            )
+            await client.create_session(PermissionHandler.approve_all, tools=[grep])
             tool_defs = captured["session.create"]["tools"]
             assert len(tool_defs) == 1
             assert tool_defs[0]["name"] == "grep"
