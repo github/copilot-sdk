@@ -1228,9 +1228,13 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		c.client = jsonrpc2.NewClient(stdin, stdout)
 		c.client.SetProcessDone(c.processDone, c.processErrorPtr)
 		c.client.SetOnClose(func() {
-			c.startStopMux.Lock()
-			defer c.startStopMux.Unlock()
-			c.state = StateDisconnected
+			// Run in a goroutine to avoid deadlocking with Stop/ForceStop,
+			// which hold startStopMux while waiting for readLoop to finish.
+			go func() {
+				c.startStopMux.Lock()
+				defer c.startStopMux.Unlock()
+				c.state = StateDisconnected
+			}()
 		})
 		c.RPC = rpc.NewServerRpc(c.client)
 		c.setupNotificationHandler()
@@ -1348,9 +1352,11 @@ func (c *Client) connectViaTcp(ctx context.Context) error {
 		c.client.SetProcessDone(c.processDone, c.processErrorPtr)
 	}
 	c.client.SetOnClose(func() {
-		c.startStopMux.Lock()
-		defer c.startStopMux.Unlock()
-		c.state = StateDisconnected
+		go func() {
+			c.startStopMux.Lock()
+			defer c.startStopMux.Unlock()
+			c.state = StateDisconnected
+		}()
 	})
 	c.RPC = rpc.NewServerRpc(c.client)
 	c.setupNotificationHandler()
