@@ -272,8 +272,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         await session.SendAsync(new MessageOptions { Prompt = "What is 100+200?" });
 
         // Wait for session to become idle (indicating message processing is complete)
-        var completed = await Task.WhenAny(idleReceived.Task, Task.Delay(TimeSpan.FromSeconds(60)));
-        Assert.Equal(idleReceived.Task, completed);
+        await idleReceived.Task.WaitAsync(TimeSpan.FromSeconds(60));
 
         // Should have received multiple events (user message, assistant message, idle, etc.)
         Assert.NotEmpty(receivedEvents);
