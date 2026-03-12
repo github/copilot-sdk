@@ -71,18 +71,18 @@ import (
 //	}
 //	defer client.Stop()
 type Client struct {
-	options                   ClientOptions
-	process                   *exec.Cmd
-	client                    *jsonrpc2.Client
-	actualPort                int
-	actualHost                string
-	state                     ConnectionState
-	sessions                  map[string]*Session
-	sessionsMux               sync.Mutex
-	isExternalServer          bool
-	conn                      net.Conn // stores net.Conn for external TCP connections
-	useStdio                  bool     // resolved value from options
-	autoStart                 bool     // resolved value from options
+	options          ClientOptions
+	process          *exec.Cmd
+	client           *jsonrpc2.Client
+	actualPort       int
+	actualHost       string
+	state            ConnectionState
+	sessions         map[string]*Session
+	sessionsMux      sync.Mutex
+	isExternalServer bool
+	conn             net.Conn // stores net.Conn for external TCP connections
+	useStdio         bool     // resolved value from options
+	autoStart        bool     // resolved value from options
 
 	modelsCache               []ModelInfo
 	modelsCacheMux            sync.Mutex
