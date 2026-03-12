@@ -589,27 +589,27 @@ func TestSession(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		// Use OnEvent to capture events dispatched during session creation.
-		// session.start is emitted during the session.create RPC; if the session
-		// weren't registered in the sessions map before the RPC, it would be dropped.
-		var earlyEvents []copilot.SessionEvent
+		// session.start is emitted during the session.create RPC; with channel-based
+		// dispatch it may not have been delivered by the time CreateSession returns.
+		sessionStartCh := make(chan bool, 1)
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			OnEvent: func(event copilot.SessionEvent) {
-				earlyEvents = append(earlyEvents, event)
+				if event.Type == "session.start" {
+					select {
+					case sessionStartCh <- true:
+					default:
+					}
+				}
 			},
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		hasSessionStart := false
-		for _, evt := range earlyEvents {
-			if evt.Type == "session.start" {
-				hasSessionStart = true
-				break
-			}
-		}
-		if !hasSessionStart {
+		select {
+		case <-sessionStartCh:
+		case <-time.After(5 * time.Second):
 			t.Error("Expected session.start event via OnEvent during creation")
 		}
 
