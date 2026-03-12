@@ -43,7 +43,6 @@ import { approveAll } from "@github/copilot-sdk";
 import { joinSession } from "@github/copilot-sdk/extension";
 
 const session = await joinSession({
-    onPermissionRequest: approveAll,
     tools: [
         /* ... */
     ],
@@ -51,6 +50,10 @@ const session = await joinSession({
         /* ... */
     },
 });
+
+// Optional: override the default "no result" behavior if this extension
+// should actively answer permission requests itself.
+await joinSession({ onPermissionRequest: approveAll });
 ```
 
 The `session` object provides methods for sending messages, logging to the timeline, listening to events, and accessing the RPC API. See the `.d.ts` files in the SDK package for full type information.

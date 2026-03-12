@@ -562,6 +562,9 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 		})
 		return
 	}
+	if result.Kind == PermissionRequestResultKindNoResult {
+		return
+	}
 
 	s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.SessionPermissionsHandlePendingPermissionRequestParams{
 		RequestID: requestID,

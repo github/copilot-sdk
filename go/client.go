@@ -51,6 +51,8 @@ import (
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
+const noResultPermissionV2Error = "permission handlers cannot return 'no-result' when connected to a protocol v2 server"
+
 // Client manages the connection to the Copilot CLI server and provides session management.
 //
 // The Client can either spawn a CLI server process or connect to an existing server.
@@ -1530,6 +1532,9 @@ func (c *Client) handlePermissionRequestV2(req permissionRequestV2) (*permission
 				Kind: PermissionRequestResultKindDeniedCouldNotRequestFromUser,
 			},
 		}, nil
+	}
+	if result.Kind == PermissionRequestResultKindNoResult {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: noResultPermissionV2Error}
 	}
 
 	return &permissionResponseV2{Result: result}, nil

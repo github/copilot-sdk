@@ -187,6 +187,7 @@ PermissionRequestResultKind = Literal[
     "denied-by-content-exclusion-policy",
     "denied-no-approval-rule-and-could-not-request-from-user",
     "denied-interactively-by-user",
+    "no-result",
 ]
 
 
@@ -213,6 +214,12 @@ class PermissionHandler:
         request: PermissionRequest, invocation: dict[str, str]
     ) -> PermissionRequestResult:
         return PermissionRequestResult(kind="approved")
+
+    @staticmethod
+    def no_result(
+        request: PermissionRequest, invocation: dict[str, str]
+    ) -> PermissionRequestResult:
+        return PermissionRequestResult(kind="no-result")
 
 
 # ============================================================================

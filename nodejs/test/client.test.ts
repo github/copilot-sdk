@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { approveAll, CopilotClient, type ModelInfo } from "../src/index.js";
+import { approveAll, CopilotClient, noResult, type ModelInfo } from "../src/index.js";
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.ts instead
 
@@ -24,6 +24,34 @@ describe("CopilotClient", () => {
         await expect((client as any).resumeSession(session.sessionId, {})).rejects.toThrow(
             /onPermissionRequest.*is required/
         );
+    });
+
+    it("does not respond to v3 permission requests when handler returns no-result", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: noResult });
+        const spy = vi.spyOn(session.rpc.permissions, "handlePendingPermissionRequest");
+
+        await (session as any)._executePermissionAndRespond("request-1", { kind: "write" });
+
+        expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("throws when a v2 permission handler returns no-result", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: noResult });
+
+        await expect(
+            (client as any).handlePermissionRequestV2({
+                sessionId: session.sessionId,
+                permissionRequest: { kind: "write" },
+            })
+        ).rejects.toThrow(/protocol v2 server/);
     });
 
     it("forwards clientName in session.create request", async () => {

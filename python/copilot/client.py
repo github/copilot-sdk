@@ -50,6 +50,10 @@ from .types import (
     ToolResult,
 )
 
+NO_RESULT_PERMISSION_V2_ERROR = (
+    "Permission handlers cannot return 'no-result' when connected to a protocol v2 server."
+)
+
 # Minimum protocol version this SDK can communicate with.
 # Servers reporting a version below this are rejected.
 MIN_PROTOCOL_VERSION = 2
@@ -1660,6 +1664,8 @@ class CopilotClient:
         try:
             perm_request = PermissionRequest.from_dict(permission_request)
             result = await session._handle_permission_request(perm_request)
+            if result.kind == "no-result":
+                raise ValueError(NO_RESULT_PERMISSION_V2_ERROR)
             result_payload: dict = {"kind": result.kind}
             if result.rules is not None:
                 result_payload["rules"] = result.rules
@@ -1670,6 +1676,14 @@ class CopilotClient:
             if result.path is not None:
                 result_payload["path"] = result.path
             return {"result": result_payload}
+        except ValueError as exc:
+            if str(exc) == NO_RESULT_PERMISSION_V2_ERROR:
+                raise
+            return {
+                "result": {
+                    "kind": "denied-no-approval-rule-and-could-not-request-from-user",
+                }
+            }
         except Exception:  # pylint: disable=broad-except
             return {
                 "result": {

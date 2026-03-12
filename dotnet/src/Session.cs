@@ -467,6 +467,10 @@ public sealed partial class CopilotSession : IAsyncDisposable
             };
 
             var result = await handler(permissionRequest, invocation);
+            if (result.Kind == PermissionRequestResultKind.NoResult)
+            {
+                return;
+            }
             await Rpc.Permissions.HandlePendingPermissionRequestAsync(requestId, result);
         }
         catch (Exception)

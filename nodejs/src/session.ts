@@ -28,6 +28,9 @@ import type {
     UserInputResponse,
 } from "./types.js";
 
+export const NO_RESULT_PERMISSION_V2_ERROR =
+    "Permission handlers cannot return 'no-result' when connected to a protocol v2 server.";
+
 /** Assistant message event - the final response from the assistant. */
 export type AssistantMessageEvent = Extract<SessionEvent, { type: "assistant.message" }>;
 
@@ -400,6 +403,9 @@ export class CopilotSession {
             const result = await this.permissionHandler!(permissionRequest, {
                 sessionId: this.sessionId,
             });
+            if (result.kind === "no-result") {
+                return;
+            }
             await this.rpc.permissions.handlePendingPermissionRequest({ requestId, result });
         } catch (_error) {
             try {
@@ -505,8 +511,14 @@ export class CopilotSession {
             const result = await this.permissionHandler(request as PermissionRequest, {
                 sessionId: this.sessionId,
             });
+            if (result.kind === "no-result") {
+                throw new Error(NO_RESULT_PERMISSION_V2_ERROR);
+            }
             return result;
-        } catch (_error) {
+        } catch (error) {
+            if (error instanceof Error && error.message === NO_RESULT_PERMISSION_V2_ERROR) {
+                throw error;
+            }
             return { kind: "denied-no-approval-rule-and-could-not-request-from-user" };
         }
     }

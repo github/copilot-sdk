@@ -240,8 +240,13 @@ export interface PermissionRequest {
 
 import type { SessionPermissionsHandlePendingPermissionRequestParams } from "./generated/rpc.js";
 
+export interface NoResultPermissionRequestResult {
+    kind: "no-result";
+}
+
 export type PermissionRequestResult =
-    SessionPermissionsHandlePendingPermissionRequestParams["result"];
+    | SessionPermissionsHandlePendingPermissionRequestParams["result"]
+    | NoResultPermissionRequestResult;
 
 export type PermissionHandler = (
     request: PermissionRequest,
@@ -249,6 +254,7 @@ export type PermissionHandler = (
 ) => Promise<PermissionRequestResult> | PermissionRequestResult;
 
 export const approveAll: PermissionHandler = () => ({ kind: "approved" });
+export const noResult: PermissionHandler = () => ({ kind: "no-result" });
 
 // ============================================================================
 // User Input Request Types

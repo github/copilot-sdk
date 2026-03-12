@@ -63,10 +63,13 @@ import { approveAll } from "@github/copilot-sdk";
 import { joinSession } from "@github/copilot-sdk/extension";
 
 await joinSession({
-    onPermissionRequest: approveAll, // Required — handle permission requests
     tools: [],                     // Optional — custom tools
     hooks: {},                     // Optional — lifecycle hooks
 });
+
+// Optional — provide this if your extension should actively answer
+// permission requests instead of leaving them pending for another client.
+await joinSession({ onPermissionRequest: approveAll });
 ```
 
 ---

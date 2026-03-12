@@ -283,6 +283,9 @@ public readonly struct PermissionRequestResultKind : IEquatable<PermissionReques
     /// <summary>Gets the kind indicating the permission was denied interactively by the user.</summary>
     public static PermissionRequestResultKind DeniedInteractivelyByUser { get; } = new("denied-interactively-by-user");
 
+    /// <summary>Gets the kind indicating the SDK should not answer the pending permission request.</summary>
+    public static PermissionRequestResultKind NoResult { get; } = new("no-result");
+
     /// <summary>Gets the underlying string value of this <see cref="PermissionRequestResultKind"/>.</summary>
     public string Value => _value ?? string.Empty;
 
@@ -350,6 +353,7 @@ public class PermissionRequestResult
     /// <item><description><c>"denied-by-rules"</c> — denied by configured permission rules.</description></item>
     /// <item><description><c>"denied-interactively-by-user"</c> — the user explicitly denied the request.</description></item>
     /// <item><description><c>"denied-no-approval-rule-and-could-not-request-from-user"</c> — no rule matched and user approval was unavailable.</description></item>
+    /// <item><description><c>"no-result"</c> — leave the pending permission request unanswered.</description></item>
     /// </list>
     /// </summary>
     [JsonPropertyName("kind")]

@@ -15,6 +15,7 @@ func TestPermissionRequestResultKind_Constants(t *testing.T) {
 		{"DeniedByRules", PermissionRequestResultKindDeniedByRules, "denied-by-rules"},
 		{"DeniedCouldNotRequestFromUser", PermissionRequestResultKindDeniedCouldNotRequestFromUser, "denied-no-approval-rule-and-could-not-request-from-user"},
 		{"DeniedInteractivelyByUser", PermissionRequestResultKindDeniedInteractivelyByUser, "denied-interactively-by-user"},
+		{"NoResult", PermissionRequestResultKindNoResult, "no-result"},
 	}
 
 	for _, tt := range tests {
@@ -42,6 +43,7 @@ func TestPermissionRequestResult_JSONRoundTrip(t *testing.T) {
 		{"DeniedByRules", PermissionRequestResultKindDeniedByRules},
 		{"DeniedCouldNotRequestFromUser", PermissionRequestResultKindDeniedCouldNotRequestFromUser},
 		{"DeniedInteractivelyByUser", PermissionRequestResultKindDeniedInteractivelyByUser},
+		{"NoResult", PermissionRequestResultKindNoResult},
 		{"Custom", PermissionRequestResultKind("custom")},
 	}
 
@@ -87,5 +89,15 @@ func TestPermissionRequestResult_JSONSerialize(t *testing.T) {
 	expected := `{"kind":"approved"}`
 	if string(data) != expected {
 		t.Errorf("expected %s, got %s", expected, string(data))
+	}
+}
+
+func TestPermissionHandler_NoResult(t *testing.T) {
+	result, err := PermissionHandler.NoResult(PermissionRequest{}, PermissionInvocation{})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if result.Kind != PermissionRequestResultKindNoResult {
+		t.Errorf("expected %q, got %q", PermissionRequestResultKindNoResult, result.Kind)
 	}
 }

@@ -387,6 +387,8 @@ class CopilotSession:
                 result = await result
 
             result = cast(PermissionRequestResult, result)
+            if result.kind == "no-result":
+                return
 
             perm_result = SessionPermissionsHandlePendingPermissionRequestParamsResult(
                 kind=Kind(result.kind),
