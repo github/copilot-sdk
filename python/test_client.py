@@ -31,7 +31,7 @@ class TestPermissionHandlerRequired:
 
     @pytest.mark.asyncio
     async def test_v2_permission_adapter_rejects_no_result(self):
-        client = CopilotClient({"cli_path": CLI_PATH})
+        client = CopilotClient(SubprocessConfig(CLI_PATH))
         await client.start()
         try:
             session = await client.create_session(
