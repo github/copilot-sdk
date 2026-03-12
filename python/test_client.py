@@ -237,6 +237,100 @@ class TestOverridesBuiltInTool:
             await client.force_stop()
 
 
+class TestSkipPermission:
+    @pytest.mark.asyncio
+    async def test_skip_permission_sent_in_tool_definition(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+
+            @define_tool(description="Safe lookup", skip_permission=True)
+            def safe_lookup(params) -> str:
+                return "ok"
+
+            await client.create_session(
+                {"tools": [safe_lookup], "on_permission_request": PermissionHandler.approve_all}
+            )
+            tool_defs = captured["session.create"]["tools"]
+            assert len(tool_defs) == 1
+            assert tool_defs[0]["name"] == "safe_lookup"
+            assert tool_defs[0]["skipPermission"] is True
+            assert "overridesBuiltInTool" not in tool_defs[0]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_resume_session_sends_skip_permission(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            session = await client.create_session(
+                {"on_permission_request": PermissionHandler.approve_all}
+            )
+
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+
+            @define_tool(description="Safe lookup", skip_permission=True)
+            def safe_lookup(params) -> str:
+                return "ok"
+
+            await client.resume_session(
+                session.session_id,
+                {"tools": [safe_lookup], "on_permission_request": PermissionHandler.approve_all},
+            )
+            tool_defs = captured["session.resume"]["tools"]
+            assert len(tool_defs) == 1
+            assert tool_defs[0]["skipPermission"] is True
+            assert "overridesBuiltInTool" not in tool_defs[0]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_skip_permission_omitted_when_false(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+
+            @define_tool(description="Normal tool")
+            def normal_tool(params) -> str:
+                return "ok"
+
+            await client.create_session(
+                {"tools": [normal_tool], "on_permission_request": PermissionHandler.approve_all}
+            )
+            tool_defs = captured["session.create"]["tools"]
+            assert len(tool_defs) == 1
+            assert "skipPermission" not in tool_defs[0]
+        finally:
+            await client.force_stop()
+
+
 class TestOnListModels:
     @pytest.mark.asyncio
     async def test_list_models_with_custom_handler(self):

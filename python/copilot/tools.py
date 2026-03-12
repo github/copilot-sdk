@@ -82,6 +82,10 @@ def define_tool(
         handler: Optional handler function (if not using as decorator)
         params_type: Optional Pydantic model type for parameters (inferred from
                     type hints when using as decorator)
+        overrides_built_in_tool: When True, explicitly indicates this tool is intended
+                    to override a built-in tool of the same name. If not set and the
+                    name clashes with a built-in tool, the runtime will return an error.
+        skip_permission: When True, the tool can execute without a permission prompt.
 
     Returns:
         A Tool instance
