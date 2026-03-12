@@ -414,6 +414,7 @@ type Tool struct {
 	Description          string         `json:"description,omitempty"`
 	Parameters           map[string]any `json:"parameters,omitempty"`
 	OverridesBuiltInTool bool           `json:"overridesBuiltInTool,omitempty"`
+	SkipPermission       bool           `json:"skipPermission,omitempty"`
 	Handler              ToolHandler    `json:"-"`
 }
 

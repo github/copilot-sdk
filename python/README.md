@@ -232,6 +232,16 @@ async def edit_file(params: EditFileParams) -> str:
     # your logic
 ```
 
+#### Skipping Permission Prompts
+
+Set `skip_permission=True` on a tool definition to allow it to execute without triggering a permission prompt:
+
+```python
+@define_tool(name="safe_lookup", description="A read-only lookup that needs no confirmation", skip_permission=True)
+async def safe_lookup(params: LookupParams) -> str:
+    # your logic
+```
+
 ## Image Support
 
 The SDK supports image attachments via the `attachments` parameter. You can attach images by providing their file path:

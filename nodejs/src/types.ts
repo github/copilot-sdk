@@ -167,6 +167,10 @@ export interface Tool<TArgs = unknown> {
      * will return an error.
      */
     overridesBuiltInTool?: boolean;
+    /**
+     * When true, the tool can execute without a permission prompt.
+     */
+    skipPermission?: boolean;
 }
 
 /**
@@ -180,6 +184,7 @@ export function defineTool<T = unknown>(
         parameters?: ZodSchema<T> | Record<string, unknown>;
         handler: ToolHandler<T>;
         overridesBuiltInTool?: boolean;
+        skipPermission?: boolean;
     }
 ): Tool<T> {
     return { name, ...config };

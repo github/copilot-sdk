@@ -507,6 +507,8 @@ class CopilotClient:
                     definition["parameters"] = tool.parameters
                 if tool.overrides_built_in_tool:
                     definition["overridesBuiltInTool"] = True
+                if tool.skip_permission:
+                    definition["skipPermission"] = True
                 tool_defs.append(definition)
 
         payload: dict[str, Any] = {}
@@ -697,6 +699,8 @@ class CopilotClient:
                     definition["parameters"] = tool.parameters
                 if tool.overrides_built_in_tool:
                     definition["overridesBuiltInTool"] = True
+                if tool.skip_permission:
+                    definition["skipPermission"] = True
                 tool_defs.append(definition)
 
         payload: dict[str, Any] = {"sessionId": session_id}

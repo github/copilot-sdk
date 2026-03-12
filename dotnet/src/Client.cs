@@ -1470,13 +1470,16 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string Name,
         string? Description,
         JsonElement Parameters, /* JSON schema */
-        bool? OverridesBuiltInTool = null)
+        bool? OverridesBuiltInTool = null,
+        bool? SkipPermission = null)
     {
         public static ToolDefinition FromAIFunction(AIFunction function)
         {
             var overrides = function.AdditionalProperties.TryGetValue("is_override", out var val) && val is true;
+            var skipPerm = function.AdditionalProperties.TryGetValue("skip_permission", out var skipVal) && skipVal is true;
             return new ToolDefinition(function.Name, function.Description, function.JsonSchema,
-                overrides ? true : null);
+                overrides ? true : null,
+                skipPerm ? true : null);
         }
     }
 

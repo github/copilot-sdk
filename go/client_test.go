@@ -509,6 +509,47 @@ func TestOverridesBuiltInTool(t *testing.T) {
 	})
 }
 
+func TestSkipPermission(t *testing.T) {
+	t.Run("SkipPermission is serialized in tool definition", func(t *testing.T) {
+		tool := Tool{
+			Name:           "my_tool",
+			Description:    "A tool that skips permission",
+			SkipPermission: true,
+			Handler:        func(_ ToolInvocation) (ToolResult, error) { return ToolResult{}, nil },
+		}
+		data, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("failed to unmarshal: %v", err)
+		}
+		if v, ok := m["skipPermission"]; !ok || v != true {
+			t.Errorf("expected skipPermission=true, got %v", m)
+		}
+	})
+
+	t.Run("SkipPermission omitted when false", func(t *testing.T) {
+		tool := Tool{
+			Name:        "custom_tool",
+			Description: "A custom tool",
+			Handler:     func(_ ToolInvocation) (ToolResult, error) { return ToolResult{}, nil },
+		}
+		data, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("failed to unmarshal: %v", err)
+		}
+		if _, ok := m["skipPermission"]; ok {
+			t.Errorf("expected skipPermission to be omitted, got %v", m)
+		}
+	})
+}
+
 func TestClient_CreateSession_RequiresPermissionHandler(t *testing.T) {
 	t.Run("returns error when config is nil", func(t *testing.T) {
 		client := NewClient(nil)

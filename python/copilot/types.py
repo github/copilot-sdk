@@ -150,6 +150,7 @@ class Tool:
     handler: ToolHandler
     parameters: dict[str, Any] | None = None
     overrides_built_in_tool: bool = False
+    skip_permission: bool = False
 
 
 # System message configuration (discriminated union)

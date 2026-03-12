@@ -426,6 +426,19 @@ defineTool("edit_file", {
 })
 ```
 
+#### Skipping Permission Prompts
+
+Set `skipPermission: true` on a tool definition to allow it to execute without triggering a permission prompt:
+
+```ts
+defineTool("safe_lookup", {
+    description: "A read-only lookup that needs no confirmation",
+    parameters: z.object({ id: z.string() }),
+    skipPermission: true,
+    handler: async ({ id }) => { /* your logic */ },
+})
+```
+
 ### System Message Customization
 
 Control the system prompt using `systemMessage` in session config:

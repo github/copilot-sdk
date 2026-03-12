@@ -281,6 +281,18 @@ editFile := copilot.DefineTool("edit_file", "Custom file editor with project-spe
 editFile.OverridesBuiltInTool = true
 ```
 
+#### Skipping Permission Prompts
+
+Set `SkipPermission = true` on a tool to allow it to execute without triggering a permission prompt:
+
+```go
+safeLookup := copilot.DefineTool("safe_lookup", "A read-only lookup that needs no confirmation",
+    func(params LookupParams, inv copilot.ToolInvocation) (any, error) {
+        // your logic
+    })
+safeLookup.SkipPermission = true
+```
+
 ## Streaming
 
 Enable streaming to receive assistant response chunks as they're generated:

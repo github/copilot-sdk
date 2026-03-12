@@ -378,6 +378,64 @@ describe("CopilotClient", () => {
         });
     });
 
+    describe("skipPermission in tool definitions", () => {
+        it("sends skipPermission in tool definition on session.create", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            await client.createSession({
+                onPermissionRequest: approveAll,
+                tools: [
+                    {
+                        name: "my_tool",
+                        description: "a tool that skips permission",
+                        handler: async () => "ok",
+                        skipPermission: true,
+                    },
+                ],
+            });
+
+            const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
+            expect(payload.tools).toEqual([
+                expect.objectContaining({ name: "my_tool", skipPermission: true }),
+            ]);
+        });
+
+        it("sends skipPermission in tool definition on session.resume", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            // Mock sendRequest to capture the call without hitting the runtime
+            const spy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (method: string, params: any) => {
+                    if (method === "session.resume") return { sessionId: params.sessionId };
+                    throw new Error(`Unexpected method: ${method}`);
+                });
+            await client.resumeSession(session.sessionId, {
+                onPermissionRequest: approveAll,
+                tools: [
+                    {
+                        name: "my_tool",
+                        description: "a tool that skips permission",
+                        handler: async () => "ok",
+                        skipPermission: true,
+                    },
+                ],
+            });
+
+            const payload = spy.mock.calls.find((c) => c[0] === "session.resume")![1] as any;
+            expect(payload.tools).toEqual([
+                expect.objectContaining({ name: "my_tool", skipPermission: true }),
+            ]);
+            spy.mockRestore();
+        });
+    });
+
     describe("agent parameter in session creation", () => {
         it("forwards agent in session.create request", async () => {
             const client = new CopilotClient();

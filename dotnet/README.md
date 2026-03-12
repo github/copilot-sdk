@@ -449,6 +449,24 @@ var session = await client.CreateSessionAsync(new SessionConfig
 });
 ```
 
+#### Skipping Permission Prompts
+
+Set `skip_permission` in the tool's `AdditionalProperties` to allow it to execute without triggering a permission prompt:
+
+```csharp
+var safeLookup = AIFunctionFactory.Create(
+    async ([Description("Lookup ID")] string id) => {
+        // your logic
+    },
+    "safe_lookup",
+    "A read-only lookup that needs no confirmation",
+    new AIFunctionFactoryOptions
+    {
+        AdditionalProperties = new ReadOnlyDictionary<string, object?>(
+            new Dictionary<string, object?> { ["skip_permission"] = true })
+    });
+```
+
 ### System Message Customization
 
 Control the system prompt using `SystemMessage` in session config:
