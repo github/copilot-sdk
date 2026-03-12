@@ -35,10 +35,10 @@ internal class PingRequest
     public string? Message { get; set; }
 }
 
-/// <summary>RPC data type for ModelCapabilitiesSupports operations.</summary>
+/// <summary>Feature flags indicating what the model supports.</summary>
 public class ModelCapabilitiesSupports
 {
-    /// <summary>Gets or sets the <c>vision</c> value.</summary>
+    /// <summary>Whether this model supports vision/image input.</summary>
     [JsonPropertyName("vision")]
     public bool? Vision { get; set; }
 
@@ -47,18 +47,18 @@ public class ModelCapabilitiesSupports
     public bool? ReasoningEffort { get; set; }
 }
 
-/// <summary>RPC data type for ModelCapabilitiesLimits operations.</summary>
+/// <summary>Token limits for prompts, outputs, and context window.</summary>
 public class ModelCapabilitiesLimits
 {
-    /// <summary>Gets or sets the <c>max_prompt_tokens</c> value.</summary>
+    /// <summary>Maximum number of prompt/input tokens.</summary>
     [JsonPropertyName("max_prompt_tokens")]
     public double? MaxPromptTokens { get; set; }
 
-    /// <summary>Gets or sets the <c>max_output_tokens</c> value.</summary>
+    /// <summary>Maximum number of output/completion tokens.</summary>
     [JsonPropertyName("max_output_tokens")]
     public double? MaxOutputTokens { get; set; }
 
-    /// <summary>Gets or sets the <c>max_context_window_tokens</c> value.</summary>
+    /// <summary>Maximum total context window size in tokens.</summary>
     [JsonPropertyName("max_context_window_tokens")]
     public double MaxContextWindowTokens { get; set; }
 }
@@ -66,11 +66,11 @@ public class ModelCapabilitiesLimits
 /// <summary>Model capabilities and limits.</summary>
 public class ModelCapabilities
 {
-    /// <summary>Gets or sets the <c>supports</c> value.</summary>
+    /// <summary>Feature flags indicating what the model supports.</summary>
     [JsonPropertyName("supports")]
     public ModelCapabilitiesSupports Supports { get => field ??= new(); set; }
 
-    /// <summary>Gets or sets the <c>limits</c> value.</summary>
+    /// <summary>Token limits for prompts, outputs, and context window.</summary>
     [JsonPropertyName("limits")]
     public ModelCapabilitiesLimits Limits { get => field ??= new(); set; }
 }
@@ -78,11 +78,11 @@ public class ModelCapabilities
 /// <summary>Policy state (if applicable).</summary>
 public class ModelPolicy
 {
-    /// <summary>Gets or sets the <c>state</c> value.</summary>
+    /// <summary>Current policy state for this model.</summary>
     [JsonPropertyName("state")]
     public string State { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>terms</c> value.</summary>
+    /// <summary>Usage terms or conditions for this model.</summary>
     [JsonPropertyName("terms")]
     public string Terms { get; set; } = string.Empty;
 }
@@ -90,7 +90,7 @@ public class ModelPolicy
 /// <summary>Billing information.</summary>
 public class ModelBilling
 {
-    /// <summary>Gets or sets the <c>multiplier</c> value.</summary>
+    /// <summary>Billing cost multiplier relative to the base rate.</summary>
     [JsonPropertyName("multiplier")]
     public double Multiplier { get; set; }
 }
@@ -242,7 +242,7 @@ internal class SessionLogRequest
 /// <summary>RPC data type for SessionModelGetCurrent operations.</summary>
 public class SessionModelGetCurrentResult
 {
-    /// <summary>Gets or sets the <c>modelId</c> value.</summary>
+    /// <summary>Currently active model identifier.</summary>
     [JsonPropertyName("modelId")]
     public string? ModelId { get; set; }
 }
@@ -258,7 +258,7 @@ internal class SessionModelGetCurrentRequest
 /// <summary>RPC data type for SessionModelSwitchTo operations.</summary>
 public class SessionModelSwitchToResult
 {
-    /// <summary>Gets or sets the <c>modelId</c> value.</summary>
+    /// <summary>Currently active model identifier after the switch.</summary>
     [JsonPropertyName("modelId")]
     public string? ModelId { get; set; }
 }
@@ -270,13 +270,13 @@ internal class SessionModelSwitchToRequest
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>modelId</c> value.</summary>
+    /// <summary>Model identifier to switch to.</summary>
     [JsonPropertyName("modelId")]
     public string ModelId { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>reasoningEffort</c> value.</summary>
+    /// <summary>Reasoning effort level to use for the model.</summary>
     [JsonPropertyName("reasoningEffort")]
-    public SessionModelSwitchToRequestReasoningEffort? ReasoningEffort { get; set; }
+    public string? ReasoningEffort { get; set; }
 }
 
 /// <summary>RPC data type for SessionModeGet operations.</summary>
@@ -586,7 +586,7 @@ internal class SessionCompactionCompactRequest
 /// <summary>RPC data type for SessionToolsHandlePendingToolCall operations.</summary>
 public class SessionToolsHandlePendingToolCallResult
 {
-    /// <summary>Gets or sets the <c>success</c> value.</summary>
+    /// <summary>Whether the tool call result was handled successfully.</summary>
     [JsonPropertyName("success")]
     public bool Success { get; set; }
 }
@@ -614,7 +614,7 @@ internal class SessionToolsHandlePendingToolCallRequest
 /// <summary>RPC data type for SessionPermissionsHandlePendingPermissionRequest operations.</summary>
 public class SessionPermissionsHandlePendingPermissionRequestResult
 {
-    /// <summary>Gets or sets the <c>success</c> value.</summary>
+    /// <summary>Whether the permission request was handled successfully.</summary>
     [JsonPropertyName("success")]
     public bool Success { get; set; }
 }
@@ -635,6 +635,58 @@ internal class SessionPermissionsHandlePendingPermissionRequestRequest
     public object Result { get; set; } = null!;
 }
 
+/// <summary>RPC data type for SessionShellExec operations.</summary>
+public class SessionShellExecResult
+{
+    /// <summary>Unique identifier for tracking streamed output.</summary>
+    [JsonPropertyName("processId")]
+    public string ProcessId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionShellExec operations.</summary>
+internal class SessionShellExecRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Shell command to execute.</summary>
+    [JsonPropertyName("command")]
+    public string Command { get; set; } = string.Empty;
+
+    /// <summary>Working directory (defaults to session working directory).</summary>
+    [JsonPropertyName("cwd")]
+    public string? Cwd { get; set; }
+
+    /// <summary>Timeout in milliseconds (default: 30000).</summary>
+    [JsonPropertyName("timeout")]
+    public double? Timeout { get; set; }
+}
+
+/// <summary>RPC data type for SessionShellKill operations.</summary>
+public class SessionShellKillResult
+{
+    /// <summary>Whether the signal was sent successfully.</summary>
+    [JsonPropertyName("killed")]
+    public bool Killed { get; set; }
+}
+
+/// <summary>RPC data type for SessionShellKill operations.</summary>
+internal class SessionShellKillRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Process identifier returned by shell.exec.</summary>
+    [JsonPropertyName("processId")]
+    public string ProcessId { get; set; } = string.Empty;
+
+    /// <summary>Signal to send (default: SIGTERM).</summary>
+    [JsonPropertyName("signal")]
+    public SessionShellKillRequestSignal? Signal { get; set; }
+}
+
 /// <summary>Log severity level. Determines how the message is displayed in the timeline. Defaults to "info".</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<SessionLogRequestLevel>))]
 public enum SessionLogRequestLevel
@@ -651,25 +703,6 @@ public enum SessionLogRequestLevel
 }
 
 
-/// <summary>Defines the allowed values.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<SessionModelSwitchToRequestReasoningEffort>))]
-public enum SessionModelSwitchToRequestReasoningEffort
-{
-    /// <summary>The <c>low</c> variant.</summary>
-    [JsonStringEnumMemberName("low")]
-    Low,
-    /// <summary>The <c>medium</c> variant.</summary>
-    [JsonStringEnumMemberName("medium")]
-    Medium,
-    /// <summary>The <c>high</c> variant.</summary>
-    [JsonStringEnumMemberName("high")]
-    High,
-    /// <summary>The <c>xhigh</c> variant.</summary>
-    [JsonStringEnumMemberName("xhigh")]
-    Xhigh,
-}
-
-
 /// <summary>The current agent mode.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<SessionModeGetResultMode>))]
 public enum SessionModeGetResultMode
@@ -683,6 +716,22 @@ public enum SessionModeGetResultMode
     /// <summary>The <c>autopilot</c> variant.</summary>
     [JsonStringEnumMemberName("autopilot")]
     Autopilot,
+}
+
+
+/// <summary>Signal to send (default: SIGTERM).</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<SessionShellKillRequestSignal>))]
+public enum SessionShellKillRequestSignal
+{
+    /// <summary>The <c>SIGTERM</c> variant.</summary>
+    [JsonStringEnumMemberName("SIGTERM")]
+    SIGTERM,
+    /// <summary>The <c>SIGKILL</c> variant.</summary>
+    [JsonStringEnumMemberName("SIGKILL")]
+    SIGKILL,
+    /// <summary>The <c>SIGINT</c> variant.</summary>
+    [JsonStringEnumMemberName("SIGINT")]
+    SIGINT,
 }
 
 
@@ -787,6 +836,7 @@ public class SessionRpc
         Compaction = new CompactionApi(rpc, sessionId);
         Tools = new ToolsApi(rpc, sessionId);
         Permissions = new PermissionsApi(rpc, sessionId);
+        Shell = new ShellApi(rpc, sessionId);
     }
 
     /// <summary>Model APIs.</summary>
@@ -816,6 +866,9 @@ public class SessionRpc
     /// <summary>Permissions APIs.</summary>
     public PermissionsApi Permissions { get; }
 
+    /// <summary>Shell APIs.</summary>
+    public ShellApi Shell { get; }
+
     /// <summary>Calls "session.log".</summary>
     public async Task<SessionLogResult> LogAsync(string message, SessionLogRequestLevel? level = null, bool? ephemeral = null, CancellationToken cancellationToken = default)
     {
@@ -844,7 +897,7 @@ public class ModelApi
     }
 
     /// <summary>Calls "session.model.switchTo".</summary>
-    public async Task<SessionModelSwitchToResult> SwitchToAsync(string modelId, SessionModelSwitchToRequestReasoningEffort? reasoningEffort = null, CancellationToken cancellationToken = default)
+    public async Task<SessionModelSwitchToResult> SwitchToAsync(string modelId, string? reasoningEffort = null, CancellationToken cancellationToken = default)
     {
         var request = new SessionModelSwitchToRequest { SessionId = _sessionId, ModelId = modelId, ReasoningEffort = reasoningEffort };
         return await CopilotClient.InvokeRpcAsync<SessionModelSwitchToResult>(_rpc, "session.model.switchTo", [request], cancellationToken);
@@ -1067,6 +1120,33 @@ public class PermissionsApi
     }
 }
 
+/// <summary>Provides session-scoped Shell APIs.</summary>
+public class ShellApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal ShellApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.shell.exec".</summary>
+    public async Task<SessionShellExecResult> ExecAsync(string command, string? cwd = null, double? timeout = null, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionShellExecRequest { SessionId = _sessionId, Command = command, Cwd = cwd, Timeout = timeout };
+        return await CopilotClient.InvokeRpcAsync<SessionShellExecResult>(_rpc, "session.shell.exec", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.shell.kill".</summary>
+    public async Task<SessionShellKillResult> KillAsync(string processId, SessionShellKillRequestSignal? signal = null, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionShellKillRequest { SessionId = _sessionId, ProcessId = processId, Signal = signal };
+        return await CopilotClient.InvokeRpcAsync<SessionShellKillResult>(_rpc, "session.shell.kill", [request], cancellationToken);
+    }
+}
+
 [JsonSourceGenerationOptions(
     JsonSerializerDefaults.Web,
     AllowOutOfOrderMetadataProperties = true,
@@ -1115,6 +1195,10 @@ public class PermissionsApi
 [JsonSerializable(typeof(SessionPlanReadResult))]
 [JsonSerializable(typeof(SessionPlanUpdateRequest))]
 [JsonSerializable(typeof(SessionPlanUpdateResult))]
+[JsonSerializable(typeof(SessionShellExecRequest))]
+[JsonSerializable(typeof(SessionShellExecResult))]
+[JsonSerializable(typeof(SessionShellKillRequest))]
+[JsonSerializable(typeof(SessionShellKillResult))]
 [JsonSerializable(typeof(SessionToolsHandlePendingToolCallRequest))]
 [JsonSerializable(typeof(SessionToolsHandlePendingToolCallResult))]
 [JsonSerializable(typeof(SessionWorkspaceCreateFileRequest))]
