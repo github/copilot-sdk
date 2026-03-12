@@ -691,7 +691,7 @@ function transformOpenAIRequestMessage(
     msg.tool_call_id = m.tool_call_id;
   }
   if (content) msg.content = content;
-  if ("tool_calls" in m && m.tool_calls?.length) {
+  if ("tool_calls" in m && m.tool_calls?.length > 0) {
     msg.tool_calls = m.tool_calls.map(transformOpenAIToolCall);
   }
   return msg;
@@ -723,7 +723,7 @@ function transformOpenAIResponseChoice(
     const msg: NormalizedMessage = { role: "assistant" };
     msg.content = choice.message.content ?? undefined;
     msg.refusal = choice.message.refusal ?? undefined;
-    if (tool_calls.length) msg.tool_calls = tool_calls;
+    if (tool_calls?.length > 0) msg.tool_calls = tool_calls;
     return msg;
   });
 }
@@ -877,9 +877,9 @@ function createOpenAIResponse(
         content:
           expandWorkDir(assistantMessage.content, workDir, false) ?? null,
         refusal: assistantMessage.refusal ?? null,
-        tool_calls: toolCalls,
+        tool_calls: toolCalls?.length > 0 ? toolCalls : undefined,
       },
-      finish_reason: toolCalls?.length ? "tool_calls" : "stop",
+      finish_reason: toolCalls?.length > 0 ? "tool_calls" : "stop",
       logprobs: null,
     });
   }
