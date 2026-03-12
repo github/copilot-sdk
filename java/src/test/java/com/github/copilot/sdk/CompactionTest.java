@@ -7,6 +7,7 @@ package com.github.copilot.sdk;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
@@ -71,11 +72,17 @@ public class CompactionTest {
                 .setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
 
         var events = new ArrayList<AbstractSessionEvent>();
+        var compactionCompleteLatch = new CountDownLatch(1);
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession(config).get();
 
-            session.on(event -> events.add(event));
+            session.on(event -> {
+                events.add(event);
+                if (event instanceof SessionCompactionCompleteEvent) {
+                    compactionCompleteLatch.countDown();
+                }
+            });
 
             // Send multiple messages to fill up the context window
             // With such low thresholds, even a few messages should trigger compaction
@@ -87,7 +94,10 @@ public class CompactionTest {
             session.sendAndWait(new MessageOptions().setPrompt("Now describe the dragon's treasure in great detail."))
                     .get(60, TimeUnit.SECONDS);
 
-            // Check for compaction events
+            // Wait for compaction to complete - it may arrive slightly after sendAndWait
+            // returns due to async event delivery from the CLI
+            assertTrue(compactionCompleteLatch.await(10, TimeUnit.SECONDS),
+                    "Should have received a compaction complete event within 10 seconds");
             long compactionStartCount = events.stream().filter(e -> e instanceof SessionCompactionStartEvent).count();
             long compactionCompleteCount = events.stream().filter(e -> e instanceof SessionCompactionCompleteEvent)
                     .count();
