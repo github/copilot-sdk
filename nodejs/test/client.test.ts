@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { approveAll, CopilotClient, noResult, type ModelInfo } from "../src/index.js";
+import { approveAll, CopilotClient, type ModelInfo } from "../src/index.js";
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.ts instead
 
@@ -31,7 +31,9 @@ describe("CopilotClient", () => {
         await client.start();
         onTestFinished(() => client.forceStop());
 
-        const session = await client.createSession({ onPermissionRequest: noResult });
+        const session = await client.createSession({
+            onPermissionRequest: () => ({ kind: "no-result" }),
+        });
         const spy = vi.spyOn(session.rpc.permissions, "handlePendingPermissionRequest");
 
         await (session as any)._executePermissionAndRespond("request-1", { kind: "write" });
@@ -44,7 +46,9 @@ describe("CopilotClient", () => {
         await client.start();
         onTestFinished(() => client.forceStop());
 
-        const session = await client.createSession({ onPermissionRequest: noResult });
+        const session = await client.createSession({
+            onPermissionRequest: () => ({ kind: "no-result" }),
+        });
 
         await expect(
             (client as any).handlePermissionRequestV2({

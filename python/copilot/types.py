@@ -215,12 +215,6 @@ class PermissionHandler:
     ) -> PermissionRequestResult:
         return PermissionRequestResult(kind="approved")
 
-    @staticmethod
-    def no_result(
-        request: PermissionRequest, invocation: dict[str, str]
-    ) -> PermissionRequestResult:
-        return PermissionRequestResult(kind="no-result")
-
 
 # ============================================================================
 # User Input Request Types

@@ -28,7 +28,11 @@ class TestPermissionHandlerRequired:
         await client.start()
         try:
             session = await client.create_session(
-                {"on_permission_request": PermissionHandler.no_result}
+                {
+                    "on_permission_request": lambda request, invocation: {
+                        "kind": "no-result"
+                    }
+                }
             )
             with pytest.raises(ValueError, match="protocol v2 server"):
                 await client._handle_permission_request_v2(
@@ -39,10 +43,6 @@ class TestPermissionHandlerRequired:
                 )
         finally:
             await client.force_stop()
-
-    def test_no_result_helper_returns_no_result(self):
-        result = PermissionHandler.no_result({"kind": "write"}, {"session_id": "s"})
-        assert result.kind == "no-result"
 
     @pytest.mark.asyncio
     async def test_resume_session_raises_without_permission_handler(self):

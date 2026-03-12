@@ -91,13 +91,3 @@ func TestPermissionRequestResult_JSONSerialize(t *testing.T) {
 		t.Errorf("expected %s, got %s", expected, string(data))
 	}
 }
-
-func TestPermissionHandler_NoResult(t *testing.T) {
-	result, err := PermissionHandler.NoResult(PermissionRequest{}, PermissionInvocation{})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if result.Kind != PermissionRequestResultKindNoResult {
-		t.Errorf("expected %q, got %q", PermissionRequestResultKindNoResult, result.Kind)
-	}
-}

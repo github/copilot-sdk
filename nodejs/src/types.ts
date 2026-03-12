@@ -254,7 +254,6 @@ export type PermissionHandler = (
 ) => Promise<PermissionRequestResult> | PermissionRequestResult;
 
 export const approveAll: PermissionHandler = () => ({ kind: "approved" });
-export const noResult: PermissionHandler = () => ({ kind: "no-result" });
 
 // ============================================================================
 // User Input Request Types

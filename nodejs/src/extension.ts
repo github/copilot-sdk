@@ -4,7 +4,11 @@
 
 import { CopilotClient } from "./client.js";
 import type { CopilotSession } from "./session.js";
-import { noResult, type PermissionHandler, type ResumeSessionConfig } from "./types.js";
+import type { PermissionHandler, PermissionRequestResult, ResumeSessionConfig } from "./types.js";
+
+const defaultJoinSessionPermissionHandler: PermissionHandler = (): PermissionRequestResult => ({
+    kind: "no-result",
+});
 
 export type JoinSessionConfig = Omit<ResumeSessionConfig, "onPermissionRequest"> & {
     onPermissionRequest?: PermissionHandler;
@@ -34,7 +38,7 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
     const client = new CopilotClient({ isChildProcess: true });
     return client.resumeSession(sessionId, {
         ...config,
-        onPermissionRequest: config.onPermissionRequest ?? noResult,
+        onPermissionRequest: config.onPermissionRequest ?? defaultJoinSessionPermissionHandler,
         disableResume: config.disableResume ?? true,
     });
 }
