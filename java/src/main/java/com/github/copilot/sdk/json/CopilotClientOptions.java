@@ -4,7 +4,10 @@
 
 package com.github.copilot.sdk.json;
 
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
@@ -43,6 +46,7 @@ public class CopilotClientOptions {
     private Map<String, String> environment;
     private String gitHubToken;
     private Boolean useLoggedInUser;
+    private Supplier<CompletableFuture<List<ModelInfo>>> onListModels;
 
     /**
      * Gets the path to the Copilot CLI executable.
@@ -350,6 +354,31 @@ public class CopilotClientOptions {
     }
 
     /**
+     * Gets the custom handler for listing available models.
+     *
+     * @return the handler, or {@code null} if not set
+     */
+    public Supplier<CompletableFuture<List<ModelInfo>>> getOnListModels() {
+        return onListModels;
+    }
+
+    /**
+     * Sets a custom handler for listing available models.
+     * <p>
+     * When provided, {@code listModels()} calls this handler instead of querying
+     * the CLI server. Useful in BYOK (Bring Your Own Key) mode to return models
+     * available from your custom provider.
+     *
+     * @param onListModels
+     *            the handler that returns the list of available models
+     * @return this options instance for method chaining
+     */
+    public CopilotClientOptions setOnListModels(Supplier<CompletableFuture<List<ModelInfo>>> onListModels) {
+        this.onListModels = onListModels;
+        return this;
+    }
+
+    /**
      * Creates a shallow clone of this {@code CopilotClientOptions} instance.
      * <p>
      * Array properties (like {@code cliArgs}) are copied into new arrays so that
@@ -374,6 +403,7 @@ public class CopilotClientOptions {
         copy.environment = this.environment != null ? new java.util.HashMap<>(this.environment) : null;
         copy.gitHubToken = this.gitHubToken;
         copy.useLoggedInUser = this.useLoggedInUser;
+        copy.onListModels = this.onListModels;
         return copy;
     }
 }

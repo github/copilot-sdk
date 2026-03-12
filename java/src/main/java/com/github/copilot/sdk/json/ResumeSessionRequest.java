@@ -83,6 +83,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("customAgents")
     private List<CustomAgentConfig> customAgents;
 
+    @JsonProperty("agent")
+    private String agent;
+
     @JsonProperty("skillDirectories")
     private List<String> skillDirectories;
 
@@ -285,6 +288,16 @@ public final class ResumeSessionRequest {
     /** Sets custom agents. @param customAgents the agents */
     public void setCustomAgents(List<CustomAgentConfig> customAgents) {
         this.customAgents = customAgents;
+    }
+
+    /** Gets the pre-selected agent name. @return the agent name */
+    public String getAgent() {
+        return agent;
+    }
+
+    /** Sets the pre-selected agent name. @param agent the agent name */
+    public void setAgent(String agent) {
+        this.agent = agent;
     }
 
     /** Gets skill directories. @return the directories */

@@ -27,20 +27,22 @@ final class SessionRequestBuilder {
      *
      * @param config
      *            the session configuration (may be null)
+     * @param sessionId
+     *            the pre-generated session ID to use
      * @return the built request object
      */
-    static CreateSessionRequest buildCreateRequest(SessionConfig config) {
+    static CreateSessionRequest buildCreateRequest(SessionConfig config, String sessionId) {
         var request = new CreateSessionRequest();
         // Always request permission callbacks to enable deny-by-default behavior
         request.setRequestPermission(true);
         // Always send envValueMode=direct for MCP servers
         request.setEnvValueMode("direct");
+        request.setSessionId(sessionId);
         if (config == null) {
             return request;
         }
 
         request.setModel(config.getModel());
-        request.setSessionId(config.getSessionId());
         request.setClientName(config.getClientName());
         request.setReasoningEffort(config.getReasoningEffort());
         request.setTools(config.getTools());
@@ -54,12 +56,29 @@ final class SessionRequestBuilder {
         request.setStreaming(config.isStreaming() ? true : null);
         request.setMcpServers(config.getMcpServers());
         request.setCustomAgents(config.getCustomAgents());
+        request.setAgent(config.getAgent());
         request.setInfiniteSessions(config.getInfiniteSessions());
         request.setSkillDirectories(config.getSkillDirectories());
         request.setDisabledSkills(config.getDisabledSkills());
         request.setConfigDir(config.getConfigDir());
 
         return request;
+    }
+
+    /**
+     * Builds a CreateSessionRequest from the given configuration.
+     *
+     * @param config
+     *            the session configuration (may be null)
+     * @return the built request object
+     * @deprecated Use {@link #buildCreateRequest(SessionConfig, String)} instead.
+     */
+    @Deprecated
+    static CreateSessionRequest buildCreateRequest(SessionConfig config) {
+        String sessionId = (config != null && config.getSessionId() != null)
+                ? config.getSessionId()
+                : java.util.UUID.randomUUID().toString();
+        return buildCreateRequest(config, sessionId);
     }
 
     /**
@@ -99,6 +118,7 @@ final class SessionRequestBuilder {
         request.setStreaming(config.isStreaming() ? true : null);
         request.setMcpServers(config.getMcpServers());
         request.setCustomAgents(config.getCustomAgents());
+        request.setAgent(config.getAgent());
         request.setSkillDirectories(config.getSkillDirectories());
         request.setDisabledSkills(config.getDisabledSkills());
         request.setInfiniteSessions(config.getInfiniteSessions());
@@ -131,6 +151,9 @@ final class SessionRequestBuilder {
         if (config.getHooks() != null) {
             session.registerHooks(config.getHooks());
         }
+        if (config.getOnEvent() != null) {
+            session.on(config.getOnEvent());
+        }
     }
 
     /**
@@ -157,6 +180,9 @@ final class SessionRequestBuilder {
         }
         if (config.getHooks() != null) {
             session.registerHooks(config.getHooks());
+        }
+        if (config.getOnEvent() != null) {
+            session.on(config.getOnEvent());
         }
     }
 }
