@@ -480,3 +480,26 @@ class TestSessionConfigForwarding:
             assert captured["session.model.switchTo"]["modelId"] == "gpt-4.1"
         finally:
             await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_get_last_session_id_returns_none_when_absent(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.getLastId":
+                    return {}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            session_id = await client.get_last_session_id()
+
+            assert captured["session.getLastId"] == {}
+            assert session_id is None
+        finally:
+            await client.force_stop()
