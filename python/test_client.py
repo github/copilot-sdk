@@ -516,3 +516,32 @@ class TestListModelsApi:
             assert result[0].name == "GPT-4.1"
         finally:
             await client.force_stop()
+
+class TestPingApi:
+    @pytest.mark.asyncio
+    async def test_ping_sends_correct_rpc(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "ping":
+                    return {
+                        "message": "pong: hello",
+                        "timestamp": 1704067200,
+                        "protocolVersion": 2
+                    }
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            result = await client.ping("hello")
+            assert captured["ping"] == {"message": "hello"}
+            assert result.message == "pong: hello"
+            assert result.timestamp == 1704067200
+            assert result.protocolVersion == 2
+        finally:
+            await client.force_stop()
