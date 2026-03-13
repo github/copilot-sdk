@@ -31,7 +31,7 @@ class TestPermissionHandlerRequired:
 
     @pytest.mark.asyncio
     async def test_create_session_raises_with_none_permission_handler(self):
-        client = CopilotClient({"cli_path": CLI_PATH})
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
         await client.start()
         try:
             with pytest.raises(ValueError, match="on_permission_request handler is required"):
@@ -64,7 +64,7 @@ class TestPermissionHandlerRequired:
         try:
             session = await client.create_session(PermissionHandler.approve_all)
             with pytest.raises(ValueError, match="on_permission_request.*is required"):
-                await client.resume_session(session.session_id, {})
+                await client.resume_session(session.session_id, None)
         finally:
             await client.force_stop()
 
@@ -218,7 +218,8 @@ class TestOverridesBuiltInTool:
 
             await client.resume_session(
                 session.session_id,
-                {"tools": [grep], "on_permission_request": PermissionHandler.approve_all},
+                PermissionHandler.approve_all,
+                tools=[grep],
             )
             tool_defs = captured["session.resume"]["tools"]
             assert len(tool_defs) == 1
@@ -390,7 +391,8 @@ class TestSessionConfigForwarding:
             client._client.request = mock_request
             await client.resume_session(
                 session.session_id,
-                {"client_name": "my-app", "on_permission_request": PermissionHandler.approve_all},
+                PermissionHandler.approve_all,
+                client_name="my-app",
             )
             assert captured["session.resume"]["clientName"] == "my-app"
         finally:
@@ -439,11 +441,9 @@ class TestSessionConfigForwarding:
             client._client.request = mock_request
             await client.resume_session(
                 session.session_id,
-                {
-                    "agent": "test-agent",
-                    "custom_agents": [{"name": "test-agent", "prompt": "You are a test agent."}],
-                    "on_permission_request": PermissionHandler.approve_all,
-                },
+                PermissionHandler.approve_all,
+                agent="test-agent",
+                custom_agents=[{"name": "test-agent", "prompt": "You are a test agent."}],
             )
             assert captured["session.resume"]["agent"] == "test-agent"
         finally:
