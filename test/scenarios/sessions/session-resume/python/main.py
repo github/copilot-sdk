@@ -1,6 +1,6 @@
 import asyncio
 import os
-from copilot import CopilotClient, SubprocessConfig
+from copilot import CopilotClient, PermissionHandler, SubprocessConfig
 
 
 async def main():
@@ -12,10 +12,9 @@ async def main():
     try:
         # 1. Create a session
         session = await client.create_session(
-            {
-                "model": "claude-haiku-4.5",
-                "available_tools": [],
-            }
+            PermissionHandler.approve_all,
+            "claude-haiku-4.5",
+            available_tools=[],
         )
 
         # 2. Send the secret word
@@ -27,7 +26,7 @@ async def main():
         session_id = session.session_id
 
         # 4. Resume the session with the same ID
-        resumed = await client.resume_session(session_id)
+        resumed = await client.resume_session(session_id, PermissionHandler.approve_all)
         print("Session resumed")
 
         # 5. Ask for the secret word

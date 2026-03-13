@@ -25,7 +25,7 @@ python chat.py
 
 ```python
 import asyncio
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 
 async def main():
     # Create and start client
@@ -33,7 +33,7 @@ async def main():
     await client.start()
 
     # Create a session
-    session = await client.create_session({"model": "gpt-5"})
+    session = await client.create_session(PermissionHandler.approve_all, "gpt-5")
 
     # Wait for response using session.idle event
     done = asyncio.Event()
@@ -60,7 +60,7 @@ asyncio.run(main())
 Sessions also support the `async with` context manager pattern for automatic cleanup:
 
 ```python
-async with await client.create_session({"model": "gpt-5"}) as session:
+async with await client.create_session(PermissionHandler.approve_all, "gpt-5") as session:
     await session.send({"prompt": "What is 2+2?"})
     # session is automatically disconnected when leaving the block
 ```
@@ -85,7 +85,7 @@ from copilot import CopilotClient, SubprocessConfig
 client = CopilotClient()  # uses bundled CLI, stdio transport
 await client.start()
 
-session = await client.create_session({"model": "gpt-5"})
+session = await client.create_session(PermissionHandler.approve_all, "gpt-5")
 
 def on_event(event):
     print(f"Event: {event['type']}")
@@ -134,18 +134,60 @@ CopilotClient(
 
 - `url` (str): Server URL (e.g., `"localhost:8080"`, `"http://127.0.0.1:9000"`, or just `"8080"`).
 
-**SessionConfig Options (for `create_session`):**
+**`create_session` Parameters:**
 
-- `model` (str): Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
+- `on_permission_request` (callable): **Required.** Handler for permission requests from the server.
+- `model` (str): Model to use ("gpt-5", "claude-sonnet-4.5", etc.).
+
+The parameters below are keyword-only:
+
+- `session_id` (str): Custom session ID for resuming or identifying sessions.
+- `client_name` (str): Client name to identify the application using the SDK. Included in the User-Agent header for API requests.
 - `reasoning_effort` (str): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh"). Use `list_models()` to check which models support this option.
-- `session_id` (str): Custom session ID
-- `tools` (list): Custom tools exposed to the CLI
-- `system_message` (dict): System message configuration
-- `streaming` (bool): Enable streaming delta events
-- `provider` (dict): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
-- `infinite_sessions` (dict): Automatic context compaction configuration
+- `tools` (list): Custom tools exposed to the CLI.
+- `system_message` (dict): System message configuration.
+- `available_tools` (list[str]): List of tool names to allow. Takes precedence over `excluded_tools`.
+- `excluded_tools` (list[str]): List of tool names to disable. Ignored if `available_tools` is set.
 - `on_user_input_request` (callable): Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
 - `hooks` (dict): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
+- `working_directory` (str): Working directory for the session. Tool operations will be relative to this directory.
+- `provider` (dict): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
+- `streaming` (bool): Enable streaming delta events.
+- `mcp_servers` (dict): MCP server configurations for the session.
+- `custom_agents` (list): Custom agent configurations for the session.
+- `config_dir` (str): Override the default configuration directory location.
+- `skill_directories` (list[str]): Directories to load skills from.
+- `disabled_skills` (list[str]): List of skill names to disable.
+- `infinite_sessions` (dict): Automatic context compaction configuration.
+
+**`resume_session` Parameters:**
+
+- `session_id` (str): **Required.** The ID of the session to resume.
+- `on_permission_request` (callable): **Required.** Handler for permission requests from the server.
+- `model` (str): Model to use (can change the model when resuming).
+
+The parameters below are keyword-only:
+
+- `client_name` (str): Client name to identify the application using the SDK.
+- `reasoning_effort` (str): Reasoning effort level ("low", "medium", "high", "xhigh").
+- `tools` (list): Custom tools exposed to the CLI.
+- `system_message` (dict): System message configuration.
+- `available_tools` (list[str]): List of tool names to allow. Takes precedence over `excluded_tools`.
+- `excluded_tools` (list[str]): List of tool names to disable. Ignored if `available_tools` is set.
+- `on_user_input_request` (callable): Handler for user input requests from the agent (enables ask_user tool).
+- `hooks` (dict): Hook handlers for session lifecycle events.
+- `working_directory` (str): Working directory for the session.
+- `provider` (dict): Custom API provider configuration (BYOK).
+- `streaming` (bool): Enable streaming delta events.
+- `mcp_servers` (dict): MCP server configurations for the session.
+- `custom_agents` (list): Custom agent configurations for the session.
+- `agent` (str): Name of the custom agent to activate when the session starts.
+- `config_dir` (str): Override the default configuration directory location.
+- `skill_directories` (list[str]): Directories to load skills from.
+- `disabled_skills` (list[str]): List of skill names to disable.
+- `infinite_sessions` (dict): Automatic context compaction configuration.
+- `disable_resume` (bool): Skip emitting the session.resume event (default: False).
+- `on_event` (callable): Event handler registered before the session.resume RPC.
 
 **Session Lifecycle Methods:**
 
@@ -182,7 +224,7 @@ Define tools with automatic JSON schema generation using the `@define_tool` deco
 
 ```python
 from pydantic import BaseModel, Field
-from copilot import CopilotClient, define_tool
+from copilot import CopilotClient, define_tool, PermissionHandler
 
 class LookupIssueParams(BaseModel):
     id: str = Field(description="Issue identifier")
@@ -192,10 +234,11 @@ async def lookup_issue(params: LookupIssueParams) -> str:
     issue = await fetch_issue(params.id)
     return issue.summary
 
-session = await client.create_session({
-    "model": "gpt-5",
-    "tools": [lookup_issue],
-})
+session = await client.create_session(
+    PermissionHandler.approve_all,
+    "gpt-5",
+    tools=[lookup_issue],
+)
 ```
 
 > **Note:** When using `from __future__ import annotations`, define Pydantic models at module level (not inside functions).
@@ -205,7 +248,7 @@ session = await client.create_session({
 For users who prefer manual schema definition:
 
 ```python
-from copilot import CopilotClient, Tool
+from copilot import CopilotClient, Tool, PermissionHandler
 
 async def lookup_issue(invocation):
     issue_id = invocation["arguments"]["id"]
@@ -216,9 +259,10 @@ async def lookup_issue(invocation):
         "sessionLog": f"Fetched issue {issue_id}",
     }
 
-session = await client.create_session({
-    "model": "gpt-5",
-    "tools": [
+session = await client.create_session(
+    PermissionHandler.approve_all,
+    "gpt-5",
+    tools=[
         Tool(
             name="lookup_issue",
             description="Fetch issue details from our tracker",
@@ -232,7 +276,7 @@ session = await client.create_session({
             handler=lookup_issue,
         )
     ],
-})
+)
 ```
 
 The SDK automatically handles `tool.call`, executes your handler (sync or async), and responds with the final result when the tool completes.
@@ -289,16 +333,17 @@ Enable streaming to receive assistant response chunks as they're generated:
 
 ```python
 import asyncio
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 
 async def main():
     client = CopilotClient()
     await client.start()
 
-    session = await client.create_session({
-        "model": "gpt-5",
-        "streaming": True
-    })
+    session = await client.create_session(
+        PermissionHandler.approve_all,
+        "gpt-5",
+        streaming=True,
+    )
 
     # Use asyncio.Event to wait for completion
     done = asyncio.Event()
@@ -349,27 +394,29 @@ By default, sessions use **infinite sessions** which automatically manage contex
 
 ```python
 # Default: infinite sessions enabled with default thresholds
-session = await client.create_session({"model": "gpt-5"})
+session = await client.create_session(PermissionHandler.approve_all, "gpt-5")
 
 # Access the workspace path for checkpoints and files
 print(session.workspace_path)
 # => ~/.copilot/session-state/{session_id}/
 
 # Custom thresholds
-session = await client.create_session({
-    "model": "gpt-5",
-    "infinite_sessions": {
+session = await client.create_session(
+    PermissionHandler.approve_all,
+    "gpt-5",
+    infinite_sessions={
         "enabled": True,
         "background_compaction_threshold": 0.80,  # Start compacting at 80% context usage
         "buffer_exhaustion_threshold": 0.95,  # Block at 95% until compaction completes
     },
-})
+)
 
 # Disable infinite sessions
-session = await client.create_session({
-    "model": "gpt-5",
-    "infinite_sessions": {"enabled": False},
-})
+session = await client.create_session(
+    PermissionHandler.approve_all,
+    "gpt-5",
+    infinite_sessions={"enabled": False},
+)
 ```
 
 When enabled, sessions emit compaction events:
@@ -393,14 +440,15 @@ The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own K
 **Example with Ollama:**
 
 ```python
-session = await client.create_session({
-    "model": "deepseek-coder-v2:16b",  # Required when using custom provider
-    "provider": {
+session = await client.create_session(
+    PermissionHandler.approve_all,
+    "deepseek-coder-v2:16b",  # Model to use with the custom provider
+    provider={
         "type": "openai",
         "base_url": "http://localhost:11434/v1",  # Ollama endpoint
         # api_key not required for Ollama
     },
-})
+)
 
 await session.send({"prompt": "Hello!"})
 ```
@@ -410,14 +458,15 @@ await session.send({"prompt": "Hello!"})
 ```python
 import os
 
-session = await client.create_session({
-    "model": "gpt-4",
-    "provider": {
+session = await client.create_session(
+    PermissionHandler.approve_all,
+    "gpt-4",
+    provider={
         "type": "openai",
         "base_url": "https://my-api.example.com/v1",
         "api_key": os.environ["MY_API_KEY"],
     },
-})
+)
 ```
 
 **Example with Azure OpenAI:**
@@ -425,9 +474,10 @@ session = await client.create_session({
 ```python
 import os
 
-session = await client.create_session({
-    "model": "gpt-4",
-    "provider": {
+session = await client.create_session(
+    PermissionHandler.approve_all,
+    "gpt-4",
+    provider={
         "type": "azure",  # Must be "azure" for Azure endpoints, NOT "openai"
         "base_url": "https://my-resource.openai.azure.com",  # Just the host, no path
         "api_key": os.environ["AZURE_OPENAI_KEY"],
@@ -435,11 +485,10 @@ session = await client.create_session({
             "api_version": "2024-10-21",
         },
     },
-})
+)
 ```
 
 > **Important notes:**
-> - When using a custom provider, the `model` parameter is **required**. The SDK will throw an error if no model is specified.
 > - For Azure OpenAI endpoints (`*.openai.azure.com`), you **must** use `type: "azure"`, not `type: "openai"`.
 > - The `base_url` should be just the host (e.g., `https://my-resource.openai.azure.com`). Do **not** include `/openai/v1` in the URL - the SDK handles path construction automatically.
 
@@ -489,10 +538,11 @@ async def handle_user_input(request, invocation):
         "wasFreeform": True,  # Whether the answer was freeform (not from choices)
     }
 
-session = await client.create_session({
-    "model": "gpt-5",
-    "on_user_input_request": handle_user_input,
-})
+session = await client.create_session(
+    PermissionHandler.approve_all,
+    "gpt-5",
+    on_user_input_request=handle_user_input,
+)
 ```
 
 ## Session Hooks
@@ -536,9 +586,10 @@ async def on_error_occurred(input, invocation):
         "errorHandling": "retry",  # "retry", "skip", or "abort"
     }
 
-session = await client.create_session({
-    "model": "gpt-5",
-    "hooks": {
+session = await client.create_session(
+    PermissionHandler.approve_all,
+    "gpt-5",
+    hooks={
         "on_pre_tool_use": on_pre_tool_use,
         "on_post_tool_use": on_post_tool_use,
         "on_user_prompt_submitted": on_user_prompt_submitted,
@@ -546,7 +597,7 @@ session = await client.create_session({
         "on_session_end": on_session_end,
         "on_error_occurred": on_error_occurred,
     },
-})
+)
 ```
 
 **Available hooks:**

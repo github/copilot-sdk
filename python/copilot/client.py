@@ -5,10 +5,10 @@ This module provides the :class:`CopilotClient` class, which manages the connect
 to the Copilot CLI server and provides session management capabilities.
 
 Example:
-    >>> from copilot import CopilotClient
+    >>> from copilot import CopilotClient, PermissionHandler
     >>>
     >>> async with CopilotClient() as client:
-    ...     session = await client.create_session()
+    ...     session = await client.create_session(PermissionHandler.approve_all)
     ...     await session.send({"prompt": "Hello!"})
 """
 
@@ -37,11 +37,14 @@ from .types import (
     ExternalServerConfig,
     GetAuthStatusResponse,
     GetStatusResponse,
+    InfiniteSessionConfig,
+    MCPServerConfig,
     ModelInfo,
     PingResponse,
     ProviderConfig,
-    ResumeSessionConfig,
-    SessionConfig,
+    ReasoningEffort,
+    SessionEvent,
+    SessionHooks,
     SessionLifecycleEvent,
     SessionLifecycleEventType,
     SessionLifecycleHandler,
@@ -49,8 +52,12 @@ from .types import (
     SessionMetadata,
     StopError,
     SubprocessConfig,
+    SystemMessageConfig,
+    Tool,
     ToolInvocation,
     ToolResult,
+    UserInputHandler,
+    _PermissionHandlerFn,
 )
 
 NO_RESULT_PERMISSION_V2_ERROR = (
@@ -99,10 +106,10 @@ class CopilotClient:
         >>> await client.start()
         >>>
         >>> # Create a session and send a message
-        >>> session = await client.create_session({
-        ...     "on_permission_request": PermissionHandler.approve_all,
-        ...     "model": "gpt-4",
-        ... })
+        >>> session = await client.create_session(
+        ...     PermissionHandler.approve_all,
+        ...     "gpt-4",
+        ... )
         >>> session.on(lambda event: print(event.type))
         >>> await session.send({"prompt": "Hello!"})
         >>>
@@ -422,7 +429,32 @@ class CopilotClient:
         if not self._is_external_server:
             self._actual_port = None
 
-    async def create_session(self, config: SessionConfig) -> CopilotSession:
+    async def create_session(
+        self,
+        on_permission_request: _PermissionHandlerFn,
+        model: str | None = None,
+        *,
+        session_id: str | None = None,
+        client_name: str | None = None,
+        reasoning_effort: ReasoningEffort | None = None,
+        tools: list[Tool] | None = None,
+        system_message: SystemMessageConfig | None = None,
+        available_tools: list[str] | None = None,
+        excluded_tools: list[str] | None = None,
+        on_user_input_request: UserInputHandler | None = None,
+        hooks: SessionHooks | None = None,
+        working_directory: str | None = None,
+        provider: ProviderConfig | None = None,
+        streaming: bool | None = None,
+        mcp_servers: dict[str, MCPServerConfig] | None = None,
+        custom_agents: list[CustomAgentConfig] | None = None,
+        agent: str | None = None,
+        config_dir: str | None = None,
+        skill_directories: list[str] | None = None,
+        disabled_skills: list[str] | None = None,
+        infinite_sessions: InfiniteSessionConfig | None = None,
+        on_event: Callable[[SessionEvent], None] | None = None,
+    ) -> CopilotSession:
         """
         Create a new conversation session with the Copilot CLI.
 
@@ -431,8 +463,29 @@ class CopilotClient:
         automatically start the connection.
 
         Args:
-            config: Optional configuration for the session, including model selection,
-                custom tools, system messages, and more.
+            on_permission_request: Handler for permission requests from the server.
+            model: Model to use for this session.
+            session_id: Custom session ID.
+            client_name: Client name to identify the application using the SDK.
+            reasoning_effort: Reasoning effort level ("low", "medium", "high", "xhigh").
+            tools: Custom tools exposed to the CLI.
+            system_message: System message configuration.
+            available_tools: List of tool names to allow (takes precedence over excluded_tools).
+            excluded_tools: List of tool names to disable (ignored if available_tools is set).
+            on_user_input_request: Handler for user input requests (enables ask_user tool).
+            hooks: Hook handlers for intercepting session lifecycle events.
+            working_directory: Working directory for the session.
+            provider: Custom provider configuration (BYOK - Bring Your Own Key).
+            streaming: Enable streaming of assistant message and reasoning chunks.
+            mcp_servers: MCP server configurations for the session.
+            custom_agents: Custom agent configurations for the session.
+            agent: Name of the custom agent to activate when the session starts.
+            config_dir: Override the default configuration directory location.
+            skill_directories: Directories to load skills from.
+            disabled_skills: List of skill names to disable.
+            infinite_sessions: Infinite session configuration for persistent workspaces.
+            on_event: Event handler registered before the session.create RPC, ensuring
+                early events (e.g. session.start) are not missed.
 
         Returns:
             A :class:`CopilotSession` instance for the new session.
@@ -441,34 +494,28 @@ class CopilotClient:
             RuntimeError: If the client is not connected and auto_start is disabled.
 
         Example:
-            >>> # Basic session
-            >>> config = {"on_permission_request": PermissionHandler.approve_all}
-            >>> session = await client.create_session(config)
+            >>> session = await client.create_session(PermissionHandler.approve_all)
             >>>
             >>> # Session with model and streaming
-            >>> session = await client.create_session({
-            ...     "on_permission_request": PermissionHandler.approve_all,
-            ...     "model": "gpt-4",
-            ...     "streaming": True
-            ... })
+            >>> session = await client.create_session(
+            ...     PermissionHandler.approve_all,
+            ...     "gpt-4",
+            ...     streaming=True,
+            ... )
         """
+        if not on_permission_request or not callable(on_permission_request):
+            raise ValueError(
+                "A valid on_permission_request handler is required. "
+                "Use PermissionHandler.approve_all or provide a custom handler."
+            )
+
         if not self._client:
             if self._auto_start:
                 await self.start()
             else:
                 raise RuntimeError("Client not connected. Call start() first.")
 
-        cfg = config
-
-        if not cfg.get("on_permission_request"):
-            raise ValueError(
-                "An on_permission_request handler is required when creating a session. "
-                "For example, to allow all permissions, use "
-                '{"on_permission_request": PermissionHandler.approve_all}.'
-            )
-
         tool_defs = []
-        tools = cfg.get("tools")
         if tools:
             for tool in tools:
                 definition: dict[str, Any] = {
@@ -484,92 +531,61 @@ class CopilotClient:
                 tool_defs.append(definition)
 
         payload: dict[str, Any] = {}
-        if cfg.get("model"):
-            payload["model"] = cfg["model"]
-        if cfg.get("client_name"):
-            payload["clientName"] = cfg["client_name"]
-        if cfg.get("reasoning_effort"):
-            payload["reasoningEffort"] = cfg["reasoning_effort"]
+        if model:
+            payload["model"] = model
+        if client_name:
+            payload["clientName"] = client_name
+        if reasoning_effort:
+            payload["reasoningEffort"] = reasoning_effort
         if tool_defs:
             payload["tools"] = tool_defs
 
-        # Add system message configuration if provided
-        system_message = cfg.get("system_message")
         if system_message:
             payload["systemMessage"] = system_message
 
-        # Add tool filtering options
-        available_tools = cfg.get("available_tools")
         if available_tools is not None:
             payload["availableTools"] = available_tools
-        excluded_tools = cfg.get("excluded_tools")
         if excluded_tools is not None:
             payload["excludedTools"] = excluded_tools
 
-        # Always enable permission request callback (deny by default if no handler provided)
-        on_permission_request = cfg.get("on_permission_request")
         payload["requestPermission"] = True
 
-        # Enable user input request callback if handler provided
-        on_user_input_request = cfg.get("on_user_input_request")
         if on_user_input_request:
             payload["requestUserInput"] = True
 
-        # Enable hooks callback if any hook handler provided
-        hooks = cfg.get("hooks")
         if hooks and any(hooks.values()):
             payload["hooks"] = True
 
-        # Add working directory if provided
-        working_directory = cfg.get("working_directory")
         if working_directory:
             payload["workingDirectory"] = working_directory
 
-        # Add streaming option if provided
-        streaming = cfg.get("streaming")
         if streaming is not None:
             payload["streaming"] = streaming
 
-        # Add provider configuration if provided
-        provider = cfg.get("provider")
         if provider:
             payload["provider"] = self._convert_provider_to_wire_format(provider)
 
-        # Add MCP servers configuration if provided
-        mcp_servers = cfg.get("mcp_servers")
         if mcp_servers:
             payload["mcpServers"] = mcp_servers
         payload["envValueMode"] = "direct"
 
-        # Add custom agents configuration if provided
-        custom_agents = cfg.get("custom_agents")
         if custom_agents:
             payload["customAgents"] = [
-                self._convert_custom_agent_to_wire_format(agent) for agent in custom_agents
+                self._convert_custom_agent_to_wire_format(ca) for ca in custom_agents
             ]
 
-        # Add agent selection if provided
-        agent = cfg.get("agent")
         if agent:
             payload["agent"] = agent
 
-        # Add config directory override if provided
-        config_dir = cfg.get("config_dir")
         if config_dir:
             payload["configDir"] = config_dir
 
-        # Add skill directories configuration if provided
-        skill_directories = cfg.get("skill_directories")
         if skill_directories:
             payload["skillDirectories"] = skill_directories
 
-        # Add disabled skills configuration if provided
-        disabled_skills = cfg.get("disabled_skills")
         if disabled_skills:
             payload["disabledSkills"] = disabled_skills
 
-        # Add infinite sessions configuration if provided
-        infinite_sessions = cfg.get("infinite_sessions")
         if infinite_sessions:
             wire_config: dict[str, Any] = {}
             if "enabled" in infinite_sessions:
@@ -587,7 +603,7 @@ class CopilotClient:
         if not self._client:
             raise RuntimeError("Client not connected")
 
-        session_id = cfg.get("session_id") or str(uuid.uuid4())
+        session_id = session_id or str(uuid.uuid4())
         payload["sessionId"] = session_id
 
         # Propagate W3C Trace Context to CLI if OpenTelemetry is active
@@ -603,7 +619,6 @@ class CopilotClient:
             session._register_user_input_handler(on_user_input_request)
         if hooks:
             session._register_hooks(hooks)
-        on_event = cfg.get("on_event")
         if on_event:
             session.on(on_event)
         with self._sessions_lock:
@@ -619,7 +634,33 @@ class CopilotClient:
 
         return session
 
-    async def resume_session(self, session_id: str, config: ResumeSessionConfig) -> CopilotSession:
+    async def resume_session(
+        self,
+        session_id: str,
+        on_permission_request: _PermissionHandlerFn,
+        model: str | None = None,
+        *,
+        client_name: str | None = None,
+        reasoning_effort: ReasoningEffort | None = None,
+        tools: list[Tool] | None = None,
+        system_message: SystemMessageConfig | None = None,
+        available_tools: list[str] | None = None,
+        excluded_tools: list[str] | None = None,
+        on_user_input_request: UserInputHandler | None = None,
+        hooks: SessionHooks | None = None,
+        working_directory: str | None = None,
+        provider: ProviderConfig | None = None,
+        streaming: bool | None = None,
+        mcp_servers: dict[str, MCPServerConfig] | None = None,
+        custom_agents: list[CustomAgentConfig] | None = None,
+        agent: str | None = None,
+        config_dir: str | None = None,
+        skill_directories: list[str] | None = None,
+        disabled_skills: list[str] | None = None,
+        infinite_sessions: InfiniteSessionConfig | None = None,
+        disable_resume: bool = False,
+        on_event: Callable[[SessionEvent], None] | None = None,
+    ) -> CopilotSession:
         """
         Resume an existing conversation session by its ID.
 
@@ -629,7 +670,30 @@ class CopilotClient:
 
         Args:
             session_id: The ID of the session to resume.
-            config: Optional configuration for the resumed session.
+            on_permission_request: Handler for permission requests from the server.
+            model: Model to use for this session. Can change the model when resuming.
+            client_name: Client name to identify the application using the SDK.
+            reasoning_effort: Reasoning effort level ("low", "medium", "high", "xhigh").
+            tools: Custom tools exposed to the CLI.
+            system_message: System message configuration.
+            available_tools: List of tool names to allow (takes precedence over excluded_tools).
+            excluded_tools: List of tool names to disable (ignored if available_tools is set).
+            on_user_input_request: Handler for user input requests (enables ask_user tool).
+            hooks: Hook handlers for intercepting session lifecycle events.
+            working_directory: Working directory for the session.
+            provider: Custom provider configuration (BYOK - Bring Your Own Key).
+            streaming: Enable streaming of assistant message and reasoning chunks.
+            mcp_servers: MCP server configurations for the session.
+            custom_agents: Custom agent configurations for the session.
+            agent: Name of the custom agent to activate when the session starts.
+            config_dir: Override the default configuration directory location.
+            skill_directories: Directories to load skills from.
+            disabled_skills: List of skill names to disable.
+            infinite_sessions: Infinite session configuration for persistent workspaces.
+            disable_resume: When True, skips emitting the session.resume event.
+                Useful for reconnecting without triggering resume-related side effects.
+            on_event: Event handler registered before the session.resume RPC, ensuring
+                early events (e.g. session.start) are not missed.
 
         Returns:
             A :class:`CopilotSession` instance for the resumed session.
@@ -638,33 +702,32 @@ class CopilotClient:
             RuntimeError: If the session does not exist or the client is not connected.
 
         Example:
-            >>> # Resume a previous session
-            >>> config = {"on_permission_request": PermissionHandler.approve_all}
-            >>> session = await client.resume_session("session-123", config)
+            >>> session = await client.resume_session(
+            ...     "session-123",
+            ...     PermissionHandler.approve_all,
+            ... )
             >>>
-            >>> # Resume with new tools
-            >>> session = await client.resume_session("session-123", {
-            ...     "on_permission_request": PermissionHandler.approve_all,
-            ...     "tools": [my_new_tool]
-            ... })
+            >>> # Resume with model and streaming
+            >>> session = await client.resume_session(
+            ...     "session-123",
+            ...     PermissionHandler.approve_all,
+            ...     "gpt-4",
+            ...     streaming=True,
+            ... )
         """
+        if not on_permission_request or not callable(on_permission_request):
+            raise ValueError(
+                "A valid on_permission_request handler is required. "
+                "Use PermissionHandler.approve_all or provide a custom handler."
+            )
+
         if not self._client:
             if self._auto_start:
                 await self.start()
             else:
                 raise RuntimeError("Client not connected. Call start() first.")
 
-        cfg = config
-
-        if not cfg.get("on_permission_request"):
-            raise ValueError(
-                "An on_permission_request handler is required when resuming a session. "
-                "For example, to allow all permissions, use "
-                '{"on_permission_request": PermissionHandler.approve_all}.'
-            )
-
         tool_defs = []
-        tools = cfg.get("tools")
         if tools:
             for tool in tools:
                 definition: dict[str, Any] = {
@@ -680,104 +743,64 @@ class CopilotClient:
                 tool_defs.append(definition)
 
         payload: dict[str, Any] = {"sessionId": session_id}
-
-        # Add client name if provided
-        client_name = cfg.get("client_name")
-        if client_name:
-            payload["clientName"] = client_name
-
-        # Add model if provided
-        model = cfg.get("model")
         if model:
             payload["model"] = model
-
-        if cfg.get("reasoning_effort"):
-            payload["reasoningEffort"] = cfg["reasoning_effort"]
+        if client_name:
+            payload["clientName"] = client_name
+        if reasoning_effort:
+            payload["reasoningEffort"] = reasoning_effort
         if tool_defs:
             payload["tools"] = tool_defs
 
-        # Add system message configuration if provided
-        system_message = cfg.get("system_message")
         if system_message:
             payload["systemMessage"] = system_message
 
-        # Add available/excluded tools if provided
-        available_tools = cfg.get("available_tools")
         if available_tools is not None:
             payload["availableTools"] = available_tools
-
-        excluded_tools = cfg.get("excluded_tools")
         if excluded_tools is not None:
             payload["excludedTools"] = excluded_tools
 
-        provider = cfg.get("provider")
-        if provider:
-            payload["provider"] = self._convert_provider_to_wire_format(provider)
-
-        # Add streaming option if provided
-        streaming = cfg.get("streaming")
-        if streaming is not None:
-            payload["streaming"] = streaming
-
-        # Always enable permission request callback (deny by default if no handler provided)
-        on_permission_request = cfg.get("on_permission_request")
         payload["requestPermission"] = True
 
-        # Enable user input request callback if handler provided
-        on_user_input_request = cfg.get("on_user_input_request")
         if on_user_input_request:
             payload["requestUserInput"] = True
 
-        # Enable hooks callback if any hook handler provided
-        hooks = cfg.get("hooks")
         if hooks and any(hooks.values()):
             payload["hooks"] = True
 
-        # Add working directory if provided
-        working_directory = cfg.get("working_directory")
         if working_directory:
             payload["workingDirectory"] = working_directory
 
-        # Add config directory if provided
-        config_dir = cfg.get("config_dir")
-        if config_dir:
-            payload["configDir"] = config_dir
+        if streaming is not None:
+            payload["streaming"] = streaming
 
-        # Add disable resume flag if provided
-        disable_resume = cfg.get("disable_resume")
-        if disable_resume:
-            payload["disableResume"] = True
+        if provider:
+            payload["provider"] = self._convert_provider_to_wire_format(provider)
 
-        # Add MCP servers configuration if provided
-        mcp_servers = cfg.get("mcp_servers")
         if mcp_servers:
             payload["mcpServers"] = mcp_servers
         payload["envValueMode"] = "direct"
 
-        # Add custom agents configuration if provided
-        custom_agents = cfg.get("custom_agents")
         if custom_agents:
             payload["customAgents"] = [
-                self._convert_custom_agent_to_wire_format(agent) for agent in custom_agents
+                self._convert_custom_agent_to_wire_format(ca) for ca in custom_agents
             ]
 
-        # Add agent selection if provided
-        agent = cfg.get("agent")
         if agent:
             payload["agent"] = agent
 
-        # Add skill directories configuration if provided
-        skill_directories = cfg.get("skill_directories")
+        if config_dir:
+            payload["configDir"] = config_dir
+
+        if disable_resume:
+            payload["disableResume"] = True
+
         if skill_directories:
             payload["skillDirectories"] = skill_directories
 
-        # Add disabled skills configuration if provided
-        disabled_skills = cfg.get("disabled_skills")
         if disabled_skills:
             payload["disabledSkills"] = disabled_skills
 
-        # Add infinite sessions configuration if provided
-        infinite_sessions = cfg.get("infinite_sessions")
         if infinite_sessions:
             wire_config: dict[str, Any] = {}
             if "enabled" in infinite_sessions:
@@ -802,13 +825,12 @@ class CopilotClient:
         # Create and register the session before issuing the RPC so that
         # events emitted by the CLI (e.g. session.start) are not dropped.
         session = CopilotSession(session_id, self._client, None)
-        session._register_tools(cfg.get("tools"))
+        session._register_tools(tools)
         session._register_permission_handler(on_permission_request)
         if on_user_input_request:
             session._register_user_input_handler(on_user_input_request)
         if hooks:
             session._register_hooks(hooks)
-        on_event = cfg.get("on_event")
         if on_event:
             session.on(on_event)
         with self._sessions_lock:
@@ -1038,8 +1060,9 @@ class CopilotClient:
         Example:
             >>> last_id = await client.get_last_session_id()
             >>> if last_id:
-            ...     config = {"on_permission_request": PermissionHandler.approve_all}
-            ...     session = await client.resume_session(last_id, config)
+            ...     session = await client.resume_session(
+            ...         last_id, PermissionHandler.approve_all
+            ...     )
         """
         if not self._client:
             raise RuntimeError("Client not connected")

@@ -153,14 +153,14 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
+from copilot import PermissionHandler
+
 async def on_pre_tool_use(input_data, invocation):
     print(f"[{invocation['session_id']}] Calling {input_data['toolName']}")
     print(f"  Args: {input_data['toolArgs']}")
     return {"permissionDecision": "allow"}
 
-session = await client.create_session({
-    "hooks": {"on_pre_tool_use": on_pre_tool_use}
-})
+session = await client.create_session(PermissionHandler.approve_all, hooks={"on_pre_tool_use": on_pre_tool_use})
 ```
 
 </details>

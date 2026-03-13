@@ -229,10 +229,10 @@ token = context.attach(trace.set_span_in_context(span))
 
 try:
     # Create a session (model is set here, not on the client)
-    session = await client.create_session({
-        "model": "gpt-5",
-        "on_permission_request": PermissionHandler.approve_all,
-    })
+    session = await client.create_session(
+        PermissionHandler.approve_all,
+        "gpt-5",
+    )
 
     # Subscribe to events via callback
     def handle_event(event):
@@ -482,10 +482,10 @@ async def invoke_agent(prompt: str):
         client = CopilotClient()
         await client.start()
 
-        session = await client.create_session({
-            "model": "gpt-5",
-            "on_permission_request": PermissionHandler.approve_all,
-        })
+        session = await client.create_session(
+            PermissionHandler.approve_all,
+            "gpt-5",
+        )
 
         # Subscribe to events via callback
         def handle_event(event):

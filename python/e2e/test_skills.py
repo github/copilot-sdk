@@ -56,10 +56,7 @@ class TestSkillBehavior:
         """Test that skills are loaded and applied from skillDirectories"""
         skills_dir = create_skill_dir(ctx.work_dir)
         session = await ctx.client.create_session(
-            {
-                "skill_directories": [skills_dir],
-                "on_permission_request": PermissionHandler.approve_all,
-            }
+            PermissionHandler.approve_all, skill_directories=[skills_dir]
         )
 
         assert session.session_id is not None
@@ -77,11 +74,9 @@ class TestSkillBehavior:
         """Test that disabledSkills prevents skill from being applied"""
         skills_dir = create_skill_dir(ctx.work_dir)
         session = await ctx.client.create_session(
-            {
-                "skill_directories": [skills_dir],
-                "disabled_skills": ["test-skill"],
-                "on_permission_request": PermissionHandler.approve_all,
-            }
+            PermissionHandler.approve_all,
+            skill_directories=[skills_dir],
+            disabled_skills=["test-skill"],
         )
 
         assert session.session_id is not None
@@ -104,9 +99,7 @@ class TestSkillBehavior:
         skills_dir = create_skill_dir(ctx.work_dir)
 
         # Create a session without skills first
-        session1 = await ctx.client.create_session(
-            {"on_permission_request": PermissionHandler.approve_all}
-        )
+        session1 = await ctx.client.create_session(PermissionHandler.approve_all)
         session_id = session1.session_id
 
         # First message without skill - marker should not appear
@@ -117,10 +110,8 @@ class TestSkillBehavior:
         # Resume with skillDirectories - skill should now be active
         session2 = await ctx.client.resume_session(
             session_id,
-            {
-                "skill_directories": [skills_dir],
-                "on_permission_request": PermissionHandler.approve_all,
-            },
+            PermissionHandler.approve_all,
+            skill_directories=[skills_dir],
         )
 
         assert session2.session_id == session_id

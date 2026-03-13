@@ -70,10 +70,10 @@ from copilot.types import PermissionRequestResult
 client = CopilotClient()
 await client.start()
 
-session = await client.create_session({
-    "model": "gpt-4.1",
-    "on_permission_request": lambda req, inv: PermissionRequestResult(kind="approved"),
-})
+session = await client.create_session(
+    lambda req, inv: PermissionRequestResult(kind="approved"),
+    "gpt-4.1",
+)
 
 await session.send({
     "prompt": "Describe what you see in this image",

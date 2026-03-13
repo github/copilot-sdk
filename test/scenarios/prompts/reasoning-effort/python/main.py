@@ -1,6 +1,6 @@
 import asyncio
 import os
-from copilot import CopilotClient, SubprocessConfig
+from copilot import CopilotClient, PermissionHandler, SubprocessConfig
 
 
 async def main():
@@ -10,15 +10,16 @@ async def main():
     ))
 
     try:
-        session = await client.create_session({
-            "model": "claude-opus-4.6",
-            "reasoning_effort": "low",
-            "available_tools": [],
-            "system_message": {
+        session = await client.create_session(
+            PermissionHandler.approve_all,
+            "claude-opus-4.6",
+            reasoning_effort="low",
+            available_tools=[],
+            system_message={
                 "mode": "replace",
                 "content": "You are a helpful assistant. Answer concisely.",
             },
-        })
+        )
 
         response = await session.send_and_wait(
             {"prompt": "What is the capital of France?"}

@@ -70,9 +70,10 @@ from copilot.types import PermissionRequestResult
 client = CopilotClient()
 await client.start()
 
-session = await client.create_session({
-    "model": "gpt-4.1",
-    "custom_agents": [
+session = await client.create_session(
+    lambda req, inv: PermissionRequestResult(kind="approved"),
+    "gpt-4.1",
+    custom_agents=[
         {
             "name": "researcher",
             "display_name": "Research Agent",
@@ -88,8 +89,7 @@ session = await client.create_session({
             "prompt": "You are a code editor. Make minimal, surgical changes to files as requested.",
         },
     ],
-    "on_permission_request": lambda req, inv: PermissionRequestResult(kind="approved"),
-})
+)
 ```
 
 </details>
@@ -258,8 +258,9 @@ const session = await client.createSession({
 
 <!-- docs-validate: skip -->
 ```python
-session = await client.create_session({
-    "custom_agents": [
+session = await client.create_session(
+    PermissionHandler.approve_all,
+    custom_agents=[
         {
             "name": "researcher",
             "prompt": "You are a research assistant. Analyze code and answer questions.",
@@ -269,8 +270,8 @@ session = await client.create_session({
             "prompt": "You are a code editor. Make minimal, surgical changes.",
         },
     ],
-    "agent": "researcher",  # Pre-select the researcher agent
-})
+    agent="researcher",  # Pre-select the researcher agent
+)
 ```
 
 </details>

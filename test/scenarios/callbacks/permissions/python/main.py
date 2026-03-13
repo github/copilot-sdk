@@ -1,6 +1,6 @@
 import asyncio
 import os
-from copilot import CopilotClient, SubprocessConfig
+from copilot import CopilotClient, PermissionHandler, SubprocessConfig
 
 # Track which tools requested permission
 permission_log: list[str] = []
@@ -23,11 +23,9 @@ async def main():
 
     try:
         session = await client.create_session(
-            {
-                "model": "claude-haiku-4.5",
-                "on_permission_request": log_permission,
-                "hooks": {"on_pre_tool_use": auto_approve_tool},
-            }
+            log_permission,
+            "claude-haiku-4.5",
+            hooks={"on_pre_tool_use": auto_approve_tool},
         )
 
         response = await session.send_and_wait(

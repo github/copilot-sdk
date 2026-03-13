@@ -1,6 +1,6 @@
 import asyncio
 import os
-from copilot import CopilotClient, ExternalServerConfig
+from copilot import CopilotClient, PermissionHandler, ExternalServerConfig
 
 
 async def main():
@@ -9,7 +9,7 @@ async def main():
     ))
 
     try:
-        session = await client.create_session({"model": "claude-haiku-4.5"})
+        session = await client.create_session(PermissionHandler.approve_all, "claude-haiku-4.5")
 
         response = await session.send_and_wait(
             {"prompt": "What is the capital of France?"}

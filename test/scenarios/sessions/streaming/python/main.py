@@ -1,6 +1,6 @@
 import asyncio
 import os
-from copilot import CopilotClient, SubprocessConfig
+from copilot import CopilotClient, PermissionHandler, SubprocessConfig
 
 
 async def main():
@@ -11,10 +11,9 @@ async def main():
 
     try:
         session = await client.create_session(
-            {
-                "model": "claude-haiku-4.5",
-                "streaming": True,
-            }
+            PermissionHandler.approve_all,
+            "claude-haiku-4.5",
+            streaming=True,
         )
 
         chunk_count = 0
