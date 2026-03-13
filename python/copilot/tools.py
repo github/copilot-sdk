@@ -26,6 +26,7 @@ def define_tool(
     *,
     description: str | None = None,
     overrides_built_in_tool: bool = False,
+    skip_permission: bool = False,
 ) -> Callable[[Callable[..., Any]], Tool]: ...
 
 
@@ -37,6 +38,7 @@ def define_tool(
     handler: Callable[[T, ToolInvocation], R],
     params_type: type[T],
     overrides_built_in_tool: bool = False,
+    skip_permission: bool = False,
 ) -> Tool: ...
 
 
@@ -47,6 +49,7 @@ def define_tool(
     handler: Callable[[Any, ToolInvocation], Any] | None = None,
     params_type: type[BaseModel] | None = None,
     overrides_built_in_tool: bool = False,
+    skip_permission: bool = False,
 ) -> Tool | Callable[[Callable[[Any, ToolInvocation], Any]], Tool]:
     """
     Define a tool with automatic JSON schema generation from Pydantic models.
@@ -79,6 +82,10 @@ def define_tool(
         handler: Optional handler function (if not using as decorator)
         params_type: Optional Pydantic model type for parameters (inferred from
                     type hints when using as decorator)
+        overrides_built_in_tool: When True, explicitly indicates this tool is intended
+                    to override a built-in tool of the same name. If not set and the
+                    name clashes with a built-in tool, the runtime will return an error.
+        skip_permission: When True, the tool can execute without a permission prompt.
 
     Returns:
         A Tool instance
@@ -154,6 +161,7 @@ def define_tool(
             parameters=schema,
             handler=wrapped_handler,
             overrides_built_in_tool=overrides_built_in_tool,
+            skip_permission=skip_permission,
         )
 
     # If handler is provided, call decorator immediately

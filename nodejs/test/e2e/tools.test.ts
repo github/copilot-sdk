@@ -159,6 +159,32 @@ describe("Custom tools", async () => {
         expect(customToolRequests[0].toolName).toBe("encrypt_string");
     });
 
+    it("skipPermission sent in tool definition", async () => {
+        let didRunPermissionRequest = false;
+        const session = await client.createSession({
+            onPermissionRequest: () => {
+                didRunPermissionRequest = true;
+                return { kind: "no-result" };
+            },
+            tools: [
+                defineTool("safe_lookup", {
+                    description: "A safe lookup that skips permission",
+                    parameters: z.object({
+                        id: z.string().describe("ID to look up"),
+                    }),
+                    handler: ({ id }) => `RESULT: ${id}`,
+                    skipPermission: true,
+                }),
+            ],
+        });
+
+        const assistantMessage = await session.sendAndWait({
+            prompt: "Use safe_lookup to look up 'test123'",
+        });
+        expect(assistantMessage?.data.content).toContain("RESULT: test123");
+        expect(didRunPermissionRequest).toBe(false);
+    });
+
     it("overrides built-in tool with custom tool", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,

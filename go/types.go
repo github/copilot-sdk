@@ -125,6 +125,9 @@ const (
 
 	// PermissionRequestResultKindDeniedInteractivelyByUser indicates the permission was denied interactively by the user.
 	PermissionRequestResultKindDeniedInteractivelyByUser PermissionRequestResultKind = "denied-interactively-by-user"
+
+	// PermissionRequestResultKindNoResult indicates no permission decision was made.
+	PermissionRequestResultKindNoResult PermissionRequestResultKind = "no-result"
 )
 
 // PermissionRequestResult represents the result of a permission request
@@ -416,6 +419,7 @@ type Tool struct {
 	Description          string         `json:"description,omitempty"`
 	Parameters           map[string]any `json:"parameters,omitempty"`
 	OverridesBuiltInTool bool           `json:"overridesBuiltInTool,omitempty"`
+	SkipPermission       bool           `json:"skipPermission,omitempty"`
 	Handler              ToolHandler    `json:"-"`
 }
 

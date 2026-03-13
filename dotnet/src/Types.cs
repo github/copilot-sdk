@@ -286,6 +286,9 @@ public readonly struct PermissionRequestResultKind : IEquatable<PermissionReques
     /// <summary>Gets the kind indicating the permission was denied interactively by the user.</summary>
     public static PermissionRequestResultKind DeniedInteractivelyByUser { get; } = new("denied-interactively-by-user");
 
+    /// <summary>Gets the kind indicating the permission was denied interactively by the user.</summary>
+    public static PermissionRequestResultKind NoResult { get; } = new("no-result");
+
     /// <summary>Gets the underlying string value of this <see cref="PermissionRequestResultKind"/>.</summary>
     public string Value => _value ?? string.Empty;
 
