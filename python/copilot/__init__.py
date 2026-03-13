@@ -8,10 +8,14 @@ from .client import CopilotClient
 from .session import CopilotSession
 from .tools import define_tool
 from .types import (
+    Attachment,
     AzureProviderOptions,
+    BlobAttachment,
     ConnectionState,
     CustomAgentConfig,
+    DirectoryAttachment,
     ExternalServerConfig,
+    FileAttachment,
     GetAuthStatusResponse,
     GetStatusResponse,
     MCPLocalServerConfig,
@@ -28,6 +32,7 @@ from .types import (
     PingResponse,
     ProviderConfig,
     ResumeSessionConfig,
+    SelectionAttachment,
     SessionConfig,
     SessionContext,
     SessionEvent,
@@ -45,12 +50,16 @@ from .types import (
 __version__ = "0.1.0"
 
 __all__ = [
+    "Attachment",
     "AzureProviderOptions",
+    "BlobAttachment",
     "CopilotClient",
     "CopilotSession",
     "ConnectionState",
     "CustomAgentConfig",
+    "DirectoryAttachment",
     "ExternalServerConfig",
+    "FileAttachment",
     "GetAuthStatusResponse",
     "GetStatusResponse",
     "MCPLocalServerConfig",
@@ -67,6 +76,7 @@ __all__ = [
     "PingResponse",
     "ProviderConfig",
     "ResumeSessionConfig",
+    "SelectionAttachment",
     "SessionConfig",
     "SessionContext",
     "SessionEvent",
