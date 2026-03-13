@@ -148,7 +148,10 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `ReasoningEffort` (string): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh"). Use `ListModels()` to check which models support this option.
 - `SessionID` (string): Custom session ID
 - `Tools` ([]Tool): Custom tools exposed to the CLI
-- `SystemMessage` (\*SystemMessageConfig): System message configuration
+- `SystemMessage` (\*SystemMessageConfig): System message configuration. Supports three modes:
+  - **append** (default): Appends `Content` after the SDK-managed prompt
+  - **replace**: Replaces the entire prompt with `Content`
+  - **customize**: Selectively override individual sections via `Sections` map (keys: `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`; values: `SectionOverride` with `Action` and optional `Content`)
 - `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
 - `Streaming` (bool): Enable streaming delta events
 - `InfiniteSessions` (\*InfiniteSessionConfig): Automatic context compaction configuration

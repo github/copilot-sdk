@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Literal, NotRequired, TypedDict
+from typing import Any, Literal, NotRequired, Required, TypedDict
 
 # Import generated SessionEvent types
 from .generated.session_events import (
@@ -151,7 +151,41 @@ class Tool:
 
 
 # System message configuration (discriminated union)
-# Use SystemMessageAppendConfig for default behavior, SystemMessageReplaceConfig for full control
+# Use SystemMessageAppendConfig for default behavior,
+# SystemMessageReplaceConfig for full control,
+# or SystemMessageCustomizeConfig for section-level overrides.
+
+# Known system prompt section identifiers for the "customize" mode.
+SystemPromptSection = Literal[
+    "identity",
+    "tone",
+    "tool_efficiency",
+    "environment_context",
+    "code_change_rules",
+    "guidelines",
+    "safety",
+    "tool_instructions",
+    "custom_instructions",
+]
+
+SYSTEM_PROMPT_SECTIONS: dict[SystemPromptSection, str] = {
+    "identity": "Agent identity preamble and mode statement",
+    "tone": "Response style, conciseness rules, output formatting preferences",
+    "tool_efficiency": "Tool usage patterns, parallel calling, batching guidelines",
+    "environment_context": "CWD, OS, git root, directory listing, available tools",
+    "code_change_rules": "Coding rules, linting/testing, ecosystem tools, style",
+    "guidelines": "Tips, behavioral best practices, behavioral guidelines",
+    "safety": "Environment limitations, prohibited actions, security policies",
+    "tool_instructions": "Per-tool usage instructions",
+    "custom_instructions": "Repository and organization custom instructions",
+}
+
+
+class SectionOverride(TypedDict, total=False):
+    """Override operation for a single system prompt section."""
+
+    action: Required[Literal["replace", "remove", "append", "prepend"]]
+    content: NotRequired[str]
 
 
 class SystemMessageAppendConfig(TypedDict, total=False):
@@ -173,8 +207,21 @@ class SystemMessageReplaceConfig(TypedDict):
     content: str
 
 
-# Union type - use one or the other
-SystemMessageConfig = SystemMessageAppendConfig | SystemMessageReplaceConfig
+class SystemMessageCustomizeConfig(TypedDict, total=False):
+    """
+    Customize mode: Override individual sections of the system prompt.
+    Keeps the SDK-managed prompt structure while allowing targeted modifications.
+    """
+
+    mode: Required[Literal["customize"]]
+    sections: NotRequired[dict[SystemPromptSection, SectionOverride]]
+    content: NotRequired[str]
+
+
+# Union type - use one based on your needs
+SystemMessageConfig = (
+    SystemMessageAppendConfig | SystemMessageReplaceConfig | SystemMessageCustomizeConfig
+)
 
 
 # Permission result types
