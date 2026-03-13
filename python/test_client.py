@@ -7,7 +7,7 @@ This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py
 import pytest
 
 from copilot import CopilotClient, PermissionHandler, PermissionRequestResult, define_tool
-from copilot.types import ModelCapabilities, ModelInfo, ModelLimits, ModelSupports
+from copilot.types import ModelCapabilities, ModelInfo, ModelLimits, ModelSupports, SessionListFilter
 from e2e.testharness import CLI_PATH
 
 
@@ -478,5 +478,70 @@ class TestSessionConfigForwarding:
             await session.set_model("gpt-4.1")
             assert captured["session.model.switchTo"]["sessionId"] == session.session_id
             assert captured["session.model.switchTo"]["modelId"] == "gpt-4.1"
+        finally:
+            await client.force_stop()
+
+
+class TestSessionManagementApis:
+    @pytest.mark.asyncio
+    async def test_list_sessions_forwards_filter_and_parses_response(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.list":
+                    return {
+                        "sessions": [
+                            {
+                                "sessionId": "session-123",
+                                "startTime": "2026-03-12T00:00:00Z",
+                                "modifiedTime": "2026-03-12T01:00:00Z",
+                                "cwd": "/repo",
+                                "gitRoot": "/repo",
+                                "branch": "main",
+                                "summary": "Latest session",
+                                "isRemote": False
+                            }
+                        ]
+                    }
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            sessions = await client.list_sessions(SessionListFilter(repository="owner/repo", branch="main"))
+
+            assert captured["session.list"] == {
+                "filter": {"repository": "owner/repo", "branch": "main"}
+            }
+            assert len(sessions) == 1
+            assert sessions[0].sessionId == "session-123"
+            assert sessions[0].summary == "Latest session"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_get_last_session_id_sends_correct_rpc(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.getLastId":
+                    return {"sessionId": "session-999"}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            session_id = await client.get_last_session_id()
+
+            assert captured["session.getLastId"] == {}
+            assert session_id == "session-999"
         finally:
             await client.force_stop()
