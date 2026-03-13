@@ -31,9 +31,7 @@ async def main():
         )
 
         response = await session.send_and_wait(
-            {
-                "prompt": "List the files in the current directory using glob with pattern '*.md'."
-            }
+            "List the files in the current directory using glob with pattern '*.md'."
         )
 
         if response:

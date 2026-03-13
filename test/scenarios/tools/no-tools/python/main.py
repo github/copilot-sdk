@@ -24,7 +24,7 @@ async def main():
         )
 
         response = await session.send_and_wait(
-            {"prompt": "Use the bash tool to run 'echo hello'."}
+            "Use the bash tool to run 'echo hello'."
         )
 
         if response:

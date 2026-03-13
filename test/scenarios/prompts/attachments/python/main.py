@@ -24,10 +24,8 @@ async def main():
         sample_file = os.path.abspath(sample_file)
 
         response = await session.send_and_wait(
-            {
-                "prompt": "What languages are listed in the attached file?",
-                "attachments": [{"type": "file", "path": sample_file}],
-            }
+            "What languages are listed in the attached file?",
+            attachments=[{"type": "file", "path": sample_file}],
         )
 
         if response:

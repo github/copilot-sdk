@@ -654,17 +654,6 @@ class ResumeSessionConfig(TypedDict, total=False):
     on_event: Callable[[SessionEvent], None]
 
 
-# Options for sending a message to a session
-class MessageOptions(TypedDict):
-    """Options for sending a message to a session"""
-
-    prompt: str  # The prompt/message to send
-    # Optional file/directory attachments
-    attachments: NotRequired[list[Attachment]]
-    # Message processing mode
-    mode: NotRequired[Literal["enqueue", "immediate"]]
-
-
 # Event handler type
 SessionEventHandler = Callable[[SessionEvent], None]
 

@@ -27,7 +27,7 @@ async def main():
         session.on(on_event)
 
         response = await session.send_and_wait(
-            {"prompt": "What is the capital of France?"}
+            "What is the capital of France?"
         )
 
         if response:

@@ -182,7 +182,7 @@ class TestSessionCompactionRpc:
         )
 
         # Send a message to create some history
-        await session.send_and_wait({"prompt": "What is 2+2?"})
+        await session.send_and_wait("What is 2+2?")
 
         # Compact the session
         result = await session.rpc.compaction.compact()

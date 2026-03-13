@@ -36,12 +36,8 @@ async def main():
         )
 
         response = await session.send_and_wait(
-            {
-                "prompt": (
-                    "I want to learn about a city. Use the ask_user tool to ask me "
-                    "which city I'm interested in. Then tell me about that city."
-                )
-            }
+            "I want to learn about a city. Use the ask_user tool to ask me "
+            "which city I'm interested in. Then tell me about that city."
         )
 
         if response:

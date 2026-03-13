@@ -32,10 +32,10 @@ async def main():
 
         response1, response2 = await asyncio.gather(
             session1.send_and_wait(
-                {"prompt": "What is the capital of France?"}
+                "What is the capital of France?"
             ),
             session2.send_and_wait(
-                {"prompt": "What is the capital of France?"}
+                "What is the capital of France?"
             ),
         )
 

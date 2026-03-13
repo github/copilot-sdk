@@ -26,7 +26,7 @@ async def main():
         )
 
         response = await session.send_and_wait(
-            {"prompt": "What custom agents are available? Describe the researcher agent and its capabilities."}
+            "What custom agents are available? Describe the researcher agent and its capabilities."
         )
 
         if response:

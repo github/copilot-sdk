@@ -20,7 +20,7 @@ class TestStreamingFidelity:
         events = []
         session.on(lambda event: events.append(event))
 
-        await session.send_and_wait({"prompt": "Count from 1 to 5, separated by commas."})
+        await session.send_and_wait("Count from 1 to 5, separated by commas.")
 
         types = [e.type.value for e in events]
 
@@ -52,7 +52,7 @@ class TestStreamingFidelity:
         events = []
         session.on(lambda event: events.append(event))
 
-        await session.send_and_wait({"prompt": "Say 'hello world'."})
+        await session.send_and_wait("Say 'hello world'.")
 
         delta_events = [e for e in events if e.type.value == "assistant.message_delta"]
 
@@ -69,7 +69,7 @@ class TestStreamingFidelity:
         session = await ctx.client.create_session(
             {"streaming": False, "on_permission_request": PermissionHandler.approve_all}
         )
-        await session.send_and_wait({"prompt": "What is 3 + 6?"})
+        await session.send_and_wait("What is 3 + 6?")
         await session.disconnect()
 
         # Resume using a new client
@@ -93,9 +93,7 @@ class TestStreamingFidelity:
             events = []
             session2.on(lambda event: events.append(event))
 
-            answer = await session2.send_and_wait(
-                {"prompt": "Now if you double that, what do you get?"}
-            )
+            answer = await session2.send_and_wait("Now if you double that, what do you get?")
             assert answer is not None
             assert "18" in answer.data.content
 

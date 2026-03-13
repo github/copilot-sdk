@@ -31,7 +31,7 @@ async def main():
         ]
 
         for prompt in prompts:
-            response = await session.send_and_wait({"prompt": prompt})
+            response = await session.send_and_wait(prompt)
             if response:
                 print(f"Q: {prompt}")
                 print(f"A: {response.data.content}\n")

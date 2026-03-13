@@ -63,12 +63,8 @@ async def main():
         )
 
         response = await session.send_and_wait(
-            {
-                "prompt": (
-                    "Create a file called plan.md with a brief 3-item project plan "
-                    "for building a CLI tool. Then read it back and tell me what you wrote."
-                )
-            }
+            "Create a file called plan.md with a brief 3-item project plan "
+            "for building a CLI tool. Then read it back and tell me what you wrote."
         )
 
         if response:

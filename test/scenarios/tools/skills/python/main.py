@@ -26,7 +26,7 @@ async def main():
         )
 
         response = await session.send_and_wait(
-            {"prompt": "Use the greeting skill to greet someone named Alice."}
+            "Use the greeting skill to greet someone named Alice."
         )
 
         if response:

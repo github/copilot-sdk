@@ -214,9 +214,7 @@ class TestMultiClientBroadcast:
         session2.on(lambda event: client2_events.append(event))
 
         # Send a prompt that triggers the custom tool
-        await session1.send(
-            {"prompt": "Use the magic_number tool with seed 'hello' and tell me the result"}
-        )
+        await session1.send("Use the magic_number tool with seed 'hello' and tell me the result")
         response = await get_final_assistant_message(session1)
         assert "MAGIC_hello_42" in (response.data.content or "")
 
@@ -261,9 +259,7 @@ class TestMultiClientBroadcast:
         session2.on(lambda event: client2_events.append(event))
 
         # Send a prompt that triggers a write operation (requires permission)
-        await session1.send(
-            {"prompt": "Create a file called hello.txt containing the text 'hello world'"}
-        )
+        await session1.send("Create a file called hello.txt containing the text 'hello world'")
         response = await get_final_assistant_message(session1)
         assert response.data.content
 
@@ -315,7 +311,7 @@ class TestMultiClientBroadcast:
         with open(test_file, "w") as f:
             f.write("protected content")
 
-        await session1.send({"prompt": "Edit protected.txt and replace 'protected' with 'hacked'."})
+        await session1.send("Edit protected.txt and replace 'protected' with 'hacked'.")
         await get_final_assistant_message(session1)
 
         # Verify the file was NOT modified (permission was denied)
@@ -370,17 +366,13 @@ class TestMultiClientBroadcast:
 
         # Send prompts sequentially to avoid nondeterministic tool_call ordering
         await session1.send(
-            {"prompt": "Use the city_lookup tool with countryCode 'US' and tell me the result."}
+            "Use the city_lookup tool with countryCode 'US' and tell me the result."
         )
         response1 = await get_final_assistant_message(session1)
         assert "CITY_FOR_US" in (response1.data.content or "")
 
         await session1.send(
-            {
-                "prompt": (
-                    "Now use the currency_lookup tool with countryCode 'US' and tell me the result."
-                )
-            }
+            "Now use the currency_lookup tool with countryCode 'US' and tell me the result."
         )
         response2 = await get_final_assistant_message(session1)
         assert "CURRENCY_FOR_US" in (response2.data.content or "")
@@ -421,19 +413,11 @@ class TestMultiClientBroadcast:
 
         # Verify both tools work before disconnect.
         # Sequential prompts avoid nondeterministic tool_call ordering.
-        await session1.send(
-            {
-                "prompt": "Use the stable_tool with input 'test1' and tell me the result.",
-            }
-        )
+        await session1.send("Use the stable_tool with input 'test1' and tell me the result.")
         stable_response = await get_final_assistant_message(session1)
         assert "STABLE_test1" in (stable_response.data.content or "")
 
-        await session1.send(
-            {
-                "prompt": "Use the ephemeral_tool with input 'test2' and tell me the result.",
-            }
-        )
+        await session1.send("Use the ephemeral_tool with input 'test2' and tell me the result.")
         ephemeral_response = await get_final_assistant_message(session1)
         assert "EPHEMERAL_test2" in (ephemeral_response.data.content or "")
 
@@ -449,13 +433,9 @@ class TestMultiClientBroadcast:
 
         # Now only stable_tool should be available
         await session1.send(
-            {
-                "prompt": (
-                    "Use the stable_tool with input 'still_here'."
-                    " Also try using ephemeral_tool"
-                    " if it is available."
-                )
-            }
+            "Use the stable_tool with input 'still_here'."
+            " Also try using ephemeral_tool"
+            " if it is available."
         )
         after_response = await get_final_assistant_message(session1)
         assert "STABLE_still_here" in (after_response.data.content or "")

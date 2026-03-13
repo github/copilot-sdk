@@ -21,7 +21,7 @@ async def main():
         )
 
         response = await session.send_and_wait(
-            {"prompt": "What tools do you have available? List each one by name."}
+            "What tools do you have available? List each one by name."
         )
 
         if response:
