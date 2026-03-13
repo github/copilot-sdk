@@ -40,6 +40,9 @@ dev = [
     "pytest-timeout>=2.0.0",
     "httpx>=0.24.0",
 ]
+telemetry = [
+    "opentelemetry-api>=1.0.0",
+]
 
 # Use find with a glob so that the copilot.bin subpackage (created dynamically
 # by scripts/build-wheels.mjs during publishing) is included in platform wheels.

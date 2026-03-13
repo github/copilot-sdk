@@ -69,6 +69,22 @@ class SelectionAttachment(TypedDict):
 Attachment = FileAttachment | DirectoryAttachment | SelectionAttachment
 
 
+# Configuration for OpenTelemetry integration with the Copilot CLI.
+class TelemetryConfig(TypedDict, total=False):
+    """Configuration for OpenTelemetry integration with the Copilot CLI."""
+
+    otlp_endpoint: str
+    """OTLP HTTP endpoint URL for trace/metric export. Sets OTEL_EXPORTER_OTLP_ENDPOINT."""
+    file_path: str
+    """File path for JSON-lines trace output. Sets COPILOT_OTEL_FILE_EXPORTER_PATH."""
+    exporter_type: str
+    """Exporter backend type: "otlp-http" or "file". Sets COPILOT_OTEL_EXPORTER_TYPE."""
+    source_name: str
+    """Instrumentation scope name. Sets COPILOT_OTEL_SOURCE_NAME."""
+    capture_content: bool
+    """Whether to capture message content. Sets OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT."""  # noqa: E501
+
+
 # Configuration for CopilotClient connection modes
 
 
@@ -119,6 +135,9 @@ class SubprocessConfig:
 
     ``None`` (default) resolves to ``True`` unless ``github_token`` is set.
     """
+
+    telemetry: TelemetryConfig | None = None
+    """OpenTelemetry configuration. Providing this enables telemetry — no separate flag needed."""
 
 
 @dataclass

@@ -78,6 +78,7 @@ new CopilotClient(CopilotClientOptions? options = null)
 - `Logger` - `ILogger` instance for SDK logging
 - `GitHubToken` - GitHub token for authentication. When provided, takes priority over other auth methods.
 - `UseLoggedInUser` - Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `CliUrl`.
+- `Telemetry` - OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 
 #### Methods
 
@@ -545,6 +546,32 @@ var session = await client.CreateSessionAsync(new SessionConfig
     }
 });
 ```
+
+## Telemetry
+
+The SDK supports OpenTelemetry for distributed tracing. Provide a `Telemetry` config to enable trace export and automatic W3C Trace Context propagation.
+
+```csharp
+var client = new CopilotClient(new CopilotClientOptions
+{
+    Telemetry = new TelemetryConfig
+    {
+        OtlpEndpoint = "http://localhost:4318",
+    },
+});
+```
+
+**TelemetryConfig properties:**
+
+- `OtlpEndpoint` - OTLP HTTP endpoint URL
+- `FilePath` - File path for JSON-lines trace output
+- `ExporterType` - `"otlp-http"` or `"file"`
+- `SourceName` - Instrumentation scope name
+- `CaptureContent` - Whether to capture message content
+
+Trace context (`traceparent`/`tracestate`) is automatically propagated between the SDK and CLI on `CreateSessionAsync`, `ResumeSessionAsync`, and `SendAsync` calls, and inbound when the CLI invokes tool handlers.
+
+No extra dependencies — uses built-in `System.Diagnostics.Activity`.
 
 ## User Input Requests
 

@@ -63,6 +63,7 @@ public class CopilotClientOptions
         Logger = other.Logger;
         LogLevel = other.LogLevel;
         Port = other.Port;
+        Telemetry = other.Telemetry;
         UseLoggedInUser = other.UseLoggedInUser;
         UseStdio = other.UseStdio;
         OnListModels = other.OnListModels;
@@ -149,6 +150,12 @@ public class CopilotClientOptions
     public Func<CancellationToken, Task<List<ModelInfo>>>? OnListModels { get; set; }
 
     /// <summary>
+    /// OpenTelemetry configuration for the CLI server.
+    /// When set to a non-<see langword="null"/> instance, the CLI server is started with OpenTelemetry instrumentation enabled.
+    /// </summary>
+    public TelemetryConfig? Telemetry { get; set; }
+
+    /// <summary>
     /// Creates a shallow clone of this <see cref="CopilotClientOptions"/> instance.
     /// </summary>
     /// <remarks>
@@ -161,6 +168,52 @@ public class CopilotClientOptions
     {
         return new(this);
     }
+}
+
+/// <summary>
+/// OpenTelemetry configuration for the Copilot CLI server.
+/// </summary>
+public sealed class TelemetryConfig
+{
+    /// <summary>
+    /// OTLP exporter endpoint URL.
+    /// </summary>
+    /// <remarks>
+    /// Maps to the <c>OTEL_EXPORTER_OTLP_ENDPOINT</c> environment variable.
+    /// </remarks>
+    public string? OtlpEndpoint { get; set; }
+
+    /// <summary>
+    /// File path for the file exporter.
+    /// </summary>
+    /// <remarks>
+    /// Maps to the <c>COPILOT_OTEL_FILE_EXPORTER_PATH</c> environment variable.
+    /// </remarks>
+    public string? FilePath { get; set; }
+
+    /// <summary>
+    /// Exporter type (<c>"otlp-http"</c> or <c>"file"</c>).
+    /// </summary>
+    /// <remarks>
+    /// Maps to the <c>COPILOT_OTEL_EXPORTER_TYPE</c> environment variable.
+    /// </remarks>
+    public string? ExporterType { get; set; }
+
+    /// <summary>
+    /// Source name for telemetry spans.
+    /// </summary>
+    /// <remarks>
+    /// Maps to the <c>COPILOT_OTEL_SOURCE_NAME</c> environment variable.
+    /// </remarks>
+    public string? SourceName { get; set; }
+
+    /// <summary>
+    /// Whether to capture message content as part of telemetry.
+    /// </summary>
+    /// <remarks>
+    /// Maps to the <c>OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT</c> environment variable.
+    /// </remarks>
+    public bool? CaptureContent { get; set; }
 }
 
 /// <summary>

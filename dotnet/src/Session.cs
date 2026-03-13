@@ -152,12 +152,16 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </example>
     public async Task<string> SendAsync(MessageOptions options, CancellationToken cancellationToken = default)
     {
+        var (traceparent, tracestate) = TelemetryHelpers.GetTraceContext();
+
         var request = new SendMessageRequest
         {
             SessionId = SessionId,
             Prompt = options.Prompt,
             Attachments = options.Attachments,
-            Mode = options.Mode
+            Mode = options.Mode,
+            Traceparent = traceparent,
+            Tracestate = tracestate
         };
 
         var response = await InvokeRpcAsync<SendMessageResponse>(
@@ -412,7 +416,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
                         if (tool is null)
                             return; // This client doesn't handle this tool; another client will.
 
-                        await ExecuteToolAndRespondAsync(data.RequestId, data.ToolName, data.ToolCallId, data.Arguments, tool);
+                        using (TelemetryHelpers.RestoreTraceContext(data.Traceparent, data.Tracestate))
+                            await ExecuteToolAndRespondAsync(data.RequestId, data.ToolName, data.ToolCallId, data.Arguments, tool);
                         break;
                     }
 
@@ -822,6 +827,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
         public string Prompt { get; init; } = string.Empty;
         public List<UserMessageDataAttachmentsItem>? Attachments { get; init; }
         public string? Mode { get; init; }
+        public string? Traceparent { get; init; }
+        public string? Tracestate { get; init; }
     }
 
     internal record SendMessageResponse

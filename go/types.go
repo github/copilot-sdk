@@ -61,6 +61,33 @@ type ClientOptions struct {
 	// querying the CLI server. Useful in BYOK mode to return models
 	// available from your custom provider.
 	OnListModels func(ctx context.Context) ([]ModelInfo, error)
+	// Telemetry configures OpenTelemetry integration for the Copilot CLI process.
+	// When non-nil, COPILOT_OTEL_ENABLED=true is set and any populated fields
+	// are mapped to the corresponding environment variables.
+	Telemetry *TelemetryConfig
+}
+
+// TelemetryConfig configures OpenTelemetry integration for the Copilot CLI process.
+type TelemetryConfig struct {
+	// OTLPEndpoint is the OTLP HTTP endpoint URL for trace/metric export.
+	// Sets OTEL_EXPORTER_OTLP_ENDPOINT.
+	OTLPEndpoint string
+
+	// FilePath is the file path for JSON-lines trace output.
+	// Sets COPILOT_OTEL_FILE_EXPORTER_PATH.
+	FilePath string
+
+	// ExporterType is the exporter backend type: "otlp-http" or "file".
+	// Sets COPILOT_OTEL_EXPORTER_TYPE.
+	ExporterType string
+
+	// SourceName is the instrumentation scope name.
+	// Sets COPILOT_OTEL_SOURCE_NAME.
+	SourceName string
+
+	// CaptureContent controls whether to capture message content (prompts, responses).
+	// Sets OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT.
+	CaptureContent *bool
 }
 
 // Bool returns a pointer to the given bool value.
@@ -429,6 +456,12 @@ type ToolInvocation struct {
 	ToolCallID string
 	ToolName   string
 	Arguments  any
+
+	// TraceContext carries the W3C Trace Context propagated from the CLI's
+	// execute_tool span.  Pass this to OpenTelemetry-aware code so that
+	// child spans created inside the handler are parented to the CLI span.
+	// When no trace context is available this will be context.Background().
+	TraceContext context.Context
 }
 
 // ToolHandler executes a tool invocation.
@@ -682,6 +715,8 @@ type createSessionRequest struct {
 	SkillDirectories  []string                   `json:"skillDirectories,omitempty"`
 	DisabledSkills    []string                   `json:"disabledSkills,omitempty"`
 	InfiniteSessions  *InfiniteSessionConfig     `json:"infiniteSessions,omitempty"`
+	Traceparent       string                     `json:"traceparent,omitempty"`
+	Tracestate        string                     `json:"tracestate,omitempty"`
 }
 
 // createSessionResponse is the response from session.create
@@ -715,6 +750,8 @@ type resumeSessionRequest struct {
 	SkillDirectories  []string                   `json:"skillDirectories,omitempty"`
 	DisabledSkills    []string                   `json:"disabledSkills,omitempty"`
 	InfiniteSessions  *InfiniteSessionConfig     `json:"infiniteSessions,omitempty"`
+	Traceparent       string                     `json:"traceparent,omitempty"`
+	Tracestate        string                     `json:"tracestate,omitempty"`
 }
 
 // resumeSessionResponse is the response from session.resume
@@ -843,6 +880,8 @@ type sessionSendRequest struct {
 	Prompt      string       `json:"prompt"`
 	Attachments []Attachment `json:"attachments,omitempty"`
 	Mode        string       `json:"mode,omitempty"`
+	Traceparent string       `json:"traceparent,omitempty"`
+	Tracestate  string       `json:"tracestate,omitempty"`
 }
 
 // sessionSendResponse is the response from session.send

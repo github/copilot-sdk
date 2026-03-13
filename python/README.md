@@ -128,6 +128,7 @@ CopilotClient(
 - `env` (dict | None): Environment variables for the CLI process
 - `github_token` (str | None): GitHub token for authentication. When provided, takes priority over other auth methods.
 - `use_logged_in_user` (bool | None): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided).
+- `telemetry` (dict | None): OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 
 **ExternalServerConfig** — connect to an existing CLI server:
 
@@ -441,6 +442,32 @@ session = await client.create_session({
 > - When using a custom provider, the `model` parameter is **required**. The SDK will throw an error if no model is specified.
 > - For Azure OpenAI endpoints (`*.openai.azure.com`), you **must** use `type: "azure"`, not `type: "openai"`.
 > - The `base_url` should be just the host (e.g., `https://my-resource.openai.azure.com`). Do **not** include `/openai/v1` in the URL - the SDK handles path construction automatically.
+
+## Telemetry
+
+The SDK supports OpenTelemetry for distributed tracing. Provide a `telemetry` config to enable trace export and automatic W3C Trace Context propagation.
+
+```python
+from copilot import CopilotClient, SubprocessConfig
+
+client = CopilotClient(SubprocessConfig(
+    telemetry={
+        "otlp_endpoint": "http://localhost:4318",
+    },
+))
+```
+
+**TelemetryConfig options:**
+
+- `otlp_endpoint` (str): OTLP HTTP endpoint URL
+- `file_path` (str): File path for JSON-lines trace output
+- `exporter_type` (str): `"otlp-http"` or `"file"`
+- `source_name` (str): Instrumentation scope name
+- `capture_content` (bool): Whether to capture message content
+
+Trace context (`traceparent`/`tracestate`) is automatically propagated between the SDK and CLI on `create_session`, `resume_session`, and `send` calls, and inbound when the CLI invokes tool handlers.
+
+Install with telemetry extras: `pip install copilot-sdk[telemetry]` (provides `opentelemetry-api`)
 
 ## User Input Requests
 

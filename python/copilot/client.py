@@ -30,6 +30,7 @@ from .generated.session_events import PermissionRequest, session_event_from_dict
 from .jsonrpc import JsonRpcClient, ProcessExitedError
 from .sdk_protocol_version import get_sdk_protocol_version
 from .session import CopilotSession
+from .telemetry import get_trace_context, trace_context
 from .types import (
     ConnectionState,
     CustomAgentConfig,
@@ -589,6 +590,10 @@ class CopilotClient:
         session_id = cfg.get("session_id") or str(uuid.uuid4())
         payload["sessionId"] = session_id
 
+        # Propagate W3C Trace Context to CLI if OpenTelemetry is active
+        trace_ctx = get_trace_context()
+        payload.update(trace_ctx)
+
         # Create and register the session before issuing the RPC so that
         # events emitted by the CLI (e.g. session.start) are not dropped.
         session = CopilotSession(session_id, self._client, None)
@@ -789,6 +794,10 @@ class CopilotClient:
 
         if not self._client:
             raise RuntimeError("Client not connected")
+
+        # Propagate W3C Trace Context to CLI if OpenTelemetry is active
+        trace_ctx = get_trace_context()
+        payload.update(trace_ctx)
 
         # Create and register the session before issuing the RPC so that
         # events emitted by the CLI (e.g. session.start) are not dropped.
@@ -1304,6 +1313,23 @@ class CopilotClient:
         if cfg.github_token:
             env["COPILOT_SDK_AUTH_TOKEN"] = cfg.github_token
 
+        # Set OpenTelemetry environment variables if telemetry config is provided
+        telemetry = cfg.telemetry
+        if telemetry is not None:
+            env["COPILOT_OTEL_ENABLED"] = "true"
+            if "otlp_endpoint" in telemetry:
+                env["OTEL_EXPORTER_OTLP_ENDPOINT"] = telemetry["otlp_endpoint"]
+            if "file_path" in telemetry:
+                env["COPILOT_OTEL_FILE_EXPORTER_PATH"] = telemetry["file_path"]
+            if "exporter_type" in telemetry:
+                env["COPILOT_OTEL_EXPORTER_TYPE"] = telemetry["exporter_type"]
+            if "source_name" in telemetry:
+                env["COPILOT_OTEL_SOURCE_NAME"] = telemetry["source_name"]
+            if "capture_content" in telemetry:
+                env["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = str(
+                    telemetry["capture_content"]
+                ).lower()
+
         # On Windows, hide the console window to avoid distracting users in GUI apps
         creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
@@ -1605,10 +1631,14 @@ class CopilotClient:
             arguments=arguments,
         )
 
+        tp = params.get("traceparent")
+        ts = params.get("tracestate")
+
         try:
-            result = handler(invocation)
-            if inspect.isawaitable(result):
-                result = await result
+            with trace_context(tp, ts):
+                result = handler(invocation)
+                if inspect.isawaitable(result):
+                    result = await result
 
             tool_result: ToolResult = result  # type: ignore[assignment]
             return {
