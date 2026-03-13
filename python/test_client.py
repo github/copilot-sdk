@@ -480,3 +480,33 @@ class TestSessionConfigForwarding:
             assert captured["session.model.switchTo"]["modelId"] == "gpt-4.1"
         finally:
             await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_log_uses_info_level_by_default(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            session = await client.create_session(
+                {"on_permission_request": PermissionHandler.approve_all}
+            )
+
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.log":
+                    return {"eventId": "12345678-1234-5678-1234-567812345678"}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            await session.log("hello from test")
+
+            assert captured["session.log"] == {
+                "sessionId": session.session_id,
+                "message": "hello from test",
+                "level": "info",
+            }
+        finally:
+            await client.force_stop()
