@@ -480,3 +480,28 @@ class TestSessionConfigForwarding:
             assert captured["session.model.switchTo"]["modelId"] == "gpt-4.1"
         finally:
             await client.force_stop()
+
+class TestStatusApi:
+    @pytest.mark.asyncio
+    async def test_get_status_coerces_version_to_string(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "status.get":
+                    return {"version": 123, "protocolVersion": 2}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            result = await client.get_status()
+            assert captured["status.get"] == {}
+            assert result.version == "123"
+            assert isinstance(result.version, str)
+            assert result.protocolVersion == 2
+        finally:
+            await client.force_stop()
