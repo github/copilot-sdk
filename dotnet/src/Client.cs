@@ -14,6 +14,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using System.Text.RegularExpressions;
 using GitHub.Copilot.SDK.Rpc;
 using System.Globalization;
@@ -1254,6 +1255,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         options.TypeInfoResolverChain.Add(SessionEventsJsonContext.Default);
         options.TypeInfoResolverChain.Add(SDK.Rpc.RpcJsonContext.Default);
 
+        // StreamJsonRpc's RequestId needs serialization when CancellationToken fires during
+        // JSON-RPC operations. Its built-in converter (RequestIdSTJsonConverter) is internal,
+        // and [JsonSerializable] can't source-gen for it (SYSLIB1220), so we provide our own
+        // AOT-safe resolver + converter.
+        options.TypeInfoResolverChain.Add(new RequestIdTypeInfoResolver());
+
         options.MakeReadOnly();
 
         return options;
@@ -1686,6 +1693,50 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(UserInputRequest))]
     [JsonSerializable(typeof(UserInputResponse))]
     internal partial class ClientJsonContext : JsonSerializerContext;
+
+    /// <summary>
+    /// AOT-safe type info resolver for <see cref="RequestId"/>.
+    /// StreamJsonRpc's own RequestIdSTJsonConverter is internal (SYSLIB1220/CS0122),
+    /// so we provide our own converter and wire it through <see cref="JsonMetadataServices.CreateValueInfo{T}"/>
+    /// to stay fully AOT/trimming-compatible.
+    /// </summary>
+    private sealed class RequestIdTypeInfoResolver : IJsonTypeInfoResolver
+    {
+        public JsonTypeInfo? GetTypeInfo(Type type, JsonSerializerOptions options)
+        {
+            if (type == typeof(RequestId))
+                return JsonMetadataServices.CreateValueInfo<RequestId>(options, new RequestIdJsonConverter());
+            return null;
+        }
+    }
+
+    private sealed class RequestIdJsonConverter : JsonConverter<RequestId>
+    {
+        public override RequestId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return reader.TokenType switch
+            {
+                JsonTokenType.Number => reader.TryGetInt64(out long val)
+                    ? new RequestId(val)
+                    : new RequestId(reader.HasValueSequence
+                        ? Encoding.UTF8.GetString(reader.ValueSequence)
+                        : Encoding.UTF8.GetString(reader.ValueSpan)),
+                JsonTokenType.String => new RequestId(reader.GetString()!),
+                JsonTokenType.Null => RequestId.Null,
+                _ => throw new JsonException($"Unexpected token type for RequestId: {reader.TokenType}"),
+            };
+        }
+
+        public override void Write(Utf8JsonWriter writer, RequestId value, JsonSerializerOptions options)
+        {
+            if (value.Number.HasValue)
+                writer.WriteNumberValue(value.Number.Value);
+            else if (value.String is not null)
+                writer.WriteStringValue(value.String);
+            else
+                writer.WriteNullValue();
+        }
+    }
 
     [GeneratedRegex(@"listening on port ([0-9]+)", RegexOptions.IgnoreCase)]
     private static partial Regex ListeningOnPortRegex();
