@@ -138,10 +138,10 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `UseStdio` (bool): Use stdio transport instead of TCP (default: true)
 - `LogLevel` (string): Log level (default: "info")
 - `AutoStart` (\*bool): Auto-start server on first use (default: true). Use `Bool(false)` to disable.
-- `AutoRestart` (\*bool): Auto-restart on crash (default: true). Use `Bool(false)` to disable.
 - `Env` ([]string): Environment variables for CLI process (default: inherits from current process)
 - `GitHubToken` (string): GitHub token for authentication. When provided, takes priority over other auth methods.
 - `UseLoggedInUser` (\*bool): Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `CLIUrl`.
+- `Telemetry` (\*TelemetryConfig): OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 
 **SessionConfig:**
 
@@ -174,7 +174,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 
 ### Helper Functions
 
-- `Bool(v bool) *bool` - Helper to create bool pointers for `AutoStart`/`AutoRestart` options
+- `Bool(v bool) *bool` - Helper to create bool pointers for `AutoStart` option
 
 ## Image Support
 
@@ -293,6 +293,18 @@ editFile := copilot.DefineTool("edit_file", "Custom file editor with project-spe
         // your logic
     })
 editFile.OverridesBuiltInTool = true
+```
+
+#### Skipping Permission Prompts
+
+Set `SkipPermission = true` on a tool to allow it to execute without triggering a permission prompt:
+
+```go
+safeLookup := copilot.DefineTool("safe_lookup", "A read-only lookup that needs no confirmation",
+    func(params LookupParams, inv copilot.ToolInvocation) (any, error) {
+        // your logic
+    })
+safeLookup.SkipPermission = true
 ```
 
 ## Streaming
@@ -474,6 +486,32 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
 > - When using a custom provider, the `Model` parameter is **required**. The SDK will return an error if no model is specified.
 > - For Azure OpenAI endpoints (`*.openai.azure.com`), you **must** use `Type: "azure"`, not `Type: "openai"`.
 > - The `BaseURL` should be just the host (e.g., `https://my-resource.openai.azure.com`). Do **not** include `/openai/v1` in the URL - the SDK handles path construction automatically.
+
+## Telemetry
+
+The SDK supports OpenTelemetry for distributed tracing. Provide a `Telemetry` config to enable trace export and automatic W3C Trace Context propagation.
+
+```go
+client, err := copilot.NewClient(copilot.ClientOptions{
+    Telemetry: &copilot.TelemetryConfig{
+        OTLPEndpoint: "http://localhost:4318",
+    },
+})
+```
+
+**TelemetryConfig fields:**
+
+- `OTLPEndpoint` (string): OTLP HTTP endpoint URL
+- `FilePath` (string): File path for JSON-lines trace output
+- `ExporterType` (string): `"otlp-http"` or `"file"`
+- `SourceName` (string): Instrumentation scope name
+- `CaptureContent` (bool): Whether to capture message content
+
+Trace context (`traceparent`/`tracestate`) is automatically propagated between the SDK and CLI on `CreateSession`, `ResumeSession`, and `Send` calls, and inbound when the CLI invokes tool handlers.
+
+> **Note:** The current `ToolHandler` signature does not accept a `context.Context`, so the inbound trace context cannot be passed to handler code. Spans created inside a tool handler will not be automatically parented to the CLI's `execute_tool` span. A future version may add a context parameter.
+
+Dependency: `go.opentelemetry.io/otel`
 
 ## User Input Requests
 

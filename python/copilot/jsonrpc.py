@@ -60,6 +60,7 @@ class JsonRpcClient:
         self._process_exit_error: str | None = None
         self._stderr_output: list[str] = []
         self._stderr_lock = threading.Lock()
+        self.on_close: Callable[[], None] | None = None
 
     def start(self, loop: asyncio.AbstractEventLoop | None = None):
         """Start listening for messages in background thread"""
@@ -211,6 +212,8 @@ class JsonRpcClient:
         # Process exited or read failed - fail all pending requests
         if self._running:
             self._fail_pending_requests()
+            if self.on_close is not None:
+                self.on_close()
 
     def _fail_pending_requests(self):
         """Fail all pending requests when process exits"""

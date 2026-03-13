@@ -109,10 +109,10 @@ public class MultiClientTests : IClassFixture<MultiClientTestFixture>, IAsyncLif
         });
 
         // Set up event waiters BEFORE sending the prompt to avoid race conditions
-        var client1Requested = new TaskCompletionSource<bool>();
-        var client2Requested = new TaskCompletionSource<bool>();
-        var client1Completed = new TaskCompletionSource<bool>();
-        var client2Completed = new TaskCompletionSource<bool>();
+        var client1Requested = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client2Requested = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client1Completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client2Completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var sub1 = session1.On(evt =>
         {
@@ -134,11 +134,9 @@ public class MultiClientTests : IClassFixture<MultiClientTestFixture>, IAsyncLif
         Assert.Contains("MAGIC_hello_42", response!.Data.Content ?? string.Empty);
 
         // Wait for all broadcast events to arrive on both clients
-        var timeout = Task.Delay(TimeSpan.FromSeconds(10));
-        var allEvents = Task.WhenAll(
+        await Task.WhenAll(
             client1Requested.Task, client2Requested.Task,
-            client1Completed.Task, client2Completed.Task);
-        Assert.Equal(allEvents, await Task.WhenAny(allEvents, timeout));
+            client1Completed.Task, client2Completed.Task).WaitAsync(TimeSpan.FromSeconds(10));
 
         await session2.DisposeAsync();
 

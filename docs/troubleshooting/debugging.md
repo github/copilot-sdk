@@ -297,14 +297,7 @@ var client = new CopilotClient(new CopilotClientOptions
    copilot --server --stdio
    ```
 
-2. Enable auto-restart (enabled by default):
-   ```typescript
-   const client = new CopilotClient({
-     autoRestart: true,
-   });
-   ```
-
-3. Check for port conflicts if using TCP mode:
+2. Check for port conflicts if using TCP mode:
    ```typescript
    const client = new CopilotClient({
      useStdio: false,

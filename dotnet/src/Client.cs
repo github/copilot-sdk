@@ -54,6 +54,9 @@ namespace GitHub.Copilot.SDK;
 /// </example>
 public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 {
+    internal const string NoResultPermissionV2ErrorMessage =
+        "Permission handlers cannot return 'no-result' when connected to a protocol v2 server.";
+
     /// <summary>
     /// Minimum protocol version this SDK can communicate with.
     /// </summary>
@@ -63,6 +66,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private readonly CopilotClientOptions _options;
     private readonly ILogger _logger;
     private Task<Connection>? _connectionTask;
+    private volatile bool _disconnected;
     private bool _disposed;
     private readonly int? _optionsPort;
     private readonly string? _optionsHost;
@@ -199,6 +203,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         async Task<Connection> StartCoreAsync(CancellationToken ct)
         {
             _logger.LogDebug("Starting Copilot client");
+            _disconnected = false;
 
             Task<Connection> result;
 
@@ -407,7 +412,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         // Create and register the session before issuing the RPC so that
         // events emitted by the CLI (e.g. session.start) are not dropped.
-        var session = new CopilotSession(sessionId, connection.Rpc);
+        var session = new CopilotSession(sessionId, connection.Rpc, _logger);
         session.RegisterTools(config.Tools ?? []);
         session.RegisterPermissionHandler(config.OnPermissionRequest);
         if (config.OnUserInputRequest != null)
@@ -426,6 +431,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         try
         {
+            var (traceparent, tracestate) = TelemetryHelpers.GetTraceContext();
+
             var request = new CreateSessionRequest(
                 config.Model,
                 sessionId,
@@ -448,7 +455,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.ConfigDir,
                 config.SkillDirectories,
                 config.DisabledSkills,
-                config.InfiniteSessions);
+                config.InfiniteSessions,
+                traceparent,
+                tracestate);
 
             var response = await InvokeRpcAsync<CreateSessionResponse>(
                 connection.Rpc, "session.create", [request], cancellationToken);
@@ -511,7 +520,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         // Create and register the session before issuing the RPC so that
         // events emitted by the CLI (e.g. session.start) are not dropped.
-        var session = new CopilotSession(sessionId, connection.Rpc);
+        var session = new CopilotSession(sessionId, connection.Rpc, _logger);
         session.RegisterTools(config.Tools ?? []);
         session.RegisterPermissionHandler(config.OnPermissionRequest);
         if (config.OnUserInputRequest != null)
@@ -530,6 +539,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         try
         {
+            var (traceparent, tracestate) = TelemetryHelpers.GetTraceContext();
+
             var request = new ResumeSessionRequest(
                 sessionId,
                 config.ClientName,
@@ -553,7 +564,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.Agent,
                 config.SkillDirectories,
                 config.DisabledSkills,
-                config.InfiniteSessions);
+                config.InfiniteSessions,
+                traceparent,
+                tracestate);
 
             var response = await InvokeRpcAsync<ResumeSessionResponse>(
                 connection.Rpc, "session.resume", [request], cancellationToken);
@@ -590,6 +603,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             if (_connectionTask == null) return ConnectionState.Disconnected;
             if (_connectionTask.IsFaulted) return ConnectionState.Error;
             if (!_connectionTask.IsCompleted) return ConnectionState.Connecting;
+            if (_disconnected) return ConnectionState.Disconnected;
             return ConnectionState.Connected;
         }
     }
@@ -1064,6 +1078,17 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             startInfo.Environment["COPILOT_SDK_AUTH_TOKEN"] = options.GitHubToken;
         }
 
+        // Set telemetry environment variables if configured
+        if (options.Telemetry is { } telemetry)
+        {
+            startInfo.Environment["COPILOT_OTEL_ENABLED"] = "true";
+            if (telemetry.OtlpEndpoint is not null) startInfo.Environment["OTEL_EXPORTER_OTLP_ENDPOINT"] = telemetry.OtlpEndpoint;
+            if (telemetry.FilePath is not null) startInfo.Environment["COPILOT_OTEL_FILE_EXPORTER_PATH"] = telemetry.FilePath;
+            if (telemetry.ExporterType is not null) startInfo.Environment["COPILOT_OTEL_EXPORTER_TYPE"] = telemetry.ExporterType;
+            if (telemetry.SourceName is not null) startInfo.Environment["COPILOT_OTEL_SOURCE_NAME"] = telemetry.SourceName;
+            if (telemetry.CaptureContent is { } capture) startInfo.Environment["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = capture ? "true" : "false";
+        }
+
         var cliProcess = new Process { StartInfo = startInfo };
         cliProcess.Start();
 
@@ -1198,6 +1223,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         rpc.AddLocalRpcMethod("hooks.invoke", handler.OnHooksInvoke);
         rpc.StartListening();
 
+        // Transition state to Disconnected if the JSON-RPC connection drops
+        _ = rpc.Completion.ContinueWith(_ => _disconnected = true, TaskScheduler.Default);
+
         _rpc = new ServerRpc(rpc);
 
         return new Connection(rpc, cliProcess, tcpClient, networkStream, stderrBuffer);
@@ -1320,8 +1348,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         public async Task<ToolCallResponseV2> OnToolCallV2(string sessionId,
             string toolCallId,
             string toolName,
-            object? arguments)
+            object? arguments,
+            string? traceparent = null,
+            string? tracestate = null)
         {
+            using var _ = TelemetryHelpers.RestoreTraceContext(traceparent, tracestate);
+
             var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
             if (session.GetTool(toolName) is not { } tool)
             {
@@ -1394,7 +1426,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             try
             {
                 var result = await session.HandlePermissionRequestAsync(permissionRequest);
+                if (result.Kind == new PermissionRequestResultKind("no-result"))
+                {
+                    throw new InvalidOperationException(NoResultPermissionV2ErrorMessage);
+                }
                 return new PermissionRequestResponseV2(result);
+            }
+            catch (InvalidOperationException ex) when (ex.Message == NoResultPermissionV2ErrorMessage)
+            {
+                throw;
             }
             catch (Exception)
             {
@@ -1453,19 +1493,24 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? ConfigDir,
         List<string>? SkillDirectories,
         List<string>? DisabledSkills,
-        InfiniteSessionConfig? InfiniteSessions);
+        InfiniteSessionConfig? InfiniteSessions,
+        string? Traceparent = null,
+        string? Tracestate = null);
 
     internal record ToolDefinition(
         string Name,
         string? Description,
         JsonElement Parameters, /* JSON schema */
-        bool? OverridesBuiltInTool = null)
+        bool? OverridesBuiltInTool = null,
+        bool? SkipPermission = null)
     {
         public static ToolDefinition FromAIFunction(AIFunction function)
         {
             var overrides = function.AdditionalProperties.TryGetValue("is_override", out var val) && val is true;
+            var skipPerm = function.AdditionalProperties.TryGetValue("skip_permission", out var skipVal) && skipVal is true;
             return new ToolDefinition(function.Name, function.Description, function.JsonSchema,
-                overrides ? true : null);
+                overrides ? true : null,
+                skipPerm ? true : null);
         }
     }
 
@@ -1496,7 +1541,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? Agent,
         List<string>? SkillDirectories,
         List<string>? DisabledSkills,
-        InfiniteSessionConfig? InfiniteSessions);
+        InfiniteSessionConfig? InfiniteSessions,
+        string? Traceparent = null,
+        string? Tracestate = null);
 
     internal record ResumeSessionResponse(
         string SessionId,

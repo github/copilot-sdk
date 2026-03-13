@@ -181,6 +181,42 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
             => $"CUSTOM_GREP_RESULT: {query}";
     }
 
+    [Fact]
+    public async Task SkipPermission_Sent_In_Tool_Definition()
+    {
+        [Description("A tool that skips permission")]
+        static string SafeLookup([Description("Lookup ID")] string id)
+            => $"RESULT: {id}";
+
+        var tool = AIFunctionFactory.Create((Delegate)SafeLookup, new AIFunctionFactoryOptions
+        {
+            Name = "safe_lookup",
+            AdditionalProperties = new ReadOnlyDictionary<string, object?>(
+                new Dictionary<string, object?> { ["skip_permission"] = true })
+        });
+
+        var didRunPermissionRequest = false;
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            Tools = [tool],
+            OnPermissionRequest = (_, _) =>
+            {
+                didRunPermissionRequest = true;
+                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.NoResult });
+            }
+        });
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Use safe_lookup to look up 'test123'"
+        });
+
+        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        Assert.NotNull(assistantMessage);
+        Assert.Contains("RESULT", assistantMessage!.Data.Content ?? string.Empty);
+        Assert.False(didRunPermissionRequest);
+    }
+
     [Fact(Skip = "Behaves as if no content was in the result. Likely that binary results aren't fully implemented yet.")]
     public async Task Can_Return_Binary_Result()
     {

@@ -59,11 +59,9 @@ Discovery rules:
 ## Minimal Skeleton
 
 ```js
-import { approveAll } from "@github/copilot-sdk";
 import { joinSession } from "@github/copilot-sdk/extension";
 
 await joinSession({
-    onPermissionRequest: approveAll, // Required — handle permission requests
     tools: [],                     // Optional — custom tools
     hooks: {},                     // Optional — lifecycle hooks
 });

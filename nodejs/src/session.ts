@@ -10,6 +10,7 @@
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 import { ConnectionError, ResponseError } from "vscode-jsonrpc/node.js";
 import { createSessionRpc } from "./generated/rpc.js";
+import { getTraceContext } from "./telemetry.js";
 import type {
     MessageOptions,
     PermissionHandler,
@@ -22,11 +23,15 @@ import type {
     SessionHooks,
     Tool,
     ToolHandler,
+    TraceContextProvider,
     TypedSessionEventHandler,
     UserInputHandler,
     UserInputRequest,
     UserInputResponse,
 } from "./types.js";
+
+export const NO_RESULT_PERMISSION_V2_ERROR =
+    "Permission handlers cannot return 'no-result' when connected to a protocol v2 server.";
 
 /** Assistant message event - the final response from the assistant. */
 export type AssistantMessageEvent = Extract<SessionEvent, { type: "assistant.message" }>;
@@ -65,6 +70,7 @@ export class CopilotSession {
     private userInputHandler?: UserInputHandler;
     private hooks?: SessionHooks;
     private _rpc: ReturnType<typeof createSessionRpc> | null = null;
+    private traceContextProvider?: TraceContextProvider;
 
     /**
      * Creates a new CopilotSession instance.
@@ -72,13 +78,17 @@ export class CopilotSession {
      * @param sessionId - The unique identifier for this session
      * @param connection - The JSON-RPC message connection to the Copilot CLI
      * @param workspacePath - Path to the session workspace directory (when infinite sessions enabled)
+     * @param traceContextProvider - Optional callback to get W3C Trace Context for outbound RPCs
      * @internal This constructor is internal. Use {@link CopilotClient.createSession} to create sessions.
      */
     constructor(
         public readonly sessionId: string,
         private connection: MessageConnection,
-        private _workspacePath?: string
-    ) {}
+        private _workspacePath?: string,
+        traceContextProvider?: TraceContextProvider
+    ) {
+        this.traceContextProvider = traceContextProvider;
+    }
 
     /**
      * Typed session-scoped RPC methods.
@@ -119,6 +129,7 @@ export class CopilotSession {
      */
     async send(options: MessageOptions): Promise<string> {
         const response = await this.connection.sendRequest("session.send", {
+            ...(await getTraceContext(this.traceContextProvider)),
             sessionId: this.sessionId,
             prompt: options.prompt,
             attachments: options.attachments,
@@ -333,9 +344,19 @@ export class CopilotSession {
             };
             const args = (event.data as { arguments: unknown }).arguments;
             const toolCallId = (event.data as { toolCallId: string }).toolCallId;
+            const traceparent = (event.data as { traceparent?: string }).traceparent;
+            const tracestate = (event.data as { tracestate?: string }).tracestate;
             const handler = this.toolHandlers.get(toolName);
             if (handler) {
-                void this._executeToolAndRespond(requestId, toolName, toolCallId, args, handler);
+                void this._executeToolAndRespond(
+                    requestId,
+                    toolName,
+                    toolCallId,
+                    args,
+                    handler,
+                    traceparent,
+                    tracestate
+                );
             }
         } else if (event.type === "permission.requested") {
             const { requestId, permissionRequest } = event.data as {
@@ -357,7 +378,9 @@ export class CopilotSession {
         toolName: string,
         toolCallId: string,
         args: unknown,
-        handler: ToolHandler
+        handler: ToolHandler,
+        traceparent?: string,
+        tracestate?: string
     ): Promise<void> {
         try {
             const rawResult = await handler(args, {
@@ -365,6 +388,8 @@ export class CopilotSession {
                 toolCallId,
                 toolName,
                 arguments: args,
+                traceparent,
+                tracestate,
             });
             let result: string;
             if (rawResult == null) {
@@ -400,6 +425,9 @@ export class CopilotSession {
             const result = await this.permissionHandler!(permissionRequest, {
                 sessionId: this.sessionId,
             });
+            if (result.kind === "no-result") {
+                return;
+            }
             await this.rpc.permissions.handlePendingPermissionRequest({ requestId, result });
         } catch (_error) {
             try {
@@ -505,8 +533,14 @@ export class CopilotSession {
             const result = await this.permissionHandler(request as PermissionRequest, {
                 sessionId: this.sessionId,
             });
+            if (result.kind === "no-result") {
+                throw new Error(NO_RESULT_PERMISSION_V2_ERROR);
+            }
             return result;
-        } catch (_error) {
+        } catch (error) {
+            if (error instanceof Error && error.message === NO_RESULT_PERMISSION_V2_ERROR) {
+                throw error;
+            }
             return { kind: "denied-no-approval-rule-and-could-not-request-from-user" };
         }
     }

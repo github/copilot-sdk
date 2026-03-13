@@ -4,7 +4,15 @@
 
 import { CopilotClient } from "./client.js";
 import type { CopilotSession } from "./session.js";
-import type { ResumeSessionConfig } from "./types.js";
+import type { PermissionHandler, PermissionRequestResult, ResumeSessionConfig } from "./types.js";
+
+const defaultJoinSessionPermissionHandler: PermissionHandler = (): PermissionRequestResult => ({
+    kind: "no-result",
+});
+
+export type JoinSessionConfig = Omit<ResumeSessionConfig, "onPermissionRequest"> & {
+    onPermissionRequest?: PermissionHandler;
+};
 
 /**
  * Joins the current foreground session.
@@ -14,16 +22,12 @@ import type { ResumeSessionConfig } from "./types.js";
  *
  * @example
  * ```typescript
- * import { approveAll } from "@github/copilot-sdk";
  * import { joinSession } from "@github/copilot-sdk/extension";
  *
- * const session = await joinSession({
- *   onPermissionRequest: approveAll,
- *   tools: [myTool],
- * });
+ * const session = await joinSession({ tools: [myTool] });
  * ```
  */
-export async function joinSession(config: ResumeSessionConfig): Promise<CopilotSession> {
+export async function joinSession(config: JoinSessionConfig = {}): Promise<CopilotSession> {
     const sessionId = process.env.SESSION_ID;
     if (!sessionId) {
         throw new Error(
@@ -34,6 +38,7 @@ export async function joinSession(config: ResumeSessionConfig): Promise<CopilotS
     const client = new CopilotClient({ isChildProcess: true });
     return client.resumeSession(sessionId, {
         ...config,
+        onPermissionRequest: config.onPermissionRequest ?? defaultJoinSessionPermissionHandler,
         disableResume: config.disableResume ?? true,
     });
 }

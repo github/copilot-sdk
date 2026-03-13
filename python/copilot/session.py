@@ -24,6 +24,7 @@ from .generated.rpc import (
 )
 from .generated.session_events import SessionEvent, SessionEventType, session_event_from_dict
 from .jsonrpc import JsonRpcError, ProcessExitedError
+from .telemetry import get_trace_context, trace_context
 from .types import (
     MessageOptions,
     PermissionRequest,
@@ -139,15 +140,17 @@ class CopilotSession:
             ...     "attachments": [{"type": "file", "path": "./src/main.py"}]
             ... })
         """
-        response = await self._client.request(
-            "session.send",
-            {
-                "sessionId": self.session_id,
-                "prompt": options["prompt"],
-                "attachments": options.get("attachments"),
-                "mode": options.get("mode"),
-            },
-        )
+        params: dict[str, Any] = {
+            "sessionId": self.session_id,
+            "prompt": options["prompt"],
+        }
+        if "attachments" in options:
+            params["attachments"] = options["attachments"]
+        if "mode" in options:
+            params["mode"] = options["mode"]
+        params.update(get_trace_context())
+
+        response = await self._client.request("session.send", params)
         return response["messageId"]
 
     async def send_and_wait(
@@ -289,9 +292,11 @@ class CopilotSession:
 
             tool_call_id = event.data.tool_call_id or ""
             arguments = event.data.arguments
+            tp = getattr(event.data, "traceparent", None)
+            ts = getattr(event.data, "tracestate", None)
             asyncio.ensure_future(
                 self._execute_tool_and_respond(
-                    request_id, tool_name, tool_call_id, arguments, handler
+                    request_id, tool_name, tool_call_id, arguments, handler, tp, ts
                 )
             )
 
@@ -317,6 +322,8 @@ class CopilotSession:
         tool_call_id: str,
         arguments: Any,
         handler: ToolHandler,
+        traceparent: str | None = None,
+        tracestate: str | None = None,
     ) -> None:
         """Execute a tool handler and send the result back via HandlePendingToolCall RPC."""
         try:
@@ -327,9 +334,10 @@ class CopilotSession:
                 arguments=arguments,
             )
 
-            result = handler(invocation)
-            if inspect.isawaitable(result):
-                result = await result
+            with trace_context(traceparent, tracestate):
+                result = handler(invocation)
+                if inspect.isawaitable(result):
+                    result = await result
 
             tool_result: ToolResult
             if result is None:
@@ -387,6 +395,8 @@ class CopilotSession:
                 result = await result
 
             result = cast(PermissionRequestResult, result)
+            if result.kind == "no-result":
+                return
 
             perm_result = SessionPermissionsHandlePendingPermissionRequestParamsResult(
                 kind=Kind(result.kind),

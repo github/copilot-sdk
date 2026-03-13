@@ -26,6 +26,38 @@ describe("CopilotClient", () => {
         );
     });
 
+    it("does not respond to v3 permission requests when handler returns no-result", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({
+            onPermissionRequest: () => ({ kind: "no-result" }),
+        });
+        const spy = vi.spyOn(session.rpc.permissions, "handlePendingPermissionRequest");
+
+        await (session as any)._executePermissionAndRespond("request-1", { kind: "write" });
+
+        expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("throws when a v2 permission handler returns no-result", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({
+            onPermissionRequest: () => ({ kind: "no-result" }),
+        });
+
+        await expect(
+            (client as any).handlePermissionRequestV2({
+                sessionId: session.sessionId,
+                permissionRequest: { kind: "write" },
+            })
+        ).rejects.toThrow(/protocol v2 server/);
+    });
+
     it("forwards clientName in session.create request", async () => {
         const client = new CopilotClient();
         await client.start();
@@ -482,6 +514,115 @@ describe("CopilotClient", () => {
             const models = await client.listModels();
             expect(handler).toHaveBeenCalledTimes(1);
             expect(models).toEqual(customModels);
+        });
+    });
+
+    describe("unexpected disconnection", () => {
+        it("transitions to disconnected when child process is killed", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            expect(client.getState()).toBe("connected");
+
+            // Kill the child process to simulate unexpected termination
+            const proc = (client as any).cliProcess as import("node:child_process").ChildProcess;
+            proc.kill();
+
+            // Wait for the connection.onClose handler to fire
+            await vi.waitFor(() => {
+                expect(client.getState()).toBe("disconnected");
+            });
+        });
+    });
+
+    describe("onGetTraceContext", () => {
+        it("includes trace context from callback in session.create request", async () => {
+            const traceContext = {
+                traceparent: "00-abcdef1234567890abcdef1234567890-1234567890abcdef-01",
+                tracestate: "vendor=opaque",
+            };
+            const provider = vi.fn().mockReturnValue(traceContext);
+            const client = new CopilotClient({ onGetTraceContext: provider });
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            await client.createSession({ onPermissionRequest: approveAll });
+
+            expect(provider).toHaveBeenCalled();
+            expect(spy).toHaveBeenCalledWith(
+                "session.create",
+                expect.objectContaining({
+                    traceparent: "00-abcdef1234567890abcdef1234567890-1234567890abcdef-01",
+                    tracestate: "vendor=opaque",
+                })
+            );
+        });
+
+        it("includes trace context from callback in session.resume request", async () => {
+            const traceContext = {
+                traceparent: "00-abcdef1234567890abcdef1234567890-1234567890abcdef-01",
+            };
+            const provider = vi.fn().mockReturnValue(traceContext);
+            const client = new CopilotClient({ onGetTraceContext: provider });
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            const spy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (method: string, params: any) => {
+                    if (method === "session.resume") return { sessionId: params.sessionId };
+                    throw new Error(`Unexpected method: ${method}`);
+                });
+            await client.resumeSession(session.sessionId, { onPermissionRequest: approveAll });
+
+            expect(spy).toHaveBeenCalledWith(
+                "session.resume",
+                expect.objectContaining({
+                    traceparent: "00-abcdef1234567890abcdef1234567890-1234567890abcdef-01",
+                })
+            );
+        });
+
+        it("includes trace context from callback in session.send request", async () => {
+            const traceContext = {
+                traceparent: "00-fedcba0987654321fedcba0987654321-abcdef1234567890-01",
+            };
+            const provider = vi.fn().mockReturnValue(traceContext);
+            const client = new CopilotClient({ onGetTraceContext: provider });
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            const spy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (method: string) => {
+                    if (method === "session.send") return { responseId: "r1" };
+                    throw new Error(`Unexpected method: ${method}`);
+                });
+            await session.send({ prompt: "hello" });
+
+            expect(spy).toHaveBeenCalledWith(
+                "session.send",
+                expect.objectContaining({
+                    traceparent: "00-fedcba0987654321fedcba0987654321-abcdef1234567890-01",
+                })
+            );
+        });
+
+        it("does not include trace context when no callback is provided", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            await client.createSession({ onPermissionRequest: approveAll });
+
+            const [, params] = spy.mock.calls.find(([method]) => method === "session.create")!;
+            expect(params.traceparent).toBeUndefined();
+            expect(params.tracestate).toBeUndefined();
         });
     });
 });

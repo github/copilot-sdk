@@ -15,6 +15,7 @@ func TestPermissionRequestResultKind_Constants(t *testing.T) {
 		{"DeniedByRules", PermissionRequestResultKindDeniedByRules, "denied-by-rules"},
 		{"DeniedCouldNotRequestFromUser", PermissionRequestResultKindDeniedCouldNotRequestFromUser, "denied-no-approval-rule-and-could-not-request-from-user"},
 		{"DeniedInteractivelyByUser", PermissionRequestResultKindDeniedInteractivelyByUser, "denied-interactively-by-user"},
+		{"NoResult", PermissionRequestResultKind("no-result"), "no-result"},
 	}
 
 	for _, tt := range tests {
@@ -42,6 +43,7 @@ func TestPermissionRequestResult_JSONRoundTrip(t *testing.T) {
 		{"DeniedByRules", PermissionRequestResultKindDeniedByRules},
 		{"DeniedCouldNotRequestFromUser", PermissionRequestResultKindDeniedCouldNotRequestFromUser},
 		{"DeniedInteractivelyByUser", PermissionRequestResultKindDeniedInteractivelyByUser},
+		{"NoResult", PermissionRequestResultKind("no-result")},
 		{"Custom", PermissionRequestResultKind("custom")},
 	}
 

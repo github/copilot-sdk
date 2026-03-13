@@ -79,13 +79,10 @@ async with await client.create_session({"model": "gpt-5"}) as session:
 ### CopilotClient
 
 ```python
-client = CopilotClient({
-    "cli_path": "copilot",  # Optional: path to CLI executable
-    "cli_url": None,        # Optional: URL of existing server (e.g., "localhost:8080")
-    "log_level": "info",    # Optional: log level (default: "info")
-    "auto_start": True,     # Optional: auto-start server (default: True)
-    "auto_restart": True,   # Optional: auto-restart on crash (default: True)
-})
+from copilot import CopilotClient, SubprocessConfig
+
+# Spawn a local CLI process (default)
+client = CopilotClient()  # uses bundled CLI, stdio transport
 await client.start()
 
 session = await client.create_session({"model": "gpt-5"})
@@ -102,18 +99,40 @@ await session.disconnect()
 await client.stop()
 ```
 
-**CopilotClient Options:**
+```python
+from copilot import CopilotClient, ExternalServerConfig
 
-- `cli_path` (str): Path to CLI executable (default: "copilot" or `COPILOT_CLI_PATH` env var)
-- `cli_url` (str): URL of existing CLI server (e.g., `"localhost:8080"`, `"http://127.0.0.1:9000"`, or just `"8080"`). When provided, the client will not spawn a CLI process.
-- `cwd` (str): Working directory for CLI process
-- `port` (int): Server port for TCP mode (default: 0 for random)
+# Connect to an existing CLI server
+client = CopilotClient(ExternalServerConfig(url="localhost:3000"))
+```
+
+**CopilotClient Constructor:**
+
+```python
+CopilotClient(
+    config=None,        # SubprocessConfig | ExternalServerConfig | None
+    *,
+    auto_start=True,    # auto-start server on first use
+    on_list_models=None, # custom handler for list_models()
+)
+```
+
+**SubprocessConfig** — spawn a local CLI process:
+
+- `cli_path` (str | None): Path to CLI executable (default: bundled binary)
+- `cli_args` (list[str]): Extra arguments for the CLI executable
+- `cwd` (str | None): Working directory for CLI process (default: current dir)
 - `use_stdio` (bool): Use stdio transport instead of TCP (default: True)
+- `port` (int): Server port for TCP mode (default: 0 for random)
 - `log_level` (str): Log level (default: "info")
-- `auto_start` (bool): Auto-start server on first use (default: True)
-- `auto_restart` (bool): Auto-restart on crash (default: True)
-- `github_token` (str): GitHub token for authentication. When provided, takes priority over other auth methods.
-- `use_logged_in_user` (bool): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided). Cannot be used with `cli_url`.
+- `env` (dict | None): Environment variables for the CLI process
+- `github_token` (str | None): GitHub token for authentication. When provided, takes priority over other auth methods.
+- `use_logged_in_user` (bool | None): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided).
+- `telemetry` (dict | None): OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
+
+**ExternalServerConfig** — connect to an existing CLI server:
+
+- `url` (str): Server URL (e.g., `"localhost:8080"`, `"http://127.0.0.1:9000"`, or just `"8080"`).
 
 **SessionConfig Options (for `create_session`):**
 
@@ -229,6 +248,16 @@ class EditFileParams(BaseModel):
 
 @define_tool(name="edit_file", description="Custom file editor with project-specific validation", overrides_built_in_tool=True)
 async def edit_file(params: EditFileParams) -> str:
+    # your logic
+```
+
+#### Skipping Permission Prompts
+
+Set `skip_permission=True` on a tool definition to allow it to execute without triggering a permission prompt:
+
+```python
+@define_tool(name="safe_lookup", description="A read-only lookup that needs no confirmation", skip_permission=True)
+async def safe_lookup(params: LookupParams) -> str:
     # your logic
 ```
 
@@ -426,6 +455,32 @@ session = await client.create_session({
 > - When using a custom provider, the `model` parameter is **required**. The SDK will throw an error if no model is specified.
 > - For Azure OpenAI endpoints (`*.openai.azure.com`), you **must** use `type: "azure"`, not `type: "openai"`.
 > - The `base_url` should be just the host (e.g., `https://my-resource.openai.azure.com`). Do **not** include `/openai/v1` in the URL - the SDK handles path construction automatically.
+
+## Telemetry
+
+The SDK supports OpenTelemetry for distributed tracing. Provide a `telemetry` config to enable trace export and automatic W3C Trace Context propagation.
+
+```python
+from copilot import CopilotClient, SubprocessConfig
+
+client = CopilotClient(SubprocessConfig(
+    telemetry={
+        "otlp_endpoint": "http://localhost:4318",
+    },
+))
+```
+
+**TelemetryConfig options:**
+
+- `otlp_endpoint` (str): OTLP HTTP endpoint URL
+- `file_path` (str): File path for JSON-lines trace output
+- `exporter_type` (str): `"otlp-http"` or `"file"`
+- `source_name` (str): Instrumentation scope name
+- `capture_content` (bool): Whether to capture message content
+
+Trace context (`traceparent`/`tracestate`) is automatically propagated between the SDK and CLI on `create_session`, `resume_session`, and `send` calls, and inbound when the CLI invokes tool handlers.
+
+Install with telemetry extras: `pip install copilot-sdk[telemetry]` (provides `opentelemetry-api`)
 
 ## User Input Requests
 

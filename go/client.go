@@ -51,6 +51,8 @@ import (
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
+const noResultPermissionV2Error = "permission handlers cannot return 'no-result' when connected to a protocol v2 server"
+
 // Client manages the connection to the Copilot CLI server and provides session management.
 //
 // The Client can either spawn a CLI server process or connect to an existing server.
@@ -71,19 +73,19 @@ import (
 //	}
 //	defer client.Stop()
 type Client struct {
-	options                   ClientOptions
-	process                   *exec.Cmd
-	client                    *jsonrpc2.Client
-	actualPort                int
-	actualHost                string
-	state                     ConnectionState
-	sessions                  map[string]*Session
-	sessionsMux               sync.Mutex
-	isExternalServer          bool
-	conn                      net.Conn // stores net.Conn for external TCP connections
-	useStdio                  bool     // resolved value from options
-	autoStart                 bool     // resolved value from options
-	autoRestart               bool     // resolved value from options
+	options          ClientOptions
+	process          *exec.Cmd
+	client           *jsonrpc2.Client
+	actualPort       int
+	actualHost       string
+	state            ConnectionState
+	sessions         map[string]*Session
+	sessionsMux      sync.Mutex
+	isExternalServer bool
+	conn             net.Conn // stores net.Conn for external TCP connections
+	useStdio         bool     // resolved value from options
+	autoStart        bool     // resolved value from options
+
 	modelsCache               []ModelInfo
 	modelsCacheMux            sync.Mutex
 	lifecycleHandlers         []SessionLifecycleHandler
@@ -132,7 +134,6 @@ func NewClient(options *ClientOptions) *Client {
 		isExternalServer: false,
 		useStdio:         true,
 		autoStart:        true, // default
-		autoRestart:      true, // default
 	}
 
 	if options != nil {
@@ -181,9 +182,6 @@ func NewClient(options *ClientOptions) *Client {
 		}
 		if options.AutoStart != nil {
 			client.autoStart = *options.AutoStart
-		}
-		if options.AutoRestart != nil {
-			client.autoRestart = *options.AutoRestart
 		}
 		if options.GitHubToken != "" {
 			opts.GitHubToken = options.GitHubToken
@@ -528,6 +526,10 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	}
 	req.RequestPermission = Bool(true)
 
+	traceparent, tracestate := getTraceContext(ctx)
+	req.Traceparent = traceparent
+	req.Tracestate = tracestate
+
 	sessionID := config.SessionID
 	if sessionID == "" {
 		sessionID = uuid.New().String()
@@ -646,6 +648,10 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.DisabledSkills = config.DisabledSkills
 	req.InfiniteSessions = config.InfiniteSessions
 	req.RequestPermission = Bool(true)
+
+	traceparent, tracestate := getTraceContext(ctx)
+	req.Traceparent = traceparent
+	req.Tracestate = tracestate
 
 	// Create and register the session before issuing the RPC so that
 	// events emitted by the CLI (e.g. session.start) are not dropped.
@@ -1210,6 +1216,30 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		c.process.Env = append(c.process.Env, "COPILOT_SDK_AUTH_TOKEN="+c.options.GitHubToken)
 	}
 
+	if c.options.Telemetry != nil {
+		t := c.options.Telemetry
+		c.process.Env = append(c.process.Env, "COPILOT_OTEL_ENABLED=true")
+		if t.OTLPEndpoint != "" {
+			c.process.Env = append(c.process.Env, "OTEL_EXPORTER_OTLP_ENDPOINT="+t.OTLPEndpoint)
+		}
+		if t.FilePath != "" {
+			c.process.Env = append(c.process.Env, "COPILOT_OTEL_FILE_EXPORTER_PATH="+t.FilePath)
+		}
+		if t.ExporterType != "" {
+			c.process.Env = append(c.process.Env, "COPILOT_OTEL_EXPORTER_TYPE="+t.ExporterType)
+		}
+		if t.SourceName != "" {
+			c.process.Env = append(c.process.Env, "COPILOT_OTEL_SOURCE_NAME="+t.SourceName)
+		}
+		if t.CaptureContent != nil {
+			val := "false"
+			if *t.CaptureContent {
+				val = "true"
+			}
+			c.process.Env = append(c.process.Env, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT="+val)
+		}
+	}
+
 	if c.useStdio {
 		// For stdio mode, we need stdin/stdout pipes
 		stdin, err := c.process.StdinPipe()
@@ -1231,6 +1261,15 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		// Create JSON-RPC client immediately
 		c.client = jsonrpc2.NewClient(stdin, stdout)
 		c.client.SetProcessDone(c.processDone, c.processErrorPtr)
+		c.client.SetOnClose(func() {
+			// Run in a goroutine to avoid deadlocking with Stop/ForceStop,
+			// which hold startStopMux while waiting for readLoop to finish.
+			go func() {
+				c.startStopMux.Lock()
+				defer c.startStopMux.Unlock()
+				c.state = StateDisconnected
+			}()
+		})
 		c.RPC = rpc.NewServerRpc(c.client)
 		c.setupNotificationHandler()
 		c.client.Start()
@@ -1346,6 +1385,13 @@ func (c *Client) connectViaTcp(ctx context.Context) error {
 	if c.processDone != nil {
 		c.client.SetProcessDone(c.processDone, c.processErrorPtr)
 	}
+	c.client.SetOnClose(func() {
+		go func() {
+			c.startStopMux.Lock()
+			defer c.startStopMux.Unlock()
+			c.state = StateDisconnected
+		}()
+	})
 	c.RPC = rpc.NewServerRpc(c.client)
 	c.setupNotificationHandler()
 	c.client.Start()
@@ -1437,10 +1483,12 @@ func (c *Client) handleHooksInvoke(req hooksInvokeRequest) (map[string]any, *jso
 
 // toolCallRequestV2 is the v2 RPC request payload for tool.call.
 type toolCallRequestV2 struct {
-	SessionID  string `json:"sessionId"`
-	ToolCallID string `json:"toolCallId"`
-	ToolName   string `json:"toolName"`
-	Arguments  any    `json:"arguments"`
+	SessionID   string `json:"sessionId"`
+	ToolCallID  string `json:"toolCallId"`
+	ToolName    string `json:"toolName"`
+	Arguments   any    `json:"arguments"`
+	Traceparent string `json:"traceparent,omitempty"`
+	Tracestate  string `json:"tracestate,omitempty"`
 }
 
 // toolCallResponseV2 is the v2 RPC response payload for tool.call.
@@ -1482,7 +1530,15 @@ func (c *Client) handleToolCallRequestV2(req toolCallRequestV2) (*toolCallRespon
 		}}, nil
 	}
 
-	invocation := ToolInvocation(req)
+	ctx := contextWithTraceParent(context.Background(), req.Traceparent, req.Tracestate)
+
+	invocation := ToolInvocation{
+		SessionID:    req.SessionID,
+		ToolCallID:   req.ToolCallID,
+		ToolName:     req.ToolName,
+		Arguments:    req.Arguments,
+		TraceContext: ctx,
+	}
 
 	result, err := handler(invocation)
 	if err != nil {
@@ -1530,6 +1586,9 @@ func (c *Client) handlePermissionRequestV2(req permissionRequestV2) (*permission
 				Kind: PermissionRequestResultKindDeniedCouldNotRequestFromUser,
 			},
 		}, nil
+	}
+	if result.Kind == "no-result" {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: noResultPermissionV2Error}
 	}
 
 	return &permissionResponseV2{Result: result}, nil

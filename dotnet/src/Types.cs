@@ -50,8 +50,10 @@ public class CopilotClientOptions
     {
         if (other is null) return;
 
-        AutoRestart = other.AutoRestart;
         AutoStart = other.AutoStart;
+#pragma warning disable CS0618 // Obsolete member
+        AutoRestart = other.AutoRestart;
+#pragma warning restore CS0618
         CliArgs = (string[]?)other.CliArgs?.Clone();
         CliPath = other.CliPath;
         CliUrl = other.CliUrl;
@@ -61,6 +63,7 @@ public class CopilotClientOptions
         Logger = other.Logger;
         LogLevel = other.LogLevel;
         Port = other.Port;
+        Telemetry = other.Telemetry;
         UseLoggedInUser = other.UseLoggedInUser;
         UseStdio = other.UseStdio;
         OnListModels = other.OnListModels;
@@ -99,9 +102,10 @@ public class CopilotClientOptions
     /// </summary>
     public bool AutoStart { get; set; } = true;
     /// <summary>
-    /// Whether to automatically restart the CLI server if it exits unexpectedly.
+    /// Obsolete. This option has no effect.
     /// </summary>
-    public bool AutoRestart { get; set; } = true;
+    [Obsolete("AutoRestart has no effect and will be removed in a future release.")]
+    public bool AutoRestart { get; set; }
     /// <summary>
     /// Environment variables to pass to the CLI process.
     /// </summary>
@@ -146,6 +150,12 @@ public class CopilotClientOptions
     public Func<CancellationToken, Task<List<ModelInfo>>>? OnListModels { get; set; }
 
     /// <summary>
+    /// OpenTelemetry configuration for the CLI server.
+    /// When set to a non-<see langword="null"/> instance, the CLI server is started with OpenTelemetry instrumentation enabled.
+    /// </summary>
+    public TelemetryConfig? Telemetry { get; set; }
+
+    /// <summary>
     /// Creates a shallow clone of this <see cref="CopilotClientOptions"/> instance.
     /// </summary>
     /// <remarks>
@@ -158,6 +168,52 @@ public class CopilotClientOptions
     {
         return new(this);
     }
+}
+
+/// <summary>
+/// OpenTelemetry configuration for the Copilot CLI server.
+/// </summary>
+public sealed class TelemetryConfig
+{
+    /// <summary>
+    /// OTLP exporter endpoint URL.
+    /// </summary>
+    /// <remarks>
+    /// Maps to the <c>OTEL_EXPORTER_OTLP_ENDPOINT</c> environment variable.
+    /// </remarks>
+    public string? OtlpEndpoint { get; set; }
+
+    /// <summary>
+    /// File path for the file exporter.
+    /// </summary>
+    /// <remarks>
+    /// Maps to the <c>COPILOT_OTEL_FILE_EXPORTER_PATH</c> environment variable.
+    /// </remarks>
+    public string? FilePath { get; set; }
+
+    /// <summary>
+    /// Exporter type (<c>"otlp-http"</c> or <c>"file"</c>).
+    /// </summary>
+    /// <remarks>
+    /// Maps to the <c>COPILOT_OTEL_EXPORTER_TYPE</c> environment variable.
+    /// </remarks>
+    public string? ExporterType { get; set; }
+
+    /// <summary>
+    /// Source name for telemetry spans.
+    /// </summary>
+    /// <remarks>
+    /// Maps to the <c>COPILOT_OTEL_SOURCE_NAME</c> environment variable.
+    /// </remarks>
+    public string? SourceName { get; set; }
+
+    /// <summary>
+    /// Whether to capture message content as part of telemetry.
+    /// </summary>
+    /// <remarks>
+    /// Maps to the <c>OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT</c> environment variable.
+    /// </remarks>
+    public bool? CaptureContent { get; set; }
 }
 
 /// <summary>
@@ -283,6 +339,9 @@ public readonly struct PermissionRequestResultKind : IEquatable<PermissionReques
     /// <summary>Gets the kind indicating the permission was denied interactively by the user.</summary>
     public static PermissionRequestResultKind DeniedInteractivelyByUser { get; } = new("denied-interactively-by-user");
 
+    /// <summary>Gets the kind indicating the permission was denied interactively by the user.</summary>
+    public static PermissionRequestResultKind NoResult { get; } = new("no-result");
+
     /// <summary>Gets the underlying string value of this <see cref="PermissionRequestResultKind"/>.</summary>
     public string Value => _value ?? string.Empty;
 
@@ -350,6 +409,7 @@ public class PermissionRequestResult
     /// <item><description><c>"denied-by-rules"</c> — denied by configured permission rules.</description></item>
     /// <item><description><c>"denied-interactively-by-user"</c> — the user explicitly denied the request.</description></item>
     /// <item><description><c>"denied-no-approval-rule-and-could-not-request-from-user"</c> — no rule matched and user approval was unavailable.</description></item>
+    /// <item><description><c>"no-result"</c> — leave the pending permission request unanswered.</description></item>
     /// </list>
     /// </summary>
     [JsonPropertyName("kind")]
