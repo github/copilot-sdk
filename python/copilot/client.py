@@ -22,7 +22,8 @@ import threading
 import uuid
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, cast
+from types import TracebackType
+from typing import Any, Optional, cast
 
 from .generated.rpc import ServerRpc
 from .generated.session_events import PermissionRequest, session_event_from_dict
@@ -220,6 +221,38 @@ class CopilotClient:
         self._lifecycle_handlers_lock = threading.Lock()
         self._rpc: ServerRpc | None = None
         self._negotiated_protocol_version: int | None = None
+
+    async def __aenter__(self) -> "CopilotClient":
+        """
+        Enter the async context manager.
+
+        Automatically starts the CLI server and establishes a connection if not
+        already connected.
+
+        Returns:
+            The CopilotClient instance.
+
+        Example:
+            >>> async with CopilotClient() as client:
+            ...     session = await client.create_session()
+            ...     await session.send({"prompt": "Hello!"})
+        """
+        await self.start()
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        """
+        Exit the async context manager.
+
+        Performs graceful cleanup by destroying all active sessions and stopping
+        the CLI server.
+        """
+        await self.stop()
 
     @property
     def rpc(self) -> ServerRpc:

@@ -480,3 +480,49 @@ class TestSessionConfigForwarding:
             assert captured["session.model.switchTo"]["modelId"] == "gpt-4.1"
         finally:
             await client.force_stop()
+
+
+class TestContextManager:
+    @pytest.mark.asyncio
+    async def test_client_context_manager_returns_self(self):
+        """Test that __aenter__ returns the client instance."""
+        client = CopilotClient({"cli_path": CLI_PATH})
+        returned_client = await client.__aenter__()
+        assert returned_client is client
+        await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_client_aexit_returns_none(self):
+        """Test that __aexit__ returns None to propagate exceptions."""
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+        result = await client.__aexit__(None, None, None)
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_session_context_manager_returns_self(self):
+        """Test that session __aenter__ returns the session instance."""
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+        try:
+            session = await client.create_session(
+                {"on_permission_request": PermissionHandler.approve_all}
+            )
+            returned_session = await session.__aenter__()
+            assert returned_session is session
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_session_aexit_returns_none(self):
+        """Test that session __aexit__ returns None to propagate exceptions."""
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+        try:
+            session = await client.create_session(
+                {"on_permission_request": PermissionHandler.approve_all}
+            )
+            result = await session.__aexit__(None, None, None)
+            assert result is None
+        finally:
+            await client.force_stop()

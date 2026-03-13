@@ -9,7 +9,8 @@ import asyncio
 import inspect
 import threading
 from collections.abc import Callable
-from typing import Any, cast
+from types import TracebackType
+from typing import Any, Optional, cast
 
 from .generated.rpc import (
     Kind,
@@ -86,6 +87,7 @@ class CopilotSession:
         self.session_id = session_id
         self._client = client
         self._workspace_path = workspace_path
+        self._destroyed = False
         self._event_handlers: set[Callable[[SessionEvent], None]] = set()
         self._event_handlers_lock = threading.Lock()
         self._tool_handlers: dict[str, ToolHandler] = {}
@@ -97,6 +99,35 @@ class CopilotSession:
         self._hooks: SessionHooks | None = None
         self._hooks_lock = threading.Lock()
         self._rpc: SessionRpc | None = None
+
+    async def __aenter__(self) -> "CopilotSession":
+        """
+        Enter the async context manager.
+
+        Returns the session instance, ready for use. The session must already be
+        created (via CopilotClient.create_session or resume_session).
+
+        Returns:
+            The CopilotSession instance.
+
+        Example:
+            >>> async with await client.create_session() as session:
+            ...     await session.send({"prompt": "Hello!"})
+        """
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        """
+        Exit the async context manager.
+
+        Automatically destroys the session and releases all associated resources.
+        """
+        await self.destroy()
 
     @property
     def rpc(self) -> SessionRpc:
@@ -654,20 +685,33 @@ class CopilotSession:
 
         After calling this method, the session object can no longer be used.
 
+        This method is idempotent—calling it multiple times is safe and will
+        not raise an error if the session is already destroyed.
+
         Raises:
-            Exception: If the connection fails.
+            Exception: If the connection fails (on first destroy call).
 
         Example:
             >>> # Clean up when done — session can still be resumed later
             >>> await session.disconnect()
         """
-        await self._client.request("session.destroy", {"sessionId": self.session_id})
+        # Ensure that the check and update of _destroyed are atomic so that
+        # only the first caller proceeds to send the destroy RPC.
         with self._event_handlers_lock:
-            self._event_handlers.clear()
-        with self._tool_handlers_lock:
-            self._tool_handlers.clear()
-        with self._permission_handler_lock:
-            self._permission_handler = None
+            if self._destroyed:
+                return
+            self._destroyed = True
+
+        try:
+            await self._client.request("session.destroy", {"sessionId": self.session_id})
+        finally:
+            # Clear handlers even if the request fails
+            with self._event_handlers_lock:
+                self._event_handlers.clear()
+            with self._tool_handlers_lock:
+                self._tool_handlers.clear()
+            with self._permission_handler_lock:
+                self._permission_handler = None
 
     async def destroy(self) -> None:
         """
