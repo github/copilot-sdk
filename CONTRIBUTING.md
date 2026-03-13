@@ -1,60 +1,71 @@
-## Contributing
+# Contributing
 
-[fork]: https://github.com/github/copilot-sdk/fork
-[pr]: https://github.com/github/copilot-sdk/compare
+Thanks for your interest in contributing!
 
-Hi there! We're thrilled that you'd like to contribute to this project. Your help is essential for keeping it great.
+This repository contains the Copilot SDK, a set of multi-language SDKs (Node/TypeScript, Python, Go, .NET) for building applications with the GitHub Copilot agent, maintained by the GitHub Copilot team.
 
 Contributions to this project are [released](https://help.github.com/articles/github-terms-of-service/#6-contributions-under-repository-license) to the public under the [project's open source license](LICENSE).
 
 Please note that this project is released with a [Contributor Code of Conduct](CODE_OF_CONDUCT.md). By participating in this project you agree to abide by its terms.
 
-## What kinds of contributions we're looking for
+## Before You Submit a PR
 
-We'd love your help with:
+**Please discuss any feature work with us before writing code.**
 
- * Fixing any bugs in the existing feature set
- * Making the SDKs more idiomatic and nice to use for each supported language
- * Improving documentation
+The team already has a committed product roadmap, and features must be maintained in sync across all supported languages. Pull requests that introduce features not previously aligned with the team are unlikely to be accepted, regardless of their quality or scope.
 
-If you have ideas for entirely new features, please post an issue or start a discussion. We're very open to new features but need to make sure they align with the direction of the underlying Copilot CLI and can be maintained in sync across all our supported languages.
+If you submit a PR, **be sure to link to an associated issue describing the bug or agreed feature**. No PRs without context :)
 
-Currently **we are not looking to add SDKs for other languages**. If you want to create a Copilot SDK for another language, we'd love to hear from you, and we may offer to link to your SDK from our repo. However we do not plan to add further language-specific SDKs to this repo in the short term, since we need to retain our maintenance capacity for moving forwards quickly with the existing language set. So, for any other languages, please consider running your own external project.
+## What We're Looking For
 
-## Prerequisites for running and testing code
+We welcome:
+
+- Bug fixes with clear reproduction steps
+- Improvements to documentation
+- Making the SDKs more idiomatic and nice to use for each supported language
+- Bug reports and feature suggestions on [our issue tracker](https://github.com/github/copilot-sdk/issues) — especially for bugs with repro steps
+
+We are generally **not** looking for:
+
+- New features, capabilities, or UX changes that haven't been discussed and agreed with the team
+- Refactors or architectural changes
+- Integrations with external tools or services
+- Additional documentation
+- **SDKs for other languages** — if you want to create a Copilot SDK for another language, we'd love to hear from you and may offer to link to your SDK from our repo. However we do not plan to add further language-specific SDKs to this repo in the short term, since we need to retain our maintenance capacity for moving forwards quickly with the existing language set. For other languages, please consider running your own external project.
+
+## Prerequisites for Running and Testing Code
 
 This is a multi-language SDK repository. Install the tools for the SDK(s) you plan to work on:
 
 ### All SDKs
-1. (Optional) Install [just](https://github.com/casey/just) command runner for convenience
+
+1. The end-to-end tests across all languages use a shared test harness written in Node.js. Before running tests in any language, `cd test/harness && npm ci`.
 
 ### Node.js/TypeScript SDK
+
 1. Install [Node.js](https://nodejs.org/) (v18+)
 1. Install dependencies: `cd nodejs && npm ci`
 
 ### Python SDK
+
 1. Install [Python 3.8+](https://www.python.org/downloads/)
 1. Install [uv](https://github.com/astral-sh/uv)
 1. Install dependencies: `cd python && uv pip install -e ".[dev]"`
 
 ### Go SDK
+
 1. Install [Go 1.24+](https://go.dev/doc/install)
 1. Install [golangci-lint](https://golangci-lint.run/welcome/install/#local-installation)
 1. Install dependencies: `cd go && go mod download`
 
 ### .NET SDK
+
 1. Install [.NET 8.0+](https://dotnet.microsoft.com/download)
-1. Install [Node.js](https://nodejs.org/) (v18+) (the .NET tests depend on a TypeScript-based test harness)
-1. Install npm dependencies (from the repository root):
-   ```bash
-   cd nodejs && npm ci
-   cd test/harness && npm ci
-   ```
 1. Install .NET dependencies: `cd dotnet && dotnet restore`
 
-## Submitting a pull request
+## Submitting a Pull Request
 
-1. [Fork][fork] and clone the repository
+1. Fork and clone the repository
 1. Install dependencies for the SDK(s) you're modifying (see above)
 1. Make sure the tests pass on your machine (see commands below)
 1. Make sure linter passes on your machine (see commands below)
@@ -63,29 +74,7 @@ This is a multi-language SDK repository. Install the tools for the SDK(s) you pl
 1. Push to your fork and [submit a pull request][pr]
 1. Pat yourself on the back and wait for your pull request to be reviewed and merged.
 
-### Running tests and linters
-
-If you installed `just`, you can use it to run tests and linters across all SDKs or for specific languages:
-
-```bash
-# All SDKs
-just test          # Run all tests
-just lint          # Run all linters
-just format        # Format all code
-
-# Individual SDKs
-just test-nodejs   # Node.js tests
-just test-python   # Python tests
-just test-go       # Go tests
-just test-dotnet   # .NET tests
-
-just lint-nodejs   # Node.js linting
-just lint-python   # Python linting
-just lint-go       # Go linting
-just lint-dotnet   # .NET linting
-```
-
-Or run commands directly in each SDK directory:
+### Running Tests and Linters
 
 ```bash
 # Node.js
