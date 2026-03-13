@@ -480,3 +480,37 @@ class TestSessionConfigForwarding:
             assert captured["session.model.switchTo"]["modelId"] == "gpt-4.1"
         finally:
             await client.force_stop()
+
+class TestSessionLogApi:
+    @pytest.mark.asyncio
+    async def test_log_sends_explicit_level_and_ephemeral(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.create":
+                    return {
+                        "sessionId": "session-log",
+                        "workspacePath": "/tmp/test",
+                        "latestCheckpoint": {"checkpointId": "cp-1"}
+                    }
+                if method == "session.log":
+                    return {"eventId": "12345678-1234-5678-1234-567812345678"}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            session = await client.create_session({"on_permission_request": PermissionHandler.approve_all})
+            await session.log("be careful", level="warning", ephemeral=True)
+            assert captured["session.log"] == {
+                "sessionId": session.session_id,
+                "message": "be careful",
+                "level": "warning",
+                "ephemeral": True,
+            }
+        finally:
+            await client.force_stop()
