@@ -450,8 +450,8 @@ The SDK auto-injects environment context, tool instructions, and security guardr
 Use `mode: "customize"` to selectively override individual sections of the prompt while preserving the rest:
 
 ```typescript
-import { SYSTEM_PROMPT_SECTIONS } from "@anthropic-ai/sdk";
-import type { SectionOverride, SystemPromptSection } from "@anthropic-ai/sdk";
+import { SYSTEM_PROMPT_SECTIONS } from "@github/copilot-sdk";
+import type { SectionOverride, SystemPromptSection } from "@github/copilot-sdk";
 
 const session = await client.createSession({
     model: "gpt-5",

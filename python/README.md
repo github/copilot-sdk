@@ -158,6 +158,54 @@ unsubscribe()
 - `session.foreground` - A session became the foreground session in TUI
 - `session.background` - A session is no longer the foreground session
 
+### System Message Customization
+
+Control the system prompt using `system_message` in session config:
+
+```python
+session = await client.create_session(
+    system_message={
+        "content": "Always check for security vulnerabilities before suggesting changes."
+    }
+)
+```
+
+The SDK auto-injects environment context, tool instructions, and security guardrails. The default CLI persona is preserved, and your `content` is appended after SDK-managed sections. To change the persona or fully redefine the prompt, use `mode: "replace"` or `mode: "customize"`.
+
+#### Customize Mode
+
+Use `mode: "customize"` to selectively override individual sections of the prompt while preserving the rest:
+
+```python
+from copilot import SYSTEM_PROMPT_SECTIONS
+
+session = await client.create_session(
+    system_message={
+        "mode": "customize",
+        "sections": {
+            # Replace the tone/style section
+            "tone": {"action": "replace", "content": "Respond in a warm, professional tone. Be thorough in explanations."},
+            # Remove coding-specific rules
+            "code_change_rules": {"action": "remove"},
+            # Append to existing guidelines
+            "guidelines": {"action": "append", "content": "\n* Always cite data sources"},
+        },
+        # Additional instructions appended after all sections
+        "content": "Focus on financial analysis and reporting.",
+    }
+)
+```
+
+Available section IDs: `"identity"`, `"tone"`, `"tool_efficiency"`, `"environment_context"`, `"code_change_rules"`, `"guidelines"`, `"safety"`, `"tool_instructions"`, `"custom_instructions"`. Use the `SYSTEM_PROMPT_SECTIONS` dict for descriptions of each section.
+
+Each section override supports four actions:
+- **`replace`** — Replace the section content entirely
+- **`remove`** — Remove the section from the prompt
+- **`append`** — Add content after the existing section
+- **`prepend`** — Add content before the existing section
+
+Unknown section IDs are handled gracefully: content from `replace`/`append`/`prepend` overrides is appended to additional instructions, and `remove` overrides are silently ignored.
+
 ### Tools
 
 Define tools with automatic JSON schema generation using the `@define_tool` decorator and Pydantic models:
