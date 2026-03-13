@@ -184,6 +184,51 @@ func TestSession(t *testing.T) {
 		}
 	})
 
+	t.Run("should create a session with customized systemMessage config", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		customTone := "Respond in a warm, professional tone. Be thorough in explanations."
+		appendedContent := "Always mention quarterly earnings."
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			SystemMessage: &copilot.SystemMessageConfig{
+				Mode: "customize",
+				Sections: map[string]copilot.SectionOverride{
+					copilot.SectionTone:            {Action: "replace", Content: customTone},
+					copilot.SectionCodeChangeRules: {Action: "remove"},
+				},
+				Content: appendedContent,
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Who are you?"})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		// Validate the system message sent to the model
+		traffic, err := ctx.GetExchanges()
+		if err != nil {
+			t.Fatalf("Failed to get exchanges: %v", err)
+		}
+		if len(traffic) == 0 {
+			t.Fatal("Expected at least one exchange")
+		}
+		systemMessage := getSystemMessage(traffic[0])
+		if !strings.Contains(systemMessage, customTone) {
+			t.Errorf("Expected system message to contain custom tone, got %q", systemMessage)
+		}
+		if !strings.Contains(systemMessage, appendedContent) {
+			t.Errorf("Expected system message to contain appended content, got %q", systemMessage)
+		}
+		if strings.Contains(systemMessage, "<code_change_instructions>") {
+			t.Error("Expected system message to NOT contain code_change_instructions (it was removed)")
+		}
+	})
+
 	t.Run("should create a session with availableTools", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 

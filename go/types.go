@@ -111,6 +111,27 @@ func Float64(v float64) *float64 {
 	return &v
 }
 
+// Known system prompt section identifiers for the "customize" mode.
+const (
+	SectionIdentity           = "identity"
+	SectionTone               = "tone"
+	SectionToolEfficiency     = "tool_efficiency"
+	SectionEnvironmentContext = "environment_context"
+	SectionCodeChangeRules    = "code_change_rules"
+	SectionGuidelines         = "guidelines"
+	SectionSafety             = "safety"
+	SectionToolInstructions   = "tool_instructions"
+	SectionCustomInstructions = "custom_instructions"
+)
+
+// SectionOverride defines an override operation for a single system prompt section.
+type SectionOverride struct {
+	// Action is the operation to perform: "replace", "remove", "append", or "prepend".
+	Action string `json:"action"`
+	// Content for the override. Optional for all actions. Ignored for "remove".
+	Content string `json:"content,omitempty"`
+}
+
 // SystemMessageAppendConfig is append mode: use CLI foundation with optional appended content.
 type SystemMessageAppendConfig struct {
 	// Mode is optional, defaults to "append"
@@ -129,11 +150,15 @@ type SystemMessageReplaceConfig struct {
 }
 
 // SystemMessageConfig represents system message configuration for session creation.
-// Use SystemMessageAppendConfig for default behavior, SystemMessageReplaceConfig for full control.
-// In Go, use one struct or the other based on your needs.
+//   - Append mode (default): SDK foundation + optional custom content
+//   - Replace mode: Full control, caller provides entire system message
+//   - Customize mode: Section-level overrides with graceful fallback
+//
+// In Go, use one struct and set fields appropriate for the desired mode.
 type SystemMessageConfig struct {
-	Mode    string `json:"mode,omitempty"`
-	Content string `json:"content,omitempty"`
+	Mode     string                     `json:"mode,omitempty"`
+	Content  string                     `json:"content,omitempty"`
+	Sections map[string]SectionOverride `json:"sections,omitempty"`
 }
 
 // PermissionRequestResultKind represents the kind of a permission request result.

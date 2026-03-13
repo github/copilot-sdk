@@ -10,7 +10,7 @@
 
 export { CopilotClient } from "./client.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
-export { defineTool, approveAll } from "./types.js";
+export { defineTool, approveAll, SYSTEM_PROMPT_SECTIONS } from "./types.js";
 export type {
     ConnectionState,
     CopilotClientOptions,
@@ -31,6 +31,7 @@ export type {
     PermissionRequest,
     PermissionRequestResult,
     ResumeSessionConfig,
+    SectionOverride,
     SessionConfig,
     SessionEvent,
     SessionEventHandler,
@@ -44,7 +45,9 @@ export type {
     SessionMetadata,
     SystemMessageAppendConfig,
     SystemMessageConfig,
+    SystemMessageCustomizeConfig,
     SystemMessageReplaceConfig,
+    SystemPromptSection,
     TelemetryConfig,
     TraceContext,
     TraceContextProvider,

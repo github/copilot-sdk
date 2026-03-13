@@ -88,6 +88,35 @@ class TestSessions:
         system_message = _get_system_message(traffic[0])
         assert system_message == test_system_message  # Exact match
 
+    async def test_should_create_a_session_with_customized_systemMessage_config(
+        self, ctx: E2ETestContext
+    ):
+        custom_tone = "Respond in a warm, professional tone. Be thorough in explanations."
+        appended_content = "Always mention quarterly earnings."
+        session = await ctx.client.create_session(
+            {
+                "system_message": {
+                    "mode": "customize",
+                    "sections": {
+                        "tone": {"action": "replace", "content": custom_tone},
+                        "code_change_rules": {"action": "remove"},
+                    },
+                    "content": appended_content,
+                },
+                "on_permission_request": PermissionHandler.approve_all,
+            }
+        )
+
+        assistant_message = await session.send_and_wait({"prompt": "Who are you?"})
+        assert assistant_message is not None
+
+        # Validate the system message sent to the model
+        traffic = await ctx.get_exchanges()
+        system_message = _get_system_message(traffic[0])
+        assert custom_tone in system_message
+        assert appended_content in system_message
+        assert "<code_change_instructions>" not in system_message
+
     async def test_should_create_a_session_with_availableTools(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
             {

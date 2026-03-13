@@ -1251,7 +1251,7 @@ const session = await client.createSession({
 
 ### Customize the System Message
 
-Control the AI's behavior and personality:
+Control the AI's behavior and personality by appending instructions:
 
 ```typescript
 const session = await client.createSession({
@@ -1260,6 +1260,28 @@ const session = await client.createSession({
     },
 });
 ```
+
+For more fine-grained control, use `mode: "customize"` to override individual sections of the system prompt while preserving the rest:
+
+```typescript
+const session = await client.createSession({
+    systemMessage: {
+        mode: "customize",
+        sections: {
+            tone: { action: "replace", content: "Respond in a warm, professional tone. Be thorough in explanations." },
+            code_change_rules: { action: "remove" },
+            guidelines: { action: "append", content: "\n* Always cite data sources" },
+        },
+        content: "Focus on financial analysis and reporting.",
+    },
+});
+```
+
+Available section IDs: `identity`, `tone`, `tool_efficiency`, `environment_context`, `code_change_rules`, `guidelines`, `safety`, `tool_instructions`, `custom_instructions`.
+
+Each override supports four actions: `replace`, `remove`, `append`, and `prepend`. Unknown section IDs are handled gracefully — content is appended to additional instructions and a warning is emitted; `remove` on unknown sections is silently ignored.
+
+See the language-specific SDK READMEs for examples in [TypeScript](../nodejs/README.md), [Python](../python/README.md), [Go](../go/README.md), and [C#](../dotnet/README.md).
 
 ---
 

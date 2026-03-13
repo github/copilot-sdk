@@ -1683,6 +1683,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(ProviderConfig))]
     [JsonSerializable(typeof(ResumeSessionRequest))]
     [JsonSerializable(typeof(ResumeSessionResponse))]
+    [JsonSerializable(typeof(SectionOverride))]
     [JsonSerializable(typeof(SessionMetadata))]
     [JsonSerializable(typeof(SystemMessageConfig))]
     [JsonSerializable(typeof(ToolCallResponseV2))]

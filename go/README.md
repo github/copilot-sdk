@@ -149,7 +149,10 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `ReasoningEffort` (string): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh"). Use `ListModels()` to check which models support this option.
 - `SessionID` (string): Custom session ID
 - `Tools` ([]Tool): Custom tools exposed to the CLI
-- `SystemMessage` (\*SystemMessageConfig): System message configuration
+- `SystemMessage` (\*SystemMessageConfig): System message configuration. Supports three modes:
+  - **append** (default): Appends `Content` after the SDK-managed prompt
+  - **replace**: Replaces the entire prompt with `Content`
+  - **customize**: Selectively override individual sections via `Sections` map (keys: `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`; values: `SectionOverride` with `Action` and optional `Content`)
 - `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
 - `Streaming` (bool): Enable streaming delta events
 - `InfiniteSessions` (\*InfiniteSessionConfig): Automatic context compaction configuration
@@ -175,6 +178,52 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 ### Helper Functions
 
 - `Bool(v bool) *bool` - Helper to create bool pointers for `AutoStart` option
+
+### System Message Customization
+
+Control the system prompt using `SystemMessage` in session config:
+
+```go
+session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+    SystemMessage: &copilot.SystemMessageConfig{
+        Content: "Always check for security vulnerabilities before suggesting changes.",
+    },
+})
+```
+
+The SDK auto-injects environment context, tool instructions, and security guardrails. The default CLI persona is preserved, and your `Content` is appended after SDK-managed sections. To change the persona or fully redefine the prompt, use `Mode: "replace"` or `Mode: "customize"`.
+
+#### Customize Mode
+
+Use `Mode: "customize"` to selectively override individual sections of the prompt while preserving the rest:
+
+```go
+session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+    SystemMessage: &copilot.SystemMessageConfig{
+        Mode: "customize",
+        Sections: map[string]copilot.SectionOverride{
+            // Replace the tone/style section
+            copilot.SectionTone: {Action: "replace", Content: "Respond in a warm, professional tone. Be thorough in explanations."},
+            // Remove coding-specific rules
+            copilot.SectionCodeChangeRules: {Action: "remove"},
+            // Append to existing guidelines
+            copilot.SectionGuidelines: {Action: "append", Content: "\n* Always cite data sources"},
+        },
+        // Additional instructions appended after all sections
+        Content: "Focus on financial analysis and reporting.",
+    },
+})
+```
+
+Available section constants: `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`.
+
+Each section override supports four actions:
+- **`replace`** — Replace the section content entirely
+- **`remove`** — Remove the section from the prompt
+- **`append`** — Add content after the existing section
+- **`prepend`** — Add content before the existing section
+
+Unknown section IDs are handled gracefully: content from `replace`/`append`/`prepend` overrides is appended to additional instructions, and `remove` overrides are silently ignored.
 
 ## Image Support
 
