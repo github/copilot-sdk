@@ -480,3 +480,33 @@ class TestSessionConfigForwarding:
             assert captured["session.model.switchTo"]["modelId"] == "gpt-4.1"
         finally:
             await client.force_stop()
+
+
+class TestSessionManagementApis:
+    @pytest.mark.asyncio
+    async def test_delete_session_sends_rpc_and_clears_local_cache(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            session = await client.create_session(
+                {"on_permission_request": PermissionHandler.approve_all}
+            )
+            assert session.session_id in client._sessions
+
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.delete":
+                    return {"success": True}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            await client.delete_session(session.session_id)
+
+            assert captured["session.delete"] == {"sessionId": session.session_id}
+            assert session.session_id not in client._sessions
+        finally:
+            await client.force_stop()
