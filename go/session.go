@@ -65,6 +65,11 @@ type Session struct {
 	hooks             *SessionHooks
 	hooksMux          sync.RWMutex
 
+	// eventCh serializes user event handler dispatch. dispatchEvent enqueues;
+	// a single goroutine (processEvents) dequeues and invokes handlers in FIFO order.
+	eventCh   chan SessionEvent
+	closeOnce sync.Once // guards eventCh close so Disconnect is safe to call more than once
+
 	// RPC provides typed session-scoped RPC methods.
 	RPC *rpc.SessionRpc
 }
@@ -78,14 +83,17 @@ func (s *Session) WorkspacePath() string {
 
 // newSession creates a new session wrapper with the given session ID and client.
 func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string) *Session {
-	return &Session{
+	s := &Session{
 		SessionID:     sessionID,
 		workspacePath: workspacePath,
 		client:        client,
 		handlers:      make([]sessionHandler, 0),
 		toolHandlers:  make(map[string]ToolHandler),
+		eventCh:       make(chan SessionEvent, 128),
 		RPC:           rpc.NewSessionRpc(client, sessionID),
 	}
+	go s.processEvents()
+	return s
 }
 
 // Send sends a message to this session and waits for the response.
@@ -435,36 +443,59 @@ func (s *Session) handleHooksInvoke(hookType string, rawInput json.RawMessage) (
 	}
 }
 
-// dispatchEvent dispatches an event to all registered handlers.
-// This is an internal method; handlers are called synchronously and any panics
-// are recovered to prevent crashing the event dispatcher.
+// dispatchEvent enqueues an event for delivery to user handlers and fires
+// broadcast handlers concurrently.
+//
+// Broadcast work (tool calls, permission requests) is fired in a separate
+// goroutine so it does not block the JSON-RPC read loop. User event handlers
+// are delivered by a single consumer goroutine (processEvents), guaranteeing
+// serial, FIFO dispatch without blocking the read loop.
 func (s *Session) dispatchEvent(event SessionEvent) {
-	// Handle broadcast request events internally (fire-and-forget)
-	s.handleBroadcastEvent(event)
+	go s.handleBroadcastEvent(event)
 
-	s.handlerMutex.RLock()
-	handlers := make([]SessionEventHandler, 0, len(s.handlers))
-	for _, h := range s.handlers {
-		handlers = append(handlers, h.fn)
-	}
-	s.handlerMutex.RUnlock()
+	// Send to the event channel in a closure with a recover guard.
+	// Disconnect closes eventCh, and in Go sending on a closed channel
+	// panics — there is no non-panicking send primitive. We only want
+	// to suppress that specific panic; other panics are not expected here.
+	func() {
+		defer func() { recover() }()
+		s.eventCh <- event
+	}()
+}
 
-	for _, handler := range handlers {
-		// Call handler - don't let panics crash the dispatcher
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					fmt.Printf("Error in session event handler: %v\n", r)
-				}
+// processEvents is the single consumer goroutine for the event channel.
+// It invokes user handlers serially, in arrival order. Panics in individual
+// handlers are recovered so that one misbehaving handler does not prevent
+// others from receiving the event.
+func (s *Session) processEvents() {
+	for event := range s.eventCh {
+		s.handlerMutex.RLock()
+		handlers := make([]SessionEventHandler, 0, len(s.handlers))
+		for _, h := range s.handlers {
+			handlers = append(handlers, h.fn)
+		}
+		s.handlerMutex.RUnlock()
+
+		for _, handler := range handlers {
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						fmt.Printf("Error in session event handler: %v\n", r)
+					}
+				}()
+				handler(event)
 			}()
-			handler(event)
-		}()
+		}
 	}
 }
 
 // handleBroadcastEvent handles broadcast request events by executing local handlers
 // and responding via RPC. This implements the protocol v3 broadcast model where tool
 // calls and permission requests are broadcast as session events to all clients.
+//
+// Handlers are executed in their own goroutine (not the JSON-RPC read loop or the
+// event consumer loop) so that a stalled handler does not block event delivery or
+// cause RPC deadlocks.
 func (s *Session) handleBroadcastEvent(event SessionEvent) {
 	switch event.Type {
 	case ExternalToolRequested:
@@ -481,7 +512,7 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 		if event.Data.ToolCallID != nil {
 			toolCallID = *event.Data.ToolCallID
 		}
-		go s.executeToolAndRespond(*requestID, *toolName, toolCallID, event.Data.Arguments, handler)
+		s.executeToolAndRespond(*requestID, *toolName, toolCallID, event.Data.Arguments, handler)
 
 	case PermissionRequested:
 		requestID := event.Data.RequestID
@@ -492,7 +523,7 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 		if handler == nil {
 			return
 		}
-		go s.executePermissionAndRespond(*requestID, *event.Data.PermissionRequest, handler)
+		s.executePermissionAndRespond(*requestID, *event.Data.PermissionRequest, handler)
 	}
 }
 
@@ -613,6 +644,10 @@ func (s *Session) GetMessages(ctx context.Context) ([]SessionEvent, error) {
 // Disconnect closes this session and releases all in-memory resources (event
 // handlers, tool handlers, permission handlers).
 //
+// The caller should ensure the session is idle (e.g., [Session.SendAndWait] has
+// returned) before disconnecting. If the session is not idle, in-flight event
+// handlers or tool handlers may observe failures.
+//
 // Session state on disk (conversation history, planning state, artifacts) is
 // preserved, so the conversation can be resumed later by calling
 // [Client.ResumeSession] with the session ID. To permanently remove all
@@ -633,6 +668,8 @@ func (s *Session) Disconnect() error {
 	if err != nil {
 		return fmt.Errorf("failed to disconnect session: %w", err)
 	}
+
+	s.closeOnce.Do(func() { close(s.eventCh) })
 
 	// Clear handlers
 	s.handlerMutex.Lock()

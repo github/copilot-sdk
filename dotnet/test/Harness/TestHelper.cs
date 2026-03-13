@@ -10,7 +10,7 @@ public static class TestHelper
         CopilotSession session,
         TimeSpan? timeout = null)
     {
-        var tcs = new TaskCompletionSource<AssistantMessageEvent>();
+        var tcs = new TaskCompletionSource<AssistantMessageEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(60));
 
         AssistantMessageEvent? finalAssistantMessage = null;
@@ -78,7 +78,7 @@ public static class TestHelper
         CopilotSession session,
         TimeSpan? timeout = null) where T : SessionEvent
     {
-        var tcs = new TaskCompletionSource<T>();
+        var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(60));
 
         using var subscription = session.On(evt =>

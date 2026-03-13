@@ -109,10 +109,10 @@ public class MultiClientTests : IClassFixture<MultiClientTestFixture>, IAsyncLif
         });
 
         // Set up event waiters BEFORE sending the prompt to avoid race conditions
-        var client1Requested = new TaskCompletionSource<bool>();
-        var client2Requested = new TaskCompletionSource<bool>();
-        var client1Completed = new TaskCompletionSource<bool>();
-        var client2Completed = new TaskCompletionSource<bool>();
+        var client1Requested = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client2Requested = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client1Completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client2Completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var sub1 = session1.On(evt =>
         {

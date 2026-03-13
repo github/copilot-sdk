@@ -412,7 +412,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         // Create and register the session before issuing the RPC so that
         // events emitted by the CLI (e.g. session.start) are not dropped.
-        var session = new CopilotSession(sessionId, connection.Rpc);
+        var session = new CopilotSession(sessionId, connection.Rpc, _logger);
         session.RegisterTools(config.Tools ?? []);
         session.RegisterPermissionHandler(config.OnPermissionRequest);
         if (config.OnUserInputRequest != null)
@@ -516,7 +516,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         // Create and register the session before issuing the RPC so that
         // events emitted by the CLI (e.g. session.start) are not dropped.
-        var session = new CopilotSession(sessionId, connection.Rpc);
+        var session = new CopilotSession(sessionId, connection.Rpc, _logger);
         session.RegisterTools(config.Tools ?? []);
         session.RegisterPermissionHandler(config.OnPermissionRequest);
         if (config.OnUserInputRequest != null)
