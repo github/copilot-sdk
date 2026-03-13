@@ -981,7 +981,7 @@ func TestSessionLog(t *testing.T) {
 	})
 
 	t.Run("should log ephemeral message", func(t *testing.T) {
-		if err := session.Log(t.Context(), "Ephemeral message", &copilot.LogOptions{Ephemeral: true}); err != nil {
+		if err := session.Log(t.Context(), "Ephemeral message", &copilot.LogOptions{Ephemeral: copilot.Bool(true)}); err != nil {
 			t.Fatalf("Log failed: %v", err)
 		}
 

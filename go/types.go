@@ -64,7 +64,10 @@ type ClientOptions struct {
 }
 
 // Bool returns a pointer to the given bool value.
-// Use for setting AutoStart: AutoStart: Bool(false)
+// Use for option fields such as AutoStart, AutoRestart, or LogOptions.Ephemeral:
+//
+//	AutoStart: Bool(false)
+//	Ephemeral: Bool(true)
 func Bool(v bool) *bool {
 	return &v
 }

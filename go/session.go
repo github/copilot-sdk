@@ -711,8 +711,9 @@ type LogOptions struct {
 	// [rpc.Warning], and [rpc.Error].
 	Level rpc.Level
 	// Ephemeral marks the message as transient so it is not persisted
-	// to the session event log on disk.
-	Ephemeral bool
+	// to the session event log on disk. When nil the server decides the
+	// default; set to a non-nil value to explicitly control persistence.
+	Ephemeral *bool
 }
 
 // Log sends a log message to the session timeline.
@@ -730,7 +731,7 @@ type LogOptions struct {
 //	session.Log(ctx, "Rate limit approaching", &copilot.LogOptions{Level: rpc.Warning})
 //
 //	// Ephemeral message (not persisted)
-//	session.Log(ctx, "Working...", &copilot.LogOptions{Ephemeral: true})
+//	session.Log(ctx, "Working...", &copilot.LogOptions{Ephemeral: copilot.Bool(true)})
 func (s *Session) Log(ctx context.Context, message string, opts *LogOptions) error {
 	params := &rpc.SessionLogParams{Message: message}
 
@@ -738,8 +739,8 @@ func (s *Session) Log(ctx context.Context, message string, opts *LogOptions) err
 		if opts.Level != "" {
 			params.Level = &opts.Level
 		}
-		if opts.Ephemeral {
-			params.Ephemeral = &opts.Ephemeral
+		if opts.Ephemeral != nil {
+			params.Ephemeral = opts.Ephemeral
 		}
 	}
 
