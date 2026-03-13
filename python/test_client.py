@@ -7,7 +7,13 @@ This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py
 import pytest
 
 from copilot import CopilotClient, PermissionHandler, PermissionRequestResult, define_tool
-from copilot.types import ModelCapabilities, ModelInfo, ModelLimits, ModelSupports
+from copilot.types import (
+    ModelCapabilities,
+    ModelInfo,
+    ModelLimits,
+    ModelSupports,
+    SessionLifecycleEvent,
+)
 from e2e.testharness import CLI_PATH
 
 
@@ -480,3 +486,93 @@ class TestSessionConfigForwarding:
             assert captured["session.model.switchTo"]["modelId"] == "gpt-4.1"
         finally:
             await client.force_stop()
+
+
+class TestLifecycleAndForegroundApis:
+    @pytest.mark.asyncio
+    async def test_get_foreground_session_id_sends_correct_rpc(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.getForeground":
+                    return {"sessionId": "session-123"}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            session_id = await client.get_foreground_session_id()
+            assert captured["session.getForeground"] == {}
+            assert session_id == "session-123"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_set_foreground_session_id_sends_correct_rpc(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.setForeground":
+                    return {"success": True}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            await client.set_foreground_session_id("session-123")
+            assert captured["session.setForeground"] == {"sessionId": "session-123"}
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_set_foreground_session_id_raises_on_failure(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                if method == "session.setForeground":
+                    return {"success": False, "error": "Not running in TUI+server mode"}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            with pytest.raises(RuntimeError, match=r"Not running in TUI\+server mode"):
+                await client.set_foreground_session_id("session-123")
+        finally:
+            await client.force_stop()
+
+    def test_on_dispatches_wildcard_and_typed_handlers(self):
+        client = CopilotClient({"cli_path": CLI_PATH, "log_level": "error"})
+        wildcard_events = []
+        typed_events = []
+
+        unsubscribe_all = client.on(lambda event: wildcard_events.append(event.type))
+        unsubscribe_typed = client.on(
+            "session.updated", lambda event: typed_events.append(event.sessionId)
+        )
+
+        client._dispatch_lifecycle_event(
+            SessionLifecycleEvent(type="session.updated", sessionId="session-123")
+        )
+
+        assert wildcard_events == ["session.updated"]
+        assert typed_events == ["session-123"]
+
+        unsubscribe_all()
+        unsubscribe_typed()
+        client._dispatch_lifecycle_event(
+            SessionLifecycleEvent(type="session.updated", sessionId="session-456")
+        )
+
+        assert wildcard_events == ["session.updated"]
+        assert typed_events == ["session-123"]
