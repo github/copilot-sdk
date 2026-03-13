@@ -480,3 +480,29 @@ class TestSessionConfigForwarding:
             assert captured["session.model.switchTo"]["modelId"] == "gpt-4.1"
         finally:
             await client.force_stop()
+
+
+class TestSessionManagementApis:
+    @pytest.mark.asyncio
+    async def test_delete_session_raises_on_failed_response(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.delete":
+                    return {"success": False, "error": "permission denied"}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+
+            with pytest.raises(RuntimeError, match="Failed to delete session session-123: permission denied"):
+                await client.delete_session("session-123")
+
+            assert captured["session.delete"] == {"sessionId": "session-123"}
+        finally:
+            await client.force_stop()
