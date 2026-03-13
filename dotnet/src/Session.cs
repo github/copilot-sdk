@@ -725,10 +725,10 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <example>
     /// <code>
     /// await session.SetModelAsync("gpt-4.1");
-    /// await session.SetModelAsync("claude-sonnet-4.6", SessionModelSwitchToRequestReasoningEffort.High);
+    /// await session.SetModelAsync("claude-sonnet-4.6", "high");
     /// </code>
     /// </example>
-    public async Task SetModelAsync(string model, SessionModelSwitchToRequestReasoningEffort? reasoningEffort, CancellationToken cancellationToken = default)
+    public async Task SetModelAsync(string model, string? reasoningEffort, CancellationToken cancellationToken = default)
     {
         await Rpc.Model.SwitchToAsync(model, reasoningEffort, cancellationToken);
     }
