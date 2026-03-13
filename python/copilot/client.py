@@ -46,6 +46,8 @@ from .types import (
     SessionLifecycleHandler,
     SessionListFilter,
     SessionMetadata,
+    ShellExitNotification,
+    ShellOutputNotification,
     StopError,
     SubprocessConfig,
     ToolInvocation,
@@ -182,6 +184,8 @@ class CopilotClient:
         self._state: ConnectionState = "disconnected"
         self._sessions: dict[str, CopilotSession] = {}
         self._sessions_lock = threading.Lock()
+        self._shell_process_map: dict[str, CopilotSession] = {}
+        self._shell_process_map_lock = threading.Lock()
         self._models_cache: list[ModelInfo] | None = None
         self._models_cache_lock = asyncio.Lock()
         self._lifecycle_handlers: list[SessionLifecycleHandler] = []
@@ -601,6 +605,10 @@ class CopilotClient:
         on_event = cfg.get("on_event")
         if on_event:
             session.on(on_event)
+        session._set_shell_process_callbacks(
+            register=self._register_shell_process,
+            unregister=self._unregister_shell_process,
+        )
         with self._sessions_lock:
             self._sessions[session_id] = session
 
@@ -802,6 +810,10 @@ class CopilotClient:
         on_event = cfg.get("on_event")
         if on_event:
             session.on(on_event)
+        session._set_shell_process_callbacks(
+            register=self._register_shell_process,
+            unregister=self._unregister_shell_process,
+        )
         with self._sessions_lock:
             self._sessions[session_id] = session
 
@@ -1171,6 +1183,16 @@ class CopilotClient:
             except Exception:
                 pass  # Ignore handler errors
 
+    def _register_shell_process(self, process_id: str, session: CopilotSession) -> None:
+        """Register a shell process ID mapping to a session."""
+        with self._shell_process_map_lock:
+            self._shell_process_map[process_id] = session
+
+    def _unregister_shell_process(self, process_id: str) -> None:
+        """Unregister a shell process ID mapping."""
+        with self._shell_process_map_lock:
+            self._shell_process_map.pop(process_id, None)
+
     async def _verify_protocol_version(self) -> None:
         """Verify that the server's protocol version is within the supported range
         and store the negotiated version."""
@@ -1411,6 +1433,26 @@ class CopilotClient:
                 # Handle session lifecycle events
                 lifecycle_event = SessionLifecycleEvent.from_dict(params)
                 self._dispatch_lifecycle_event(lifecycle_event)
+            elif method == "shell.output":
+                process_id = params.get("processId")
+                if process_id:
+                    with self._shell_process_map_lock:
+                        session = self._shell_process_map.get(process_id)
+                    if session:
+                        notification = ShellOutputNotification.from_dict(params)
+                        session._dispatch_shell_output(notification)
+            elif method == "shell.exit":
+                process_id = params.get("processId")
+                if process_id:
+                    with self._shell_process_map_lock:
+                        session = self._shell_process_map.get(process_id)
+                    if session:
+                        notification = ShellExitNotification.from_dict(params)
+                        session._dispatch_shell_exit(notification)
+                        # Clean up the mapping after exit
+                        with self._shell_process_map_lock:
+                            self._shell_process_map.pop(process_id, None)
+                        session._untrack_shell_process(process_id)
 
         self._client.set_notification_handler(handle_notification)
         # Protocol v3 servers send tool calls / permission requests as broadcast events.
@@ -1497,6 +1539,26 @@ class CopilotClient:
                 # Handle session lifecycle events
                 lifecycle_event = SessionLifecycleEvent.from_dict(params)
                 self._dispatch_lifecycle_event(lifecycle_event)
+            elif method == "shell.output":
+                process_id = params.get("processId")
+                if process_id:
+                    with self._shell_process_map_lock:
+                        session = self._shell_process_map.get(process_id)
+                    if session:
+                        notification = ShellOutputNotification.from_dict(params)
+                        session._dispatch_shell_output(notification)
+            elif method == "shell.exit":
+                process_id = params.get("processId")
+                if process_id:
+                    with self._shell_process_map_lock:
+                        session = self._shell_process_map.get(process_id)
+                    if session:
+                        notification = ShellExitNotification.from_dict(params)
+                        session._dispatch_shell_exit(notification)
+                        # Clean up the mapping after exit
+                        with self._shell_process_map_lock:
+                            self._shell_process_map.pop(process_id, None)
+                        session._untrack_shell_process(process_id)
 
         self._client.set_notification_handler(handle_notification)
         # Protocol v3 servers send tool calls / permission requests as broadcast events.

@@ -20,6 +20,10 @@ import type {
     SessionEventPayload,
     SessionEventType,
     SessionHooks,
+    ShellExitHandler,
+    ShellExitNotification,
+    ShellOutputHandler,
+    ShellOutputNotification,
     Tool,
     ToolHandler,
     TypedSessionEventHandler,
@@ -67,6 +71,11 @@ export class CopilotSession {
     private permissionHandler?: PermissionHandler;
     private userInputHandler?: UserInputHandler;
     private hooks?: SessionHooks;
+    private shellOutputHandlers: Set<ShellOutputHandler> = new Set();
+    private shellExitHandlers: Set<ShellExitHandler> = new Set();
+    private trackedProcessIds: Set<string> = new Set();
+    private _registerShellProcess?: (processId: string, session: CopilotSession) => void;
+    private _unregisterShellProcess?: (processId: string) => void;
     private _rpc: ReturnType<typeof createSessionRpc> | null = null;
 
     /**
@@ -287,6 +296,52 @@ export class CopilotSession {
     }
 
     /**
+     * Subscribe to shell output notifications for this session.
+     *
+     * Shell output notifications are streamed in chunks when commands started
+     * via `session.rpc.shell.exec()` produce stdout or stderr output.
+     *
+     * @param handler - Callback receiving shell output notifications
+     * @returns A function that, when called, unsubscribes the handler
+     *
+     * @example
+     * ```typescript
+     * const unsubscribe = session.onShellOutput((notification) => {
+     *     console.log(`[${notification.processId}:${notification.stream}] ${notification.data}`);
+     * });
+     * ```
+     */
+    onShellOutput(handler: ShellOutputHandler): () => void {
+        this.shellOutputHandlers.add(handler);
+        return () => {
+            this.shellOutputHandlers.delete(handler);
+        };
+    }
+
+    /**
+     * Subscribe to shell exit notifications for this session.
+     *
+     * Shell exit notifications are sent when commands started via
+     * `session.rpc.shell.exec()` complete (after all output has been streamed).
+     *
+     * @param handler - Callback receiving shell exit notifications
+     * @returns A function that, when called, unsubscribes the handler
+     *
+     * @example
+     * ```typescript
+     * const unsubscribe = session.onShellExit((notification) => {
+     *     console.log(`Process ${notification.processId} exited with code ${notification.exitCode}`);
+     * });
+     * ```
+     */
+    onShellExit(handler: ShellExitHandler): () => void {
+        this.shellExitHandlers.add(handler);
+        return () => {
+            this.shellExitHandlers.delete(handler);
+        };
+    }
+
+    /**
      * Dispatches an event to all registered handlers.
      * Also handles broadcast request events internally (external tool calls, permissions).
      *
@@ -317,6 +372,59 @@ export class CopilotSession {
                 // Handler error
             }
         }
+    }
+
+    /** @internal */
+    _dispatchShellOutput(notification: ShellOutputNotification): void {
+        for (const handler of this.shellOutputHandlers) {
+            try {
+                handler(notification);
+            } catch {
+                // Ignore handler errors
+            }
+        }
+    }
+
+    /** @internal */
+    _dispatchShellExit(notification: ShellExitNotification): void {
+        for (const handler of this.shellExitHandlers) {
+            try {
+                handler(notification);
+            } catch {
+                // Ignore handler errors
+            }
+        }
+    }
+
+    /**
+     * Track a shell process ID so notifications are routed to this session.
+     * @internal
+     */
+    _trackShellProcess(processId: string): void {
+        this.trackedProcessIds.add(processId);
+        this._registerShellProcess?.(processId, this);
+    }
+
+    /**
+     * Stop tracking a shell process ID.
+     * @internal
+     */
+    _untrackShellProcess(processId: string): void {
+        this.trackedProcessIds.delete(processId);
+        this._unregisterShellProcess?.(processId);
+    }
+
+    /**
+     * Set the registration callbacks for shell process tracking.
+     * Called by the client when setting up the session.
+     * @internal
+     */
+    _setShellProcessCallbacks(
+        register: (processId: string, session: CopilotSession) => void,
+        unregister: (processId: string) => void
+    ): void {
+        this._registerShellProcess = register;
+        this._unregisterShellProcess = unregister;
     }
 
     /**
@@ -645,6 +753,13 @@ export class CopilotSession {
         this.typedEventHandlers.clear();
         this.toolHandlers.clear();
         this.permissionHandler = undefined;
+        this.shellOutputHandlers.clear();
+        this.shellExitHandlers.clear();
+        // Unregister all tracked processes
+        for (const processId of this.trackedProcessIds) {
+            this._unregisterShellProcess?.(processId);
+        }
+        this.trackedProcessIds.clear();
     }
 
     /**

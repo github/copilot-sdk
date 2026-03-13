@@ -658,6 +658,42 @@ type SessionLifecycleEventMetadata struct {
 // SessionLifecycleHandler is a callback for session lifecycle events
 type SessionLifecycleHandler func(event SessionLifecycleEvent)
 
+// ShellOutputStream represents the output stream identifier for shell notifications.
+type ShellOutputStream string
+
+const (
+	// ShellStreamStdout represents standard output.
+	ShellStreamStdout ShellOutputStream = "stdout"
+	// ShellStreamStderr represents standard error.
+	ShellStreamStderr ShellOutputStream = "stderr"
+)
+
+// ShellOutputNotification is sent when a shell command produces output.
+// Streamed in chunks (up to 64KB per notification).
+type ShellOutputNotification struct {
+	// ProcessID is the process identifier returned by shell.exec.
+	ProcessID string `json:"processId"`
+	// Stream indicates which output stream produced this chunk.
+	Stream ShellOutputStream `json:"stream"`
+	// Data is the output data (UTF-8 string).
+	Data string `json:"data"`
+}
+
+// ShellExitNotification is sent when a shell command exits.
+// Sent after all output has been streamed.
+type ShellExitNotification struct {
+	// ProcessID is the process identifier returned by shell.exec.
+	ProcessID string `json:"processId"`
+	// ExitCode is the process exit code (0 = success).
+	ExitCode int `json:"exitCode"`
+}
+
+// ShellOutputHandler is a callback for shell output notifications.
+type ShellOutputHandler func(notification ShellOutputNotification)
+
+// ShellExitHandler is a callback for shell exit notifications.
+type ShellExitHandler func(notification ShellExitNotification)
+
 // createSessionRequest is the request for session.create
 type createSessionRequest struct {
 	Model             string                     `json:"model,omitempty"`

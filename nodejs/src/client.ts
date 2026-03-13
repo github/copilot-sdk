@@ -42,6 +42,8 @@ import type {
     SessionLifecycleHandler,
     SessionListFilter,
     SessionMetadata,
+    ShellExitNotification,
+    ShellOutputNotification,
     Tool,
     ToolCallRequestPayload,
     ToolCallResponsePayload,
@@ -162,6 +164,7 @@ export class CopilotClient {
         Set<(event: SessionLifecycleEvent) => void>
     > = new Map();
     private _rpc: ReturnType<typeof createServerRpc> | null = null;
+    private shellProcessMap: Map<string, CopilotSession> = new Map();
     private processExitPromise: Promise<never> | null = null; // Rejects when CLI process exits
     private negotiatedProtocolVersion: number | null = null;
 
@@ -557,6 +560,10 @@ export class CopilotClient {
         // Create and register the session before issuing the RPC so that
         // events emitted by the CLI (e.g. session.start) are not dropped.
         const session = new CopilotSession(sessionId, this.connection!);
+        session._setShellProcessCallbacks(
+            (processId, session) => this.shellProcessMap.set(processId, session),
+            (processId) => this.shellProcessMap.delete(processId)
+        );
         session.registerTools(config.tools);
         session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
@@ -657,6 +664,10 @@ export class CopilotClient {
         // Create and register the session before issuing the RPC so that
         // events emitted by the CLI (e.g. session.start) are not dropped.
         const session = new CopilotSession(sessionId, this.connection!);
+        session._setShellProcessCallbacks(
+            (processId, session) => this.shellProcessMap.set(processId, session),
+            (processId) => this.shellProcessMap.delete(processId)
+        );
         session.registerTools(config.tools);
         session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
@@ -1373,6 +1384,14 @@ export class CopilotClient {
             this.handleSessionLifecycleNotification(notification);
         });
 
+        this.connection.onNotification("shell.output", (notification: unknown) => {
+            this.handleShellOutputNotification(notification);
+        });
+
+        this.connection.onNotification("shell.exit", (notification: unknown) => {
+            this.handleShellExitNotification(notification);
+        });
+
         // Protocol v3 servers send tool calls and permission requests as broadcast events
         // (external_tool.requested / permission.requested) handled in CopilotSession._dispatchEvent.
         // Protocol v2 servers use the older tool.call / permission.request RPC model instead.
@@ -1471,6 +1490,43 @@ export class CopilotClient {
             } catch {
                 // Ignore handler errors
             }
+        }
+    }
+
+    private handleShellOutputNotification(notification: unknown): void {
+        if (
+            typeof notification !== "object" ||
+            !notification ||
+            !("processId" in notification) ||
+            typeof (notification as { processId?: unknown }).processId !== "string"
+        ) {
+            return;
+        }
+
+        const { processId } = notification as { processId: string };
+        const session = this.shellProcessMap.get(processId);
+        if (session) {
+            session._dispatchShellOutput(notification as ShellOutputNotification);
+        }
+    }
+
+    private handleShellExitNotification(notification: unknown): void {
+        if (
+            typeof notification !== "object" ||
+            !notification ||
+            !("processId" in notification) ||
+            typeof (notification as { processId?: unknown }).processId !== "string"
+        ) {
+            return;
+        }
+
+        const { processId } = notification as { processId: string };
+        const session = this.shellProcessMap.get(processId);
+        if (session) {
+            session._dispatchShellExit(notification as ShellExitNotification);
+            // Clean up the mapping after exit
+            this.shellProcessMap.delete(processId);
+            session._untrackShellProcess(processId);
         }
     }
 

@@ -5,6 +5,8 @@ This module provides the CopilotSession class for managing individual
 conversation sessions with the Copilot CLI.
 """
 
+from __future__ import annotations
+
 import asyncio
 import inspect
 import threading
@@ -29,6 +31,10 @@ from .types import (
     PermissionRequest,
     PermissionRequestResult,
     SessionHooks,
+    ShellExitHandler,
+    ShellExitNotification,
+    ShellOutputHandler,
+    ShellOutputNotification,
     Tool,
     ToolHandler,
     ToolInvocation,
@@ -96,6 +102,14 @@ class CopilotSession:
         self._user_input_handler_lock = threading.Lock()
         self._hooks: SessionHooks | None = None
         self._hooks_lock = threading.Lock()
+        self._shell_output_handlers: set[ShellOutputHandler] = set()
+        self._shell_exit_handlers: set[ShellExitHandler] = set()
+        self._shell_output_handlers_lock = threading.Lock()
+        self._shell_exit_handlers_lock = threading.Lock()
+        self._tracked_process_ids: set[str] = set()
+        self._tracked_process_ids_lock = threading.Lock()
+        self._register_shell_process: Callable[[str, CopilotSession], None] | None = None
+        self._unregister_shell_process_fn: Callable[[str], None] | None = None
         self._rpc: SessionRpc | None = None
 
     @property
@@ -245,6 +259,106 @@ class CopilotSession:
                 self._event_handlers.discard(handler)
 
         return unsubscribe
+
+    def on_shell_output(self, handler: ShellOutputHandler) -> Callable[[], None]:
+        """Subscribe to shell output notifications for this session.
+
+        Shell output notifications are streamed in chunks when commands started
+        via ``session.rpc.shell.exec()`` produce stdout or stderr output.
+
+        Args:
+            handler: A callback that receives shell output notifications.
+
+        Returns:
+            A function that, when called, unsubscribes the handler.
+
+        Example:
+            >>> def handle_output(notification):
+            ...     print(f"[{notification.processId}:{notification.stream}] {notification.data}")
+            >>> unsubscribe = session.on_shell_output(handle_output)
+        """
+        with self._shell_output_handlers_lock:
+            self._shell_output_handlers.add(handler)
+
+        def unsubscribe():
+            with self._shell_output_handlers_lock:
+                self._shell_output_handlers.discard(handler)
+
+        return unsubscribe
+
+    def on_shell_exit(self, handler: ShellExitHandler) -> Callable[[], None]:
+        """Subscribe to shell exit notifications for this session.
+
+        Shell exit notifications are sent when commands started via
+        ``session.rpc.shell.exec()`` complete (after all output has been streamed).
+
+        Args:
+            handler: A callback that receives shell exit notifications.
+
+        Returns:
+            A function that, when called, unsubscribes the handler.
+
+        Example:
+            >>> def handle_exit(notification):
+            ...     print(f"Process {notification.processId} exited: {notification.exitCode}")
+            >>> unsubscribe = session.on_shell_exit(handle_exit)
+        """
+        with self._shell_exit_handlers_lock:
+            self._shell_exit_handlers.add(handler)
+
+        def unsubscribe():
+            with self._shell_exit_handlers_lock:
+                self._shell_exit_handlers.discard(handler)
+
+        return unsubscribe
+
+    def _dispatch_shell_output(self, notification: ShellOutputNotification) -> None:
+        """Dispatch a shell output notification to all registered handlers."""
+        with self._shell_output_handlers_lock:
+            handlers = list(self._shell_output_handlers)
+
+        for handler in handlers:
+            try:
+                handler(notification)
+            except Exception:
+                pass  # Ignore handler errors
+
+    def _dispatch_shell_exit(self, notification: ShellExitNotification) -> None:
+        """Dispatch a shell exit notification to all registered handlers."""
+        with self._shell_exit_handlers_lock:
+            handlers = list(self._shell_exit_handlers)
+
+        for handler in handlers:
+            try:
+                handler(notification)
+            except Exception:
+                pass  # Ignore handler errors
+
+    def _track_shell_process(self, process_id: str) -> None:
+        """Track a shell process ID so notifications are routed to this session."""
+        with self._tracked_process_ids_lock:
+            self._tracked_process_ids.add(process_id)
+        if self._register_shell_process is not None:
+            self._register_shell_process(process_id, self)
+
+    def _untrack_shell_process(self, process_id: str) -> None:
+        """Stop tracking a shell process ID."""
+        with self._tracked_process_ids_lock:
+            self._tracked_process_ids.discard(process_id)
+        if self._unregister_shell_process_fn is not None:
+            self._unregister_shell_process_fn(process_id)
+
+    def _set_shell_process_callbacks(
+        self,
+        register: Callable[[str, CopilotSession], None],
+        unregister: Callable[[str], None],
+    ) -> None:
+        """Set the registration callbacks for shell process tracking.
+
+        Called by the client when setting up the session.
+        """
+        self._register_shell_process = register
+        self._unregister_shell_process_fn = unregister
 
     def _dispatch_event(self, event: SessionEvent) -> None:
         """
@@ -668,6 +782,15 @@ class CopilotSession:
             self._tool_handlers.clear()
         with self._permission_handler_lock:
             self._permission_handler = None
+        with self._shell_output_handlers_lock:
+            self._shell_output_handlers.clear()
+        with self._shell_exit_handlers_lock:
+            self._shell_exit_handlers.clear()
+        with self._tracked_process_ids_lock:
+            for process_id in list(self._tracked_process_ids):
+                if self._unregister_shell_process_fn is not None:
+                    self._unregister_shell_process_fn(process_id)
+            self._tracked_process_ids.clear()
 
     async def destroy(self) -> None:
         """
@@ -689,7 +812,7 @@ class CopilotSession:
         )
         await self.disconnect()
 
-    async def __aenter__(self) -> "CopilotSession":
+    async def __aenter__(self) -> CopilotSession:
         """Enable use as an async context manager."""
         return self
 

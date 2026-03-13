@@ -1145,3 +1145,61 @@ class SessionLifecycleEvent:
 
 # Handler types for session lifecycle events
 SessionLifecycleHandler = Callable[[SessionLifecycleEvent], None]
+
+
+# ============================================================================
+# Shell Notification Types
+# ============================================================================
+
+ShellOutputStream = Literal["stdout", "stderr"]
+"""Output stream identifier for shell notifications."""
+
+
+@dataclass
+class ShellOutputNotification:
+    """Notification sent when a shell command produces output.
+
+    Streamed in chunks (up to 64KB per notification).
+    """
+
+    processId: str
+    """Process identifier returned by shell.exec."""
+    stream: ShellOutputStream
+    """Which output stream produced this chunk."""
+    data: str
+    """The output data (UTF-8 string)."""
+
+    @staticmethod
+    def from_dict(data: dict) -> ShellOutputNotification:
+        return ShellOutputNotification(
+            processId=data.get("processId", ""),
+            stream=data.get("stream", "stdout"),
+            data=data.get("data", ""),
+        )
+
+
+@dataclass
+class ShellExitNotification:
+    """Notification sent when a shell command exits.
+
+    Sent after all output has been streamed.
+    """
+
+    processId: str
+    """Process identifier returned by shell.exec."""
+    exitCode: int
+    """Process exit code (0 = success)."""
+
+    @staticmethod
+    def from_dict(data: dict) -> ShellExitNotification:
+        return ShellExitNotification(
+            processId=data.get("processId", ""),
+            exitCode=data.get("exitCode", 1),
+        )
+
+
+ShellOutputHandler = Callable[[ShellOutputNotification], None]
+"""Handler for shell output notifications."""
+
+ShellExitHandler = Callable[[ShellExitNotification], None]
+"""Handler for shell exit notifications."""

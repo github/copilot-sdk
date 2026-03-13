@@ -91,6 +91,8 @@ type Client struct {
 	lifecycleHandlers         []SessionLifecycleHandler
 	typedLifecycleHandlers    map[SessionLifecycleEventType][]SessionLifecycleHandler
 	lifecycleHandlersMux      sync.Mutex
+	shellProcessMap           map[string]*Session
+	shellProcessMapMux        sync.Mutex
 	startStopMux              sync.RWMutex // protects process and state during start/[force]stop
 	processDone               chan struct{}
 	processErrorPtr           *error
@@ -130,6 +132,7 @@ func NewClient(options *ClientOptions) *Client {
 		options:          opts,
 		state:            StateDisconnected,
 		sessions:         make(map[string]*Session),
+		shellProcessMap:  make(map[string]*Session),
 		actualHost:       "localhost",
 		isExternalServer: false,
 		useStdio:         true,
@@ -535,6 +538,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	// Create and register the session before issuing the RPC so that
 	// events emitted by the CLI (e.g. session.start) are not dropped.
 	session := newSession(sessionID, c.client, "")
+	session.setShellProcessCallbacks(c.registerShellProcess, c.unregisterShellProcess)
 
 	session.registerTools(config.Tools)
 	session.registerPermissionHandler(config.OnPermissionRequest)
@@ -648,6 +652,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	// Create and register the session before issuing the RPC so that
 	// events emitted by the CLI (e.g. session.start) are not dropped.
 	session := newSession(sessionID, c.client, "")
+	session.setShellProcessCallbacks(c.registerShellProcess, c.unregisterShellProcess)
 
 	session.registerTools(config.Tools)
 	session.registerPermissionHandler(config.OnPermissionRequest)
@@ -1379,6 +1384,8 @@ func (c *Client) setupNotificationHandler() {
 	c.client.SetRequestHandler("permission.request", jsonrpc2.RequestHandlerFor(c.handlePermissionRequestV2))
 	c.client.SetRequestHandler("userInput.request", jsonrpc2.RequestHandlerFor(c.handleUserInputRequest))
 	c.client.SetRequestHandler("hooks.invoke", jsonrpc2.RequestHandlerFor(c.handleHooksInvoke))
+	c.client.SetRequestHandler("shell.output", jsonrpc2.NotificationHandlerFor(c.handleShellOutput))
+	c.client.SetRequestHandler("shell.exit", jsonrpc2.NotificationHandlerFor(c.handleShellExit))
 }
 
 func (c *Client) handleSessionEvent(req sessionEventRequest) {
@@ -1393,6 +1400,43 @@ func (c *Client) handleSessionEvent(req sessionEventRequest) {
 	if ok {
 		session.dispatchEvent(req.Event)
 	}
+}
+
+func (c *Client) handleShellOutput(notification ShellOutputNotification) {
+	c.shellProcessMapMux.Lock()
+	session, ok := c.shellProcessMap[notification.ProcessID]
+	c.shellProcessMapMux.Unlock()
+
+	if ok {
+		session.dispatchShellOutput(notification)
+	}
+}
+
+func (c *Client) handleShellExit(notification ShellExitNotification) {
+	c.shellProcessMapMux.Lock()
+	session, ok := c.shellProcessMap[notification.ProcessID]
+	c.shellProcessMapMux.Unlock()
+
+	if ok {
+		session.dispatchShellExit(notification)
+		// Clean up the mapping after exit
+		c.shellProcessMapMux.Lock()
+		delete(c.shellProcessMap, notification.ProcessID)
+		c.shellProcessMapMux.Unlock()
+		session.untrackShellProcess(notification.ProcessID)
+	}
+}
+
+func (c *Client) registerShellProcess(processID string, session *Session) {
+	c.shellProcessMapMux.Lock()
+	c.shellProcessMap[processID] = session
+	c.shellProcessMapMux.Unlock()
+}
+
+func (c *Client) unregisterShellProcess(processID string) {
+	c.shellProcessMapMux.Lock()
+	delete(c.shellProcessMap, processID)
+	c.shellProcessMapMux.Unlock()
 }
 
 // handleUserInputRequest handles a user input request from the CLI server.

@@ -1086,6 +1086,49 @@ export type TypedSessionLifecycleHandler<K extends SessionLifecycleEventType> = 
     event: SessionLifecycleEvent & { type: K }
 ) => void;
 
+// ============================================================================
+// Shell Notification Types
+// ============================================================================
+
+/**
+ * Output stream identifier for shell notifications
+ */
+export type ShellOutputStream = "stdout" | "stderr";
+
+/**
+ * Notification sent when a shell command produces output.
+ * Streamed in chunks (up to 64KB per notification).
+ */
+export interface ShellOutputNotification {
+    /** Process identifier returned by shell.exec */
+    processId: string;
+    /** Which output stream produced this chunk */
+    stream: ShellOutputStream;
+    /** The output data (UTF-8 string) */
+    data: string;
+}
+
+/**
+ * Notification sent when a shell command exits.
+ * Sent after all output has been streamed.
+ */
+export interface ShellExitNotification {
+    /** Process identifier returned by shell.exec */
+    processId: string;
+    /** Process exit code (0 = success) */
+    exitCode: number;
+}
+
+/**
+ * Handler for shell output notifications
+ */
+export type ShellOutputHandler = (notification: ShellOutputNotification) => void;
+
+/**
+ * Handler for shell exit notifications
+ */
+export type ShellExitHandler = (notification: ShellExitNotification) => void;
+
 /**
  * Information about the foreground session in TUI+server mode
  */

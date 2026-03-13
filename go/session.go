@@ -17,6 +17,16 @@ type sessionHandler struct {
 	fn SessionEventHandler
 }
 
+type shellOutputHandlerEntry struct {
+	id uint64
+	fn ShellOutputHandler
+}
+
+type shellExitHandlerEntry struct {
+	id uint64
+	fn ShellExitHandler
+}
+
 // Session represents a single conversation session with the Copilot CLI.
 //
 // A session maintains conversation state, handles events, and manages tool execution.
@@ -70,6 +80,15 @@ type Session struct {
 	eventCh   chan SessionEvent
 	closeOnce sync.Once // guards eventCh close so Disconnect is safe to call more than once
 
+	shellOutputHandlers []shellOutputHandlerEntry
+	shellExitHandlers   []shellExitHandlerEntry
+	shellHandlerMux     sync.RWMutex
+	nextShellHandlerID  uint64
+	trackedProcessIDs   map[string]struct{}
+	trackedProcessMux   sync.Mutex
+	registerShellProc   func(processID string, session *Session)
+	unregisterShellProc func(processID string)
+
 	// RPC provides typed session-scoped RPC methods.
 	RPC *rpc.SessionRpc
 }
@@ -84,13 +103,14 @@ func (s *Session) WorkspacePath() string {
 // newSession creates a new session wrapper with the given session ID and client.
 func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string) *Session {
 	s := &Session{
-		SessionID:     sessionID,
-		workspacePath: workspacePath,
-		client:        client,
-		handlers:      make([]sessionHandler, 0),
-		toolHandlers:  make(map[string]ToolHandler),
-		eventCh:       make(chan SessionEvent, 128),
-		RPC:           rpc.NewSessionRpc(client, sessionID),
+		SessionID:         sessionID,
+		workspacePath:     workspacePath,
+		client:            client,
+		handlers:          make([]sessionHandler, 0),
+		toolHandlers:      make(map[string]ToolHandler),
+		eventCh:           make(chan SessionEvent, 128),
+		trackedProcessIDs: make(map[string]struct{}),
+		RPC:               rpc.NewSessionRpc(client, sessionID),
 	}
 	go s.processEvents()
 	return s
@@ -258,6 +278,74 @@ func (s *Session) On(handler SessionEventHandler) func() {
 		for i, h := range s.handlers {
 			if h.id == id {
 				s.handlers = append(s.handlers[:i], s.handlers[i+1:]...)
+				break
+			}
+		}
+	}
+}
+
+// OnShellOutput subscribes to shell output notifications for this session.
+//
+// Shell output notifications are streamed in chunks when commands started
+// via session.RPC.Shell.Exec() produce stdout or stderr output.
+//
+// The returned function can be called to unsubscribe the handler.
+//
+// Example:
+//
+//	unsubscribe := session.OnShellOutput(func(n copilot.ShellOutputNotification) {
+//	    fmt.Printf("[%s:%s] %s", n.ProcessID, n.Stream, n.Data)
+//	})
+//	defer unsubscribe()
+func (s *Session) OnShellOutput(handler ShellOutputHandler) func() {
+	s.shellHandlerMux.Lock()
+	defer s.shellHandlerMux.Unlock()
+
+	id := s.nextShellHandlerID
+	s.nextShellHandlerID++
+	s.shellOutputHandlers = append(s.shellOutputHandlers, shellOutputHandlerEntry{id: id, fn: handler})
+
+	return func() {
+		s.shellHandlerMux.Lock()
+		defer s.shellHandlerMux.Unlock()
+
+		for i, h := range s.shellOutputHandlers {
+			if h.id == id {
+				s.shellOutputHandlers = append(s.shellOutputHandlers[:i], s.shellOutputHandlers[i+1:]...)
+				break
+			}
+		}
+	}
+}
+
+// OnShellExit subscribes to shell exit notifications for this session.
+//
+// Shell exit notifications are sent when commands started via
+// session.RPC.Shell.Exec() complete (after all output has been streamed).
+//
+// The returned function can be called to unsubscribe the handler.
+//
+// Example:
+//
+//	unsubscribe := session.OnShellExit(func(n copilot.ShellExitNotification) {
+//	    fmt.Printf("Process %s exited with code %d\n", n.ProcessID, n.ExitCode)
+//	})
+//	defer unsubscribe()
+func (s *Session) OnShellExit(handler ShellExitHandler) func() {
+	s.shellHandlerMux.Lock()
+	defer s.shellHandlerMux.Unlock()
+
+	id := s.nextShellHandlerID
+	s.nextShellHandlerID++
+	s.shellExitHandlers = append(s.shellExitHandlers, shellExitHandlerEntry{id: id, fn: handler})
+
+	return func() {
+		s.shellHandlerMux.Lock()
+		defer s.shellHandlerMux.Unlock()
+
+		for i, h := range s.shellExitHandlers {
+			if h.id == id {
+				s.shellExitHandlers = append(s.shellExitHandlers[:i], s.shellExitHandlers[i+1:]...)
 				break
 			}
 		}
@@ -489,6 +577,67 @@ func (s *Session) processEvents() {
 	}
 }
 
+// dispatchShellOutput dispatches a shell output notification to all registered handlers.
+func (s *Session) dispatchShellOutput(notification ShellOutputNotification) {
+	s.shellHandlerMux.RLock()
+	handlers := make([]ShellOutputHandler, 0, len(s.shellOutputHandlers))
+	for _, h := range s.shellOutputHandlers {
+		handlers = append(handlers, h.fn)
+	}
+	s.shellHandlerMux.RUnlock()
+
+	for _, handler := range handlers {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("Error in shell output handler: %v\n", r)
+				}
+			}()
+			handler(notification)
+		}()
+	}
+}
+
+// dispatchShellExit dispatches a shell exit notification to all registered handlers.
+func (s *Session) dispatchShellExit(notification ShellExitNotification) {
+	s.shellHandlerMux.RLock()
+	handlers := make([]ShellExitHandler, 0, len(s.shellExitHandlers))
+	for _, h := range s.shellExitHandlers {
+		handlers = append(handlers, h.fn)
+	}
+	s.shellHandlerMux.RUnlock()
+
+	for _, handler := range handlers {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("Error in shell exit handler: %v\n", r)
+				}
+			}()
+			handler(notification)
+		}()
+	}
+}
+
+// untrackShellProcess stops tracking a shell process ID.
+func (s *Session) untrackShellProcess(processID string) {
+	s.trackedProcessMux.Lock()
+	delete(s.trackedProcessIDs, processID)
+	s.trackedProcessMux.Unlock()
+	if s.unregisterShellProc != nil {
+		s.unregisterShellProc(processID)
+	}
+}
+
+// setShellProcessCallbacks sets the registration callbacks for shell process tracking.
+func (s *Session) setShellProcessCallbacks(
+	register func(processID string, session *Session),
+	unregister func(processID string),
+) {
+	s.registerShellProc = register
+	s.unregisterShellProc = unregister
+}
+
 // handleBroadcastEvent handles broadcast request events by executing local handlers
 // and responding via RPC. This implements the protocol v3 broadcast model where tool
 // calls and permission requests are broadcast as session events to all clients.
@@ -683,6 +832,20 @@ func (s *Session) Disconnect() error {
 	s.permissionMux.Lock()
 	s.permissionHandler = nil
 	s.permissionMux.Unlock()
+
+	s.shellHandlerMux.Lock()
+	s.shellOutputHandlers = nil
+	s.shellExitHandlers = nil
+	s.shellHandlerMux.Unlock()
+
+	s.trackedProcessMux.Lock()
+	for processID := range s.trackedProcessIDs {
+		if s.unregisterShellProc != nil {
+			s.unregisterShellProc(processID)
+		}
+	}
+	s.trackedProcessIDs = nil
+	s.trackedProcessMux.Unlock()
 
 	return nil
 }

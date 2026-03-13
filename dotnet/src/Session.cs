@@ -67,6 +67,12 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private readonly SemaphoreSlim _hooksLock = new(1, 1);
     private SessionRpc? _sessionRpc;
     private int _isDisposed;
+    private event Action<ShellOutputNotification>? ShellOutputHandlers;
+    private event Action<ShellExitNotification>? ShellExitHandlers;
+    private readonly HashSet<string> _trackedProcessIds = [];
+    private readonly object _trackedProcessIdsLock = new();
+    private Action<string, CopilotSession>? _registerShellProcess;
+    private Action<string>? _unregisterShellProcess;
 
     /// <summary>
     /// Channel that serializes event dispatch. <see cref="DispatchEvent"/> enqueues;
@@ -279,6 +285,52 @@ public sealed partial class CopilotSession : IAsyncDisposable
     }
 
     /// <summary>
+    /// Subscribes to shell output notifications for this session.
+    /// </summary>
+    /// <param name="handler">A callback that receives shell output notifications.</param>
+    /// <returns>An <see cref="IDisposable"/> that unsubscribes the handler when disposed.</returns>
+    /// <remarks>
+    /// Shell output notifications are streamed in chunks when commands started
+    /// via <c>session.Rpc.Shell.ExecAsync()</c> produce stdout or stderr output.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// using var sub = session.OnShellOutput(n =>
+    /// {
+    ///     Console.WriteLine($"[{n.ProcessId}:{n.Stream}] {n.Data}");
+    /// });
+    /// </code>
+    /// </example>
+    public IDisposable OnShellOutput(Action<ShellOutputNotification> handler)
+    {
+        ShellOutputHandlers += handler;
+        return new ActionDisposable(() => ShellOutputHandlers -= handler);
+    }
+
+    /// <summary>
+    /// Subscribes to shell exit notifications for this session.
+    /// </summary>
+    /// <param name="handler">A callback that receives shell exit notifications.</param>
+    /// <returns>An <see cref="IDisposable"/> that unsubscribes the handler when disposed.</returns>
+    /// <remarks>
+    /// Shell exit notifications are sent when commands started via
+    /// <c>session.Rpc.Shell.ExecAsync()</c> complete (after all output has been streamed).
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// using var sub = session.OnShellExit(n =>
+    /// {
+    ///     Console.WriteLine($"Process {n.ProcessId} exited with code {n.ExitCode}");
+    /// });
+    /// </code>
+    /// </example>
+    public IDisposable OnShellExit(Action<ShellExitNotification> handler)
+    {
+        ShellExitHandlers += handler;
+        return new ActionDisposable(() => ShellExitHandlers -= handler);
+    }
+
+    /// <summary>
     /// Enqueues an event for serial dispatch to all registered handlers.
     /// </summary>
     /// <param name="sessionEvent">The session event to dispatch.</param>
@@ -321,6 +373,57 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Dispatches a shell output notification to all registered handlers.
+    /// </summary>
+    internal void DispatchShellOutput(ShellOutputNotification notification)
+    {
+        ShellOutputHandlers?.Invoke(notification);
+    }
+
+    /// <summary>
+    /// Dispatches a shell exit notification to all registered handlers.
+    /// </summary>
+    internal void DispatchShellExit(ShellExitNotification notification)
+    {
+        ShellExitHandlers?.Invoke(notification);
+    }
+
+    /// <summary>
+    /// Track a shell process ID so notifications are routed to this session.
+    /// </summary>
+    internal void TrackShellProcess(string processId)
+    {
+        lock (_trackedProcessIdsLock)
+        {
+            _trackedProcessIds.Add(processId);
+        }
+        _registerShellProcess?.Invoke(processId, this);
+    }
+
+    /// <summary>
+    /// Stop tracking a shell process ID.
+    /// </summary>
+    internal void UntrackShellProcess(string processId)
+    {
+        lock (_trackedProcessIdsLock)
+        {
+            _trackedProcessIds.Remove(processId);
+        }
+        _unregisterShellProcess?.Invoke(processId);
+    }
+
+    /// <summary>
+    /// Set the registration callbacks for shell process tracking.
+    /// </summary>
+    internal void SetShellProcessCallbacks(
+        Action<string, CopilotSession> register,
+        Action<string> unregister)
+    {
+        _registerShellProcess = register;
+        _unregisterShellProcess = unregister;
     }
 
     /// <summary>
@@ -805,6 +908,18 @@ public sealed partial class CopilotSession : IAsyncDisposable
         }
 
         _eventHandlers = ImmutableInterlocked.InterlockedExchange(ref _eventHandlers, ImmutableArray<SessionEventHandler>.Empty);
+        ShellOutputHandlers = null;
+        ShellExitHandlers = null;
+
+        lock (_trackedProcessIdsLock)
+        {
+            foreach (var processId in _trackedProcessIds)
+            {
+                _unregisterShellProcess?.Invoke(processId);
+            }
+            _trackedProcessIds.Clear();
+        }
+
         _toolHandlers.Clear();
 
         _permissionHandler = null;
