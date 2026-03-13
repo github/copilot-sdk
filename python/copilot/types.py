@@ -72,7 +72,6 @@ Attachment = FileAttachment | DirectoryAttachment | SelectionAttachment
 # Configuration for CopilotClient connection modes
 
 
-
 @dataclass
 class SubprocessConfig:
     """Config for spawning a local Copilot CLI subprocess.
@@ -108,9 +107,6 @@ class SubprocessConfig:
 
     log_level: LogLevel = "info"
     """Log level for the CLI process."""
-
-    auto_restart: bool = True
-    """Auto-restart the CLI server if it crashes."""
 
     env: dict[str, str] | None = None
     """Environment variables for the CLI process. ``None`` inherits the current env."""

@@ -125,7 +125,6 @@ CopilotClient(
 - `use_stdio` (bool): Use stdio transport instead of TCP (default: True)
 - `port` (int): Server port for TCP mode (default: 0 for random)
 - `log_level` (str): Log level (default: "info")
-- `auto_restart` (bool): Auto-restart on crash (default: True)
 - `env` (dict | None): Environment variables for the CLI process
 - `github_token` (str | None): GitHub token for authentication. When provided, takes priority over other auth methods.
 - `use_logged_in_user` (bool | None): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided).
