@@ -112,7 +112,7 @@ class TestPermissions:
         def deny_all(request, invocation):
             return PermissionRequestResult()
 
-        session2 = await ctx.client.resume_session(session_id, {"on_permission_request": deny_all})
+        session2 = await ctx.client.resume_session(session_id, deny_all)
 
         denied_events = []
         done_event = asyncio.Event()
@@ -186,9 +186,7 @@ class TestPermissions:
             permission_requests.append(request)
             return PermissionRequestResult(kind="approved")
 
-        session2 = await ctx.client.resume_session(
-            session_id, {"on_permission_request": on_permission_request}
-        )
+        session2 = await ctx.client.resume_session(session_id, on_permission_request)
 
         await session2.send_and_wait({"prompt": "Run 'echo resumed' for me"})
 

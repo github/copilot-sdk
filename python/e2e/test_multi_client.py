@@ -202,10 +202,8 @@ class TestMultiClientBroadcast:
 
         # Client 2 resumes with NO tools — should not overwrite client 1's tools
         session2 = await mctx.client2.resume_session(
-            session1.session_id, {"on_permission_request": PermissionHandler.approve_all}
+            session1.session_id, PermissionHandler.approve_all
         )
-
-        # Track events seen by each client
         client1_events = []
         client2_events = []
         session1.on(lambda event: client1_events.append(event))
@@ -248,7 +246,7 @@ class TestMultiClientBroadcast:
         # Client 2 resumes — its handler never resolves, so only client 1's approval takes effect
         session2 = await mctx.client2.resume_session(
             session1.session_id,
-            {"on_permission_request": lambda request, invocation: asyncio.Future()},
+            lambda request, invocation: asyncio.Future(),
         )
 
         client1_events = []
@@ -296,7 +294,7 @@ class TestMultiClientBroadcast:
         # Client 2 resumes — its handler never resolves
         session2 = await mctx.client2.resume_session(
             session1.session_id,
-            {"on_permission_request": lambda request, invocation: asyncio.Future()},
+            lambda request, invocation: asyncio.Future(),
         )
 
         client1_events = []
@@ -359,7 +357,8 @@ class TestMultiClientBroadcast:
         # Client 2 resumes with tool B (different tool, union should have both)
         session2 = await mctx.client2.resume_session(
             session1.session_id,
-            {"on_permission_request": PermissionHandler.approve_all, "tools": [currency_lookup]},
+            PermissionHandler.approve_all,
+            tools=[currency_lookup],
         )
 
         # Send prompts sequentially to avoid nondeterministic tool_call ordering
@@ -410,7 +409,8 @@ class TestMultiClientBroadcast:
         # Client 2 resumes with ephemeral_tool
         await mctx.client2.resume_session(
             session1.session_id,
-            {"on_permission_request": PermissionHandler.approve_all, "tools": [ephemeral_tool]},
+            PermissionHandler.approve_all,
+            tools=[ephemeral_tool],
         )
 
         # Verify both tools work before disconnect.

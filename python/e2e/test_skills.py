@@ -110,10 +110,8 @@ class TestSkillBehavior:
         # Resume with skillDirectories - skill should now be active
         session2 = await ctx.client.resume_session(
             session_id,
-            {
-                "skill_directories": [skills_dir],
-                "on_permission_request": PermissionHandler.approve_all,
-            },
+            PermissionHandler.approve_all,
+            skill_directories=[skills_dir],
         )
 
         assert session2.session_id == session_id

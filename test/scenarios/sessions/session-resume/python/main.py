@@ -26,7 +26,7 @@ async def main():
         session_id = session.session_id
 
         # 4. Resume the session with the same ID
-        resumed = await client.resume_session(session_id)
+        resumed = await client.resume_session(session_id, PermissionHandler.approve_all)
         print("Session resumed")
 
         # 5. Ask for the secret word

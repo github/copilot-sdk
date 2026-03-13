@@ -160,6 +160,35 @@ The parameters below are keyword-only:
 - `disabled_skills` (list[str]): List of skill names to disable.
 - `infinite_sessions` (dict): Automatic context compaction configuration.
 
+**`resume_session` Parameters:**
+
+- `session_id` (str): **Required.** The ID of the session to resume.
+- `on_permission_request` (callable): **Required.** Handler for permission requests from the server.
+- `model` (str): Model to use (can change the model when resuming).
+
+The parameters below are keyword-only:
+
+- `client_name` (str): Client name to identify the application using the SDK.
+- `reasoning_effort` (str): Reasoning effort level ("low", "medium", "high", "xhigh").
+- `tools` (list): Custom tools exposed to the CLI.
+- `system_message` (dict): System message configuration.
+- `available_tools` (list[str]): List of tool names to allow. Takes precedence over `excluded_tools`.
+- `excluded_tools` (list[str]): List of tool names to disable. Ignored if `available_tools` is set.
+- `on_user_input_request` (callable): Handler for user input requests from the agent (enables ask_user tool).
+- `hooks` (dict): Hook handlers for session lifecycle events.
+- `working_directory` (str): Working directory for the session.
+- `provider` (dict): Custom API provider configuration (BYOK).
+- `streaming` (bool): Enable streaming delta events.
+- `mcp_servers` (dict): MCP server configurations for the session.
+- `custom_agents` (list): Custom agent configurations for the session.
+- `agent` (str): Name of the custom agent to activate when the session starts.
+- `config_dir` (str): Override the default configuration directory location.
+- `skill_directories` (list[str]): Directories to load skills from.
+- `disabled_skills` (list[str]): List of skill names to disable.
+- `infinite_sessions` (dict): Automatic context compaction configuration.
+- `disable_resume` (bool): Skip emitting the session.resume event (default: False).
+- `on_event` (callable): Event handler registered before the session.resume RPC.
+
 **Session Lifecycle Methods:**
 
 ```python

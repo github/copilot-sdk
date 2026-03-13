@@ -66,7 +66,8 @@ class TestMCPServers:
 
         session2 = await ctx.client.resume_session(
             session_id,
-            {"mcp_servers": mcp_servers, "on_permission_request": PermissionHandler.approve_all},
+            PermissionHandler.approve_all,
+            mcp_servers=mcp_servers,
         )
 
         assert session2.session_id == session_id
@@ -159,10 +160,8 @@ class TestCustomAgents:
 
         session2 = await ctx.client.resume_session(
             session_id,
-            {
-                "custom_agents": custom_agents,
-                "on_permission_request": PermissionHandler.approve_all,
-            },
+            PermissionHandler.approve_all,
+            custom_agents=custom_agents,
         )
 
         assert session2.session_id == session_id

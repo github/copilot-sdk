@@ -153,9 +153,7 @@ class TestSessions:
         assert "2" in answer.data.content
 
         # Resume using the same client
-        session2 = await ctx.client.resume_session(
-            session_id, {"on_permission_request": PermissionHandler.approve_all}
-        )
+        session2 = await ctx.client.resume_session(session_id, PermissionHandler.approve_all)
         assert session2.session_id == session_id
         answer2 = await get_final_assistant_message(session2)
         assert "2" in answer2.data.content
@@ -189,9 +187,7 @@ class TestSessions:
         )
 
         try:
-            session2 = await new_client.resume_session(
-                session_id, {"on_permission_request": PermissionHandler.approve_all}
-            )
+            session2 = await new_client.resume_session(session_id, PermissionHandler.approve_all)
             assert session2.session_id == session_id
 
             messages = await session2.get_messages()
@@ -211,7 +207,7 @@ class TestSessions:
     async def test_should_throw_error_resuming_nonexistent_session(self, ctx: E2ETestContext):
         with pytest.raises(Exception):
             await ctx.client.resume_session(
-                "non-existent-session-id", {"on_permission_request": PermissionHandler.approve_all}
+                "non-existent-session-id", PermissionHandler.approve_all
             )
 
     async def test_should_list_sessions(self, ctx: E2ETestContext):
@@ -279,9 +275,7 @@ class TestSessions:
 
         # Verify we cannot resume the deleted session
         with pytest.raises(Exception):
-            await ctx.client.resume_session(
-                session_id, {"on_permission_request": PermissionHandler.approve_all}
-            )
+            await ctx.client.resume_session(session_id, PermissionHandler.approve_all)
 
     async def test_should_get_last_session_id(self, ctx: E2ETestContext):
         import asyncio
@@ -359,13 +353,11 @@ class TestSessions:
         # Resume the session with a provider
         session2 = await ctx.client.resume_session(
             session_id,
-            {
-                "provider": {
-                    "type": "openai",
-                    "base_url": "https://api.openai.com/v1",
-                    "api_key": "fake-key",
-                },
-                "on_permission_request": PermissionHandler.approve_all,
+            PermissionHandler.approve_all,
+            provider={
+                "type": "openai",
+                "base_url": "https://api.openai.com/v1",
+                "api_key": "fake-key",
             },
         )
 
@@ -523,9 +515,7 @@ class TestSessions:
         """Test that setModel passes reasoningEffort and it appears in the model_change event."""
         import asyncio
 
-        session = await ctx.client.create_session(
-            {"on_permission_request": PermissionHandler.approve_all}
-        )
+        session = await ctx.client.create_session(PermissionHandler.approve_all)
 
         model_change_event = asyncio.get_event_loop().create_future()
 

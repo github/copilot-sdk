@@ -82,7 +82,8 @@ class TestStreamingFidelity:
         try:
             session2 = await new_client.resume_session(
                 session.session_id,
-                {"streaming": True, "on_permission_request": PermissionHandler.approve_all},
+                PermissionHandler.approve_all,
+                streaming=True,
             )
             events = []
             session2.on(lambda event: events.append(event))

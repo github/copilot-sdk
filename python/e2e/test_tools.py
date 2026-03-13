@@ -153,9 +153,7 @@ class TestTools:
             did_run_permission_request = True
             return PermissionRequestResult(kind="no-result")
 
-        session = await ctx.client.create_session(
-            {"tools": [safe_lookup], "on_permission_request": tracking_handler}
-        )
+        session = await ctx.client.create_session(tracking_handler, tools=[safe_lookup])
 
         await session.send({"prompt": "Use safe_lookup to look up 'test123'"})
         assistant_message = await get_final_assistant_message(session)
