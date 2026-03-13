@@ -26,6 +26,7 @@ import {
 import { createServerRpc } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession, NO_RESULT_PERMISSION_V2_ERROR } from "./session.js";
+import { getTraceContext } from "./telemetry.js";
 import type {
     ConnectionState,
     CopilotClientOptions,
@@ -42,10 +43,12 @@ import type {
     SessionLifecycleHandler,
     SessionListFilter,
     SessionMetadata,
+    TelemetryConfig,
     Tool,
     ToolCallRequestPayload,
     ToolCallResponsePayload,
     ToolResultObject,
+    TraceContextProvider,
     TypedSessionLifecycleHandler,
 } from "./types.js";
 
@@ -143,17 +146,25 @@ export class CopilotClient {
     private options: Required<
         Omit<
             CopilotClientOptions,
-            "cliPath" | "cliUrl" | "githubToken" | "useLoggedInUser" | "onListModels"
+            | "cliPath"
+            | "cliUrl"
+            | "githubToken"
+            | "useLoggedInUser"
+            | "onListModels"
+            | "telemetry"
+            | "onGetTraceContext"
         >
     > & {
         cliPath?: string;
         cliUrl?: string;
         githubToken?: string;
         useLoggedInUser?: boolean;
+        telemetry?: TelemetryConfig;
     };
     private isExternalServer: boolean = false;
     private forceStopping: boolean = false;
     private onListModels?: () => Promise<ModelInfo[]> | ModelInfo[];
+    private onGetTraceContext?: TraceContextProvider;
     private modelsCache: ModelInfo[] | null = null;
     private modelsCacheLock: Promise<void> = Promise.resolve();
     private sessionLifecycleHandlers: Set<SessionLifecycleHandler> = new Set();
@@ -232,6 +243,7 @@ export class CopilotClient {
         }
 
         this.onListModels = options.onListModels;
+        this.onGetTraceContext = options.onGetTraceContext;
 
         this.options = {
             cliPath: options.cliUrl ? undefined : options.cliPath || getBundledCliPath(),
@@ -249,6 +261,7 @@ export class CopilotClient {
             githubToken: options.githubToken,
             // Default useLoggedInUser to false when githubToken is provided, otherwise true
             useLoggedInUser: options.useLoggedInUser ?? (options.githubToken ? false : true),
+            telemetry: options.telemetry,
         };
     }
 
@@ -556,7 +569,12 @@ export class CopilotClient {
 
         // Create and register the session before issuing the RPC so that
         // events emitted by the CLI (e.g. session.start) are not dropped.
-        const session = new CopilotSession(sessionId, this.connection!);
+        const session = new CopilotSession(
+            sessionId,
+            this.connection!,
+            undefined,
+            this.onGetTraceContext
+        );
         session.registerTools(config.tools);
         session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
@@ -572,6 +590,7 @@ export class CopilotClient {
 
         try {
             const response = await this.connection!.sendRequest("session.create", {
+                ...(await getTraceContext(this.onGetTraceContext)),
                 model: config.model,
                 sessionId,
                 clientName: config.clientName,
@@ -581,6 +600,7 @@ export class CopilotClient {
                     description: tool.description,
                     parameters: toJsonSchema(tool.parameters),
                     overridesBuiltInTool: tool.overridesBuiltInTool,
+                    skipPermission: tool.skipPermission,
                 })),
                 systemMessage: config.systemMessage,
                 availableTools: config.availableTools,
@@ -655,7 +675,12 @@ export class CopilotClient {
 
         // Create and register the session before issuing the RPC so that
         // events emitted by the CLI (e.g. session.start) are not dropped.
-        const session = new CopilotSession(sessionId, this.connection!);
+        const session = new CopilotSession(
+            sessionId,
+            this.connection!,
+            undefined,
+            this.onGetTraceContext
+        );
         session.registerTools(config.tools);
         session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
@@ -671,6 +696,7 @@ export class CopilotClient {
 
         try {
             const response = await this.connection!.sendRequest("session.resume", {
+                ...(await getTraceContext(this.onGetTraceContext)),
                 sessionId,
                 clientName: config.clientName,
                 model: config.model,
@@ -683,6 +709,7 @@ export class CopilotClient {
                     description: tool.description,
                     parameters: toJsonSchema(tool.parameters),
                     overridesBuiltInTool: tool.overridesBuiltInTool,
+                    skipPermission: tool.skipPermission,
                 })),
                 provider: config.provider,
                 requestPermission: true,
@@ -1146,6 +1173,24 @@ export class CopilotClient {
                 );
             }
 
+            // Set OpenTelemetry environment variables if telemetry is configured
+            if (this.options.telemetry) {
+                const t = this.options.telemetry;
+                envWithoutNodeDebug.COPILOT_OTEL_ENABLED = "true";
+                if (t.otlpEndpoint !== undefined)
+                    envWithoutNodeDebug.OTEL_EXPORTER_OTLP_ENDPOINT = t.otlpEndpoint;
+                if (t.filePath !== undefined)
+                    envWithoutNodeDebug.COPILOT_OTEL_FILE_EXPORTER_PATH = t.filePath;
+                if (t.exporterType !== undefined)
+                    envWithoutNodeDebug.COPILOT_OTEL_EXPORTER_TYPE = t.exporterType;
+                if (t.sourceName !== undefined)
+                    envWithoutNodeDebug.COPILOT_OTEL_SOURCE_NAME = t.sourceName;
+                if (t.captureContent !== undefined)
+                    envWithoutNodeDebug.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = String(
+                        t.captureContent
+                    );
+            }
+
             // Verify CLI exists before attempting to spawn
             if (!existsSync(this.options.cliPath)) {
                 throw new Error(
@@ -1560,11 +1605,15 @@ export class CopilotClient {
         }
 
         try {
+            const traceparent = (params as { traceparent?: string }).traceparent;
+            const tracestate = (params as { tracestate?: string }).tracestate;
             const invocation = {
                 sessionId: params.sessionId,
                 toolCallId: params.toolCallId,
                 toolName: params.toolName,
                 arguments: params.arguments,
+                traceparent,
+                tracestate,
             };
             const result = await handler(params.arguments, invocation);
             return { result: this.normalizeToolResultV2(result) };

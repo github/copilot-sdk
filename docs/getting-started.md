@@ -129,15 +129,18 @@ Create `main.py`:
 
 ```python
 import asyncio
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 
 async def main():
     client = CopilotClient()
     await client.start()
 
-    session = await client.create_session({"model": "gpt-4.1"})
-    response = await session.send_and_wait({"prompt": "What is 2 + 2?"})
+    session = await client.create_session({
+        "model": "gpt-4.1",
+        "on_permission_request": PermissionHandler.approve_all,
+    })
 
+    response = await session.send_and_wait({"prompt": "What is 2 + 2?"})
     print(response.data.content)
 
     await client.stop()
@@ -274,7 +277,7 @@ Update `main.py`:
 ```python
 import asyncio
 import sys
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 from copilot.generated.session_events import SessionEventType
 
 async def main():
@@ -283,6 +286,7 @@ async def main():
 
     session = await client.create_session({
         "model": "gpt-4.1",
+        "on_permission_request": PermissionHandler.approve_all,
         "streaming": True,
     })
 
@@ -653,7 +657,7 @@ Update `main.py`:
 import asyncio
 import random
 import sys
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 from copilot.tools import define_tool
 from copilot.generated.session_events import SessionEventType
 from pydantic import BaseModel, Field
@@ -678,6 +682,7 @@ async def main():
 
     session = await client.create_session({
         "model": "gpt-4.1",
+        "on_permission_request": PermissionHandler.approve_all,
         "streaming": True,
         "tools": [get_weather],
     })
@@ -925,7 +930,7 @@ Create `weather_assistant.py`:
 import asyncio
 import random
 import sys
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 from copilot.tools import define_tool
 from copilot.generated.session_events import SessionEventType
 from pydantic import BaseModel, Field
@@ -947,6 +952,7 @@ async def main():
 
     session = await client.create_session({
         "model": "gpt-4.1",
+        "on_permission_request": PermissionHandler.approve_all,
         "streaming": True,
         "tools": [get_weather],
     })
@@ -1417,6 +1423,119 @@ await using var session = await client.CreateSessionAsync(new()
 
 ---
 
+## Telemetry & Observability
+
+The Copilot SDK supports [OpenTelemetry](https://opentelemetry.io/) for distributed tracing. Provide a `telemetry` configuration to the client to enable trace export from the CLI process and automatic [W3C Trace Context](https://www.w3.org/TR/trace-context/) propagation between the SDK and CLI.
+
+### Enabling Telemetry
+
+Pass a `telemetry` (or `Telemetry`) config when creating the client. This is the opt-in — no separate "enabled" flag is needed.
+
+<details open>
+<summary><strong>Node.js / TypeScript</strong></summary>
+
+<!-- docs-validate: skip -->
+```typescript
+import { CopilotClient } from "@github/copilot-sdk";
+
+const client = new CopilotClient({
+  telemetry: {
+    otlpEndpoint: "http://localhost:4318",
+  },
+});
+```
+
+Optional peer dependency: `@opentelemetry/api`
+
+</details>
+
+<details>
+<summary><strong>Python</strong></summary>
+
+<!-- docs-validate: skip -->
+```python
+from copilot import CopilotClient, SubprocessConfig
+
+client = CopilotClient(SubprocessConfig(
+    telemetry={
+        "otlp_endpoint": "http://localhost:4318",
+    },
+))
+```
+
+Install with telemetry extras: `pip install copilot-sdk[telemetry]` (provides `opentelemetry-api`)
+
+</details>
+
+<details>
+<summary><strong>Go</strong></summary>
+
+<!-- docs-validate: skip -->
+```go
+client, err := copilot.NewClient(copilot.ClientOptions{
+    Telemetry: &copilot.TelemetryConfig{
+        OTLPEndpoint: "http://localhost:4318",
+    },
+})
+```
+
+Dependency: `go.opentelemetry.io/otel`
+
+</details>
+
+<details>
+<summary><strong>.NET</strong></summary>
+
+<!-- docs-validate: skip -->
+```csharp
+var client = new CopilotClient(new CopilotClientOptions
+{
+    Telemetry = new TelemetryConfig
+    {
+        OtlpEndpoint = "http://localhost:4318",
+    },
+});
+```
+
+No extra dependencies — uses built-in `System.Diagnostics.Activity`.
+
+</details>
+
+### TelemetryConfig Options
+
+| Option | Node.js | Python | Go | .NET | Description |
+|---|---|---|---|---|---|
+| OTLP endpoint | `otlpEndpoint` | `otlp_endpoint` | `OTLPEndpoint` | `OtlpEndpoint` | OTLP HTTP endpoint URL |
+| File path | `filePath` | `file_path` | `FilePath` | `FilePath` | File path for JSON-lines trace output |
+| Exporter type | `exporterType` | `exporter_type` | `ExporterType` | `ExporterType` | `"otlp-http"` or `"file"` |
+| Source name | `sourceName` | `source_name` | `SourceName` | `SourceName` | Instrumentation scope name |
+| Capture content | `captureContent` | `capture_content` | `CaptureContent` | `CaptureContent` | Whether to capture message content |
+
+### File Export
+
+To write traces to a local file instead of an OTLP endpoint:
+
+<!-- docs-validate: skip -->
+```typescript
+const client = new CopilotClient({
+  telemetry: {
+    filePath: "./traces.jsonl",
+    exporterType: "file",
+  },
+});
+```
+
+### Trace Context Propagation
+
+Trace context is propagated automatically — no manual instrumentation is needed:
+
+- **SDK → CLI**: `traceparent` and `tracestate` headers from the current span/activity are included in `session.create`, `session.resume`, and `session.send` RPC calls.
+- **CLI → SDK**: When the CLI invokes tool handlers, the trace context from the CLI's span is propagated so your tool code runs under the correct parent span.
+
+📖 **[OpenTelemetry Instrumentation Guide →](./observability/opentelemetry.md)** — detailed GenAI semantic conventions, event-to-attribute mapping, and complete examples.
+
+---
+
 ## Learn More
 
 - [Authentication Guide](./auth/index.md) - GitHub OAuth, environment variables, and BYOK
@@ -1428,6 +1547,7 @@ await using var session = await client.CreateSessionAsync(new()
 - [Using MCP Servers](./features/mcp.md) - Integrate external tools via Model Context Protocol
 - [GitHub MCP Server Documentation](https://github.com/github/github-mcp-server)
 - [MCP Servers Directory](https://github.com/modelcontextprotocol/servers) - Explore more MCP servers
+- [OpenTelemetry Instrumentation](./observability/opentelemetry.md) - Add tracing to your SDK usage
 
 ---
 

@@ -634,27 +634,27 @@ func TestSession(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		// Use OnEvent to capture events dispatched during session creation.
-		// session.start is emitted during the session.create RPC; if the session
-		// weren't registered in the sessions map before the RPC, it would be dropped.
-		var earlyEvents []copilot.SessionEvent
+		// session.start is emitted during the session.create RPC; with channel-based
+		// dispatch it may not have been delivered by the time CreateSession returns.
+		sessionStartCh := make(chan bool, 1)
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			OnEvent: func(event copilot.SessionEvent) {
-				earlyEvents = append(earlyEvents, event)
+				if event.Type == "session.start" {
+					select {
+					case sessionStartCh <- true:
+					default:
+					}
+				}
 			},
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		hasSessionStart := false
-		for _, evt := range earlyEvents {
-			if evt.Type == "session.start" {
-				hasSessionStart = true
-				break
-			}
-		}
-		if !hasSessionStart {
+		select {
+		case <-sessionStartCh:
+		case <-time.After(5 * time.Second):
 			t.Error("Expected session.start event via OnEvent during creation")
 		}
 
@@ -940,6 +940,49 @@ func getSystemMessage(exchange testharness.ParsedHttpExchange) string {
 	return ""
 }
 
+func TestSetModelWithReasoningEffort(t *testing.T) {
+	ctx := testharness.NewTestContext(t)
+	client := ctx.NewClient()
+	t.Cleanup(func() { client.ForceStop() })
+
+	if err := client.Start(t.Context()); err != nil {
+		t.Fatalf("Failed to start client: %v", err)
+	}
+
+	session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create session: %v", err)
+	}
+
+	modelChanged := make(chan copilot.SessionEvent, 1)
+	session.On(func(event copilot.SessionEvent) {
+		if event.Type == copilot.SessionModelChange {
+			select {
+			case modelChanged <- event:
+			default:
+			}
+		}
+	})
+
+	if err := session.SetModel(t.Context(), "gpt-4.1", copilot.SetModelOptions{ReasoningEffort: "high"}); err != nil {
+		t.Fatalf("SetModel returned error: %v", err)
+	}
+
+	select {
+	case evt := <-modelChanged:
+		if evt.Data.NewModel == nil || *evt.Data.NewModel != "gpt-4.1" {
+			t.Errorf("Expected newModel 'gpt-4.1', got %v", evt.Data.NewModel)
+		}
+		if evt.Data.ReasoningEffort == nil || *evt.Data.ReasoningEffort != "high" {
+			t.Errorf("Expected reasoningEffort 'high', got %v", evt.Data.ReasoningEffort)
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("Timed out waiting for session.model_change event")
+	}
+}
+
 func getToolNames(exchange testharness.ParsedHttpExchange) []string {
 	var names []string
 	for _, tool := range exchange.Request.Tools {
@@ -1026,7 +1069,7 @@ func TestSessionLog(t *testing.T) {
 	})
 
 	t.Run("should log ephemeral message", func(t *testing.T) {
-		if err := session.Log(t.Context(), "Ephemeral message", &copilot.LogOptions{Ephemeral: true}); err != nil {
+		if err := session.Log(t.Context(), "Ephemeral message", &copilot.LogOptions{Ephemeral: copilot.Bool(true)}); err != nil {
 			t.Fatalf("Log failed: %v", err)
 		}
 

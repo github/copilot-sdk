@@ -4,7 +4,7 @@ import os
 
 import pytest
 
-from copilot import CopilotClient, PermissionHandler
+from copilot import CopilotClient, PermissionHandler, SubprocessConfig
 
 from .testharness import E2ETestContext
 
@@ -77,12 +77,12 @@ class TestStreamingFidelity:
             "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
         )
         new_client = CopilotClient(
-            {
-                "cli_path": ctx.cli_path,
-                "cwd": ctx.work_dir,
-                "env": ctx.get_env(),
-                "github_token": github_token,
-            }
+            SubprocessConfig(
+                cli_path=ctx.cli_path,
+                cwd=ctx.work_dir,
+                env=ctx.get_env(),
+                github_token=github_token,
+            )
         )
 
         try:

@@ -123,6 +123,31 @@ describe("CopilotClient", () => {
         spy.mockRestore();
     });
 
+    it("sends reasoningEffort with session.model.switchTo when provided", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, _params: any) => {
+                if (method === "session.model.switchTo") return {};
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await session.setModel("claude-sonnet-4.6", { reasoningEffort: "high" });
+
+        expect(spy).toHaveBeenCalledWith("session.model.switchTo", {
+            sessionId: session.sessionId,
+            modelId: "claude-sonnet-4.6",
+            reasoningEffort: "high",
+        });
+
+        spy.mockRestore();
+    });
+
     describe("URL parsing", () => {
         it("should parse port-only URL format", () => {
             const client = new CopilotClient({
@@ -533,6 +558,96 @@ describe("CopilotClient", () => {
             await vi.waitFor(() => {
                 expect(client.getState()).toBe("disconnected");
             });
+        });
+    });
+
+    describe("onGetTraceContext", () => {
+        it("includes trace context from callback in session.create request", async () => {
+            const traceContext = {
+                traceparent: "00-abcdef1234567890abcdef1234567890-1234567890abcdef-01",
+                tracestate: "vendor=opaque",
+            };
+            const provider = vi.fn().mockReturnValue(traceContext);
+            const client = new CopilotClient({ onGetTraceContext: provider });
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            await client.createSession({ onPermissionRequest: approveAll });
+
+            expect(provider).toHaveBeenCalled();
+            expect(spy).toHaveBeenCalledWith(
+                "session.create",
+                expect.objectContaining({
+                    traceparent: "00-abcdef1234567890abcdef1234567890-1234567890abcdef-01",
+                    tracestate: "vendor=opaque",
+                })
+            );
+        });
+
+        it("includes trace context from callback in session.resume request", async () => {
+            const traceContext = {
+                traceparent: "00-abcdef1234567890abcdef1234567890-1234567890abcdef-01",
+            };
+            const provider = vi.fn().mockReturnValue(traceContext);
+            const client = new CopilotClient({ onGetTraceContext: provider });
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            const spy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (method: string, params: any) => {
+                    if (method === "session.resume") return { sessionId: params.sessionId };
+                    throw new Error(`Unexpected method: ${method}`);
+                });
+            await client.resumeSession(session.sessionId, { onPermissionRequest: approveAll });
+
+            expect(spy).toHaveBeenCalledWith(
+                "session.resume",
+                expect.objectContaining({
+                    traceparent: "00-abcdef1234567890abcdef1234567890-1234567890abcdef-01",
+                })
+            );
+        });
+
+        it("includes trace context from callback in session.send request", async () => {
+            const traceContext = {
+                traceparent: "00-fedcba0987654321fedcba0987654321-abcdef1234567890-01",
+            };
+            const provider = vi.fn().mockReturnValue(traceContext);
+            const client = new CopilotClient({ onGetTraceContext: provider });
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            const spy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (method: string) => {
+                    if (method === "session.send") return { responseId: "r1" };
+                    throw new Error(`Unexpected method: ${method}`);
+                });
+            await session.send({ prompt: "hello" });
+
+            expect(spy).toHaveBeenCalledWith(
+                "session.send",
+                expect.objectContaining({
+                    traceparent: "00-fedcba0987654321fedcba0987654321-abcdef1234567890-01",
+                })
+            );
+        });
+
+        it("does not include trace context when no callback is provided", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            await client.createSession({ onPermissionRequest: approveAll });
+
+            const [, params] = spy.mock.calls.find(([method]) => method === "session.create")!;
+            expect(params.traceparent).toBeUndefined();
+            expect(params.tracestate).toBeUndefined();
         });
     });
 });

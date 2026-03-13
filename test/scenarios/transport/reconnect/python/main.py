@@ -1,13 +1,13 @@
 import asyncio
 import os
 import sys
-from copilot import CopilotClient
+from copilot import CopilotClient, ExternalServerConfig
 
 
 async def main():
-    client = CopilotClient({
-        "cli_url": os.environ.get("COPILOT_CLI_URL", "localhost:3000"),
-    })
+    client = CopilotClient(ExternalServerConfig(
+        url=os.environ.get("COPILOT_CLI_URL", "localhost:3000"),
+    ))
 
     try:
         # First session

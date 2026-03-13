@@ -24,6 +24,7 @@ from .generated.rpc import (
 )
 from .generated.session_events import SessionEvent, SessionEventType, session_event_from_dict
 from .jsonrpc import JsonRpcError, ProcessExitedError
+from .telemetry import get_trace_context, trace_context
 from .types import (
     MessageOptions,
     PermissionRequest,
@@ -147,6 +148,7 @@ class CopilotSession:
             params["attachments"] = options["attachments"]
         if "mode" in options:
             params["mode"] = options["mode"]
+        params.update(get_trace_context())
 
         response = await self._client.request("session.send", params)
         return response["messageId"]
@@ -290,9 +292,11 @@ class CopilotSession:
 
             tool_call_id = event.data.tool_call_id or ""
             arguments = event.data.arguments
+            tp = getattr(event.data, "traceparent", None)
+            ts = getattr(event.data, "tracestate", None)
             asyncio.ensure_future(
                 self._execute_tool_and_respond(
-                    request_id, tool_name, tool_call_id, arguments, handler
+                    request_id, tool_name, tool_call_id, arguments, handler, tp, ts
                 )
             )
 
@@ -318,6 +322,8 @@ class CopilotSession:
         tool_call_id: str,
         arguments: Any,
         handler: ToolHandler,
+        traceparent: str | None = None,
+        tracestate: str | None = None,
     ) -> None:
         """Execute a tool handler and send the result back via HandlePendingToolCall RPC."""
         try:
@@ -328,9 +334,10 @@ class CopilotSession:
                 arguments=arguments,
             )
 
-            result = handler(invocation)
-            if inspect.isawaitable(result):
-                result = await result
+            with trace_context(traceparent, tracestate):
+                result = handler(invocation)
+                if inspect.isawaitable(result):
+                    result = await result
 
             tool_result: ToolResult
             if result is None:
@@ -721,7 +728,7 @@ class CopilotSession:
         """
         await self._client.request("session.abort", {"sessionId": self.session_id})
 
-    async def set_model(self, model: str) -> None:
+    async def set_model(self, model: str, *, reasoning_effort: str | None = None) -> None:
         """
         Change the model for this session.
 
@@ -730,14 +737,22 @@ class CopilotSession:
 
         Args:
             model: Model ID to switch to (e.g., "gpt-4.1", "claude-sonnet-4").
+            reasoning_effort: Optional reasoning effort level for the new model
+                (e.g., "low", "medium", "high", "xhigh").
 
         Raises:
             Exception: If the session has been destroyed or the connection fails.
 
         Example:
             >>> await session.set_model("gpt-4.1")
+            >>> await session.set_model("claude-sonnet-4.6", reasoning_effort="high")
         """
-        await self.rpc.model.switch_to(SessionModelSwitchToParams(model_id=model))
+        await self.rpc.model.switch_to(
+            SessionModelSwitchToParams(
+                model_id=model,
+                reasoning_effort=reasoning_effort,
+            )
+        )
 
     async def log(
         self,

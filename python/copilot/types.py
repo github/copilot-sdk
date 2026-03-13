@@ -5,7 +5,7 @@ Type definitions for the Copilot SDK
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import KW_ONLY, dataclass, field
 from typing import Any, Literal, NotRequired, Required, TypedDict
 
 # Import generated SessionEvent types
@@ -69,38 +69,88 @@ class SelectionAttachment(TypedDict):
 Attachment = FileAttachment | DirectoryAttachment | SelectionAttachment
 
 
-# Options for creating a CopilotClient
-class CopilotClientOptions(TypedDict, total=False):
-    """Options for creating a CopilotClient"""
+# Configuration for OpenTelemetry integration with the Copilot CLI.
+class TelemetryConfig(TypedDict, total=False):
+    """Configuration for OpenTelemetry integration with the Copilot CLI."""
 
-    cli_path: str  # Path to the Copilot CLI executable (default: "copilot")
-    # Extra arguments to pass to the CLI executable (inserted before SDK-managed args)
-    cli_args: list[str]
-    # Working directory for the CLI process (default: current process's cwd)
-    cwd: str
-    port: int  # Port for the CLI server (TCP mode only, default: 0)
-    use_stdio: bool  # Use stdio transport instead of TCP (default: True)
-    cli_url: str  # URL of an existing Copilot CLI server to connect to over TCP
-    # Format: "host:port" or "http://host:port" or just "port" (defaults to localhost)
-    # Examples: "localhost:8080", "http://127.0.0.1:9000", "8080"
-    # Mutually exclusive with cli_path, use_stdio
-    log_level: LogLevel  # Log level
-    auto_start: bool  # Auto-start the CLI server on first use (default: True)
-    env: dict[str, str]  # Environment variables for the CLI process
-    # GitHub token to use for authentication.
-    # When provided, the token is passed to the CLI server via environment variable.
-    # This takes priority over other authentication methods.
-    github_token: str
-    # Whether to use the logged-in user for authentication.
-    # When True, the CLI server will attempt to use stored OAuth tokens or gh CLI auth.
-    # When False, only explicit tokens (github_token or environment variables) are used.
-    # Default: True (but defaults to False when github_token is provided)
-    use_logged_in_user: bool
-    # Custom handler for listing available models.
-    # When provided, client.list_models() calls this handler instead of
-    # querying the CLI server. Useful in BYOK mode to return models
-    # available from your custom provider.
-    on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]]
+    otlp_endpoint: str
+    """OTLP HTTP endpoint URL for trace/metric export. Sets OTEL_EXPORTER_OTLP_ENDPOINT."""
+    file_path: str
+    """File path for JSON-lines trace output. Sets COPILOT_OTEL_FILE_EXPORTER_PATH."""
+    exporter_type: str
+    """Exporter backend type: "otlp-http" or "file". Sets COPILOT_OTEL_EXPORTER_TYPE."""
+    source_name: str
+    """Instrumentation scope name. Sets COPILOT_OTEL_SOURCE_NAME."""
+    capture_content: bool
+    """Whether to capture message content. Sets OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT."""  # noqa: E501
+
+
+# Configuration for CopilotClient connection modes
+
+
+@dataclass
+class SubprocessConfig:
+    """Config for spawning a local Copilot CLI subprocess.
+
+    Example:
+        >>> config = SubprocessConfig(github_token="ghp_...")
+        >>> client = CopilotClient(config)
+
+        >>> # Custom CLI path with TCP transport
+        >>> config = SubprocessConfig(
+        ...     cli_path="/usr/local/bin/copilot",
+        ...     use_stdio=False,
+        ...     log_level="debug",
+        ... )
+    """
+
+    cli_path: str | None = None
+    """Path to the Copilot CLI executable. ``None`` uses the bundled binary."""
+
+    cli_args: list[str] = field(default_factory=list)
+    """Extra arguments passed to the CLI executable (inserted before SDK-managed args)."""
+
+    _: KW_ONLY
+
+    cwd: str | None = None
+    """Working directory for the CLI process. ``None`` uses the current directory."""
+
+    use_stdio: bool = True
+    """Use stdio transport (``True``, default) or TCP (``False``)."""
+
+    port: int = 0
+    """TCP port for the CLI server (only when ``use_stdio=False``). 0 means random."""
+
+    log_level: LogLevel = "info"
+    """Log level for the CLI process."""
+
+    env: dict[str, str] | None = None
+    """Environment variables for the CLI process. ``None`` inherits the current env."""
+
+    github_token: str | None = None
+    """GitHub token for authentication. Takes priority over other auth methods."""
+
+    use_logged_in_user: bool | None = None
+    """Use the logged-in user for authentication.
+
+    ``None`` (default) resolves to ``True`` unless ``github_token`` is set.
+    """
+
+    telemetry: TelemetryConfig | None = None
+    """OpenTelemetry configuration. Providing this enables telemetry — no separate flag needed."""
+
+
+@dataclass
+class ExternalServerConfig:
+    """Config for connecting to an existing Copilot CLI server over TCP.
+
+    Example:
+        >>> config = ExternalServerConfig(url="localhost:3000")
+        >>> client = CopilotClient(config)
+    """
+
+    url: str
+    """Server URL. Supports ``"host:port"``, ``"http://host:port"``, or just ``"port"``."""
 
 
 ToolResultType = Literal["success", "failure", "rejected", "denied"]
@@ -148,6 +198,7 @@ class Tool:
     handler: ToolHandler
     parameters: dict[str, Any] | None = None
     overrides_built_in_tool: bool = False
+    skip_permission: bool = False
 
 
 # System message configuration (discriminated union)

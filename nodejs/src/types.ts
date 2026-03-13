@@ -13,6 +13,41 @@ export type SessionEvent = GeneratedSessionEvent;
 /**
  * Options for creating a CopilotClient
  */
+/**
+ * W3C Trace Context headers used for distributed trace propagation.
+ */
+export interface TraceContext {
+    traceparent?: string;
+    tracestate?: string;
+}
+
+/**
+ * Callback that returns the current W3C Trace Context.
+ * Wire this up to your OpenTelemetry (or other tracing) SDK to enable
+ * distributed trace propagation between your app and the Copilot CLI.
+ */
+export type TraceContextProvider = () => TraceContext | Promise<TraceContext>;
+
+/**
+ * Configuration for OpenTelemetry instrumentation.
+ *
+ * When provided via {@link CopilotClientOptions.telemetry}, the SDK sets
+ * the corresponding environment variables on the spawned CLI process so
+ * that the CLI's built-in OTel exporter is configured automatically.
+ */
+export interface TelemetryConfig {
+    /** OTLP HTTP endpoint URL for trace/metric export. Sets OTEL_EXPORTER_OTLP_ENDPOINT. */
+    otlpEndpoint?: string;
+    /** File path for JSON-lines trace output. Sets COPILOT_OTEL_FILE_EXPORTER_PATH. */
+    filePath?: string;
+    /** Exporter backend type: "otlp-http" or "file". Sets COPILOT_OTEL_EXPORTER_TYPE. */
+    exporterType?: string;
+    /** Instrumentation scope name. Sets COPILOT_OTEL_SOURCE_NAME. */
+    sourceName?: string;
+    /** Whether to capture message content (prompts, responses). Sets OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT. */
+    captureContent?: boolean;
+}
+
 export interface CopilotClientOptions {
     /**
      * Path to the CLI executable or JavaScript entry point.
@@ -103,6 +138,39 @@ export interface CopilotClientOptions {
      * available from your custom provider.
      */
     onListModels?: () => Promise<ModelInfo[]> | ModelInfo[];
+
+    /**
+     * OpenTelemetry configuration for the CLI process.
+     * When provided, the corresponding OTel environment variables are set
+     * on the spawned CLI server.
+     */
+    telemetry?: TelemetryConfig;
+
+    /**
+     * Advanced: callback that returns the current W3C Trace Context for distributed
+     * trace propagation.  Most users do not need this — the {@link telemetry} config
+     * alone is sufficient to collect traces from the CLI.
+     *
+     * This callback is only useful when your application creates its own
+     * OpenTelemetry spans and you want them to appear in the **same** distributed
+     * trace as the CLI's spans.  The SDK calls this before `session.create`,
+     * `session.resume`, and `session.send` RPCs to inject `traceparent`/`tracestate`
+     * into the request.
+     *
+     * @example
+     * ```typescript
+     * import { propagation, context } from "@opentelemetry/api";
+     *
+     * const client = new CopilotClient({
+     *   onGetTraceContext: () => {
+     *     const carrier: Record<string, string> = {};
+     *     propagation.inject(context.active(), carrier);
+     *     return carrier;
+     *   },
+     * });
+     * ```
+     */
+    onGetTraceContext?: TraceContextProvider;
 }
 
 /**
@@ -133,6 +201,10 @@ export interface ToolInvocation {
     toolCallId: string;
     toolName: string;
     arguments: unknown;
+    /** W3C Trace Context traceparent from the CLI's execute_tool span. */
+    traceparent?: string;
+    /** W3C Trace Context tracestate from the CLI's execute_tool span. */
+    tracestate?: string;
 }
 
 export type ToolHandler<TArgs = unknown> = (
@@ -166,6 +238,10 @@ export interface Tool<TArgs = unknown> {
      * will return an error.
      */
     overridesBuiltInTool?: boolean;
+    /**
+     * When true, the tool can execute without a permission prompt.
+     */
+    skipPermission?: boolean;
 }
 
 /**
@@ -179,6 +255,7 @@ export function defineTool<T = unknown>(
         parameters?: ZodSchema<T> | Record<string, unknown>;
         handler: ToolHandler<T>;
         overridesBuiltInTool?: boolean;
+        skipPermission?: boolean;
     }
 ): Tool<T> {
     return { name, ...config };

@@ -280,18 +280,40 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         // session.start is emitted during the session.create RPC; if the session
         // weren't registered in the sessions map before the RPC, it would be dropped.
         var earlyEvents = new List<SessionEvent>();
+        var sessionStartReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var session = await CreateSessionAsync(new SessionConfig
         {
-            OnEvent = evt => earlyEvents.Add(evt),
+            OnEvent = evt =>
+            {
+                earlyEvents.Add(evt);
+                if (evt is SessionStartEvent)
+                    sessionStartReceived.TrySetResult(true);
+            },
         });
 
+        // session.start is dispatched asynchronously via the event channel;
+        // wait briefly for the consumer to deliver it.
+        var started = await Task.WhenAny(sessionStartReceived.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        Assert.Equal(sessionStartReceived.Task, started);
         Assert.Contains(earlyEvents, evt => evt is SessionStartEvent);
 
         var receivedEvents = new List<SessionEvent>();
-        var idleReceived = new TaskCompletionSource<bool>();
+        var idleReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var concurrentCount = 0;
+        var maxConcurrent = 0;
 
         session.On(evt =>
         {
+            // Track concurrent handler invocations to verify serial dispatch.
+            var current = Interlocked.Increment(ref concurrentCount);
+            var seenMax = Volatile.Read(ref maxConcurrent);
+            if (current > seenMax)
+                Interlocked.CompareExchange(ref maxConcurrent, current, seenMax);
+
+            Thread.Sleep(10);
+
+            Interlocked.Decrement(ref concurrentCount);
+
             receivedEvents.Add(evt);
             if (evt is SessionIdleEvent)
             {
@@ -310,6 +332,9 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         Assert.Contains(receivedEvents, evt => evt is UserMessageEvent);
         Assert.Contains(receivedEvents, evt => evt is AssistantMessageEvent);
         Assert.Contains(receivedEvents, evt => evt is SessionIdleEvent);
+
+        // Events must be dispatched serially — never more than one handler invocation at a time.
+        Assert.Equal(1, maxConcurrent);
 
         // Verify the assistant response contains the expected answer
         var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
@@ -447,6 +472,20 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     }
 
     [Fact]
+    public async Task Should_Set_Model_With_ReasoningEffort()
+    {
+        var session = await CreateSessionAsync();
+
+        var modelChangedTask = TestHelper.GetNextEventOfTypeAsync<SessionModelChangeEvent>(session);
+
+        await session.SetModelAsync("gpt-4.1", "high");
+
+        var modelChanged = await modelChangedTask;
+        Assert.Equal("gpt-4.1", modelChanged.Data.NewModel);
+        Assert.Equal("high", modelChanged.Data.ReasoningEffort);
+    }
+
+    [Fact]
     public async Task Should_Log_Messages_At_Various_Levels()
     {
         var session = await CreateSessionAsync();
@@ -480,6 +519,54 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
 
         var ephemeralEvent = events.OfType<SessionInfoEvent>().First(e => e.Data.Message == "Ephemeral message");
         Assert.Equal("notification", ephemeralEvent.Data.InfoType);
+    }
+
+    [Fact]
+    public async Task Handler_Exception_Does_Not_Halt_Event_Delivery()
+    {
+        var session = await CreateSessionAsync();
+        var eventCount = 0;
+        var gotIdle = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        session.On(evt =>
+        {
+            eventCount++;
+
+            // Throw on the first event to verify the loop keeps going.
+            if (eventCount == 1)
+                throw new InvalidOperationException("boom");
+
+            if (evt is SessionIdleEvent)
+                gotIdle.TrySetResult();
+        });
+
+        await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
+
+        await gotIdle.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+        // Handler saw more than just the first (throwing) event.
+        Assert.True(eventCount > 1);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_From_Handler_Does_Not_Deadlock()
+    {
+        var session = await CreateSessionAsync();
+        var disposed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        session.On(evt =>
+        {
+            if (evt is UserMessageEvent)
+            {
+                // Call DisposeAsync from within a handler — must not deadlock.
+                session.DisposeAsync().AsTask().ContinueWith(_ => disposed.TrySetResult());
+            }
+        });
+
+        await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
+
+        // If this times out, we deadlocked.
+        await disposed.Task.WaitAsync(TimeSpan.FromSeconds(10));
     }
 
     private static async Task WaitForAsync(Func<bool> condition, TimeSpan timeout)
