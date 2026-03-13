@@ -9,7 +9,7 @@ import asyncio
 import inspect
 import threading
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from .generated.rpc import (
     Kind,
@@ -26,6 +26,7 @@ from .generated.session_events import SessionEvent, SessionEventType, session_ev
 from .jsonrpc import JsonRpcError, ProcessExitedError
 from .telemetry import get_trace_context, trace_context
 from .types import (
+    Attachment,
     PermissionRequest,
     PermissionRequestResult,
     SessionHooks,
@@ -119,14 +120,15 @@ class CopilotSession:
         self,
         prompt: str,
         *,
-        attachments: list[Any] | None = None,
-        mode: str | None = None,
+        attachments: list[Attachment] | None = None,
+        mode: Literal["enqueue", "immediate"] | None = None,
     ) -> str:
         """
-        Send a message to this session and wait for the response.
+        Send a message to this session.
 
         The message is processed asynchronously. Subscribe to events via :meth:`on`
-        to receive streaming responses and other session events.
+        to receive streaming responses and other session events. Use
+        :meth:`send_and_wait` to block until the assistant finishes processing.
 
         Args:
             prompt: The message text to send.
@@ -134,7 +136,7 @@ class CopilotSession:
             mode: Message delivery mode (``"enqueue"`` or ``"immediate"``).
 
         Returns:
-            The message ID of the response, which can be used to correlate events.
+            The message ID assigned by the server, which can be used to correlate events.
 
         Raises:
             Exception: If the session has been disconnected or the connection fails.
@@ -162,8 +164,8 @@ class CopilotSession:
         self,
         prompt: str,
         *,
-        attachments: list[Any] | None = None,
-        mode: str | None = None,
+        attachments: list[Attachment] | None = None,
+        mode: Literal["enqueue", "immediate"] | None = None,
         timeout: float = 60.0,
     ) -> SessionEvent | None:
         """
