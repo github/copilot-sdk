@@ -15,8 +15,10 @@ from pydantic import BaseModel, Field
 
 from copilot import (
     CopilotClient,
+    ExternalServerConfig,
     PermissionHandler,
     PermissionRequestResult,
+    SubprocessConfig,
     ToolInvocation,
     define_tool,
 )
@@ -54,15 +56,15 @@ class MultiClientContext:
         )
 
         # Client 1 uses TCP mode so a second client can connect to the same server
-        opts: dict = {
-            "cli_path": self.cli_path,
-            "cwd": self.work_dir,
-            "env": self.get_env(),
-            "use_stdio": False,
-        }
-        if github_token:
-            opts["github_token"] = github_token
-        self._client1 = CopilotClient(opts)
+        self._client1 = CopilotClient(
+            SubprocessConfig(
+                cli_path=self.cli_path,
+                cwd=self.work_dir,
+                env=self.get_env(),
+                use_stdio=False,
+                github_token=github_token,
+            )
+        )
 
         # Trigger connection by creating and disconnecting an init session
         init_session = await self._client1.create_session(
@@ -74,7 +76,7 @@ class MultiClientContext:
         actual_port = self._client1.actual_port
         assert actual_port is not None, "Client 1 should have an actual port after connecting"
 
-        self._client2 = CopilotClient({"cli_url": f"localhost:{actual_port}"})
+        self._client2 = CopilotClient(ExternalServerConfig(url=f"localhost:{actual_port}"))
 
     async def teardown(self, test_failed: bool = False):
         if self._client2:
@@ -443,7 +445,7 @@ class TestMultiClientBroadcast:
 
         # Recreate client2 for future tests (but don't rejoin the session)
         actual_port = mctx.client1.actual_port
-        mctx._client2 = CopilotClient({"cli_url": f"localhost:{actual_port}"})
+        mctx._client2 = CopilotClient(ExternalServerConfig(url=f"localhost:{actual_port}"))
 
         # Now only stable_tool should be available
         await session1.send(

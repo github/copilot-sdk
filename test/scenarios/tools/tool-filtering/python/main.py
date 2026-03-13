@@ -1,15 +1,15 @@
 import asyncio
 import os
-from copilot import CopilotClient
+from copilot import CopilotClient, SubprocessConfig
 
 SYSTEM_PROMPT = """You are a helpful assistant. You have access to a limited set of tools. When asked about your tools, list exactly which tools you have available."""
 
 
 async def main():
-    opts = {"github_token": os.environ.get("GITHUB_TOKEN")}
-    if os.environ.get("COPILOT_CLI_PATH"):
-        opts["cli_path"] = os.environ["COPILOT_CLI_PATH"]
-    client = CopilotClient(opts)
+    client = CopilotClient(SubprocessConfig(
+        github_token=os.environ.get("GITHUB_TOKEN"),
+        cli_path=os.environ.get("COPILOT_CLI_PATH"),
+    ))
 
     try:
         session = await client.create_session(

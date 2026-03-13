@@ -79,12 +79,10 @@ async with await client.create_session({"model": "gpt-5"}) as session:
 ### CopilotClient
 
 ```python
-client = CopilotClient({
-    "cli_path": "copilot",  # Optional: path to CLI executable
-    "cli_url": None,        # Optional: URL of existing server (e.g., "localhost:8080")
-    "log_level": "info",    # Optional: log level (default: "info")
-    "auto_start": True,     # Optional: auto-start server (default: True)
-})
+from copilot import CopilotClient, SubprocessConfig
+
+# Spawn a local CLI process (default)
+client = CopilotClient()  # uses bundled CLI, stdio transport
 await client.start()
 
 session = await client.create_session({"model": "gpt-5"})
@@ -101,17 +99,39 @@ await session.disconnect()
 await client.stop()
 ```
 
-**CopilotClient Options:**
+```python
+from copilot import CopilotClient, ExternalServerConfig
 
-- `cli_path` (str): Path to CLI executable (default: "copilot" or `COPILOT_CLI_PATH` env var)
-- `cli_url` (str): URL of existing CLI server (e.g., `"localhost:8080"`, `"http://127.0.0.1:9000"`, or just `"8080"`). When provided, the client will not spawn a CLI process.
-- `cwd` (str): Working directory for CLI process
-- `port` (int): Server port for TCP mode (default: 0 for random)
+# Connect to an existing CLI server
+client = CopilotClient(ExternalServerConfig(url="localhost:3000"))
+```
+
+**CopilotClient Constructor:**
+
+```python
+CopilotClient(
+    config=None,        # SubprocessConfig | ExternalServerConfig | None
+    *,
+    auto_start=True,    # auto-start server on first use
+    on_list_models=None, # custom handler for list_models()
+)
+```
+
+**SubprocessConfig** — spawn a local CLI process:
+
+- `cli_path` (str | None): Path to CLI executable (default: bundled binary)
+- `cli_args` (list[str]): Extra arguments for the CLI executable
+- `cwd` (str | None): Working directory for CLI process (default: current dir)
 - `use_stdio` (bool): Use stdio transport instead of TCP (default: True)
+- `port` (int): Server port for TCP mode (default: 0 for random)
 - `log_level` (str): Log level (default: "info")
-- `auto_start` (bool): Auto-start server on first use (default: True)
-- `github_token` (str): GitHub token for authentication. When provided, takes priority over other auth methods.
-- `use_logged_in_user` (bool): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided). Cannot be used with `cli_url`.
+- `env` (dict | None): Environment variables for the CLI process
+- `github_token` (str | None): GitHub token for authentication. When provided, takes priority over other auth methods.
+- `use_logged_in_user` (bool | None): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided).
+
+**ExternalServerConfig** — connect to an existing CLI server:
+
+- `url` (str): Server URL (e.g., `"localhost:8080"`, `"http://127.0.0.1:9000"`, or just `"8080"`).
 
 **SessionConfig Options (for `create_session`):**
 

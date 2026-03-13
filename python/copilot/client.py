@@ -16,11 +16,12 @@ import asyncio
 import inspect
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
 import uuid
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any, cast
 
@@ -31,8 +32,8 @@ from .sdk_protocol_version import get_sdk_protocol_version
 from .session import CopilotSession
 from .types import (
     ConnectionState,
-    CopilotClientOptions,
     CustomAgentConfig,
+    ExternalServerConfig,
     GetAuthStatusResponse,
     GetStatusResponse,
     ModelInfo,
@@ -46,6 +47,7 @@ from .types import (
     SessionListFilter,
     SessionMetadata,
     StopError,
+    SubprocessConfig,
     ToolInvocation,
     ToolResult,
 )
@@ -90,9 +92,6 @@ class CopilotClient:
     The client supports both stdio (default) and TCP transport modes for
     communication with the CLI server.
 
-    Attributes:
-        options: The configuration options for the client.
-
     Example:
         >>> # Create a client with default options (spawns CLI server)
         >>> client = CopilotClient()
@@ -111,100 +110,72 @@ class CopilotClient:
         >>> await client.stop()
 
         >>> # Or connect to an existing server
-        >>> client = CopilotClient({"cli_url": "localhost:3000"})
+        >>> client = CopilotClient(ExternalServerConfig(url="localhost:3000"))
     """
 
-    def __init__(self, options: CopilotClientOptions | None = None):
+    def __init__(
+        self,
+        config: SubprocessConfig | ExternalServerConfig | None = None,
+        *,
+        auto_start: bool = True,
+        on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None,
+    ):
         """
         Initialize a new CopilotClient.
 
         Args:
-            options: Optional configuration options for the client. If not provided,
-                default options are used (spawns CLI server using stdio).
-
-        Raises:
-            ValueError: If mutually exclusive options are provided (e.g., cli_url
-                with use_stdio or cli_path).
+            config: Connection configuration. Pass a :class:`SubprocessConfig` to
+                spawn a local CLI process, or an :class:`ExternalServerConfig` to
+                connect to an existing server. Defaults to ``SubprocessConfig()``.
+            auto_start: Automatically start the connection on first use
+                (default: ``True``).
+            on_list_models: Custom handler for :meth:`list_models`. When provided,
+                the handler is called instead of querying the CLI server.
 
         Example:
-            >>> # Default options - spawns CLI server using stdio
+            >>> # Default — spawns CLI server using stdio
             >>> client = CopilotClient()
             >>>
             >>> # Connect to an existing server
-            >>> client = CopilotClient({"cli_url": "localhost:3000"})
+            >>> client = CopilotClient(ExternalServerConfig(url="localhost:3000"))
             >>>
             >>> # Custom CLI path with specific log level
-            >>> client = CopilotClient({
-            ...     "cli_path": "/usr/local/bin/copilot",
-            ...     "log_level": "debug"
-            ... })
+            >>> client = CopilotClient(SubprocessConfig(
+            ...     cli_path="/usr/local/bin/copilot",
+            ...     log_level="debug",
+            ... ))
         """
-        opts = options or {}
+        if config is None:
+            config = SubprocessConfig()
 
-        # Validate mutually exclusive options
-        if opts.get("cli_url") and (opts.get("use_stdio") or opts.get("cli_path")):
-            raise ValueError("cli_url is mutually exclusive with use_stdio and cli_path")
+        self._config: SubprocessConfig | ExternalServerConfig = config
+        self._auto_start = auto_start
+        self._on_list_models = on_list_models
 
-        # Validate auth options with external server
-        if opts.get("cli_url") and (
-            opts.get("github_token") or opts.get("use_logged_in_user") is not None
-        ):
-            raise ValueError(
-                "github_token and use_logged_in_user cannot be used with cli_url "
-                "(external server manages its own auth)"
-            )
-
-        # Parse cli_url if provided
+        # Resolve connection-mode-specific state
         self._actual_host: str = "localhost"
-        self._is_external_server: bool = False
-        if opts.get("cli_url"):
-            self._actual_host, actual_port = self._parse_cli_url(opts["cli_url"])
+        self._is_external_server: bool = isinstance(config, ExternalServerConfig)
+
+        if isinstance(config, ExternalServerConfig):
+            self._actual_host, actual_port = self._parse_cli_url(config.url)
             self._actual_port: int | None = actual_port
-            self._is_external_server = True
         else:
             self._actual_port = None
 
-        # Determine CLI path: explicit option > bundled binary
-        # Not needed when connecting to external server via cli_url
-        if opts.get("cli_url"):
-            default_cli_path = ""  # Not used for external server
-        elif opts.get("cli_path"):
-            default_cli_path = opts["cli_path"]
-        else:
-            bundled_path = _get_bundled_cli_path()
-            if bundled_path:
-                default_cli_path = bundled_path
-            else:
-                raise RuntimeError(
-                    "Copilot CLI not found. The bundled CLI binary is not available. "
-                    "Ensure you installed a platform-specific wheel, or provide cli_path."
-                )
+            # Resolve CLI path: explicit > bundled binary
+            if config.cli_path is None:
+                bundled_path = _get_bundled_cli_path()
+                if bundled_path:
+                    config.cli_path = bundled_path
+                else:
+                    raise RuntimeError(
+                        "Copilot CLI not found. The bundled CLI binary is not available. "
+                        "Ensure you installed a platform-specific wheel, or provide cli_path."
+                    )
 
-        # Default use_logged_in_user to False when github_token is provided
-        github_token = opts.get("github_token")
-        use_logged_in_user = opts.get("use_logged_in_user")
-        if use_logged_in_user is None:
-            use_logged_in_user = False if github_token else True
-
-        self.options: CopilotClientOptions = {
-            "cli_path": default_cli_path,
-            "cwd": opts.get("cwd", os.getcwd()),
-            "port": opts.get("port", 0),
-            "use_stdio": False if opts.get("cli_url") else opts.get("use_stdio", True),
-            "log_level": opts.get("log_level", "info"),
-            "auto_start": opts.get("auto_start", True),
-            "use_logged_in_user": use_logged_in_user,
-        }
-        if opts.get("cli_args"):
-            self.options["cli_args"] = opts["cli_args"]
-        if opts.get("cli_url"):
-            self.options["cli_url"] = opts["cli_url"]
-        if opts.get("env"):
-            self.options["env"] = opts["env"]
-        if github_token:
-            self.options["github_token"] = github_token
-
-        self._on_list_models = opts.get("on_list_models")
+            # Resolve use_logged_in_user default
+            if config.use_logged_in_user is None:
+                config.use_logged_in_user = not bool(config.github_token)
 
         self._process: subprocess.Popen | None = None
         self._client: JsonRpcClient | None = None
@@ -286,8 +257,9 @@ class CopilotClient:
         """
         Start the CLI server and establish a connection.
 
-        If connecting to an external server (via cli_url), only establishes the
-        connection. Otherwise, spawns the CLI server process and then connects.
+        If connecting to an external server (via :class:`ExternalServerConfig`),
+        only establishes the connection. Otherwise, spawns the CLI server process
+        and then connects.
 
         This method is called automatically when creating a session if ``auto_start``
         is True (default).
@@ -296,7 +268,7 @@ class CopilotClient:
             RuntimeError: If the server fails to start or the connection fails.
 
         Example:
-            >>> client = CopilotClient({"auto_start": False})
+            >>> client = CopilotClient(auto_start=False)
             >>> await client.start()
             >>> # Now ready to create sessions
         """
@@ -480,7 +452,7 @@ class CopilotClient:
             ... })
         """
         if not self._client:
-            if self.options["auto_start"]:
+            if self._auto_start:
                 await self.start()
             else:
                 raise RuntimeError("Client not connected. Call start() first.")
@@ -672,7 +644,7 @@ class CopilotClient:
             ... })
         """
         if not self._client:
-            if self.options["auto_start"]:
+            if self._auto_start:
                 await self.start()
             else:
                 raise RuntimeError("Client not connected. Call start() first.")
@@ -1289,25 +1261,30 @@ class CopilotClient:
         Raises:
             RuntimeError: If the server fails to start or times out.
         """
-        cli_path = self.options["cli_path"]
+        assert isinstance(self._config, SubprocessConfig)
+        cfg = self._config
+
+        cli_path = cfg.cli_path
+        assert cli_path is not None  # resolved in __init__
 
         # Verify CLI exists
         if not os.path.exists(cli_path):
-            raise RuntimeError(f"Copilot CLI not found at {cli_path}")
+            original_path = cli_path
+            if (cli_path := shutil.which(cli_path)) is None:
+                raise RuntimeError(f"Copilot CLI not found at {original_path}")
 
         # Start with user-provided cli_args, then add SDK-managed args
-        cli_args = self.options.get("cli_args") or []
-        args = list(cli_args) + [
+        args = list(cfg.cli_args) + [
             "--headless",
             "--no-auto-update",
             "--log-level",
-            self.options["log_level"],
+            cfg.log_level,
         ]
 
         # Add auth-related flags
-        if self.options.get("github_token"):
+        if cfg.github_token:
             args.extend(["--auth-token-env", "COPILOT_SDK_AUTH_TOKEN"])
-        if not self.options.get("use_logged_in_user", True):
+        if not cfg.use_logged_in_user:
             args.append("--no-auto-login")
 
         # If cli_path is a .js file, run it with node
@@ -1318,21 +1295,22 @@ class CopilotClient:
             args = [cli_path] + args
 
         # Get environment variables
-        env = self.options.get("env")
-        if env is None:
+        if cfg.env is None:
             env = dict(os.environ)
         else:
-            env = dict(env)
+            env = dict(cfg.env)
 
         # Set auth token in environment if provided
-        if self.options.get("github_token"):
-            env["COPILOT_SDK_AUTH_TOKEN"] = self.options["github_token"]
+        if cfg.github_token:
+            env["COPILOT_SDK_AUTH_TOKEN"] = cfg.github_token
 
         # On Windows, hide the console window to avoid distracting users in GUI apps
         creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
+        cwd = cfg.cwd or os.getcwd()
+
         # Choose transport mode
-        if self.options["use_stdio"]:
+        if cfg.use_stdio:
             args.append("--stdio")
             # Use regular Popen with pipes (buffering=0 for unbuffered)
             self._process = subprocess.Popen(
@@ -1341,25 +1319,25 @@ class CopilotClient:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 bufsize=0,
-                cwd=self.options["cwd"],
+                cwd=cwd,
                 env=env,
                 creationflags=creationflags,
             )
         else:
-            if self.options["port"] > 0:
-                args.extend(["--port", str(self.options["port"])])
+            if cfg.port > 0:
+                args.extend(["--port", str(cfg.port)])
             self._process = subprocess.Popen(
                 args,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                cwd=self.options["cwd"],
+                cwd=cwd,
                 env=env,
                 creationflags=creationflags,
             )
 
         # For stdio mode, we're ready immediately
-        if self.options["use_stdio"]:
+        if cfg.use_stdio:
             return
 
         # For TCP mode, wait for port announcement
@@ -1394,7 +1372,8 @@ class CopilotClient:
         Raises:
             RuntimeError: If the connection fails.
         """
-        if self.options["use_stdio"]:
+        use_stdio = isinstance(self._config, SubprocessConfig) and self._config.use_stdio
+        if use_stdio:
             await self._connect_via_stdio()
         else:
             await self._connect_via_tcp()
