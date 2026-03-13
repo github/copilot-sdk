@@ -99,8 +99,10 @@ class TestSessionRpc:
         before = await session.rpc.model.get_current()
         assert before.model_id is not None
 
-        # Switch to a different model
-        result = await session.rpc.model.switch_to(SessionModelSwitchToParams(model_id="gpt-4.1"))
+        # Switch to a different model with reasoning effort
+        result = await session.rpc.model.switch_to(
+            SessionModelSwitchToParams(model_id="gpt-4.1", reasoning_effort="high")
+        )
         assert result.model_id == "gpt-4.1"
 
         # Verify the switch persisted

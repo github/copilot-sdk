@@ -168,9 +168,11 @@ func TestSessionRpc(t *testing.T) {
 			t.Error("Expected initial modelId to be defined")
 		}
 
-		// Switch to a different model
+		// Switch to a different model with reasoning effort
+		re := "high"
 		result, err := session.RPC.Model.SwitchTo(t.Context(), &rpc.SessionModelSwitchToParams{
-			ModelID: "gpt-4.1",
+			ModelID:         "gpt-4.1",
+			ReasoningEffort: &re,
 		})
 		if err != nil {
 			t.Fatalf("Failed to switch model: %v", err)
@@ -201,7 +203,7 @@ func TestSessionRpc(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		if err := session.SetModel(t.Context(), "gpt-4.1"); err != nil {
+		if err := session.SetModel(t.Context(), "gpt-4.1", copilot.SetModelOptions{ReasoningEffort: "high"}); err != nil {
 			t.Fatalf("SetModel returned error: %v", err)
 		}
 	})

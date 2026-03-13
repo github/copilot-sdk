@@ -441,6 +441,20 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     }
 
     [Fact]
+    public async Task Should_Set_Model_With_ReasoningEffort()
+    {
+        var session = await CreateSessionAsync();
+
+        var modelChangedTask = TestHelper.GetNextEventOfTypeAsync<SessionModelChangeEvent>(session);
+
+        await session.SetModelAsync("gpt-4.1", "high");
+
+        var modelChanged = await modelChangedTask;
+        Assert.Equal("gpt-4.1", modelChanged.Data.NewModel);
+        Assert.Equal("high", modelChanged.Data.ReasoningEffort);
+    }
+
+    [Fact]
     public async Task Should_Log_Messages_At_Various_Levels()
     {
         var session = await CreateSessionAsync();

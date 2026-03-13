@@ -92,8 +92,11 @@ describe("Session RPC", async () => {
         const before = await session.rpc.model.getCurrent();
         expect(before.modelId).toBeDefined();
 
-        // Switch to a different model
-        const result = await session.rpc.model.switchTo({ modelId: "gpt-4.1" });
+        // Switch to a different model with reasoning effort
+        const result = await session.rpc.model.switchTo({
+            modelId: "gpt-4.1",
+            reasoningEffort: "high",
+        });
         expect(result.modelId).toBe("gpt-4.1");
 
         // Verify the switch persisted

@@ -558,6 +558,28 @@ class TestSessions:
         assert by_message["Ephemeral message"].type.value == "session.info"
         assert by_message["Ephemeral message"].data.info_type == "notification"
 
+    async def test_should_set_model_with_reasoning_effort(self, ctx: E2ETestContext):
+        """Test that setModel passes reasoningEffort and it appears in the model_change event."""
+        import asyncio
+
+        session = await ctx.client.create_session(
+            {"on_permission_request": PermissionHandler.approve_all}
+        )
+
+        model_change_event = asyncio.get_event_loop().create_future()
+
+        def on_event(event):
+            if not model_change_event.done() and event.type.value == "session.model_change":
+                model_change_event.set_result(event)
+
+        session.on(on_event)
+
+        await session.set_model("gpt-4.1", reasoning_effort="high")
+
+        event = await asyncio.wait_for(model_change_event, timeout=30)
+        assert event.data.new_model == "gpt-4.1"
+        assert event.data.reasoning_effort == "high"
+
 
 def _get_system_message(exchange: dict) -> str:
     messages = exchange.get("request", {}).get("messages", [])

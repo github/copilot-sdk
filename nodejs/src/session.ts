@@ -16,6 +16,7 @@ import type {
     PermissionHandler,
     PermissionRequest,
     PermissionRequestResult,
+    ReasoningEffort,
     SessionEvent,
     SessionEventHandler,
     SessionEventPayload,
@@ -718,14 +719,16 @@ export class CopilotSession {
      * The new model takes effect for the next message. Conversation history is preserved.
      *
      * @param model - Model ID to switch to
+     * @param options - Optional settings for the new model
      *
      * @example
      * ```typescript
      * await session.setModel("gpt-4.1");
+     * await session.setModel("claude-sonnet-4.6", { reasoningEffort: "high" });
      * ```
      */
-    async setModel(model: string): Promise<void> {
-        await this.rpc.model.switchTo({ modelId: model });
+    async setModel(model: string, options?: { reasoningEffort?: ReasoningEffort }): Promise<void> {
+        await this.rpc.model.switchTo({ modelId: model, ...options });
     }
 
     /**

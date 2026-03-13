@@ -720,15 +720,25 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// The new model takes effect for the next message. Conversation history is preserved.
     /// </summary>
     /// <param name="model">Model ID to switch to (e.g., "gpt-4.1").</param>
+    /// <param name="reasoningEffort">Reasoning effort level (e.g., "low", "medium", "high", "xhigh").</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <example>
     /// <code>
     /// await session.SetModelAsync("gpt-4.1");
+    /// await session.SetModelAsync("claude-sonnet-4.6", "high");
     /// </code>
     /// </example>
-    public async Task SetModelAsync(string model, CancellationToken cancellationToken = default)
+    public async Task SetModelAsync(string model, string? reasoningEffort, CancellationToken cancellationToken = default)
     {
-        await Rpc.Model.SwitchToAsync(model, cancellationToken: cancellationToken);
+        await Rpc.Model.SwitchToAsync(model, reasoningEffort, cancellationToken);
+    }
+
+    /// <summary>
+    /// Changes the model for this session.
+    /// </summary>
+    public Task SetModelAsync(string model, CancellationToken cancellationToken = default)
+    {
+        return SetModelAsync(model, reasoningEffort: null, cancellationToken);
     }
 
     /// <summary>

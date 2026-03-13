@@ -123,6 +123,31 @@ describe("CopilotClient", () => {
         spy.mockRestore();
     });
 
+    it("sends reasoningEffort with session.model.switchTo when provided", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, _params: any) => {
+                if (method === "session.model.switchTo") return {};
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await session.setModel("claude-sonnet-4.6", { reasoningEffort: "high" });
+
+        expect(spy).toHaveBeenCalledWith("session.model.switchTo", {
+            sessionId: session.sessionId,
+            modelId: "claude-sonnet-4.6",
+            reasoningEffort: "high",
+        });
+
+        spy.mockRestore();
+    });
+
     describe("URL parsing", () => {
         it("should parse port-only URL format", () => {
             const client = new CopilotClient({

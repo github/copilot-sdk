@@ -895,6 +895,49 @@ func getSystemMessage(exchange testharness.ParsedHttpExchange) string {
 	return ""
 }
 
+func TestSetModelWithReasoningEffort(t *testing.T) {
+	ctx := testharness.NewTestContext(t)
+	client := ctx.NewClient()
+	t.Cleanup(func() { client.ForceStop() })
+
+	if err := client.Start(t.Context()); err != nil {
+		t.Fatalf("Failed to start client: %v", err)
+	}
+
+	session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create session: %v", err)
+	}
+
+	modelChanged := make(chan copilot.SessionEvent, 1)
+	session.On(func(event copilot.SessionEvent) {
+		if event.Type == copilot.SessionModelChange {
+			select {
+			case modelChanged <- event:
+			default:
+			}
+		}
+	})
+
+	if err := session.SetModel(t.Context(), "gpt-4.1", copilot.SetModelOptions{ReasoningEffort: "high"}); err != nil {
+		t.Fatalf("SetModel returned error: %v", err)
+	}
+
+	select {
+	case evt := <-modelChanged:
+		if evt.Data.NewModel == nil || *evt.Data.NewModel != "gpt-4.1" {
+			t.Errorf("Expected newModel 'gpt-4.1', got %v", evt.Data.NewModel)
+		}
+		if evt.Data.ReasoningEffort == nil || *evt.Data.ReasoningEffort != "high" {
+			t.Errorf("Expected reasoningEffort 'high', got %v", evt.Data.ReasoningEffort)
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("Timed out waiting for session.model_change event")
+	}
+}
+
 func getToolNames(exchange testharness.ParsedHttpExchange) []string {
 	var names []string
 	for _, tool := range exchange.Request.Tools {

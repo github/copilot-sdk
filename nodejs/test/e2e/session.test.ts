@@ -461,4 +461,16 @@ describe("Send Blocking Behavior", async () => {
             session.sendAndWait({ prompt: "Run 'sleep 2 && echo done'" }, 100)
         ).rejects.toThrow(/Timeout after 100ms/);
     });
+
+    it("should set model with reasoningEffort", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        const modelChangePromise = getNextEventOfType(session, "session.model_change");
+
+        await session.setModel("gpt-4.1", { reasoningEffort: "high" });
+
+        const event = await modelChangePromise;
+        expect(event.data.newModel).toBe("gpt-4.1");
+        expect(event.data.reasoningEffort).toBe("high");
+    });
 });
