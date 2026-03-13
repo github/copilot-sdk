@@ -480,3 +480,43 @@ class TestSessionConfigForwarding:
             assert captured["session.model.switchTo"]["modelId"] == "gpt-4.1"
         finally:
             await client.force_stop()
+
+class TestGetMessagesApi:
+    @pytest.mark.asyncio
+    async def test_get_messages_sends_correct_rpc(self):
+        client = CopilotClient({"cli_path": CLI_PATH})
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.create":
+                    return {
+                        "sessionId": "session-abc",
+                        "workspacePath": "/tmp/test",
+                        "latestCheckpoint": {"checkpointId": "cp-1"}
+                    }
+                if method == "session.getMessages":
+                    return {
+                        "events": [
+                            {
+                                "id": "12345678-1234-5678-1234-567812345678",
+                                "type": "assistant.message",
+                                "data": {"content": "Hello"},
+                                "timestamp": "2024-01-01T00:00:00Z"
+                            }
+                        ]
+                    }
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            session = await client.create_session({"on_permission_request": PermissionHandler.approve_all})
+            events = await session.get_messages()
+            assert captured["session.getMessages"]["sessionId"] == session.session_id
+            assert len(events) == 1
+            assert events[0].type.value == "assistant.message"
+        finally:
+            await client.force_stop()
