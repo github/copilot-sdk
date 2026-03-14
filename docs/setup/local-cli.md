@@ -167,7 +167,7 @@ const client = new CopilotClient({
     logLevel: "debug",
 
     // Pass extra CLI arguments
-    cliArgs: ["--disable-telemetry"],
+    cliArgs: ["--no-auto-update"],
 
     // Set working directory
     cwd: "/path/to/project",

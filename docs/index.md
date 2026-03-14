@@ -67,7 +67,7 @@ Detailed API reference for each session hook.
 
 ### [Observability](./observability/opentelemetry.md)
 
-- [OpenTelemetry Instrumentation](./observability/opentelemetry.md) — built-in TelemetryConfig, trace context propagation, and application-level tracing
+- [OpenTelemetry Instrumentation](./observability/opentelemetry.md) — built-in TelemetryConfig and trace context propagation
 
 ### [Integrations](./integrations/microsoft-agent-framework.md)
 
