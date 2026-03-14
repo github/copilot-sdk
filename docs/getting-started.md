@@ -1510,7 +1510,7 @@ Trace context is propagated automatically — no manual instrumentation is neede
 - **SDK → CLI**: `traceparent` and `tracestate` headers from the current span/activity are included in `session.create`, `session.resume`, and `session.send` RPC calls.
 - **CLI → SDK**: When the CLI invokes tool handlers, the trace context from the CLI's span is propagated so your tool code runs under the correct parent span.
 
-📖 **[OpenTelemetry Instrumentation Guide →](./observability/opentelemetry.md)** — detailed GenAI semantic conventions, event-to-attribute mapping, and complete examples.
+📖 **[OpenTelemetry Instrumentation Guide →](./observability/opentelemetry.md)** — TelemetryConfig options, trace context propagation, and per-language dependencies.
 
 ---
 
@@ -1525,7 +1525,7 @@ Trace context is propagated automatically — no manual instrumentation is neede
 - [Using MCP Servers](./features/mcp.md) - Integrate external tools via Model Context Protocol
 - [GitHub MCP Server Documentation](https://github.com/github/github-mcp-server)
 - [MCP Servers Directory](https://github.com/modelcontextprotocol/servers) - Explore more MCP servers
-- [OpenTelemetry Instrumentation](./observability/opentelemetry.md) - Add tracing to your SDK usage
+- [OpenTelemetry Instrumentation](./observability/opentelemetry.md) - TelemetryConfig, trace context propagation, and per-language dependencies
 
 ---
 
