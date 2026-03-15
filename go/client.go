@@ -30,6 +30,7 @@ package copilot
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -1252,6 +1253,8 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 			return fmt.Errorf("failed to create stdout pipe: %w", err)
 		}
 
+		c.process.Stderr = &bytes.Buffer{}
+
 		if err := c.process.Start(); err != nil {
 			return fmt.Errorf("failed to start CLI server: %w", err)
 		}
@@ -1281,6 +1284,8 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to create stdout pipe: %w", err)
 		}
+
+		c.process.Stderr = &bytes.Buffer{}
 
 		if err := c.process.Start(); err != nil {
 			return fmt.Errorf("failed to start CLI server: %w", err)
@@ -1342,10 +1347,22 @@ func (c *Client) monitorProcess() {
 	c.processErrorPtr = &processError
 	go func() {
 		waitErr := proc.Wait()
+		var stderrOutput string
+		if buf, ok := proc.Stderr.(*bytes.Buffer); ok {
+			stderrOutput = strings.TrimSpace(buf.String())
+		}
 		if waitErr != nil {
-			processError = fmt.Errorf("CLI process exited: %w", waitErr)
+			if stderrOutput != "" {
+				processError = fmt.Errorf("CLI process exited: %w\nstderr: %s", waitErr, stderrOutput)
+			} else {
+				processError = fmt.Errorf("CLI process exited: %w", waitErr)
+			}
 		} else {
-			processError = errors.New("CLI process exited unexpectedly")
+			if stderrOutput != "" {
+				processError = fmt.Errorf("CLI process exited unexpectedly\nstderr: %s", stderrOutput)
+			} else {
+				processError = errors.New("CLI process exited unexpectedly")
+			}
 		}
 		close(done)
 	}()
