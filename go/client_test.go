@@ -1301,6 +1301,32 @@ func TestCreateSessionResponse_Capabilities(t *testing.T) {
 	})
 }
 
+// TestHelperProcess is a helper used by tests that need to spawn a process
+// which writes to stderr and exits with a non-zero status. It is invoked
+// via "go test" by running the test binary itself with -test.run.
+func TestHelperProcess(t *testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		// Not in helper process mode; let the test run normally.
+		return
+	}
+
+	// Find the "--" separator and treat the argument after it as the stderr message.
+	args := os.Args
+	i := 0
+	for i < len(args) && args[i] != "--" {
+		i++
+	}
+	var msg string
+	if i+1 < len(args) {
+		msg = args[i+1]
+	} else {
+		msg = "no stderr message provided"
+	}
+
+	_, _ = os.Stderr.WriteString(msg + "\n")
+	os.Exit(1)
+}
+
 // TestMonitorProcess_StderrCaptured validates that when the CLI process
 // writes an error to stderr and exits, the stderr content IS included
 // in the process error (now that startCLIServer sets Stderr).
@@ -1310,7 +1336,8 @@ func TestMonitorProcess_StderrCaptured(t *testing.T) {
 	}
 
 	stderrMsg := "error: authentication failed: invalid token"
-	client.process = exec.Command("sh", "-c", "echo '"+stderrMsg+"' >&2; exit 1")
+	client.process = exec.Command(os.Args[0], "-test.run=TestHelperProcess", "--", stderrMsg)
+	client.process.Env = append(os.Environ(), "GO_WANT_HELPER_PROCESS=1")
 
 	// Replicate what startCLIServer now does: capture stderr.
 	client.process.Stderr = &bytes.Buffer{}
