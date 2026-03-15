@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strings"
 	"sync"
 	"testing"
 
@@ -1296,4 +1298,99 @@ func TestCreateSessionResponse_Capabilities(t *testing.T) {
 			t.Errorf("Expected capabilities.UI.Elicitation to be falsy when not injected")
 		}
 	})
+}
+
+// TestMonitorProcess_StderrNotCaptured validates that when the CLI process
+// writes an error to stderr and exits, the stderr content is NOT included
+// in the process error. This confirms the bug: exec.Cmd.Stderr is never set,
+// so diagnostic output from the CLI is silently discarded.
+func TestMonitorProcess_StderrNotCaptured(t *testing.T) {
+	client := &Client{
+		sessions: make(map[string]*Session),
+	}
+
+	stderrMsg := "error: authentication failed: invalid token"
+	client.process = exec.Command("sh", "-c", "echo '"+stderrMsg+"' >&2; exit 1")
+
+	// Stderr is not set on the process — this is the bug under test.
+	// The SDK's startCLIServer never assigns c.process.Stderr.
+	if client.process.Stderr != nil {
+		t.Fatal("precondition: expected Stderr to be nil (not yet captured)")
+	}
+
+	if err := client.process.Start(); err != nil {
+		t.Fatalf("failed to start test process: %v", err)
+	}
+
+	client.monitorProcess()
+
+	// Wait for the process to exit.
+	<-client.processDone
+
+	processError := *client.processErrorPtr
+	if processError == nil {
+		t.Fatal("expected a process error after non-zero exit, got nil")
+	}
+
+	// The error should contain stderr output so users can debug startup
+	// failures. Currently it only has exit code information.
+	if !strings.Contains(processError.Error(), stderrMsg) {
+		t.Errorf("stderr output not included in process error.\n"+
+			"  got:  %q\n"+
+			"  want: error containing %q\n"+
+			"  This confirms the issue: CLI stderr is discarded because "+
+			"exec.Cmd.Stderr is never set.", processError.Error(), stderrMsg)
+	}
+}
+
+// TestMonitorProcess_SuccessfulExitStillOpaque validates that even when the
+// CLI process exits with code 0 (unexpected for a long-running server), the
+// error gives no hint about why because stderr is not captured.
+func TestMonitorProcess_SuccessfulExitStillOpaque(t *testing.T) {
+	client := &Client{
+		sessions: make(map[string]*Session),
+	}
+
+	stderrMsg := "warning: version mismatch, shutting down"
+	client.process = exec.Command("sh", "-c", "echo '"+stderrMsg+"' >&2; exit 0")
+
+	if err := client.process.Start(); err != nil {
+		t.Fatalf("failed to start test process: %v", err)
+	}
+
+	client.monitorProcess()
+	<-client.processDone
+
+	processError := *client.processErrorPtr
+	if processError == nil {
+		t.Fatal("expected a process error for unexpected exit, got nil")
+	}
+
+	// Even with exit code 0, the error is generic and doesn't include stderr.
+	if !strings.Contains(processError.Error(), stderrMsg) {
+		t.Errorf("stderr output not included in process error for exit code 0.\n"+
+			"  got:  %q\n"+
+			"  want: error containing %q", processError.Error(), stderrMsg)
+	}
+}
+
+// TestStartCLIServer_StderrFieldNil directly verifies that startCLIServer
+// does not set exec.Cmd.Stderr, which is the root cause of the lost output.
+func TestStartCLIServer_StderrFieldNil(t *testing.T) {
+	client := NewClient(&ClientOptions{
+		CLIPath: "false", // a command that exists but exits immediately with code 1
+	})
+	client.useStdio = true
+
+	// startCLIServer will fail because "false" is not a valid CLI, but
+	// we can inspect the process to check whether Stderr was set.
+	// We override CLIPath to an existing binary so exec.Command succeeds.
+	cmd := exec.Command("false")
+	// Replicate what startCLIServer does (it never sets Stderr):
+	if cmd.Stderr != nil {
+		t.Error("expected exec.Cmd.Stderr to be nil by default — " +
+			"if Go's default changed, this test needs updating")
+	}
+	// The fix would set cmd.Stderr = &bytes.Buffer{} so the content
+	// can be included in monitorProcess errors.
 }

@@ -1,7 +1,9 @@
 package jsonrpc2
 
 import (
+	"errors"
 	"io"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -65,5 +67,123 @@ func TestOnCloseNotCalledOnIntentionalStop(t *testing.T) {
 	defer mu.Unlock()
 	if called {
 		t.Error("onClose should not be called on intentional Stop()")
+	}
+}
+
+// TestSetProcessDone_ErrorAvailableImmediately validates that getProcessError()
+// returns the correct error immediately after processDone is closed.
+// The current implementation copies the error in an async goroutine, which
+// creates a race: the channel close is visible to callers before the error
+// is stored, so getProcessError() can return nil.
+func TestSetProcessDone_ErrorAvailableImmediately(t *testing.T) {
+	misses := 0
+	const iterations = 1000
+
+	for i := 0; i < iterations; i++ {
+		stdinR, stdinW := io.Pipe()
+		stdoutR, stdoutW := io.Pipe()
+
+		client := NewClient(stdinW, stdoutR)
+
+		done := make(chan struct{})
+		processErr := errors.New("CLI process exited: exit status 1")
+
+		client.SetProcessDone(done, &processErr)
+
+		// Simulate process exit: error is already set, close the channel.
+		close(done)
+
+		// Do NOT yield to the scheduler — check immediately.
+		// In the current code the goroutine inside SetProcessDone may not
+		// have copied the error to client.processError yet.
+		if err := client.getProcessError(); err == nil {
+			misses++
+		}
+
+		stdinR.Close()
+		stdinW.Close()
+		stdoutR.Close()
+		stdoutW.Close()
+	}
+
+	if misses > 0 {
+		t.Errorf("SetProcessDone race: getProcessError() returned nil %d/%d times "+
+			"immediately after processDone was closed. The async goroutine had not "+
+			"yet copied the error.", misses, iterations)
+	}
+}
+
+// TestSetProcessDone_RequestMissesProcessError validates that the Request()
+// method can fall through to the generic "process exited unexpectedly" message
+// when the SetProcessDone goroutine hasn't copied the error in time.
+func TestSetProcessDone_RequestMissesProcessError(t *testing.T) {
+	misses := 0
+	const iterations = 100
+
+	for i := 0; i < iterations; i++ {
+		stdinR, stdinW := io.Pipe()
+		stdoutR, stdoutW := io.Pipe()
+
+		client := NewClient(stdinW, stdoutR)
+		client.Start()
+
+		done := make(chan struct{})
+		processErr := errors.New("CLI process exited: authentication failed")
+
+		client.SetProcessDone(done, &processErr)
+
+		// Simulate process exit.
+		close(done)
+		// Close the writer so the readLoop can exit.
+		stdoutW.Close()
+
+		// Make a request — should get the specific process error.
+		_, err := client.Request("test.method", nil)
+		if err != nil && err.Error() == "process exited unexpectedly" {
+			misses++
+		}
+
+		client.Stop()
+		stdinR.Close()
+		stdinW.Close()
+		stdoutR.Close()
+	}
+
+	if misses > 0 {
+		t.Errorf("Request() race: returned generic 'process exited unexpectedly' %d/%d times "+
+			"instead of the actual process error. The error was lost because "+
+			"SetProcessDone copies it asynchronously.", misses, iterations)
+	}
+}
+
+// TestSetProcessDone_ErrorCopiedEventually verifies that the error IS eventually
+// available if we give the goroutine time to run — confirming the issue is
+// purely a timing race, not a logic error.
+func TestSetProcessDone_ErrorCopiedEventually(t *testing.T) {
+	stdinR, stdinW := io.Pipe()
+	stdoutR, stdoutW := io.Pipe()
+	defer stdinR.Close()
+	defer stdinW.Close()
+	defer stdoutR.Close()
+	defer stdoutW.Close()
+
+	client := NewClient(stdinW, stdoutR)
+
+	done := make(chan struct{})
+	processErr := errors.New("CLI process exited: version mismatch")
+
+	client.SetProcessDone(done, &processErr)
+
+	// Close the channel and yield to let the goroutine run.
+	close(done)
+	runtime.Gosched()
+	time.Sleep(10 * time.Millisecond)
+
+	err := client.getProcessError()
+	if err == nil {
+		t.Fatal("expected process error to be available after yielding, got nil")
+	}
+	if err.Error() != processErr.Error() {
+		t.Errorf("expected %q, got %q", processErr.Error(), err.Error())
 	}
 }
