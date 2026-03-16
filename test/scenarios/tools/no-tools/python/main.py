@@ -16,8 +16,8 @@ async def main():
 
     try:
         session = await client.create_session(
-            PermissionHandler.approve_all,
-            "claude-haiku-4.5",
+            on_permission_request=PermissionHandler.approve_all,
+            model="claude-haiku-4.5",
             system_message={"mode": "replace", "content": SYSTEM_PROMPT},
             available_tools=[],
         )

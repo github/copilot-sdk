@@ -67,7 +67,7 @@ class MultiClientContext:
         )
 
         # Trigger connection by creating and disconnecting an init session
-        init_session = await self._client1.create_session(PermissionHandler.approve_all)
+        init_session = await self._client1.create_session(on_permission_request=PermissionHandler.approve_all)
         await init_session.disconnect()
 
         # Read the actual port from client 1 and create client 2
@@ -197,12 +197,12 @@ class TestMultiClientBroadcast:
 
         # Client 1 creates a session with a custom tool
         session1 = await mctx.client1.create_session(
-            PermissionHandler.approve_all, tools=[magic_number]
+            on_permission_request=PermissionHandler.approve_all, tools=[magic_number]
         )
 
         # Client 2 resumes with NO tools — should not overwrite client 1's tools
         session2 = await mctx.client2.resume_session(
-            session1.session_id, PermissionHandler.approve_all
+            session1.session_id, on_permission_request=PermissionHandler.approve_all
         )
         client1_events = []
         client2_events = []
@@ -236,7 +236,7 @@ class TestMultiClientBroadcast:
 
         # Client 1 creates a session and manually approves permission requests
         session1 = await mctx.client1.create_session(
-            lambda request, invocation: (
+            on_permission_request=lambda request, invocation: (
                 permission_requests.append(request) or PermissionRequestResult(kind="approved")
             ),
         )
@@ -244,7 +244,7 @@ class TestMultiClientBroadcast:
         # Client 2 resumes — its handler never resolves, so only client 1's approval takes effect
         session2 = await mctx.client2.resume_session(
             session1.session_id,
-            lambda request, invocation: asyncio.Future(),
+            on_permission_request=lambda request, invocation: asyncio.Future(),
         )
 
         client1_events = []
@@ -282,7 +282,7 @@ class TestMultiClientBroadcast:
         """One client rejects a permission request and both see the result."""
         # Client 1 creates a session and denies all permission requests
         session1 = await mctx.client1.create_session(
-            lambda request, invocation: PermissionRequestResult(
+            on_permission_request=lambda request, invocation: PermissionRequestResult(
                 kind="denied-interactively-by-user"
             ),
         )
@@ -290,7 +290,7 @@ class TestMultiClientBroadcast:
         # Client 2 resumes — its handler never resolves
         session2 = await mctx.client2.resume_session(
             session1.session_id,
-            lambda request, invocation: asyncio.Future(),
+            on_permission_request=lambda request, invocation: asyncio.Future(),
         )
 
         client1_events = []
@@ -347,13 +347,13 @@ class TestMultiClientBroadcast:
 
         # Client 1 creates a session with tool A
         session1 = await mctx.client1.create_session(
-            PermissionHandler.approve_all, tools=[city_lookup]
+            on_permission_request=PermissionHandler.approve_all, tools=[city_lookup]
         )
 
         # Client 2 resumes with tool B (different tool, union should have both)
         session2 = await mctx.client2.resume_session(
             session1.session_id,
-            PermissionHandler.approve_all,
+            on_permission_request=PermissionHandler.approve_all,
             tools=[currency_lookup],
         )
 
@@ -395,13 +395,13 @@ class TestMultiClientBroadcast:
 
         # Client 1 creates a session with stable_tool
         session1 = await mctx.client1.create_session(
-            PermissionHandler.approve_all, tools=[stable_tool]
+            on_permission_request=PermissionHandler.approve_all, tools=[stable_tool]
         )
 
         # Client 2 resumes with ephemeral_tool
         await mctx.client2.resume_session(
             session1.session_id,
-            PermissionHandler.approve_all,
+            on_permission_request=PermissionHandler.approve_all,
             tools=[ephemeral_tool],
         )
 

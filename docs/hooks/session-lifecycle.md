@@ -167,7 +167,7 @@ Package manager: {project_info['packageManager']}
         """.strip()
     }
 
-session = await client.create_session(PermissionHandler.approve_all, hooks={"on_session_start": on_session_start})
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, hooks={"on_session_start": on_session_start})
 ```
 
 </details>
@@ -392,7 +392,7 @@ async def on_session_end(input_data, invocation):
     session_start_times.pop(invocation["session_id"], None)
     return None
 
-session = await client.create_session(PermissionHandler.approve_all, hooks={
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, hooks={
         "on_session_start": on_session_start,
         "on_session_end": on_session_end,
     })

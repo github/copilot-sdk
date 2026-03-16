@@ -118,7 +118,7 @@ client = CopilotClient({
 })
 await client.start()
 
-session = await client.create_session(PermissionHandler.approve_all, "gpt-4.1", session_id=f"user-{user_id}-{int(time.time())}")
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-4.1", session_id=f"user-{user_id}-{int(time.time())}")
 
 response = await session.send_and_wait({"prompt": message})
 ```

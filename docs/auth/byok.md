@@ -32,7 +32,7 @@ async def main():
     client = CopilotClient()
     await client.start()
 
-    session = await client.create_session(PermissionHandler.approve_all, "gpt-5.2-codex", provider={
+    session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-5.2-codex", provider={
         "type": "openai",
         "base_url": FOUNDRY_MODEL_URL,
         "wire_api": "responses",  # Use "completions" for older models

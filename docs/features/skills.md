@@ -50,8 +50,8 @@ async def main():
     await client.start()
 
     session = await client.create_session(
-        lambda req, inv: {"kind": "approved"},
-        "gpt-4.1",
+        on_permission_request=lambda req, inv: {"kind": "approved"},
+        model="gpt-4.1",
         skill_directories=[
             "./skills/code-review",
             "./skills/documentation",
@@ -163,7 +163,7 @@ const session = await client.createSession({
 from copilot import PermissionHandler
 
 session = await client.create_session(
-    PermissionHandler.approve_all,
+    on_permission_request=PermissionHandler.approve_all,
     skill_directories=["./skills"],
     disabled_skills=["experimental-feature", "deprecated-tool"],
 )

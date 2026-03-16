@@ -157,7 +157,7 @@ def create_client_for_user(user_token: str) -> CopilotClient:
 client = create_client_for_user("gho_user_access_token")
 await client.start()
 
-session = await client.create_session(PermissionHandler.approve_all, "gpt-4.1", session_id=f"user-{user_id}-session")
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-4.1", session_id=f"user-{user_id}-session")
 
 response = await session.send_and_wait({"prompt": "Hello!"})
 ```

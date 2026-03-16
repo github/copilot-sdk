@@ -19,8 +19,8 @@ async def main():
 
     try:
         session = await client.create_session(
-            PermissionHandler.approve_all,
-            ANTHROPIC_MODEL,
+            on_permission_request=PermissionHandler.approve_all,
+            model=ANTHROPIC_MODEL,
             provider={
                 "type": "anthropic",
                 "base_url": ANTHROPIC_BASE_URL,

@@ -23,8 +23,8 @@ async def main():
 
     try:
         session = await client.create_session(
-            log_permission,
-            "claude-haiku-4.5",
+            on_permission_request=log_permission,
+            model="claude-haiku-4.5",
             hooks={"on_pre_tool_use": auto_approve_tool},
         )
 

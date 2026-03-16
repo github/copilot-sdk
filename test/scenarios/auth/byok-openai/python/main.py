@@ -19,8 +19,8 @@ async def main():
 
     try:
         session = await client.create_session(
-            PermissionHandler.approve_all,
-            OPENAI_MODEL,
+            on_permission_request=PermissionHandler.approve_all,
+            model=OPENAI_MODEL,
             provider={
                 "type": "openai",
                 "base_url": OPENAI_BASE_URL,

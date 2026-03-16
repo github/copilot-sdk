@@ -18,8 +18,8 @@ async def main():
 
     try:
         session = await client.create_session(
-            PermissionHandler.approve_all,
-            OLLAMA_MODEL,
+            on_permission_request=PermissionHandler.approve_all,
+            model=OLLAMA_MODEL,
             provider={
                 "type": "openai",
                 "base_url": OLLAMA_BASE_URL,

@@ -65,7 +65,7 @@ async def main():
     client = CopilotClient()
     await client.start()
 
-    session = await client.create_session(PermissionHandler.approve_all, "gpt-5", mcp_servers={
+    session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-5", mcp_servers={
         # Local MCP server (stdio)
         "my-local-server": {
             "type": "local",

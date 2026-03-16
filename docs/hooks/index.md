@@ -70,7 +70,7 @@ async def main():
     async def on_session_start(input_data, invocation):
         return {"additionalContext": "User prefers concise answers."}
 
-    session = await client.create_session(PermissionHandler.approve_all, hooks={
+    session = await client.create_session(on_permission_request=PermissionHandler.approve_all, hooks={
             "on_pre_tool_use": on_pre_tool_use,
             "on_post_tool_use": on_post_tool_use,
             "on_session_start": on_session_start,

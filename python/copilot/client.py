@@ -8,7 +8,7 @@ Example:
     >>> from copilot import CopilotClient, PermissionHandler
     >>>
     >>> async with CopilotClient() as client:
-    ...     session = await client.create_session(PermissionHandler.approve_all)
+    ...     session = await client.create_session(on_permission_request=PermissionHandler.approve_all)
     ...     await session.send("Hello!")
 """
 
@@ -433,9 +433,9 @@ class CopilotClient:
 
     async def create_session(
         self,
+        *,
         on_permission_request: _PermissionHandlerFn,
         model: str | None = None,
-        *,
         session_id: str | None = None,
         client_name: str | None = None,
         reasoning_effort: ReasoningEffort | None = None,
@@ -496,12 +496,14 @@ class CopilotClient:
             RuntimeError: If the client is not connected and auto_start is disabled.
 
         Example:
-            >>> session = await client.create_session(PermissionHandler.approve_all)
+            >>> session = await client.create_session(
+            ...     on_permission_request=PermissionHandler.approve_all,
+            ... )
             >>>
             >>> # Session with model and streaming
             >>> session = await client.create_session(
-            ...     PermissionHandler.approve_all,
-            ...     "gpt-4",
+            ...     on_permission_request=PermissionHandler.approve_all,
+            ...     model="gpt-4",
             ...     streaming=True,
             ... )
         """
@@ -639,9 +641,9 @@ class CopilotClient:
     async def resume_session(
         self,
         session_id: str,
+        *,
         on_permission_request: _PermissionHandlerFn,
         model: str | None = None,
-        *,
         client_name: str | None = None,
         reasoning_effort: ReasoningEffort | None = None,
         tools: list[Tool] | None = None,
@@ -706,14 +708,14 @@ class CopilotClient:
         Example:
             >>> session = await client.resume_session(
             ...     "session-123",
-            ...     PermissionHandler.approve_all,
+            ...     on_permission_request=PermissionHandler.approve_all,
             ... )
             >>>
             >>> # Resume with model and streaming
             >>> session = await client.resume_session(
             ...     "session-123",
-            ...     PermissionHandler.approve_all,
-            ...     "gpt-4",
+            ...     on_permission_request=PermissionHandler.approve_all,
+            ...     model="gpt-4",
             ...     streaming=True,
             ... )
         """

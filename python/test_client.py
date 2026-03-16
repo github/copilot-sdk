@@ -35,7 +35,7 @@ class TestPermissionHandlerRequired:
         await client.start()
         try:
             with pytest.raises(ValueError, match="on_permission_request handler is required"):
-                await client.create_session(None)  # type: ignore[arg-type]
+                await client.create_session(on_permission_request=None)  # type: ignore[arg-type]
         finally:
             await client.force_stop()
 
@@ -45,7 +45,7 @@ class TestPermissionHandlerRequired:
         await client.start()
         try:
             session = await client.create_session(
-                lambda request, invocation: PermissionRequestResult(kind="no-result")
+                on_permission_request=lambda request, invocation: PermissionRequestResult(kind="no-result")
             )
             with pytest.raises(ValueError, match="protocol v2 server"):
                 await client._handle_permission_request_v2(
@@ -62,9 +62,9 @@ class TestPermissionHandlerRequired:
         client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
         await client.start()
         try:
-            session = await client.create_session(PermissionHandler.approve_all)
+            session = await client.create_session(on_permission_request=PermissionHandler.approve_all)
             with pytest.raises(ValueError, match="on_permission_request.*is required"):
-                await client.resume_session(session.session_id, None)
+                await client.resume_session(session.session_id, on_permission_request=None)
         finally:
             await client.force_stop()
 
@@ -187,7 +187,7 @@ class TestOverridesBuiltInTool:
             def grep(params) -> str:
                 return "ok"
 
-            await client.create_session(PermissionHandler.approve_all, tools=[grep])
+            await client.create_session(on_permission_request=PermissionHandler.approve_all, tools=[grep])
             tool_defs = captured["session.create"]["tools"]
             assert len(tool_defs) == 1
             assert tool_defs[0]["name"] == "grep"
@@ -201,7 +201,7 @@ class TestOverridesBuiltInTool:
         await client.start()
 
         try:
-            session = await client.create_session(PermissionHandler.approve_all)
+            session = await client.create_session(on_permission_request=PermissionHandler.approve_all)
 
             captured = {}
             original_request = client._client.request
@@ -218,7 +218,7 @@ class TestOverridesBuiltInTool:
 
             await client.resume_session(
                 session.session_id,
-                PermissionHandler.approve_all,
+                on_permission_request=PermissionHandler.approve_all,
                 tools=[grep],
             )
             tool_defs = captured["session.resume"]["tools"]
@@ -365,7 +365,7 @@ class TestSessionConfigForwarding:
                 return await original_request(method, params)
 
             client._client.request = mock_request
-            await client.create_session(PermissionHandler.approve_all, client_name="my-app")
+            await client.create_session(on_permission_request=PermissionHandler.approve_all, client_name="my-app")
             assert captured["session.create"]["clientName"] == "my-app"
         finally:
             await client.force_stop()
@@ -376,7 +376,7 @@ class TestSessionConfigForwarding:
         await client.start()
 
         try:
-            session = await client.create_session(PermissionHandler.approve_all)
+            session = await client.create_session(on_permission_request=PermissionHandler.approve_all)
 
             captured = {}
             original_request = client._client.request
@@ -391,7 +391,7 @@ class TestSessionConfigForwarding:
             client._client.request = mock_request
             await client.resume_session(
                 session.session_id,
-                PermissionHandler.approve_all,
+                on_permission_request=PermissionHandler.approve_all,
                 client_name="my-app",
             )
             assert captured["session.resume"]["clientName"] == "my-app"
@@ -413,7 +413,7 @@ class TestSessionConfigForwarding:
 
             client._client.request = mock_request
             await client.create_session(
-                PermissionHandler.approve_all,
+                on_permission_request=PermissionHandler.approve_all,
                 agent="test-agent",
                 custom_agents=[{"name": "test-agent", "prompt": "You are a test agent."}],
             )
@@ -427,7 +427,7 @@ class TestSessionConfigForwarding:
         await client.start()
 
         try:
-            session = await client.create_session(PermissionHandler.approve_all)
+            session = await client.create_session(on_permission_request=PermissionHandler.approve_all)
 
             captured = {}
             original_request = client._client.request
@@ -441,7 +441,7 @@ class TestSessionConfigForwarding:
             client._client.request = mock_request
             await client.resume_session(
                 session.session_id,
-                PermissionHandler.approve_all,
+                on_permission_request=PermissionHandler.approve_all,
                 agent="test-agent",
                 custom_agents=[{"name": "test-agent", "prompt": "You are a test agent."}],
             )
@@ -455,7 +455,7 @@ class TestSessionConfigForwarding:
         await client.start()
 
         try:
-            session = await client.create_session(PermissionHandler.approve_all)
+            session = await client.create_session(on_permission_request=PermissionHandler.approve_all)
 
             captured = {}
             original_request = client._client.request

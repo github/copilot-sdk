@@ -30,7 +30,7 @@ class TestAskUser:
             }
 
         session = await ctx.client.create_session(
-            PermissionHandler.approve_all,
+            on_permission_request=PermissionHandler.approve_all,
             on_user_input_request=on_user_input_request,
         )
 
@@ -63,7 +63,7 @@ class TestAskUser:
             }
 
         session = await ctx.client.create_session(
-            PermissionHandler.approve_all,
+            on_permission_request=PermissionHandler.approve_all,
             on_user_input_request=on_user_input_request,
         )
 
@@ -98,7 +98,7 @@ class TestAskUser:
             }
 
         session = await ctx.client.create_session(
-            PermissionHandler.approve_all,
+            on_permission_request=PermissionHandler.approve_all,
             on_user_input_request=on_user_input_request,
         )
 

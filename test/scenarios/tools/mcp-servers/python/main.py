@@ -33,7 +33,7 @@ async def main():
             session_kwargs["mcp_servers"] = mcp_servers
 
         session = await client.create_session(
-            PermissionHandler.approve_all, "claude-haiku-4.5", **session_kwargs
+            on_permission_request=PermissionHandler.approve_all, model="claude-haiku-4.5", **session_kwargs
         )
 
         response = await session.send_and_wait(

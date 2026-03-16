@@ -160,7 +160,7 @@ async def on_pre_tool_use(input_data, invocation):
     print(f"  Args: {input_data['toolArgs']}")
     return {"permissionDecision": "allow"}
 
-session = await client.create_session(PermissionHandler.approve_all, hooks={"on_pre_tool_use": on_pre_tool_use})
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, hooks={"on_pre_tool_use": on_pre_tool_use})
 ```
 
 </details>

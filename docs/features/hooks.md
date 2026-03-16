@@ -66,7 +66,7 @@ client = CopilotClient()
 await client.start()
 
 session = await client.create_session(
-    lambda req, inv: {"kind": "approved"},
+    on_permission_request=lambda req, inv: {"kind": "approved"},
     hooks={
         "on_session_start": on_session_start,
         "on_pre_tool_use":  on_pre_tool_use,
@@ -246,7 +246,7 @@ async def on_pre_tool_use(input_data, invocation):
     return {"permissionDecision": "allow"}
 
 session = await client.create_session(
-    lambda req, inv: {"kind": "approved"},
+    on_permission_request=lambda req, inv: {"kind": "approved"},
     hooks={"on_pre_tool_use": on_pre_tool_use},
 )
 ```
@@ -568,7 +568,7 @@ async def on_session_end(input_data, invocation):
     return None
 
 session = await client.create_session(
-    lambda req, inv: {"kind": "approved"},
+    on_permission_request=lambda req, inv: {"kind": "approved"},
     hooks={
         "on_session_start": on_session_start,
         "on_user_prompt_submitted": on_user_prompt_submitted,
@@ -667,7 +667,7 @@ async def on_error_occurred(input_data, invocation):
     return None
 
 session = await client.create_session(
-    lambda req, inv: {"kind": "approved"},
+    on_permission_request=lambda req, inv: {"kind": "approved"},
     hooks={
         "on_session_end": on_session_end,
         "on_error_occurred": on_error_occurred,
@@ -906,7 +906,7 @@ async def on_session_end(input_data, invocation):
     return None
 
 session = await client.create_session(
-    lambda req, inv: {"kind": "approved"},
+    on_permission_request=lambda req, inv: {"kind": "approved"},
     hooks={
         "on_session_start": on_session_start,
         "on_user_prompt_submitted": on_user_prompt_submitted,

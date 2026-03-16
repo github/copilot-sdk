@@ -77,8 +77,8 @@ async def main():
     await client.start()
 
     session = await client.create_session(
-        lambda req, inv: PermissionRequestResult(kind="approved"),
-        "gpt-4.1",
+        on_permission_request=lambda req, inv: PermissionRequestResult(kind="approved"),
+        model="gpt-4.1",
     )
 
     # Start a long-running task
@@ -236,8 +236,8 @@ async def main():
     await client.start()
 
     session = await client.create_session(
-        lambda req, inv: PermissionRequestResult(kind="approved"),
-        "gpt-4.1",
+        on_permission_request=lambda req, inv: PermissionRequestResult(kind="approved"),
+        model="gpt-4.1",
     )
 
     # Send an initial task
@@ -432,8 +432,8 @@ await session.send({
 
 ```python
 session = await client.create_session(
-    lambda req, inv: PermissionRequestResult(kind="approved"),
-    "gpt-4.1",
+    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approved"),
+    model="gpt-4.1",
 )
 
 # Start a task

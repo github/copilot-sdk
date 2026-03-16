@@ -24,7 +24,7 @@ class TestHooks:
             return {"permissionDecision": "allow"}
 
         session = await ctx.client.create_session(
-            PermissionHandler.approve_all,
+            on_permission_request=PermissionHandler.approve_all,
             hooks={"on_pre_tool_use": on_pre_tool_use},
         )
 
@@ -53,7 +53,7 @@ class TestHooks:
             return None
 
         session = await ctx.client.create_session(
-            PermissionHandler.approve_all,
+            on_permission_request=PermissionHandler.approve_all,
             hooks={"on_post_tool_use": on_post_tool_use},
         )
 
@@ -87,7 +87,7 @@ class TestHooks:
             return None
 
         session = await ctx.client.create_session(
-            PermissionHandler.approve_all,
+            on_permission_request=PermissionHandler.approve_all,
             hooks={
                 "on_pre_tool_use": on_pre_tool_use,
                 "on_post_tool_use": on_post_tool_use,
@@ -122,7 +122,7 @@ class TestHooks:
             return {"permissionDecision": "deny"}
 
         session = await ctx.client.create_session(
-            PermissionHandler.approve_all,
+            on_permission_request=PermissionHandler.approve_all,
             hooks={"on_pre_tool_use": on_pre_tool_use},
         )
 

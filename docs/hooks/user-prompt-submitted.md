@@ -147,7 +147,7 @@ async def on_user_prompt_submitted(input_data, invocation):
     print(f"[{invocation['session_id']}] User: {input_data['prompt']}")
     return None
 
-session = await client.create_session(PermissionHandler.approve_all, hooks={"on_user_prompt_submitted": on_user_prompt_submitted})
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, hooks={"on_user_prompt_submitted": on_user_prompt_submitted})
 ```
 
 </details>

@@ -154,7 +154,7 @@ async def on_error_occurred(input_data, invocation):
     print(f"  Recoverable: {input_data['recoverable']}")
     return None
 
-session = await client.create_session(PermissionHandler.approve_all, hooks={"on_error_occurred": on_error_occurred})
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, hooks={"on_error_occurred": on_error_occurred})
 ```
 
 </details>

@@ -33,7 +33,7 @@ async def main():
     await client.start()
 
     # Create a session
-    session = await client.create_session(PermissionHandler.approve_all, "gpt-5")
+    session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-5")
 
     # Wait for response using session.idle event
     done = asyncio.Event()
@@ -60,7 +60,7 @@ asyncio.run(main())
 Sessions also support the `async with` context manager pattern for automatic cleanup:
 
 ```python
-async with await client.create_session(PermissionHandler.approve_all, "gpt-5") as session:
+async with await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-5") as session:
     await session.send("What is 2+2?")
     # session is automatically disconnected when leaving the block
 ```
@@ -85,7 +85,7 @@ from copilot import CopilotClient, SubprocessConfig
 client = CopilotClient()  # uses bundled CLI, stdio transport
 await client.start()
 
-session = await client.create_session(PermissionHandler.approve_all, "gpt-5")
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-5")
 
 def on_event(event):
     print(f"Event: {event['type']}")
@@ -136,11 +136,10 @@ CopilotClient(
 
 **`create_session` Parameters:**
 
+All parameters are keyword-only:
+
 - `on_permission_request` (callable): **Required.** Handler for permission requests from the server.
 - `model` (str): Model to use ("gpt-5", "claude-sonnet-4.5", etc.).
-
-The parameters below are keyword-only:
-
 - `session_id` (str): Custom session ID for resuming or identifying sessions.
 - `client_name` (str): Client name to identify the application using the SDK. Included in the User-Agent header for API requests.
 - `reasoning_effort` (str): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh"). Use `list_models()` to check which models support this option.
@@ -163,11 +162,11 @@ The parameters below are keyword-only:
 **`resume_session` Parameters:**
 
 - `session_id` (str): **Required.** The ID of the session to resume.
-- `on_permission_request` (callable): **Required.** Handler for permission requests from the server.
-- `model` (str): Model to use (can change the model when resuming).
 
 The parameters below are keyword-only:
 
+- `on_permission_request` (callable): **Required.** Handler for permission requests from the server.
+- `model` (str): Model to use (can change the model when resuming).
 - `client_name` (str): Client name to identify the application using the SDK.
 - `reasoning_effort` (str): Reasoning effort level ("low", "medium", "high", "xhigh").
 - `tools` (list): Custom tools exposed to the CLI.
@@ -235,8 +234,8 @@ async def lookup_issue(params: LookupIssueParams) -> str:
     return issue.summary
 
 session = await client.create_session(
-    PermissionHandler.approve_all,
-    "gpt-5",
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-5",
     tools=[lookup_issue],
 )
 ```
@@ -260,8 +259,8 @@ async def lookup_issue(invocation):
     }
 
 session = await client.create_session(
-    PermissionHandler.approve_all,
-    "gpt-5",
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-5",
     tools=[
         Tool(
             name="lookup_issue",
@@ -340,8 +339,8 @@ async def main():
     await client.start()
 
     session = await client.create_session(
-        PermissionHandler.approve_all,
-        "gpt-5",
+        on_permission_request=PermissionHandler.approve_all,
+        model="gpt-5",
         streaming=True,
     )
 
@@ -394,7 +393,7 @@ By default, sessions use **infinite sessions** which automatically manage contex
 
 ```python
 # Default: infinite sessions enabled with default thresholds
-session = await client.create_session(PermissionHandler.approve_all, "gpt-5")
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-5")
 
 # Access the workspace path for checkpoints and files
 print(session.workspace_path)
@@ -402,8 +401,8 @@ print(session.workspace_path)
 
 # Custom thresholds
 session = await client.create_session(
-    PermissionHandler.approve_all,
-    "gpt-5",
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-5",
     infinite_sessions={
         "enabled": True,
         "background_compaction_threshold": 0.80,  # Start compacting at 80% context usage
@@ -413,8 +412,8 @@ session = await client.create_session(
 
 # Disable infinite sessions
 session = await client.create_session(
-    PermissionHandler.approve_all,
-    "gpt-5",
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-5",
     infinite_sessions={"enabled": False},
 )
 ```
@@ -441,8 +440,8 @@ The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own K
 
 ```python
 session = await client.create_session(
-    PermissionHandler.approve_all,
-    "deepseek-coder-v2:16b",  # Model to use with the custom provider
+    on_permission_request=PermissionHandler.approve_all,
+    model="deepseek-coder-v2:16b",  # Model to use with the custom provider
     provider={
         "type": "openai",
         "base_url": "http://localhost:11434/v1",  # Ollama endpoint
@@ -459,8 +458,8 @@ await session.send("Hello!")
 import os
 
 session = await client.create_session(
-    PermissionHandler.approve_all,
-    "gpt-4",
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-4",
     provider={
         "type": "openai",
         "base_url": "https://my-api.example.com/v1",
@@ -475,8 +474,8 @@ session = await client.create_session(
 import os
 
 session = await client.create_session(
-    PermissionHandler.approve_all,
-    "gpt-4",
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-4",
     provider={
         "type": "azure",  # Must be "azure" for Azure endpoints, NOT "openai"
         "base_url": "https://my-resource.openai.azure.com",  # Just the host, no path
@@ -539,8 +538,8 @@ async def handle_user_input(request, invocation):
     }
 
 session = await client.create_session(
-    PermissionHandler.approve_all,
-    "gpt-5",
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-5",
     on_user_input_request=handle_user_input,
 )
 ```
@@ -587,8 +586,8 @@ async def on_error_occurred(input, invocation):
     }
 
 session = await client.create_session(
-    PermissionHandler.approve_all,
-    "gpt-5",
+    on_permission_request=PermissionHandler.approve_all,
+    model="gpt-5",
     hooks={
         "on_pre_tool_use": on_pre_tool_use,
         "on_post_tool_use": on_post_tool_use,

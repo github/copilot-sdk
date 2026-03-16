@@ -47,8 +47,8 @@ async def main():
 
     try:
         session = await client.create_session(
-            auto_approve_permission,
-            "claude-haiku-4.5",
+            on_permission_request=auto_approve_permission,
+            model="claude-haiku-4.5",
             hooks={
                 "on_session_start": on_session_start,
                 "on_session_end": on_session_end,

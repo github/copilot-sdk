@@ -71,8 +71,8 @@ client = CopilotClient()
 await client.start()
 
 session = await client.create_session(
-    lambda req, inv: PermissionRequestResult(kind="approved"),
-    "gpt-4.1",
+    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approved"),
+    model="gpt-4.1",
     custom_agents=[
         {
             "name": "researcher",
@@ -259,7 +259,7 @@ const session = await client.createSession({
 <!-- docs-validate: skip -->
 ```python
 session = await client.create_session(
-    PermissionHandler.approve_all,
+    on_permission_request=PermissionHandler.approve_all,
     custom_agents=[
         {
             "name": "researcher",

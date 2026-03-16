@@ -153,7 +153,7 @@ async def on_post_tool_use(input_data, invocation):
     print(f"  Result: {input_data['toolResult']}")
     return None  # Pass through unchanged
 
-session = await client.create_session(PermissionHandler.approve_all, hooks={"on_post_tool_use": on_post_tool_use})
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, hooks={"on_post_tool_use": on_post_tool_use})
 ```
 
 </details>

@@ -20,8 +20,8 @@ async def main():
 
     try:
         session = await client.create_session(
-            PermissionHandler.approve_all,
-            AZURE_OPENAI_MODEL,
+            on_permission_request=PermissionHandler.approve_all,
+            model=AZURE_OPENAI_MODEL,
             provider={
                 "type": "azure",
                 "base_url": AZURE_OPENAI_ENDPOINT,

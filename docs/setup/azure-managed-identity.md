@@ -58,8 +58,8 @@ async def main():
     await client.start()
 
     session = await client.create_session(
-        PermissionHandler.approve_all,
-        "gpt-4.1",
+        on_permission_request=PermissionHandler.approve_all,
+        model="gpt-4.1",
         provider={
             "type": "openai",
             "base_url": f"{foundry_url.rstrip('/')}/openai/v1/",
@@ -111,7 +111,7 @@ class ManagedIdentityCopilotAgent:
         """Send a prompt and return the response text."""
         # Fresh token for each session
         provider = self._get_provider_config()
-        session = await self.client.create_session(PermissionHandler.approve_all, self.model, provider=provider)
+        session = await self.client.create_session(on_permission_request=PermissionHandler.approve_all, model=self.model, provider=provider)
 
         response = await session.send_and_wait({"prompt": prompt})
         await session.disconnect()

@@ -13,7 +13,7 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 class TestStreamingFidelity:
     async def test_should_produce_delta_events_when_streaming_is_enabled(self, ctx: E2ETestContext):
-        session = await ctx.client.create_session(PermissionHandler.approve_all, streaming=True)
+        session = await ctx.client.create_session(on_permission_request=PermissionHandler.approve_all, streaming=True)
 
         events = []
         session.on(lambda event: events.append(event))
@@ -43,7 +43,7 @@ class TestStreamingFidelity:
         await session.disconnect()
 
     async def test_should_not_produce_deltas_when_streaming_is_disabled(self, ctx: E2ETestContext):
-        session = await ctx.client.create_session(PermissionHandler.approve_all, streaming=False)
+        session = await ctx.client.create_session(on_permission_request=PermissionHandler.approve_all, streaming=False)
 
         events = []
         session.on(lambda event: events.append(event))
@@ -62,7 +62,7 @@ class TestStreamingFidelity:
         await session.disconnect()
 
     async def test_should_produce_deltas_after_session_resume(self, ctx: E2ETestContext):
-        session = await ctx.client.create_session(PermissionHandler.approve_all, streaming=False)
+        session = await ctx.client.create_session(on_permission_request=PermissionHandler.approve_all, streaming=False)
         await session.send_and_wait("What is 3 + 6?")
         await session.disconnect()
 
@@ -82,7 +82,7 @@ class TestStreamingFidelity:
         try:
             session2 = await new_client.resume_session(
                 session.session_id,
-                PermissionHandler.approve_all,
+                on_permission_request=PermissionHandler.approve_all,
                 streaming=True,
             )
             events = []

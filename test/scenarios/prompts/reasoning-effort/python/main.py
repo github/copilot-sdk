@@ -11,8 +11,8 @@ async def main():
 
     try:
         session = await client.create_session(
-            PermissionHandler.approve_all,
-            "claude-opus-4.6",
+            on_permission_request=PermissionHandler.approve_all,
+            model="claude-opus-4.6",
             reasoning_effort="low",
             available_tools=[],
             system_message={
