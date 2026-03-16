@@ -548,15 +548,8 @@ class ProviderConfig(TypedDict, total=False):
     azure: AzureProviderOptions  # Azure-specific options
 
 
-# Options for sending a message to a session
-class MessageOptions(TypedDict):
-    """Options for sending a message to a session"""
 
-    prompt: str  # The prompt/message to send
-    # Optional file/directory attachments
-    attachments: NotRequired[list[Attachment]]
-    # Message processing mode
-    mode: NotRequired[Literal["enqueue", "immediate"]]
+
 
 
 # Event handler type

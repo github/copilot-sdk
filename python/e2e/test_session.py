@@ -31,13 +31,11 @@ class TestSessions:
     async def test_should_have_stateful_conversation(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(PermissionHandler.approve_all)
 
-        assistant_message = await session.send_and_wait({"prompt": "What is 1+1?"})
+        assistant_message = await session.send_and_wait("What is 1+1?")
         assert assistant_message is not None
         assert "2" in assistant_message.data.content
 
-        second_message = await session.send_and_wait(
-            {"prompt": "Now if you double that, what do you get?"}
-        )
+        second_message = await session.send_and_wait("Now if you double that, what do you get?")
         assert second_message is not None
         assert "4" in second_message.data.content
 
@@ -50,7 +48,7 @@ class TestSessions:
             system_message={"mode": "append", "content": system_message_suffix},
         )
 
-        await session.send({"prompt": "What is your full name?"})
+        await session.send("What is your full name?")
         assistant_message = await get_final_assistant_message(session)
         assert "GitHub" in assistant_message.data.content
         assert "Have a nice day!" in assistant_message.data.content
@@ -70,7 +68,7 @@ class TestSessions:
             system_message={"mode": "replace", "content": test_system_message},
         )
 
-        await session.send({"prompt": "What is your full name?"})
+        await session.send("What is your full name?")
         assistant_message = await get_final_assistant_message(session)
         assert "GitHub" not in assistant_message.data.content
         assert "Testy" in assistant_message.data.content
@@ -86,7 +84,7 @@ class TestSessions:
             available_tools=["view", "edit"],
         )
 
-        await session.send({"prompt": "What is 1+1?"})
+        await session.send("What is 1+1?")
         await get_final_assistant_message(session)
 
         # It only tells the model about the specified tools and no others
@@ -102,7 +100,7 @@ class TestSessions:
             PermissionHandler.approve_all, excluded_tools=["view"]
         )
 
-        await session.send({"prompt": "What is 1+1?"})
+        await session.send("What is 1+1?")
         await get_final_assistant_message(session)
 
         # It has other tools, but not the one we excluded
@@ -148,7 +146,7 @@ class TestSessions:
         # Create initial session
         session1 = await ctx.client.create_session(PermissionHandler.approve_all)
         session_id = session1.session_id
-        answer = await session1.send_and_wait({"prompt": "What is 1+1?"})
+        answer = await session1.send_and_wait("What is 1+1?")
         assert answer is not None
         assert "2" in answer.data.content
 
@@ -159,9 +157,7 @@ class TestSessions:
         assert "2" in answer2.data.content
 
         # Can continue the conversation statefully
-        answer3 = await session2.send_and_wait(
-            {"prompt": "Now if you double that, what do you get?"}
-        )
+        answer3 = await session2.send_and_wait("Now if you double that, what do you get?")
         assert answer3 is not None
         assert "4" in answer3.data.content
 
@@ -169,7 +165,7 @@ class TestSessions:
         # Create initial session
         session1 = await ctx.client.create_session(PermissionHandler.approve_all)
         session_id = session1.session_id
-        answer = await session1.send_and_wait({"prompt": "What is 1+1?"})
+        answer = await session1.send_and_wait("What is 1+1?")
         assert answer is not None
         assert "2" in answer.data.content
 
@@ -196,9 +192,7 @@ class TestSessions:
             assert "session.resume" in message_types
 
             # Can continue the conversation statefully
-            answer2 = await session2.send_and_wait(
-                {"prompt": "Now if you double that, what do you get?"}
-            )
+            answer2 = await session2.send_and_wait("Now if you double that, what do you get?")
             assert answer2 is not None
             assert "4" in answer2.data.content
         finally:
@@ -215,9 +209,9 @@ class TestSessions:
 
         # Create a couple of sessions and send messages to persist them
         session1 = await ctx.client.create_session(PermissionHandler.approve_all)
-        await session1.send_and_wait({"prompt": "Say hello"})
+        await session1.send_and_wait("Say hello")
         session2 = await ctx.client.create_session(PermissionHandler.approve_all)
-        await session2.send_and_wait({"prompt": "Say goodbye"})
+        await session2.send_and_wait("Say goodbye")
 
         # Small delay to ensure session files are written to disk
         await asyncio.sleep(0.2)
@@ -254,7 +248,7 @@ class TestSessions:
 
         # Create a session and send a message to persist it
         session = await ctx.client.create_session(PermissionHandler.approve_all)
-        await session.send_and_wait({"prompt": "Hello"})
+        await session.send_and_wait("Hello")
         session_id = session.session_id
 
         # Small delay to ensure session file is written to disk
@@ -282,7 +276,7 @@ class TestSessions:
 
         # Create a session and send a message to persist it
         session = await ctx.client.create_session(PermissionHandler.approve_all)
-        await session.send_and_wait({"prompt": "Say hello"})
+        await session.send_and_wait("Say hello")
 
         # Small delay to ensure session data is flushed to disk
         await asyncio.sleep(0.5)
@@ -317,7 +311,7 @@ class TestSessions:
             ],
         )
 
-        answer = await session.send_and_wait({"prompt": "What is the secret number for key ALPHA?"})
+        answer = await session.send_and_wait("What is the secret number for key ALPHA?")
         assert answer is not None
         assert "54321" in answer.data.content
 
@@ -378,12 +372,7 @@ class TestSessions:
 
         # Send a message that will trigger a long-running shell command
         await session.send(
-            {
-                "prompt": (
-                    "run the shell command 'sleep 100' "
-                    "(note this works on both bash and PowerShell)"
-                )
-            }
+            "run the shell command 'sleep 100' (note this works on both bash and PowerShell)"
         )
 
         # Wait for the tool to start executing
@@ -404,7 +393,7 @@ class TestSessions:
         assert len(abort_events) > 0, "Expected an abort event in messages"
 
         # We should be able to send another message
-        answer = await session.send_and_wait({"prompt": "What is 2+2?"})
+        answer = await session.send_and_wait("What is 2+2?")
         assert "4" in answer.data.content
 
     async def test_should_receive_session_events(self, ctx: E2ETestContext):
@@ -436,7 +425,7 @@ class TestSessions:
         session.on(on_event)
 
         # Send a message to trigger events
-        await session.send({"prompt": "What is 100+200?"})
+        await session.send("What is 100+200?")
 
         # Wait for session to become idle
         try:
@@ -466,7 +455,7 @@ class TestSessions:
         assert session.session_id
 
         # Session should work normally with custom config dir
-        await session.send({"prompt": "What is 1+1?"})
+        await session.send("What is 1+1?")
         assistant_message = await get_final_assistant_message(session)
         assert "2" in assistant_message.data.content
 

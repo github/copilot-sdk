@@ -30,9 +30,7 @@ class TestPermissions:
 
         write_file(ctx.work_dir, "test.txt", "original content")
 
-        await session.send_and_wait(
-            {"prompt": "Edit test.txt and replace 'original' with 'modified'"}
-        )
+        await session.send_and_wait("Edit test.txt and replace 'original' with 'modified'")
 
         # Should have received at least one permission request
         assert len(permission_requests) > 0
@@ -56,9 +54,7 @@ class TestPermissions:
         original_content = "protected content"
         write_file(ctx.work_dir, "protected.txt", original_content)
 
-        await session.send_and_wait(
-            {"prompt": "Edit protected.txt and replace 'protected' with 'hacked'."}
-        )
+        await session.send_and_wait("Edit protected.txt and replace 'protected' with 'hacked'.")
 
         # Verify the file was NOT modified
         content = read_file(ctx.work_dir, "protected.txt")
@@ -94,7 +90,7 @@ class TestPermissions:
 
         session.on(on_event)
 
-        await session.send({"prompt": "Run 'node --version'"})
+        await session.send("Run 'node --version'")
         await asyncio.wait_for(done_event.wait(), timeout=60)
 
         assert len(denied_events) > 0
@@ -107,7 +103,7 @@ class TestPermissions:
         """Test that tool operations are denied after resume when handler explicitly denies"""
         session1 = await ctx.client.create_session(PermissionHandler.approve_all)
         session_id = session1.session_id
-        await session1.send_and_wait({"prompt": "What is 1+1?"})
+        await session1.send_and_wait("What is 1+1?")
 
         def deny_all(request, invocation):
             return PermissionRequestResult()
@@ -132,7 +128,7 @@ class TestPermissions:
 
         session2.on(on_event)
 
-        await session2.send({"prompt": "Run 'node --version'"})
+        await session2.send("Run 'node --version'")
         await asyncio.wait_for(done_event.wait(), timeout=60)
 
         assert len(denied_events) > 0
@@ -143,7 +139,7 @@ class TestPermissions:
         """Test that sessions work with approve-all permission handler"""
         session = await ctx.client.create_session(PermissionHandler.approve_all)
 
-        message = await session.send_and_wait({"prompt": "What is 2+2?"})
+        message = await session.send_and_wait("What is 2+2?")
 
         assert message is not None
         assert "4" in message.data.content
@@ -164,7 +160,7 @@ class TestPermissions:
 
         session = await ctx.client.create_session(on_permission_request)
 
-        await session.send_and_wait({"prompt": "Run 'echo test' and tell me what happens"})
+        await session.send_and_wait("Run 'echo test' and tell me what happens")
 
         assert len(permission_requests) > 0
 
@@ -177,7 +173,7 @@ class TestPermissions:
         # Create initial session
         session1 = await ctx.client.create_session(PermissionHandler.approve_all)
         session_id = session1.session_id
-        await session1.send_and_wait({"prompt": "What is 1+1?"})
+        await session1.send_and_wait("What is 1+1?")
 
         # Resume with permission handler
         def on_permission_request(
@@ -188,7 +184,7 @@ class TestPermissions:
 
         session2 = await ctx.client.resume_session(session_id, on_permission_request)
 
-        await session2.send_and_wait({"prompt": "Run 'echo resumed' for me"})
+        await session2.send_and_wait("Run 'echo resumed' for me")
 
         # Should have permission requests from resumed session
         assert len(permission_requests) > 0
@@ -205,9 +201,7 @@ class TestPermissions:
 
         session = await ctx.client.create_session(on_permission_request)
 
-        message = await session.send_and_wait(
-            {"prompt": "Run 'echo test'. If you can't, say 'failed'."}
-        )
+        message = await session.send_and_wait("Run 'echo test'. If you can't, say 'failed'.")
 
         # Should handle the error and deny permission
         assert message is not None
@@ -232,7 +226,7 @@ class TestPermissions:
 
         session = await ctx.client.create_session(on_permission_request)
 
-        await session.send_and_wait({"prompt": "Run 'echo test'"})
+        await session.send_and_wait("Run 'echo test'")
 
         assert received_tool_call_id
 

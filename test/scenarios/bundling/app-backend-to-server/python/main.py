@@ -18,7 +18,7 @@ async def ask_copilot(prompt: str) -> str:
     try:
         session = await client.create_session(PermissionHandler.approve_all, "claude-haiku-4.5")
 
-        response = await session.send_and_wait({"prompt": prompt})
+        response = await session.send_and_wait(prompt)
 
         await session.disconnect()
 
