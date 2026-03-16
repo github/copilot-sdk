@@ -574,12 +574,19 @@ class TestSessions:
             {"on_permission_request": PermissionHandler.approve_all}
         )
 
+        # 1x1 transparent PNG pixel, base64-encoded
+        pixel_png = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAY"
+            "AAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhg"
+            "GAWjR9awAAAABJRU5ErkJggg=="
+        )
+
         await session.send(
             "Describe this image",
             attachments=[
                 {
                     "type": "blob",
-                    "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                    "data": pixel_png,
                     "mimeType": "image/png",
                     "displayName": "test-pixel.png",
                 },
