@@ -99,7 +99,9 @@ class TestSkillBehavior:
         skills_dir = create_skill_dir(ctx.work_dir)
 
         # Create a session without skills first
-        session1 = await ctx.client.create_session(on_permission_request=PermissionHandler.approve_all)
+        session1 = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all
+        )
         session_id = session1.session_id
 
         # First message without skill - marker should not appear

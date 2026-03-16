@@ -101,7 +101,9 @@ class TestPermissions:
         self, ctx: E2ETestContext
     ):
         """Test that tool operations are denied after resume when handler explicitly denies"""
-        session1 = await ctx.client.create_session(on_permission_request=PermissionHandler.approve_all)
+        session1 = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all
+        )
         session_id = session1.session_id
         await session1.send_and_wait("What is 1+1?")
 
@@ -137,7 +139,9 @@ class TestPermissions:
 
     async def test_should_work_with_approve_all_permission_handler(self, ctx: E2ETestContext):
         """Test that sessions work with approve-all permission handler"""
-        session = await ctx.client.create_session(on_permission_request=PermissionHandler.approve_all)
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all
+        )
 
         message = await session.send_and_wait("What is 2+2?")
 
@@ -171,7 +175,9 @@ class TestPermissions:
         permission_requests = []
 
         # Create initial session
-        session1 = await ctx.client.create_session(on_permission_request=PermissionHandler.approve_all)
+        session1 = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all
+        )
         session_id = session1.session_id
         await session1.send_and_wait("What is 1+1?")
 
@@ -182,7 +188,9 @@ class TestPermissions:
             permission_requests.append(request)
             return PermissionRequestResult(kind="approved")
 
-        session2 = await ctx.client.resume_session(session_id, on_permission_request=on_permission_request)
+        session2 = await ctx.client.resume_session(
+            session_id, on_permission_request=on_permission_request
+        )
 
         await session2.send_and_wait("Run 'echo resumed' for me")
 

@@ -67,7 +67,9 @@ class MultiClientContext:
         )
 
         # Trigger connection by creating and disconnecting an init session
-        init_session = await self._client1.create_session(on_permission_request=PermissionHandler.approve_all)
+        init_session = await self._client1.create_session(
+            on_permission_request=PermissionHandler.approve_all
+        )
         await init_session.disconnect()
 
         # Read the actual port from client 1 and create client 2

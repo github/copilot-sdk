@@ -152,7 +152,9 @@ class TestAgentSelectionRpc:
 
         try:
             await client.start()
-            session = await client.create_session(on_permission_request=PermissionHandler.approve_all)
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all
+            )
 
             result = await session.rpc.agent.list()
             assert result.agents == []
@@ -167,7 +169,9 @@ class TestSessionCompactionRpc:
     @pytest.mark.asyncio
     async def test_should_compact_session_history_after_messages(self, ctx: E2ETestContext):
         """Test compacting session history via RPC."""
-        session = await ctx.client.create_session(on_permission_request=PermissionHandler.approve_all)
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all
+        )
 
         # Send a message to create some history
         await session.send_and_wait("What is 2+2?")

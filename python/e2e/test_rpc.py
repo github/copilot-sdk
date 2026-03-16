@@ -118,7 +118,9 @@ class TestSessionRpc:
 
         try:
             await client.start()
-            session = await client.create_session(on_permission_request=PermissionHandler.approve_all)
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all
+            )
 
             # Get initial mode (default should be interactive)
             initial = await session.rpc.mode.get()
@@ -152,7 +154,9 @@ class TestSessionRpc:
 
         try:
             await client.start()
-            session = await client.create_session(on_permission_request=PermissionHandler.approve_all)
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all
+            )
 
             # Initially plan should not exist
             initial = await session.rpc.plan.read()
@@ -193,7 +197,9 @@ class TestSessionRpc:
 
         try:
             await client.start()
-            session = await client.create_session(on_permission_request=PermissionHandler.approve_all)
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all
+            )
 
             # Initially no files
             initial_files = await session.rpc.workspace.list_files()

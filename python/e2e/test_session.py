@@ -14,7 +14,9 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 class TestSessions:
     async def test_should_create_and_disconnect_sessions(self, ctx: E2ETestContext):
-        session = await ctx.client.create_session(on_permission_request=PermissionHandler.approve_all, model="fake-test-model")
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all, model="fake-test-model"
+        )
         assert session.session_id
 
         messages = await session.get_messages()
@@ -29,7 +31,9 @@ class TestSessions:
             await session.get_messages()
 
     async def test_should_have_stateful_conversation(self, ctx: E2ETestContext):
-        session = await ctx.client.create_session(on_permission_request=PermissionHandler.approve_all)
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all
+        )
 
         assistant_message = await session.send_and_wait("What is 1+1?")
         assert assistant_message is not None
@@ -144,14 +148,18 @@ class TestSessions:
 
     async def test_should_resume_a_session_using_the_same_client(self, ctx: E2ETestContext):
         # Create initial session
-        session1 = await ctx.client.create_session(on_permission_request=PermissionHandler.approve_all)
+        session1 = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all
+        )
         session_id = session1.session_id
         answer = await session1.send_and_wait("What is 1+1?")
         assert answer is not None
         assert "2" in answer.data.content
 
         # Resume using the same client
-        session2 = await ctx.client.resume_session(session_id, on_permission_request=PermissionHandler.approve_all)
+        session2 = await ctx.client.resume_session(
+            session_id, on_permission_request=PermissionHandler.approve_all
+        )
         assert session2.session_id == session_id
         answer2 = await get_final_assistant_message(session2)
         assert "2" in answer2.data.content
@@ -163,7 +171,9 @@ class TestSessions:
 
     async def test_should_resume_a_session_using_a_new_client(self, ctx: E2ETestContext):
         # Create initial session
-        session1 = await ctx.client.create_session(on_permission_request=PermissionHandler.approve_all)
+        session1 = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all
+        )
         session_id = session1.session_id
         answer = await session1.send_and_wait("What is 1+1?")
         assert answer is not None
@@ -183,7 +193,9 @@ class TestSessions:
         )
 
         try:
-            session2 = await new_client.resume_session(session_id, on_permission_request=PermissionHandler.approve_all)
+            session2 = await new_client.resume_session(
+                session_id, on_permission_request=PermissionHandler.approve_all
+            )
             assert session2.session_id == session_id
 
             messages = await session2.get_messages()
@@ -208,9 +220,13 @@ class TestSessions:
         import asyncio
 
         # Create a couple of sessions and send messages to persist them
-        session1 = await ctx.client.create_session(on_permission_request=PermissionHandler.approve_all)
+        session1 = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all
+        )
         await session1.send_and_wait("Say hello")
-        session2 = await ctx.client.create_session(on_permission_request=PermissionHandler.approve_all)
+        session2 = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all
+        )
         await session2.send_and_wait("Say goodbye")
 
         # Small delay to ensure session files are written to disk
@@ -247,7 +263,9 @@ class TestSessions:
         import asyncio
 
         # Create a session and send a message to persist it
-        session = await ctx.client.create_session(on_permission_request=PermissionHandler.approve_all)
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all
+        )
         await session.send_and_wait("Hello")
         session_id = session.session_id
 
@@ -269,13 +287,17 @@ class TestSessions:
 
         # Verify we cannot resume the deleted session
         with pytest.raises(Exception):
-            await ctx.client.resume_session(session_id, on_permission_request=PermissionHandler.approve_all)
+            await ctx.client.resume_session(
+                session_id, on_permission_request=PermissionHandler.approve_all
+            )
 
     async def test_should_get_last_session_id(self, ctx: E2ETestContext):
         import asyncio
 
         # Create a session and send a message to persist it
-        session = await ctx.client.create_session(on_permission_request=PermissionHandler.approve_all)
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all
+        )
         await session.send_and_wait("Say hello")
 
         # Small delay to ensure session data is flushed to disk
@@ -341,7 +363,9 @@ class TestSessions:
         assert session.session_id
 
     async def test_should_resume_session_with_custom_provider(self, ctx: E2ETestContext):
-        session = await ctx.client.create_session(on_permission_request=PermissionHandler.approve_all)
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all
+        )
         session_id = session.session_id
 
         # Resume the session with a provider
@@ -360,7 +384,9 @@ class TestSessions:
     async def test_should_abort_a_session(self, ctx: E2ETestContext):
         import asyncio
 
-        session = await ctx.client.create_session(on_permission_request=PermissionHandler.approve_all)
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all
+        )
 
         # Set up event listeners BEFORE sending to avoid race conditions
         wait_for_tool_start = asyncio.create_task(
@@ -462,7 +488,9 @@ class TestSessions:
     async def test_session_log_emits_events_at_all_levels(self, ctx: E2ETestContext):
         import asyncio
 
-        session = await ctx.client.create_session(on_permission_request=PermissionHandler.approve_all)
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all
+        )
 
         received_events = []
 
@@ -504,7 +532,9 @@ class TestSessions:
         """Test that setModel passes reasoningEffort and it appears in the model_change event."""
         import asyncio
 
-        session = await ctx.client.create_session(on_permission_request=PermissionHandler.approve_all)
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all
+        )
 
         model_change_event = asyncio.get_event_loop().create_future()
 

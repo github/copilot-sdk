@@ -209,7 +209,9 @@ class TestClient:
 
             # Verify subsequent calls also fail (don't hang)
             with pytest.raises(Exception) as exc_info2:
-                session = await client.create_session(on_permission_request=PermissionHandler.approve_all)
+                session = await client.create_session(
+                    on_permission_request=PermissionHandler.approve_all
+                )
                 await session.send("test")
             # Error message varies by platform (EINVAL on Windows, EPIPE on Linux)
             error_msg = str(exc_info2.value).lower()

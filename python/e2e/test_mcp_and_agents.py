@@ -50,7 +50,9 @@ class TestMCPServers:
     ):
         """Test that MCP server configuration is accepted on session resume"""
         # Create a session first
-        session1 = await ctx.client.create_session(on_permission_request=PermissionHandler.approve_all)
+        session1 = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all
+        )
         session_id = session1.session_id
         await session1.send_and_wait("What is 1+1?")
 
@@ -142,7 +144,9 @@ class TestCustomAgents:
     ):
         """Test that custom agent configuration is accepted on session resume"""
         # Create a session first
-        session1 = await ctx.client.create_session(on_permission_request=PermissionHandler.approve_all)
+        session1 = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all
+        )
         session_id = session1.session_id
         await session1.send_and_wait("What is 1+1?")
 
