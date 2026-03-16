@@ -548,10 +548,6 @@ class ProviderConfig(TypedDict, total=False):
     azure: AzureProviderOptions  # Azure-specific options
 
 
-
-
-
-
 # Event handler type
 SessionEventHandler = Callable[[SessionEvent], None]
 
