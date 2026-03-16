@@ -68,6 +68,7 @@ select = [
 ]
 
 [tool.ruff.format]
+docstring-code-format = true
 quote-style = "double"
 indent-style = "space"
 

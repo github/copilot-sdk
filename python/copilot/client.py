@@ -8,7 +8,9 @@ Example:
     >>> from copilot import CopilotClient, PermissionHandler
     >>>
     >>> async with CopilotClient() as client:
-    ...     session = await client.create_session(on_permission_request=PermissionHandler.approve_all)
+    ...     session = await client.create_session(
+    ...         on_permission_request=PermissionHandler.approve_all
+    ...     )
     ...     await session.send("Hello!")
 """
 
@@ -150,10 +152,12 @@ class CopilotClient:
             >>> client = CopilotClient(ExternalServerConfig(url="localhost:3000"))
             >>>
             >>> # Custom CLI path with specific log level
-            >>> client = CopilotClient(SubprocessConfig(
-            ...     cli_path="/usr/local/bin/copilot",
-            ...     log_level="debug",
-            ... ))
+            >>> client = CopilotClient(
+            ...     SubprocessConfig(
+            ...         cli_path="/usr/local/bin/copilot",
+            ...         log_level="debug",
+            ...     )
+            ... )
         """
         if config is None:
             config = SubprocessConfig()
@@ -1064,9 +1068,7 @@ class CopilotClient:
         Example:
             >>> last_id = await client.get_last_session_id()
             >>> if last_id:
-            ...     session = await client.resume_session(
-            ...         last_id, PermissionHandler.approve_all
-            ...     )
+            ...     session = await client.resume_session(last_id, PermissionHandler.approve_all)
         """
         if not self._client:
             raise RuntimeError("Client not connected")
