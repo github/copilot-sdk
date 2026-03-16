@@ -33,9 +33,7 @@ class TestHooks:
         # Create a file for the model to read
         write_file(ctx.work_dir, "hello.txt", "Hello from the test!")
 
-        await session.send_and_wait(
-            {"prompt": "Read the contents of hello.txt and tell me what it says"}
-        )
+        await session.send_and_wait("Read the contents of hello.txt and tell me what it says")
 
         # Should have received at least one preToolUse hook call
         assert len(pre_tool_use_inputs) > 0
@@ -66,9 +64,7 @@ class TestHooks:
         # Create a file for the model to read
         write_file(ctx.work_dir, "world.txt", "World from the test!")
 
-        await session.send_and_wait(
-            {"prompt": "Read the contents of world.txt and tell me what it says"}
-        )
+        await session.send_and_wait("Read the contents of world.txt and tell me what it says")
 
         # Should have received at least one postToolUse hook call
         assert len(post_tool_use_inputs) > 0
@@ -106,7 +102,7 @@ class TestHooks:
 
         write_file(ctx.work_dir, "both.txt", "Testing both hooks!")
 
-        await session.send_and_wait({"prompt": "Read the contents of both.txt"})
+        await session.send_and_wait("Read the contents of both.txt")
 
         # Both hooks should have been called
         assert len(pre_tool_use_inputs) > 0
@@ -143,7 +139,7 @@ class TestHooks:
         write_file(ctx.work_dir, "protected.txt", original_content)
 
         response = await session.send_and_wait(
-            {"prompt": "Edit protected.txt and replace 'Original' with 'Modified'"}
+            "Edit protected.txt and replace 'Original' with 'Modified'"
         )
 
         # The hook should have been called

@@ -31,7 +31,7 @@ async def main():
         )
 
         response = await session.send_and_wait(
-            {"prompt": "Use grep to search for the word 'hello'"}
+            "Use grep to search for the word 'hello'"
         )
 
         if response:

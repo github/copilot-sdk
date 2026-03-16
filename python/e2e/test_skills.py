@@ -65,7 +65,7 @@ class TestSkillBehavior:
         assert session.session_id is not None
 
         # The skill instructs the model to include a marker - verify it appears
-        message = await session.send_and_wait({"prompt": "Say hello briefly using the test skill."})
+        message = await session.send_and_wait("Say hello briefly using the test skill.")
         assert message is not None
         assert SKILL_MARKER in message.data.content
 
@@ -87,7 +87,7 @@ class TestSkillBehavior:
         assert session.session_id is not None
 
         # The skill is disabled, so the marker should NOT appear
-        message = await session.send_and_wait({"prompt": "Say hello briefly using the test skill."})
+        message = await session.send_and_wait("Say hello briefly using the test skill.")
         assert message is not None
         assert SKILL_MARKER not in message.data.content
 
@@ -110,7 +110,7 @@ class TestSkillBehavior:
         session_id = session1.session_id
 
         # First message without skill - marker should not appear
-        message1 = await session1.send_and_wait({"prompt": "Say hi."})
+        message1 = await session1.send_and_wait("Say hi.")
         assert message1 is not None
         assert SKILL_MARKER not in message1.data.content
 
@@ -126,7 +126,7 @@ class TestSkillBehavior:
         assert session2.session_id == session_id
 
         # Now the skill should be applied
-        message2 = await session2.send_and_wait({"prompt": "Say hello again using the test skill."})
+        message2 = await session2.send_and_wait("Say hello again using the test skill.")
         assert message2 is not None
         assert SKILL_MARKER in message2.data.content
 

@@ -34,7 +34,7 @@ async def main():
             continue
         print()
 
-        reply = await session.send_and_wait({"prompt": user_input})
+        reply = await session.send_and_wait(user_input)
         print(f"\nAssistant: {reply.data.content if reply else None}\n")
 
 

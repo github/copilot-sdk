@@ -31,7 +31,7 @@ async def main():
         })
 
         response = await session.send_and_wait(
-            {"prompt": "What is the capital of France?"}
+            "What is the capital of France?"
         )
 
         if response:

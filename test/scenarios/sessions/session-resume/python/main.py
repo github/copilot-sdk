@@ -20,7 +20,7 @@ async def main():
 
         # 2. Send the secret word
         await session.send_and_wait(
-            {"prompt": "Remember this: the secret word is PINEAPPLE."}
+            "Remember this: the secret word is PINEAPPLE."
         )
 
         # 3. Get the session ID (don't disconnect — resume needs the session to persist)
@@ -32,7 +32,7 @@ async def main():
 
         # 5. Ask for the secret word
         response = await resumed.send_and_wait(
-            {"prompt": "What was the secret word I told you?"}
+            "What was the secret word I told you?"
         )
 
         if response:

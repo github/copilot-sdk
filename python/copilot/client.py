@@ -9,7 +9,7 @@ Example:
     >>>
     >>> async with CopilotClient() as client:
     ...     session = await client.create_session()
-    ...     await session.send({"prompt": "Hello!"})
+    ...     await session.send("Hello!")
 """
 
 import asyncio
@@ -104,7 +104,7 @@ class CopilotClient:
         ...     "model": "gpt-4",
         ... })
         >>> session.on(lambda event: print(event.type))
-        >>> await session.send({"prompt": "Hello!"})
+        >>> await session.send("Hello!")
         >>>
         >>> # Clean up
         >>> await session.disconnect()
