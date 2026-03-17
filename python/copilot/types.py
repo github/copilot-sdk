@@ -241,7 +241,9 @@ SYSTEM_PROMPT_SECTIONS: dict[SystemPromptSection, str] = {
     "safety": "Environment limitations, prohibited actions, security policies",
     "tool_instructions": "Per-tool usage instructions",
     "custom_instructions": "Repository and organization custom instructions",
-    "last_instructions": "End-of-prompt instructions: parallel tool calling, persistence, task completion",
+    "last_instructions": (
+        "End-of-prompt instructions: parallel tool calling, persistence, task completion"
+    ),
 }
 
 

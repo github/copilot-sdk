@@ -299,7 +299,10 @@ export const SYSTEM_PROMPT_SECTIONS: Record<SystemPromptSection, { description: 
     safety: { description: "Environment limitations, prohibited actions, security policies" },
     tool_instructions: { description: "Per-tool usage instructions" },
     custom_instructions: { description: "Repository and organization custom instructions" },
-    last_instructions: { description: "End-of-prompt instructions: parallel tool calling, persistence, task completion" },
+    last_instructions: {
+        description:
+            "End-of-prompt instructions: parallel tool calling, persistence, task completion",
+    },
 };
 
 /**
