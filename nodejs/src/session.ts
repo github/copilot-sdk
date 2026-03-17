@@ -12,6 +12,8 @@ import { ConnectionError, ResponseError } from "vscode-jsonrpc/node.js";
 import { createSessionRpc } from "./generated/rpc.js";
 import { getTraceContext } from "./telemetry.js";
 import type {
+    Command,
+    CommandHandler,
     MessageOptions,
     PermissionHandler,
     PermissionRequest,
@@ -22,6 +24,7 @@ import type {
     SessionEventPayload,
     SessionEventType,
     SessionHooks,
+    SessionUI,
     Tool,
     ToolHandler,
     TraceContextProvider,
@@ -67,11 +70,13 @@ export class CopilotSession {
     private typedEventHandlers: Map<SessionEventType, Set<(event: SessionEvent) => void>> =
         new Map();
     private toolHandlers: Map<string, ToolHandler> = new Map();
+    private commandHandlers: Map<string, CommandHandler> = new Map();
     private permissionHandler?: PermissionHandler;
     private userInputHandler?: UserInputHandler;
     private hooks?: SessionHooks;
     private _rpc: ReturnType<typeof createSessionRpc> | null = null;
     private traceContextProvider?: TraceContextProvider;
+    private _ui: SessionUI | null = null;
 
     /**
      * Creates a new CopilotSession instance.
@@ -108,6 +113,23 @@ export class CopilotSession {
      */
     get workspacePath(): string | undefined {
         return this._workspacePath;
+    }
+
+    /**
+     * Interactive UI methods for showing dialogs to the user.
+     *
+     * Returns `undefined` when the host does not support interactive UI
+     * (e.g., GitHub Actions, headless SDK usage).
+     *
+     * @example
+     * ```typescript
+     * if (session.ui) {
+     *     const ok = await session.ui.confirm("Deploy?", "Push to production?");
+     * }
+     * ```
+     */
+    get ui(): SessionUI | undefined {
+        return this._ui ?? undefined;
     }
 
     /**
@@ -367,6 +389,16 @@ export class CopilotSession {
             if (this.permissionHandler) {
                 void this._executePermissionAndRespond(requestId, permissionRequest);
             }
+        } else if ((event.type as string) === "command.requested") {
+            const { requestId, commandName, args } = (event as unknown as { data: {
+                requestId: string;
+                commandName: string;
+                args: string;
+            } }).data;
+            const handler = this.commandHandlers.get(commandName);
+            if (handler) {
+                void this._executeCommandAndRespond(requestId, commandName, args, handler);
+            }
         }
     }
 
@@ -448,6 +480,41 @@ export class CopilotSession {
     }
 
     /**
+     * Executes a command handler and sends the result back via RPC.
+     * @internal
+     */
+    private async _executeCommandAndRespond(
+        requestId: string,
+        _commandName: string,
+        args: string,
+        handler: CommandHandler
+    ): Promise<void> {
+        try {
+            await handler(args, {
+                sessionId: this.sessionId,
+            });
+            await this.connection.sendRequest("session.commands.handlePendingCommand", {
+                sessionId: this.sessionId,
+                requestId,
+            });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            try {
+                await this.connection.sendRequest("session.commands.handlePendingCommand", {
+                    sessionId: this.sessionId,
+                    requestId,
+                    error: message,
+                });
+            } catch (rpcError) {
+                if (!(rpcError instanceof ConnectionError || rpcError instanceof ResponseError)) {
+                    throw rpcError;
+                }
+                // Connection lost or RPC error — nothing we can do
+            }
+        }
+    }
+
+    /**
      * Registers custom tool handlers for this session.
      *
      * Tools allow the assistant to execute custom functions. When the assistant
@@ -476,6 +543,35 @@ export class CopilotSession {
      */
     getToolHandler(name: string): ToolHandler | undefined {
         return this.toolHandlers.get(name);
+    }
+
+    /**
+     * Registers slash commands for this session.
+     *
+     * Commands are invoked by the user typing `/name` in the input.
+     *
+     * @param commands - An array of command definitions, or undefined to clear all commands
+     * @internal This method is typically called internally when creating a session with commands.
+     */
+    registerCommands(commands?: Command[]): void {
+        this.commandHandlers.clear();
+        if (!commands) {
+            return;
+        }
+
+        for (const command of commands) {
+            this.commandHandlers.set(command.name, command.handler);
+        }
+    }
+
+    /**
+     * Sets the SessionUI implementation for this session.
+     *
+     * @param ui - The UI implementation, or null to disable UI
+     * @internal This method is called by the client after session creation.
+     */
+    _setUI(ui: SessionUI | null): void {
+        this._ui = ui;
     }
 
     /**
@@ -667,7 +763,9 @@ export class CopilotSession {
         this.eventHandlers.clear();
         this.typedEventHandlers.clear();
         this.toolHandlers.clear();
+        this.commandHandlers.clear();
         this.permissionHandler = undefined;
+        this._ui = null;
     }
 
     /**

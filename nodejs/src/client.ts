@@ -576,6 +576,7 @@ export class CopilotClient {
             this.onGetTraceContext
         );
         session.registerTools(config.tools);
+        session.registerCommands(config.commands);
         session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
             session.registerUserInputHandler(config.onUserInputRequest);
@@ -602,6 +603,10 @@ export class CopilotClient {
                     overridesBuiltInTool: tool.overridesBuiltInTool,
                     skipPermission: tool.skipPermission,
                 })),
+                commands: config.commands?.map((cmd) => ({
+                    name: cmd.name,
+                    description: cmd.description,
+                })),
                 systemMessage: config.systemMessage,
                 availableTools: config.availableTools,
                 excludedTools: config.excludedTools,
@@ -621,11 +626,15 @@ export class CopilotClient {
                 infiniteSessions: config.infiniteSessions,
             });
 
-            const { workspacePath } = response as {
+            const { workspacePath, capabilities } = response as {
                 sessionId: string;
                 workspacePath?: string;
+                capabilities?: { ui?: boolean };
             };
             session["_workspacePath"] = workspacePath;
+            if (capabilities?.ui) {
+                this._wireUI(session);
+            }
         } catch (e) {
             this.sessions.delete(sessionId);
             throw e;
@@ -682,6 +691,7 @@ export class CopilotClient {
             this.onGetTraceContext
         );
         session.registerTools(config.tools);
+        session.registerCommands(config.commands);
         session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
             session.registerUserInputHandler(config.onUserInputRequest);
@@ -711,6 +721,10 @@ export class CopilotClient {
                     overridesBuiltInTool: tool.overridesBuiltInTool,
                     skipPermission: tool.skipPermission,
                 })),
+                commands: config.commands?.map((cmd) => ({
+                    name: cmd.name,
+                    description: cmd.description,
+                })),
                 provider: config.provider,
                 requestPermission: true,
                 requestUserInput: !!config.onUserInputRequest,
@@ -728,17 +742,71 @@ export class CopilotClient {
                 disableResume: config.disableResume,
             });
 
-            const { workspacePath } = response as {
+            const { workspacePath, capabilities } = response as {
                 sessionId: string;
                 workspacePath?: string;
+                capabilities?: { ui?: boolean };
             };
             session["_workspacePath"] = workspacePath;
+            if (capabilities?.ui) {
+                this._wireUI(session);
+            }
         } catch (e) {
             this.sessions.delete(sessionId);
             throw e;
         }
 
         return session;
+    }
+
+    /**
+     * Creates and attaches a SessionUI implementation to the session.
+     * The UI methods send JSON-RPC requests to the CLI host.
+     * @internal
+     */
+    private _wireUI(session: CopilotSession): void {
+        const connection = this.connection!;
+        const sessionId = session.sessionId;
+
+        session._setUI({
+            async confirm(title, message, options) {
+                const response = await connection.sendRequest("session.ui.confirm", {
+                    sessionId,
+                    title,
+                    message,
+                    default: options?.default,
+                });
+                return (response as { confirmed: boolean }).confirmed;
+            },
+
+            async select(title, options, selectOptions) {
+                const normalizedOptions = options.map((opt) =>
+                    typeof opt === "string" ? { value: opt, label: opt } : opt
+                );
+                const response = await connection.sendRequest("session.ui.select", {
+                    sessionId,
+                    title,
+                    options: normalizedOptions,
+                    description: selectOptions?.description,
+                    default: selectOptions?.default,
+                });
+                return (response as { selected: string | null }).selected;
+            },
+
+            async input(title, options) {
+                const response = await connection.sendRequest("session.ui.input", {
+                    sessionId,
+                    title,
+                    placeholder: options?.placeholder,
+                    description: options?.description,
+                    default: options?.default,
+                    format: options?.format,
+                    minLength: options?.minLength,
+                    maxLength: options?.maxLength,
+                });
+                return (response as { value: string | null }).value;
+            },
+        });
     }
 
     /**

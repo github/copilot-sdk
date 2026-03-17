@@ -10,14 +10,18 @@
 
 export { CopilotClient } from "./client.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
-export { defineTool, approveAll } from "./types.js";
+export { defineTool, approveAll, defineCommand } from "./types.js";
 export type {
+    Command,
+    CommandHandler,
+    CommandInvocation,
     ConnectionState,
     CopilotClientOptions,
     CustomAgentConfig,
     ForegroundSessionInfo,
     GetAuthStatusResponse,
     GetStatusResponse,
+    HostCapabilities,
     InfiniteSessionConfig,
     MCPLocalServerConfig,
     MCPRemoteServerConfig,
@@ -42,6 +46,11 @@ export type {
     SessionContext,
     SessionListFilter,
     SessionMetadata,
+    SessionUI,
+    SelectOption,
+    SelectOptions,
+    ConfirmOptions,
+    InputOptions,
     SystemMessageAppendConfig,
     SystemMessageConfig,
     SystemMessageReplaceConfig,

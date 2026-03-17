@@ -650,4 +650,265 @@ describe("CopilotClient", () => {
             expect(params.tracestate).toBeUndefined();
         });
     });
+
+    describe("commands in session creation", () => {
+        it("forwards commands metadata in session.create request", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            await client.createSession({
+                onPermissionRequest: approveAll,
+                commands: [
+                    { name: "deploy", description: "Deploy to production", handler: async () => {} },
+                    { name: "status", handler: async () => {} },
+                ],
+            });
+
+            expect(spy).toHaveBeenCalledWith(
+                "session.create",
+                expect.objectContaining({
+                    commands: [
+                        { name: "deploy", description: "Deploy to production" },
+                        { name: "status", description: undefined },
+                    ],
+                })
+            );
+        });
+
+        it("forwards commands metadata in session.resume request", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            const spy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (method: string, params: any) => {
+                    if (method === "session.resume") return { sessionId: params.sessionId };
+                    throw new Error(`Unexpected method: ${method}`);
+                });
+
+            await client.resumeSession(session.sessionId, {
+                onPermissionRequest: approveAll,
+                commands: [{ name: "test-cmd", description: "A test", handler: async () => {} }],
+            });
+
+            expect(spy).toHaveBeenCalledWith(
+                "session.resume",
+                expect.objectContaining({
+                    commands: [{ name: "test-cmd", description: "A test" }],
+                })
+            );
+            spy.mockRestore();
+        });
+
+        it("sends undefined commands when none are provided", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const spy = vi.spyOn((client as any).connection!, "sendRequest");
+            await client.createSession({ onPermissionRequest: approveAll });
+
+            const [, params] = spy.mock.calls.find(([method]) => method === "session.create")!;
+            expect(params.commands).toBeUndefined();
+        });
+    });
+
+    describe("session.ui capability negotiation", () => {
+        it("session.ui is undefined when host does not report ui capability", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            // Default CLI response doesn't include capabilities.ui
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            expect(session.ui).toBeUndefined();
+        });
+
+        it("session.ui is wired up when host reports ui capability", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            // Mock session.create to return capabilities.ui = true
+            const origSendRequest = (client as any).connection!.sendRequest.bind(
+                (client as any).connection!
+            );
+            const spy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (method: string, params: any) => {
+                    if (method === "session.create") {
+                        const result = await origSendRequest(method, params);
+                        return { ...result, capabilities: { ui: true } };
+                    }
+                    return origSendRequest(method, params);
+                });
+
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            expect(session.ui).toBeDefined();
+
+            spy.mockRestore();
+        });
+
+        it("session.ui.confirm sends correct RPC", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            // Mock to return ui capability + handle ui.confirm
+            const origSendRequest = (client as any).connection!.sendRequest.bind(
+                (client as any).connection!
+            );
+            const spy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (method: string, params: any) => {
+                    if (method === "session.create") {
+                        const result = await origSendRequest(method, params);
+                        return { ...result, capabilities: { ui: true } };
+                    }
+                    if (method === "session.ui.confirm") {
+                        return { confirmed: true };
+                    }
+                    return origSendRequest(method, params);
+                });
+
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            const result = await session.ui!.confirm("Deploy?", "Push to production?");
+
+            expect(result).toBe(true);
+            expect(spy).toHaveBeenCalledWith(
+                "session.ui.confirm",
+                expect.objectContaining({
+                    title: "Deploy?",
+                    message: "Push to production?",
+                })
+            );
+
+            spy.mockRestore();
+        });
+
+        it("session.ui.select sends correct RPC with labeled options", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const origSendRequest = (client as any).connection!.sendRequest.bind(
+                (client as any).connection!
+            );
+            const spy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (method: string, params: any) => {
+                    if (method === "session.create") {
+                        const result = await origSendRequest(method, params);
+                        return { ...result, capabilities: { ui: true } };
+                    }
+                    if (method === "session.ui.select") {
+                        return { selected: "prod" };
+                    }
+                    return origSendRequest(method, params);
+                });
+
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            const result = await session.ui!.select("Target", [
+                { value: "prod", label: "Production" },
+                { value: "staging", label: "Staging" },
+            ]);
+
+            expect(result).toBe("prod");
+            expect(spy).toHaveBeenCalledWith(
+                "session.ui.select",
+                expect.objectContaining({
+                    title: "Target",
+                    options: [
+                        { value: "prod", label: "Production" },
+                        { value: "staging", label: "Staging" },
+                    ],
+                })
+            );
+
+            spy.mockRestore();
+        });
+
+        it("session.ui.select normalizes string options to value/label pairs", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const origSendRequest = (client as any).connection!.sendRequest.bind(
+                (client as any).connection!
+            );
+            const spy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (method: string, params: any) => {
+                    if (method === "session.create") {
+                        const result = await origSendRequest(method, params);
+                        return { ...result, capabilities: { ui: true } };
+                    }
+                    if (method === "session.ui.select") {
+                        return { selected: "MySQL" };
+                    }
+                    return origSendRequest(method, params);
+                });
+
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            await session.ui!.select("Pick DB", ["PostgreSQL", "MySQL"]);
+
+            expect(spy).toHaveBeenCalledWith(
+                "session.ui.select",
+                expect.objectContaining({
+                    options: [
+                        { value: "PostgreSQL", label: "PostgreSQL" },
+                        { value: "MySQL", label: "MySQL" },
+                    ],
+                })
+            );
+
+            spy.mockRestore();
+        });
+
+        it("session.ui.input sends correct RPC with options", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const origSendRequest = (client as any).connection!.sendRequest.bind(
+                (client as any).connection!
+            );
+            const spy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (method: string, params: any) => {
+                    if (method === "session.create") {
+                        const result = await origSendRequest(method, params);
+                        return { ...result, capabilities: { ui: true } };
+                    }
+                    if (method === "session.ui.input") {
+                        return { value: "user@test.com" };
+                    }
+                    return origSendRequest(method, params);
+                });
+
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            const result = await session.ui!.input("Email", {
+                placeholder: "you@example.com",
+                format: "email",
+                default: "test@test.com",
+            });
+
+            expect(result).toBe("user@test.com");
+            expect(spy).toHaveBeenCalledWith(
+                "session.ui.input",
+                expect.objectContaining({
+                    title: "Email",
+                    placeholder: "you@example.com",
+                    format: "email",
+                    default: "test@test.com",
+                })
+            );
+
+            spy.mockRestore();
+        });
+    });
 });

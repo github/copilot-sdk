@@ -577,6 +577,176 @@ export interface SessionHooks {
 }
 
 // ============================================================================
+// Command Types
+// ============================================================================
+
+/**
+ * Invocation context passed to command handlers.
+ */
+export interface CommandInvocation {
+    sessionId: string;
+}
+
+/**
+ * Handler for a slash command.
+ * Receives the raw argument string (everything after `/commandname `).
+ */
+export type CommandHandler = (
+    args: string,
+    invocation: CommandInvocation
+) => Promise<void> | void;
+
+/**
+ * Slash command definition.
+ * Commands are registered on the session and invoked by the user typing `/name`.
+ */
+export interface Command {
+    /** Command name (without the leading `/`). */
+    name: string;
+
+    /** Human-readable description shown in command completion UI. */
+    description?: string;
+
+    /** The handler called when the user invokes this command. */
+    handler: CommandHandler;
+}
+
+/**
+ * Helper to define a command (mirrors {@link defineTool}).
+ */
+export function defineCommand(
+    name: string,
+    config: {
+        description?: string;
+        handler: CommandHandler;
+    }
+): Command {
+    return { name, ...config };
+}
+
+// ============================================================================
+// Session UI Types
+// ============================================================================
+
+/**
+ * Interactive UI methods available when the session host supports them.
+ *
+ * Access via `session.ui`. The property is `undefined` when the host
+ * does not support interactive UI (e.g., GitHub Actions, headless SDK usage).
+ *
+ * @example
+ * ```typescript
+ * if (session.ui) {
+ *     const ok = await session.ui.confirm("Deploy?", "This will push to production.");
+ * }
+ * ```
+ */
+export interface SessionUI {
+    /**
+     * Show a confirmation dialog.
+     *
+     * @param title - Dialog title
+     * @param message - Dialog body text
+     * @param options - Optional configuration
+     * @returns `true` if the user confirmed, `false` if declined or cancelled
+     */
+    confirm(title: string, message: string, options?: ConfirmOptions): Promise<boolean>;
+
+    /**
+     * Show a selection dialog. The user picks one option from a list.
+     *
+     * Options can be plain strings or `{value, label}` pairs. When pairs are used,
+     * `label` is displayed to the user and `value` is returned.
+     *
+     * @param title - Dialog title
+     * @param options - List of options to choose from
+     * @param selectOptions - Optional configuration
+     * @returns The selected option value, or `null` if cancelled
+     *
+     * @example
+     * ```typescript
+     * // Simple string options
+     * const db = await session.ui.select("Pick a database", ["PostgreSQL", "MySQL", "SQLite"]);
+     *
+     * // Labeled options — user sees labels, you get values
+     * const env = await session.ui.select("Target environment", [
+     *     { value: "prod", label: "Production" },
+     *     { value: "staging", label: "Staging" },
+     * ]);
+     * ```
+     */
+    select(
+        title: string,
+        options: Array<string | SelectOption>,
+        selectOptions?: SelectOptions
+    ): Promise<string | null>;
+
+    /**
+     * Show a text input dialog.
+     *
+     * @param title - Dialog title / prompt
+     * @param options - Optional configuration
+     * @returns The entered text, or `null` if cancelled
+     */
+    input(title: string, options?: InputOptions): Promise<string | null>;
+}
+
+/**
+ * Options for {@link SessionUI.confirm}.
+ */
+export interface ConfirmOptions {
+    /** Default selection (`true` for confirm, `false` for decline). */
+    default?: boolean;
+}
+
+/**
+ * An option in a {@link SessionUI.select} dialog.
+ */
+export interface SelectOption {
+    /** The value returned when this option is selected. */
+    value: string;
+    /** The label displayed to the user. Defaults to `value` if omitted. */
+    label: string;
+}
+
+/**
+ * Options for {@link SessionUI.select}.
+ */
+export interface SelectOptions {
+    /** Description shown below the title. */
+    description?: string;
+    /** Pre-selected value. */
+    default?: string;
+}
+
+/**
+ * Options for {@link SessionUI.input}.
+ */
+export interface InputOptions {
+    /** Placeholder text shown when the input is empty. */
+    placeholder?: string;
+    /** Description shown below the title. */
+    description?: string;
+    /** Default value pre-filled in the input. */
+    default?: string;
+    /** Input format hint. Enables validation in the host UI. */
+    format?: "email" | "uri" | "date" | "date-time";
+    /** Minimum length. */
+    minLength?: number;
+    /** Maximum length. */
+    maxLength?: number;
+}
+
+/**
+ * Capabilities reported by the session host in the create/resume response.
+ * The SDK uses these to determine which optional features to wire up.
+ */
+export interface HostCapabilities {
+    /** Whether the host supports interactive UI dialogs (confirm, select, input). */
+    ui?: boolean;
+}
+
+// ============================================================================
 // MCP Server Configuration Types
 // ============================================================================
 
@@ -743,6 +913,12 @@ export interface SessionConfig {
     tools?: Tool<any>[];
 
     /**
+     * Slash commands exposed to the user.
+     * Commands are invoked by the user typing `/name` in the input.
+     */
+    commands?: Command[];
+
+    /**
      * System message configuration
      * Controls how the system prompt is constructed
      */
@@ -854,6 +1030,7 @@ export type ResumeSessionConfig = Pick<
     | "clientName"
     | "model"
     | "tools"
+    | "commands"
     | "systemMessage"
     | "availableTools"
     | "excludedTools"
