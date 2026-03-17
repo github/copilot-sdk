@@ -11,164 +11,164 @@ import (
 )
 
 type PingResult struct {
-	// Echoed message (or default greeting)        
+	// Echoed message (or default greeting)
 	Message                                string  `json:"message"`
-	// Server protocol version number              
+	// Server protocol version number
 	ProtocolVersion                        float64 `json:"protocolVersion"`
-	// Server timestamp in milliseconds            
+	// Server timestamp in milliseconds
 	Timestamp                              float64 `json:"timestamp"`
 }
 
 type PingParams struct {
-	// Optional message to echo back        
+	// Optional message to echo back
 	Message                         *string `json:"message,omitempty"`
 }
 
 type ModelsListResult struct {
-	// List of available models with full metadata        
+	// List of available models with full metadata
 	Models                                        []Model `json:"models"`
 }
 
 type Model struct {
-	// Billing information                                                                             
+	// Billing information
 	Billing                                                                               *Billing     `json:"billing,omitempty"`
-	// Model capabilities and limits                                                                   
+	// Model capabilities and limits
 	Capabilities                                                                          Capabilities `json:"capabilities"`
-	// Default reasoning effort level (only present if model supports reasoning effort)                
+	// Default reasoning effort level (only present if model supports reasoning effort)
 	DefaultReasoningEffort                                                                *string      `json:"defaultReasoningEffort,omitempty"`
-	// Model identifier (e.g., "claude-sonnet-4.5")                                                    
+	// Model identifier (e.g., "claude-sonnet-4.5")
 	ID                                                                                    string       `json:"id"`
-	// Display name                                                                                    
+	// Display name
 	Name                                                                                  string       `json:"name"`
-	// Policy state (if applicable)                                                                    
+	// Policy state (if applicable)
 	Policy                                                                                *Policy      `json:"policy,omitempty"`
-	// Supported reasoning effort levels (only present if model supports reasoning effort)             
+	// Supported reasoning effort levels (only present if model supports reasoning effort)
 	SupportedReasoningEfforts                                                             []string     `json:"supportedReasoningEfforts,omitempty"`
 }
 
 // Billing information
 type Billing struct {
-	// Billing cost multiplier relative to the base rate        
+	// Billing cost multiplier relative to the base rate
 	Multiplier                                          float64 `json:"multiplier"`
 }
 
 // Model capabilities and limits
 type Capabilities struct {
-	// Token limits for prompts, outputs, and context window         
+	// Token limits for prompts, outputs, and context window
 	Limits                                                  Limits   `json:"limits"`
-	// Feature flags indicating what the model supports              
+	// Feature flags indicating what the model supports
 	Supports                                                Supports `json:"supports"`
 }
 
 // Token limits for prompts, outputs, and context window
 type Limits struct {
-	// Maximum total context window size in tokens         
+	// Maximum total context window size in tokens
 	MaxContextWindowTokens                        float64  `json:"max_context_window_tokens"`
-	// Maximum number of output/completion tokens          
+	// Maximum number of output/completion tokens
 	MaxOutputTokens                               *float64 `json:"max_output_tokens,omitempty"`
-	// Maximum number of prompt/input tokens               
+	// Maximum number of prompt/input tokens
 	MaxPromptTokens                               *float64 `json:"max_prompt_tokens,omitempty"`
 }
 
 // Feature flags indicating what the model supports
 type Supports struct {
-	// Whether this model supports reasoning effort configuration      
+	// Whether this model supports reasoning effort configuration
 	ReasoningEffort                                              *bool `json:"reasoningEffort,omitempty"`
-	// Whether this model supports vision/image input                  
+	// Whether this model supports vision/image input
 	Vision                                                       *bool `json:"vision,omitempty"`
 }
 
 // Policy state (if applicable)
 type Policy struct {
-	// Current policy state for this model            
+	// Current policy state for this model
 	State                                      string `json:"state"`
-	// Usage terms or conditions for this model       
+	// Usage terms or conditions for this model
 	Terms                                      string `json:"terms"`
 }
 
 type ToolsListResult struct {
-	// List of available built-in tools with metadata       
+	// List of available built-in tools with metadata
 	Tools                                            []Tool `json:"tools"`
 }
 
 type Tool struct {
-	// Description of what the tool does                                                                             
+	// Description of what the tool does
 	Description                                                                               string                 `json:"description"`
-	// Optional instructions for how to use this tool effectively                                                    
+	// Optional instructions for how to use this tool effectively
 	Instructions                                                                              *string                `json:"instructions,omitempty"`
-	// Tool identifier (e.g., "bash", "grep", "str_replace_editor")                                                  
+	// Tool identifier (e.g., "bash", "grep", "str_replace_editor")
 	Name                                                                                      string                 `json:"name"`
-	// Optional namespaced name for declarative filtering (e.g., "playwright/navigate" for MCP                       
-	// tools)                                                                                                        
+	// Optional namespaced name for declarative filtering (e.g., "playwright/navigate" for MCP
+	// tools)
 	NamespacedName                                                                            *string                `json:"namespacedName,omitempty"`
-	// JSON Schema for the tool's input parameters                                                                   
+	// JSON Schema for the tool's input parameters
 	Parameters                                                                                map[string]interface{} `json:"parameters,omitempty"`
 }
 
 type ToolsListParams struct {
-	// Optional model ID — when provided, the returned tool list reflects model-specific        
-	// overrides                                                                                
+	// Optional model ID — when provided, the returned tool list reflects model-specific
+	// overrides
 	Model                                                                               *string `json:"model,omitempty"`
 }
 
 type AccountGetQuotaResult struct {
-	// Quota snapshots keyed by type (e.g., chat, completions, premium_interactions)                         
+	// Quota snapshots keyed by type (e.g., chat, completions, premium_interactions)
 	QuotaSnapshots                                                                  map[string]QuotaSnapshot `json:"quotaSnapshots"`
 }
 
 type QuotaSnapshot struct {
-	// Number of requests included in the entitlement                          
+	// Number of requests included in the entitlement
 	EntitlementRequests                                                float64 `json:"entitlementRequests"`
-	// Number of overage requests made this period                             
+	// Number of overage requests made this period
 	Overage                                                            float64 `json:"overage"`
-	// Whether pay-per-request usage is allowed when quota is exhausted        
+	// Whether pay-per-request usage is allowed when quota is exhausted
 	OverageAllowedWithExhaustedQuota                                   bool    `json:"overageAllowedWithExhaustedQuota"`
-	// Percentage of entitlement remaining                                     
+	// Percentage of entitlement remaining
 	RemainingPercentage                                                float64 `json:"remainingPercentage"`
-	// Date when the quota resets (ISO 8601)                                   
+	// Date when the quota resets (ISO 8601)
 	ResetDate                                                          *string `json:"resetDate,omitempty"`
-	// Number of requests used so far this period                              
+	// Number of requests used so far this period
 	UsedRequests                                                       float64 `json:"usedRequests"`
 }
 
 type SessionModelGetCurrentResult struct {
-	// Currently active model identifier        
+	// Currently active model identifier
 	ModelID                             *string `json:"modelId,omitempty"`
 }
 
 type SessionModelSwitchToResult struct {
-	// Currently active model identifier after the switch        
+	// Currently active model identifier after the switch
 	ModelID                                              *string `json:"modelId,omitempty"`
 }
 
 type SessionModelSwitchToParams struct {
-	// Model identifier to switch to                      
+	// Model identifier to switch to
 	ModelID                                       string  `json:"modelId"`
-	// Reasoning effort level to use for the model        
+	// Reasoning effort level to use for the model
 	ReasoningEffort                               *string `json:"reasoningEffort,omitempty"`
 }
 
 type SessionModeGetResult struct {
-	// The current agent mode.     
+	// The current agent mode.
 	Mode                      Mode `json:"mode"`
 }
 
 type SessionModeSetResult struct {
-	// The agent mode after switching.     
+	// The agent mode after switching.
 	Mode                              Mode `json:"mode"`
 }
 
 type SessionModeSetParams struct {
-	// The mode to switch to. Valid values: "interactive", "plan", "autopilot".     
+	// The mode to switch to. Valid values: "interactive", "plan", "autopilot".
 	Mode                                                                       Mode `json:"mode"`
 }
 
 type SessionPlanReadResult struct {
-	// The content of the plan file, or null if it does not exist                      
+	// The content of the plan file, or null if it does not exist
 	Content                                                                    *string `json:"content"`
-	// Whether the plan file exists in the workspace                                   
+	// Whether the plan file exists in the workspace
 	Exists                                                                     bool    `json:"exists"`
-	// Absolute file path of the plan file, or null if workspace is not enabled        
+	// Absolute file path of the plan file, or null if workspace is not enabled
 	Path                                                                       *string `json:"path"`
 }
 
@@ -176,7 +176,7 @@ type SessionPlanUpdateResult struct {
 }
 
 type SessionPlanUpdateParams struct {
-	// The new content for the plan file       
+	// The new content for the plan file
 	Content                             string `json:"content"`
 }
 
@@ -184,17 +184,17 @@ type SessionPlanDeleteResult struct {
 }
 
 type SessionWorkspaceListFilesResult struct {
-	// Relative file paths in the workspace files directory         
+	// Relative file paths in the workspace files directory
 	Files                                                  []string `json:"files"`
 }
 
 type SessionWorkspaceReadFileResult struct {
-	// File content as a UTF-8 string       
+	// File content as a UTF-8 string
 	Content                          string `json:"content"`
 }
 
 type SessionWorkspaceReadFileParams struct {
-	// Relative path within the workspace files directory       
+	// Relative path within the workspace files directory
 	Path                                                 string `json:"path"`
 }
 
@@ -202,73 +202,73 @@ type SessionWorkspaceCreateFileResult struct {
 }
 
 type SessionWorkspaceCreateFileParams struct {
-	// File content to write as a UTF-8 string                  
+	// File content to write as a UTF-8 string
 	Content                                              string `json:"content"`
-	// Relative path within the workspace files directory       
+	// Relative path within the workspace files directory
 	Path                                                 string `json:"path"`
 }
 
 // Experimental: SessionFleetStartResult is part of an experimental API and may change or be removed.
 type SessionFleetStartResult struct {
-	// Whether fleet mode was successfully activated     
+	// Whether fleet mode was successfully activated
 	Started                                         bool `json:"started"`
 }
 
 // Experimental: SessionFleetStartParams is part of an experimental API and may change or be removed.
 type SessionFleetStartParams struct {
-	// Optional user prompt to combine with fleet instructions        
+	// Optional user prompt to combine with fleet instructions
 	Prompt                                                    *string `json:"prompt,omitempty"`
 }
 
 // Experimental: SessionAgentListResult is part of an experimental API and may change or be removed.
 type SessionAgentListResult struct {
-	// Available custom agents               
+	// Available custom agents
 	Agents                    []AgentElement `json:"agents"`
 }
 
 type AgentElement struct {
-	// Description of the agent's purpose          
+	// Description of the agent's purpose
 	Description                             string `json:"description"`
-	// Human-readable display name                 
+	// Human-readable display name
 	DisplayName                             string `json:"displayName"`
-	// Unique identifier of the custom agent       
+	// Unique identifier of the custom agent
 	Name                                    string `json:"name"`
 }
 
 // Experimental: SessionAgentGetCurrentResult is part of an experimental API and may change or be removed.
 type SessionAgentGetCurrentResult struct {
-	// Currently selected custom agent, or null if using the default agent                                   
+	// Currently selected custom agent, or null if using the default agent
 	Agent                                                                 *SessionAgentGetCurrentResultAgent `json:"agent"`
 }
 
 type SessionAgentGetCurrentResultAgent struct {
-	// Description of the agent's purpose          
+	// Description of the agent's purpose
 	Description                             string `json:"description"`
-	// Human-readable display name                 
+	// Human-readable display name
 	DisplayName                             string `json:"displayName"`
-	// Unique identifier of the custom agent       
+	// Unique identifier of the custom agent
 	Name                                    string `json:"name"`
 }
 
 // Experimental: SessionAgentSelectResult is part of an experimental API and may change or be removed.
 type SessionAgentSelectResult struct {
-	// The newly selected custom agent                              
+	// The newly selected custom agent
 	Agent                             SessionAgentSelectResultAgent `json:"agent"`
 }
 
 // The newly selected custom agent
 type SessionAgentSelectResultAgent struct {
-	// Description of the agent's purpose          
+	// Description of the agent's purpose
 	Description                             string `json:"description"`
-	// Human-readable display name                 
+	// Human-readable display name
 	DisplayName                             string `json:"displayName"`
-	// Unique identifier of the custom agent       
+	// Unique identifier of the custom agent
 	Name                                    string `json:"name"`
 }
 
 // Experimental: SessionAgentSelectParams is part of an experimental API and may change or be removed.
 type SessionAgentSelectParams struct {
-	// Name of the custom agent to select       
+	// Name of the custom agent to select
 	Name                                 string `json:"name"`
 }
 
@@ -278,16 +278,16 @@ type SessionAgentDeselectResult struct {
 
 // Experimental: SessionCompactionCompactResult is part of an experimental API and may change or be removed.
 type SessionCompactionCompactResult struct {
-	// Number of messages removed during compaction        
+	// Number of messages removed during compaction
 	MessagesRemoved                                float64 `json:"messagesRemoved"`
-	// Whether compaction completed successfully           
+	// Whether compaction completed successfully
 	Success                                        bool    `json:"success"`
-	// Number of tokens freed by compaction                
+	// Number of tokens freed by compaction
 	TokensRemoved                                  float64 `json:"tokensRemoved"`
 }
 
 type SessionToolsHandlePendingToolCallResult struct {
-	// Whether the tool call result was handled successfully     
+	// Whether the tool call result was handled successfully
 	Success                                                 bool `json:"success"`
 }
 
@@ -305,7 +305,7 @@ type ResultResult struct {
 }
 
 type SessionPermissionsHandlePendingPermissionRequestResult struct {
-	// Whether the permission request was handled successfully     
+	// Whether the permission request was handled successfully
 	Success                                                   bool `json:"success"`
 }
 
@@ -323,43 +323,43 @@ type SessionPermissionsHandlePendingPermissionRequestParamsResult struct {
 }
 
 type SessionLogResult struct {
-	// The unique identifier of the emitted session event       
+	// The unique identifier of the emitted session event
 	EventID                                              string `json:"eventId"`
 }
 
 type SessionLogParams struct {
-	// When true, the message is transient and not persisted to the session event log on disk         
+	// When true, the message is transient and not persisted to the session event log on disk
 	Ephemeral                                                                                  *bool  `json:"ephemeral,omitempty"`
-	// Log severity level. Determines how the message is displayed in the timeline. Defaults to       
-	// "info".                                                                                        
+	// Log severity level. Determines how the message is displayed in the timeline. Defaults to
+	// "info".
 	Level                                                                                      *Level `json:"level,omitempty"`
-	// Human-readable message                                                                         
+	// Human-readable message
 	Message                                                                                    string `json:"message"`
 }
 
 type SessionShellExecResult struct {
-	// Unique identifier for tracking streamed output       
+	// Unique identifier for tracking streamed output
 	ProcessID                                        string `json:"processId"`
 }
 
 type SessionShellExecParams struct {
-	// Shell command to execute                                          
+	// Shell command to execute
 	Command                                                     string   `json:"command"`
-	// Working directory (defaults to session working directory)         
+	// Working directory (defaults to session working directory)
 	Cwd                                                         *string  `json:"cwd,omitempty"`
-	// Timeout in milliseconds (default: 30000)                          
+	// Timeout in milliseconds (default: 30000)
 	Timeout                                                     *float64 `json:"timeout,omitempty"`
 }
 
 type SessionShellKillResult struct {
-	// Whether the signal was sent successfully     
+	// Whether the signal was sent successfully
 	Killed                                     bool `json:"killed"`
 }
 
 type SessionShellKillParams struct {
-	// Process identifier returned by shell.exec        
+	// Process identifier returned by shell.exec
 	ProcessID                                   string  `json:"processId"`
-	// Signal to send (default: SIGTERM)                
+	// Signal to send (default: SIGTERM)
 	Signal                                      *Signal `json:"signal,omitempty"`
 }
 

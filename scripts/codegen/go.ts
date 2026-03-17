@@ -180,6 +180,8 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         }
     }
     let qtCode = qtResult.lines.filter((l) => !l.startsWith("package ")).join("\n");
+    // Strip trailing whitespace from quicktype output (gofmt requirement)
+    qtCode = qtCode.replace(/[ \t]+$/gm, "");
     for (const typeName of experimentalTypeNames) {
         qtCode = qtCode.replace(
             new RegExp(`^(type ${typeName} struct)`, "m"),
