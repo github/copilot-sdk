@@ -218,12 +218,18 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     for (const [groupName, groupNode] of groups) {
         const prefix = isSession ? "" : "Server";
         const apiName = prefix + toPascalCase(groupName) + apiSuffix;
-        const fields = isSession ? "client *jsonrpc2.Client; sessionID string" : "client *jsonrpc2.Client";
         const groupExperimental = isNodeFullyExperimental(groupNode as Record<string, unknown>);
         if (groupExperimental) {
             lines.push(`// Experimental: ${apiName} contains experimental APIs that may change or be removed.`);
         }
-        lines.push(`type ${apiName} struct { ${fields} }`);
+        lines.push(`type ${apiName} struct {`);
+        if (isSession) {
+            lines.push(`\tclient    *jsonrpc2.Client`);
+            lines.push(`\tsessionID string`);
+        } else {
+            lines.push(`\tclient *jsonrpc2.Client`);
+        }
+        lines.push(`}`);
         lines.push(``);
         for (const [key, value] of Object.entries(groupNode as Record<string, unknown>)) {
             if (!isRpcMethod(value)) continue;

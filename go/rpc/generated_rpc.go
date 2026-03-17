@@ -411,7 +411,9 @@ type ResultUnion struct {
 }
 
 
-type ServerModelsRpcApi struct { client *jsonrpc2.Client }
+type ServerModelsRpcApi struct {
+	client *jsonrpc2.Client
+}
 
 func (a *ServerModelsRpcApi) List(ctx context.Context) (*ModelsListResult, error) {
 	raw, err := a.client.Request("models.list", map[string]interface{}{})
@@ -425,7 +427,9 @@ func (a *ServerModelsRpcApi) List(ctx context.Context) (*ModelsListResult, error
 	return &result, nil
 }
 
-type ServerToolsRpcApi struct { client *jsonrpc2.Client }
+type ServerToolsRpcApi struct {
+	client *jsonrpc2.Client
+}
 
 func (a *ServerToolsRpcApi) List(ctx context.Context, params *ToolsListParams) (*ToolsListResult, error) {
 	raw, err := a.client.Request("tools.list", params)
@@ -439,7 +443,9 @@ func (a *ServerToolsRpcApi) List(ctx context.Context, params *ToolsListParams) (
 	return &result, nil
 }
 
-type ServerAccountRpcApi struct { client *jsonrpc2.Client }
+type ServerAccountRpcApi struct {
+	client *jsonrpc2.Client
+}
 
 func (a *ServerAccountRpcApi) GetQuota(ctx context.Context) (*AccountGetQuotaResult, error) {
 	raw, err := a.client.Request("account.getQuota", map[string]interface{}{})
@@ -481,7 +487,10 @@ func NewServerRpc(client *jsonrpc2.Client) *ServerRpc {
 	}
 }
 
-type ModelRpcApi struct { client *jsonrpc2.Client; sessionID string }
+type ModelRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
 
 func (a *ModelRpcApi) GetCurrent(ctx context.Context) (*SessionModelGetCurrentResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
@@ -515,7 +524,10 @@ func (a *ModelRpcApi) SwitchTo(ctx context.Context, params *SessionModelSwitchTo
 	return &result, nil
 }
 
-type ModeRpcApi struct { client *jsonrpc2.Client; sessionID string }
+type ModeRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
 
 func (a *ModeRpcApi) Get(ctx context.Context) (*SessionModeGetResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
@@ -546,7 +558,10 @@ func (a *ModeRpcApi) Set(ctx context.Context, params *SessionModeSetParams) (*Se
 	return &result, nil
 }
 
-type PlanRpcApi struct { client *jsonrpc2.Client; sessionID string }
+type PlanRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
 
 func (a *PlanRpcApi) Read(ctx context.Context) (*SessionPlanReadResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
@@ -590,7 +605,10 @@ func (a *PlanRpcApi) Delete(ctx context.Context) (*SessionPlanDeleteResult, erro
 	return &result, nil
 }
 
-type WorkspaceRpcApi struct { client *jsonrpc2.Client; sessionID string }
+type WorkspaceRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
 
 func (a *WorkspaceRpcApi) ListFiles(ctx context.Context) (*SessionWorkspaceListFilesResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
@@ -639,7 +657,10 @@ func (a *WorkspaceRpcApi) CreateFile(ctx context.Context, params *SessionWorkspa
 }
 
 // Experimental: FleetRpcApi contains experimental APIs that may change or be removed.
-type FleetRpcApi struct { client *jsonrpc2.Client; sessionID string }
+type FleetRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
 
 func (a *FleetRpcApi) Start(ctx context.Context, params *SessionFleetStartParams) (*SessionFleetStartResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
@@ -660,7 +681,10 @@ func (a *FleetRpcApi) Start(ctx context.Context, params *SessionFleetStartParams
 }
 
 // Experimental: AgentRpcApi contains experimental APIs that may change or be removed.
-type AgentRpcApi struct { client *jsonrpc2.Client; sessionID string }
+type AgentRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
 
 func (a *AgentRpcApi) List(ctx context.Context) (*SessionAgentListResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
@@ -718,7 +742,10 @@ func (a *AgentRpcApi) Deselect(ctx context.Context) (*SessionAgentDeselectResult
 }
 
 // Experimental: CompactionRpcApi contains experimental APIs that may change or be removed.
-type CompactionRpcApi struct { client *jsonrpc2.Client; sessionID string }
+type CompactionRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
 
 func (a *CompactionRpcApi) Compact(ctx context.Context) (*SessionCompactionCompactResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
@@ -733,7 +760,10 @@ func (a *CompactionRpcApi) Compact(ctx context.Context) (*SessionCompactionCompa
 	return &result, nil
 }
 
-type ToolsRpcApi struct { client *jsonrpc2.Client; sessionID string }
+type ToolsRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
 
 func (a *ToolsRpcApi) HandlePendingToolCall(ctx context.Context, params *SessionToolsHandlePendingToolCallParams) (*SessionToolsHandlePendingToolCallResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
@@ -757,7 +787,10 @@ func (a *ToolsRpcApi) HandlePendingToolCall(ctx context.Context, params *Session
 	return &result, nil
 }
 
-type PermissionsRpcApi struct { client *jsonrpc2.Client; sessionID string }
+type PermissionsRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
 
 func (a *PermissionsRpcApi) HandlePendingPermissionRequest(ctx context.Context, params *SessionPermissionsHandlePendingPermissionRequestParams) (*SessionPermissionsHandlePendingPermissionRequestResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
@@ -776,7 +809,10 @@ func (a *PermissionsRpcApi) HandlePendingPermissionRequest(ctx context.Context, 
 	return &result, nil
 }
 
-type ShellRpcApi struct { client *jsonrpc2.Client; sessionID string }
+type ShellRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
 
 func (a *ShellRpcApi) Exec(ctx context.Context, params *SessionShellExecParams) (*SessionShellExecResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
