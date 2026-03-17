@@ -531,7 +531,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 });
 ```
 
-Available section IDs are defined as constants on `SystemPromptSections`: `Identity`, `Tone`, `ToolEfficiency`, `EnvironmentContext`, `CodeChangeRules`, `Guidelines`, `Safety`, `ToolInstructions`, `CustomInstructions`.
+Available section IDs are defined as constants on `SystemPromptSections`: `Identity`, `Tone`, `ToolEfficiency`, `EnvironmentContext`, `CodeChangeRules`, `Guidelines`, `Safety`, `ToolInstructions`, `CustomInstructions`, `LastInstructions`.
 
 Each section override supports four actions: `Replace`, `Remove`, `Append`, and `Prepend`. Unknown section IDs are handled gracefully: content is appended to additional instructions, and `Remove` overrides are silently ignored.
 

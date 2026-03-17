@@ -1261,7 +1261,7 @@ const session = await client.createSession({
 });
 ```
 
-Available section IDs: `identity`, `tone`, `tool_efficiency`, `environment_context`, `code_change_rules`, `guidelines`, `safety`, `tool_instructions`, `custom_instructions`.
+Available section IDs: `identity`, `tone`, `tool_efficiency`, `environment_context`, `code_change_rules`, `guidelines`, `safety`, `tool_instructions`, `custom_instructions`, `last_instructions`.
 
 Each override supports four actions: `replace`, `remove`, `append`, and `prepend`. Unknown section IDs are handled gracefully — content is appended to additional instructions and a warning is emitted; `remove` on unknown sections is silently ignored.
 

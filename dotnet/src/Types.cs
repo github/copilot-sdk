@@ -1033,6 +1033,8 @@ public static class SystemPromptSections
     public const string ToolInstructions = "tool_instructions";
     /// <summary>Repository and organization custom instructions.</summary>
     public const string CustomInstructions = "custom_instructions";
+    /// <summary>End-of-prompt instructions: parallel tool calling, persistence, task completion.</summary>
+    public const string LastInstructions = "last_instructions";
 }
 
 /// <summary>

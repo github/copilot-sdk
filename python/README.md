@@ -258,7 +258,7 @@ session = await client.create_session(
 )
 ```
 
-Available section IDs: `"identity"`, `"tone"`, `"tool_efficiency"`, `"environment_context"`, `"code_change_rules"`, `"guidelines"`, `"safety"`, `"tool_instructions"`, `"custom_instructions"`. Use the `SYSTEM_PROMPT_SECTIONS` dict for descriptions of each section.
+Available section IDs: `"identity"`, `"tone"`, `"tool_efficiency"`, `"environment_context"`, `"code_change_rules"`, `"guidelines"`, `"safety"`, `"tool_instructions"`, `"custom_instructions"`, `"last_instructions"`. Use the `SYSTEM_PROMPT_SECTIONS` dict for descriptions of each section.
 
 Each section override supports four actions:
 - **`replace`** — Replace the section content entirely

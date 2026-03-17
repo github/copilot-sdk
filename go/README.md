@@ -153,7 +153,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `SystemMessage` (\*SystemMessageConfig): System message configuration. Supports three modes:
   - **append** (default): Appends `Content` after the SDK-managed prompt
   - **replace**: Replaces the entire prompt with `Content`
-  - **customize**: Selectively override individual sections via `Sections` map (keys: `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`; values: `SectionOverride` with `Action` and optional `Content`)
+  - **customize**: Selectively override individual sections via `Sections` map (keys: `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionLastInstructions`; values: `SectionOverride` with `Action` and optional `Content`)
 - `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
 - `Streaming` (bool): Enable streaming delta events
 - `InfiniteSessions` (\*InfiniteSessionConfig): Automatic context compaction configuration
@@ -218,7 +218,7 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 })
 ```
 
-Available section constants: `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`.
+Available section constants: `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionLastInstructions`.
 
 Each section override supports four actions:
 - **`replace`** — Replace the section content entirely

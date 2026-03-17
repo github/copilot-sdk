@@ -285,7 +285,8 @@ export type SystemPromptSection =
     | "guidelines"
     | "safety"
     | "tool_instructions"
-    | "custom_instructions";
+    | "custom_instructions"
+    | "last_instructions";
 
 /** Section metadata for documentation and tooling. */
 export const SYSTEM_PROMPT_SECTIONS: Record<SystemPromptSection, { description: string }> = {
@@ -298,6 +299,7 @@ export const SYSTEM_PROMPT_SECTIONS: Record<SystemPromptSection, { description: 
     safety: { description: "Environment limitations, prohibited actions, security policies" },
     tool_instructions: { description: "Per-tool usage instructions" },
     custom_instructions: { description: "Repository and organization custom instructions" },
+    last_instructions: { description: "End-of-prompt instructions: parallel tool calling, persistence, task completion" },
 };
 
 /**

@@ -122,6 +122,7 @@ const (
 	SectionSafety             = "safety"
 	SectionToolInstructions   = "tool_instructions"
 	SectionCustomInstructions = "custom_instructions"
+	SectionLastInstructions   = "last_instructions"
 )
 
 // SectionOverride defines an override operation for a single system prompt section.
