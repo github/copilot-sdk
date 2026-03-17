@@ -532,6 +532,8 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
         //   copilot.MCP        — calling an MCP tool
         //   copilot.CustomTool — calling one of your registered tools
         //   copilot.URL        — fetching a URL
+        //   copilot.Memory     — accessing or updating Copilot-managed memory
+        //   copilot.Hook       — invoking a registered hook
         // request.ToolCallID  — pointer to the tool call that triggered this request
         // request.ToolName    — pointer to the name of the tool (for custom-tool / mcp)
         // request.FileName    — pointer to the file being written (for write)
@@ -555,7 +557,7 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
 | `PermissionRequestResultKindDeniedInteractivelyByUser` | User explicitly denied the request |
 | `PermissionRequestResultKindDeniedCouldNotRequestFromUser` | No approval rule matched and user could not be asked |
 | `PermissionRequestResultKindDeniedByRules` | Denied by a policy rule |
-| `PermissionRequestResultKindNoResult` | No decision (treated as denied) |
+| `PermissionRequestResultKindNoResult` | Leave the permission request unanswered (protocol v1 only; not allowed for protocol v2) |
 
 ### Resuming Sessions
 

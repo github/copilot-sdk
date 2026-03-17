@@ -607,19 +607,21 @@ var session = await client.CreateSessionAsync(new SessionConfig
     Model = "gpt-5",
     OnPermissionRequest = async (request, invocation) =>
     {
-        // request.Kind — what type of operation is being requested:
-        //   PermissionRequestKind.Shell      — executing a shell command
-        //   PermissionRequestKind.Write      — writing or editing a file
-        //   PermissionRequestKind.Read       — reading a file
-        //   PermissionRequestKind.Mcp        — calling an MCP tool
-        //   PermissionRequestKind.CustomTool — calling one of your registered tools
-        //   PermissionRequestKind.Url        — fetching a URL
-        // request.ToolCallId  — the tool call that triggered this request
-        // request.ToolName    — name of the tool (for custom-tool / mcp)
-        // request.FileName    — file being written (for write)
+        // request.Kind — string discriminator for the type of operation being requested:
+        //   "shell"       — executing a shell command
+        //   "write"       — writing or editing a file
+        //   "read"        — reading a file
+        //   "mcp"         — calling an MCP tool
+        //   "custom_tool" — calling one of your registered tools
+        //   "url"         — fetching a URL
+        //   "memory"      — accessing or modifying assistant memory
+        //   "hook"        — invoking a registered hook
+        // request.ToolCallId      — the tool call that triggered this request
+        // request.ToolName        — name of the tool (for custom-tool / mcp)
+        // request.FileName        — file being written (for write)
         // request.FullCommandText — full shell command text (for shell)
 
-        if (request.Kind == PermissionRequestKind.Shell)
+        if (request.Kind == "shell")
         {
             // Deny shell commands
             return new PermissionRequestResult { Kind = PermissionRequestResultKind.DeniedInteractivelyByUser };
@@ -638,7 +640,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 | `PermissionRequestResultKind.DeniedInteractivelyByUser` | User explicitly denied the request |
 | `PermissionRequestResultKind.DeniedCouldNotRequestFromUser` | No approval rule matched and user could not be asked |
 | `PermissionRequestResultKind.DeniedByRules` | Denied by a policy rule |
-| `PermissionRequestResultKind.NoResult` | No decision (treated as denied) |
+| `PermissionRequestResultKind.NoResult` | Leave the permission request unanswered (the SDK returns without calling the RPC). Not allowed for protocol v2 permission requests (will be rejected). |
 
 ### Resuming Sessions
 

@@ -684,6 +684,9 @@ const session = await client.createSession({
         //   "mcp"         — calling an MCP tool
         //   "custom-tool" — calling one of your registered tools
         //   "url"         — fetching a URL
+        //   "memory"      — storing or retrieving persistent session memory
+        //   "hook"        — invoking a server-side hook or integration
+        //   (additional kinds may be added; include a default case in handlers)
         // request.toolCallId — the tool call that triggered this request
         // request.toolName   — name of the tool (for custom-tool / mcp)
         // request.fileName   — file being written (for write)
@@ -708,7 +711,7 @@ const session = await client.createSession({
 | `"denied-no-approval-rule-and-could-not-request-from-user"` | No approval rule matched and user could not be asked |
 | `"denied-by-rules"` | Denied by a policy rule |
 | `"denied-by-content-exclusion-policy"` | Denied due to a content exclusion policy |
-
+| `"no-result"` | Leave the request unanswered (only valid with protocol v1; rejected by protocol v2 servers) |
 ### Resuming Sessions
 
 Pass `onPermissionRequest` when resuming a session too — it is required:

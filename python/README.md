@@ -508,6 +508,8 @@ def on_permission_request(request: PermissionRequest, invocation: dict) -> Permi
     #   "mcp"         — calling an MCP tool
     #   "custom-tool" — calling one of your registered tools
     #   "url"         — fetching a URL
+    #   "memory"      — accessing or updating session/workspace memory
+    #   "hook"        — invoking a registered hook
     # request.tool_call_id  — the tool call that triggered this request
     # request.tool_name     — name of the tool (for custom-tool / mcp)
     # request.file_name     — file being written (for write)
@@ -543,6 +545,7 @@ async def on_permission_request(request: PermissionRequest, invocation: dict) ->
 | `"denied-no-approval-rule-and-could-not-request-from-user"` | No approval rule matched and user could not be asked (default when no kind is specified) |
 | `"denied-by-rules"` | Denied by a policy rule |
 | `"denied-by-content-exclusion-policy"` | Denied due to a content exclusion policy |
+| `"no-result"` | Leave the request unanswered (not allowed for protocol v2 permission requests) |
 
 ### Resuming Sessions
 
