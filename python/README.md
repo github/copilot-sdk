@@ -25,15 +25,18 @@ python chat.py
 
 ```python
 import asyncio
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 
 async def main():
     # Create and start client
     client = CopilotClient()
     await client.start()
 
-    # Create a session
-    session = await client.create_session({"model": "gpt-5"})
+    # Create a session (on_permission_request is required)
+    session = await client.create_session({
+        "model": "gpt-5",
+        "on_permission_request": PermissionHandler.approve_all,
+    })
 
     # Wait for response using session.idle event
     done = asyncio.Event()
@@ -60,7 +63,10 @@ asyncio.run(main())
 Sessions also support the `async with` context manager pattern for automatic cleanup:
 
 ```python
-async with await client.create_session({"model": "gpt-5"}) as session:
+async with await client.create_session({
+    "model": "gpt-5",
+    "on_permission_request": PermissionHandler.approve_all,
+}) as session:
     await session.send("What is 2+2?")
     # session is automatically disconnected when leaving the block
 ```
@@ -144,6 +150,7 @@ CopilotClient(
 - `streaming` (bool): Enable streaming delta events
 - `provider` (dict): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
 - `infinite_sessions` (dict): Automatic context compaction configuration
+- `on_permission_request` (callable): **Required.** Handler called before each tool execution to approve or deny it. Use `PermissionHandler.approve_all` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
 - `on_user_input_request` (callable): Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
 - `hooks` (dict): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
@@ -468,6 +475,88 @@ client = CopilotClient(SubprocessConfig(
 Trace context (`traceparent`/`tracestate`) is automatically propagated between the SDK and CLI on `create_session`, `resume_session`, and `send` calls, and inbound when the CLI invokes tool handlers.
 
 Install with telemetry extras: `pip install copilot-sdk[telemetry]` (provides `opentelemetry-api`)
+
+## Permission Handling
+
+An `on_permission_request` handler is **required** whenever you create or resume a session. The handler is called before the agent executes each tool (file writes, shell commands, custom tools, etc.) and must return a decision.
+
+### Approve All (simplest)
+
+Use the built-in `PermissionHandler.approve_all` helper to allow every tool call without any checks:
+
+```python
+from copilot import CopilotClient, PermissionHandler
+
+session = await client.create_session({
+    "model": "gpt-5",
+    "on_permission_request": PermissionHandler.approve_all,
+})
+```
+
+### Custom Permission Handler
+
+Provide your own function to inspect each request and apply custom logic (sync or async):
+
+```python
+from copilot import PermissionRequest, PermissionRequestResult
+
+def on_permission_request(request: PermissionRequest, invocation: dict) -> PermissionRequestResult:
+    # request.kind — what type of operation is being requested:
+    #   "shell"       — executing a shell command
+    #   "write"       — writing or editing a file
+    #   "read"        — reading a file
+    #   "mcp"         — calling an MCP tool
+    #   "custom-tool" — calling one of your registered tools
+    #   "url"         — fetching a URL
+    # request.tool_call_id  — the tool call that triggered this request
+    # request.tool_name     — name of the tool (for custom-tool / mcp)
+    # request.file_name     — file being written (for write)
+    # request.full_command_text — full shell command (for shell)
+
+    if request.kind.value == "shell":
+        # Deny shell commands
+        return PermissionRequestResult(kind="denied-interactively-by-user")
+
+    return PermissionRequestResult(kind="approved")
+
+session = await client.create_session({
+    "model": "gpt-5",
+    "on_permission_request": on_permission_request,
+})
+```
+
+Async handlers are also supported:
+
+```python
+async def on_permission_request(request: PermissionRequest, invocation: dict) -> PermissionRequestResult:
+    # Simulate an async approval check (e.g., prompting a user over a network)
+    await asyncio.sleep(0)
+    return PermissionRequestResult(kind="approved")
+```
+
+### Permission Result Kinds
+
+| `kind` value | Meaning |
+|---|---------|
+| `"approved"` | Allow the tool to run |
+| `"denied-interactively-by-user"` | User explicitly denied the request |
+| `"denied-no-approval-rule-and-could-not-request-from-user"` | No approval rule matched and user could not be asked (default when no kind is specified) |
+| `"denied-by-rules"` | Denied by a policy rule |
+| `"denied-by-content-exclusion-policy"` | Denied due to a content exclusion policy |
+
+### Resuming Sessions
+
+Pass `on_permission_request` when resuming a session too — it is required:
+
+```python
+session = await client.resume_session("session-id", {
+    "on_permission_request": PermissionHandler.approve_all,
+})
+```
+
+### Per-Tool Skip Permission
+
+To let a specific custom tool bypass the permission prompt entirely, set `skip_permission=True` on the tool definition. See [Skipping Permission Prompts](#skipping-permission-prompts) under Tools.
 
 ## User Input Requests
 

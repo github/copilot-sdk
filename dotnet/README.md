@@ -28,10 +28,11 @@ using GitHub.Copilot.SDK;
 await using var client = new CopilotClient();
 await client.StartAsync();
 
-// Create a session
+// Create a session (OnPermissionRequest is required)
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
-    Model = "gpt-5"
+    Model = "gpt-5",
+    OnPermissionRequest = PermissionHandler.ApproveAll,
 });
 
 // Wait for response using session.idle event
@@ -110,12 +111,17 @@ Create a new conversation session.
 - `Provider` - Custom API provider configuration (BYOK)
 - `Streaming` - Enable streaming of response chunks (default: false)
 - `InfiniteSessions` - Configure automatic context compaction (see below)
+- `OnPermissionRequest` - **Required.** Handler called before each tool execution to approve or deny it. Use `PermissionHandler.ApproveAll` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` - Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
 - `Hooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
 ##### `ResumeSessionAsync(string sessionId, ResumeSessionConfig? config = null): Task<CopilotSession>`
 
 Resume an existing session. Returns the session with `WorkspacePath` populated if infinite sessions were enabled.
+
+**ResumeSessionConfig:**
+
+- `OnPermissionRequest` - **Required.** Handler called before each tool execution to approve or deny it. See [Permission Handling](#permission-handling) section.
 
 ##### `PingAsync(string? message = null): Task<PingResponse>`
 
@@ -572,6 +578,82 @@ var client = new CopilotClient(new CopilotClientOptions
 Trace context (`traceparent`/`tracestate`) is automatically propagated between the SDK and CLI on `CreateSessionAsync`, `ResumeSessionAsync`, and `SendAsync` calls, and inbound when the CLI invokes tool handlers.
 
 No extra dependencies — uses built-in `System.Diagnostics.Activity`.
+
+## Permission Handling
+
+An `OnPermissionRequest` handler is **required** whenever you create or resume a session. The handler is called before the agent executes each tool (file writes, shell commands, custom tools, etc.) and must return a decision.
+
+### Approve All (simplest)
+
+Use the built-in `PermissionHandler.ApproveAll` helper to allow every tool call without any checks:
+
+```csharp
+using GitHub.Copilot.SDK;
+
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    Model = "gpt-5",
+    OnPermissionRequest = PermissionHandler.ApproveAll,
+});
+```
+
+### Custom Permission Handler
+
+Provide your own `PermissionRequestHandler` delegate to inspect each request and apply custom logic:
+
+```csharp
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    Model = "gpt-5",
+    OnPermissionRequest = async (request, invocation) =>
+    {
+        // request.Kind — what type of operation is being requested:
+        //   PermissionRequestKind.Shell      — executing a shell command
+        //   PermissionRequestKind.Write      — writing or editing a file
+        //   PermissionRequestKind.Read       — reading a file
+        //   PermissionRequestKind.Mcp        — calling an MCP tool
+        //   PermissionRequestKind.CustomTool — calling one of your registered tools
+        //   PermissionRequestKind.Url        — fetching a URL
+        // request.ToolCallId  — the tool call that triggered this request
+        // request.ToolName    — name of the tool (for custom-tool / mcp)
+        // request.FileName    — file being written (for write)
+        // request.FullCommandText — full shell command text (for shell)
+
+        if (request.Kind == PermissionRequestKind.Shell)
+        {
+            // Deny shell commands
+            return new PermissionRequestResult { Kind = PermissionRequestResultKind.DeniedInteractivelyByUser };
+        }
+
+        return new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved };
+    }
+});
+```
+
+### Permission Result Kinds
+
+| Value | Meaning |
+|-------|---------|
+| `PermissionRequestResultKind.Approved` | Allow the tool to run |
+| `PermissionRequestResultKind.DeniedInteractivelyByUser` | User explicitly denied the request |
+| `PermissionRequestResultKind.DeniedCouldNotRequestFromUser` | No approval rule matched and user could not be asked |
+| `PermissionRequestResultKind.DeniedByRules` | Denied by a policy rule |
+| `PermissionRequestResultKind.NoResult` | No decision (treated as denied) |
+
+### Resuming Sessions
+
+Pass `OnPermissionRequest` when resuming a session too — it is required:
+
+```csharp
+var session = await client.ResumeSessionAsync("session-id", new ResumeSessionConfig
+{
+    OnPermissionRequest = PermissionHandler.ApproveAll,
+});
+```
+
+### Per-Tool Skip Permission
+
+To let a specific custom tool bypass the permission prompt entirely, set `skip_permission = true` in the tool's `AdditionalProperties`. See [Skipping Permission Prompts](#skipping-permission-prompts) under Tools.
 
 ## User Input Requests
 

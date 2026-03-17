@@ -44,9 +44,10 @@ func main() {
     }
     defer client.Stop()
 
-    // Create a session
+    // Create a session (OnPermissionRequest is required)
     session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
-        Model: "gpt-5",
+        Model:               "gpt-5",
+        OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
     })
     if err != nil {
         log.Fatal(err)
@@ -153,11 +154,13 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
 - `Streaming` (bool): Enable streaming delta events
 - `InfiniteSessions` (\*InfiniteSessionConfig): Automatic context compaction configuration
+- `OnPermissionRequest` (PermissionHandlerFunc): **Required.** Handler called before each tool execution to approve or deny it. Use `copilot.PermissionHandler.ApproveAll` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` (UserInputHandler): Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
 - `Hooks` (\*SessionHooks): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
 **ResumeSessionConfig:**
 
+- `OnPermissionRequest` (PermissionHandlerFunc): **Required.** Handler called before each tool execution to approve or deny it. See [Permission Handling](#permission-handling) section.
 - `Tools` ([]Tool): Tools to expose when resuming
 - `ReasoningEffort` (string): Reasoning effort level for models that support it
 - `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
@@ -498,6 +501,75 @@ Trace context (`traceparent`/`tracestate`) is automatically propagated between t
 > **Note:** The current `ToolHandler` signature does not accept a `context.Context`, so the inbound trace context cannot be passed to handler code. Spans created inside a tool handler will not be automatically parented to the CLI's `execute_tool` span. A future version may add a context parameter.
 
 Dependency: `go.opentelemetry.io/otel`
+
+## Permission Handling
+
+An `OnPermissionRequest` handler is **required** whenever you create or resume a session. The handler is called before the agent executes each tool (file writes, shell commands, custom tools, etc.) and must return a decision.
+
+### Approve All (simplest)
+
+Use the built-in `PermissionHandler.ApproveAll` helper to allow every tool call without any checks:
+
+```go
+session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
+    Model:               "gpt-5",
+    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+})
+```
+
+### Custom Permission Handler
+
+Provide your own `PermissionHandlerFunc` to inspect each request and apply custom logic:
+
+```go
+session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
+    Model: "gpt-5",
+    OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+        // request.Kind — what type of operation is being requested:
+        //   copilot.KindShell  — executing a shell command
+        //   copilot.Write      — writing or editing a file
+        //   copilot.Read       — reading a file
+        //   copilot.MCP        — calling an MCP tool
+        //   copilot.CustomTool — calling one of your registered tools
+        //   copilot.URL        — fetching a URL
+        // request.ToolCallID  — pointer to the tool call that triggered this request
+        // request.ToolName    — pointer to the name of the tool (for custom-tool / mcp)
+        // request.FileName    — pointer to the file being written (for write)
+        // request.FullCommandText — pointer to the full shell command (for shell)
+
+        if request.Kind == copilot.KindShell {
+            // Deny shell commands
+            return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindDeniedInteractivelyByUser}, nil
+        }
+
+        return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+    },
+})
+```
+
+### Permission Result Kinds
+
+| Constant | Meaning |
+|----------|---------|
+| `PermissionRequestResultKindApproved` | Allow the tool to run |
+| `PermissionRequestResultKindDeniedInteractivelyByUser` | User explicitly denied the request |
+| `PermissionRequestResultKindDeniedCouldNotRequestFromUser` | No approval rule matched and user could not be asked |
+| `PermissionRequestResultKindDeniedByRules` | Denied by a policy rule |
+| `PermissionRequestResultKindNoResult` | No decision (treated as denied) |
+
+### Resuming Sessions
+
+Pass `OnPermissionRequest` when resuming a session too — it is required:
+
+```go
+session, err := client.ResumeSession(context.Background(), sessionID, &copilot.ResumeSessionConfig{
+    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+})
+```
+
+### Per-Tool Skip Permission
+
+To let a specific custom tool bypass the permission prompt entirely, set `SkipPermission = true` on the tool. See [Skipping Permission Prompts](#skipping-permission-prompts) under Tools.
 
 ## User Input Requests
 
