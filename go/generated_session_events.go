@@ -1255,7 +1255,7 @@ type ReferenceType string
 const (
 	ReferenceTypeDiscussion ReferenceType = "discussion"
 	ReferenceTypeIssue      ReferenceType = "issue"
-	ReferenceTypePr         ReferenceType = "pr"
+	ReferenceTypePR         ReferenceType = "pr"
 )
 
 type AttachmentType string
@@ -1272,7 +1272,7 @@ const (
 type HostType string
 
 const (
-	HostTypeAdo    HostType = "ado"
+	HostTypeADO    HostType = "ado"
 	HostTypeGithub HostType = "github"
 )
 
@@ -1334,10 +1334,10 @@ const (
 	PermissionRequestKindCustomTool PermissionRequestKind = "custom-tool"
 	PermissionRequestKindHook       PermissionRequestKind = "hook"
 	PermissionRequestKindShell      PermissionRequestKind = "shell"
-	PermissionRequestKindMcp        PermissionRequestKind = "mcp"
+	PermissionRequestKindMCP        PermissionRequestKind = "mcp"
 	PermissionRequestKindMemory     PermissionRequestKind = "memory"
 	PermissionRequestKindRead       PermissionRequestKind = "read"
-	PermissionRequestKindUrl        PermissionRequestKind = "url"
+	PermissionRequestKindURL        PermissionRequestKind = "url"
 	PermissionRequestKindWrite      PermissionRequestKind = "write"
 )
 
@@ -1458,8 +1458,8 @@ const (
 	SessionEventTypeSessionHandoff                SessionEventType = "session.handoff"
 	SessionEventTypeSessionIdle                   SessionEventType = "session.idle"
 	SessionEventTypeSessionInfo                   SessionEventType = "session.info"
-	SessionEventTypeSessionMcpServerStatusChanged SessionEventType = "session.mcp_server_status_changed"
-	SessionEventTypeSessionMcpServersLoaded       SessionEventType = "session.mcp_servers_loaded"
+	SessionEventTypeSessionMCPServerStatusChanged SessionEventType = "session.mcp_server_status_changed"
+	SessionEventTypeSessionMCPServersLoaded       SessionEventType = "session.mcp_servers_loaded"
 	SessionEventTypeSessionModeChanged            SessionEventType = "session.mode_changed"
 	SessionEventTypeSessionModelChange            SessionEventType = "session.model_change"
 	SessionEventTypeSessionPlanChanged            SessionEventType = "session.plan_changed"
