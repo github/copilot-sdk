@@ -1255,7 +1255,7 @@ type ReferenceType string
 const (
 	ReferenceTypeDiscussion ReferenceType = "discussion"
 	ReferenceTypeIssue      ReferenceType = "issue"
-	ReferenceTypePR         ReferenceType = "pr"
+	ReferenceTypePr         ReferenceType = "pr"
 )
 
 type AttachmentType string
@@ -1272,7 +1272,7 @@ const (
 type HostType string
 
 const (
-	HostTypeADO    HostType = "ado"
+	HostTypeAdo    HostType = "ado"
 	HostTypeGithub HostType = "github"
 )
 
@@ -1334,7 +1334,7 @@ const (
 	PermissionRequestKindCustomTool PermissionRequestKind = "custom-tool"
 	PermissionRequestKindHook       PermissionRequestKind = "hook"
 	PermissionRequestKindShell      PermissionRequestKind = "shell"
-	PermissionRequestKindMCP        PermissionRequestKind = "mcp"
+	PermissionRequestKindMcp        PermissionRequestKind = "mcp"
 	PermissionRequestKindMemory     PermissionRequestKind = "memory"
 	PermissionRequestKindRead       PermissionRequestKind = "read"
 	PermissionRequestKindURL        PermissionRequestKind = "url"
@@ -1458,8 +1458,8 @@ const (
 	SessionEventTypeSessionHandoff                SessionEventType = "session.handoff"
 	SessionEventTypeSessionIdle                   SessionEventType = "session.idle"
 	SessionEventTypeSessionInfo                   SessionEventType = "session.info"
-	SessionEventTypeSessionMCPServerStatusChanged SessionEventType = "session.mcp_server_status_changed"
-	SessionEventTypeSessionMCPServersLoaded       SessionEventType = "session.mcp_servers_loaded"
+	SessionEventTypeSessionMcpServerStatusChanged SessionEventType = "session.mcp_server_status_changed"
+	SessionEventTypeSessionMcpServersLoaded       SessionEventType = "session.mcp_servers_loaded"
 	SessionEventTypeSessionModeChanged            SessionEventType = "session.mode_changed"
 	SessionEventTypeSessionModelChange            SessionEventType = "session.model_change"
 	SessionEventTypeSessionPlanChanged            SessionEventType = "session.plan_changed"

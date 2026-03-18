@@ -27,7 +27,7 @@ const execFileAsync = promisify(execFile);
 // ── Utilities ───────────────────────────────────────────────────────────────
 
 // Go initialisms that should be all-caps
-const goInitialisms = new Set(["id", "url", "api", "http", "https", "json", "xml", "html", "css", "sql", "ssh", "tcp", "udp", "ip", "rpc", "mcp", "pr", "ado"]);
+const goInitialisms = new Set(["id", "url", "api", "http", "https", "json", "xml", "html", "css", "sql", "ssh", "tcp", "udp", "ip", "rpc"]);
 
 function toPascalCase(s: string): string {
     return s

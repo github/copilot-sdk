@@ -972,12 +972,12 @@ func (a *SkillsRpcApi) Reload(ctx context.Context) (*SessionSkillsReloadResult, 
 	return &result, nil
 }
 
-type MCPRpcApi struct {
+type McpRpcApi struct {
 	client    *jsonrpc2.Client
 	sessionID string
 }
 
-func (a *MCPRpcApi) List(ctx context.Context) (*SessionMCPListResult, error) {
+func (a *McpRpcApi) List(ctx context.Context) (*SessionMCPListResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.mcp.list", req)
 	if err != nil {
@@ -990,7 +990,7 @@ func (a *MCPRpcApi) List(ctx context.Context) (*SessionMCPListResult, error) {
 	return &result, nil
 }
 
-func (a *MCPRpcApi) Enable(ctx context.Context, params *SessionMCPEnableParams) (*SessionMCPEnableResult, error) {
+func (a *McpRpcApi) Enable(ctx context.Context, params *SessionMCPEnableParams) (*SessionMCPEnableResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
 	if params != nil {
 		req["serverName"] = params.ServerName
@@ -1006,7 +1006,7 @@ func (a *MCPRpcApi) Enable(ctx context.Context, params *SessionMCPEnableParams) 
 	return &result, nil
 }
 
-func (a *MCPRpcApi) Disable(ctx context.Context, params *SessionMCPDisableParams) (*SessionMCPDisableResult, error) {
+func (a *McpRpcApi) Disable(ctx context.Context, params *SessionMCPDisableParams) (*SessionMCPDisableResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
 	if params != nil {
 		req["serverName"] = params.ServerName
@@ -1022,7 +1022,7 @@ func (a *MCPRpcApi) Disable(ctx context.Context, params *SessionMCPDisableParams
 	return &result, nil
 }
 
-func (a *MCPRpcApi) Reload(ctx context.Context) (*SessionMCPReloadResult, error) {
+func (a *McpRpcApi) Reload(ctx context.Context) (*SessionMCPReloadResult, error) {
 	req := map[string]interface{}{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.mcp.reload", req)
 	if err != nil {
@@ -1240,7 +1240,7 @@ type SessionRpc struct {
 	Fleet       *FleetRpcApi
 	Agent       *AgentRpcApi
 	Skills      *SkillsRpcApi
-	MCP         *MCPRpcApi
+	Mcp         *McpRpcApi
 	Plugins     *PluginsRpcApi
 	Extensions  *ExtensionsRpcApi
 	Compaction  *CompactionRpcApi
@@ -1283,7 +1283,7 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 		Fleet:       &FleetRpcApi{client: client, sessionID: sessionID},
 		Agent:       &AgentRpcApi{client: client, sessionID: sessionID},
 		Skills:      &SkillsRpcApi{client: client, sessionID: sessionID},
-		MCP:         &MCPRpcApi{client: client, sessionID: sessionID},
+		Mcp:         &McpRpcApi{client: client, sessionID: sessionID},
 		Plugins:     &PluginsRpcApi{client: client, sessionID: sessionID},
 		Extensions:  &ExtensionsRpcApi{client: client, sessionID: sessionID},
 		Compaction:  &CompactionRpcApi{client: client, sessionID: sessionID},
