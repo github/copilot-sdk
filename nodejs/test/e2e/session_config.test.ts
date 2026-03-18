@@ -43,6 +43,25 @@ describe("Session Configuration", async () => {
         }
     });
 
+    it("should accept blob attachments", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+
+        await session.send({
+            prompt: "Describe this image",
+            attachments: [
+                {
+                    type: "blob",
+                    data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                    mimeType: "image/png",
+                    displayName: "test-pixel.png",
+                },
+            ],
+        });
+
+        // Just verify send doesn't throw — blob attachment support varies by runtime
+        await session.disconnect();
+    });
+
     it("should accept message attachments", async () => {
         await writeFile(join(workDir, "attached.txt"), "This file is attached");
 

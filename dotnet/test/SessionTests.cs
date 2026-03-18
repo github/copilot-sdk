@@ -538,6 +538,29 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         await disposed.Task.WaitAsync(TimeSpan.FromSeconds(10));
     }
 
+    [Fact]
+    public async Task Should_Accept_Blob_Attachments()
+    {
+        var session = await CreateSessionAsync();
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Describe this image",
+            Attachments =
+            [
+                new UserMessageDataAttachmentsItemBlob
+                {
+                    Data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                    MimeType = "image/png",
+                    DisplayName = "test-pixel.png",
+                },
+            ],
+        });
+
+        // Just verify send doesn't throw — blob attachment support varies by runtime
+        await session.DisposeAsync();
+    }
+
     private static async Task WaitForAsync(Func<bool> condition, TimeSpan timeout)
     {
         var deadline = DateTime.UtcNow + timeout;

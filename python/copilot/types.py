@@ -65,8 +65,19 @@ class SelectionAttachment(TypedDict):
     text: NotRequired[str]
 
 
+class BlobAttachment(TypedDict):
+    """Inline base64-encoded content attachment (e.g. images)."""
+
+    type: Literal["blob"]
+    data: str
+    """Base64-encoded content"""
+    mimeType: str
+    """MIME type of the inline data"""
+    displayName: NotRequired[str]
+
+
 # Attachment type - union of all attachment types
-Attachment = FileAttachment | DirectoryAttachment | SelectionAttachment
+Attachment = FileAttachment | DirectoryAttachment | SelectionAttachment | BlobAttachment
 
 
 # Configuration for OpenTelemetry integration with the Copilot CLI.
