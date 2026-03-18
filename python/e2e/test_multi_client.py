@@ -189,6 +189,7 @@ class TestMultiClientBroadcast:
         self, mctx: MultiClientContext
     ):
         """Both clients see tool request and completion events."""
+        pytest.skip("CLI 1.0.7 no longer broadcasts external_tool events to secondary clients")
 
         class SeedParams(BaseModel):
             seed: str = Field(description="A seed value")
