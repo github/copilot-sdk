@@ -2731,21 +2731,21 @@ class McpApi:
         self._client = client
         self._session_id = session_id
 
-    async def list(self, *, timeout: float | None = None) -> SessionMcpListResult:
-        return SessionMcpListResult.from_dict(await self._client.request("session.mcp.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+    async def list(self, *, timeout: float | None = None) -> SessionMCPListResult:
+        return SessionMCPListResult.from_dict(await self._client.request("session.mcp.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
-    async def enable(self, params: SessionMcpEnableParams, *, timeout: float | None = None) -> SessionMcpEnableResult:
+    async def enable(self, params: SessionMCPEnableParams, *, timeout: float | None = None) -> SessionMCPEnableResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return SessionMcpEnableResult.from_dict(await self._client.request("session.mcp.enable", params_dict, **_timeout_kwargs(timeout)))
+        return SessionMCPEnableResult.from_dict(await self._client.request("session.mcp.enable", params_dict, **_timeout_kwargs(timeout)))
 
-    async def disable(self, params: SessionMcpDisableParams, *, timeout: float | None = None) -> SessionMcpDisableResult:
+    async def disable(self, params: SessionMCPDisableParams, *, timeout: float | None = None) -> SessionMCPDisableResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return SessionMcpDisableResult.from_dict(await self._client.request("session.mcp.disable", params_dict, **_timeout_kwargs(timeout)))
+        return SessionMCPDisableResult.from_dict(await self._client.request("session.mcp.disable", params_dict, **_timeout_kwargs(timeout)))
 
-    async def reload(self, *, timeout: float | None = None) -> SessionMcpReloadResult:
-        return SessionMcpReloadResult.from_dict(await self._client.request("session.mcp.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+    async def reload(self, *, timeout: float | None = None) -> SessionMCPReloadResult:
+        return SessionMCPReloadResult.from_dict(await self._client.request("session.mcp.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
 # Experimental: this API group is experimental and may change or be removed.
