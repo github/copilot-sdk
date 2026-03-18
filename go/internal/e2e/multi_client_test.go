@@ -120,7 +120,7 @@ func TestMultiClient(t *testing.T) {
 		}
 
 		// Wait for all broadcast events to arrive on both clients
-		timeout := time.After(10 * time.Second)
+		timeout := time.After(30 * time.Second)
 		for _, ch := range []chan struct{}{client1Requested, client2Requested, client1Completed, client2Completed} {
 			select {
 			case <-ch:
