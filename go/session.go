@@ -544,8 +544,8 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 		if r := recover(); r != nil {
 			errMsg := fmt.Sprintf("tool panic: %v", r)
 			s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.SessionToolsHandlePendingToolCallParams{
-				RequestID:  requestID,
-				LevelError: &errMsg,
+				RequestID: requestID,
+				Error:     &errMsg,
 			})
 		}
 	}()
@@ -562,8 +562,8 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 	if err != nil {
 		errMsg := err.Error()
 		s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.SessionToolsHandlePendingToolCallParams{
-			RequestID:  requestID,
-			LevelError: &errMsg,
+			RequestID: requestID,
+			Error:     &errMsg,
 		})
 		return
 	}
