@@ -92,7 +92,7 @@ public class MultiClientTests : IClassFixture<MultiClientTestFixture>, IAsyncLif
 
     private CopilotClient Client2 => _client2 ?? throw new InvalidOperationException("Client2 not initialized");
 
-    [Fact(Skip = "CLI 1.0.7 no longer broadcasts external_tool events to secondary clients")]
+    [Fact]
     public async Task Both_Clients_See_Tool_Request_And_Completion_Events()
     {
         var tool = AIFunctionFactory.Create(MagicNumber, "magic_number");

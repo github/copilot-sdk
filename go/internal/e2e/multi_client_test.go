@@ -44,7 +44,6 @@ func TestMultiClient(t *testing.T) {
 	t.Cleanup(func() { client2.ForceStop() })
 
 	t.Run("both clients see tool request and completion events", func(t *testing.T) {
-		t.Skip("Skipped: CLI 1.0.7 no longer broadcasts external_tool events to secondary clients")
 		ctx.ConfigureForTest(t)
 
 		type SeedParams struct {
