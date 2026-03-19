@@ -25,12 +25,12 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any, cast, overload
 
+from ._jsonrpc import JsonRpcClient, ProcessExitedError
+from ._sdk_protocol_version import get_sdk_protocol_version
+from ._telemetry import get_trace_context, trace_context
 from .generated.rpc import ServerRpc
 from .generated.session_events import PermissionRequest, session_event_from_dict
-from .jsonrpc import JsonRpcClient, ProcessExitedError
-from .sdk_protocol_version import get_sdk_protocol_version
 from .session import CopilotSession
-from .telemetry import get_trace_context, trace_context
 from .types import (
     ConnectionState,
     CustomAgentConfig,

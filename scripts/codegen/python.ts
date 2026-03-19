@@ -10,8 +10,9 @@ import fs from "fs/promises";
 import type { JSONSchema7 } from "json-schema";
 import { FetchingJSONSchemaStore, InputData, JSONSchemaInput, quicktype } from "quicktype-core";
 import {
-    getSessionEventsSchemaPath,
     getApiSchemaPath,
+    getSessionEventsSchemaPath,
+    isRpcMethod,
     postProcessSchema,
     writeGeneratedFile,
     isRpcMethod,
@@ -242,7 +243,7 @@ Generated from: api.schema.json
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..jsonrpc import JsonRpcClient
+    from .._jsonrpc import JsonRpcClient
 
 `);
     lines.push(typesCode);

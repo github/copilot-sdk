@@ -13,7 +13,7 @@ import time
 
 import pytest
 
-from copilot.jsonrpc import JsonRpcClient
+from copilot._jsonrpc import JsonRpcClient
 
 
 class MockProcess:

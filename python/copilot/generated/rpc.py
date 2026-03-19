@@ -6,7 +6,7 @@ Generated from: api.schema.json
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..jsonrpc import JsonRpcClient
+    from .._jsonrpc import JsonRpcClient
 
 
 from dataclasses import dataclass
