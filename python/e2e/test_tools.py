@@ -21,7 +21,7 @@ class TestTools:
             f.write("# ELIZA, the only chatbot you'll ever need")
 
         session = await ctx.client.create_session(
-            {"on_permission_request": PermissionHandler.approve_all}
+            on_permission_request=PermissionHandler.approve_all
         )
 
         await session.send("What's the first line of README.md in this directory?")
@@ -37,7 +37,7 @@ class TestTools:
             return params.input.upper()
 
         session = await ctx.client.create_session(
-            {"tools": [encrypt_string], "on_permission_request": PermissionHandler.approve_all}
+            on_permission_request=PermissionHandler.approve_all, tools=[encrypt_string]
         )
 
         await session.send("Use encrypt_string to encrypt this string: Hello")
@@ -50,7 +50,7 @@ class TestTools:
             raise Exception("Melbourne")
 
         session = await ctx.client.create_session(
-            {"tools": [get_user_location], "on_permission_request": PermissionHandler.approve_all}
+            on_permission_request=PermissionHandler.approve_all, tools=[get_user_location]
         )
 
         await session.send("What is my location? If you can't find out, just say 'unknown'.")
@@ -113,7 +113,7 @@ class TestTools:
             ]
 
         session = await ctx.client.create_session(
-            {"tools": [db_query], "on_permission_request": PermissionHandler.approve_all}
+            on_permission_request=PermissionHandler.approve_all, tools=[db_query]
         )
         expected_session_id = session.session_id
 
@@ -151,7 +151,7 @@ class TestTools:
             return PermissionRequestResult(kind="no-result")
 
         session = await ctx.client.create_session(
-            {"tools": [safe_lookup], "on_permission_request": tracking_handler}
+            on_permission_request=tracking_handler, tools=[safe_lookup]
         )
 
         await session.send("Use safe_lookup to look up 'test123'")
@@ -172,7 +172,7 @@ class TestTools:
             return f"CUSTOM_GREP_RESULT: {params.query}"
 
         session = await ctx.client.create_session(
-            {"tools": [custom_grep], "on_permission_request": PermissionHandler.approve_all}
+            on_permission_request=PermissionHandler.approve_all, tools=[custom_grep]
         )
 
         await session.send("Use grep to search for the word 'hello'")
@@ -194,10 +194,7 @@ class TestTools:
             return PermissionRequestResult(kind="approved")
 
         session = await ctx.client.create_session(
-            {
-                "tools": [encrypt_string],
-                "on_permission_request": on_permission_request,
-            }
+            on_permission_request=on_permission_request, tools=[encrypt_string]
         )
 
         await session.send("Use encrypt_string to encrypt this string: Hello")
@@ -225,10 +222,7 @@ class TestTools:
             return PermissionRequestResult(kind="denied-interactively-by-user")
 
         session = await ctx.client.create_session(
-            {
-                "tools": [encrypt_string],
-                "on_permission_request": on_permission_request,
-            }
+            on_permission_request=on_permission_request, tools=[encrypt_string]
         )
 
         await session.send("Use encrypt_string to encrypt this string: Hello")

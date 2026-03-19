@@ -223,10 +223,10 @@ type SessionFleetStartParams struct {
 // Experimental: SessionAgentListResult is part of an experimental API and may change or be removed.
 type SessionAgentListResult struct {
 	// Available custom agents
-	Agents []AgentElement `json:"agents"`
+	Agents []SessionAgentListResultAgent `json:"agents"`
 }
 
-type AgentElement struct {
+type SessionAgentListResultAgent struct {
 	// Description of the agent's purpose
 	Description string `json:"description"`
 	// Human-readable display name
@@ -276,6 +276,161 @@ type SessionAgentSelectParams struct {
 type SessionAgentDeselectResult struct {
 }
 
+// Experimental: SessionAgentReloadResult is part of an experimental API and may change or be removed.
+type SessionAgentReloadResult struct {
+	// Reloaded custom agents
+	Agents []SessionAgentReloadResultAgent `json:"agents"`
+}
+
+type SessionAgentReloadResultAgent struct {
+	// Description of the agent's purpose
+	Description string `json:"description"`
+	// Human-readable display name
+	DisplayName string `json:"displayName"`
+	// Unique identifier of the custom agent
+	Name string `json:"name"`
+}
+
+// Experimental: SessionSkillsListResult is part of an experimental API and may change or be removed.
+type SessionSkillsListResult struct {
+	// Available skills
+	Skills []Skill `json:"skills"`
+}
+
+type Skill struct {
+	// Description of what the skill does
+	Description string `json:"description"`
+	// Whether the skill is currently enabled
+	Enabled bool `json:"enabled"`
+	// Unique identifier for the skill
+	Name string `json:"name"`
+	// Absolute path to the skill file
+	Path *string `json:"path,omitempty"`
+	// Source location type (e.g., project, personal, plugin)
+	Source string `json:"source"`
+	// Whether the skill can be invoked by the user as a slash command
+	UserInvocable bool `json:"userInvocable"`
+}
+
+// Experimental: SessionSkillsEnableResult is part of an experimental API and may change or be removed.
+type SessionSkillsEnableResult struct {
+}
+
+// Experimental: SessionSkillsEnableParams is part of an experimental API and may change or be removed.
+type SessionSkillsEnableParams struct {
+	// Name of the skill to enable
+	Name string `json:"name"`
+}
+
+// Experimental: SessionSkillsDisableResult is part of an experimental API and may change or be removed.
+type SessionSkillsDisableResult struct {
+}
+
+// Experimental: SessionSkillsDisableParams is part of an experimental API and may change or be removed.
+type SessionSkillsDisableParams struct {
+	// Name of the skill to disable
+	Name string `json:"name"`
+}
+
+// Experimental: SessionSkillsReloadResult is part of an experimental API and may change or be removed.
+type SessionSkillsReloadResult struct {
+}
+
+type SessionMCPListResult struct {
+	// Configured MCP servers
+	Servers []Server `json:"servers"`
+}
+
+type Server struct {
+	// Error message if the server failed to connect
+	Error *string `json:"error,omitempty"`
+	// Server name (config key)
+	Name string `json:"name"`
+	// Configuration source: user, workspace, plugin, or builtin
+	Source *string `json:"source,omitempty"`
+	// Connection status: connected, failed, pending, disabled, or not_configured
+	Status ServerStatus `json:"status"`
+}
+
+type SessionMCPEnableResult struct {
+}
+
+type SessionMCPEnableParams struct {
+	// Name of the MCP server to enable
+	ServerName string `json:"serverName"`
+}
+
+type SessionMCPDisableResult struct {
+}
+
+type SessionMCPDisableParams struct {
+	// Name of the MCP server to disable
+	ServerName string `json:"serverName"`
+}
+
+type SessionMCPReloadResult struct {
+}
+
+// Experimental: SessionPluginsListResult is part of an experimental API and may change or be removed.
+type SessionPluginsListResult struct {
+	// Installed plugins
+	Plugins []Plugin `json:"plugins"`
+}
+
+type Plugin struct {
+	// Whether the plugin is currently enabled
+	Enabled bool `json:"enabled"`
+	// Marketplace the plugin came from
+	Marketplace string `json:"marketplace"`
+	// Plugin name
+	Name string `json:"name"`
+	// Installed version
+	Version *string `json:"version,omitempty"`
+}
+
+// Experimental: SessionExtensionsListResult is part of an experimental API and may change or be removed.
+type SessionExtensionsListResult struct {
+	// Discovered extensions and their current status
+	Extensions []Extension `json:"extensions"`
+}
+
+type Extension struct {
+	// Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper')
+	ID string `json:"id"`
+	// Extension name (directory name)
+	Name string `json:"name"`
+	// Process ID if the extension is running
+	PID *int64 `json:"pid,omitempty"`
+	// Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
+	Source Source `json:"source"`
+	// Current status: running, disabled, failed, or starting
+	Status ExtensionStatus `json:"status"`
+}
+
+// Experimental: SessionExtensionsEnableResult is part of an experimental API and may change or be removed.
+type SessionExtensionsEnableResult struct {
+}
+
+// Experimental: SessionExtensionsEnableParams is part of an experimental API and may change or be removed.
+type SessionExtensionsEnableParams struct {
+	// Source-qualified extension ID to enable
+	ID string `json:"id"`
+}
+
+// Experimental: SessionExtensionsDisableResult is part of an experimental API and may change or be removed.
+type SessionExtensionsDisableResult struct {
+}
+
+// Experimental: SessionExtensionsDisableParams is part of an experimental API and may change or be removed.
+type SessionExtensionsDisableParams struct {
+	// Source-qualified extension ID to disable
+	ID string `json:"id"`
+}
+
+// Experimental: SessionExtensionsReloadResult is part of an experimental API and may change or be removed.
+type SessionExtensionsReloadResult struct {
+}
+
 // Experimental: SessionCompactionCompactResult is part of an experimental API and may change or be removed.
 type SessionCompactionCompactResult struct {
 	// Number of messages removed during compaction
@@ -302,6 +457,75 @@ type ResultResult struct {
 	ResultType       *string                `json:"resultType,omitempty"`
 	TextResultForLlm string                 `json:"textResultForLlm"`
 	ToolTelemetry    map[string]interface{} `json:"toolTelemetry,omitempty"`
+}
+
+type SessionCommandsHandlePendingCommandResult struct {
+	Success bool `json:"success"`
+}
+
+type SessionCommandsHandlePendingCommandParams struct {
+	// Error message if the command handler failed
+	Error *string `json:"error,omitempty"`
+	// Request ID from the command invocation event
+	RequestID string `json:"requestId"`
+}
+
+type SessionUIElicitationResult struct {
+	// The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
+	Action Action `json:"action"`
+	// The form values submitted by the user (present when action is 'accept')
+	Content map[string]*Content `json:"content,omitempty"`
+}
+
+type SessionUIElicitationParams struct {
+	// Message describing what information is needed from the user
+	Message string `json:"message"`
+	// JSON Schema describing the form fields to present to the user
+	RequestedSchema RequestedSchema `json:"requestedSchema"`
+}
+
+// JSON Schema describing the form fields to present to the user
+type RequestedSchema struct {
+	// Form field definitions, keyed by field name
+	Properties map[string]Property `json:"properties"`
+	// List of required field names
+	Required []string `json:"required,omitempty"`
+	// Schema type indicator (always 'object')
+	Type RequestedSchemaType `json:"type"`
+}
+
+type Property struct {
+	Default     *Content     `json:"default"`
+	Description *string      `json:"description,omitempty"`
+	Enum        []string     `json:"enum,omitempty"`
+	EnumNames   []string     `json:"enumNames,omitempty"`
+	Title       *string      `json:"title,omitempty"`
+	Type        PropertyType `json:"type"`
+	OneOf       []OneOf      `json:"oneOf,omitempty"`
+	Items       *Items       `json:"items,omitempty"`
+	MaxItems    *float64     `json:"maxItems,omitempty"`
+	MinItems    *float64     `json:"minItems,omitempty"`
+	Format      *Format      `json:"format,omitempty"`
+	MaxLength   *float64     `json:"maxLength,omitempty"`
+	MinLength   *float64     `json:"minLength,omitempty"`
+	Maximum     *float64     `json:"maximum,omitempty"`
+	Minimum     *float64     `json:"minimum,omitempty"`
+}
+
+type Items struct {
+	Enum  []string   `json:"enum,omitempty"`
+	Type  *ItemsType `json:"type,omitempty"`
+	AnyOf []AnyOf    `json:"anyOf,omitempty"`
+}
+
+type AnyOf struct {
+	Const string `json:"const"`
+	Title string `json:"title"`
+}
+
+type OneOf struct {
+	Const string `json:"const"`
+	Title string `json:"title"`
 }
 
 type SessionPermissionsHandlePendingPermissionRequestResult struct {
@@ -335,6 +559,8 @@ type SessionLogParams struct {
 	Level *Level `json:"level,omitempty"`
 	// Human-readable message
 	Message string `json:"message"`
+	// Optional URL the user can open in their browser for more details
+	URL *string `json:"url,omitempty"`
 }
 
 type SessionShellExecResult struct {
@@ -371,19 +597,88 @@ type SessionShellKillParams struct {
 type Mode string
 
 const (
-	Autopilot   Mode = "autopilot"
-	Interactive Mode = "interactive"
-	Plan        Mode = "plan"
+	ModeAutopilot   Mode = "autopilot"
+	ModeInteractive Mode = "interactive"
+	ModePlan        Mode = "plan"
+)
+
+// Connection status: connected, failed, pending, disabled, or not_configured
+type ServerStatus string
+
+const (
+	ServerStatusConnected     ServerStatus = "connected"
+	ServerStatusNotConfigured ServerStatus = "not_configured"
+	ServerStatusPending       ServerStatus = "pending"
+	ServerStatusDisabled      ServerStatus = "disabled"
+	ServerStatusFailed        ServerStatus = "failed"
+)
+
+// Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
+type Source string
+
+const (
+	SourceProject Source = "project"
+	SourceUser    Source = "user"
+)
+
+// Current status: running, disabled, failed, or starting
+type ExtensionStatus string
+
+const (
+	ExtensionStatusDisabled ExtensionStatus = "disabled"
+	ExtensionStatusFailed   ExtensionStatus = "failed"
+	ExtensionStatusRunning  ExtensionStatus = "running"
+	ExtensionStatusStarting ExtensionStatus = "starting"
+)
+
+// The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
+type Action string
+
+const (
+	ActionAccept  Action = "accept"
+	ActionCancel  Action = "cancel"
+	ActionDecline Action = "decline"
+)
+
+type Format string
+
+const (
+	FormatDate     Format = "date"
+	FormatDateTime Format = "date-time"
+	FormatEmail    Format = "email"
+	FormatUri      Format = "uri"
+)
+
+type ItemsType string
+
+const (
+	ItemsTypeString ItemsType = "string"
+)
+
+type PropertyType string
+
+const (
+	PropertyTypeArray   PropertyType = "array"
+	PropertyTypeBoolean PropertyType = "boolean"
+	PropertyTypeString  PropertyType = "string"
+	PropertyTypeInteger PropertyType = "integer"
+	PropertyTypeNumber  PropertyType = "number"
+)
+
+type RequestedSchemaType string
+
+const (
+	RequestedSchemaTypeObject RequestedSchemaType = "object"
 )
 
 type Kind string
 
 const (
-	Approved                                       Kind = "approved"
-	DeniedByContentExclusionPolicy                 Kind = "denied-by-content-exclusion-policy"
-	DeniedByRules                                  Kind = "denied-by-rules"
-	DeniedInteractivelyByUser                      Kind = "denied-interactively-by-user"
-	DeniedNoApprovalRuleAndCouldNotRequestFromUser Kind = "denied-no-approval-rule-and-could-not-request-from-user"
+	KindApproved                                       Kind = "approved"
+	KindDeniedByContentExclusionPolicy                 Kind = "denied-by-content-exclusion-policy"
+	KindDeniedByRules                                  Kind = "denied-by-rules"
+	KindDeniedInteractivelyByUser                      Kind = "denied-interactively-by-user"
+	KindDeniedNoApprovalRuleAndCouldNotRequestFromUser Kind = "denied-no-approval-rule-and-could-not-request-from-user"
 )
 
 // Log severity level. Determines how the message is displayed in the timeline. Defaults to
@@ -391,23 +686,30 @@ const (
 type Level string
 
 const (
-	Error   Level = "error"
-	Info    Level = "info"
-	Warning Level = "warning"
+	LevelError   Level = "error"
+	LevelInfo    Level = "info"
+	LevelWarning Level = "warning"
 )
 
 // Signal to send (default: SIGTERM)
 type Signal string
 
 const (
-	Sigint  Signal = "SIGINT"
-	Sigkill Signal = "SIGKILL"
-	Sigterm Signal = "SIGTERM"
+	SignalSIGINT  Signal = "SIGINT"
+	SignalSIGKILL Signal = "SIGKILL"
+	SignalSIGTERM Signal = "SIGTERM"
 )
 
 type ResultUnion struct {
 	ResultResult *ResultResult
 	String       *string
+}
+
+type Content struct {
+	Bool        *bool
+	Double      *float64
+	String      *string
+	StringArray []string
 }
 
 type ServerModelsRpcApi struct {
@@ -740,6 +1042,230 @@ func (a *AgentRpcApi) Deselect(ctx context.Context) (*SessionAgentDeselectResult
 	return &result, nil
 }
 
+func (a *AgentRpcApi) Reload(ctx context.Context) (*SessionAgentReloadResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.agent.reload", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionAgentReloadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: SkillsRpcApi contains experimental APIs that may change or be removed.
+type SkillsRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
+
+func (a *SkillsRpcApi) List(ctx context.Context) (*SessionSkillsListResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.skills.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionSkillsListResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *SkillsRpcApi) Enable(ctx context.Context, params *SessionSkillsEnableParams) (*SessionSkillsEnableResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["name"] = params.Name
+	}
+	raw, err := a.client.Request("session.skills.enable", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionSkillsEnableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *SkillsRpcApi) Disable(ctx context.Context, params *SessionSkillsDisableParams) (*SessionSkillsDisableResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["name"] = params.Name
+	}
+	raw, err := a.client.Request("session.skills.disable", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionSkillsDisableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *SkillsRpcApi) Reload(ctx context.Context) (*SessionSkillsReloadResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.skills.reload", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionSkillsReloadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: McpRpcApi contains experimental APIs that may change or be removed.
+type McpRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
+
+func (a *McpRpcApi) List(ctx context.Context) (*SessionMCPListResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.mcp.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPListResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *McpRpcApi) Enable(ctx context.Context, params *SessionMCPEnableParams) (*SessionMCPEnableResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["serverName"] = params.ServerName
+	}
+	raw, err := a.client.Request("session.mcp.enable", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPEnableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *McpRpcApi) Disable(ctx context.Context, params *SessionMCPDisableParams) (*SessionMCPDisableResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["serverName"] = params.ServerName
+	}
+	raw, err := a.client.Request("session.mcp.disable", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPDisableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *McpRpcApi) Reload(ctx context.Context) (*SessionMCPReloadResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.mcp.reload", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMCPReloadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: PluginsRpcApi contains experimental APIs that may change or be removed.
+type PluginsRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
+
+func (a *PluginsRpcApi) List(ctx context.Context) (*SessionPluginsListResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.plugins.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionPluginsListResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: ExtensionsRpcApi contains experimental APIs that may change or be removed.
+type ExtensionsRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
+
+func (a *ExtensionsRpcApi) List(ctx context.Context) (*SessionExtensionsListResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.extensions.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionExtensionsListResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *ExtensionsRpcApi) Enable(ctx context.Context, params *SessionExtensionsEnableParams) (*SessionExtensionsEnableResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["id"] = params.ID
+	}
+	raw, err := a.client.Request("session.extensions.enable", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionExtensionsEnableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *ExtensionsRpcApi) Disable(ctx context.Context, params *SessionExtensionsDisableParams) (*SessionExtensionsDisableResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["id"] = params.ID
+	}
+	raw, err := a.client.Request("session.extensions.disable", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionExtensionsDisableResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *ExtensionsRpcApi) Reload(ctx context.Context) (*SessionExtensionsReloadResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.extensions.reload", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionExtensionsReloadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: CompactionRpcApi contains experimental APIs that may change or be removed.
 type CompactionRpcApi struct {
 	client    *jsonrpc2.Client
@@ -780,6 +1306,52 @@ func (a *ToolsRpcApi) HandlePendingToolCall(ctx context.Context, params *Session
 		return nil, err
 	}
 	var result SessionToolsHandlePendingToolCallResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+type CommandsRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
+
+func (a *CommandsRpcApi) HandlePendingCommand(ctx context.Context, params *SessionCommandsHandlePendingCommandParams) (*SessionCommandsHandlePendingCommandResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["requestId"] = params.RequestID
+		if params.Error != nil {
+			req["error"] = *params.Error
+		}
+	}
+	raw, err := a.client.Request("session.commands.handlePendingCommand", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionCommandsHandlePendingCommandResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+type UiRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
+
+func (a *UiRpcApi) Elicitation(ctx context.Context, params *SessionUIElicitationParams) (*SessionUIElicitationResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["message"] = params.Message
+		req["requestedSchema"] = params.RequestedSchema
+	}
+	raw, err := a.client.Request("session.ui.elicitation", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionUIElicitationResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -864,8 +1436,14 @@ type SessionRpc struct {
 	Workspace   *WorkspaceRpcApi
 	Fleet       *FleetRpcApi
 	Agent       *AgentRpcApi
+	Skills      *SkillsRpcApi
+	Mcp         *McpRpcApi
+	Plugins     *PluginsRpcApi
+	Extensions  *ExtensionsRpcApi
 	Compaction  *CompactionRpcApi
 	Tools       *ToolsRpcApi
+	Commands    *CommandsRpcApi
+	Ui          *UiRpcApi
 	Permissions *PermissionsRpcApi
 	Shell       *ShellRpcApi
 }
@@ -879,6 +1457,9 @@ func (a *SessionRpc) Log(ctx context.Context, params *SessionLogParams) (*Sessio
 		}
 		if params.Ephemeral != nil {
 			req["ephemeral"] = *params.Ephemeral
+		}
+		if params.URL != nil {
+			req["url"] = *params.URL
 		}
 	}
 	raw, err := a.client.Request("session.log", req)
@@ -900,8 +1481,14 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 		Workspace:   &WorkspaceRpcApi{client: client, sessionID: sessionID},
 		Fleet:       &FleetRpcApi{client: client, sessionID: sessionID},
 		Agent:       &AgentRpcApi{client: client, sessionID: sessionID},
+		Skills:      &SkillsRpcApi{client: client, sessionID: sessionID},
+		Mcp:         &McpRpcApi{client: client, sessionID: sessionID},
+		Plugins:     &PluginsRpcApi{client: client, sessionID: sessionID},
+		Extensions:  &ExtensionsRpcApi{client: client, sessionID: sessionID},
 		Compaction:  &CompactionRpcApi{client: client, sessionID: sessionID},
 		Tools:       &ToolsRpcApi{client: client, sessionID: sessionID},
+		Commands:    &CommandsRpcApi{client: client, sessionID: sessionID},
+		Ui:          &UiRpcApi{client: client, sessionID: sessionID},
 		Permissions: &PermissionsRpcApi{client: client, sessionID: sessionID},
 		Shell:       &ShellRpcApi{client: client, sessionID: sessionID},
 	}

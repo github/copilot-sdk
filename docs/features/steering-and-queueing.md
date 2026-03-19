@@ -76,10 +76,10 @@ async def main():
     client = CopilotClient()
     await client.start()
 
-    session = await client.create_session({
-        "model": "gpt-4.1",
-        "on_permission_request": lambda req, inv: PermissionRequestResult(kind="approved"),
-    })
+    session = await client.create_session(
+        on_permission_request=lambda req, inv: PermissionRequestResult(kind="approved"),
+        model="gpt-4.1",
+    )
 
     # Start a long-running task
     msg_id = await session.send({
@@ -235,10 +235,10 @@ async def main():
     client = CopilotClient()
     await client.start()
 
-    session = await client.create_session({
-        "model": "gpt-4.1",
-        "on_permission_request": lambda req, inv: PermissionRequestResult(kind="approved"),
-    })
+    session = await client.create_session(
+        on_permission_request=lambda req, inv: PermissionRequestResult(kind="approved"),
+        model="gpt-4.1",
+    )
 
     # Send an initial task
     await session.send({"prompt": "Set up the project structure"})
@@ -431,10 +431,10 @@ await session.send({
 <summary><strong>Python</strong></summary>
 
 ```python
-session = await client.create_session({
-    "model": "gpt-4.1",
-    "on_permission_request": lambda req, inv: PermissionRequestResult(kind="approved"),
-})
+session = await client.create_session(
+    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approved"),
+    model="gpt-4.1",
+)
 
 # Start a task
 await session.send({"prompt": "Refactor the database layer"})

@@ -74,10 +74,10 @@ from copilot.session import PermissionRequestResult
 client = CopilotClient()
 await client.start()
 
-session = await client.create_session({
-    "model": "gpt-4.1",
-    "on_permission_request": lambda req, inv: PermissionRequestResult(kind="approved"),
-})
+session = await client.create_session(
+    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approved"),
+    model="gpt-4.1",
+)
 
 await session.send(
     "Describe what you see in this image",
@@ -121,7 +121,7 @@ func main() {
 		Prompt: "Describe what you see in this image",
 		Attachments: []copilot.Attachment{
 			{
-				Type: copilot.File,
+				Type: copilot.AttachmentTypeFile,
 				Path: &path,
 			},
 		},
@@ -147,7 +147,7 @@ session.Send(ctx, copilot.MessageOptions{
     Prompt: "Describe what you see in this image",
     Attachments: []copilot.Attachment{
         {
-            Type: copilot.File,
+            Type: copilot.AttachmentTypeFile,
             Path: &path,
         },
     },
@@ -315,7 +315,7 @@ func main() {
 		Prompt: "Describe what you see in this image",
 		Attachments: []copilot.Attachment{
 			{
-				Type:        copilot.Blob,
+				Type:        copilot.AttachmentTypeBlob,
 				Data:        &base64ImageData,
 				MIMEType:    &mimeType,
 				DisplayName: &displayName,
@@ -333,7 +333,7 @@ session.Send(ctx, copilot.MessageOptions{
     Prompt: "Describe what you see in this image",
     Attachments: []copilot.Attachment{
         {
-            Type:        copilot.Blob,
+            Type:        copilot.AttachmentTypeBlob,
             Data:        &base64ImageData, // base64-encoded string
             MIMEType:    &mimeType,
             DisplayName: &displayName,

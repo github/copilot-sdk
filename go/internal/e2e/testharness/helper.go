@@ -67,7 +67,7 @@ func GetNextEventOfType(session *copilot.Session, eventType copilot.SessionEvent
 			case result <- &event:
 			default:
 			}
-		case copilot.SessionError:
+		case copilot.SessionEventTypeSessionError:
 			msg := "session error"
 			if event.Data.Message != nil {
 				msg = *event.Data.Message

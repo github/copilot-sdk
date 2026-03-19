@@ -25,11 +25,7 @@ async def main():
 
     try:
         session = await client.create_session(
-            {
-                "model": "claude-haiku-4.5",
-                "tools": [custom_grep],
-                "on_permission_request": PermissionHandler.approve_all,
-            }
+            on_permission_request=PermissionHandler.approve_all, model="claude-haiku-4.5", tools=[custom_grep]
         )
 
         response = await session.send_and_wait(

@@ -173,7 +173,7 @@ func TestPermissions(t *testing.T) {
 		permissionDenied := false
 
 		session.On(func(event copilot.SessionEvent) {
-			if event.Type == copilot.ToolExecutionComplete &&
+			if event.Type == copilot.SessionEventTypeToolExecutionComplete &&
 				event.Data.Success != nil && !*event.Data.Success &&
 				event.Data.Error != nil && event.Data.Error.ErrorClass != nil &&
 				strings.Contains(event.Data.Error.ErrorClass.Message, "Permission denied") {
@@ -223,7 +223,7 @@ func TestPermissions(t *testing.T) {
 		permissionDenied := false
 
 		session2.On(func(event copilot.SessionEvent) {
-			if event.Type == copilot.ToolExecutionComplete &&
+			if event.Type == copilot.SessionEventTypeToolExecutionComplete &&
 				event.Data.Success != nil && !*event.Data.Success &&
 				event.Data.Error != nil && event.Data.Error.ErrorClass != nil &&
 				strings.Contains(event.Data.Error.ErrorClass.Message, "Permission denied") {

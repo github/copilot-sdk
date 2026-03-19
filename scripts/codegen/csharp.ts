@@ -522,11 +522,11 @@ namespace GitHub.Copilot.SDK;
     lines.push(`/// Provides the base class from which all session events derive.`);
     lines.push(`/// </summary>`);
     lines.push(`[DebuggerDisplay("{DebuggerDisplay,nq}")]`);
-    lines.push(`[JsonPolymorphic(`, `    TypeDiscriminatorPropertyName = "type",`, `    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]`);
+    lines.push(`[JsonPolymorphic(`, `    TypeDiscriminatorPropertyName = "type",`, `    IgnoreUnrecognizedTypeDiscriminators = true)]`);
     for (const variant of [...variants].sort((a, b) => a.typeName.localeCompare(b.typeName))) {
         lines.push(`[JsonDerivedType(typeof(${variant.className}), "${variant.typeName}")]`);
     }
-    lines.push(`public abstract partial class SessionEvent`, `{`);
+    lines.push(`public partial class SessionEvent`, `{`);
     lines.push(...xmlDocComment(baseDesc("id"), "    "));
     lines.push(`    [JsonPropertyName("id")]`, `    public Guid Id { get; set; }`, "");
     lines.push(...xmlDocComment(baseDesc("timestamp"), "    "));
@@ -536,7 +536,7 @@ namespace GitHub.Copilot.SDK;
     lines.push(...xmlDocComment(baseDesc("ephemeral"), "    "));
     lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`, `    [JsonPropertyName("ephemeral")]`, `    public bool? Ephemeral { get; set; }`, "");
     lines.push(`    /// <summary>`, `    /// The event type discriminator.`, `    /// </summary>`);
-    lines.push(`    [JsonIgnore]`, `    public abstract string Type { get; }`, "");
+    lines.push(`    [JsonIgnore]`, `    public virtual string Type => "unknown";`, "");
     lines.push(`    /// <summary>Deserializes a JSON string into a <see cref="SessionEvent"/>.</summary>`);
     lines.push(`    public static SessionEvent FromJson(string json) =>`, `        JsonSerializer.Deserialize(json, SessionEventsJsonContext.Default.SessionEvent)!;`, "");
     lines.push(`    /// <summary>Serializes this event to a JSON string.</summary>`);

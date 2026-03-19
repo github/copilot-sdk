@@ -65,15 +65,15 @@ from copilot import CopilotClient
 client = CopilotClient()
 await client.start()
 
-session = await client.create_session({
-    "hooks": {
+session = await client.create_session(
+    on_permission_request=lambda req, inv: {"kind": "approved"},
+    hooks={
         "on_session_start": on_session_start,
         "on_pre_tool_use":  on_pre_tool_use,
         "on_post_tool_use": on_post_tool_use,
         # ... add only the hooks you need
     },
-    "on_permission_request": lambda req, inv: {"kind": "approved"},
-})
+)
 ```
 
 </details>
@@ -245,10 +245,10 @@ async def on_pre_tool_use(input_data, invocation):
         }
     return {"permissionDecision": "allow"}
 
-session = await client.create_session({
-    "hooks": {"on_pre_tool_use": on_pre_tool_use},
-    "on_permission_request": lambda req, inv: {"kind": "approved"},
-})
+session = await client.create_session(
+    on_permission_request=lambda req, inv: {"kind": "approved"},
+    hooks={"on_pre_tool_use": on_pre_tool_use},
+)
 ```
 
 </details>
@@ -567,16 +567,16 @@ async def on_session_end(input_data, invocation):
         await f.write(json.dumps(audit_log, indent=2))
     return None
 
-session = await client.create_session({
-    "hooks": {
+session = await client.create_session(
+    on_permission_request=lambda req, inv: {"kind": "approved"},
+    hooks={
         "on_session_start": on_session_start,
         "on_user_prompt_submitted": on_user_prompt_submitted,
         "on_pre_tool_use": on_pre_tool_use,
         "on_post_tool_use": on_post_tool_use,
         "on_session_end": on_session_end,
     },
-    "on_permission_request": lambda req, inv: {"kind": "approved"},
-})
+)
 ```
 
 </details>
@@ -666,13 +666,13 @@ async def on_error_occurred(input_data, invocation):
     ])
     return None
 
-session = await client.create_session({
-    "hooks": {
+session = await client.create_session(
+    on_permission_request=lambda req, inv: {"kind": "approved"},
+    hooks={
         "on_session_end": on_session_end,
         "on_error_occurred": on_error_occurred,
     },
-    "on_permission_request": lambda req, inv: {"kind": "approved"},
-})
+)
 ```
 
 </details>
@@ -905,15 +905,15 @@ async def on_session_end(input_data, invocation):
     )
     return None
 
-session = await client.create_session({
-    "hooks": {
+session = await client.create_session(
+    on_permission_request=lambda req, inv: {"kind": "approved"},
+    hooks={
         "on_session_start": on_session_start,
         "on_user_prompt_submitted": on_user_prompt_submitted,
         "on_pre_tool_use": on_pre_tool_use,
         "on_session_end": on_session_end,
     },
-    "on_permission_request": lambda req, inv: {"kind": "approved"},
-})
+)
 ```
 
 </details>

@@ -33,7 +33,7 @@ class TestMCPServers:
         }
 
         session = await ctx.client.create_session(
-            {"mcp_servers": mcp_servers, "on_permission_request": PermissionHandler.approve_all}
+            on_permission_request=PermissionHandler.approve_all, mcp_servers=mcp_servers
         )
 
         assert session.session_id is not None
@@ -51,7 +51,7 @@ class TestMCPServers:
         """Test that MCP server configuration is accepted on session resume"""
         # Create a session first
         session1 = await ctx.client.create_session(
-            {"on_permission_request": PermissionHandler.approve_all}
+            on_permission_request=PermissionHandler.approve_all
         )
         session_id = session1.session_id
         await session1.send_and_wait("What is 1+1?")
@@ -68,7 +68,8 @@ class TestMCPServers:
 
         session2 = await ctx.client.resume_session(
             session_id,
-            {"mcp_servers": mcp_servers, "on_permission_request": PermissionHandler.approve_all},
+            on_permission_request=PermissionHandler.approve_all,
+            mcp_servers=mcp_servers,
         )
 
         assert session2.session_id == session_id
@@ -95,10 +96,7 @@ class TestMCPServers:
         }
 
         session = await ctx.client.create_session(
-            {
-                "mcp_servers": mcp_servers,
-                "on_permission_request": PermissionHandler.approve_all,
-            }
+            on_permission_request=PermissionHandler.approve_all, mcp_servers=mcp_servers
         )
 
         assert session.session_id is not None
@@ -129,7 +127,7 @@ class TestCustomAgents:
         ]
 
         session = await ctx.client.create_session(
-            {"custom_agents": custom_agents, "on_permission_request": PermissionHandler.approve_all}
+            on_permission_request=PermissionHandler.approve_all, custom_agents=custom_agents
         )
 
         assert session.session_id is not None
@@ -147,7 +145,7 @@ class TestCustomAgents:
         """Test that custom agent configuration is accepted on session resume"""
         # Create a session first
         session1 = await ctx.client.create_session(
-            {"on_permission_request": PermissionHandler.approve_all}
+            on_permission_request=PermissionHandler.approve_all
         )
         session_id = session1.session_id
         await session1.send_and_wait("What is 1+1?")
@@ -164,10 +162,8 @@ class TestCustomAgents:
 
         session2 = await ctx.client.resume_session(
             session_id,
-            {
-                "custom_agents": custom_agents,
-                "on_permission_request": PermissionHandler.approve_all,
-            },
+            on_permission_request=PermissionHandler.approve_all,
+            custom_agents=custom_agents,
         )
 
         assert session2.session_id == session_id
@@ -201,11 +197,9 @@ class TestCombinedConfiguration:
         ]
 
         session = await ctx.client.create_session(
-            {
-                "mcp_servers": mcp_servers,
-                "custom_agents": custom_agents,
-                "on_permission_request": PermissionHandler.approve_all,
-            }
+            on_permission_request=PermissionHandler.approve_all,
+            mcp_servers=mcp_servers,
+            custom_agents=custom_agents,
         )
 
         assert session.session_id is not None

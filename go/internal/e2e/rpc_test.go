@@ -219,16 +219,16 @@ func TestSessionRpc(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get mode: %v", err)
 		}
-		if initial.Mode != rpc.Interactive {
+		if initial.Mode != rpc.ModeInteractive {
 			t.Errorf("Expected initial mode 'interactive', got %q", initial.Mode)
 		}
 
 		// Switch to plan mode
-		planResult, err := session.RPC.Mode.Set(t.Context(), &rpc.SessionModeSetParams{Mode: rpc.Plan})
+		planResult, err := session.RPC.Mode.Set(t.Context(), &rpc.SessionModeSetParams{Mode: rpc.ModePlan})
 		if err != nil {
 			t.Fatalf("Failed to set mode to plan: %v", err)
 		}
-		if planResult.Mode != rpc.Plan {
+		if planResult.Mode != rpc.ModePlan {
 			t.Errorf("Expected mode 'plan', got %q", planResult.Mode)
 		}
 
@@ -237,16 +237,16 @@ func TestSessionRpc(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get mode after plan: %v", err)
 		}
-		if afterPlan.Mode != rpc.Plan {
+		if afterPlan.Mode != rpc.ModePlan {
 			t.Errorf("Expected mode 'plan' after set, got %q", afterPlan.Mode)
 		}
 
 		// Switch back to interactive
-		interactiveResult, err := session.RPC.Mode.Set(t.Context(), &rpc.SessionModeSetParams{Mode: rpc.Interactive})
+		interactiveResult, err := session.RPC.Mode.Set(t.Context(), &rpc.SessionModeSetParams{Mode: rpc.ModeInteractive})
 		if err != nil {
 			t.Fatalf("Failed to set mode to interactive: %v", err)
 		}
-		if interactiveResult.Mode != rpc.Interactive {
+		if interactiveResult.Mode != rpc.ModeInteractive {
 			t.Errorf("Expected mode 'interactive', got %q", interactiveResult.Mode)
 		}
 	})
