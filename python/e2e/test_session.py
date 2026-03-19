@@ -552,7 +552,7 @@ class TestSessions:
 
     async def test_should_accept_blob_attachments(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
-            {"on_permission_request": PermissionHandler.approve_all}
+            on_permission_request=PermissionHandler.approve_all
         )
 
         # 1x1 transparent PNG pixel, base64-encoded
