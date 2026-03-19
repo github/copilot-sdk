@@ -575,6 +575,7 @@ namespace GitHub.Copilot.SDK;
     const types = ["SessionEvent", ...variants.flatMap((v) => [v.className, v.dataClassName]), ...nestedClasses.keys()].sort();
     lines.push(`[JsonSourceGenerationOptions(`, `    JsonSerializerDefaults.Web,`, `    AllowOutOfOrderMetadataProperties = true,`, `    NumberHandling = JsonNumberHandling.AllowReadingFromString,`, `    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]`);
     for (const t of types) lines.push(`[JsonSerializable(typeof(${t}))]`);
+    lines.push(`[JsonSerializable(typeof(JsonElement))]`);
     lines.push(`internal partial class SessionEventsJsonContext : JsonSerializerContext;`);
 
     return lines.join("\n");
