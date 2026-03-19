@@ -8,7 +8,7 @@
 
 Agents for every app.
 
-Embed Copilot's agentic workflows in your application—now available in Technical preview as a programmable SDK for Python, TypeScript, Go, and .NET.
+Embed Copilot's agentic workflows in your application—now available in Technical preview as a programmable SDK for Python, TypeScript, Go, .NET, and Java.
 
 The GitHub Copilot SDK exposes the same engine behind Copilot CLI: a production-tested agent runtime you can invoke programmatically. No need to build your own orchestration—you define agent behavior, Copilot handles planning, tool invocation, file edits, and more.
 
@@ -20,6 +20,7 @@ The GitHub Copilot SDK exposes the same engine behind Copilot CLI: a production-
 | **Python**               | [`python/`](./python/)   | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/python/README.md) | `pip install github-copilot-sdk`          |
 | **Go**                   | [`go/`](./go/)           | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/go/README.md)     | `go get github.com/github/copilot-sdk/go` |
 | **.NET**                 | [`dotnet/`](./dotnet/)   | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/dotnet/README.md) | `dotnet add package GitHub.Copilot.SDK`   |
+| **Java**                 | [`github/copilot-sdk-java`](https://github.com/github/copilot-sdk-java)   | WIP | Maven coordinates<br>`com.github:copilot-sdk-java`<br>See instructions for [Maven](https://github.com/github/copilot-sdk-java?tab=readme-ov-file#maven) and [Gradle](https://github.com/github/copilot-sdk-java?tab=readme-ov-file#gradle) |
 
 See the individual SDK READMEs for installation, usage examples, and API reference.
 
@@ -97,6 +98,8 @@ Yes, check out the custom instructions for each SDK:
 - **[Python](https://github.com/github/awesome-copilot/blob/main/instructions/copilot-sdk-python.instructions.md)**
 - **[.NET](https://github.com/github/awesome-copilot/blob/main/instructions/copilot-sdk-csharp.instructions.md)**
 - **[Go](https://github.com/github/awesome-copilot/blob/main/instructions/copilot-sdk-go.instructions.md)**
+- **[Java](https://github.com/github/copilot-sdk-java/blob/main/instructions/copilot-sdk-java.instructions.md)**
+
 
 ### What models are supported?
 
@@ -127,12 +130,10 @@ Please use the [GitHub Issues](https://github.com/github/copilot-sdk/issues) pag
 
 | SDK           | Location                                                          |
 | --------------| ----------------------------------------------------------------- |
-| **Java**      | [copilot-community-sdk/copilot-sdk-java][sdk-java]                |
 | **Rust**      | [copilot-community-sdk/copilot-sdk-rust][sdk-rust]                |
 | **Clojure**   | [copilot-community-sdk/copilot-sdk-clojure][sdk-clojure]          |
 | **C++**       | [0xeb/copilot-sdk-cpp][sdk-cpp]                                   |
 
-[sdk-java]: https://github.com/copilot-community-sdk/copilot-sdk-java
 [sdk-rust]: https://github.com/copilot-community-sdk/copilot-sdk-rust
 [sdk-cpp]: https://github.com/0xeb/copilot-sdk-cpp
 [sdk-clojure]: https://github.com/copilot-community-sdk/copilot-sdk-clojure

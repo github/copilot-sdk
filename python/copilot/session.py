@@ -15,6 +15,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, Literal, NotRequired, TypedDict, cast
 
+from ._jsonrpc import JsonRpcError, ProcessExitedError
+from ._telemetry import get_trace_context, trace_context
 from .generated.rpc import (
     Kind,
     Level,
@@ -32,8 +34,6 @@ from .generated.session_events import (
     SessionEventType,
     session_event_from_dict,
 )
-from .jsonrpc import JsonRpcError, ProcessExitedError
-from .telemetry import get_trace_context, trace_context
 from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
 
 # Re-export SessionEvent under an alias used internally
@@ -86,7 +86,18 @@ class SelectionAttachment(TypedDict):
     text: NotRequired[str]
 
 
-Attachment = FileAttachment | DirectoryAttachment | SelectionAttachment
+class BlobAttachment(TypedDict):
+    """Inline base64-encoded content attachment (e.g. images)."""
+
+    type: Literal["blob"]
+    data: str
+    """Base64-encoded content"""
+    mimeType: str
+    """MIME type of the inline data"""
+    displayName: NotRequired[str]
+
+
+Attachment = FileAttachment | DirectoryAttachment | SelectionAttachment | BlobAttachment
 
 # ============================================================================
 # System Message Configuration

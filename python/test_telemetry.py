@@ -5,7 +5,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from copilot.client import SubprocessConfig, TelemetryConfig
-from copilot.telemetry import get_trace_context, trace_context
+from copilot._telemetry import get_trace_context, trace_context
 
 
 class TestGetTraceContext:

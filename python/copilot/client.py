@@ -28,10 +28,11 @@ from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
 from typing import Any, Literal, TypedDict, cast, overload
 
+from ._jsonrpc import JsonRpcClient, ProcessExitedError
+from ._sdk_protocol_version import get_sdk_protocol_version
+from ._telemetry import get_trace_context, trace_context
 from .generated.rpc import ServerRpc
 from .generated.session_events import PermissionRequest, session_event_from_dict
-from .jsonrpc import JsonRpcClient, ProcessExitedError
-from .sdk_protocol_version import get_sdk_protocol_version
 from .session import (
     CopilotSession,
     CustomAgentConfig,
@@ -39,7 +40,6 @@ from .session import (
     ResumeSessionConfig,
     SessionConfig,
 )
-from .telemetry import get_trace_context, trace_context
 from .tools import ToolInvocation, ToolResult
 
 # ============================================================================

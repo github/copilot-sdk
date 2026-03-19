@@ -938,6 +938,48 @@ func TestSetModelWithReasoningEffort(t *testing.T) {
 	}
 }
 
+func TestSessionBlobAttachment(t *testing.T) {
+	ctx := testharness.NewTestContext(t)
+	client := ctx.NewClient()
+	t.Cleanup(func() { client.ForceStop() })
+
+	if err := client.Start(t.Context()); err != nil {
+		t.Fatalf("Failed to start client: %v", err)
+	}
+
+	t.Run("should accept blob attachments", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		data := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+		mimeType := "image/png"
+		displayName := "test-pixel.png"
+		_, err = session.Send(t.Context(), copilot.MessageOptions{
+			Prompt: "Describe this image",
+			Attachments: []copilot.Attachment{
+				{
+					Type:        copilot.Blob,
+					Data:        &data,
+					MIMEType:    &mimeType,
+					DisplayName: &displayName,
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Send with blob attachment failed: %v", err)
+		}
+
+		// Just verify send doesn't error — blob attachment support varies by runtime
+		session.Disconnect()
+	})
+}
+
 func getToolNames(exchange testharness.ParsedHttpExchange) []string {
 	var names []string
 	for _, tool := range exchange.Request.Tools {
