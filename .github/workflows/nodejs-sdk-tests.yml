@@ -62,6 +62,9 @@ jobs:
       - name: Typecheck SDK
         run: npm run typecheck
 
+      - name: Build SDK
+        run: npm run build
+
       - name: Install test harness dependencies
         working-directory: ./test/harness
         run: npm ci --ignore-scripts

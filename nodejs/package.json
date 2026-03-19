@@ -6,16 +6,28 @@
   },
   "version": "0.1.8",
   "description": "TypeScript SDK for programmatic control of GitHub Copilot CLI via JSON-RPC",
-  "main": "./dist/index.js",
+  "main": "./dist/cjs/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
     },
     "./extension": {
-      "import": "./dist/extension.js",
-      "types": "./dist/extension.d.ts"
+      "import": {
+        "types": "./dist/extension.d.ts",
+        "default": "./dist/extension.js"
+      },
+      "require": {
+        "types": "./dist/extension.d.ts",
+        "default": "./dist/cjs/extension.js"
+      }
     }
   },
   "type": "module",
