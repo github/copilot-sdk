@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { z } from "zod";
-import { CopilotClient, defineTool } from "../src/index.js";
+import { CopilotClient, defineTool, approveAll } from "../src/index.js";
 
 console.log("🚀 Starting Copilot SDK Example\n");
 
@@ -22,7 +22,7 @@ const lookupFactTool = defineTool("lookup_fact", {
 
 // Create client - will auto-start CLI server (searches PATH for "copilot")
 const client = new CopilotClient({ logLevel: "info" });
-const session = await client.createSession({ tools: [lookupFactTool] });
+const session = await client.createSession({ tools: [lookupFactTool], onPermissionRequest: approveAll });
 console.log(`✅ Session created: ${session.sessionId}\n`);
 
 // Listen to events

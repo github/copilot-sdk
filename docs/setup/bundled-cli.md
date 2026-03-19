@@ -64,7 +64,7 @@ npm install @github/copilot
 <summary><strong>Node.js / TypeScript</strong></summary>
 
 ```typescript
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, approveAll } from "@github/copilot-sdk";
 import path from "path";
 
 const client = new CopilotClient({
@@ -72,7 +72,7 @@ const client = new CopilotClient({
     cliPath: path.join(__dirname, "vendor", "copilot"),
 });
 
-const session = await client.createSession({ model: "gpt-4.1" });
+const session = await client.createSession({ model: "gpt-4.1", onPermissionRequest: approveAll });
 const response = await session.sendAndWait({ prompt: "Hello!" });
 console.log(response?.data.content);
 
@@ -228,6 +228,7 @@ const session = await client.createSession({
         baseUrl: "https://api.openai.com/v1",
         apiKey: process.env.OPENAI_API_KEY,
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -247,6 +248,7 @@ const sessionId = `project-${projectName}`;
 const session = await client.createSession({
     sessionId,
     model: "gpt-4.1",
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 // User closes app...

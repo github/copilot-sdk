@@ -136,6 +136,7 @@ const session = await client.createSession({
       return null; // Pass through unchanged
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -267,7 +268,7 @@ const session = await client.createSession({
         for (const pattern of SENSITIVE_PATTERNS) {
           redacted = redacted.replace(pattern, "[REDACTED]");
         }
-        
+
         if (redacted !== input.toolResult) {
           return { modifiedResult: redacted };
         }
@@ -275,6 +276,7 @@ const session = await client.createSession({
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -287,7 +289,7 @@ const session = await client.createSession({
   hooks: {
     onPostToolUse: async (input) => {
       const resultStr = JSON.stringify(input.toolResult);
-      
+
       if (resultStr.length > MAX_RESULT_LENGTH) {
         return {
           modifiedResult: {
@@ -301,6 +303,7 @@ const session = await client.createSession({
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -316,17 +319,18 @@ const session = await client.createSession({
           additionalContext: "Tip: If the file doesn't exist, consider creating it or checking the path.",
         };
       }
-      
+
       // If shell command failed, add debugging hint
       if (input.toolName === "shell" && input.toolResult?.exitCode !== 0) {
         return {
           additionalContext: "The command failed. Check if required dependencies are installed.",
         };
       }
-      
+
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -349,6 +353,7 @@ const session = await client.createSession({
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -377,13 +382,14 @@ const session = await client.createSession({
         result: input.toolResult,
         success: !input.toolResult?.error,
       });
-      
+
       // Optionally persist to database/file
       await saveAuditLog(auditLog);
-      
+
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -397,10 +403,10 @@ const session = await client.createSession({
     onPostToolUse: async (input) => {
       if (NOISY_TOOLS.includes(input.toolName)) {
         // Summarize instead of showing full result
-        const items = Array.isArray(input.toolResult) 
-          ? input.toolResult 
+        const items = Array.isArray(input.toolResult)
+          ? input.toolResult
           : input.toolResult?.items || [];
-        
+
         return {
           modifiedResult: {
             summary: `Found ${items.length} items`,
@@ -411,6 +417,7 @@ const session = await client.createSession({
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 

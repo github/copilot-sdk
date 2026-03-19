@@ -63,7 +63,7 @@ asyncio.run(main())
 <summary><strong>Node.js / TypeScript</strong></summary>
 
 ```typescript
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, approveAll } from "@github/copilot-sdk";
 
 const FOUNDRY_MODEL_URL = "https://your-resource.openai.azure.com/openai/v1/";
 
@@ -76,6 +76,7 @@ const session = await client.createSession({
         wireApi: "responses",  // Use "completions" for older models
         apiKey: process.env.FOUNDRY_API_KEY,
     },
+    onPermissionRequest: approveAll
 });
 
 session.on("assistant.message", (event) => {
@@ -457,12 +458,14 @@ When using BYOK, the `model` parameter is **required**:
 // ❌ Error: Model required with custom provider
 const session = await client.createSession({
     provider: { type: "openai", baseUrl: "..." },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 // ✅ Correct: Model specified
 const session = await client.createSession({
     model: "gpt-4",  // Required!
     provider: { type: "openai", baseUrl: "..." },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -472,7 +475,7 @@ For Azure OpenAI endpoints (`*.openai.azure.com`), use the correct type:
 
 <!-- docs-validate: hidden -->
 ```typescript
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, approveAll } from "@github/copilot-sdk";
 
 const client = new CopilotClient();
 const session = await client.createSession({
@@ -481,6 +484,7 @@ const session = await client.createSession({
         type: "azure",
         baseUrl: "https://my-resource.openai.azure.com",
     },
+    onPermissionRequest: approveAll
 });
 ```
 <!-- /docs-validate: hidden -->
@@ -503,7 +507,7 @@ However, if your Azure AI Foundry deployment provides an OpenAI-compatible endpo
 
 <!-- docs-validate: hidden -->
 ```typescript
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, approveAll } from "@github/copilot-sdk";
 
 const client = new CopilotClient();
 const session = await client.createSession({
@@ -512,6 +516,7 @@ const session = await client.createSession({
         type: "openai",
         baseUrl: "https://your-resource.openai.azure.com/openai/v1/",
     },
+    onPermissionRequest: approveAll
 });
 ```
 <!-- /docs-validate: hidden -->

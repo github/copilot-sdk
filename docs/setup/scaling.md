@@ -323,6 +323,7 @@ app.post("/chat", async (req, res) => {
     const session = await client.createSession({
         sessionId: `user-${req.user.id}-chat`,
         model: "gpt-4.1",
+        onPermissionRequest: async () => ({ kind: "approved" }),
     });
 
     const response = await session.sendAndWait({ prompt: req.body.message });
@@ -403,6 +404,7 @@ class SessionManager {
         const session = await client.createSession({
             sessionId,
             model: "gpt-4.1",
+            onPermissionRequest: async () => ({ kind: "approved" }),
         });
 
         this.activeSessions.set(sessionId, session);
@@ -449,6 +451,7 @@ For stateless API endpoints where each request is independent:
 app.post("/api/analyze", async (req, res) => {
     const session = await client.createSession({
         model: "gpt-4.1",
+        onPermissionRequest: async () => ({ kind: "approved" }),
     });
 
     try {
@@ -478,6 +481,7 @@ app.post("/api/chat/start", async (req, res) => {
             enabled: true,
             backgroundCompactionThreshold: 0.80,
         },
+        onPermissionRequest: async () => ({ kind: "approved" }),
     });
 
     res.json({ sessionId });

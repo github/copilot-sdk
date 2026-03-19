@@ -34,10 +34,10 @@ The default configuration requires no options at all:
 <summary><strong>Node.js / TypeScript</strong></summary>
 
 ```typescript
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, approveAll } from "@github/copilot-sdk";
 
 const client = new CopilotClient();
-const session = await client.createSession({ model: "gpt-4.1" });
+const session = await client.createSession({ model: "gpt-4.1", onPermissionRequest: approveAll });
 
 const response = await session.sendAndWait({ prompt: "Hello!" });
 console.log(response?.data.content);
@@ -196,6 +196,7 @@ With the local CLI, sessions default to ephemeral. To create resumable sessions,
 const session = await client.createSession({
     sessionId: "my-project-analysis",
     model: "gpt-4.1",
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 // Later, resume it

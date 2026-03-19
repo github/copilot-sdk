@@ -102,10 +102,10 @@ Create a new file and add the following code. This is the simplest way to use th
 Create `index.ts`:
 
 ```typescript
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, approveAll } from "@github/copilot-sdk";
 
 const client = new CopilotClient();
-const session = await client.createSession({ model: "gpt-4.1" });
+const session = await client.createSession({ model: "gpt-4.1", onPermissionRequest: approveAll });
 
 const response = await session.sendAndWait({ prompt: "What is 2 + 2?" });
 console.log(response?.data.content);
@@ -249,7 +249,7 @@ const client = new CopilotClient();
 const session = await client.createSession({
     model: "gpt-4.1",
     streaming: true,
-});
+}, onPermissionRequest: approveAll);
 
 // Listen for response chunks
 session.on("assistant.message_delta", (event) => {
@@ -595,7 +595,7 @@ Now for the powerful part. Let's give Copilot the ability to call your code by d
 Update `index.ts`:
 
 ```typescript
-import { CopilotClient, defineTool } from "@github/copilot-sdk";
+import { CopilotClient, defineTool, approveAll } from "@github/copilot-sdk";
 
 // Define a tool that Copilot can call
 const getWeather = defineTool("get_weather", {
@@ -622,6 +622,7 @@ const session = await client.createSession({
     model: "gpt-4.1",
     streaming: true,
     tools: [getWeather],
+    onPermissionRequest: approveAll
 });
 
 session.on("assistant.message_delta", (event) => {
@@ -845,7 +846,7 @@ Let's put it all together into a useful interactive assistant:
 <summary><strong>Node.js / TypeScript</strong></summary>
 
 ```typescript
-import { CopilotClient, defineTool } from "@github/copilot-sdk";
+import { CopilotClient, defineTool, approveAll } from "@github/copilot-sdk";
 import * as readline from "readline";
 
 const getWeather = defineTool("get_weather", {
@@ -870,6 +871,7 @@ const session = await client.createSession({
     model: "gpt-4.1",
     streaming: true,
     tools: [getWeather],
+    onPermissionRequest: approveAll
 });
 
 session.on("assistant.message_delta", (event) => {
@@ -1211,6 +1213,7 @@ const session = await client.createSession({
             url: "https://api.githubcopilot.com/mcp/",
         },
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -1228,6 +1231,7 @@ const session = await client.createSession({
         description: "Reviews pull requests for best practices",
         prompt: "You are an expert code reviewer. Focus on security, performance, and maintainability.",
     }],
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -1242,6 +1246,7 @@ const session = await client.createSession({
     systemMessage: {
         content: "You are a helpful assistant for our engineering team. Always be concise.",
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 

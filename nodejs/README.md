@@ -341,6 +341,7 @@ Enable streaming to receive assistant response chunks as they're generated:
 const session = await client.createSession({
     model: "gpt-5",
     streaming: true,
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 // Wait for completion using typed event handlers
@@ -408,7 +409,7 @@ You can let the CLI call back into your process when the model needs capabilitie
 
 ```ts
 import { z } from "zod";
-import { CopilotClient, defineTool } from "@github/copilot-sdk";
+import { CopilotClient, defineTool, approveAll } from "@github/copilot-sdk";
 
 const session = await client.createSession({
     model: "gpt-5",
@@ -424,6 +425,7 @@ const session = await client.createSession({
             },
         }),
     ],
+    onPermissionRequest: approveAll
 });
 ```
 
@@ -470,6 +472,7 @@ const session = await client.createSession({
 </workflow_rules>
 `,
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -484,6 +487,7 @@ const session = await client.createSession({
         mode: "replace",
         content: "You are a helpful assistant.",
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -493,7 +497,7 @@ By default, sessions use **infinite sessions** which automatically manage contex
 
 ```typescript
 // Default: infinite sessions enabled with default thresholds
-const session = await client.createSession({ model: "gpt-5" });
+const session = await client.createSession({ model: "gpt-5",onPermissionRequest: async () => ({ kind: "approved" }), });
 
 // Access the workspace path for checkpoints and files
 console.log(session.workspacePath);
@@ -507,12 +511,14 @@ const session = await client.createSession({
         backgroundCompactionThreshold: 0.80, // Start compacting at 80% context usage
         bufferExhaustionThreshold: 0.95, // Block at 95% until compaction completes
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 // Disable infinite sessions
 const session = await client.createSession({
     model: "gpt-5",
     infiniteSessions: { enabled: false },
+    onPermissionRequest: approveAll
 });
 ```
 
@@ -524,8 +530,8 @@ When enabled, sessions emit compaction events:
 ### Multiple Sessions
 
 ```typescript
-const session1 = await client.createSession({ model: "gpt-5" });
-const session2 = await client.createSession({ model: "claude-sonnet-4.5" });
+const session1 = await client.createSession({ model: "gpt-5", onPermissionRequest: async () => ({ kind: "approved" }), });
+const session2 = await client.createSession({ model: "claude-sonnet-4.5", onPermissionRequest: async () => ({ kind: "approved" }), });
 
 // Both sessions are independent
 await session1.sendAndWait({ prompt: "Hello from session 1" });
@@ -538,6 +544,7 @@ await session2.sendAndWait({ prompt: "Hello from session 2" });
 const session = await client.createSession({
     sessionId: "my-custom-session-id",
     model: "gpt-5",
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -579,6 +586,7 @@ const session = await client.createSession({
         baseUrl: "http://localhost:11434/v1", // Ollama endpoint
         // apiKey not required for Ollama
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 
 await session.sendAndWait({ prompt: "Hello!" });
@@ -594,6 +602,7 @@ const session = await client.createSession({
         baseUrl: "https://my-api.example.com/v1",
         apiKey: process.env.MY_API_KEY,
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -610,6 +619,7 @@ const session = await client.createSession({
             apiVersion: "2024-10-21",
         },
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -685,7 +695,7 @@ const session = await client.createSession({
 Provide your own function to inspect each request and apply custom logic:
 
 ```typescript
-import type { PermissionRequest, PermissionRequestResult } from "@github/copilot-sdk";
+import type { PermissionRequest, PermissionRequestResult, approveAll } from "@github/copilot-sdk";
 
 const session = await client.createSession({
     model: "gpt-5",
@@ -712,6 +722,7 @@ const session = await client.createSession({
 
         return { kind: "approved" };
     },
+    onPermissionRequest: approveAll
 });
 ```
 
@@ -762,6 +773,7 @@ const session = await client.createSession({
             wasFreeform: true, // Whether the answer was freeform (not from choices)
         };
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -822,6 +834,7 @@ const session = await client.createSession({
             };
         },
     },
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 

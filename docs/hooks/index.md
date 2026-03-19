@@ -25,7 +25,7 @@ Hooks allow you to intercept and customize the behavior of Copilot sessions at k
 <summary><strong>Node.js / TypeScript</strong></summary>
 
 ```typescript
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, approveAll } from "@github/copilot-sdk";
 
 const client = new CopilotClient();
 
@@ -44,6 +44,7 @@ const session = await client.createSession({
       return { additionalContext: "User prefers concise answers." };
     },
   },
+  onPermissionRequest: approveAll
 });
 ```
 
@@ -181,6 +182,7 @@ const session = await client.createSession({
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -201,6 +203,7 @@ const session = await client.createSession({
       return { permissionDecision: "allow" };
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -216,6 +219,7 @@ const session = await client.createSession({
       };
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 

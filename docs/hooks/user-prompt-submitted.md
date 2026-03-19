@@ -132,6 +132,7 @@ const session = await client.createSession({
       return null; // Pass through unchanged
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -243,7 +244,7 @@ const session = await client.createSession({
   hooks: {
     onUserPromptSubmitted: async (input) => {
       const projectInfo = await getProjectInfo();
-      
+
       return {
         additionalContext: `
 Project: ${projectInfo.name}
@@ -253,6 +254,7 @@ Framework: ${projectInfo.framework}
       };
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -280,6 +282,7 @@ const session = await client.createSession({
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -307,6 +310,7 @@ const session = await client.createSession({
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -328,6 +332,7 @@ const session = await client.createSession({
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -344,24 +349,25 @@ const session = await client.createSession({
   hooks: {
     onUserPromptSubmitted: async (input) => {
       const prefs: UserPreferences = await loadUserPreferences();
-      
+
       const contextParts = [];
-      
+
       if (prefs.codeStyle === "concise") {
         contextParts.push("User prefers concise code with minimal comments.");
       } else {
         contextParts.push("User prefers verbose code with detailed comments.");
       }
-      
+
       if (prefs.experienceLevel === "beginner") {
         contextParts.push("Explain concepts in simple terms.");
       }
-      
+
       return {
         additionalContext: contextParts.join(" "),
       };
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -376,23 +382,24 @@ const session = await client.createSession({
   hooks: {
     onUserPromptSubmitted: async (input) => {
       const now = Date.now();
-      
+
       // Remove timestamps outside the window
       while (promptTimestamps.length > 0 && promptTimestamps[0] < now - RATE_WINDOW) {
         promptTimestamps.shift();
       }
-      
+
       if (promptTimestamps.length >= RATE_LIMIT) {
         return {
           reject: true,
           rejectReason: `Rate limit exceeded. Please wait before sending more prompts.`,
         };
       }
-      
+
       promptTimestamps.push(now);
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -429,6 +436,7 @@ const session = await client.createSession({
       return null;
     },
   },
+  onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 

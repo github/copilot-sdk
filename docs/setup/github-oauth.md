@@ -119,7 +119,7 @@ Create a SDK client for each authenticated user, passing their token:
 <summary><strong>Node.js / TypeScript</strong></summary>
 
 ```typescript
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, approveAll } from "@github/copilot-sdk";
 
 // Create a client for an authenticated user
 function createClientForUser(userToken: string): CopilotClient {
@@ -134,6 +134,7 @@ const client = createClientForUser("gho_user_access_token");
 const session = await client.createSession({
     sessionId: `user-${userId}-session`,
     model: "gpt-4.1",
+    onPermissionRequest: approveAll
 });
 
 const response = await session.sendAndWait({ prompt: "Hello!" });

@@ -248,6 +248,7 @@ const session = await client.createSession({
         },
     ],
     agent: "researcher", // Pre-select the researcher agent
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -639,6 +640,7 @@ const session = await client.createSession({
             prompt: "You handle complex multi-step tasks using any available tools.",
         },
     ],
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 
@@ -663,6 +665,7 @@ const session = await client.createSession({
             },
         },
     ],
+    onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
 

@@ -124,7 +124,7 @@ class ManagedIdentityCopilotAgent:
 <!-- docs-validate: skip -->
 ```typescript
 import { DefaultAzureCredential } from "@azure/identity";
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, approveAll } from "@github/copilot-sdk";
 
 const credential = new DefaultAzureCredential();
 const tokenResponse = await credential.getToken(
@@ -141,6 +141,7 @@ const session = await client.createSession({
     bearerToken: tokenResponse.token,
     wireApi: "responses",
   },
+  onPermissionRequest: approveAll
 });
 
 const response = await session.sendAndWait({ prompt: "Hello!" });
