@@ -306,15 +306,28 @@ async def safe_lookup(params: LookupParams) -> str:
 
 ## Image Support
 
-The SDK supports image attachments via the `attachments` parameter. You can attach images by providing their file path:
+The SDK supports image attachments via the `attachments` parameter. You can attach images by providing their file path, or by passing base64-encoded data directly using a blob attachment:
 
 ```python
+# File attachment — runtime reads from disk
 await session.send(
     "What's in this image?",
     attachments=[
         {
             "type": "file",
             "path": "/path/to/image.jpg",
+        }
+    ],
+)
+
+# Blob attachment — provide base64 data directly
+await session.send(
+    "What's in this image?",
+    attachments=[
+        {
+            "type": "blob",
+            "data": base64_image_data,
+            "mimeType": "image/png",
         }
     ],
 )

@@ -3527,4 +3527,5 @@ public enum PermissionCompletedDataResultKind
 [JsonSerializable(typeof(UserMessageDataAttachmentsItemSelectionSelectionEnd))]
 [JsonSerializable(typeof(UserMessageDataAttachmentsItemSelectionSelectionStart))]
 [JsonSerializable(typeof(UserMessageEvent))]
+[JsonSerializable(typeof(JsonElement))]
 internal partial class SessionEventsJsonContext : JsonSerializerContext;

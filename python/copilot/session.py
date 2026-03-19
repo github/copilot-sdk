@@ -11,6 +11,8 @@ import threading
 from collections.abc import Callable
 from typing import Any, Literal, cast
 
+from ._jsonrpc import JsonRpcError, ProcessExitedError
+from ._telemetry import get_trace_context, trace_context
 from .generated.rpc import (
     Kind,
     Level,
@@ -23,8 +25,6 @@ from .generated.rpc import (
     SessionToolsHandlePendingToolCallParams,
 )
 from .generated.session_events import SessionEvent, SessionEventType, session_event_from_dict
-from .jsonrpc import JsonRpcError, ProcessExitedError
-from .telemetry import get_trace_context, trace_context
 from .types import (
     Attachment,
     PermissionRequest,

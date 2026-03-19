@@ -17,6 +17,7 @@ import {
     postProcessSchema,
     writeGeneratedFile,
     isRpcMethod,
+    isNodeFullyExperimental,
     type ApiSchema,
     type RpcMethod,
 } from "./utils.js";
@@ -161,16 +162,35 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     lines.push(`package rpc`);
     lines.push(``);
     lines.push(`import (`);
-    lines.push(`    "context"`);
-    lines.push(`    "encoding/json"`);
+    lines.push(`\t"context"`);
+    lines.push(`\t"encoding/json"`);
     lines.push(``);
-    lines.push(`    "github.com/github/copilot-sdk/go/internal/jsonrpc2"`);
+    lines.push(`\t"github.com/github/copilot-sdk/go/internal/jsonrpc2"`);
     lines.push(`)`);
     lines.push(``);
 
-    // Add quicktype-generated types (skip package line)
-    const qtLines = qtResult.lines.filter((l) => !l.startsWith("package "));
-    lines.push(...qtLines);
+    // Add quicktype-generated types (skip package line), annotating experimental types
+    const experimentalTypeNames = new Set<string>();
+    for (const method of allMethods) {
+        if (method.stability !== "experimental") continue;
+        experimentalTypeNames.add(toPascalCase(method.rpcMethod) + "Result");
+        const baseName = toPascalCase(method.rpcMethod);
+        if (combinedSchema.definitions![baseName + "Params"]) {
+            experimentalTypeNames.add(baseName + "Params");
+        }
+    }
+    let qtCode = qtResult.lines.filter((l) => !l.startsWith("package ")).join("\n");
+    // Strip trailing whitespace from quicktype output (gofmt requirement)
+    qtCode = qtCode.replace(/[ \t]+$/gm, "");
+    for (const typeName of experimentalTypeNames) {
+        qtCode = qtCode.replace(
+            new RegExp(`^(type ${typeName} struct)`, "m"),
+            `// Experimental: ${typeName} is part of an experimental API and may change or be removed.\n$1`
+        );
+    }
+    // Remove trailing blank lines from quicktype output before appending
+    qtCode = qtCode.replace(/\n+$/, "");
+    lines.push(qtCode);
     lines.push(``);
 
     // Emit ServerRpc
@@ -200,23 +220,39 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     for (const [groupName, groupNode] of groups) {
         const prefix = isSession ? "" : "Server";
         const apiName = prefix + toPascalCase(groupName) + apiSuffix;
-        const fields = isSession ? "client *jsonrpc2.Client; sessionID string" : "client *jsonrpc2.Client";
-        lines.push(`type ${apiName} struct { ${fields} }`);
+        const groupExperimental = isNodeFullyExperimental(groupNode as Record<string, unknown>);
+        if (groupExperimental) {
+            lines.push(`// Experimental: ${apiName} contains experimental APIs that may change or be removed.`);
+        }
+        lines.push(`type ${apiName} struct {`);
+        if (isSession) {
+            lines.push(`\tclient    *jsonrpc2.Client`);
+            lines.push(`\tsessionID string`);
+        } else {
+            lines.push(`\tclient *jsonrpc2.Client`);
+        }
+        lines.push(`}`);
         lines.push(``);
         for (const [key, value] of Object.entries(groupNode as Record<string, unknown>)) {
             if (!isRpcMethod(value)) continue;
-            emitMethod(lines, apiName, key, value, isSession);
+            emitMethod(lines, apiName, key, value, isSession, groupExperimental);
         }
     }
+
+    // Compute field name lengths for gofmt-compatible column alignment
+    const groupPascalNames = groups.map(([g]) => toPascalCase(g));
+    const allFieldNames = isSession ? ["client", "sessionID", ...groupPascalNames] : ["client", ...groupPascalNames];
+    const maxFieldLen = Math.max(...allFieldNames.map((n) => n.length));
+    const pad = (name: string) => name.padEnd(maxFieldLen);
 
     // Emit wrapper struct
     lines.push(`// ${wrapperName} provides typed ${isSession ? "session" : "server"}-scoped RPC methods.`);
     lines.push(`type ${wrapperName} struct {`);
-    lines.push(`    client *jsonrpc2.Client`);
-    if (isSession) lines.push(`    sessionID string`);
+    lines.push(`\t${pad("client")} *jsonrpc2.Client`);
+    if (isSession) lines.push(`\t${pad("sessionID")} string`);
     for (const [groupName] of groups) {
         const prefix = isSession ? "" : "Server";
-        lines.push(`    ${toPascalCase(groupName)} *${prefix}${toPascalCase(groupName)}${apiSuffix}`);
+        lines.push(`\t${pad(toPascalCase(groupName))} *${prefix}${toPascalCase(groupName)}${apiSuffix}`);
     }
     lines.push(`}`);
     lines.push(``);
@@ -224,27 +260,31 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     // Top-level methods (server only)
     for (const [key, value] of topLevelMethods) {
         if (!isRpcMethod(value)) continue;
-        emitMethod(lines, wrapperName, key, value, isSession);
+        emitMethod(lines, wrapperName, key, value, isSession, false);
     }
+
+    // Compute key alignment for constructor composite literal (gofmt aligns key: value)
+    const maxKeyLen = Math.max(...groupPascalNames.map((n) => n.length + 1)); // +1 for colon
+    const padKey = (name: string) => (name + ":").padEnd(maxKeyLen + 1); // +1 for min trailing space
 
     // Constructor
     const ctorParams = isSession ? "client *jsonrpc2.Client, sessionID string" : "client *jsonrpc2.Client";
     const ctorFields = isSession ? "client: client, sessionID: sessionID," : "client: client,";
     lines.push(`func New${wrapperName}(${ctorParams}) *${wrapperName} {`);
-    lines.push(`    return &${wrapperName}{${ctorFields}`);
+    lines.push(`\treturn &${wrapperName}{${ctorFields}`);
     for (const [groupName] of groups) {
         const prefix = isSession ? "" : "Server";
         const apiInit = isSession
             ? `&${toPascalCase(groupName)}${apiSuffix}{client: client, sessionID: sessionID}`
             : `&${prefix}${toPascalCase(groupName)}${apiSuffix}{client: client}`;
-        lines.push(`        ${toPascalCase(groupName)}: ${apiInit},`);
+        lines.push(`\t\t${padKey(toPascalCase(groupName))}${apiInit},`);
     }
-    lines.push(`    }`);
+    lines.push(`\t}`);
     lines.push(`}`);
     lines.push(``);
 }
 
-function emitMethod(lines: string[], receiver: string, name: string, method: RpcMethod, isSession: boolean): void {
+function emitMethod(lines: string[], receiver: string, name: string, method: RpcMethod, isSession: boolean, groupExperimental = false): void {
     const methodName = toPascalCase(name);
     const resultType = toPascalCase(method.rpcMethod) + "Result";
 
@@ -254,6 +294,9 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
     const hasParams = isSession ? nonSessionParams.length > 0 : Object.keys(paramProps).length > 0;
     const paramsType = hasParams ? toPascalCase(method.rpcMethod) + "Params" : "";
 
+    if (method.stability === "experimental" && !groupExperimental) {
+        lines.push(`// Experimental: ${methodName} is an experimental API and may change or be removed in future versions.`);
+    }
     const sig = hasParams
         ? `func (a *${receiver}) ${methodName}(ctx context.Context, params *${paramsType}) (*${resultType}, error)`
         : `func (a *${receiver}) ${methodName}(ctx context.Context) (*${resultType}, error)`;
@@ -261,33 +304,37 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
     lines.push(sig + ` {`);
 
     if (isSession) {
-        lines.push(`    req := map[string]interface{}{"sessionId": a.sessionID}`);
+        lines.push(`\treq := map[string]interface{}{"sessionId": a.sessionID}`);
         if (hasParams) {
-            lines.push(`    if params != nil {`);
+            lines.push(`\tif params != nil {`);
             for (const pName of nonSessionParams) {
                 const goField = toGoFieldName(pName);
                 const isOptional = !requiredParams.has(pName);
                 if (isOptional) {
                     // Optional fields are pointers - only add when non-nil and dereference
-                    lines.push(`        if params.${goField} != nil {`);
-                    lines.push(`            req["${pName}"] = *params.${goField}`);
-                    lines.push(`        }`);
+                    lines.push(`\t\tif params.${goField} != nil {`);
+                    lines.push(`\t\t\treq["${pName}"] = *params.${goField}`);
+                    lines.push(`\t\t}`);
                 } else {
-                    lines.push(`        req["${pName}"] = params.${goField}`);
+                    lines.push(`\t\treq["${pName}"] = params.${goField}`);
                 }
             }
-            lines.push(`    }`);
+            lines.push(`\t}`);
         }
-        lines.push(`    raw, err := a.client.Request("${method.rpcMethod}", req)`);
+        lines.push(`\traw, err := a.client.Request("${method.rpcMethod}", req)`);
     } else {
         const arg = hasParams ? "params" : "map[string]interface{}{}";
-        lines.push(`    raw, err := a.client.Request("${method.rpcMethod}", ${arg})`);
+        lines.push(`\traw, err := a.client.Request("${method.rpcMethod}", ${arg})`);
     }
 
-    lines.push(`    if err != nil { return nil, err }`);
-    lines.push(`    var result ${resultType}`);
-    lines.push(`    if err := json.Unmarshal(raw, &result); err != nil { return nil, err }`);
-    lines.push(`    return &result, nil`);
+    lines.push(`\tif err != nil {`);
+    lines.push(`\t\treturn nil, err`);
+    lines.push(`\t}`);
+    lines.push(`\tvar result ${resultType}`);
+    lines.push(`\tif err := json.Unmarshal(raw, &result); err != nil {`);
+    lines.push(`\t\treturn nil, err`);
+    lines.push(`\t}`);
+    lines.push(`\treturn &result, nil`);
     lines.push(`}`);
     lines.push(``);
 }

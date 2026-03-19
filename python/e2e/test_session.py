@@ -550,6 +550,33 @@ class TestSessions:
         assert event.data.new_model == "gpt-4.1"
         assert event.data.reasoning_effort == "high"
 
+    async def test_should_accept_blob_attachments(self, ctx: E2ETestContext):
+        session = await ctx.client.create_session(
+            {"on_permission_request": PermissionHandler.approve_all}
+        )
+
+        # 1x1 transparent PNG pixel, base64-encoded
+        pixel_png = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAY"
+            "AAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhg"
+            "GAWjR9awAAAABJRU5ErkJggg=="
+        )
+
+        await session.send(
+            "Describe this image",
+            attachments=[
+                {
+                    "type": "blob",
+                    "data": pixel_png,
+                    "mimeType": "image/png",
+                    "displayName": "test-pixel.png",
+                },
+            ],
+        )
+
+        # Just verify send doesn't throw — blob attachment support varies by runtime
+        await session.disconnect()
+
 
 def _get_system_message(exchange: dict) -> str:
     messages = exchange.get("request", {}).get("messages", [])

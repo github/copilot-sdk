@@ -340,6 +340,7 @@ export interface SessionWorkspaceCreateFileParams {
   content: string;
 }
 
+/** @experimental */
 export interface SessionFleetStartResult {
   /**
    * Whether fleet mode was successfully activated
@@ -347,6 +348,7 @@ export interface SessionFleetStartResult {
   started: boolean;
 }
 
+/** @experimental */
 export interface SessionFleetStartParams {
   /**
    * Target session identifier
@@ -358,6 +360,7 @@ export interface SessionFleetStartParams {
   prompt?: string;
 }
 
+/** @experimental */
 export interface SessionAgentListResult {
   /**
    * Available custom agents
@@ -378,6 +381,7 @@ export interface SessionAgentListResult {
   }[];
 }
 
+/** @experimental */
 export interface SessionAgentListParams {
   /**
    * Target session identifier
@@ -385,6 +389,7 @@ export interface SessionAgentListParams {
   sessionId: string;
 }
 
+/** @experimental */
 export interface SessionAgentGetCurrentResult {
   /**
    * Currently selected custom agent, or null if using the default agent
@@ -405,6 +410,7 @@ export interface SessionAgentGetCurrentResult {
   } | null;
 }
 
+/** @experimental */
 export interface SessionAgentGetCurrentParams {
   /**
    * Target session identifier
@@ -412,6 +418,7 @@ export interface SessionAgentGetCurrentParams {
   sessionId: string;
 }
 
+/** @experimental */
 export interface SessionAgentSelectResult {
   /**
    * The newly selected custom agent
@@ -432,6 +439,7 @@ export interface SessionAgentSelectResult {
   };
 }
 
+/** @experimental */
 export interface SessionAgentSelectParams {
   /**
    * Target session identifier
@@ -443,8 +451,10 @@ export interface SessionAgentSelectParams {
   name: string;
 }
 
+/** @experimental */
 export interface SessionAgentDeselectResult {}
 
+/** @experimental */
 export interface SessionAgentDeselectParams {
   /**
    * Target session identifier
@@ -452,6 +462,7 @@ export interface SessionAgentDeselectParams {
   sessionId: string;
 }
 
+/** @experimental */
 export interface SessionCompactionCompactResult {
   /**
    * Whether compaction completed successfully
@@ -467,6 +478,7 @@ export interface SessionCompactionCompactResult {
   messagesRemoved: number;
 }
 
+/** @experimental */
 export interface SessionCompactionCompactParams {
   /**
    * Target session identifier
@@ -660,10 +672,12 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             createFile: async (params: Omit<SessionWorkspaceCreateFileParams, "sessionId">): Promise<SessionWorkspaceCreateFileResult> =>
                 connection.sendRequest("session.workspace.createFile", { sessionId, ...params }),
         },
+        /** @experimental */
         fleet: {
             start: async (params: Omit<SessionFleetStartParams, "sessionId">): Promise<SessionFleetStartResult> =>
                 connection.sendRequest("session.fleet.start", { sessionId, ...params }),
         },
+        /** @experimental */
         agent: {
             list: async (): Promise<SessionAgentListResult> =>
                 connection.sendRequest("session.agent.list", { sessionId }),
@@ -674,6 +688,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             deselect: async (): Promise<SessionAgentDeselectResult> =>
                 connection.sendRequest("session.agent.deselect", { sessionId }),
         },
+        /** @experimental */
         compaction: {
             compact: async (): Promise<SessionCompactionCompactResult> =>
                 connection.sendRequest("session.compaction.compact", { sessionId }),
