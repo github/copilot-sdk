@@ -181,15 +181,29 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 
 ## Image Support
 
-The SDK supports image attachments via the `Attachments` field in `MessageOptions`. You can attach images by providing their file path:
+The SDK supports image attachments via the `Attachments` field in `MessageOptions`. You can attach images by providing their file path, or by passing base64-encoded data directly using a blob attachment:
 
 ```go
+// File attachment — runtime reads from disk
 _, err = session.Send(context.Background(), copilot.MessageOptions{
     Prompt: "What's in this image?",
     Attachments: []copilot.Attachment{
         {
             Type: "file",
             Path: "/path/to/image.jpg",
+        },
+    },
+})
+
+// Blob attachment — provide base64 data directly
+mimeType := "image/png"
+_, err = session.Send(context.Background(), copilot.MessageOptions{
+    Prompt: "What's in this image?",
+    Attachments: []copilot.Attachment{
+        {
+            Type:     copilot.Blob,
+            Data:     &base64ImageData,
+            MIMEType: &mimeType,
         },
     },
 })

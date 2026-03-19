@@ -639,7 +639,7 @@ The user sent a message. Recorded for the session timeline.
 |------------|------|----------|-------------|
 | `content` | `string` | ✅ | The user's message text |
 | `transformedContent` | `string` | | Transformed version after preprocessing |
-| `attachments` | `Attachment[]` | | File, directory, selection, or GitHub reference attachments |
+| `attachments` | `Attachment[]` | | File, directory, selection, blob, or GitHub reference attachments |
 | `source` | `string` | | Message source identifier |
 | `agentMode` | `string` | | Agent mode: `"interactive"`, `"plan"`, `"autopilot"`, or `"shell"` |
 | `interactionId` | `string` | | CAPI interaction ID |

@@ -271,18 +271,33 @@ session.On(evt =>
 
 ## Image Support
 
-The SDK supports image attachments via the `Attachments` parameter. You can attach images by providing their file path:
+The SDK supports image attachments via the `Attachments` parameter. You can attach images by providing their file path, or by passing base64-encoded data directly using a blob attachment:
 
 ```csharp
+// File attachment — runtime reads from disk
 await session.SendAsync(new MessageOptions
 {
     Prompt = "What's in this image?",
     Attachments = new List<UserMessageDataAttachmentsItem>
     {
-        new UserMessageDataAttachmentsItem
+        new UserMessageDataAttachmentsItemFile
         {
-            Type = UserMessageDataAttachmentsItemType.File,
-            Path = "/path/to/image.jpg"
+            Path = "/path/to/image.jpg",
+            DisplayName = "image.jpg",
+        }
+    }
+});
+
+// Blob attachment — provide base64 data directly
+await session.SendAsync(new MessageOptions
+{
+    Prompt = "What's in this image?",
+    Attachments = new List<UserMessageDataAttachmentsItem>
+    {
+        new UserMessageDataAttachmentsItemBlob
+        {
+            Data = base64ImageData,
+            MimeType = "image/png",
         }
     }
 });

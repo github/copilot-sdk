@@ -724,6 +724,7 @@ class SessionWorkspaceCreateFileParams:
         return result
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SessionFleetStartResult:
     started: bool
@@ -741,6 +742,7 @@ class SessionFleetStartResult:
         return result
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SessionFleetStartParams:
     prompt: str | None = None
@@ -786,6 +788,7 @@ class AgentElement:
         return result
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SessionAgentListResult:
     agents: list[AgentElement]
@@ -830,6 +833,7 @@ class SessionAgentGetCurrentResultAgent:
         return result
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SessionAgentGetCurrentResult:
     agent: SessionAgentGetCurrentResultAgent | None = None
@@ -876,6 +880,7 @@ class SessionAgentSelectResultAgent:
         return result
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SessionAgentSelectResult:
     agent: SessionAgentSelectResultAgent
@@ -893,6 +898,7 @@ class SessionAgentSelectResult:
         return result
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SessionAgentSelectParams:
     name: str
@@ -910,6 +916,7 @@ class SessionAgentSelectParams:
         return result
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SessionAgentDeselectResult:
     @staticmethod
@@ -922,6 +929,7 @@ class SessionAgentDeselectResult:
         return result
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SessionCompactionCompactResult:
     messages_removed: float
@@ -1666,6 +1674,7 @@ class WorkspaceApi:
         return SessionWorkspaceCreateFileResult.from_dict(await self._client.request("session.workspace.createFile", params_dict, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
 class FleetApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
@@ -1677,6 +1686,7 @@ class FleetApi:
         return SessionFleetStartResult.from_dict(await self._client.request("session.fleet.start", params_dict, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
 class AgentApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
@@ -1697,6 +1707,7 @@ class AgentApi:
         return SessionAgentDeselectResult.from_dict(await self._client.request("session.agent.deselect", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
 class CompactionApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
