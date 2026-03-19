@@ -681,7 +681,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
             "session.getMessages", [new GetMessagesRequest { SessionId = SessionId }], cancellationToken);
 
         return response.Events
-            .Select(e => SessionEvent.TryFromJson(e.ToJsonString(), _logger))
+            .Select(e => SessionEvent.FromJson(e.ToJsonString()))
+            .OfType<SessionEvent>()
             .ToList();
     }
 
