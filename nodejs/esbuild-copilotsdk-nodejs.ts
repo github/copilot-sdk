@@ -26,6 +26,7 @@ await esbuild.build({
     target: "es2022",
     sourcemap: false,
     outExtension: { ".js": ".js" },
+    logOverride: { "empty-import-meta": "silent" },
 });
 
 // Mark the CJS directory so Node treats .js files as CommonJS
