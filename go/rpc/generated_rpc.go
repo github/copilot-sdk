@@ -208,16 +208,19 @@ type SessionWorkspaceCreateFileParams struct {
 	Path string `json:"path"`
 }
 
+// Experimental: SessionFleetStartResult is part of an experimental API and may change or be removed.
 type SessionFleetStartResult struct {
 	// Whether fleet mode was successfully activated
 	Started bool `json:"started"`
 }
 
+// Experimental: SessionFleetStartParams is part of an experimental API and may change or be removed.
 type SessionFleetStartParams struct {
 	// Optional user prompt to combine with fleet instructions
 	Prompt *string `json:"prompt,omitempty"`
 }
 
+// Experimental: SessionAgentListResult is part of an experimental API and may change or be removed.
 type SessionAgentListResult struct {
 	// Available custom agents
 	Agents []AgentElement `json:"agents"`
@@ -232,6 +235,7 @@ type AgentElement struct {
 	Name string `json:"name"`
 }
 
+// Experimental: SessionAgentGetCurrentResult is part of an experimental API and may change or be removed.
 type SessionAgentGetCurrentResult struct {
 	// Currently selected custom agent, or null if using the default agent
 	Agent *SessionAgentGetCurrentResultAgent `json:"agent"`
@@ -246,6 +250,7 @@ type SessionAgentGetCurrentResultAgent struct {
 	Name string `json:"name"`
 }
 
+// Experimental: SessionAgentSelectResult is part of an experimental API and may change or be removed.
 type SessionAgentSelectResult struct {
 	// The newly selected custom agent
 	Agent SessionAgentSelectResultAgent `json:"agent"`
@@ -261,14 +266,17 @@ type SessionAgentSelectResultAgent struct {
 	Name string `json:"name"`
 }
 
+// Experimental: SessionAgentSelectParams is part of an experimental API and may change or be removed.
 type SessionAgentSelectParams struct {
 	// Name of the custom agent to select
 	Name string `json:"name"`
 }
 
+// Experimental: SessionAgentDeselectResult is part of an experimental API and may change or be removed.
 type SessionAgentDeselectResult struct {
 }
 
+// Experimental: SessionCompactionCompactResult is part of an experimental API and may change or be removed.
 type SessionCompactionCompactResult struct {
 	// Number of messages removed during compaction
 	MessagesRemoved float64 `json:"messagesRemoved"`
@@ -402,7 +410,9 @@ type ResultUnion struct {
 	String       *string
 }
 
-type ServerModelsRpcApi struct{ client *jsonrpc2.Client }
+type ServerModelsRpcApi struct {
+	client *jsonrpc2.Client
+}
 
 func (a *ServerModelsRpcApi) List(ctx context.Context) (*ModelsListResult, error) {
 	raw, err := a.client.Request("models.list", map[string]interface{}{})
@@ -416,7 +426,9 @@ func (a *ServerModelsRpcApi) List(ctx context.Context) (*ModelsListResult, error
 	return &result, nil
 }
 
-type ServerToolsRpcApi struct{ client *jsonrpc2.Client }
+type ServerToolsRpcApi struct {
+	client *jsonrpc2.Client
+}
 
 func (a *ServerToolsRpcApi) List(ctx context.Context, params *ToolsListParams) (*ToolsListResult, error) {
 	raw, err := a.client.Request("tools.list", params)
@@ -430,7 +442,9 @@ func (a *ServerToolsRpcApi) List(ctx context.Context, params *ToolsListParams) (
 	return &result, nil
 }
 
-type ServerAccountRpcApi struct{ client *jsonrpc2.Client }
+type ServerAccountRpcApi struct {
+	client *jsonrpc2.Client
+}
 
 func (a *ServerAccountRpcApi) GetQuota(ctx context.Context) (*AccountGetQuotaResult, error) {
 	raw, err := a.client.Request("account.getQuota", map[string]interface{}{})
@@ -641,6 +655,7 @@ func (a *WorkspaceRpcApi) CreateFile(ctx context.Context, params *SessionWorkspa
 	return &result, nil
 }
 
+// Experimental: FleetRpcApi contains experimental APIs that may change or be removed.
 type FleetRpcApi struct {
 	client    *jsonrpc2.Client
 	sessionID string
@@ -664,6 +679,7 @@ func (a *FleetRpcApi) Start(ctx context.Context, params *SessionFleetStartParams
 	return &result, nil
 }
 
+// Experimental: AgentRpcApi contains experimental APIs that may change or be removed.
 type AgentRpcApi struct {
 	client    *jsonrpc2.Client
 	sessionID string
@@ -724,6 +740,7 @@ func (a *AgentRpcApi) Deselect(ctx context.Context) (*SessionAgentDeselectResult
 	return &result, nil
 }
 
+// Experimental: CompactionRpcApi contains experimental APIs that may change or be removed.
 type CompactionRpcApi struct {
 	client    *jsonrpc2.Client
 	sessionID string

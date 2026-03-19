@@ -15,6 +15,7 @@ import {
     postProcessSchema,
     writeGeneratedFile,
     isRpcMethod,
+    isNodeFullyExperimental,
     type ApiSchema,
     type RpcMethod,
 } from "./utils.js";
@@ -215,6 +216,23 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     // Modernize to Python 3.11+ syntax
     typesCode = modernizePython(typesCode);
 
+    // Annotate experimental data types
+    const experimentalTypeNames = new Set<string>();
+    for (const method of allMethods) {
+        if (method.stability !== "experimental") continue;
+        experimentalTypeNames.add(toPascalCase(method.rpcMethod) + "Result");
+        const baseName = toPascalCase(method.rpcMethod);
+        if (combinedSchema.definitions![baseName + "Params"]) {
+            experimentalTypeNames.add(baseName + "Params");
+        }
+    }
+    for (const typeName of experimentalTypeNames) {
+        typesCode = typesCode.replace(
+            new RegExp(`^(@dataclass\\n)?class ${typeName}[:(]`, "m"),
+            (match) => `# Experimental: this type is part of an experimental API and may change or be removed.\n${match}`
+        );
+    }
+
     const lines: string[] = [];
     lines.push(`"""
 AUTO-GENERATED FILE - DO NOT EDIT
@@ -259,12 +277,19 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     for (const [groupName, groupNode] of groups) {
         const prefix = isSession ? "" : "Server";
         const apiName = prefix + toPascalCase(groupName) + "Api";
+        const groupExperimental = isNodeFullyExperimental(groupNode as Record<string, unknown>);
         if (isSession) {
+            if (groupExperimental) {
+                lines.push(`# Experimental: this API group is experimental and may change or be removed.`);
+            }
             lines.push(`class ${apiName}:`);
             lines.push(`    def __init__(self, client: "JsonRpcClient", session_id: str):`);
             lines.push(`        self._client = client`);
             lines.push(`        self._session_id = session_id`);
         } else {
+            if (groupExperimental) {
+                lines.push(`# Experimental: this API group is experimental and may change or be removed.`);
+            }
             lines.push(`class ${apiName}:`);
             lines.push(`    def __init__(self, client: "JsonRpcClient"):`);
             lines.push(`        self._client = client`);
@@ -272,7 +297,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
         lines.push(``);
         for (const [key, value] of Object.entries(groupNode as Record<string, unknown>)) {
             if (!isRpcMethod(value)) continue;
-            emitMethod(lines, key, value, isSession);
+            emitMethod(lines, key, value, isSession, groupExperimental);
         }
         lines.push(``);
     }
@@ -301,12 +326,12 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     // Top-level methods
     for (const [key, value] of topLevelMethods) {
         if (!isRpcMethod(value)) continue;
-        emitMethod(lines, key, value, isSession);
+        emitMethod(lines, key, value, isSession, false);
     }
     lines.push(``);
 }
 
-function emitMethod(lines: string[], name: string, method: RpcMethod, isSession: boolean): void {
+function emitMethod(lines: string[], name: string, method: RpcMethod, isSession: boolean, groupExperimental = false): void {
     const methodName = toSnakeCase(name);
     const resultType = toPascalCase(method.rpcMethod) + "Result";
 
@@ -321,6 +346,10 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
         : `    async def ${methodName}(self, *, timeout: float | None = None) -> ${resultType}:`;
 
     lines.push(sig);
+
+    if (method.stability === "experimental" && !groupExperimental) {
+        lines.push(`        """.. warning:: This API is experimental and may change or be removed in future versions."""`);
+    }
 
     // Build request body with proper serialization/deserialization
     if (isSession) {

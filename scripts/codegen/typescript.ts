@@ -15,6 +15,7 @@ import {
     postProcessSchema,
     writeGeneratedFile,
     isRpcMethod,
+    isNodeFullyExperimental,
     type ApiSchema,
     type RpcMethod,
 } from "./utils.js";
@@ -91,6 +92,9 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
             bannerComment: "",
             additionalProperties: false,
         });
+        if (method.stability === "experimental") {
+            lines.push("/** @experimental */");
+        }
         lines.push(compiled.trim());
         lines.push("");
 
@@ -99,6 +103,9 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
                 bannerComment: "",
                 additionalProperties: false,
             });
+            if (method.stability === "experimental") {
+                lines.push("/** @experimental */");
+            }
             lines.push(paramsCompiled.trim());
             lines.push("");
         }
@@ -129,7 +136,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
     console.log(`  ✓ ${outPath}`);
 }
 
-function emitGroup(node: Record<string, unknown>, indent: string, isSession: boolean): string[] {
+function emitGroup(node: Record<string, unknown>, indent: string, isSession: boolean, parentExperimental = false): string[] {
     const lines: string[] = [];
     for (const [key, value] of Object.entries(node)) {
         if (isRpcMethod(value)) {
@@ -160,11 +167,18 @@ function emitGroup(node: Record<string, unknown>, indent: string, isSession: boo
                 }
             }
 
+            if ((value as RpcMethod).stability === "experimental" && !parentExperimental) {
+                lines.push(`${indent}/** @experimental */`);
+            }
             lines.push(`${indent}${key}: async (${sigParams.join(", ")}): Promise<${resultType}> =>`);
             lines.push(`${indent}    connection.sendRequest("${rpcMethod}", ${bodyArg}),`);
         } else if (typeof value === "object" && value !== null) {
+            const groupExperimental = isNodeFullyExperimental(value as Record<string, unknown>);
+            if (groupExperimental) {
+                lines.push(`${indent}/** @experimental */`);
+            }
             lines.push(`${indent}${key}: {`);
-            lines.push(...emitGroup(value as Record<string, unknown>, indent + "    ", isSession));
+            lines.push(...emitGroup(value as Record<string, unknown>, indent + "    ", isSession, groupExperimental));
             lines.push(`${indent}},`);
         }
     }

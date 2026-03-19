@@ -16,6 +16,7 @@ import {
     getApiSchemaPath,
     writeGeneratedFile,
     isRpcMethod,
+    isNodeFullyExperimental,
     EXCLUDED_EVENT_TYPES,
     REPO_ROOT,
     type ApiSchema,
@@ -594,6 +595,7 @@ export async function generateSessionEvents(schemaPath?: string): Promise<void> 
 // ══════════════════════════════════════════════════════════════════════════════
 
 let emittedRpcClasses = new Set<string>();
+let experimentalRpcTypes = new Set<string>();
 let rpcKnownTypes = new Map<string, string>();
 let rpcEnumOutput: string[] = [];
 
@@ -651,6 +653,9 @@ function emitRpcClass(className: string, schema: JSONSchema7, visibility: "publi
     const requiredSet = new Set(schema.required || []);
     const lines: string[] = [];
     lines.push(...xmlDocComment(schema.description || `RPC data type for ${className.replace(/Request$/, "").replace(/Result$/, "")} operations.`, ""));
+    if (experimentalRpcTypes.has(className)) {
+        lines.push(`[Experimental(Diagnostics.Experimental)]`);
+    }
     lines.push(`${visibility} class ${className}`, `{`);
 
     const props = Object.entries(schema.properties || {});
@@ -712,7 +717,7 @@ function emitServerRpcClasses(node: Record<string, unknown>, classes: string[]):
     // Top-level methods (like ping)
     for (const [key, value] of topLevelMethods) {
         if (!isRpcMethod(value)) continue;
-        emitServerInstanceMethod(key, value, srLines, classes, "    ");
+        emitServerInstanceMethod(key, value, srLines, classes, "    ", false);
     }
 
     // Group properties
@@ -737,6 +742,10 @@ function emitServerApiClass(className: string, node: Record<string, unknown>, cl
     const lines: string[] = [];
     const displayName = className.replace(/^Server/, "").replace(/Api$/, "");
     lines.push(`/// <summary>Provides server-scoped ${displayName} APIs.</summary>`);
+    const groupExperimental = isNodeFullyExperimental(node);
+    if (groupExperimental) {
+        lines.push(`[Experimental(Diagnostics.Experimental)]`);
+    }
     lines.push(`public class ${className}`);
     lines.push(`{`);
     lines.push(`    private readonly JsonRpc _rpc;`);
@@ -748,7 +757,7 @@ function emitServerApiClass(className: string, node: Record<string, unknown>, cl
 
     for (const [key, value] of Object.entries(node)) {
         if (!isRpcMethod(value)) continue;
-        emitServerInstanceMethod(key, value, lines, classes, "    ");
+        emitServerInstanceMethod(key, value, lines, classes, "    ", groupExperimental);
     }
 
     lines.push(`}`);
@@ -757,13 +766,17 @@ function emitServerApiClass(className: string, node: Record<string, unknown>, cl
 
 function emitServerInstanceMethod(
     name: string,
-    method: { rpcMethod: string; params: JSONSchema7 | null; result: JSONSchema7 },
+    method: RpcMethod,
     lines: string[],
     classes: string[],
-    indent: string
+    indent: string,
+    groupExperimental: boolean
 ): void {
     const methodName = toPascalCase(name);
     const resultClassName = `${typeToClassName(method.rpcMethod)}Result`;
+    if (method.stability === "experimental") {
+        experimentalRpcTypes.add(resultClassName);
+    }
     const resultClass = emitRpcClass(resultClassName, method.result, "public", classes);
     if (resultClass) classes.push(resultClass);
 
@@ -773,12 +786,18 @@ function emitServerInstanceMethod(
     let requestClassName: string | null = null;
     if (paramEntries.length > 0) {
         requestClassName = `${typeToClassName(method.rpcMethod)}Request`;
+        if (method.stability === "experimental") {
+            experimentalRpcTypes.add(requestClassName);
+        }
         const reqClass = emitRpcClass(requestClassName, method.params!, "internal", classes);
         if (reqClass) classes.push(reqClass);
     }
 
     lines.push("");
     lines.push(`${indent}/// <summary>Calls "${method.rpcMethod}".</summary>`);
+    if (method.stability === "experimental" && !groupExperimental) {
+        lines.push(`${indent}[Experimental(Diagnostics.Experimental)]`);
+    }
 
     const sigParams: string[] = [];
     const bodyAssignments: string[] = [];
@@ -817,7 +836,7 @@ function emitSessionRpcClasses(node: Record<string, unknown>, classes: string[])
     // Emit top-level session RPC methods directly on the SessionRpc class
     const topLevelLines: string[] = [];
     for (const [key, value] of topLevelMethods) {
-        emitSessionMethod(key, value as RpcMethod, topLevelLines, classes, "    ");
+        emitSessionMethod(key, value as RpcMethod, topLevelLines, classes, "    ", false);
     }
     srLines.push(...topLevelLines);
 
@@ -830,9 +849,12 @@ function emitSessionRpcClasses(node: Record<string, unknown>, classes: string[])
     return result;
 }
 
-function emitSessionMethod(key: string, method: RpcMethod, lines: string[], classes: string[], indent: string): void {
+function emitSessionMethod(key: string, method: RpcMethod, lines: string[], classes: string[], indent: string, groupExperimental: boolean): void {
     const methodName = toPascalCase(key);
     const resultClassName = `${typeToClassName(method.rpcMethod)}Result`;
+    if (method.stability === "experimental") {
+        experimentalRpcTypes.add(resultClassName);
+    }
     const resultClass = emitRpcClass(resultClassName, method.result, "public", classes);
     if (resultClass) classes.push(resultClass);
 
@@ -847,12 +869,18 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     });
 
     const requestClassName = `${typeToClassName(method.rpcMethod)}Request`;
+    if (method.stability === "experimental") {
+        experimentalRpcTypes.add(requestClassName);
+    }
     if (method.params) {
         const reqClass = emitRpcClass(requestClassName, method.params, "internal", classes);
         if (reqClass) classes.push(reqClass);
     }
 
     lines.push("", `${indent}/// <summary>Calls "${method.rpcMethod}".</summary>`);
+    if (method.stability === "experimental" && !groupExperimental) {
+        lines.push(`${indent}[Experimental(Diagnostics.Experimental)]`);
+    }
     const sigParams: string[] = [];
     const bodyAssignments = [`SessionId = _sessionId`];
 
@@ -872,12 +900,14 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
 
 function emitSessionApiClass(className: string, node: Record<string, unknown>, classes: string[]): string {
     const displayName = className.replace(/Api$/, "");
-    const lines = [`/// <summary>Provides session-scoped ${displayName} APIs.</summary>`, `public class ${className}`, `{`, `    private readonly JsonRpc _rpc;`, `    private readonly string _sessionId;`, ""];
+    const groupExperimental = isNodeFullyExperimental(node);
+    const experimentalAttr = groupExperimental ? `[Experimental(Diagnostics.Experimental)]\n` : "";
+    const lines = [`/// <summary>Provides session-scoped ${displayName} APIs.</summary>`, `${experimentalAttr}public class ${className}`, `{`, `    private readonly JsonRpc _rpc;`, `    private readonly string _sessionId;`, ""];
     lines.push(`    internal ${className}(JsonRpc rpc, string sessionId)`, `    {`, `        _rpc = rpc;`, `        _sessionId = sessionId;`, `    }`);
 
     for (const [key, value] of Object.entries(node)) {
         if (!isRpcMethod(value)) continue;
-        emitSessionMethod(key, value, lines, classes, "    ");
+        emitSessionMethod(key, value, lines, classes, "    ", groupExperimental);
     }
     lines.push(`}`);
     return lines.join("\n");
@@ -885,6 +915,7 @@ function emitSessionApiClass(className: string, node: Record<string, unknown>, c
 
 function generateRpcCode(schema: ApiSchema): string {
     emittedRpcClasses.clear();
+    experimentalRpcTypes.clear();
     rpcKnownTypes.clear();
     rpcEnumOutput = [];
     generatedEnums.clear(); // Clear shared enum deduplication map
@@ -902,11 +933,19 @@ function generateRpcCode(schema: ApiSchema): string {
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: api.schema.json
 
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using StreamJsonRpc;
 
 namespace GitHub.Copilot.SDK.Rpc;
+
+/// <summary>Diagnostic IDs for the Copilot SDK.</summary>
+internal static class Diagnostics
+{
+    /// <summary>Indicates an experimental API that may change or be removed.</summary>
+    internal const string Experimental = "GHCP001";
+}
 `);
 
     for (const cls of classes) if (cls) lines.push(cls, "");

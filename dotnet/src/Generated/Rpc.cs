@@ -5,11 +5,19 @@
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: api.schema.json
 
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using StreamJsonRpc;
 
 namespace GitHub.Copilot.SDK.Rpc;
+
+/// <summary>Diagnostic IDs for the Copilot SDK.</summary>
+internal static class Diagnostics
+{
+    /// <summary>Indicates an experimental API that may change or be removed.</summary>
+    internal const string Experimental = "GHCP001";
+}
 
 /// <summary>RPC data type for Ping operations.</summary>
 public class PingResult
@@ -427,6 +435,7 @@ internal class SessionWorkspaceCreateFileRequest
 }
 
 /// <summary>RPC data type for SessionFleetStart operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 public class SessionFleetStartResult
 {
     /// <summary>Whether fleet mode was successfully activated.</summary>
@@ -435,6 +444,7 @@ public class SessionFleetStartResult
 }
 
 /// <summary>RPC data type for SessionFleetStart operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal class SessionFleetStartRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -463,6 +473,7 @@ public class Agent
 }
 
 /// <summary>RPC data type for SessionAgentList operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 public class SessionAgentListResult
 {
     /// <summary>Available custom agents.</summary>
@@ -471,6 +482,7 @@ public class SessionAgentListResult
 }
 
 /// <summary>RPC data type for SessionAgentList operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal class SessionAgentListRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -495,6 +507,7 @@ public class SessionAgentGetCurrentResultAgent
 }
 
 /// <summary>RPC data type for SessionAgentGetCurrent operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 public class SessionAgentGetCurrentResult
 {
     /// <summary>Currently selected custom agent, or null if using the default agent.</summary>
@@ -503,6 +516,7 @@ public class SessionAgentGetCurrentResult
 }
 
 /// <summary>RPC data type for SessionAgentGetCurrent operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal class SessionAgentGetCurrentRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -527,6 +541,7 @@ public class SessionAgentSelectResultAgent
 }
 
 /// <summary>RPC data type for SessionAgentSelect operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 public class SessionAgentSelectResult
 {
     /// <summary>The newly selected custom agent.</summary>
@@ -535,6 +550,7 @@ public class SessionAgentSelectResult
 }
 
 /// <summary>RPC data type for SessionAgentSelect operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal class SessionAgentSelectRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -547,11 +563,13 @@ internal class SessionAgentSelectRequest
 }
 
 /// <summary>RPC data type for SessionAgentDeselect operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 public class SessionAgentDeselectResult
 {
 }
 
 /// <summary>RPC data type for SessionAgentDeselect operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal class SessionAgentDeselectRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -560,6 +578,7 @@ internal class SessionAgentDeselectRequest
 }
 
 /// <summary>RPC data type for SessionCompactionCompact operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 public class SessionCompactionCompactResult
 {
     /// <summary>Whether compaction completed successfully.</summary>
@@ -576,6 +595,7 @@ public class SessionCompactionCompactResult
 }
 
 /// <summary>RPC data type for SessionCompactionCompact operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal class SessionCompactionCompactRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -1000,6 +1020,7 @@ public class WorkspaceApi
 }
 
 /// <summary>Provides session-scoped Fleet APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public class FleetApi
 {
     private readonly JsonRpc _rpc;
@@ -1020,6 +1041,7 @@ public class FleetApi
 }
 
 /// <summary>Provides session-scoped Agent APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public class AgentApi
 {
     private readonly JsonRpc _rpc;
@@ -1061,6 +1083,7 @@ public class AgentApi
 }
 
 /// <summary>Provides session-scoped Compaction APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public class CompactionApi
 {
     private readonly JsonRpc _rpc;
