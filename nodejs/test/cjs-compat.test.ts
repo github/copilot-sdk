@@ -40,22 +40,33 @@ describe("Dual ESM/CJS build (#528)", () => {
         expect(output).toContain("CJS require: OK");
     });
 
-    it("CopilotClient constructor works in CJS context", () => {
+    it("CJS build resolves bundled CLI path", () => {
         const script = `
             const sdk = require(${JSON.stringify(join(distDir, "cjs/index.js"))});
-            try {
-                const client = new sdk.CopilotClient({ cliUrl: "http://localhost:8080" });
-                console.log('CopilotClient constructor: OK');
-            } catch (e) {
-                console.error('constructor failed:', e.message);
-                process.exit(1);
-            }
+            const client = new sdk.CopilotClient({ autoStart: false });
+            console.log('CJS CLI resolved: OK');
         `;
         const output = execFileSync(process.execPath, ["--eval", script], {
             encoding: "utf-8",
             timeout: 10000,
             cwd: join(import.meta.dirname, ".."),
         });
-        expect(output).toContain("CopilotClient constructor: OK");
+        expect(output).toContain("CJS CLI resolved: OK");
+    });
+
+    it("ESM build resolves bundled CLI path", () => {
+        const esmPath = join(distDir, "index.js");
+        const script = `
+            import { pathToFileURL } from 'node:url';
+            const sdk = await import(pathToFileURL(${JSON.stringify(esmPath)}).href);
+            const client = new sdk.CopilotClient({ autoStart: false });
+            console.log('ESM CLI resolved: OK');
+        `;
+        const output = execFileSync(process.execPath, ["--input-type=module", "--eval", script], {
+            encoding: "utf-8",
+            timeout: 10000,
+            cwd: join(import.meta.dirname, ".."),
+        });
+        expect(output).toContain("ESM CLI resolved: OK");
     });
 });
