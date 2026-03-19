@@ -46,16 +46,13 @@ await session.sendAndWait({ prompt: "Analyze my codebase" });
 ### Python
 
 ```python
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 
 client = CopilotClient()
 await client.start()
 
 # Create a session with a meaningful ID
-session = await client.create_session({
-    "session_id": "user-123-task-456",
-    "model": "gpt-5.2-codex",
-})
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-5.2-codex", session_id="user-123-task-456")
 
 # Do some work...
 await session.send_and_wait({"prompt": "Analyze my codebase"})
@@ -160,7 +157,7 @@ await session.sendAndWait({ prompt: "What did we discuss earlier?" });
 
 ```python
 # Resume from a different client instance (or after restart)
-session = await client.resume_session("user-123-task-456")
+session = await client.resume_session("user-123-task-456", on_permission_request=PermissionHandler.approve_all)
 
 # Continue where you left off
 await session.send_and_wait({"prompt": "What did we discuss earlier?"})

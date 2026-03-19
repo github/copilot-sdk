@@ -111,17 +111,14 @@ res.json({ content: response?.data.content });
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionHandler
 
 client = CopilotClient({
     "cli_url": "localhost:4321",
 })
 await client.start()
 
-session = await client.create_session({
-    "session_id": f"user-{user_id}-{int(time.time())}",
-    "model": "gpt-4.1",
-})
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-4.1", session_id=f"user-{user_id}-{int(time.time())}")
 
 response = await session.send_and_wait({"prompt": message})
 ```
