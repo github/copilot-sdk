@@ -35,11 +35,11 @@ func main() {
 	session.On(func(event copilot.SessionEvent) {
 		var output string
 		switch event.Type {
-		case copilot.AssistantReasoning:
+		case copilot.SessionEventTypeAssistantReasoning:
 			if event.Data.Content != nil {
 				output = fmt.Sprintf("[reasoning: %s]", *event.Data.Content)
 			}
-		case copilot.ToolExecutionStart:
+		case copilot.SessionEventTypeToolExecutionStart:
 			if event.Data.ToolName != nil {
 				output = fmt.Sprintf("[tool: %s]", *event.Data.ToolName)
 			}

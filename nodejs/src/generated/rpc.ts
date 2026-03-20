@@ -463,6 +463,302 @@ export interface SessionAgentDeselectParams {
 }
 
 /** @experimental */
+export interface SessionAgentReloadResult {
+  /**
+   * Reloaded custom agents
+   */
+  agents: {
+    /**
+     * Unique identifier of the custom agent
+     */
+    name: string;
+    /**
+     * Human-readable display name
+     */
+    displayName: string;
+    /**
+     * Description of the agent's purpose
+     */
+    description: string;
+  }[];
+}
+
+/** @experimental */
+export interface SessionAgentReloadParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
+
+/** @experimental */
+export interface SessionSkillsListResult {
+  /**
+   * Available skills
+   */
+  skills: {
+    /**
+     * Unique identifier for the skill
+     */
+    name: string;
+    /**
+     * Description of what the skill does
+     */
+    description: string;
+    /**
+     * Source location type (e.g., project, personal, plugin)
+     */
+    source: string;
+    /**
+     * Whether the skill can be invoked by the user as a slash command
+     */
+    userInvocable: boolean;
+    /**
+     * Whether the skill is currently enabled
+     */
+    enabled: boolean;
+    /**
+     * Absolute path to the skill file
+     */
+    path?: string;
+  }[];
+}
+
+/** @experimental */
+export interface SessionSkillsListParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
+
+/** @experimental */
+export interface SessionSkillsEnableResult {}
+
+/** @experimental */
+export interface SessionSkillsEnableParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Name of the skill to enable
+   */
+  name: string;
+}
+
+/** @experimental */
+export interface SessionSkillsDisableResult {}
+
+/** @experimental */
+export interface SessionSkillsDisableParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Name of the skill to disable
+   */
+  name: string;
+}
+
+/** @experimental */
+export interface SessionSkillsReloadResult {}
+
+/** @experimental */
+export interface SessionSkillsReloadParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
+
+/** @experimental */
+export interface SessionMcpListResult {
+  /**
+   * Configured MCP servers
+   */
+  servers: {
+    /**
+     * Server name (config key)
+     */
+    name: string;
+    /**
+     * Connection status: connected, failed, pending, disabled, or not_configured
+     */
+    status: "connected" | "failed" | "pending" | "disabled" | "not_configured";
+    /**
+     * Configuration source: user, workspace, plugin, or builtin
+     */
+    source?: string;
+    /**
+     * Error message if the server failed to connect
+     */
+    error?: string;
+  }[];
+}
+
+/** @experimental */
+export interface SessionMcpListParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
+
+/** @experimental */
+export interface SessionMcpEnableResult {}
+
+/** @experimental */
+export interface SessionMcpEnableParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Name of the MCP server to enable
+   */
+  serverName: string;
+}
+
+/** @experimental */
+export interface SessionMcpDisableResult {}
+
+/** @experimental */
+export interface SessionMcpDisableParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Name of the MCP server to disable
+   */
+  serverName: string;
+}
+
+/** @experimental */
+export interface SessionMcpReloadResult {}
+
+/** @experimental */
+export interface SessionMcpReloadParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
+
+/** @experimental */
+export interface SessionPluginsListResult {
+  /**
+   * Installed plugins
+   */
+  plugins: {
+    /**
+     * Plugin name
+     */
+    name: string;
+    /**
+     * Marketplace the plugin came from
+     */
+    marketplace: string;
+    /**
+     * Installed version
+     */
+    version?: string;
+    /**
+     * Whether the plugin is currently enabled
+     */
+    enabled: boolean;
+  }[];
+}
+
+/** @experimental */
+export interface SessionPluginsListParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
+
+/** @experimental */
+export interface SessionExtensionsListResult {
+  /**
+   * Discovered extensions and their current status
+   */
+  extensions: {
+    /**
+     * Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper')
+     */
+    id: string;
+    /**
+     * Extension name (directory name)
+     */
+    name: string;
+    /**
+     * Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
+     */
+    source: "project" | "user";
+    /**
+     * Current status: running, disabled, failed, or starting
+     */
+    status: "running" | "disabled" | "failed" | "starting";
+    /**
+     * Process ID if the extension is running
+     */
+    pid?: number;
+  }[];
+}
+
+/** @experimental */
+export interface SessionExtensionsListParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
+
+/** @experimental */
+export interface SessionExtensionsEnableResult {}
+
+/** @experimental */
+export interface SessionExtensionsEnableParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Source-qualified extension ID to enable
+   */
+  id: string;
+}
+
+/** @experimental */
+export interface SessionExtensionsDisableResult {}
+
+/** @experimental */
+export interface SessionExtensionsDisableParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Source-qualified extension ID to disable
+   */
+  id: string;
+}
+
+/** @experimental */
+export interface SessionExtensionsReloadResult {}
+
+/** @experimental */
+export interface SessionExtensionsReloadParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
+
+/** @experimental */
 export interface SessionCompactionCompactResult {
   /**
    * Whether compaction completed successfully
@@ -510,6 +806,135 @@ export interface SessionToolsHandlePendingToolCallParams {
         };
       };
   error?: string;
+}
+
+export interface SessionCommandsHandlePendingCommandResult {
+  success: boolean;
+}
+
+export interface SessionCommandsHandlePendingCommandParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Request ID from the command invocation event
+   */
+  requestId: string;
+  /**
+   * Error message if the command handler failed
+   */
+  error?: string;
+}
+
+export interface SessionUiElicitationResult {
+  /**
+   * The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
+   */
+  action: "accept" | "decline" | "cancel";
+  /**
+   * The form values submitted by the user (present when action is 'accept')
+   */
+  content?: {
+    [k: string]: string | number | boolean | string[];
+  };
+}
+
+export interface SessionUiElicitationParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Message describing what information is needed from the user
+   */
+  message: string;
+  /**
+   * JSON Schema describing the form fields to present to the user
+   */
+  requestedSchema: {
+    /**
+     * Schema type indicator (always 'object')
+     */
+    type: "object";
+    /**
+     * Form field definitions, keyed by field name
+     */
+    properties: {
+      [k: string]:
+        | {
+            type: "string";
+            title?: string;
+            description?: string;
+            enum: string[];
+            enumNames?: string[];
+            default?: string;
+          }
+        | {
+            type: "string";
+            title?: string;
+            description?: string;
+            oneOf: {
+              const: string;
+              title: string;
+            }[];
+            default?: string;
+          }
+        | {
+            type: "array";
+            title?: string;
+            description?: string;
+            minItems?: number;
+            maxItems?: number;
+            items: {
+              type: "string";
+              enum: string[];
+            };
+            default?: string[];
+          }
+        | {
+            type: "array";
+            title?: string;
+            description?: string;
+            minItems?: number;
+            maxItems?: number;
+            items: {
+              anyOf: {
+                const: string;
+                title: string;
+              }[];
+            };
+            default?: string[];
+          }
+        | {
+            type: "boolean";
+            title?: string;
+            description?: string;
+            default?: boolean;
+          }
+        | {
+            type: "string";
+            title?: string;
+            description?: string;
+            minLength?: number;
+            maxLength?: number;
+            format?: "email" | "uri" | "date" | "date-time";
+            default?: string;
+          }
+        | {
+            type: "number" | "integer";
+            title?: string;
+            description?: string;
+            minimum?: number;
+            maximum?: number;
+            default?: number;
+          };
+    };
+    /**
+     * List of required field names
+     */
+    required?: string[];
+  };
 }
 
 export interface SessionPermissionsHandlePendingPermissionRequestResult {
@@ -571,6 +996,10 @@ export interface SessionLogParams {
    * When true, the message is transient and not persisted to the session event log on disk
    */
   ephemeral?: boolean;
+  /**
+   * Optional URL the user can open in their browser for more details
+   */
+  url?: string;
 }
 
 export interface SessionShellExecResult {
@@ -687,6 +1116,46 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.agent.select", { sessionId, ...params }),
             deselect: async (): Promise<SessionAgentDeselectResult> =>
                 connection.sendRequest("session.agent.deselect", { sessionId }),
+            reload: async (): Promise<SessionAgentReloadResult> =>
+                connection.sendRequest("session.agent.reload", { sessionId }),
+        },
+        /** @experimental */
+        skills: {
+            list: async (): Promise<SessionSkillsListResult> =>
+                connection.sendRequest("session.skills.list", { sessionId }),
+            enable: async (params: Omit<SessionSkillsEnableParams, "sessionId">): Promise<SessionSkillsEnableResult> =>
+                connection.sendRequest("session.skills.enable", { sessionId, ...params }),
+            disable: async (params: Omit<SessionSkillsDisableParams, "sessionId">): Promise<SessionSkillsDisableResult> =>
+                connection.sendRequest("session.skills.disable", { sessionId, ...params }),
+            reload: async (): Promise<SessionSkillsReloadResult> =>
+                connection.sendRequest("session.skills.reload", { sessionId }),
+        },
+        /** @experimental */
+        mcp: {
+            list: async (): Promise<SessionMcpListResult> =>
+                connection.sendRequest("session.mcp.list", { sessionId }),
+            enable: async (params: Omit<SessionMcpEnableParams, "sessionId">): Promise<SessionMcpEnableResult> =>
+                connection.sendRequest("session.mcp.enable", { sessionId, ...params }),
+            disable: async (params: Omit<SessionMcpDisableParams, "sessionId">): Promise<SessionMcpDisableResult> =>
+                connection.sendRequest("session.mcp.disable", { sessionId, ...params }),
+            reload: async (): Promise<SessionMcpReloadResult> =>
+                connection.sendRequest("session.mcp.reload", { sessionId }),
+        },
+        /** @experimental */
+        plugins: {
+            list: async (): Promise<SessionPluginsListResult> =>
+                connection.sendRequest("session.plugins.list", { sessionId }),
+        },
+        /** @experimental */
+        extensions: {
+            list: async (): Promise<SessionExtensionsListResult> =>
+                connection.sendRequest("session.extensions.list", { sessionId }),
+            enable: async (params: Omit<SessionExtensionsEnableParams, "sessionId">): Promise<SessionExtensionsEnableResult> =>
+                connection.sendRequest("session.extensions.enable", { sessionId, ...params }),
+            disable: async (params: Omit<SessionExtensionsDisableParams, "sessionId">): Promise<SessionExtensionsDisableResult> =>
+                connection.sendRequest("session.extensions.disable", { sessionId, ...params }),
+            reload: async (): Promise<SessionExtensionsReloadResult> =>
+                connection.sendRequest("session.extensions.reload", { sessionId }),
         },
         /** @experimental */
         compaction: {
@@ -696,6 +1165,14 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         tools: {
             handlePendingToolCall: async (params: Omit<SessionToolsHandlePendingToolCallParams, "sessionId">): Promise<SessionToolsHandlePendingToolCallResult> =>
                 connection.sendRequest("session.tools.handlePendingToolCall", { sessionId, ...params }),
+        },
+        commands: {
+            handlePendingCommand: async (params: Omit<SessionCommandsHandlePendingCommandParams, "sessionId">): Promise<SessionCommandsHandlePendingCommandResult> =>
+                connection.sendRequest("session.commands.handlePendingCommand", { sessionId, ...params }),
+        },
+        ui: {
+            elicitation: async (params: Omit<SessionUiElicitationParams, "sessionId">): Promise<SessionUiElicitationResult> =>
+                connection.sendRequest("session.ui.elicitation", { sessionId, ...params }),
         },
         permissions: {
             handlePendingPermissionRequest: async (params: Omit<SessionPermissionsHandlePendingPermissionRequestParams, "sessionId">): Promise<SessionPermissionsHandlePendingPermissionRequestResult> =>

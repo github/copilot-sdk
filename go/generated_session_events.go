@@ -61,15 +61,12 @@ type SessionEvent struct {
 	//
 	// Current context window usage statistics including token and message counts
 	//
-	// Empty payload; the event signals that LLM-powered conversation compaction has begun
+	// Context window breakdown at the start of LLM-powered conversation compaction
 	//
 	// Conversation compaction results including success status, metrics, and optional error
 	// details
 	//
-	// Task completion notification with optional summary from the agent
-	//
-	// User message content with optional attachments, source information, and interaction
-	// metadata
+	// Task completion notification with summary from the agent
 	//
 	// Empty payload; the event signals that the pending message queue has changed
 	//
@@ -135,9 +132,14 @@ type SessionEvent struct {
 	//
 	// User input request completion notification signaling UI dismissal
 	//
-	// Structured form elicitation request with JSON schema definition for form fields
+	// Elicitation request; may be form-based (structured input) or URL-based (browser
+	// redirect)
 	//
 	// Elicitation request completion notification signaling UI dismissal
+	//
+	// OAuth authentication request for an MCP server
+	//
+	// MCP OAuth request completion notification
 	//
 	// External tool invocation request for client-side tool execution
 	//
@@ -145,7 +147,11 @@ type SessionEvent struct {
 	//
 	// Queued slash command dispatch request for client execution
 	//
+	// Registered command dispatch request routed to the owning client
+	//
 	// Queued command completion notification signaling UI dismissal
+	//
+	// SDK command registration change notification
 	//
 	// Plan approval request with plan content and available user actions
 	//
@@ -198,15 +204,12 @@ type SessionEvent struct {
 //
 // # Current context window usage statistics including token and message counts
 //
-// Empty payload; the event signals that LLM-powered conversation compaction has begun
+// # Context window breakdown at the start of LLM-powered conversation compaction
 //
 // Conversation compaction results including success status, metrics, and optional error
 // details
 //
-// # Task completion notification with optional summary from the agent
-//
-// User message content with optional attachments, source information, and interaction
-// metadata
+// # Task completion notification with summary from the agent
 //
 // Empty payload; the event signals that the pending message queue has changed
 //
@@ -272,9 +275,14 @@ type SessionEvent struct {
 //
 // # User input request completion notification signaling UI dismissal
 //
-// # Structured form elicitation request with JSON schema definition for form fields
+// Elicitation request; may be form-based (structured input) or URL-based (browser
+// redirect)
 //
 // # Elicitation request completion notification signaling UI dismissal
+//
+// # OAuth authentication request for an MCP server
+//
+// # MCP OAuth request completion notification
 //
 // # External tool invocation request for client-side tool execution
 //
@@ -282,7 +290,11 @@ type SessionEvent struct {
 //
 // # Queued slash command dispatch request for client execution
 //
+// # Registered command dispatch request routed to the owning client
+//
 // # Queued command completion notification signaling UI dismissal
+//
+// # SDK command registration change notification
 //
 // # Plan approval request with plan content and available user actions
 //
@@ -343,6 +355,14 @@ type Data struct {
 	Stack *string `json:"stack,omitempty"`
 	// HTTP status code from the upstream request, if applicable
 	StatusCode *int64 `json:"statusCode,omitempty"`
+	// Optional URL associated with this error that the user can open in a browser
+	//
+	// Optional URL associated with this message that the user can open in a browser
+	//
+	// Optional URL associated with this warning that the user can open in a browser
+	//
+	// URL to open in the user's browser (url mode only)
+	URL *string `json:"url,omitempty"`
 	// Background tasks still running when the agent became idle
 	BackgroundTasks *BackgroundTasks `json:"backgroundTasks,omitempty"`
 	// The new display title for the session
@@ -383,7 +403,7 @@ type Data struct {
 	SourceType *SourceType `json:"sourceType,omitempty"`
 	// Summary of the work done in the source session
 	//
-	// Optional summary of the completed task, provided by the agent
+	// Summary of the completed task, provided by the agent
 	//
 	// Summary of the plan that was created
 	Summary *string `json:"summary,omitempty"`
@@ -409,8 +429,20 @@ type Data struct {
 	UpToEventID *string `json:"upToEventId,omitempty"`
 	// Aggregate code change metrics for the session
 	CodeChanges *CodeChanges `json:"codeChanges,omitempty"`
+	// Non-system message token count at shutdown
+	//
+	// Token count from non-system messages (user, assistant, tool)
+	//
+	// Token count from non-system messages (user, assistant, tool) at compaction start
+	//
+	// Token count from non-system messages (user, assistant, tool) after compaction
+	ConversationTokens *float64 `json:"conversationTokens,omitempty"`
 	// Model that was selected at the time of shutdown
 	CurrentModel *string `json:"currentModel,omitempty"`
+	// Total tokens in context window at shutdown
+	//
+	// Current number of tokens in the context window
+	CurrentTokens *float64 `json:"currentTokens,omitempty"`
 	// Error description when shutdownType is "error"
 	ErrorReason *string `json:"errorReason,omitempty"`
 	// Per-model usage breakdown, keyed by model identifier
@@ -419,6 +451,22 @@ type Data struct {
 	SessionStartTime *float64 `json:"sessionStartTime,omitempty"`
 	// Whether the session ended normally ("routine") or due to a crash/fatal error ("error")
 	ShutdownType *ShutdownType `json:"shutdownType,omitempty"`
+	// System message token count at shutdown
+	//
+	// Token count from system message(s)
+	//
+	// Token count from system message(s) at compaction start
+	//
+	// Token count from system message(s) after compaction
+	SystemTokens *float64 `json:"systemTokens,omitempty"`
+	// Tool definitions token count at shutdown
+	//
+	// Token count from tool definitions
+	//
+	// Token count from tool definitions at compaction start
+	//
+	// Token count from tool definitions after compaction
+	ToolDefinitionsTokens *float64 `json:"toolDefinitionsTokens,omitempty"`
 	// Cumulative time spent in API calls during the session, in milliseconds
 	TotalAPIDurationMS *float64 `json:"totalApiDurationMs,omitempty"`
 	// Total number of premium API requests used during the session
@@ -435,8 +483,8 @@ type Data struct {
 	HeadCommit *string `json:"headCommit,omitempty"`
 	// Hosting platform type of the repository (github or ado)
 	HostType *HostType `json:"hostType,omitempty"`
-	// Current number of tokens in the context window
-	CurrentTokens *float64 `json:"currentTokens,omitempty"`
+	// Whether this is the first usage_info event emitted in this session
+	IsInitial *bool `json:"isInitial,omitempty"`
 	// Current number of messages in the conversation
 	MessagesLength *float64 `json:"messagesLength,omitempty"`
 	// Checkpoint snapshot number created for recovery
@@ -481,12 +529,19 @@ type Data struct {
 	// Request ID of the resolved elicitation request; clients should dismiss any UI for this
 	// request
 	//
+	// Unique identifier for this OAuth request; used to respond via
+	// session.respondToMcpOAuth()
+	//
+	// Request ID of the resolved OAuth request
+	//
 	// Unique identifier for this request; used to respond via session.respondToExternalTool()
 	//
 	// Request ID of the resolved external tool request; clients should dismiss any UI for this
 	// request
 	//
 	// Unique identifier for this request; used to respond via session.respondToQueuedCommand()
+	//
+	// Unique identifier; used to respond via session.commands.handlePendingCommand()
 	//
 	// Request ID of the resolved command request; clients should dismiss any UI for this
 	// request
@@ -497,6 +552,8 @@ type Data struct {
 	// request
 	RequestID *string `json:"requestId,omitempty"`
 	// Whether compaction completed successfully
+	//
+	// Whether the tool call succeeded. False when validation failed (e.g., invalid arguments)
 	//
 	// Whether the tool execution completed successfully
 	//
@@ -530,9 +587,9 @@ type Data struct {
 	//
 	// CAPI interaction ID for correlating this tool execution with upstream telemetry
 	InteractionID *string `json:"interactionId,omitempty"`
-	// Origin of this message, used for timeline filtering and telemetry (e.g., "user",
-	// "autopilot", "skill", or "command")
-	Source *Source `json:"source,omitempty"`
+	// Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected
+	// messages that should be hidden from the user)
+	Source *string `json:"source,omitempty"`
 	// Transformed version of the message sent to the model, with XML wrapping, timestamps, and
 	// other augmentations for prompt caching
 	TransformedContent *string `json:"transformedContent,omitempty"`
@@ -618,6 +675,12 @@ type Data struct {
 	//
 	// Tool call ID of the parent tool invocation that spawned this sub-agent
 	//
+	// The LLM-assigned tool call ID that triggered this request; used by remote UIs to
+	// correlate responses
+	//
+	// Tool call ID from the LLM completion; used to correlate with CompletionChunk.toolCall.id
+	// for remote UIs
+	//
 	// Tool call ID assigned to this external tool invocation
 	ToolCallID *string `json:"toolCallId,omitempty"`
 	// Name of the tool the user wants to invoke
@@ -690,22 +753,49 @@ type Data struct {
 	Choices []string `json:"choices,omitempty"`
 	// The question or prompt to present to the user
 	Question *string `json:"question,omitempty"`
-	// Elicitation mode; currently only "form" is supported. Defaults to "form" when absent.
+	// The source that initiated the request (MCP server name, or absent for agent-initiated)
+	ElicitationSource *string `json:"elicitationSource,omitempty"`
+	// Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to
+	// "form" when absent.
 	Mode *Mode `json:"mode,omitempty"`
-	// JSON Schema describing the form fields to present to the user
+	// JSON Schema describing the form fields to present to the user (form mode only)
 	RequestedSchema *RequestedSchema `json:"requestedSchema,omitempty"`
+	// Display name of the MCP server that requires OAuth
+	//
+	// Name of the MCP server whose status changed
+	ServerName *string `json:"serverName,omitempty"`
+	// URL of the MCP server that requires OAuth
+	ServerURL *string `json:"serverUrl,omitempty"`
+	// Static OAuth client configuration, if the server specifies one
+	StaticClientConfig *StaticClientConfig `json:"staticClientConfig,omitempty"`
 	// W3C Trace Context traceparent header for the execute_tool span
 	Traceparent *string `json:"traceparent,omitempty"`
 	// W3C Trace Context tracestate header for the execute_tool span
 	Tracestate *string `json:"tracestate,omitempty"`
 	// The slash command text to be executed (e.g., /help, /clear)
+	//
+	// The full command text (e.g., /deploy production)
 	Command *string `json:"command,omitempty"`
+	// Raw argument string after the command name
+	Args *string `json:"args,omitempty"`
+	// Command name without leading /
+	CommandName *string `json:"commandName,omitempty"`
+	// Current list of registered SDK commands
+	Commands []DataCommand `json:"commands,omitempty"`
 	// Available actions the user can take (e.g., approve, edit, reject)
 	Actions []string `json:"actions,omitempty"`
 	// Full content of the plan file
 	PlanContent *string `json:"planContent,omitempty"`
 	// The recommended action for the user to take
 	RecommendedAction *string `json:"recommendedAction,omitempty"`
+	// Array of resolved skill metadata
+	Skills []Skill `json:"skills,omitempty"`
+	// Array of MCP server status summaries
+	Servers []Server `json:"servers,omitempty"`
+	// New connection status: connected, failed, pending, disabled, or not_configured
+	Status *ServerStatus `json:"status,omitempty"`
+	// Array of discovered extensions and their status
+	Extensions []Extension `json:"extensions,omitempty"`
 }
 
 // A user message attachment — a file, directory, code selection, blob, or GitHub reference
@@ -822,6 +912,11 @@ type CodeChanges struct {
 	LinesRemoved float64 `json:"linesRemoved"`
 }
 
+type DataCommand struct {
+	Description *string `json:"description,omitempty"`
+	Name        string  `json:"name"`
+}
+
 // Token usage breakdown for the compaction LLM call
 type CompactionTokensUsed struct {
 	// Cached input tokens reused in the compaction LLM call
@@ -885,6 +980,17 @@ type ErrorClass struct {
 	Stack *string `json:"stack,omitempty"`
 }
 
+type Extension struct {
+	// Source-qualified extension ID (e.g., 'project:my-ext', 'user:auth-helper')
+	ID string `json:"id"`
+	// Extension name (directory name)
+	Name string `json:"name"`
+	// Discovery source
+	Source Source `json:"source"`
+	// Current status: running, disabled, failed, or starting
+	Status ExtensionStatus `json:"status"`
+}
+
 // Structured metadata identifying what triggered this notification
 type KindClass struct {
 	// Unique identifier of the background agent
@@ -898,8 +1004,8 @@ type KindClass struct {
 	// The full prompt given to the background agent
 	Prompt *string `json:"prompt,omitempty"`
 	// Whether the agent completed successfully or failed
-	Status *Status  `json:"status,omitempty"`
-	Type   KindType `json:"type"`
+	Status *KindStatus `json:"status,omitempty"`
+	Type   KindType    `json:"type"`
 	// Exit code of the shell command, if available
 	ExitCode *float64 `json:"exitCode,omitempty"`
 	// Unique identifier of the shell session
@@ -964,7 +1070,7 @@ type PermissionRequest struct {
 	// Whether the UI can offer session-wide approval for this command pattern
 	CanOfferSessionApproval *bool `json:"canOfferSessionApproval,omitempty"`
 	// Parsed command identifiers found in the command text
-	Commands []CommandElement `json:"commands,omitempty"`
+	Commands []PermissionRequestCommand `json:"commands,omitempty"`
 	// The complete shell command text to be executed
 	FullCommandText *string `json:"fullCommandText,omitempty"`
 	// Whether the command includes a file write redirection (e.g., > or >>)
@@ -1027,7 +1133,7 @@ type PermissionRequest struct {
 	ToolArgs interface{} `json:"toolArgs"`
 }
 
-type CommandElement struct {
+type PermissionRequestCommand struct {
 	// Command identifier (e.g., executable name)
 	Identifier string `json:"identifier"`
 	// Whether this command is read-only (no side effects)
@@ -1068,7 +1174,7 @@ type RepositoryClass struct {
 	Owner string `json:"owner"`
 }
 
-// JSON Schema describing the form fields to present to the user
+// JSON Schema describing the form fields to present to the user (form mode only)
 type RequestedSchema struct {
 	// Form field definitions, keyed by field name
 	Properties map[string]interface{} `json:"properties"`
@@ -1172,6 +1278,40 @@ type ResourceClass struct {
 	Blob *string `json:"blob,omitempty"`
 }
 
+type Server struct {
+	// Error message if the server failed to connect
+	Error *string `json:"error,omitempty"`
+	// Server name (config key)
+	Name string `json:"name"`
+	// Configuration source: user, workspace, plugin, or builtin
+	Source *string `json:"source,omitempty"`
+	// Connection status: connected, failed, pending, disabled, or not_configured
+	Status ServerStatus `json:"status"`
+}
+
+type Skill struct {
+	// Description of what the skill does
+	Description string `json:"description"`
+	// Whether the skill is currently enabled
+	Enabled bool `json:"enabled"`
+	// Unique identifier for the skill
+	Name string `json:"name"`
+	// Absolute path to the skill file, if available
+	Path *string `json:"path,omitempty"`
+	// Source location type of the skill (e.g., project, personal, plugin)
+	Source string `json:"source"`
+	// Whether the skill can be invoked by the user as a slash command
+	UserInvocable bool `json:"userInvocable"`
+}
+
+// Static OAuth client configuration, if the server specifies one
+type StaticClientConfig struct {
+	// OAuth client ID for the server
+	ClientID string `json:"clientId"`
+	// Whether this is a public OAuth client
+	PublicClient *bool `json:"publicClient,omitempty"`
+}
+
 // A tool invocation request from the assistant
 type ToolRequest struct {
 	// Arguments to pass to the tool, format depends on the tool
@@ -1193,59 +1333,81 @@ type ToolRequest struct {
 type AgentMode string
 
 const (
-	AgentModeAutopilot AgentMode = "autopilot"
-	AgentModeShell     AgentMode = "shell"
-	Interactive        AgentMode = "interactive"
-	Plan               AgentMode = "plan"
+	AgentModeShell       AgentMode = "shell"
+	AgentModeAutopilot   AgentMode = "autopilot"
+	AgentModeInteractive AgentMode = "interactive"
+	AgentModePlan        AgentMode = "plan"
 )
 
 // Type of GitHub reference
 type ReferenceType string
 
 const (
-	Discussion ReferenceType = "discussion"
-	Issue      ReferenceType = "issue"
-	PR         ReferenceType = "pr"
+	ReferenceTypeDiscussion ReferenceType = "discussion"
+	ReferenceTypeIssue      ReferenceType = "issue"
+	ReferenceTypePr         ReferenceType = "pr"
 )
 
 type AttachmentType string
 
 const (
-	Blob            AttachmentType = "blob"
-	Directory       AttachmentType = "directory"
-	File            AttachmentType = "file"
-	GithubReference AttachmentType = "github_reference"
-	Selection       AttachmentType = "selection"
+	AttachmentTypeBlob            AttachmentType = "blob"
+	AttachmentTypeDirectory       AttachmentType = "directory"
+	AttachmentTypeFile            AttachmentType = "file"
+	AttachmentTypeGithubReference AttachmentType = "github_reference"
+	AttachmentTypeSelection       AttachmentType = "selection"
 )
 
 // Hosting platform type of the repository (github or ado)
 type HostType string
 
 const (
-	ADO    HostType = "ado"
-	Github HostType = "github"
+	HostTypeAdo    HostType = "ado"
+	HostTypeGithub HostType = "github"
+)
+
+// Discovery source
+type Source string
+
+const (
+	SourceProject Source = "project"
+	SourceUser    Source = "user"
+)
+
+// Current status: running, disabled, failed, or starting
+type ExtensionStatus string
+
+const (
+	ExtensionStatusDisabled ExtensionStatus = "disabled"
+	ExtensionStatusFailed   ExtensionStatus = "failed"
+	ExtensionStatusRunning  ExtensionStatus = "running"
+	ExtensionStatusStarting ExtensionStatus = "starting"
 )
 
 // Whether the agent completed successfully or failed
-type Status string
+type KindStatus string
 
 const (
-	Completed Status = "completed"
-	Failed    Status = "failed"
+	KindStatusCompleted KindStatus = "completed"
+	KindStatusFailed    KindStatus = "failed"
 )
 
 type KindType string
 
 const (
-	AgentCompleted         KindType = "agent_completed"
-	ShellCompleted         KindType = "shell_completed"
-	ShellDetachedCompleted KindType = "shell_detached_completed"
+	KindTypeAgentCompleted         KindType = "agent_completed"
+	KindTypeAgentIdle              KindType = "agent_idle"
+	KindTypeShellCompleted         KindType = "shell_completed"
+	KindTypeShellDetachedCompleted KindType = "shell_detached_completed"
 )
 
+// Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to
+// "form" when absent.
 type Mode string
 
 const (
-	Form Mode = "form"
+	ModeForm Mode = "form"
+	ModeURL  Mode = "url"
 )
 
 // The type of operation performed on the plan file
@@ -1254,99 +1416,95 @@ const (
 type Operation string
 
 const (
-	Create Operation = "create"
-	Delete Operation = "delete"
-	Update Operation = "update"
+	OperationCreate Operation = "create"
+	OperationDelete Operation = "delete"
+	OperationUpdate Operation = "update"
 )
 
 type PermissionRequestKind string
 
 const (
-	CustomTool PermissionRequestKind = "custom-tool"
-	Hook       PermissionRequestKind = "hook"
-	KindShell  PermissionRequestKind = "shell"
-	MCP        PermissionRequestKind = "mcp"
-	Memory     PermissionRequestKind = "memory"
-	Read       PermissionRequestKind = "read"
-	URL        PermissionRequestKind = "url"
-	Write      PermissionRequestKind = "write"
+	PermissionRequestKindCustomTool PermissionRequestKind = "custom-tool"
+	PermissionRequestKindHook       PermissionRequestKind = "hook"
+	PermissionRequestKindShell      PermissionRequestKind = "shell"
+	PermissionRequestKindURL        PermissionRequestKind = "url"
+	PermissionRequestKindMcp        PermissionRequestKind = "mcp"
+	PermissionRequestKindMemory     PermissionRequestKind = "memory"
+	PermissionRequestKindRead       PermissionRequestKind = "read"
+	PermissionRequestKindWrite      PermissionRequestKind = "write"
 )
 
 type RequestedSchemaType string
 
 const (
-	Object RequestedSchemaType = "object"
+	RequestedSchemaTypeObject RequestedSchemaType = "object"
 )
 
 // Theme variant this icon is intended for
 type Theme string
 
 const (
-	Dark  Theme = "dark"
-	Light Theme = "light"
+	ThemeDark  Theme = "dark"
+	ThemeLight Theme = "light"
 )
 
 type ContentType string
 
 const (
-	Audio        ContentType = "audio"
-	Image        ContentType = "image"
-	Resource     ContentType = "resource"
-	ResourceLink ContentType = "resource_link"
-	Terminal     ContentType = "terminal"
-	Text         ContentType = "text"
+	ContentTypeAudio        ContentType = "audio"
+	ContentTypeImage        ContentType = "image"
+	ContentTypeResource     ContentType = "resource"
+	ContentTypeResourceLink ContentType = "resource_link"
+	ContentTypeTerminal     ContentType = "terminal"
+	ContentTypeText         ContentType = "text"
 )
 
 // The outcome of the permission request
 type ResultKind string
 
 const (
-	Approved                                       ResultKind = "approved"
-	DeniedByContentExclusionPolicy                 ResultKind = "denied-by-content-exclusion-policy"
-	DeniedByRules                                  ResultKind = "denied-by-rules"
-	DeniedInteractivelyByUser                      ResultKind = "denied-interactively-by-user"
-	DeniedNoApprovalRuleAndCouldNotRequestFromUser ResultKind = "denied-no-approval-rule-and-could-not-request-from-user"
+	ResultKindApproved                                       ResultKind = "approved"
+	ResultKindDeniedByContentExclusionPolicy                 ResultKind = "denied-by-content-exclusion-policy"
+	ResultKindDeniedByRules                                  ResultKind = "denied-by-rules"
+	ResultKindDeniedInteractivelyByUser                      ResultKind = "denied-interactively-by-user"
+	ResultKindDeniedNoApprovalRuleAndCouldNotRequestFromUser ResultKind = "denied-no-approval-rule-and-could-not-request-from-user"
 )
 
 // Message role: "system" for system prompts, "developer" for developer-injected instructions
 type Role string
 
 const (
-	Developer  Role = "developer"
-	RoleSystem Role = "system"
+	RoleDeveloper Role = "developer"
+	RoleSystem    Role = "system"
+)
+
+// Connection status: connected, failed, pending, disabled, or not_configured
+//
+// New connection status: connected, failed, pending, disabled, or not_configured
+type ServerStatus string
+
+const (
+	ServerStatusConnected     ServerStatus = "connected"
+	ServerStatusDisabled      ServerStatus = "disabled"
+	ServerStatusNotConfigured ServerStatus = "not_configured"
+	ServerStatusPending       ServerStatus = "pending"
+	ServerStatusFailed        ServerStatus = "failed"
 )
 
 // Whether the session ended normally ("routine") or due to a crash/fatal error ("error")
 type ShutdownType string
 
 const (
-	Error   ShutdownType = "error"
-	Routine ShutdownType = "routine"
-)
-
-// Origin of this message, used for timeline filtering and telemetry (e.g., "user",
-// "autopilot", "skill", or "command")
-type Source string
-
-const (
-	Command                       Source = "command"
-	ImmediatePrompt               Source = "immediate-prompt"
-	JITInstruction                Source = "jit-instruction"
-	Other                         Source = "other"
-	Skill                         Source = "skill"
-	SnippyBlocking                Source = "snippy-blocking"
-	SourceAutopilot               Source = "autopilot"
-	SourceSystem                  Source = "system"
-	ThinkingExhaustedContinuation Source = "thinking-exhausted-continuation"
-	User                          Source = "user"
+	ShutdownTypeError   ShutdownType = "error"
+	ShutdownTypeRoutine ShutdownType = "routine"
 )
 
 // Origin type of the session being handed off
 type SourceType string
 
 const (
-	Local  SourceType = "local"
-	Remote SourceType = "remote"
+	SourceTypeLocal  SourceType = "local"
+	SourceTypeRemote SourceType = "remote"
 )
 
 // Tool call type: "function" for standard tool calls, "custom" for grammar-based tool
@@ -1354,74 +1512,82 @@ const (
 type ToolRequestType string
 
 const (
-	Custom   ToolRequestType = "custom"
-	Function ToolRequestType = "function"
+	ToolRequestTypeCustom   ToolRequestType = "custom"
+	ToolRequestTypeFunction ToolRequestType = "function"
 )
 
 type SessionEventType string
 
 const (
-	Abort                         SessionEventType = "abort"
-	AssistantIntent               SessionEventType = "assistant.intent"
-	AssistantMessage              SessionEventType = "assistant.message"
-	AssistantMessageDelta         SessionEventType = "assistant.message_delta"
-	AssistantReasoning            SessionEventType = "assistant.reasoning"
-	AssistantReasoningDelta       SessionEventType = "assistant.reasoning_delta"
-	AssistantStreamingDelta       SessionEventType = "assistant.streaming_delta"
-	AssistantTurnEnd              SessionEventType = "assistant.turn_end"
-	AssistantTurnStart            SessionEventType = "assistant.turn_start"
-	AssistantUsage                SessionEventType = "assistant.usage"
-	CommandCompleted              SessionEventType = "command.completed"
-	CommandQueued                 SessionEventType = "command.queued"
-	ElicitationCompleted          SessionEventType = "elicitation.completed"
-	ElicitationRequested          SessionEventType = "elicitation.requested"
-	ExitPlanModeCompleted         SessionEventType = "exit_plan_mode.completed"
-	ExitPlanModeRequested         SessionEventType = "exit_plan_mode.requested"
-	ExternalToolCompleted         SessionEventType = "external_tool.completed"
-	ExternalToolRequested         SessionEventType = "external_tool.requested"
-	HookEnd                       SessionEventType = "hook.end"
-	HookStart                     SessionEventType = "hook.start"
-	PendingMessagesModified       SessionEventType = "pending_messages.modified"
-	PermissionCompleted           SessionEventType = "permission.completed"
-	PermissionRequested           SessionEventType = "permission.requested"
-	SessionBackgroundTasksChanged SessionEventType = "session.background_tasks_changed"
-	SessionCompactionComplete     SessionEventType = "session.compaction_complete"
-	SessionCompactionStart        SessionEventType = "session.compaction_start"
-	SessionContextChanged         SessionEventType = "session.context_changed"
-	SessionError                  SessionEventType = "session.error"
-	SessionHandoff                SessionEventType = "session.handoff"
-	SessionIdle                   SessionEventType = "session.idle"
-	SessionInfo                   SessionEventType = "session.info"
-	SessionModeChanged            SessionEventType = "session.mode_changed"
-	SessionModelChange            SessionEventType = "session.model_change"
-	SessionPlanChanged            SessionEventType = "session.plan_changed"
-	SessionResume                 SessionEventType = "session.resume"
-	SessionShutdown               SessionEventType = "session.shutdown"
-	SessionSnapshotRewind         SessionEventType = "session.snapshot_rewind"
-	SessionStart                  SessionEventType = "session.start"
-	SessionTaskComplete           SessionEventType = "session.task_complete"
-	SessionTitleChanged           SessionEventType = "session.title_changed"
-	SessionToolsUpdated           SessionEventType = "session.tools_updated"
-	SessionTruncation             SessionEventType = "session.truncation"
-	SessionUsageInfo              SessionEventType = "session.usage_info"
-	SessionWarning                SessionEventType = "session.warning"
-	SessionWorkspaceFileChanged   SessionEventType = "session.workspace_file_changed"
-	SkillInvoked                  SessionEventType = "skill.invoked"
-	SubagentCompleted             SessionEventType = "subagent.completed"
-	SubagentDeselected            SessionEventType = "subagent.deselected"
-	SubagentFailed                SessionEventType = "subagent.failed"
-	SubagentSelected              SessionEventType = "subagent.selected"
-	SubagentStarted               SessionEventType = "subagent.started"
-	SystemMessage                 SessionEventType = "system.message"
-	SystemNotification            SessionEventType = "system.notification"
-	ToolExecutionComplete         SessionEventType = "tool.execution_complete"
-	ToolExecutionPartialResult    SessionEventType = "tool.execution_partial_result"
-	ToolExecutionProgress         SessionEventType = "tool.execution_progress"
-	ToolExecutionStart            SessionEventType = "tool.execution_start"
-	ToolUserRequested             SessionEventType = "tool.user_requested"
-	UserInputCompleted            SessionEventType = "user_input.completed"
-	UserInputRequested            SessionEventType = "user_input.requested"
-	UserMessage                   SessionEventType = "user.message"
+	SessionEventTypeAbort                         SessionEventType = "abort"
+	SessionEventTypeAssistantIntent               SessionEventType = "assistant.intent"
+	SessionEventTypeAssistantMessage              SessionEventType = "assistant.message"
+	SessionEventTypeAssistantMessageDelta         SessionEventType = "assistant.message_delta"
+	SessionEventTypeAssistantReasoning            SessionEventType = "assistant.reasoning"
+	SessionEventTypeAssistantReasoningDelta       SessionEventType = "assistant.reasoning_delta"
+	SessionEventTypeAssistantStreamingDelta       SessionEventType = "assistant.streaming_delta"
+	SessionEventTypeAssistantTurnEnd              SessionEventType = "assistant.turn_end"
+	SessionEventTypeAssistantTurnStart            SessionEventType = "assistant.turn_start"
+	SessionEventTypeAssistantUsage                SessionEventType = "assistant.usage"
+	SessionEventTypeCommandCompleted              SessionEventType = "command.completed"
+	SessionEventTypeCommandExecute                SessionEventType = "command.execute"
+	SessionEventTypeCommandQueued                 SessionEventType = "command.queued"
+	SessionEventTypeCommandsChanged               SessionEventType = "commands.changed"
+	SessionEventTypeElicitationCompleted          SessionEventType = "elicitation.completed"
+	SessionEventTypeElicitationRequested          SessionEventType = "elicitation.requested"
+	SessionEventTypeExitPlanModeCompleted         SessionEventType = "exit_plan_mode.completed"
+	SessionEventTypeExitPlanModeRequested         SessionEventType = "exit_plan_mode.requested"
+	SessionEventTypeExternalToolCompleted         SessionEventType = "external_tool.completed"
+	SessionEventTypeExternalToolRequested         SessionEventType = "external_tool.requested"
+	SessionEventTypeHookEnd                       SessionEventType = "hook.end"
+	SessionEventTypeHookStart                     SessionEventType = "hook.start"
+	SessionEventTypeMcpOauthCompleted             SessionEventType = "mcp.oauth_completed"
+	SessionEventTypeMcpOauthRequired              SessionEventType = "mcp.oauth_required"
+	SessionEventTypePendingMessagesModified       SessionEventType = "pending_messages.modified"
+	SessionEventTypePermissionCompleted           SessionEventType = "permission.completed"
+	SessionEventTypePermissionRequested           SessionEventType = "permission.requested"
+	SessionEventTypeSessionBackgroundTasksChanged SessionEventType = "session.background_tasks_changed"
+	SessionEventTypeSessionCompactionComplete     SessionEventType = "session.compaction_complete"
+	SessionEventTypeSessionCompactionStart        SessionEventType = "session.compaction_start"
+	SessionEventTypeSessionContextChanged         SessionEventType = "session.context_changed"
+	SessionEventTypeSessionError                  SessionEventType = "session.error"
+	SessionEventTypeSessionExtensionsLoaded       SessionEventType = "session.extensions_loaded"
+	SessionEventTypeSessionHandoff                SessionEventType = "session.handoff"
+	SessionEventTypeSessionIdle                   SessionEventType = "session.idle"
+	SessionEventTypeSessionInfo                   SessionEventType = "session.info"
+	SessionEventTypeSessionMcpServerStatusChanged SessionEventType = "session.mcp_server_status_changed"
+	SessionEventTypeSessionMcpServersLoaded       SessionEventType = "session.mcp_servers_loaded"
+	SessionEventTypeSessionModeChanged            SessionEventType = "session.mode_changed"
+	SessionEventTypeSessionModelChange            SessionEventType = "session.model_change"
+	SessionEventTypeSessionPlanChanged            SessionEventType = "session.plan_changed"
+	SessionEventTypeSessionResume                 SessionEventType = "session.resume"
+	SessionEventTypeSessionShutdown               SessionEventType = "session.shutdown"
+	SessionEventTypeSessionSkillsLoaded           SessionEventType = "session.skills_loaded"
+	SessionEventTypeSessionSnapshotRewind         SessionEventType = "session.snapshot_rewind"
+	SessionEventTypeSessionStart                  SessionEventType = "session.start"
+	SessionEventTypeSessionTaskComplete           SessionEventType = "session.task_complete"
+	SessionEventTypeSessionTitleChanged           SessionEventType = "session.title_changed"
+	SessionEventTypeSessionToolsUpdated           SessionEventType = "session.tools_updated"
+	SessionEventTypeSessionTruncation             SessionEventType = "session.truncation"
+	SessionEventTypeSessionUsageInfo              SessionEventType = "session.usage_info"
+	SessionEventTypeSessionWarning                SessionEventType = "session.warning"
+	SessionEventTypeSessionWorkspaceFileChanged   SessionEventType = "session.workspace_file_changed"
+	SessionEventTypeSkillInvoked                  SessionEventType = "skill.invoked"
+	SessionEventTypeSubagentCompleted             SessionEventType = "subagent.completed"
+	SessionEventTypeSubagentDeselected            SessionEventType = "subagent.deselected"
+	SessionEventTypeSubagentFailed                SessionEventType = "subagent.failed"
+	SessionEventTypeSubagentSelected              SessionEventType = "subagent.selected"
+	SessionEventTypeSubagentStarted               SessionEventType = "subagent.started"
+	SessionEventTypeSystemMessage                 SessionEventType = "system.message"
+	SessionEventTypeSystemNotification            SessionEventType = "system.notification"
+	SessionEventTypeToolExecutionComplete         SessionEventType = "tool.execution_complete"
+	SessionEventTypeToolExecutionPartialResult    SessionEventType = "tool.execution_partial_result"
+	SessionEventTypeToolExecutionProgress         SessionEventType = "tool.execution_progress"
+	SessionEventTypeToolExecutionStart            SessionEventType = "tool.execution_start"
+	SessionEventTypeToolUserRequested             SessionEventType = "tool.user_requested"
+	SessionEventTypeUserInputCompleted            SessionEventType = "user_input.completed"
+	SessionEventTypeUserInputRequested            SessionEventType = "user_input.requested"
+	SessionEventTypeUserMessage                   SessionEventType = "user.message"
 )
 
 type ContextUnion struct {

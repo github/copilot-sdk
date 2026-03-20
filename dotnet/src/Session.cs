@@ -749,6 +749,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <param name="message">The message to log.</param>
     /// <param name="level">Log level (default: info).</param>
     /// <param name="ephemeral">When <c>true</c>, the message is not persisted to disk.</param>
+    /// <param name="url">Optional URL to associate with the log entry.</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <example>
     /// <code>
@@ -758,9 +759,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// await session.LogAsync("Temporary status", ephemeral: true);
     /// </code>
     /// </example>
-    public async Task LogAsync(string message, SessionLogRequestLevel? level = null, bool? ephemeral = null, CancellationToken cancellationToken = default)
+    public async Task LogAsync(string message, SessionLogRequestLevel? level = null, bool? ephemeral = null, string? url = null, CancellationToken cancellationToken = default)
     {
-        await Rpc.LogAsync(message, level, ephemeral, cancellationToken);
+        await Rpc.LogAsync(message, level, ephemeral, url, cancellationToken);
     }
 
     /// <summary>

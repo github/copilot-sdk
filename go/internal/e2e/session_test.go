@@ -506,7 +506,7 @@ func TestSession(t *testing.T) {
 		toolStartCh := make(chan *copilot.SessionEvent, 1)
 		toolStartErrCh := make(chan error, 1)
 		go func() {
-			evt, err := testharness.GetNextEventOfType(session, copilot.ToolExecutionStart, 60*time.Second)
+			evt, err := testharness.GetNextEventOfType(session, copilot.SessionEventTypeToolExecutionStart, 60*time.Second)
 			if err != nil {
 				toolStartErrCh <- err
 			} else {
@@ -517,7 +517,7 @@ func TestSession(t *testing.T) {
 		sessionIdleCh := make(chan *copilot.SessionEvent, 1)
 		sessionIdleErrCh := make(chan error, 1)
 		go func() {
-			evt, err := testharness.GetNextEventOfType(session, copilot.SessionIdle, 60*time.Second)
+			evt, err := testharness.GetNextEventOfType(session, copilot.SessionEventTypeSessionIdle, 60*time.Second)
 			if err != nil {
 				sessionIdleErrCh <- err
 			} else {
@@ -565,7 +565,7 @@ func TestSession(t *testing.T) {
 		// Verify messages contain an abort event
 		hasAbortEvent := false
 		for _, msg := range messages {
-			if msg.Type == copilot.Abort {
+			if msg.Type == copilot.SessionEventTypeAbort {
 				hasAbortEvent = true
 				break
 			}
@@ -913,7 +913,7 @@ func TestSetModelWithReasoningEffort(t *testing.T) {
 
 	modelChanged := make(chan copilot.SessionEvent, 1)
 	session.On(func(event copilot.SessionEvent) {
-		if event.Type == copilot.SessionModelChange {
+		if event.Type == copilot.SessionEventTypeSessionModelChange {
 			select {
 			case modelChanged <- event:
 			default:
@@ -964,7 +964,7 @@ func TestSessionBlobAttachment(t *testing.T) {
 			Prompt: "Describe this image",
 			Attachments: []copilot.Attachment{
 				{
-					Type:        copilot.Blob,
+					Type:        copilot.AttachmentTypeBlob,
 					Data:        &data,
 					MIMEType:    &mimeType,
 					DisplayName: &displayName,
@@ -1028,7 +1028,7 @@ func TestSessionLog(t *testing.T) {
 			t.Fatalf("Log failed: %v", err)
 		}
 
-		evt := waitForEvent(t, &mu, &events, copilot.SessionInfo, "Info message", 5*time.Second)
+		evt := waitForEvent(t, &mu, &events, copilot.SessionEventTypeSessionInfo, "Info message", 5*time.Second)
 		if evt.Data.InfoType == nil || *evt.Data.InfoType != "notification" {
 			t.Errorf("Expected infoType 'notification', got %v", evt.Data.InfoType)
 		}
@@ -1038,11 +1038,11 @@ func TestSessionLog(t *testing.T) {
 	})
 
 	t.Run("should log warning message", func(t *testing.T) {
-		if err := session.Log(t.Context(), "Warning message", &copilot.LogOptions{Level: rpc.Warning}); err != nil {
+		if err := session.Log(t.Context(), "Warning message", &copilot.LogOptions{Level: rpc.LevelWarning}); err != nil {
 			t.Fatalf("Log failed: %v", err)
 		}
 
-		evt := waitForEvent(t, &mu, &events, copilot.SessionWarning, "Warning message", 5*time.Second)
+		evt := waitForEvent(t, &mu, &events, copilot.SessionEventTypeSessionWarning, "Warning message", 5*time.Second)
 		if evt.Data.WarningType == nil || *evt.Data.WarningType != "notification" {
 			t.Errorf("Expected warningType 'notification', got %v", evt.Data.WarningType)
 		}
@@ -1052,11 +1052,11 @@ func TestSessionLog(t *testing.T) {
 	})
 
 	t.Run("should log error message", func(t *testing.T) {
-		if err := session.Log(t.Context(), "Error message", &copilot.LogOptions{Level: rpc.Error}); err != nil {
+		if err := session.Log(t.Context(), "Error message", &copilot.LogOptions{Level: rpc.LevelError}); err != nil {
 			t.Fatalf("Log failed: %v", err)
 		}
 
-		evt := waitForEvent(t, &mu, &events, copilot.SessionError, "Error message", 5*time.Second)
+		evt := waitForEvent(t, &mu, &events, copilot.SessionEventTypeSessionError, "Error message", 5*time.Second)
 		if evt.Data.ErrorType == nil || *evt.Data.ErrorType != "notification" {
 			t.Errorf("Expected errorType 'notification', got %v", evt.Data.ErrorType)
 		}
@@ -1070,7 +1070,7 @@ func TestSessionLog(t *testing.T) {
 			t.Fatalf("Log failed: %v", err)
 		}
 
-		evt := waitForEvent(t, &mu, &events, copilot.SessionInfo, "Ephemeral message", 5*time.Second)
+		evt := waitForEvent(t, &mu, &events, copilot.SessionEventTypeSessionInfo, "Ephemeral message", 5*time.Second)
 		if evt.Data.InfoType == nil || *evt.Data.InfoType != "notification" {
 			t.Errorf("Expected infoType 'notification', got %v", evt.Data.InfoType)
 		}

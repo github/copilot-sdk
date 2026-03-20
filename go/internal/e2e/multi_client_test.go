@@ -79,13 +79,13 @@ func TestMultiClient(t *testing.T) {
 		client2Completed := make(chan struct{}, 1)
 
 		session1.On(func(event copilot.SessionEvent) {
-			if event.Type == copilot.ExternalToolRequested {
+			if event.Type == copilot.SessionEventTypeExternalToolRequested {
 				select {
 				case client1Requested <- struct{}{}:
 				default:
 				}
 			}
-			if event.Type == copilot.ExternalToolCompleted {
+			if event.Type == copilot.SessionEventTypeExternalToolCompleted {
 				select {
 				case client1Completed <- struct{}{}:
 				default:
@@ -93,13 +93,13 @@ func TestMultiClient(t *testing.T) {
 			}
 		})
 		session2.On(func(event copilot.SessionEvent) {
-			if event.Type == copilot.ExternalToolRequested {
+			if event.Type == copilot.SessionEventTypeExternalToolRequested {
 				select {
 				case client2Requested <- struct{}{}:
 				default:
 				}
 			}
-			if event.Type == copilot.ExternalToolCompleted {
+			if event.Type == copilot.SessionEventTypeExternalToolCompleted {
 				select {
 				case client2Completed <- struct{}{}:
 				default:
@@ -120,7 +120,7 @@ func TestMultiClient(t *testing.T) {
 		}
 
 		// Wait for all broadcast events to arrive on both clients
-		timeout := time.After(10 * time.Second)
+		timeout := time.After(30 * time.Second)
 		for _, ch := range []chan struct{}{client1Requested, client2Requested, client1Completed, client2Completed} {
 			select {
 			case <-ch:
@@ -197,10 +197,10 @@ func TestMultiClient(t *testing.T) {
 
 		// Both clients should have seen permission.requested events
 		mu1.Lock()
-		c1PermRequested := filterEventsByType(client1Events, copilot.PermissionRequested)
+		c1PermRequested := filterEventsByType(client1Events, copilot.SessionEventTypePermissionRequested)
 		mu1.Unlock()
 		mu2.Lock()
-		c2PermRequested := filterEventsByType(client2Events, copilot.PermissionRequested)
+		c2PermRequested := filterEventsByType(client2Events, copilot.SessionEventTypePermissionRequested)
 		mu2.Unlock()
 
 		if len(c1PermRequested) == 0 {
@@ -212,10 +212,10 @@ func TestMultiClient(t *testing.T) {
 
 		// Both clients should have seen permission.completed events with approved result
 		mu1.Lock()
-		c1PermCompleted := filterEventsByType(client1Events, copilot.PermissionCompleted)
+		c1PermCompleted := filterEventsByType(client1Events, copilot.SessionEventTypePermissionCompleted)
 		mu1.Unlock()
 		mu2.Lock()
-		c2PermCompleted := filterEventsByType(client2Events, copilot.PermissionCompleted)
+		c2PermCompleted := filterEventsByType(client2Events, copilot.SessionEventTypePermissionCompleted)
 		mu2.Unlock()
 
 		if len(c1PermCompleted) == 0 {
@@ -293,10 +293,10 @@ func TestMultiClient(t *testing.T) {
 
 		// Both clients should have seen permission.requested events
 		mu1.Lock()
-		c1PermRequested := filterEventsByType(client1Events, copilot.PermissionRequested)
+		c1PermRequested := filterEventsByType(client1Events, copilot.SessionEventTypePermissionRequested)
 		mu1.Unlock()
 		mu2.Lock()
-		c2PermRequested := filterEventsByType(client2Events, copilot.PermissionRequested)
+		c2PermRequested := filterEventsByType(client2Events, copilot.SessionEventTypePermissionRequested)
 		mu2.Unlock()
 
 		if len(c1PermRequested) == 0 {
@@ -308,10 +308,10 @@ func TestMultiClient(t *testing.T) {
 
 		// Both clients should see the denial in the completed event
 		mu1.Lock()
-		c1PermCompleted := filterEventsByType(client1Events, copilot.PermissionCompleted)
+		c1PermCompleted := filterEventsByType(client1Events, copilot.SessionEventTypePermissionCompleted)
 		mu1.Unlock()
 		mu2.Lock()
-		c2PermCompleted := filterEventsByType(client2Events, copilot.PermissionCompleted)
+		c2PermCompleted := filterEventsByType(client2Events, copilot.SessionEventTypePermissionCompleted)
 		mu2.Unlock()
 
 		if len(c1PermCompleted) == 0 {

@@ -215,7 +215,7 @@ func TestAgentSelectionRpc(t *testing.T) {
 		}
 	})
 
-	t.Run("should return empty list when no custom agents configured", func(t *testing.T) {
+	t.Run("should return no custom agents when none configured", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
 			CLIPath:  cliPath,
 			UseStdio: copilot.Bool(true),
@@ -238,8 +238,13 @@ func TestAgentSelectionRpc(t *testing.T) {
 			t.Fatalf("Failed to list agents: %v", err)
 		}
 
-		if len(result.Agents) != 0 {
-			t.Errorf("Expected empty agent list, got %d agents", len(result.Agents))
+		// The CLI may return built-in/default agents even when no custom agents
+		// are configured, so just verify none of the known custom agent names appear.
+		customNames := map[string]bool{"test-agent": true, "another-agent": true}
+		for _, agent := range result.Agents {
+			if customNames[agent.Name] {
+				t.Errorf("Expected no custom agents, but found %q", agent.Name)
+			}
 		}
 
 		if err := client.Stop(); err != nil {

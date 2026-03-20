@@ -121,7 +121,7 @@ func main() {
 		Prompt: "Describe what you see in this image",
 		Attachments: []copilot.Attachment{
 			{
-				Type: copilot.File,
+				Type: copilot.AttachmentTypeFile,
 				Path: &path,
 			},
 		},
@@ -147,7 +147,7 @@ session.Send(ctx, copilot.MessageOptions{
     Prompt: "Describe what you see in this image",
     Attachments: []copilot.Attachment{
         {
-            Type: copilot.File,
+            Type: copilot.AttachmentTypeFile,
             Path: &path,
         },
     },
@@ -315,7 +315,7 @@ func main() {
 		Prompt: "Describe what you see in this image",
 		Attachments: []copilot.Attachment{
 			{
-				Type:        copilot.Blob,
+				Type:        copilot.AttachmentTypeBlob,
 				Data:        &base64ImageData,
 				MIMEType:    &mimeType,
 				DisplayName: &displayName,
@@ -333,7 +333,7 @@ session.Send(ctx, copilot.MessageOptions{
     Prompt: "Describe what you see in this image",
     Attachments: []copilot.Attachment{
         {
-            Type:        copilot.Blob,
+            Type:        copilot.AttachmentTypeBlob,
             Data:        &base64ImageData, // base64-encoded string
             MIMEType:    &mimeType,
             DisplayName: &displayName,

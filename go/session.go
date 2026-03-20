@@ -182,17 +182,17 @@ func (s *Session) SendAndWait(ctx context.Context, options MessageOptions) (*Ses
 
 	unsubscribe := s.On(func(event SessionEvent) {
 		switch event.Type {
-		case AssistantMessage:
+		case SessionEventTypeAssistantMessage:
 			mu.Lock()
 			eventCopy := event
 			lastAssistantMessage = &eventCopy
 			mu.Unlock()
-		case SessionIdle:
+		case SessionEventTypeSessionIdle:
 			select {
 			case idleCh <- struct{}{}:
 			default:
 			}
-		case SessionError:
+		case SessionEventTypeSessionError:
 			errMsg := "session error"
 			if event.Data.Message != nil {
 				errMsg = *event.Data.Message
@@ -501,7 +501,7 @@ func (s *Session) processEvents() {
 // cause RPC deadlocks.
 func (s *Session) handleBroadcastEvent(event SessionEvent) {
 	switch event.Type {
-	case ExternalToolRequested:
+	case SessionEventTypeExternalToolRequested:
 		requestID := event.Data.RequestID
 		toolName := event.Data.ToolName
 		if requestID == nil || toolName == nil {
@@ -524,7 +524,7 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 		}
 		s.executeToolAndRespond(*requestID, *toolName, toolCallID, event.Data.Arguments, handler, tp, ts)
 
-	case PermissionRequested:
+	case SessionEventTypePermissionRequested:
 		requestID := event.Data.RequestID
 		if requestID == nil || event.Data.PermissionRequest == nil {
 			return
@@ -585,7 +585,7 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 			s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.SessionPermissionsHandlePendingPermissionRequestParams{
 				RequestID: requestID,
 				Result: rpc.SessionPermissionsHandlePendingPermissionRequestParamsResult{
-					Kind: rpc.DeniedNoApprovalRuleAndCouldNotRequestFromUser,
+					Kind: rpc.KindDeniedNoApprovalRuleAndCouldNotRequestFromUser,
 				},
 			})
 		}
@@ -600,7 +600,7 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 		s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.SessionPermissionsHandlePendingPermissionRequestParams{
 			RequestID: requestID,
 			Result: rpc.SessionPermissionsHandlePendingPermissionRequestParamsResult{
-				Kind: rpc.DeniedNoApprovalRuleAndCouldNotRequestFromUser,
+				Kind: rpc.KindDeniedNoApprovalRuleAndCouldNotRequestFromUser,
 			},
 		})
 		return
@@ -770,8 +770,8 @@ func (s *Session) SetModel(ctx context.Context, model string, opts ...SetModelOp
 
 // LogOptions configures optional parameters for [Session.Log].
 type LogOptions struct {
-	// Level sets the log severity. Valid values are [rpc.Info] (default),
-	// [rpc.Warning], and [rpc.Error].
+	// Level sets the log severity. Valid values are [rpc.LevelInfo] (default),
+	// [rpc.LevelWarning], and [rpc.LevelError].
 	Level rpc.Level
 	// Ephemeral marks the message as transient so it is not persisted
 	// to the session event log on disk. When nil the server decides the
@@ -791,7 +791,7 @@ type LogOptions struct {
 //	session.Log(ctx, "Processing started")
 //
 //	// Warning with options
-//	session.Log(ctx, "Rate limit approaching", &copilot.LogOptions{Level: rpc.Warning})
+//	session.Log(ctx, "Rate limit approaching", &copilot.LogOptions{Level: rpc.LevelWarning})
 //
 //	// Ephemeral message (not persisted)
 //	session.Log(ctx, "Working...", &copilot.LogOptions{Ephemeral: copilot.Bool(true)})

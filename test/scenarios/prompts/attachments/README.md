@@ -39,7 +39,7 @@ Demonstrates sending **file attachments** alongside a prompt using the Copilot S
 |----------|------------------------|
 | TypeScript | `attachments: [{ type: "blob", data: base64Data, mimeType: "image/png" }]` |
 | Python | `"attachments": [{"type": "blob", "data": base64_data, "mimeType": "image/png"}]` |
-| Go | `Attachments: []copilot.Attachment{{Type: copilot.Blob, Data: &data, MIMEType: &mime}}` |
+| Go | `Attachments: []copilot.Attachment{{Type: copilot.AttachmentTypeBlob, Data: &data, MIMEType: &mime}}` |
 
 ## Sample Data
 
