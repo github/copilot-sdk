@@ -13,7 +13,7 @@ import inspect
 import threading
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Literal, NotRequired, TypedDict, cast
+from typing import Any, Literal, NotRequired, Required, TypedDict, cast
 
 from ._jsonrpc import JsonRpcError, ProcessExitedError
 from ._telemetry import get_trace_context, trace_context
@@ -123,7 +123,64 @@ class SystemMessageReplaceConfig(TypedDict):
     content: str
 
 
-SystemMessageConfig = SystemMessageAppendConfig | SystemMessageReplaceConfig
+# Known system prompt section identifiers for the "customize" mode.
+
+SectionTransformFn = Callable[[str], str | Awaitable[str]]
+"""Transform callback: receives current section content, returns new content."""
+
+SectionOverrideAction = Literal["replace", "remove", "append", "prepend"] | SectionTransformFn
+"""Override action: a string literal for static overrides, or a callback for transforms."""
+
+SystemPromptSection = Literal[
+    "identity",
+    "tone",
+    "tool_efficiency",
+    "environment_context",
+    "code_change_rules",
+    "guidelines",
+    "safety",
+    "tool_instructions",
+    "custom_instructions",
+    "last_instructions",
+]
+
+SYSTEM_PROMPT_SECTIONS: dict[SystemPromptSection, str] = {
+    "identity": "Agent identity preamble and mode statement",
+    "tone": "Response style, conciseness rules, output formatting preferences",
+    "tool_efficiency": "Tool usage patterns, parallel calling, batching guidelines",
+    "environment_context": "CWD, OS, git root, directory listing, available tools",
+    "code_change_rules": "Coding rules, linting/testing, ecosystem tools, style",
+    "guidelines": "Tips, behavioral best practices, behavioral guidelines",
+    "safety": "Environment limitations, prohibited actions, security policies",
+    "tool_instructions": "Per-tool usage instructions",
+    "custom_instructions": "Repository and organization custom instructions",
+    "last_instructions": (
+        "End-of-prompt instructions: parallel tool calling, persistence, task completion"
+    ),
+}
+
+
+class SectionOverride(TypedDict, total=False):
+    """Override operation for a single system prompt section."""
+
+    action: Required[SectionOverrideAction]
+    content: NotRequired[str]
+
+
+class SystemMessageCustomizeConfig(TypedDict, total=False):
+    """
+    Customize mode: Override individual sections of the system prompt.
+    Keeps the SDK-managed prompt structure while allowing targeted modifications.
+    """
+
+    mode: Required[Literal["customize"]]
+    sections: NotRequired[dict[SystemPromptSection, SectionOverride]]
+    content: NotRequired[str]
+
+
+SystemMessageConfig = (
+    SystemMessageAppendConfig | SystemMessageReplaceConfig | SystemMessageCustomizeConfig
+)
 
 # ============================================================================
 # Permission Types
@@ -149,12 +206,6 @@ class PermissionRequestResult:
     message: str | None = None
     path: str | None = None
 
-
-SectionTransformFn = Callable[[str], str | Awaitable[str]]
-"""Transform callback: receives current section content, returns new content."""
-
-SectionOverrideAction = Literal["replace", "remove", "append", "prepend"] | SectionTransformFn
-"""Override action: a string literal for static overrides, or a callback for transforms."""
 
 _PermissionHandlerFn = Callable[
     [PermissionRequest, dict[str, str]],
