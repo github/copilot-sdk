@@ -1106,33 +1106,7 @@ class CopilotClient:
             else:
                 raise RuntimeError("Client not connected. Call start() first.")
 
-        cfg: dict[str, Any] = {
-            "on_permission_request": on_permission_request,
-            "model": model,
-            "session_id": session_id,
-            "client_name": client_name,
-            "reasoning_effort": reasoning_effort,
-            "tools": tools,
-            "system_message": system_message,
-            "available_tools": available_tools,
-            "excluded_tools": excluded_tools,
-            "on_user_input_request": on_user_input_request,
-            "hooks": hooks,
-            "working_directory": working_directory,
-            "provider": provider,
-            "streaming": streaming,
-            "mcp_servers": mcp_servers,
-            "custom_agents": custom_agents,
-            "agent": agent,
-            "config_dir": config_dir,
-            "skill_directories": skill_directories,
-            "disabled_skills": disabled_skills,
-            "infinite_sessions": infinite_sessions,
-            "on_event": on_event,
-        }
-
         tool_defs = []
-        tools = cfg.get("tools")
         if tools:
             for tool in tools:
                 definition: dict[str, Any] = {
@@ -1148,92 +1122,74 @@ class CopilotClient:
                 tool_defs.append(definition)
 
         payload: dict[str, Any] = {}
-        if cfg.get("model"):
-            payload["model"] = cfg["model"]
-        if cfg.get("client_name"):
-            payload["clientName"] = cfg["client_name"]
-        if cfg.get("reasoning_effort"):
-            payload["reasoningEffort"] = cfg["reasoning_effort"]
+        if model:
+            payload["model"] = model
+        if client_name:
+            payload["clientName"] = client_name
+        if reasoning_effort:
+            payload["reasoningEffort"] = reasoning_effort
         if tool_defs:
             payload["tools"] = tool_defs
 
-        # Add system message configuration if provided
-        system_message = cfg.get("system_message")
         if system_message:
             payload["systemMessage"] = system_message
 
-        # Add tool filtering options
-        available_tools = cfg.get("available_tools")
         if available_tools is not None:
             payload["availableTools"] = available_tools
-        excluded_tools = cfg.get("excluded_tools")
         if excluded_tools is not None:
             payload["excludedTools"] = excluded_tools
 
-        # Always enable permission request callback (deny by default if no handler provided)
-        on_permission_request = cfg.get("on_permission_request")
+        # Always enable permission request callback
         payload["requestPermission"] = True
 
         # Enable user input request callback if handler provided
-        on_user_input_request = cfg.get("on_user_input_request")
         if on_user_input_request:
             payload["requestUserInput"] = True
 
         # Enable hooks callback if any hook handler provided
-        hooks = cfg.get("hooks")
         if hooks and any(hooks.values()):
             payload["hooks"] = True
 
         # Add working directory if provided
-        working_directory = cfg.get("working_directory")
         if working_directory:
             payload["workingDirectory"] = working_directory
 
         # Add streaming option if provided
-        streaming = cfg.get("streaming")
         if streaming is not None:
             payload["streaming"] = streaming
 
         # Add provider configuration if provided
-        provider = cfg.get("provider")
         if provider:
             payload["provider"] = self._convert_provider_to_wire_format(provider)
 
         # Add MCP servers configuration if provided
-        mcp_servers = cfg.get("mcp_servers")
         if mcp_servers:
             payload["mcpServers"] = mcp_servers
         payload["envValueMode"] = "direct"
 
         # Add custom agents configuration if provided
-        custom_agents = cfg.get("custom_agents")
         if custom_agents:
             payload["customAgents"] = [
                 self._convert_custom_agent_to_wire_format(agent) for agent in custom_agents
             ]
 
         # Add agent selection if provided
-        agent = cfg.get("agent")
         if agent:
             payload["agent"] = agent
 
         # Add config directory override if provided
-        config_dir = cfg.get("config_dir")
         if config_dir:
             payload["configDir"] = config_dir
 
         # Add skill directories configuration if provided
-        skill_directories = cfg.get("skill_directories")
         if skill_directories:
             payload["skillDirectories"] = skill_directories
 
         # Add disabled skills configuration if provided
-        disabled_skills = cfg.get("disabled_skills")
         if disabled_skills:
             payload["disabledSkills"] = disabled_skills
 
         # Add infinite sessions configuration if provided
-        infinite_sessions = cfg.get("infinite_sessions")
         if infinite_sessions:
             wire_config: dict[str, Any] = {}
             if "enabled" in infinite_sessions:
@@ -1251,8 +1207,8 @@ class CopilotClient:
         if not self._client:
             raise RuntimeError("Client not connected")
 
-        session_id = cfg.get("session_id") or str(uuid.uuid4())
-        payload["sessionId"] = session_id
+        actual_session_id = session_id or str(uuid.uuid4())
+        payload["sessionId"] = actual_session_id
 
         # Propagate W3C Trace Context to CLI if OpenTelemetry is active
         trace_ctx = get_trace_context()
@@ -1260,25 +1216,24 @@ class CopilotClient:
 
         # Create and register the session before issuing the RPC so that
         # events emitted by the CLI (e.g. session.start) are not dropped.
-        session = CopilotSession(session_id, self._client, None)
+        session = CopilotSession(actual_session_id, self._client, None)
         session._register_tools(tools)
         session._register_permission_handler(on_permission_request)
         if on_user_input_request:
             session._register_user_input_handler(on_user_input_request)
         if hooks:
             session._register_hooks(hooks)
-        on_event = cfg.get("on_event")
         if on_event:
             session.on(on_event)
         with self._sessions_lock:
-            self._sessions[session_id] = session
+            self._sessions[actual_session_id] = session
 
         try:
             response = await self._client.request("session.create", payload)
             session._workspace_path = response.get("workspacePath")
         except BaseException:
             with self._sessions_lock:
-                self._sessions.pop(session_id, None)
+                self._sessions.pop(actual_session_id, None)
             raise
 
         return session
@@ -1372,32 +1327,7 @@ class CopilotClient:
             else:
                 raise RuntimeError("Client not connected. Call start() first.")
 
-        cfg: dict[str, Any] = {
-            "on_permission_request": on_permission_request,
-            "model": model,
-            "client_name": client_name,
-            "reasoning_effort": reasoning_effort,
-            "tools": tools,
-            "system_message": system_message,
-            "available_tools": available_tools,
-            "excluded_tools": excluded_tools,
-            "on_user_input_request": on_user_input_request,
-            "hooks": hooks,
-            "working_directory": working_directory,
-            "provider": provider,
-            "streaming": streaming,
-            "mcp_servers": mcp_servers,
-            "custom_agents": custom_agents,
-            "agent": agent,
-            "config_dir": config_dir,
-            "skill_directories": skill_directories,
-            "disabled_skills": disabled_skills,
-            "infinite_sessions": infinite_sessions,
-            "on_event": on_event,
-        }
-
         tool_defs = []
-        tools = cfg.get("tools")
         if tools:
             for tool in tools:
                 definition: dict[str, Any] = {
@@ -1414,103 +1344,56 @@ class CopilotClient:
 
         payload: dict[str, Any] = {"sessionId": session_id}
 
-        # Add client name if provided
-        client_name = cfg.get("client_name")
         if client_name:
             payload["clientName"] = client_name
-
-        # Add model if provided
-        model = cfg.get("model")
         if model:
             payload["model"] = model
-
-        if cfg.get("reasoning_effort"):
-            payload["reasoningEffort"] = cfg["reasoning_effort"]
+        if reasoning_effort:
+            payload["reasoningEffort"] = reasoning_effort
         if tool_defs:
             payload["tools"] = tool_defs
-
-        # Add system message configuration if provided
-        system_message = cfg.get("system_message")
         if system_message:
             payload["systemMessage"] = system_message
-
-        # Add available/excluded tools if provided
-        available_tools = cfg.get("available_tools")
         if available_tools is not None:
             payload["availableTools"] = available_tools
-
-        excluded_tools = cfg.get("excluded_tools")
         if excluded_tools is not None:
             payload["excludedTools"] = excluded_tools
-
-        provider = cfg.get("provider")
         if provider:
             payload["provider"] = self._convert_provider_to_wire_format(provider)
-
-        # Add streaming option if provided
-        streaming = cfg.get("streaming")
         if streaming is not None:
             payload["streaming"] = streaming
 
-        # Always enable permission request callback (deny by default if no handler provided)
-        on_permission_request = cfg.get("on_permission_request")
+        # Always enable permission request callback
         payload["requestPermission"] = True
 
-        # Enable user input request callback if handler provided
-        on_user_input_request = cfg.get("on_user_input_request")
         if on_user_input_request:
             payload["requestUserInput"] = True
 
-        # Enable hooks callback if any hook handler provided
-        hooks = cfg.get("hooks")
         if hooks and any(hooks.values()):
             payload["hooks"] = True
 
-        # Add working directory if provided
-        working_directory = cfg.get("working_directory")
         if working_directory:
             payload["workingDirectory"] = working_directory
-
-        # Add config directory if provided
-        config_dir = cfg.get("config_dir")
         if config_dir:
             payload["configDir"] = config_dir
 
-        # Add disable resume flag if provided
-        disable_resume = cfg.get("disable_resume")
-        if disable_resume:
-            payload["disableResume"] = True
-
-        # Add MCP servers configuration if provided
-        mcp_servers = cfg.get("mcp_servers")
+        # TODO: disable_resume is not a keyword arg yet; keeping for future use
         if mcp_servers:
             payload["mcpServers"] = mcp_servers
         payload["envValueMode"] = "direct"
 
-        # Add custom agents configuration if provided
-        custom_agents = cfg.get("custom_agents")
         if custom_agents:
             payload["customAgents"] = [
-                self._convert_custom_agent_to_wire_format(agent) for agent in custom_agents
+                self._convert_custom_agent_to_wire_format(a) for a in custom_agents
             ]
 
-        # Add agent selection if provided
-        agent = cfg.get("agent")
         if agent:
             payload["agent"] = agent
-
-        # Add skill directories configuration if provided
-        skill_directories = cfg.get("skill_directories")
         if skill_directories:
             payload["skillDirectories"] = skill_directories
-
-        # Add disabled skills configuration if provided
-        disabled_skills = cfg.get("disabled_skills")
         if disabled_skills:
             payload["disabledSkills"] = disabled_skills
 
-        # Add infinite sessions configuration if provided
-        infinite_sessions = cfg.get("infinite_sessions")
         if infinite_sessions:
             wire_config: dict[str, Any] = {}
             if "enabled" in infinite_sessions:
@@ -1535,13 +1418,12 @@ class CopilotClient:
         # Create and register the session before issuing the RPC so that
         # events emitted by the CLI (e.g. session.start) are not dropped.
         session = CopilotSession(session_id, self._client, None)
-        session._register_tools(cfg.get("tools"))
+        session._register_tools(tools)
         session._register_permission_handler(on_permission_request)
         if on_user_input_request:
             session._register_user_input_handler(on_user_input_request)
         if hooks:
             session._register_hooks(hooks)
-        on_event = cfg.get("on_event")
         if on_event:
             session.on(on_event)
         with self._sessions_lock:
