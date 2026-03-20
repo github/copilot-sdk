@@ -110,9 +110,7 @@ class TestSystemMessageTransform:
 
         write_file(ctx.work_dir, "combo.txt", "Combo test!")
 
-        await session.send_and_wait(
-            "Read the contents of combo.txt and tell me what it says"
-        )
+        await session.send_and_wait("Read the contents of combo.txt and tell me what it says")
 
         # The transform callback should have been invoked
         assert len(identity_contents) > 0

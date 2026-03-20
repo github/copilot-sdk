@@ -50,18 +50,18 @@ type sessionHandler struct {
 //	})
 type Session struct {
 	// SessionID is the unique identifier for this session.
-	SessionID         string
-	workspacePath     string
-	client            *jsonrpc2.Client
-	handlers          []sessionHandler
-	nextHandlerID     uint64
-	handlerMutex      sync.RWMutex
-	toolHandlers      map[string]ToolHandler
-	toolHandlersM     sync.RWMutex
-	permissionHandler PermissionHandlerFunc
-	permissionMux     sync.RWMutex
-	userInputHandler  UserInputHandler
-	userInputMux      sync.RWMutex
+	SessionID          string
+	workspacePath      string
+	client             *jsonrpc2.Client
+	handlers           []sessionHandler
+	nextHandlerID      uint64
+	handlerMutex       sync.RWMutex
+	toolHandlers       map[string]ToolHandler
+	toolHandlersM      sync.RWMutex
+	permissionHandler  PermissionHandlerFunc
+	permissionMux      sync.RWMutex
+	userInputHandler   UserInputHandler
+	userInputMux       sync.RWMutex
 	hooks              *SessionHooks
 	hooksMux           sync.RWMutex
 	transformCallbacks map[string]SectionTransformFn

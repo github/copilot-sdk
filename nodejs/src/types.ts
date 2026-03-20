@@ -319,7 +319,12 @@ export type SectionTransformFn = (currentContent: string) => string | Promise<st
  * - `"prepend"`: Prepend to existing section content
  * - `function`: Transform callback — receives current section content, returns new content
  */
-export type SectionOverrideAction = "replace" | "remove" | "append" | "prepend" | SectionTransformFn;
+export type SectionOverrideAction =
+    | "replace"
+    | "remove"
+    | "append"
+    | "prepend"
+    | SectionTransformFn;
 
 /**
  * Override operation for a single system prompt section.

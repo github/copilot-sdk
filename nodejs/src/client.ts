@@ -89,9 +89,7 @@ function toJsonSchema(parameters: Tool["parameters"]): Record<string, unknown> |
  * Function-valued actions are replaced with `{ action: "transform" }` for serialization,
  * and the original callbacks are returned in a separate map.
  */
-function extractTransformCallbacks(
-    systemMessage: SessionConfig["systemMessage"]
-): {
+function extractTransformCallbacks(systemMessage: SessionConfig["systemMessage"]): {
     wirePayload: SessionConfig["systemMessage"];
     transformCallbacks: Map<string, SectionTransformFn> | undefined;
 } {

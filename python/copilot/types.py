@@ -250,9 +250,7 @@ SYSTEM_PROMPT_SECTIONS: dict[SystemPromptSection, str] = {
 SectionTransformFn = Callable[[str], str | Awaitable[str]]
 """Transform callback: receives current section content, returns new content."""
 
-SectionOverrideAction = (
-    Literal["replace", "remove", "append", "prepend"] | SectionTransformFn
-)
+SectionOverrideAction = Literal["replace", "remove", "append", "prepend"] | SectionTransformFn
 """Override action: a string literal for static overrides, or a callback for transforms."""
 
 

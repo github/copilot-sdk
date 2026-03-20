@@ -248,9 +248,7 @@ class CopilotSession:
             ...         print(f"Assistant: {event.data.content}")
             ...     elif event.type == "session.error":
             ...         print(f"Error: {event.data.message}")
-            ...
             >>> unsubscribe = session.on(handle_event)
-            ...
             >>> # Later, to stop receiving events:
             >>> unsubscribe()
         """
@@ -639,7 +637,9 @@ class CopilotSession:
             # Hook failed, return None
             return None
 
-    def _register_transform_callbacks(self, callbacks: dict[str, SectionTransformFn] | None) -> None:
+    def _register_transform_callbacks(
+        self, callbacks: dict[str, SectionTransformFn] | None
+    ) -> None:
         """
         Register transform callbacks for system message sections.
 
@@ -787,9 +787,7 @@ class CopilotSession:
             >>> import asyncio
             >>>
             >>> # Start a long-running request
-            >>> task = asyncio.create_task(
-            ...     session.send("Write a very long story...")
-            ... )
+            >>> task = asyncio.create_task(session.send("Write a very long story..."))
             >>>
             >>> # Abort after 5 seconds
             >>> await asyncio.sleep(5)
