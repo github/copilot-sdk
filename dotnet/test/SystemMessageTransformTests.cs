@@ -62,8 +62,6 @@ public class SystemMessageTransformTests(E2ETestFixture fixture, ITestOutputHelp
     [Fact]
     public async Task Should_Apply_Transform_Modifications_To_Section_Content()
     {
-        var transformCallbackInvoked = false;
-
         var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
@@ -76,8 +74,7 @@ public class SystemMessageTransformTests(E2ETestFixture fixture, ITestOutputHelp
                     {
                         Transform = async (content) =>
                         {
-                            transformCallbackInvoked = true;
-                            return content + "TRANSFORM_MARKER";
+                            return content + "\nAlways end your reply with TRANSFORM_MARKER";
                         }
                     }
                 }
@@ -93,7 +90,11 @@ public class SystemMessageTransformTests(E2ETestFixture fixture, ITestOutputHelp
 
         await TestHelper.GetFinalAssistantMessageAsync(session);
 
-        Assert.True(transformCallbackInvoked, "Expected identity transform callback to be invoked");
+        // Verify the transform result was actually applied to the system message
+        var traffic = await Ctx.GetExchangesAsync();
+        Assert.NotEmpty(traffic);
+        var systemMessage = GetSystemMessage(traffic[0]);
+        Assert.Contains("TRANSFORM_MARKER", systemMessage);
     }
 
     [Fact]

@@ -6,6 +6,7 @@ package e2e
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -90,10 +91,6 @@ func TestSystemMessageTransform(t *testing.T) {
 	t.Run("should_apply_transform_modifications_to_section_content", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		var receivedContent string
-		var mu sync.Mutex
-		transformCalled := false
-
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			SystemMessage: &copilot.SystemMessageConfig{
@@ -101,11 +98,7 @@ func TestSystemMessageTransform(t *testing.T) {
 				Sections: map[string]copilot.SectionOverride{
 					"identity": {
 						Transform: func(currentContent string) (string, error) {
-							mu.Lock()
-							transformCalled = true
-							receivedContent = currentContent
-							mu.Unlock()
-							return currentContent + "\nTRANSFORM_MARKER", nil
+							return currentContent + "\nAlways end your reply with TRANSFORM_MARKER", nil
 						},
 					},
 				},
@@ -121,22 +114,27 @@ func TestSystemMessageTransform(t *testing.T) {
 			t.Fatalf("Failed to write test file: %v", err)
 		}
 
-		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
+		assistantMessage, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Read the contents of hello.txt",
 		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		mu.Lock()
-		defer mu.Unlock()
+		// Verify the transform result was actually applied to the system message
+		traffic, err := ctx.GetExchanges()
+		if err != nil {
+			t.Fatalf("Failed to get exchanges: %v", err)
+		}
+		if len(traffic) == 0 {
+			t.Fatal("Expected at least one exchange")
+		}
+		systemMessage := getSystemMessage(traffic[0])
+		if !strings.Contains(systemMessage, "TRANSFORM_MARKER") {
+			t.Errorf("Expected system message to contain TRANSFORM_MARKER, got %q", systemMessage)
+		}
 
-		if !transformCalled {
-			t.Error("Expected transform callback to be invoked")
-		}
-		if receivedContent == "" {
-			t.Error("Expected transform to receive non-empty content")
-		}
+		_ = assistantMessage
 	})
 
 	t.Run("should_work_with_static_overrides_and_transforms_together", func(t *testing.T) {

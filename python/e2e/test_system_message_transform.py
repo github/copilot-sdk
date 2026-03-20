@@ -59,10 +59,8 @@ class TestSystemMessageTransform:
         self, ctx: E2ETestContext
     ):
         """Test that transform modifications are applied to the section content"""
-        identity_contents = []
 
         async def identity_transform(content: str) -> str:
-            identity_contents.append(content)
             return content + "\nTRANSFORM_MARKER"
 
         session = await ctx.client.create_session(
@@ -79,11 +77,10 @@ class TestSystemMessageTransform:
 
         await session.send_and_wait("Read the contents of hello.txt")
 
-        # The transform callback should have been invoked
-        assert len(identity_contents) > 0
-
-        # The callback should have received content and returned modified content
-        assert all(len(c) > 0 for c in identity_contents)
+        # Verify the transform result was actually applied to the system message
+        traffic = await ctx.get_exchanges()
+        system_message = _get_system_message(traffic[0])
+        assert "TRANSFORM_MARKER" in system_message
 
         await session.disconnect()
 
@@ -116,3 +113,11 @@ class TestSystemMessageTransform:
         assert len(identity_contents) > 0
 
         await session.disconnect()
+
+
+def _get_system_message(exchange: dict) -> str:
+    messages = exchange.get("request", {}).get("messages", [])
+    for msg in messages:
+        if msg.get("role") == "system":
+            return msg.get("content", "")
+    return ""

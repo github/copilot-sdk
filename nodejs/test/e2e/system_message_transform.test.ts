@@ -5,11 +5,12 @@
 import { writeFile } from "fs/promises";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
+import { ParsedHttpExchange } from "../../../test/harness/replayingCapiProxy.js";
 import { approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 describe("System message transform", async () => {
-    const { copilotClient: client, workDir } = await createSdkTestContext();
+    const { copilotClient: client, openAiEndpoint, workDir } = await createSdkTestContext();
 
     it("should invoke transform callbacks with section content", async () => {
         const transformedSections: Record<string, string> = {};
@@ -53,9 +54,6 @@ describe("System message transform", async () => {
     });
 
     it("should apply transform modifications to section content", async () => {
-        let originalContent = "";
-        let transformedContent = "";
-
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             systemMessage: {
@@ -63,10 +61,7 @@ describe("System message transform", async () => {
                 sections: {
                     identity: {
                         action: (content: string) => {
-                            originalContent = content;
-                            // Append a custom instruction via transform
-                            transformedContent = content + "\nTRANSFORM_MARKER";
-                            return transformedContent;
+                            return content + "\nTRANSFORM_MARKER";
                         },
                     },
                 },
@@ -79,10 +74,10 @@ describe("System message transform", async () => {
             prompt: "Read the contents of hello.txt",
         });
 
-        // Verify the transform callback was invoked and modified the content
-        expect(originalContent.length).toBeGreaterThan(0);
-        expect(transformedContent).toContain("TRANSFORM_MARKER");
-        expect(transformedContent).toContain(originalContent);
+        // Verify the transform result was actually applied to the system message
+        const traffic = await openAiEndpoint.getExchanges();
+        const systemMessage = getSystemMessage(traffic[0]);
+        expect(systemMessage).toContain("TRANSFORM_MARKER");
 
         await session.disconnect();
     });
@@ -121,3 +116,10 @@ describe("System message transform", async () => {
         await session.disconnect();
     });
 });
+
+function getSystemMessage(exchange: ParsedHttpExchange): string | undefined {
+    const systemMessage = exchange.request.messages.find((m) => m.role === "system") as
+        | { role: "system"; content: string }
+        | undefined;
+    return systemMessage?.content;
+}
