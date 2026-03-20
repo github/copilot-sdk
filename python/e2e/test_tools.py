@@ -5,12 +5,9 @@ import os
 import pytest
 from pydantic import BaseModel, Field
 
-from copilot import (
-    PermissionHandler,
-    PermissionRequestResult,
-    ToolInvocation,
-    define_tool,
-)
+from copilot import define_tool
+from copilot.session import PermissionHandler, PermissionRequestResult
+from copilot.tools import ToolInvocation
 
 from .testharness import E2ETestContext, get_final_assistant_message
 

@@ -1258,6 +1258,11 @@ public partial class SessionHandoffData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("remoteSessionId")]
     public string? RemoteSessionId { get; set; }
+
+    /// <summary>GitHub host URL for the source session (e.g., https://github.com or https://tenant.ghe.com).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("host")]
+    public string? Host { get; set; }
 }
 
 /// <summary>Conversation truncation statistics including token counts and removed content metrics.</summary>

@@ -4,7 +4,9 @@ import os
 
 import pytest
 
-from copilot import CopilotClient, PermissionHandler, SubprocessConfig
+from copilot import CopilotClient
+from copilot.client import SubprocessConfig
+from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
 

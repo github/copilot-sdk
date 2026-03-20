@@ -43,7 +43,7 @@ await session.sendAndWait({ prompt: "Review this code for security issues" });
 
 ```python
 from copilot import CopilotClient
-from copilot.types import PermissionRequestResult
+from copilot.session import PermissionRequestResult
 
 async def main():
     client = CopilotClient()
