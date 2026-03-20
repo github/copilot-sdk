@@ -9,7 +9,10 @@ configuration and handler types.
 from __future__ import annotations
 
 import asyncio
+import functools
 import inspect
+import os
+import pathlib
 import threading
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -639,7 +642,9 @@ class CopilotSession:
         ...     unsubscribe()
     """
 
-    def __init__(self, session_id: str, client: Any, workspace_path: str | None = None):
+    def __init__(
+        self, session_id: str, client: Any, workspace_path: os.PathLike[str] | str | None = None
+    ):
         """
         Initialize a new CopilotSession.
 
@@ -655,7 +660,7 @@ class CopilotSession:
         """
         self.session_id = session_id
         self._client = client
-        self._workspace_path = workspace_path
+        self._workspace_path = os.fsdecode(workspace_path) if workspace_path is not None else None
         self._event_handlers: set[Callable[[SessionEvent], None]] = set()
         self._event_handlers_lock = threading.Lock()
         self._tool_handlers: dict[str, ToolHandler] = {}
@@ -677,15 +682,19 @@ class CopilotSession:
             self._rpc = SessionRpc(self._client, self.session_id)
         return self._rpc
 
-    @property
-    def workspace_path(self) -> str | None:
+    @functools.cached_property
+    def workspace_path(self) -> pathlib.Path | None:
         """
         Path to the session workspace directory when infinite sessions are enabled.
 
         Contains checkpoints/, plan.md, and files/ subdirectories.
         None if infinite sessions are disabled.
         """
-        return self._workspace_path
+        # Done as a property as self._workspace_path is directly set from a server
+        # response post-init. So it was either make sure all places directly setting
+        # the attribute handle the None case appropriately, use a setter for the
+        # attribute to do the conversion, or just do the conversion lazily via a getter.
+        return pathlib.Path(self._workspace_path) if self._workspace_path else None
 
     async def send(
         self,
