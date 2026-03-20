@@ -16,8 +16,5 @@ internal static class SdkProtocolVersion
     /// <summary>
     /// Gets the SDK protocol version.
     /// </summary>
-    public static int GetVersion()
-    {
-        return Version;
-    }
+    public static int GetVersion() => Version;
 }

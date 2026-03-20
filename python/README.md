@@ -144,7 +144,10 @@ All parameters are keyword-only:
 - `client_name` (str): Client name to identify the application using the SDK. Included in the User-Agent header for API requests.
 - `reasoning_effort` (str): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh"). Use `list_models()` to check which models support this option.
 - `tools` (list): Custom tools exposed to the CLI.
-- `system_message` (dict): System message configuration.
+- `system_message` (dict): System message configuration. Supports three modes:
+  - **append** (default): Appends `content` after the SDK-managed prompt
+  - **replace**: Replaces the entire prompt with `content`
+  - **customize**: Selectively override individual sections via `sections` dict (keys: `"identity"`, `"tone"`, `"tool_efficiency"`, `"environment_context"`, `"code_change_rules"`, `"guidelines"`, `"safety"`, `"tool_instructions"`, `"custom_instructions"`, `"last_instructions"`; values: `SectionOverride` with `action` and optional `content`)
 - `available_tools` (list[str]): List of tool names to allow. Takes precedence over `excluded_tools`.
 - `excluded_tools` (list[str]): List of tool names to disable. Ignored if `available_tools` is set.
 - `on_user_input_request` (callable): Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
@@ -216,6 +219,54 @@ unsubscribe()
 - `session.updated` - A session was updated
 - `session.foreground` - A session became the foreground session in TUI
 - `session.background` - A session is no longer the foreground session
+
+### System Message Customization
+
+Control the system prompt using `system_message` in session config:
+
+```python
+session = await client.create_session(
+    system_message={
+        "content": "Always check for security vulnerabilities before suggesting changes."
+    }
+)
+```
+
+The SDK auto-injects environment context, tool instructions, and security guardrails. The default CLI persona is preserved, and your `content` is appended after SDK-managed sections. To change the persona or fully redefine the prompt, use `mode: "replace"` or `mode: "customize"`.
+
+#### Customize Mode
+
+Use `mode: "customize"` to selectively override individual sections of the prompt while preserving the rest:
+
+```python
+from copilot import SYSTEM_PROMPT_SECTIONS
+
+session = await client.create_session(
+    system_message={
+        "mode": "customize",
+        "sections": {
+            # Replace the tone/style section
+            "tone": {"action": "replace", "content": "Respond in a warm, professional tone. Be thorough in explanations."},
+            # Remove coding-specific rules
+            "code_change_rules": {"action": "remove"},
+            # Append to existing guidelines
+            "guidelines": {"action": "append", "content": "\n* Always cite data sources"},
+        },
+        # Additional instructions appended after all sections
+        "content": "Focus on financial analysis and reporting.",
+    }
+)
+```
+
+Available section IDs: `"identity"`, `"tone"`, `"tool_efficiency"`, `"environment_context"`, `"code_change_rules"`, `"guidelines"`, `"safety"`, `"tool_instructions"`, `"custom_instructions"`, `"last_instructions"`. Use the `SYSTEM_PROMPT_SECTIONS` dict for descriptions of each section.
+
+Each section override supports four actions:
+- **`replace`** — Replace the section content entirely
+- **`remove`** — Remove the section from the prompt
+- **`append`** — Add content after the existing section
+- **`prepend`** — Add content before the existing section
+
+Unknown section IDs are handled gracefully: content from `replace`/`append`/`prepend` overrides is appended to additional instructions, and `remove` overrides are silently ignored.
 
 ### Tools
 

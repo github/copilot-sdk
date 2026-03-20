@@ -365,6 +365,44 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
     }
 
+    private static (SystemMessageConfig? wireConfig, Dictionary<string, Func<string, Task<string>>>? callbacks) ExtractTransformCallbacks(SystemMessageConfig? systemMessage)
+    {
+        if (systemMessage?.Mode != SystemMessageMode.Customize || systemMessage.Sections == null)
+        {
+            return (systemMessage, null);
+        }
+
+        var callbacks = new Dictionary<string, Func<string, Task<string>>>();
+        var wireSections = new Dictionary<string, SectionOverride>();
+
+        foreach (var (sectionId, sectionOverride) in systemMessage.Sections)
+        {
+            if (sectionOverride.Transform != null)
+            {
+                callbacks[sectionId] = sectionOverride.Transform;
+                wireSections[sectionId] = new SectionOverride { Action = SectionOverrideAction.Transform };
+            }
+            else
+            {
+                wireSections[sectionId] = sectionOverride;
+            }
+        }
+
+        if (callbacks.Count == 0)
+        {
+            return (systemMessage, null);
+        }
+
+        var wireConfig = new SystemMessageConfig
+        {
+            Mode = systemMessage.Mode,
+            Content = systemMessage.Content,
+            Sections = wireSections
+        };
+
+        return (wireConfig, callbacks);
+    }
+
     /// <summary>
     /// Creates a new Copilot session with the specified configuration.
     /// </summary>
@@ -409,6 +447,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.Hooks.OnSessionEnd != null ||
             config.Hooks.OnErrorOccurred != null);
 
+        var (wireSystemMessage, transformCallbacks) = ExtractTransformCallbacks(config.SystemMessage);
+
         var sessionId = config.SessionId ?? Guid.NewGuid().ToString();
 
         // Create and register the session before issuing the RPC so that
@@ -423,6 +463,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         if (config.Hooks != null)
         {
             session.RegisterHooks(config.Hooks);
+        }
+        if (transformCallbacks != null)
+        {
+            session.RegisterTransformCallbacks(transformCallbacks);
         }
         if (config.OnEvent != null)
         {
@@ -440,7 +484,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.ClientName,
                 config.ReasoningEffort,
                 config.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
-                config.SystemMessage,
+                wireSystemMessage,
                 config.AvailableTools,
                 config.ExcludedTools,
                 config.Provider,
@@ -519,6 +563,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             config.Hooks.OnSessionEnd != null ||
             config.Hooks.OnErrorOccurred != null);
 
+        var (wireSystemMessage, transformCallbacks) = ExtractTransformCallbacks(config.SystemMessage);
+
         // Create and register the session before issuing the RPC so that
         // events emitted by the CLI (e.g. session.start) are not dropped.
         var session = new CopilotSession(sessionId, connection.Rpc, _logger);
@@ -531,6 +577,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         if (config.Hooks != null)
         {
             session.RegisterHooks(config.Hooks);
+        }
+        if (transformCallbacks != null)
+        {
+            session.RegisterTransformCallbacks(transformCallbacks);
         }
         if (config.OnEvent != null)
         {
@@ -548,7 +598,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.Model,
                 config.ReasoningEffort,
                 config.Tools?.Select(ToolDefinition.FromAIFunction).ToList(),
-                config.SystemMessage,
+                wireSystemMessage,
                 config.AvailableTools,
                 config.ExcludedTools,
                 config.Provider,
@@ -1222,6 +1272,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         rpc.AddLocalRpcMethod("permission.request", handler.OnPermissionRequestV2);
         rpc.AddLocalRpcMethod("userInput.request", handler.OnUserInputRequest);
         rpc.AddLocalRpcMethod("hooks.invoke", handler.OnHooksInvoke);
+        rpc.AddLocalRpcMethod("systemMessage.transform", handler.OnSystemMessageTransform);
         rpc.StartListening();
 
         // Transition state to Disconnected if the JSON-RPC connection drops
@@ -1348,6 +1399,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
             var output = await session.HandleHooksInvokeAsync(hookType, input);
             return new HooksInvokeResponse(output);
+        }
+
+        public async Task<SystemMessageTransformRpcResponse> OnSystemMessageTransform(string sessionId, JsonElement sections)
+        {
+            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
+            return await session.HandleSystemMessageTransformAsync(sections);
         }
 
         // Protocol v2 backward-compatibility adapters
@@ -1685,6 +1742,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(ResumeSessionResponse))]
     [JsonSerializable(typeof(SessionMetadata))]
     [JsonSerializable(typeof(SystemMessageConfig))]
+    [JsonSerializable(typeof(SystemMessageTransformRpcResponse))]
     [JsonSerializable(typeof(ToolCallResponseV2))]
     [JsonSerializable(typeof(ToolDefinition))]
     [JsonSerializable(typeof(ToolResultAIContent))]

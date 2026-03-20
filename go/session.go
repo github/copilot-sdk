@@ -50,20 +50,22 @@ type sessionHandler struct {
 //	})
 type Session struct {
 	// SessionID is the unique identifier for this session.
-	SessionID         string
-	workspacePath     string
-	client            *jsonrpc2.Client
-	handlers          []sessionHandler
-	nextHandlerID     uint64
-	handlerMutex      sync.RWMutex
-	toolHandlers      map[string]ToolHandler
-	toolHandlersM     sync.RWMutex
-	permissionHandler PermissionHandlerFunc
-	permissionMux     sync.RWMutex
-	userInputHandler  UserInputHandler
-	userInputMux      sync.RWMutex
-	hooks             *SessionHooks
-	hooksMux          sync.RWMutex
+	SessionID          string
+	workspacePath      string
+	client             *jsonrpc2.Client
+	handlers           []sessionHandler
+	nextHandlerID      uint64
+	handlerMutex       sync.RWMutex
+	toolHandlers       map[string]ToolHandler
+	toolHandlersM      sync.RWMutex
+	permissionHandler  PermissionHandlerFunc
+	permissionMux      sync.RWMutex
+	userInputHandler   UserInputHandler
+	userInputMux       sync.RWMutex
+	hooks              *SessionHooks
+	hooksMux           sync.RWMutex
+	transformCallbacks map[string]SectionTransformFn
+	transformMu        sync.Mutex
 
 	// eventCh serializes user event handler dispatch. dispatchEvent enqueues;
 	// a single goroutine (processEvents) dequeues and invokes handlers in FIFO order.
@@ -444,6 +446,56 @@ func (s *Session) handleHooksInvoke(hookType string, rawInput json.RawMessage) (
 	default:
 		return nil, fmt.Errorf("unknown hook type: %s", hookType)
 	}
+}
+
+// registerTransformCallbacks registers transform callbacks for this session.
+//
+// Transform callbacks are invoked when the CLI requests system message section
+// transforms. This method is internal and typically called when creating a session.
+func (s *Session) registerTransformCallbacks(callbacks map[string]SectionTransformFn) {
+	s.transformMu.Lock()
+	defer s.transformMu.Unlock()
+	s.transformCallbacks = callbacks
+}
+
+type systemMessageTransformSection struct {
+	Content string `json:"content"`
+}
+
+type systemMessageTransformRequest struct {
+	SessionID string                                   `json:"sessionId"`
+	Sections  map[string]systemMessageTransformSection `json:"sections"`
+}
+
+type systemMessageTransformResponse struct {
+	Sections map[string]systemMessageTransformSection `json:"sections"`
+}
+
+// handleSystemMessageTransform handles a system message transform request from the Copilot CLI.
+// This is an internal method called by the SDK when the CLI requests section transforms.
+func (s *Session) handleSystemMessageTransform(sections map[string]systemMessageTransformSection) (systemMessageTransformResponse, error) {
+	s.transformMu.Lock()
+	callbacks := s.transformCallbacks
+	s.transformMu.Unlock()
+
+	result := make(map[string]systemMessageTransformSection)
+	for sectionID, data := range sections {
+		var callback SectionTransformFn
+		if callbacks != nil {
+			callback = callbacks[sectionID]
+		}
+		if callback != nil {
+			transformed, err := callback(data.Content)
+			if err != nil {
+				result[sectionID] = systemMessageTransformSection{Content: data.Content}
+			} else {
+				result[sectionID] = systemMessageTransformSection{Content: transformed}
+			}
+		} else {
+			result[sectionID] = systemMessageTransformSection{Content: data.Content}
+		}
+	}
+	return systemMessageTransformResponse{Sections: result}, nil
 }
 
 // dispatchEvent enqueues an event for delivery to user handlers and fires

@@ -273,6 +273,79 @@ export interface ToolCallResponsePayload {
 }
 
 /**
+ * Known system prompt section identifiers for the "customize" mode.
+ * Each section corresponds to a distinct part of the system prompt.
+ */
+export type SystemPromptSection =
+    | "identity"
+    | "tone"
+    | "tool_efficiency"
+    | "environment_context"
+    | "code_change_rules"
+    | "guidelines"
+    | "safety"
+    | "tool_instructions"
+    | "custom_instructions"
+    | "last_instructions";
+
+/** Section metadata for documentation and tooling. */
+export const SYSTEM_PROMPT_SECTIONS: Record<SystemPromptSection, { description: string }> = {
+    identity: { description: "Agent identity preamble and mode statement" },
+    tone: { description: "Response style, conciseness rules, output formatting preferences" },
+    tool_efficiency: { description: "Tool usage patterns, parallel calling, batching guidelines" },
+    environment_context: { description: "CWD, OS, git root, directory listing, available tools" },
+    code_change_rules: { description: "Coding rules, linting/testing, ecosystem tools, style" },
+    guidelines: { description: "Tips, behavioral best practices, behavioral guidelines" },
+    safety: { description: "Environment limitations, prohibited actions, security policies" },
+    tool_instructions: { description: "Per-tool usage instructions" },
+    custom_instructions: { description: "Repository and organization custom instructions" },
+    last_instructions: {
+        description:
+            "End-of-prompt instructions: parallel tool calling, persistence, task completion",
+    },
+};
+
+/**
+ * Transform callback for a single section: receives current content, returns new content.
+ */
+export type SectionTransformFn = (currentContent: string) => string | Promise<string>;
+
+/**
+ * Override action: a string literal for static overrides, or a callback for transforms.
+ *
+ * - `"replace"`: Replace section content entirely
+ * - `"remove"`: Remove the section
+ * - `"append"`: Append to existing section content
+ * - `"prepend"`: Prepend to existing section content
+ * - `function`: Transform callback — receives current section content, returns new content
+ */
+export type SectionOverrideAction =
+    | "replace"
+    | "remove"
+    | "append"
+    | "prepend"
+    | SectionTransformFn;
+
+/**
+ * Override operation for a single system prompt section.
+ */
+export interface SectionOverride {
+    /**
+     * The operation to perform on this section.
+     * Can be a string action or a transform callback function.
+     */
+    action: SectionOverrideAction;
+
+    /**
+     * Content for the override. Optional for all actions.
+     * - For replace, omitting content replaces with an empty string.
+     * - For append/prepend, content is added before/after the existing section.
+     * - Ignored for the remove action.
+     */
+    content?: string;
+}
+
+/**
  * Append mode: Use CLI foundation with optional appended content (default).
  */
 export interface SystemMessageAppendConfig {
@@ -299,11 +372,36 @@ export interface SystemMessageReplaceConfig {
 }
 
 /**
+ * Customize mode: Override individual sections of the system prompt.
+ * Keeps the SDK-managed prompt structure while allowing targeted modifications.
+ */
+export interface SystemMessageCustomizeConfig {
+    mode: "customize";
+
+    /**
+     * Override specific sections of the system prompt by section ID.
+     * Unknown section IDs gracefully fall back: content-bearing overrides are appended
+     * to additional instructions, and "remove" on unknown sections is a silent no-op.
+     */
+    sections?: Partial<Record<SystemPromptSection, SectionOverride>>;
+
+    /**
+     * Additional content appended after all sections.
+     * Equivalent to append mode's content field — provided for convenience.
+     */
+    content?: string;
+}
+
+/**
  * System message configuration for session creation.
  * - Append mode (default): SDK foundation + optional custom content
  * - Replace mode: Full control, caller provides entire system message
+ * - Customize mode: Section-level overrides with graceful fallback
  */
-export type SystemMessageConfig = SystemMessageAppendConfig | SystemMessageReplaceConfig;
+export type SystemMessageConfig =
+    | SystemMessageAppendConfig
+    | SystemMessageReplaceConfig
+    | SystemMessageCustomizeConfig;
 
 /**
  * Permission request types from the server

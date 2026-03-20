@@ -1,0 +1,33 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Read the contents of hello.txt
+      - role: assistant
+        content: I'll read the hello.txt file for you.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Reading hello.txt file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/hello.txt"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: 1. Hello!
+      - role: assistant
+        content: |-
+          The file hello.txt contains:
+          ```
+          Hello!
+          ```

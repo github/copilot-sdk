@@ -1,0 +1,50 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Read the contents of combo.txt and tell me what it says
+      - role: assistant
+        content: I'll read the contents of combo.txt for you.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Reading file contents"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/combo.txt"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Read the contents of combo.txt and tell me what it says
+      - role: assistant
+        content: I'll read the contents of combo.txt for you.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Reading file contents"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/combo.txt"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: 1. Combo test!
+      - role: assistant
+        content: The file combo.txt contains a single line that says "Combo test!"

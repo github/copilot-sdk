@@ -92,6 +92,37 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     }
 
     [Fact]
+    public async Task Should_Create_A_Session_With_Customized_SystemMessage_Config()
+    {
+        var customTone = "Respond in a warm, professional tone. Be thorough in explanations.";
+        var appendedContent = "Always mention quarterly earnings.";
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            SystemMessage = new SystemMessageConfig
+            {
+                Mode = SystemMessageMode.Customize,
+                Sections = new Dictionary<string, SectionOverride>
+                {
+                    [SystemPromptSections.Tone] = new() { Action = SectionOverrideAction.Replace, Content = customTone },
+                    [SystemPromptSections.CodeChangeRules] = new() { Action = SectionOverrideAction.Remove },
+                },
+                Content = appendedContent
+            }
+        });
+
+        await session.SendAsync(new MessageOptions { Prompt = "Who are you?" });
+        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
+        Assert.NotNull(assistantMessage);
+
+        var traffic = await Ctx.GetExchangesAsync();
+        Assert.NotEmpty(traffic);
+        var systemMessage = GetSystemMessage(traffic[0]);
+        Assert.Contains(customTone, systemMessage);
+        Assert.Contains(appendedContent, systemMessage);
+        Assert.DoesNotContain("<code_change_instructions>", systemMessage);
+    }
+
+    [Fact]
     public async Task Should_Create_A_Session_With_AvailableTools()
     {
         var session = await CreateSessionAsync(new SessionConfig
