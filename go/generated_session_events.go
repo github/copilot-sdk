@@ -61,7 +61,7 @@ type SessionEvent struct {
 	//
 	// Current context window usage statistics including token and message counts
 	//
-	// Empty payload; the event signals that LLM-powered conversation compaction has begun
+	// Context window breakdown at the start of LLM-powered conversation compaction
 	//
 	// Conversation compaction results including success status, metrics, and optional error
 	// details
@@ -132,9 +132,14 @@ type SessionEvent struct {
 	//
 	// User input request completion notification signaling UI dismissal
 	//
-	// Structured form elicitation request with JSON schema definition for form fields
+	// Elicitation request; may be form-based (structured input) or URL-based (browser
+	// redirect)
 	//
 	// Elicitation request completion notification signaling UI dismissal
+	//
+	// OAuth authentication request for an MCP server
+	//
+	// MCP OAuth request completion notification
 	//
 	// External tool invocation request for client-side tool execution
 	//
@@ -142,7 +147,11 @@ type SessionEvent struct {
 	//
 	// Queued slash command dispatch request for client execution
 	//
+	// Registered command dispatch request routed to the owning client
+	//
 	// Queued command completion notification signaling UI dismissal
+	//
+	// SDK command registration change notification
 	//
 	// Plan approval request with plan content and available user actions
 	//
@@ -195,7 +204,7 @@ type SessionEvent struct {
 //
 // # Current context window usage statistics including token and message counts
 //
-// Empty payload; the event signals that LLM-powered conversation compaction has begun
+// # Context window breakdown at the start of LLM-powered conversation compaction
 //
 // Conversation compaction results including success status, metrics, and optional error
 // details
@@ -266,9 +275,14 @@ type SessionEvent struct {
 //
 // # User input request completion notification signaling UI dismissal
 //
-// # Structured form elicitation request with JSON schema definition for form fields
+// Elicitation request; may be form-based (structured input) or URL-based (browser
+// redirect)
 //
 // # Elicitation request completion notification signaling UI dismissal
+//
+// # OAuth authentication request for an MCP server
+//
+// # MCP OAuth request completion notification
 //
 // # External tool invocation request for client-side tool execution
 //
@@ -276,7 +290,11 @@ type SessionEvent struct {
 //
 // # Queued slash command dispatch request for client execution
 //
+// # Registered command dispatch request routed to the owning client
+//
 // # Queued command completion notification signaling UI dismissal
+//
+// # SDK command registration change notification
 //
 // # Plan approval request with plan content and available user actions
 //
@@ -342,6 +360,8 @@ type Data struct {
 	// Optional URL associated with this message that the user can open in a browser
 	//
 	// Optional URL associated with this warning that the user can open in a browser
+	//
+	// URL to open in the user's browser (url mode only)
 	URL *string `json:"url,omitempty"`
 	// Background tasks still running when the agent became idle
 	BackgroundTasks *BackgroundTasks `json:"backgroundTasks,omitempty"`
@@ -409,8 +429,20 @@ type Data struct {
 	UpToEventID *string `json:"upToEventId,omitempty"`
 	// Aggregate code change metrics for the session
 	CodeChanges *CodeChanges `json:"codeChanges,omitempty"`
+	// Non-system message token count at shutdown
+	//
+	// Token count from non-system messages (user, assistant, tool)
+	//
+	// Token count from non-system messages (user, assistant, tool) at compaction start
+	//
+	// Token count from non-system messages (user, assistant, tool) after compaction
+	ConversationTokens *float64 `json:"conversationTokens,omitempty"`
 	// Model that was selected at the time of shutdown
 	CurrentModel *string `json:"currentModel,omitempty"`
+	// Total tokens in context window at shutdown
+	//
+	// Current number of tokens in the context window
+	CurrentTokens *float64 `json:"currentTokens,omitempty"`
 	// Error description when shutdownType is "error"
 	ErrorReason *string `json:"errorReason,omitempty"`
 	// Per-model usage breakdown, keyed by model identifier
@@ -419,6 +451,22 @@ type Data struct {
 	SessionStartTime *float64 `json:"sessionStartTime,omitempty"`
 	// Whether the session ended normally ("routine") or due to a crash/fatal error ("error")
 	ShutdownType *ShutdownType `json:"shutdownType,omitempty"`
+	// System message token count at shutdown
+	//
+	// Token count from system message(s)
+	//
+	// Token count from system message(s) at compaction start
+	//
+	// Token count from system message(s) after compaction
+	SystemTokens *float64 `json:"systemTokens,omitempty"`
+	// Tool definitions token count at shutdown
+	//
+	// Token count from tool definitions
+	//
+	// Token count from tool definitions at compaction start
+	//
+	// Token count from tool definitions after compaction
+	ToolDefinitionsTokens *float64 `json:"toolDefinitionsTokens,omitempty"`
 	// Cumulative time spent in API calls during the session, in milliseconds
 	TotalAPIDurationMS *float64 `json:"totalApiDurationMs,omitempty"`
 	// Total number of premium API requests used during the session
@@ -435,8 +483,8 @@ type Data struct {
 	HeadCommit *string `json:"headCommit,omitempty"`
 	// Hosting platform type of the repository (github or ado)
 	HostType *HostType `json:"hostType,omitempty"`
-	// Current number of tokens in the context window
-	CurrentTokens *float64 `json:"currentTokens,omitempty"`
+	// Whether this is the first usage_info event emitted in this session
+	IsInitial *bool `json:"isInitial,omitempty"`
 	// Current number of messages in the conversation
 	MessagesLength *float64 `json:"messagesLength,omitempty"`
 	// Checkpoint snapshot number created for recovery
@@ -481,12 +529,19 @@ type Data struct {
 	// Request ID of the resolved elicitation request; clients should dismiss any UI for this
 	// request
 	//
+	// Unique identifier for this OAuth request; used to respond via
+	// session.respondToMcpOAuth()
+	//
+	// Request ID of the resolved OAuth request
+	//
 	// Unique identifier for this request; used to respond via session.respondToExternalTool()
 	//
 	// Request ID of the resolved external tool request; clients should dismiss any UI for this
 	// request
 	//
 	// Unique identifier for this request; used to respond via session.respondToQueuedCommand()
+	//
+	// Unique identifier; used to respond via session.commands.handlePendingCommand()
 	//
 	// Request ID of the resolved command request; clients should dismiss any UI for this
 	// request
@@ -497,6 +552,8 @@ type Data struct {
 	// request
 	RequestID *string `json:"requestId,omitempty"`
 	// Whether compaction completed successfully
+	//
+	// Whether the tool call succeeded. False when validation failed (e.g., invalid arguments)
 	//
 	// Whether the tool execution completed successfully
 	//
@@ -621,6 +678,9 @@ type Data struct {
 	// The LLM-assigned tool call ID that triggered this request; used by remote UIs to
 	// correlate responses
 	//
+	// Tool call ID from the LLM completion; used to correlate with CompletionChunk.toolCall.id
+	// for remote UIs
+	//
 	// Tool call ID assigned to this external tool invocation
 	ToolCallID *string `json:"toolCallId,omitempty"`
 	// Name of the tool the user wants to invoke
@@ -693,16 +753,35 @@ type Data struct {
 	Choices []string `json:"choices,omitempty"`
 	// The question or prompt to present to the user
 	Question *string `json:"question,omitempty"`
-	// Elicitation mode; currently only "form" is supported. Defaults to "form" when absent.
+	// The source that initiated the request (MCP server name, or absent for agent-initiated)
+	ElicitationSource *string `json:"elicitationSource,omitempty"`
+	// Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to
+	// "form" when absent.
 	Mode *Mode `json:"mode,omitempty"`
-	// JSON Schema describing the form fields to present to the user
+	// JSON Schema describing the form fields to present to the user (form mode only)
 	RequestedSchema *RequestedSchema `json:"requestedSchema,omitempty"`
+	// Display name of the MCP server that requires OAuth
+	//
+	// Name of the MCP server whose status changed
+	ServerName *string `json:"serverName,omitempty"`
+	// URL of the MCP server that requires OAuth
+	ServerURL *string `json:"serverUrl,omitempty"`
+	// Static OAuth client configuration, if the server specifies one
+	StaticClientConfig *StaticClientConfig `json:"staticClientConfig,omitempty"`
 	// W3C Trace Context traceparent header for the execute_tool span
 	Traceparent *string `json:"traceparent,omitempty"`
 	// W3C Trace Context tracestate header for the execute_tool span
 	Tracestate *string `json:"tracestate,omitempty"`
 	// The slash command text to be executed (e.g., /help, /clear)
+	//
+	// The full command text (e.g., /deploy production)
 	Command *string `json:"command,omitempty"`
+	// Raw argument string after the command name
+	Args *string `json:"args,omitempty"`
+	// Command name without leading /
+	CommandName *string `json:"commandName,omitempty"`
+	// Current list of registered SDK commands
+	Commands []DataCommand `json:"commands,omitempty"`
 	// Available actions the user can take (e.g., approve, edit, reject)
 	Actions []string `json:"actions,omitempty"`
 	// Full content of the plan file
@@ -713,8 +792,6 @@ type Data struct {
 	Skills []Skill `json:"skills,omitempty"`
 	// Array of MCP server status summaries
 	Servers []Server `json:"servers,omitempty"`
-	// Name of the MCP server whose status changed
-	ServerName *string `json:"serverName,omitempty"`
 	// New connection status: connected, failed, pending, disabled, or not_configured
 	Status *ServerStatus `json:"status,omitempty"`
 	// Array of discovered extensions and their status
@@ -833,6 +910,11 @@ type CodeChanges struct {
 	LinesAdded float64 `json:"linesAdded"`
 	// Total number of lines removed during the session
 	LinesRemoved float64 `json:"linesRemoved"`
+}
+
+type DataCommand struct {
+	Description *string `json:"description,omitempty"`
+	Name        string  `json:"name"`
 }
 
 // Token usage breakdown for the compaction LLM call
@@ -988,7 +1070,7 @@ type PermissionRequest struct {
 	// Whether the UI can offer session-wide approval for this command pattern
 	CanOfferSessionApproval *bool `json:"canOfferSessionApproval,omitempty"`
 	// Parsed command identifiers found in the command text
-	Commands []Command `json:"commands,omitempty"`
+	Commands []PermissionRequestCommand `json:"commands,omitempty"`
 	// The complete shell command text to be executed
 	FullCommandText *string `json:"fullCommandText,omitempty"`
 	// Whether the command includes a file write redirection (e.g., > or >>)
@@ -1051,7 +1133,7 @@ type PermissionRequest struct {
 	ToolArgs interface{} `json:"toolArgs"`
 }
 
-type Command struct {
+type PermissionRequestCommand struct {
 	// Command identifier (e.g., executable name)
 	Identifier string `json:"identifier"`
 	// Whether this command is read-only (no side effects)
@@ -1092,7 +1174,7 @@ type RepositoryClass struct {
 	Owner string `json:"owner"`
 }
 
-// JSON Schema describing the form fields to present to the user
+// JSON Schema describing the form fields to present to the user (form mode only)
 type RequestedSchema struct {
 	// Form field definitions, keyed by field name
 	Properties map[string]interface{} `json:"properties"`
@@ -1222,6 +1304,14 @@ type Skill struct {
 	UserInvocable bool `json:"userInvocable"`
 }
 
+// Static OAuth client configuration, if the server specifies one
+type StaticClientConfig struct {
+	// OAuth client ID for the server
+	ClientID string `json:"clientId"`
+	// Whether this is a public OAuth client
+	PublicClient *bool `json:"publicClient,omitempty"`
+}
+
 // A tool invocation request from the assistant
 type ToolRequest struct {
 	// Arguments to pass to the tool, format depends on the tool
@@ -1311,10 +1401,13 @@ const (
 	KindTypeShellDetachedCompleted KindType = "shell_detached_completed"
 )
 
+// Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to
+// "form" when absent.
 type Mode string
 
 const (
 	ModeForm Mode = "form"
+	ModeURL  Mode = "url"
 )
 
 // The type of operation performed on the plan file
@@ -1334,10 +1427,10 @@ const (
 	PermissionRequestKindCustomTool PermissionRequestKind = "custom-tool"
 	PermissionRequestKindHook       PermissionRequestKind = "hook"
 	PermissionRequestKindShell      PermissionRequestKind = "shell"
+	PermissionRequestKindURL        PermissionRequestKind = "url"
 	PermissionRequestKindMcp        PermissionRequestKind = "mcp"
 	PermissionRequestKindMemory     PermissionRequestKind = "memory"
 	PermissionRequestKindRead       PermissionRequestKind = "read"
-	PermissionRequestKindURL        PermissionRequestKind = "url"
 	PermissionRequestKindWrite      PermissionRequestKind = "write"
 )
 
@@ -1437,7 +1530,9 @@ const (
 	SessionEventTypeAssistantTurnStart            SessionEventType = "assistant.turn_start"
 	SessionEventTypeAssistantUsage                SessionEventType = "assistant.usage"
 	SessionEventTypeCommandCompleted              SessionEventType = "command.completed"
+	SessionEventTypeCommandExecute                SessionEventType = "command.execute"
 	SessionEventTypeCommandQueued                 SessionEventType = "command.queued"
+	SessionEventTypeCommandsChanged               SessionEventType = "commands.changed"
 	SessionEventTypeElicitationCompleted          SessionEventType = "elicitation.completed"
 	SessionEventTypeElicitationRequested          SessionEventType = "elicitation.requested"
 	SessionEventTypeExitPlanModeCompleted         SessionEventType = "exit_plan_mode.completed"
@@ -1446,6 +1541,8 @@ const (
 	SessionEventTypeExternalToolRequested         SessionEventType = "external_tool.requested"
 	SessionEventTypeHookEnd                       SessionEventType = "hook.end"
 	SessionEventTypeHookStart                     SessionEventType = "hook.start"
+	SessionEventTypeMcpOauthCompleted             SessionEventType = "mcp.oauth_completed"
+	SessionEventTypeMcpOauthRequired              SessionEventType = "mcp.oauth_required"
 	SessionEventTypePendingMessagesModified       SessionEventType = "pending_messages.modified"
 	SessionEventTypePermissionCompleted           SessionEventType = "permission.completed"
 	SessionEventTypePermissionRequested           SessionEventType = "permission.requested"

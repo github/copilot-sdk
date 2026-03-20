@@ -208,16 +208,19 @@ type SessionWorkspaceCreateFileParams struct {
 	Path string `json:"path"`
 }
 
+// Experimental: SessionFleetStartResult is part of an experimental API and may change or be removed.
 type SessionFleetStartResult struct {
 	// Whether fleet mode was successfully activated
 	Started bool `json:"started"`
 }
 
+// Experimental: SessionFleetStartParams is part of an experimental API and may change or be removed.
 type SessionFleetStartParams struct {
 	// Optional user prompt to combine with fleet instructions
 	Prompt *string `json:"prompt,omitempty"`
 }
 
+// Experimental: SessionAgentListResult is part of an experimental API and may change or be removed.
 type SessionAgentListResult struct {
 	// Available custom agents
 	Agents []SessionAgentListResultAgent `json:"agents"`
@@ -232,6 +235,7 @@ type SessionAgentListResultAgent struct {
 	Name string `json:"name"`
 }
 
+// Experimental: SessionAgentGetCurrentResult is part of an experimental API and may change or be removed.
 type SessionAgentGetCurrentResult struct {
 	// Currently selected custom agent, or null if using the default agent
 	Agent *SessionAgentGetCurrentResultAgent `json:"agent"`
@@ -246,6 +250,7 @@ type SessionAgentGetCurrentResultAgent struct {
 	Name string `json:"name"`
 }
 
+// Experimental: SessionAgentSelectResult is part of an experimental API and may change or be removed.
 type SessionAgentSelectResult struct {
 	// The newly selected custom agent
 	Agent SessionAgentSelectResultAgent `json:"agent"`
@@ -261,14 +266,17 @@ type SessionAgentSelectResultAgent struct {
 	Name string `json:"name"`
 }
 
+// Experimental: SessionAgentSelectParams is part of an experimental API and may change or be removed.
 type SessionAgentSelectParams struct {
 	// Name of the custom agent to select
 	Name string `json:"name"`
 }
 
+// Experimental: SessionAgentDeselectResult is part of an experimental API and may change or be removed.
 type SessionAgentDeselectResult struct {
 }
 
+// Experimental: SessionAgentReloadResult is part of an experimental API and may change or be removed.
 type SessionAgentReloadResult struct {
 	// Reloaded custom agents
 	Agents []SessionAgentReloadResultAgent `json:"agents"`
@@ -283,6 +291,7 @@ type SessionAgentReloadResultAgent struct {
 	Name string `json:"name"`
 }
 
+// Experimental: SessionSkillsListResult is part of an experimental API and may change or be removed.
 type SessionSkillsListResult struct {
 	// Available skills
 	Skills []Skill `json:"skills"`
@@ -303,22 +312,27 @@ type Skill struct {
 	UserInvocable bool `json:"userInvocable"`
 }
 
+// Experimental: SessionSkillsEnableResult is part of an experimental API and may change or be removed.
 type SessionSkillsEnableResult struct {
 }
 
+// Experimental: SessionSkillsEnableParams is part of an experimental API and may change or be removed.
 type SessionSkillsEnableParams struct {
 	// Name of the skill to enable
 	Name string `json:"name"`
 }
 
+// Experimental: SessionSkillsDisableResult is part of an experimental API and may change or be removed.
 type SessionSkillsDisableResult struct {
 }
 
+// Experimental: SessionSkillsDisableParams is part of an experimental API and may change or be removed.
 type SessionSkillsDisableParams struct {
 	// Name of the skill to disable
 	Name string `json:"name"`
 }
 
+// Experimental: SessionSkillsReloadResult is part of an experimental API and may change or be removed.
 type SessionSkillsReloadResult struct {
 }
 
@@ -357,6 +371,7 @@ type SessionMCPDisableParams struct {
 type SessionMCPReloadResult struct {
 }
 
+// Experimental: SessionPluginsListResult is part of an experimental API and may change or be removed.
 type SessionPluginsListResult struct {
 	// Installed plugins
 	Plugins []Plugin `json:"plugins"`
@@ -373,6 +388,7 @@ type Plugin struct {
 	Version *string `json:"version,omitempty"`
 }
 
+// Experimental: SessionExtensionsListResult is part of an experimental API and may change or be removed.
 type SessionExtensionsListResult struct {
 	// Discovered extensions and their current status
 	Extensions []Extension `json:"extensions"`
@@ -391,25 +407,31 @@ type Extension struct {
 	Status ExtensionStatus `json:"status"`
 }
 
+// Experimental: SessionExtensionsEnableResult is part of an experimental API and may change or be removed.
 type SessionExtensionsEnableResult struct {
 }
 
+// Experimental: SessionExtensionsEnableParams is part of an experimental API and may change or be removed.
 type SessionExtensionsEnableParams struct {
 	// Source-qualified extension ID to enable
 	ID string `json:"id"`
 }
 
+// Experimental: SessionExtensionsDisableResult is part of an experimental API and may change or be removed.
 type SessionExtensionsDisableResult struct {
 }
 
+// Experimental: SessionExtensionsDisableParams is part of an experimental API and may change or be removed.
 type SessionExtensionsDisableParams struct {
 	// Source-qualified extension ID to disable
 	ID string `json:"id"`
 }
 
+// Experimental: SessionExtensionsReloadResult is part of an experimental API and may change or be removed.
 type SessionExtensionsReloadResult struct {
 }
 
+// Experimental: SessionCompactionCompactResult is part of an experimental API and may change or be removed.
 type SessionCompactionCompactResult struct {
 	// Number of messages removed during compaction
 	MessagesRemoved float64 `json:"messagesRemoved"`
@@ -435,6 +457,75 @@ type ResultResult struct {
 	ResultType       *string                `json:"resultType,omitempty"`
 	TextResultForLlm string                 `json:"textResultForLlm"`
 	ToolTelemetry    map[string]interface{} `json:"toolTelemetry,omitempty"`
+}
+
+type SessionCommandsHandlePendingCommandResult struct {
+	Success bool `json:"success"`
+}
+
+type SessionCommandsHandlePendingCommandParams struct {
+	// Error message if the command handler failed
+	Error *string `json:"error,omitempty"`
+	// Request ID from the command invocation event
+	RequestID string `json:"requestId"`
+}
+
+type SessionUIElicitationResult struct {
+	// The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
+	Action Action `json:"action"`
+	// The form values submitted by the user (present when action is 'accept')
+	Content map[string]*Content `json:"content,omitempty"`
+}
+
+type SessionUIElicitationParams struct {
+	// Message describing what information is needed from the user
+	Message string `json:"message"`
+	// JSON Schema describing the form fields to present to the user
+	RequestedSchema RequestedSchema `json:"requestedSchema"`
+}
+
+// JSON Schema describing the form fields to present to the user
+type RequestedSchema struct {
+	// Form field definitions, keyed by field name
+	Properties map[string]Property `json:"properties"`
+	// List of required field names
+	Required []string `json:"required,omitempty"`
+	// Schema type indicator (always 'object')
+	Type RequestedSchemaType `json:"type"`
+}
+
+type Property struct {
+	Default     *Content     `json:"default"`
+	Description *string      `json:"description,omitempty"`
+	Enum        []string     `json:"enum,omitempty"`
+	EnumNames   []string     `json:"enumNames,omitempty"`
+	Title       *string      `json:"title,omitempty"`
+	Type        PropertyType `json:"type"`
+	OneOf       []OneOf      `json:"oneOf,omitempty"`
+	Items       *Items       `json:"items,omitempty"`
+	MaxItems    *float64     `json:"maxItems,omitempty"`
+	MinItems    *float64     `json:"minItems,omitempty"`
+	Format      *Format      `json:"format,omitempty"`
+	MaxLength   *float64     `json:"maxLength,omitempty"`
+	MinLength   *float64     `json:"minLength,omitempty"`
+	Maximum     *float64     `json:"maximum,omitempty"`
+	Minimum     *float64     `json:"minimum,omitempty"`
+}
+
+type Items struct {
+	Enum  []string   `json:"enum,omitempty"`
+	Type  *ItemsType `json:"type,omitempty"`
+	AnyOf []AnyOf    `json:"anyOf,omitempty"`
+}
+
+type AnyOf struct {
+	Const string `json:"const"`
+	Title string `json:"title"`
+}
+
+type OneOf struct {
+	Const string `json:"const"`
+	Title string `json:"title"`
 }
 
 type SessionPermissionsHandlePendingPermissionRequestResult struct {
@@ -540,6 +631,46 @@ const (
 	ExtensionStatusStarting ExtensionStatus = "starting"
 )
 
+// The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
+type Action string
+
+const (
+	ActionAccept  Action = "accept"
+	ActionCancel  Action = "cancel"
+	ActionDecline Action = "decline"
+)
+
+type Format string
+
+const (
+	FormatDate     Format = "date"
+	FormatDateTime Format = "date-time"
+	FormatEmail    Format = "email"
+	FormatUri      Format = "uri"
+)
+
+type ItemsType string
+
+const (
+	ItemsTypeString ItemsType = "string"
+)
+
+type PropertyType string
+
+const (
+	PropertyTypeArray   PropertyType = "array"
+	PropertyTypeBoolean PropertyType = "boolean"
+	PropertyTypeString  PropertyType = "string"
+	PropertyTypeInteger PropertyType = "integer"
+	PropertyTypeNumber  PropertyType = "number"
+)
+
+type RequestedSchemaType string
+
+const (
+	RequestedSchemaTypeObject RequestedSchemaType = "object"
+)
+
 type Kind string
 
 const (
@@ -574,7 +705,16 @@ type ResultUnion struct {
 	String       *string
 }
 
-type ServerModelsRpcApi struct{ client *jsonrpc2.Client }
+type Content struct {
+	Bool        *bool
+	Double      *float64
+	String      *string
+	StringArray []string
+}
+
+type ServerModelsRpcApi struct {
+	client *jsonrpc2.Client
+}
 
 func (a *ServerModelsRpcApi) List(ctx context.Context) (*ModelsListResult, error) {
 	raw, err := a.client.Request("models.list", map[string]interface{}{})
@@ -588,7 +728,9 @@ func (a *ServerModelsRpcApi) List(ctx context.Context) (*ModelsListResult, error
 	return &result, nil
 }
 
-type ServerToolsRpcApi struct{ client *jsonrpc2.Client }
+type ServerToolsRpcApi struct {
+	client *jsonrpc2.Client
+}
 
 func (a *ServerToolsRpcApi) List(ctx context.Context, params *ToolsListParams) (*ToolsListResult, error) {
 	raw, err := a.client.Request("tools.list", params)
@@ -602,7 +744,9 @@ func (a *ServerToolsRpcApi) List(ctx context.Context, params *ToolsListParams) (
 	return &result, nil
 }
 
-type ServerAccountRpcApi struct{ client *jsonrpc2.Client }
+type ServerAccountRpcApi struct {
+	client *jsonrpc2.Client
+}
 
 func (a *ServerAccountRpcApi) GetQuota(ctx context.Context) (*AccountGetQuotaResult, error) {
 	raw, err := a.client.Request("account.getQuota", map[string]interface{}{})
@@ -813,6 +957,7 @@ func (a *WorkspaceRpcApi) CreateFile(ctx context.Context, params *SessionWorkspa
 	return &result, nil
 }
 
+// Experimental: FleetRpcApi contains experimental APIs that may change or be removed.
 type FleetRpcApi struct {
 	client    *jsonrpc2.Client
 	sessionID string
@@ -836,6 +981,7 @@ func (a *FleetRpcApi) Start(ctx context.Context, params *SessionFleetStartParams
 	return &result, nil
 }
 
+// Experimental: AgentRpcApi contains experimental APIs that may change or be removed.
 type AgentRpcApi struct {
 	client    *jsonrpc2.Client
 	sessionID string
@@ -909,6 +1055,7 @@ func (a *AgentRpcApi) Reload(ctx context.Context) (*SessionAgentReloadResult, er
 	return &result, nil
 }
 
+// Experimental: SkillsRpcApi contains experimental APIs that may change or be removed.
 type SkillsRpcApi struct {
 	client    *jsonrpc2.Client
 	sessionID string
@@ -972,6 +1119,7 @@ func (a *SkillsRpcApi) Reload(ctx context.Context) (*SessionSkillsReloadResult, 
 	return &result, nil
 }
 
+// Experimental: McpRpcApi contains experimental APIs that may change or be removed.
 type McpRpcApi struct {
 	client    *jsonrpc2.Client
 	sessionID string
@@ -1035,6 +1183,7 @@ func (a *McpRpcApi) Reload(ctx context.Context) (*SessionMCPReloadResult, error)
 	return &result, nil
 }
 
+// Experimental: PluginsRpcApi contains experimental APIs that may change or be removed.
 type PluginsRpcApi struct {
 	client    *jsonrpc2.Client
 	sessionID string
@@ -1053,6 +1202,7 @@ func (a *PluginsRpcApi) List(ctx context.Context) (*SessionPluginsListResult, er
 	return &result, nil
 }
 
+// Experimental: ExtensionsRpcApi contains experimental APIs that may change or be removed.
 type ExtensionsRpcApi struct {
 	client    *jsonrpc2.Client
 	sessionID string
@@ -1116,6 +1266,7 @@ func (a *ExtensionsRpcApi) Reload(ctx context.Context) (*SessionExtensionsReload
 	return &result, nil
 }
 
+// Experimental: CompactionRpcApi contains experimental APIs that may change or be removed.
 type CompactionRpcApi struct {
 	client    *jsonrpc2.Client
 	sessionID string
@@ -1155,6 +1306,52 @@ func (a *ToolsRpcApi) HandlePendingToolCall(ctx context.Context, params *Session
 		return nil, err
 	}
 	var result SessionToolsHandlePendingToolCallResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+type CommandsRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
+
+func (a *CommandsRpcApi) HandlePendingCommand(ctx context.Context, params *SessionCommandsHandlePendingCommandParams) (*SessionCommandsHandlePendingCommandResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["requestId"] = params.RequestID
+		if params.Error != nil {
+			req["error"] = *params.Error
+		}
+	}
+	raw, err := a.client.Request("session.commands.handlePendingCommand", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionCommandsHandlePendingCommandResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+type UiRpcApi struct {
+	client    *jsonrpc2.Client
+	sessionID string
+}
+
+func (a *UiRpcApi) Elicitation(ctx context.Context, params *SessionUIElicitationParams) (*SessionUIElicitationResult, error) {
+	req := map[string]interface{}{"sessionId": a.sessionID}
+	if params != nil {
+		req["message"] = params.Message
+		req["requestedSchema"] = params.RequestedSchema
+	}
+	raw, err := a.client.Request("session.ui.elicitation", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionUIElicitationResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -1245,6 +1442,8 @@ type SessionRpc struct {
 	Extensions  *ExtensionsRpcApi
 	Compaction  *CompactionRpcApi
 	Tools       *ToolsRpcApi
+	Commands    *CommandsRpcApi
+	Ui          *UiRpcApi
 	Permissions *PermissionsRpcApi
 	Shell       *ShellRpcApi
 }
@@ -1288,6 +1487,8 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 		Extensions:  &ExtensionsRpcApi{client: client, sessionID: sessionID},
 		Compaction:  &CompactionRpcApi{client: client, sessionID: sessionID},
 		Tools:       &ToolsRpcApi{client: client, sessionID: sessionID},
+		Commands:    &CommandsRpcApi{client: client, sessionID: sessionID},
+		Ui:          &UiRpcApi{client: client, sessionID: sessionID},
 		Permissions: &PermissionsRpcApi{client: client, sessionID: sessionID},
 		Shell:       &ShellRpcApi{client: client, sessionID: sessionID},
 	}

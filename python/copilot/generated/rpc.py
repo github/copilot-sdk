@@ -2818,10 +2818,10 @@ class UiApi:
         self._client = client
         self._session_id = session_id
 
-    async def elicitation(self, params: SessionUiElicitationParams, *, timeout: float | None = None) -> SessionUiElicitationResult:
+    async def elicitation(self, params: SessionUIElicitationParams, *, timeout: float | None = None) -> SessionUIElicitationResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return SessionUiElicitationResult.from_dict(await self._client.request("session.ui.elicitation", params_dict, **_timeout_kwargs(timeout)))
+        return SessionUIElicitationResult.from_dict(await self._client.request("session.ui.elicitation", params_dict, **_timeout_kwargs(timeout)))
 
 
 class PermissionsApi:
