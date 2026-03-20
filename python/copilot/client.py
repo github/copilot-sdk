@@ -686,10 +686,12 @@ class CopilotClient:
         >>> await client.start()
         >>>
         >>> # Create a session and send a message
-        >>> session = await client.create_session({
-        ...     "on_permission_request": PermissionHandler.approve_all,
-        ...     "model": "gpt-4",
-        ... })
+        >>> session = await client.create_session(
+        ...     {
+        ...         "on_permission_request": PermissionHandler.approve_all,
+        ...         "model": "gpt-4",
+        ...     }
+        ... )
         >>> session.on(lambda event: print(event.type))
         >>> await session.send("Hello!")
         >>>
@@ -728,10 +730,12 @@ class CopilotClient:
             >>> client = CopilotClient(ExternalServerConfig(url="localhost:3000"))
             >>>
             >>> # Custom CLI path with specific log level
-            >>> client = CopilotClient(SubprocessConfig(
-            ...     cli_path="/usr/local/bin/copilot",
-            ...     log_level="debug",
-            ... ))
+            >>> client = CopilotClient(
+            ...     SubprocessConfig(
+            ...         cli_path="/usr/local/bin/copilot",
+            ...         log_level="debug",
+            ...     )
+            ... )
         """
         if config is None:
             config = SubprocessConfig()
@@ -1033,11 +1037,13 @@ class CopilotClient:
             >>> session = await client.create_session(config)
             >>>
             >>> # Session with model and streaming
-            >>> session = await client.create_session({
-            ...     "on_permission_request": PermissionHandler.approve_all,
-            ...     "model": "gpt-4",
-            ...     "streaming": True
-            ... })
+            >>> session = await client.create_session(
+            ...     {
+            ...         "on_permission_request": PermissionHandler.approve_all,
+            ...         "model": "gpt-4",
+            ...         "streaming": True,
+            ...     }
+            ... )
         """
         if not self._client:
             if self._auto_start:
@@ -1230,10 +1236,13 @@ class CopilotClient:
             >>> session = await client.resume_session("session-123", config)
             >>>
             >>> # Resume with new tools
-            >>> session = await client.resume_session("session-123", {
-            ...     "on_permission_request": PermissionHandler.approve_all,
-            ...     "tools": [my_new_tool]
-            ... })
+            >>> session = await client.resume_session(
+            ...     "session-123",
+            ...     {
+            ...         "on_permission_request": PermissionHandler.approve_all,
+            ...         "tools": [my_new_tool],
+            ...     },
+            ... )
         """
         if not self._client:
             if self._auto_start:

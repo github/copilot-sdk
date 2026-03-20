@@ -757,9 +757,7 @@ class CopilotSession:
             ...         print(f"Assistant: {event.data.content}")
             ...     elif event.type == "session.error":
             ...         print(f"Error: {event.data.message}")
-            ...
             >>> unsubscribe = session.on(handle_event)
-            ...
             >>> # Later, to stop receiving events:
             >>> unsubscribe()
         """
@@ -1242,9 +1240,7 @@ class CopilotSession:
             >>> import asyncio
             >>>
             >>> # Start a long-running request
-            >>> task = asyncio.create_task(
-            ...     session.send("Write a very long story...")
-            ... )
+            >>> task = asyncio.create_task(session.send("Write a very long story..."))
             >>>
             >>> # Abort after 5 seconds
             >>> await asyncio.sleep(5)
