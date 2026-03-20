@@ -93,7 +93,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <summary>
     /// Gets the typed RPC client for session-scoped methods.
     /// </summary>
-    public SessionRpc Rpc => _sessionRpc ??= new SessionRpc(_rpc, SessionId);
+    public SessionRpc Rpc => _sessionRpc ??= new SessionRpc(_rpc, SessionId, TrackShellProcess);
 
     /// <summary>
     /// Gets the path to the session workspace directory when infinite sessions are enabled.

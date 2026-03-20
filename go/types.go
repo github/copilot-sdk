@@ -755,6 +755,8 @@ const (
 type ShellOutputNotification struct {
 	// ProcessID is the process identifier returned by shell.exec.
 	ProcessID string `json:"processId"`
+	// SessionID is the optional session identifier for direct routing when provided by the runtime.
+	SessionID *string `json:"sessionId,omitempty"`
 	// Stream indicates which output stream produced this chunk.
 	Stream ShellOutputStream `json:"stream"`
 	// Data is the output data (UTF-8 string).
@@ -766,6 +768,8 @@ type ShellOutputNotification struct {
 type ShellExitNotification struct {
 	// ProcessID is the process identifier returned by shell.exec.
 	ProcessID string `json:"processId"`
+	// SessionID is the optional session identifier for direct routing when provided by the runtime.
+	SessionID *string `json:"sessionId,omitempty"`
 	// ExitCode is the process exit code (0 = success).
 	ExitCode int `json:"exitCode"`
 }

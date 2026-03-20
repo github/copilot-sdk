@@ -112,8 +112,8 @@ func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string)
 		toolHandlers:      make(map[string]ToolHandler),
 		eventCh:           make(chan SessionEvent, 128),
 		trackedProcessIDs: make(map[string]struct{}),
-		RPC:               rpc.NewSessionRpc(client, sessionID),
 	}
+	s.RPC = rpc.NewSessionRpc(client, sessionID, s.trackShellProcess)
 	go s.processEvents()
 	return s
 }
@@ -671,6 +671,16 @@ func (s *Session) dispatchShellExit(notification ShellExitNotification) {
 			}()
 			handler(notification)
 		}()
+	}
+}
+
+// trackShellProcess starts tracking a shell process ID.
+func (s *Session) trackShellProcess(processID string) {
+	s.trackedProcessMux.Lock()
+	s.trackedProcessIDs[processID] = struct{}{}
+	s.trackedProcessMux.Unlock()
+	if s.registerShellProc != nil {
+		s.registerShellProc(processID, s)
 	}
 }
 

@@ -2100,6 +2100,12 @@ public class ShellOutputNotification
     public string ProcessId { get; set; } = string.Empty;
 
     /// <summary>
+    /// Identifier of the session that produced this notification, when provided by the runtime.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string? SessionId { get; set; }
+
+    /// <summary>
     /// Which output stream produced this chunk ("stdout" or "stderr").
     /// </summary>
     [JsonPropertyName("stream")]
@@ -2123,6 +2129,12 @@ public class ShellExitNotification
     /// </summary>
     [JsonPropertyName("processId")]
     public string ProcessId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Identifier of the session that produced this notification, when provided by the runtime.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string? SessionId { get; set; }
 
     /// <summary>
     /// Process exit code (0 = success).

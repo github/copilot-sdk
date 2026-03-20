@@ -1466,7 +1466,11 @@ func (c *Client) handleSessionEvent(req sessionEventRequest) {
 }
 
 func (c *Client) handleShellOutput(notification ShellOutputNotification) {
-	session, ok := c.getShellNotificationSession(notification.SessionID, notification.ProcessID)
+	var sessionID string
+	if notification.SessionID != nil {
+		sessionID = *notification.SessionID
+	}
+	session, ok := c.getShellNotificationSession(sessionID, notification.ProcessID)
 
 	if ok {
 		session.dispatchShellOutput(notification)
@@ -1474,7 +1478,11 @@ func (c *Client) handleShellOutput(notification ShellOutputNotification) {
 }
 
 func (c *Client) handleShellExit(notification ShellExitNotification) {
-	session, ok := c.getShellNotificationSession(notification.SessionID, notification.ProcessID)
+	var sessionID string
+	if notification.SessionID != nil {
+		sessionID = *notification.SessionID
+	}
+	session, ok := c.getShellNotificationSession(sessionID, notification.ProcessID)
 
 	if ok {
 		session.dispatchShellExit(notification)

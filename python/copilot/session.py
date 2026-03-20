@@ -120,15 +120,7 @@ class CopilotSession:
     def rpc(self) -> SessionRpc:
         """Typed session-scoped RPC methods."""
         if self._rpc is None:
-            self._rpc = SessionRpc(self._client, self.session_id)
-            original_exec = self._rpc.shell.exec
-
-            async def exec_with_tracking(params, *, timeout=None):
-                result = await original_exec(params, timeout=timeout)
-                self._track_shell_process(result.process_id)
-                return result
-
-            self._rpc.shell.exec = exec_with_tracking
+            self._rpc = SessionRpc(self._client, self.session_id, self._track_shell_process)
         return self._rpc
 
     @property

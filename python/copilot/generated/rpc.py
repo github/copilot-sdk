@@ -2836,14 +2836,25 @@ class PermissionsApi:
 
 
 class ShellApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(
+        self,
+        client: "JsonRpcClient",
+        session_id: str,
+        on_exec: Callable[[str], None] | None = None,
+    ):
         self._client = client
         self._session_id = session_id
+        self._on_exec = on_exec
 
     async def exec(self, params: SessionShellExecParams, *, timeout: float | None = None) -> SessionShellExecResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return SessionShellExecResult.from_dict(await self._client.request("session.shell.exec", params_dict, **_timeout_kwargs(timeout)))
+        result = SessionShellExecResult.from_dict(
+            await self._client.request("session.shell.exec", params_dict, **_timeout_kwargs(timeout))
+        )
+        if self._on_exec is not None:
+            self._on_exec(result.process_id)
+        return result
 
     async def kill(self, params: SessionShellKillParams, *, timeout: float | None = None) -> SessionShellKillResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -2853,7 +2864,12 @@ class ShellApi:
 
 class SessionRpc:
     """Typed session-scoped RPC methods."""
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(
+        self,
+        client: "JsonRpcClient",
+        session_id: str,
+        on_shell_exec: Callable[[str], None] | None = None,
+    ):
         self._client = client
         self._session_id = session_id
         self.model = ModelApi(client, session_id)
@@ -2871,10 +2887,9 @@ class SessionRpc:
         self.commands = CommandsApi(client, session_id)
         self.ui = UiApi(client, session_id)
         self.permissions = PermissionsApi(client, session_id)
-        self.shell = ShellApi(client, session_id)
+        self.shell = ShellApi(client, session_id, on_shell_exec)
 
     async def log(self, params: SessionLogParams, *, timeout: float | None = None) -> SessionLogResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return SessionLogResult.from_dict(await self._client.request("session.log", params_dict, **_timeout_kwargs(timeout)))
-

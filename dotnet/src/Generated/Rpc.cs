@@ -1325,11 +1325,13 @@ public class SessionRpc
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
+    private readonly Action<string>? _onShellExec;
 
-    internal SessionRpc(JsonRpc rpc, string sessionId)
+    internal SessionRpc(JsonRpc rpc, string sessionId, Action<string>? onShellExec = null)
     {
         _rpc = rpc;
         _sessionId = sessionId;
+        _onShellExec = onShellExec;
         Model = new ModelApi(rpc, sessionId);
         Mode = new ModeApi(rpc, sessionId);
         Plan = new PlanApi(rpc, sessionId);
@@ -1345,7 +1347,7 @@ public class SessionRpc
         Commands = new CommandsApi(rpc, sessionId);
         Ui = new UiApi(rpc, sessionId);
         Permissions = new PermissionsApi(rpc, sessionId);
-        Shell = new ShellApi(rpc, sessionId);
+        Shell = new ShellApi(rpc, sessionId, _onShellExec);
     }
 
     /// <summary>Model APIs.</summary>
@@ -1849,18 +1851,22 @@ public class ShellApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
+    private readonly Action<string>? _onExec;
 
-    internal ShellApi(JsonRpc rpc, string sessionId)
+    internal ShellApi(JsonRpc rpc, string sessionId, Action<string>? onExec = null)
     {
         _rpc = rpc;
         _sessionId = sessionId;
+        _onExec = onExec;
     }
 
     /// <summary>Calls "session.shell.exec".</summary>
     public async Task<SessionShellExecResult> ExecAsync(string command, string? cwd = null, double? timeout = null, CancellationToken cancellationToken = default)
     {
         var request = new SessionShellExecRequest { SessionId = _sessionId, Command = command, Cwd = cwd, Timeout = timeout };
-        return await CopilotClient.InvokeRpcAsync<SessionShellExecResult>(_rpc, "session.shell.exec", [request], cancellationToken);
+        var result = await CopilotClient.InvokeRpcAsync<SessionShellExecResult>(_rpc, "session.shell.exec", [request], cancellationToken);
+        _onExec?.Invoke(result.ProcessId);
+        return result;
     }
 
     /// <summary>Calls "session.shell.kill".</summary>

@@ -1383,6 +1383,7 @@ func (a *PermissionsRpcApi) HandlePendingPermissionRequest(ctx context.Context, 
 type ShellRpcApi struct {
 	client    *jsonrpc2.Client
 	sessionID string
+	onExec    func(string)
 }
 
 func (a *ShellRpcApi) Exec(ctx context.Context, params *SessionShellExecParams) (*SessionShellExecResult, error) {
@@ -1403,6 +1404,9 @@ func (a *ShellRpcApi) Exec(ctx context.Context, params *SessionShellExecParams) 
 	var result SessionShellExecResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
+	}
+	if a.onExec != nil {
+		a.onExec(result.ProcessID)
 	}
 	return &result, nil
 }
@@ -1473,7 +1477,11 @@ func (a *SessionRpc) Log(ctx context.Context, params *SessionLogParams) (*Sessio
 	return &result, nil
 }
 
-func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
+func NewSessionRpc(client *jsonrpc2.Client, sessionID string, onShellExec ...func(string)) *SessionRpc {
+	var shellExecHandler func(string)
+	if len(onShellExec) > 0 {
+		shellExecHandler = onShellExec[0]
+	}
 	return &SessionRpc{client: client, sessionID: sessionID,
 		Model:       &ModelRpcApi{client: client, sessionID: sessionID},
 		Mode:        &ModeRpcApi{client: client, sessionID: sessionID},
@@ -1490,6 +1498,6 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 		Commands:    &CommandsRpcApi{client: client, sessionID: sessionID},
 		Ui:          &UiRpcApi{client: client, sessionID: sessionID},
 		Permissions: &PermissionsRpcApi{client: client, sessionID: sessionID},
-		Shell:       &ShellRpcApi{client: client, sessionID: sessionID},
+		Shell:       &ShellRpcApi{client: client, sessionID: sessionID, onExec: shellExecHandler},
 	}
 }
