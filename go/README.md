@@ -201,7 +201,7 @@ _, err = session.Send(context.Background(), copilot.MessageOptions{
     Prompt: "What's in this image?",
     Attachments: []copilot.Attachment{
         {
-            Type:     copilot.Blob,
+            Type:     copilot.AttachmentTypeBlob,
             Data:     &base64ImageData,
             MIMEType: &mimeType,
         },

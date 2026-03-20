@@ -964,7 +964,7 @@ func TestSessionBlobAttachment(t *testing.T) {
 			Prompt: "Describe this image",
 			Attachments: []copilot.Attachment{
 				{
-					Type:        copilot.Blob,
+					Type:        copilot.AttachmentTypeBlob,
 					Data:        &data,
 					MIMEType:    &mimeType,
 					DisplayName: &displayName,
