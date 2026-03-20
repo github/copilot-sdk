@@ -65,6 +65,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
     private SessionHooks? _hooks;
     private readonly SemaphoreSlim _hooksLock = new(1, 1);
+    private Dictionary<string, Func<string, Task<string>>>? _transformCallbacks;
+    private readonly SemaphoreSlim _transformCallbacksLock = new(1, 1);
     private SessionRpc? _sessionRpc;
     private int _isDisposed;
 
@@ -654,6 +656,72 @@ public sealed partial class CopilotSession : IAsyncDisposable
     }
 
     /// <summary>
+    /// Registers transform callbacks for system message sections.
+    /// </summary>
+    /// <param name="callbacks">The transform callbacks keyed by section identifier.</param>
+    internal void RegisterTransformCallbacks(Dictionary<string, Func<string, Task<string>>>? callbacks)
+    {
+        _transformCallbacksLock.Wait();
+        try
+        {
+            _transformCallbacks = callbacks;
+        }
+        finally
+        {
+            _transformCallbacksLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Handles a systemMessage.transform RPC call from the Copilot CLI.
+    /// </summary>
+    /// <param name="sections">The raw JSON element containing sections to transform.</param>
+    /// <returns>A task that resolves with the transformed sections.</returns>
+    internal async Task<SystemMessageTransformRpcResponse> HandleSystemMessageTransformAsync(JsonElement sections)
+    {
+        Dictionary<string, Func<string, Task<string>>>? callbacks;
+        await _transformCallbacksLock.WaitAsync();
+        try
+        {
+            callbacks = _transformCallbacks;
+        }
+        finally
+        {
+            _transformCallbacksLock.Release();
+        }
+
+        var parsed = JsonSerializer.Deserialize(
+            sections.GetRawText(),
+            SessionJsonContext.Default.DictionaryStringSystemMessageTransformSection) ?? new();
+
+        var result = new Dictionary<string, SystemMessageTransformSection>();
+        foreach (var (sectionId, data) in parsed)
+        {
+            Func<string, Task<string>>? callback = null;
+            callbacks?.TryGetValue(sectionId, out callback);
+
+            if (callback != null)
+            {
+                try
+                {
+                    var transformed = await callback(data.Content ?? "");
+                    result[sectionId] = new SystemMessageTransformSection { Content = transformed };
+                }
+                catch
+                {
+                    result[sectionId] = new SystemMessageTransformSection { Content = data.Content ?? "" };
+                }
+            }
+            else
+            {
+                result[sectionId] = new SystemMessageTransformSection { Content = data.Content ?? "" };
+            }
+        }
+
+        return new SystemMessageTransformRpcResponse { Sections = result };
+    }
+
+    /// <summary>
     /// Gets the complete list of messages and events in the session.
     /// </summary>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
@@ -891,5 +959,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     [JsonSerializable(typeof(SessionEndHookOutput))]
     [JsonSerializable(typeof(ErrorOccurredHookInput))]
     [JsonSerializable(typeof(ErrorOccurredHookOutput))]
+    [JsonSerializable(typeof(SystemMessageTransformSection))]
+    [JsonSerializable(typeof(SystemMessageTransformRpcResponse))]
+    [JsonSerializable(typeof(Dictionary<string, SystemMessageTransformSection>))]
     internal partial class SessionJsonContext : JsonSerializerContext;
 }

@@ -482,6 +482,36 @@ func (c *Client) ensureConnected(ctx context.Context) error {
 //	        },
 //	    },
 //	})
+// extractTransformCallbacks separates transform callbacks from a SystemMessageConfig,
+// returning a wire-safe config and a map of callbacks (nil if none).
+func extractTransformCallbacks(config *SystemMessageConfig) (*SystemMessageConfig, map[string]SectionTransformFn) {
+	if config == nil || config.Mode != "customize" || len(config.Sections) == 0 {
+		return config, nil
+	}
+
+	callbacks := make(map[string]SectionTransformFn)
+	wireSections := make(map[string]SectionOverride)
+	for id, override := range config.Sections {
+		if override.Transform != nil {
+			callbacks[id] = override.Transform
+			wireSections[id] = SectionOverride{Action: "transform"}
+		} else {
+			wireSections[id] = override
+		}
+	}
+
+	if len(callbacks) == 0 {
+		return config, nil
+	}
+
+	wireConfig := &SystemMessageConfig{
+		Mode:     config.Mode,
+		Content:  config.Content,
+		Sections: wireSections,
+	}
+	return wireConfig, callbacks
+}
+
 func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Session, error) {
 	if config == nil || config.OnPermissionRequest == nil {
 		return nil, fmt.Errorf("an OnPermissionRequest handler is required when creating a session. For example, to allow all permissions, use &copilot.SessionConfig{OnPermissionRequest: copilot.PermissionHandler.ApproveAll}")
@@ -497,7 +527,8 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.ReasoningEffort = config.ReasoningEffort
 	req.ConfigDir = config.ConfigDir
 	req.Tools = config.Tools
-	req.SystemMessage = config.SystemMessage
+	wireSystemMessage, transformCallbacks := extractTransformCallbacks(config.SystemMessage)
+	req.SystemMessage = wireSystemMessage
 	req.AvailableTools = config.AvailableTools
 	req.ExcludedTools = config.ExcludedTools
 	req.Provider = config.Provider
@@ -547,6 +578,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	}
 	if config.Hooks != nil {
 		session.registerHooks(config.Hooks)
+	}
+	if transformCallbacks != nil {
+		session.registerTransformCallbacks(transformCallbacks)
 	}
 	if config.OnEvent != nil {
 		session.On(config.OnEvent)
@@ -616,7 +650,8 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.ClientName = config.ClientName
 	req.Model = config.Model
 	req.ReasoningEffort = config.ReasoningEffort
-	req.SystemMessage = config.SystemMessage
+	wireSystemMessage, transformCallbacks := extractTransformCallbacks(config.SystemMessage)
+	req.SystemMessage = wireSystemMessage
 	req.Tools = config.Tools
 	req.Provider = config.Provider
 	req.AvailableTools = config.AvailableTools
@@ -664,6 +699,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	}
 	if config.Hooks != nil {
 		session.registerHooks(config.Hooks)
+	}
+	if transformCallbacks != nil {
+		session.registerTransformCallbacks(transformCallbacks)
 	}
 	if config.OnEvent != nil {
 		session.On(config.OnEvent)
@@ -1402,6 +1440,7 @@ func (c *Client) setupNotificationHandler() {
 	c.client.SetRequestHandler("permission.request", jsonrpc2.RequestHandlerFor(c.handlePermissionRequestV2))
 	c.client.SetRequestHandler("userInput.request", jsonrpc2.RequestHandlerFor(c.handleUserInputRequest))
 	c.client.SetRequestHandler("hooks.invoke", jsonrpc2.RequestHandlerFor(c.handleHooksInvoke))
+	c.client.SetRequestHandler("systemMessage.transform", jsonrpc2.RequestHandlerFor(c.handleSystemMessageTransform))
 }
 
 func (c *Client) handleSessionEvent(req sessionEventRequest) {
@@ -1466,6 +1505,26 @@ func (c *Client) handleHooksInvoke(req hooksInvokeRequest) (map[string]any, *jso
 		result["output"] = output
 	}
 	return result, nil
+}
+
+// handleSystemMessageTransform handles a system message transform request from the CLI server.
+func (c *Client) handleSystemMessageTransform(req systemMessageTransformRequest) (systemMessageTransformResponse, *jsonrpc2.Error) {
+	if req.SessionID == "" {
+		return systemMessageTransformResponse{}, &jsonrpc2.Error{Code: -32602, Message: "invalid system message transform payload"}
+	}
+
+	c.sessionsMux.Lock()
+	session, ok := c.sessions[req.SessionID]
+	c.sessionsMux.Unlock()
+	if !ok {
+		return systemMessageTransformResponse{}, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", req.SessionID)}
+	}
+
+	resp, err := session.handleSystemMessageTransform(req.Sections)
+	if err != nil {
+		return systemMessageTransformResponse{}, &jsonrpc2.Error{Code: -32603, Message: err.Error()}
+	}
+	return resp, nil
 }
 
 // ========================================================================

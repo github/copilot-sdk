@@ -125,12 +125,35 @@ const (
 	SectionLastInstructions   = "last_instructions"
 )
 
+// SectionOverrideAction represents the action to perform on a system prompt section.
+type SectionOverrideAction string
+
+const (
+	// SectionActionReplace replaces section content entirely.
+	SectionActionReplace SectionOverrideAction = "replace"
+	// SectionActionRemove removes the section.
+	SectionActionRemove SectionOverrideAction = "remove"
+	// SectionActionAppend appends to existing section content.
+	SectionActionAppend SectionOverrideAction = "append"
+	// SectionActionPrepend prepends to existing section content.
+	SectionActionPrepend SectionOverrideAction = "prepend"
+)
+
+// SectionTransformFn is a callback that receives the current content of a system prompt section
+// and returns the transformed content. Used with the "transform" action to read-then-write
+// modify sections at runtime.
+type SectionTransformFn func(currentContent string) (string, error)
+
 // SectionOverride defines an override operation for a single system prompt section.
 type SectionOverride struct {
-	// Action is the operation to perform: "replace", "remove", "append", or "prepend".
-	Action string `json:"action"`
+	// Action is the operation to perform: "replace", "remove", "append", "prepend", or "transform".
+	Action SectionOverrideAction `json:"action,omitempty"`
 	// Content for the override. Optional for all actions. Ignored for "remove".
 	Content string `json:"content,omitempty"`
+	// Transform is a callback invoked when Action is "transform".
+	// The runtime calls this with the current section content and uses the returned string.
+	// Excluded from JSON serialization; the SDK registers it as an RPC callback internally.
+	Transform SectionTransformFn `json:"-"`
 }
 
 // SystemMessageAppendConfig is append mode: use CLI foundation with optional appended content.

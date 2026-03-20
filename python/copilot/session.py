@@ -29,6 +29,7 @@ from .types import (
     Attachment,
     PermissionRequest,
     PermissionRequestResult,
+    SectionTransformFn,
     SessionHooks,
     Tool,
     ToolHandler,
@@ -97,6 +98,8 @@ class CopilotSession:
         self._user_input_handler_lock = threading.Lock()
         self._hooks: SessionHooks | None = None
         self._hooks_lock = threading.Lock()
+        self._transform_callbacks: dict[str, SectionTransformFn] | None = None
+        self._transform_callbacks_lock = threading.Lock()
         self._rpc: SessionRpc | None = None
 
     @property
@@ -245,7 +248,9 @@ class CopilotSession:
             ...         print(f"Assistant: {event.data.content}")
             ...     elif event.type == "session.error":
             ...         print(f"Error: {event.data.message}")
+            ...
             >>> unsubscribe = session.on(handle_event)
+            ...
             >>> # Later, to stop receiving events:
             >>> unsubscribe()
         """
@@ -634,6 +639,60 @@ class CopilotSession:
             # Hook failed, return None
             return None
 
+    def _register_transform_callbacks(self, callbacks: dict[str, SectionTransformFn] | None) -> None:
+        """
+        Register transform callbacks for system message sections.
+
+        Transform callbacks allow modifying individual sections of the system
+        prompt at runtime. Each callback receives the current section content
+        and returns the transformed content.
+
+        Note:
+            This method is internal. Transform callbacks are typically registered
+            when creating a session via :meth:`CopilotClient.create_session`.
+
+        Args:
+            callbacks: A dict mapping section IDs to transform functions,
+                or None to remove all callbacks.
+        """
+        with self._transform_callbacks_lock:
+            self._transform_callbacks = callbacks
+
+    async def _handle_system_message_transform(
+        self, sections: dict[str, dict[str, str]]
+    ) -> dict[str, dict[str, dict[str, str]]]:
+        """
+        Handle a systemMessage.transform request from the runtime.
+
+        Note:
+            This method is internal and should not be called directly.
+
+        Args:
+            sections: A dict mapping section IDs to section data dicts
+                containing a ``"content"`` key.
+
+        Returns:
+            A dict with a ``"sections"`` key containing the transformed section data.
+        """
+        with self._transform_callbacks_lock:
+            callbacks = self._transform_callbacks
+
+        result: dict[str, dict[str, str]] = {}
+        for section_id, section_data in sections.items():
+            content = section_data.get("content", "")
+            callback = callbacks.get(section_id) if callbacks else None
+            if callback:
+                try:
+                    transformed = callback(content)
+                    if inspect.isawaitable(transformed):
+                        transformed = await transformed
+                    result[section_id] = {"content": transformed}
+                except Exception:  # pylint: disable=broad-except
+                    result[section_id] = {"content": content}
+            else:
+                result[section_id] = {"content": content}
+        return {"sections": result}
+
     async def get_messages(self) -> list[SessionEvent]:
         """
         Retrieve all events and messages from this session's history.
@@ -728,7 +787,9 @@ class CopilotSession:
             >>> import asyncio
             >>>
             >>> # Start a long-running request
-            >>> task = asyncio.create_task(session.send("Write a very long story..."))
+            >>> task = asyncio.create_task(
+            ...     session.send("Write a very long story...")
+            ... )
             >>>
             >>> # Abort after 5 seconds
             >>> await asyncio.sleep(5)

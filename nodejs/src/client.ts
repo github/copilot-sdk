@@ -36,6 +36,7 @@ import type {
     GetStatusResponse,
     ModelInfo,
     ResumeSessionConfig,
+    SectionTransformFn,
     SessionConfig,
     SessionContext,
     SessionEvent,
@@ -44,6 +45,7 @@ import type {
     SessionLifecycleHandler,
     SessionListFilter,
     SessionMetadata,
+    SystemMessageCustomizeConfig,
     TelemetryConfig,
     Tool,
     ToolCallRequestPayload,
@@ -80,6 +82,47 @@ function toJsonSchema(parameters: Tool["parameters"]): Record<string, unknown> |
         return parameters.toJSONSchema();
     }
     return parameters;
+}
+
+/**
+ * Extract transform callbacks from a system message config and prepare the wire payload.
+ * Function-valued actions are replaced with `{ action: "transform" }` for serialization,
+ * and the original callbacks are returned in a separate map.
+ */
+function extractTransformCallbacks(
+    systemMessage: SessionConfig["systemMessage"]
+): {
+    wirePayload: SessionConfig["systemMessage"];
+    transformCallbacks: Map<string, SectionTransformFn> | undefined;
+} {
+    if (!systemMessage || systemMessage.mode !== "customize" || !systemMessage.sections) {
+        return { wirePayload: systemMessage, transformCallbacks: undefined };
+    }
+
+    const transformCallbacks = new Map<string, SectionTransformFn>();
+    const wireSections: Record<string, { action: string; content?: string }> = {};
+
+    for (const [sectionId, override] of Object.entries(systemMessage.sections)) {
+        if (!override) continue;
+
+        if (typeof override.action === "function") {
+            transformCallbacks.set(sectionId, override.action);
+            wireSections[sectionId] = { action: "transform" };
+        } else {
+            wireSections[sectionId] = { action: override.action, content: override.content };
+        }
+    }
+
+    if (transformCallbacks.size === 0) {
+        return { wirePayload: systemMessage, transformCallbacks: undefined };
+    }
+
+    const wirePayload: SystemMessageCustomizeConfig = {
+        ...systemMessage,
+        sections: wireSections as SystemMessageCustomizeConfig["sections"],
+    };
+
+    return { wirePayload, transformCallbacks };
 }
 
 function getNodeExecPath(): string {
@@ -605,6 +648,15 @@ export class CopilotClient {
         if (config.hooks) {
             session.registerHooks(config.hooks);
         }
+
+        // Extract transform callbacks from system message config before serialization.
+        const { wirePayload: wireSystemMessage, transformCallbacks } = extractTransformCallbacks(
+            config.systemMessage
+        );
+        if (transformCallbacks) {
+            session.registerTransformCallbacks(transformCallbacks);
+        }
+
         if (config.onEvent) {
             session.on(config.onEvent);
         }
@@ -624,7 +676,7 @@ export class CopilotClient {
                     overridesBuiltInTool: tool.overridesBuiltInTool,
                     skipPermission: tool.skipPermission,
                 })),
-                systemMessage: config.systemMessage,
+                systemMessage: wireSystemMessage,
                 availableTools: config.availableTools,
                 excludedTools: config.excludedTools,
                 provider: config.provider,
@@ -711,6 +763,15 @@ export class CopilotClient {
         if (config.hooks) {
             session.registerHooks(config.hooks);
         }
+
+        // Extract transform callbacks from system message config before serialization.
+        const { wirePayload: wireSystemMessage, transformCallbacks } = extractTransformCallbacks(
+            config.systemMessage
+        );
+        if (transformCallbacks) {
+            session.registerTransformCallbacks(transformCallbacks);
+        }
+
         if (config.onEvent) {
             session.on(config.onEvent);
         }
@@ -723,7 +784,7 @@ export class CopilotClient {
                 clientName: config.clientName,
                 model: config.model,
                 reasoningEffort: config.reasoningEffort,
-                systemMessage: config.systemMessage,
+                systemMessage: wireSystemMessage,
                 availableTools: config.availableTools,
                 excludedTools: config.excludedTools,
                 tools: config.tools?.map((tool) => ({
@@ -1477,6 +1538,15 @@ export class CopilotClient {
             }): Promise<{ output?: unknown }> => await this.handleHooksInvoke(params)
         );
 
+        this.connection.onRequest(
+            "systemMessage.transform",
+            async (params: {
+                sessionId: string;
+                sections: Record<string, { content: string }>;
+            }): Promise<{ sections: Record<string, { content: string }> }> =>
+                await this.handleSystemMessageTransform(params)
+        );
+
         this.connection.onClose(() => {
             this.state = "disconnected";
         });
@@ -1586,6 +1656,27 @@ export class CopilotClient {
 
         const output = await session._handleHooksInvoke(params.hookType, params.input);
         return { output };
+    }
+
+    private async handleSystemMessageTransform(params: {
+        sessionId: string;
+        sections: Record<string, { content: string }>;
+    }): Promise<{ sections: Record<string, { content: string }> }> {
+        if (
+            !params ||
+            typeof params.sessionId !== "string" ||
+            !params.sections ||
+            typeof params.sections !== "object"
+        ) {
+            throw new Error("Invalid systemMessage.transform payload");
+        }
+
+        const session = this.sessions.get(params.sessionId);
+        if (!session) {
+            throw new Error(`Session not found: ${params.sessionId}`);
+        }
+
+        return await session._handleSystemMessageTransform(params.sections);
     }
 
     // ========================================================================

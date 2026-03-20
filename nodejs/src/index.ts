@@ -32,6 +32,8 @@ export type {
     PermissionRequestResult,
     ResumeSessionConfig,
     SectionOverride,
+    SectionOverrideAction,
+    SectionTransformFn,
     SessionConfig,
     SessionEvent,
     SessionEventHandler,

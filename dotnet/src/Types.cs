@@ -991,7 +991,10 @@ public enum SectionOverrideAction
     Append,
     /// <summary>Prepend content before the existing section.</summary>
     [JsonStringEnumMemberName("prepend")]
-    Prepend
+    Prepend,
+    /// <summary>Transform the section content via a callback.</summary>
+    [JsonStringEnumMemberName("transform")]
+    Transform
 }
 
 /// <summary>
@@ -1000,14 +1003,24 @@ public enum SectionOverrideAction
 public class SectionOverride
 {
     /// <summary>
-    /// The operation to perform on this section.
+    /// The operation to perform on this section. Ignored when Transform is set.
     /// </summary>
-    public SectionOverrideAction Action { get; set; }
+    [JsonPropertyName("action")]
+    public SectionOverrideAction? Action { get; set; }
 
     /// <summary>
     /// Content for the override. Optional for all actions. Ignored for remove.
     /// </summary>
+    [JsonPropertyName("content")]
     public string? Content { get; set; }
+
+    /// <summary>
+    /// Transform callback. When set, takes precedence over Action.
+    /// Receives current section content, returns transformed content.
+    /// Not serialized — the SDK handles this locally.
+    /// </summary>
+    [JsonIgnore]
+    public Func<string, Task<string>>? Transform { get; set; }
 }
 
 /// <summary>
@@ -2104,6 +2117,30 @@ public class SetForegroundSessionResponse
     /// </summary>
     [JsonPropertyName("error")]
     public string? Error { get; set; }
+}
+
+/// <summary>
+/// Content data for a single system prompt section in a transform RPC call.
+/// </summary>
+public class SystemMessageTransformSection
+{
+    /// <summary>
+    /// The content of the section.
+    /// </summary>
+    [JsonPropertyName("content")]
+    public string? Content { get; set; }
+}
+
+/// <summary>
+/// Response to a systemMessage.transform RPC call.
+/// </summary>
+public class SystemMessageTransformRpcResponse
+{
+    /// <summary>
+    /// The transformed sections keyed by section identifier.
+    /// </summary>
+    [JsonPropertyName("sections")]
+    public Dictionary<string, SystemMessageTransformSection>? Sections { get; set; }
 }
 
 [JsonSourceGenerationOptions(

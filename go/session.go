@@ -62,8 +62,10 @@ type Session struct {
 	permissionMux     sync.RWMutex
 	userInputHandler  UserInputHandler
 	userInputMux      sync.RWMutex
-	hooks             *SessionHooks
-	hooksMux          sync.RWMutex
+	hooks              *SessionHooks
+	hooksMux           sync.RWMutex
+	transformCallbacks map[string]SectionTransformFn
+	transformMu        sync.Mutex
 
 	// eventCh serializes user event handler dispatch. dispatchEvent enqueues;
 	// a single goroutine (processEvents) dequeues and invokes handlers in FIFO order.
@@ -444,6 +446,52 @@ func (s *Session) handleHooksInvoke(hookType string, rawInput json.RawMessage) (
 	default:
 		return nil, fmt.Errorf("unknown hook type: %s", hookType)
 	}
+}
+
+// registerTransformCallbacks registers transform callbacks for this session.
+//
+// Transform callbacks are invoked when the CLI requests system message section
+// transforms. This method is internal and typically called when creating a session.
+func (s *Session) registerTransformCallbacks(callbacks map[string]SectionTransformFn) {
+	s.transformMu.Lock()
+	defer s.transformMu.Unlock()
+	s.transformCallbacks = callbacks
+}
+
+type systemMessageTransformRequest struct {
+	SessionID string                              `json:"sessionId"`
+	Sections  map[string]struct{ Content string } `json:"sections"`
+}
+
+type systemMessageTransformResponse struct {
+	Sections map[string]struct{ Content string } `json:"sections"`
+}
+
+// handleSystemMessageTransform handles a system message transform request from the Copilot CLI.
+// This is an internal method called by the SDK when the CLI requests section transforms.
+func (s *Session) handleSystemMessageTransform(sections map[string]struct{ Content string }) (systemMessageTransformResponse, error) {
+	s.transformMu.Lock()
+	callbacks := s.transformCallbacks
+	s.transformMu.Unlock()
+
+	result := make(map[string]struct{ Content string })
+	for sectionID, data := range sections {
+		var callback SectionTransformFn
+		if callbacks != nil {
+			callback = callbacks[sectionID]
+		}
+		if callback != nil {
+			transformed, err := callback(data.Content)
+			if err != nil {
+				result[sectionID] = struct{ Content string }{Content: data.Content}
+			} else {
+				result[sectionID] = struct{ Content string }{Content: transformed}
+			}
+		} else {
+			result[sectionID] = struct{ Content string }{Content: data.Content}
+		}
+	}
+	return systemMessageTransformResponse{Sections: result}, nil
 }
 
 // dispatchEvent enqueues an event for delivery to user handlers and fires

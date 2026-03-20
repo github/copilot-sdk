@@ -306,11 +306,30 @@ export const SYSTEM_PROMPT_SECTIONS: Record<SystemPromptSection, { description: 
 };
 
 /**
+ * Transform callback for a single section: receives current content, returns new content.
+ */
+export type SectionTransformFn = (currentContent: string) => string | Promise<string>;
+
+/**
+ * Override action: a string literal for static overrides, or a callback for transforms.
+ *
+ * - `"replace"`: Replace section content entirely
+ * - `"remove"`: Remove the section
+ * - `"append"`: Append to existing section content
+ * - `"prepend"`: Prepend to existing section content
+ * - `function`: Transform callback — receives current section content, returns new content
+ */
+export type SectionOverrideAction = "replace" | "remove" | "append" | "prepend" | SectionTransformFn;
+
+/**
  * Override operation for a single system prompt section.
  */
 export interface SectionOverride {
-    /** The operation to perform on this section. */
-    action: "replace" | "remove" | "append" | "prepend";
+    /**
+     * The operation to perform on this section.
+     * Can be a string action or a transform callback function.
+     */
+    action: SectionOverrideAction;
 
     /**
      * Content for the override. Optional for all actions.
