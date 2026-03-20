@@ -6,15 +6,16 @@ This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py
 
 import pytest
 
-from copilot import (
-    CopilotClient,
+from copilot import CopilotClient, define_tool
+from copilot.client import (
     ExternalServerConfig,
-    PermissionHandler,
-    PermissionRequestResult,
+    ModelCapabilities,
+    ModelInfo,
+    ModelLimits,
+    ModelSupports,
     SubprocessConfig,
-    define_tool,
 )
-from copilot.types import ModelCapabilities, ModelInfo, ModelLimits, ModelSupports
+from copilot.session import PermissionHandler, PermissionRequestResult
 from e2e.testharness import CLI_PATH
 
 

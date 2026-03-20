@@ -39,18 +39,18 @@ type SessionStartHandler = (
 
 <!-- docs-validate: hidden -->
 ```python
-from copilot.types import SessionStartHookInput, HookInvocation, SessionStartHookOutput
+from copilot.session import SessionStartHookInput, SessionStartHookOutput
 from typing import Callable, Awaitable
 
 SessionStartHandler = Callable[
-    [SessionStartHookInput, HookInvocation],
+    [SessionStartHookInput, dict[str, str]],
     Awaitable[SessionStartHookOutput | None]
 ]
 ```
 <!-- /docs-validate: hidden -->
 ```python
 SessionStartHandler = Callable[
-    [SessionStartHookInput, HookInvocation],
+    [SessionStartHookInput, dict[str, str]],
     Awaitable[SessionStartHookOutput | None]
 ]
 ```
@@ -249,18 +249,18 @@ type SessionEndHandler = (
 
 <!-- docs-validate: hidden -->
 ```python
-from copilot.types import SessionEndHookInput, HookInvocation
+from copilot.session import SessionEndHookInput
 from typing import Callable, Awaitable
 
 SessionEndHandler = Callable[
-    [SessionEndHookInput, HookInvocation],
+    [SessionEndHookInput, dict[str, str]],
     Awaitable[None]
 ]
 ```
 <!-- /docs-validate: hidden -->
 ```python
 SessionEndHandler = Callable[
-    [SessionEndHookInput, HookInvocation],
+    [SessionEndHookInput, dict[str, str]],
     Awaitable[SessionEndHookOutput | None]
 ]
 ```

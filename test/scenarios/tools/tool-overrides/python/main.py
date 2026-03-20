@@ -3,7 +3,9 @@ import os
 
 from pydantic import BaseModel, Field
 
-from copilot import CopilotClient, PermissionHandler, SubprocessConfig, define_tool
+from copilot import CopilotClient, define_tool
+from copilot.client import SubprocessConfig
+from copilot.session import PermissionHandler
 
 
 class GrepParams(BaseModel):

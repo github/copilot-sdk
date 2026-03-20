@@ -1,6 +1,7 @@
 import asyncio
 import os
-from copilot import CopilotClient, SubprocessConfig, define_tool
+from copilot import CopilotClient, define_tool
+from copilot.client import SubprocessConfig
 from pydantic import BaseModel, Field
 
 # In-memory virtual filesystem

@@ -10,7 +10,8 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from copilot import CopilotClient, SubprocessConfig
+from copilot import CopilotClient
+from copilot.client import SubprocessConfig
 
 from .proxy import CapiProxy
 

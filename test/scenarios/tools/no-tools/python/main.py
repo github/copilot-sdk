@@ -1,6 +1,7 @@
 import asyncio
 import os
-from copilot import CopilotClient, PermissionHandler, SubprocessConfig
+from copilot import CopilotClient
+from copilot.client import SubprocessConfig
 
 SYSTEM_PROMPT = """You are a minimal assistant with no tools available.
 You cannot execute code, read files, edit files, search, or perform any actions.
@@ -16,10 +17,11 @@ async def main():
 
     try:
         session = await client.create_session(
-            on_permission_request=PermissionHandler.approve_all,
-            model="claude-haiku-4.5",
-            system_message={"mode": "replace", "content": SYSTEM_PROMPT},
-            available_tools=[],
+            {
+                "model": "claude-haiku-4.5",
+                "system_message": {"mode": "replace", "content": SYSTEM_PROMPT},
+                "available_tools": [],
+            }
         )
 
         response = await session.send_and_wait(

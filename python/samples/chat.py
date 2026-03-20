@@ -1,6 +1,7 @@
 import asyncio
 
-from copilot import CopilotClient, PermissionHandler
+from copilot import CopilotClient
+from copilot.session import PermissionHandler
 
 BLUE = "\033[34m"
 RESET = "\033[0m"

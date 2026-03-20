@@ -5,8 +5,8 @@ import json
 import pytest
 from pydantic import BaseModel, Field
 
-from copilot import ToolInvocation, ToolResult, define_tool
-from copilot.tools import _normalize_result
+from copilot import define_tool
+from copilot.tools import ToolInvocation, ToolResult, _normalize_result
 
 
 class TestDefineTool:

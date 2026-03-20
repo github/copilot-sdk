@@ -6,7 +6,7 @@ Tests for system message transform functionality
 
 import pytest
 
-from copilot import PermissionHandler
+from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
 from .testharness.helper import write_file

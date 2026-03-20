@@ -2,8 +2,8 @@
 
 import pytest
 
-from copilot import PermissionHandler
 from copilot.generated.session_events import SessionEventType
+from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
 

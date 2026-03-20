@@ -335,7 +335,7 @@ const client = new CopilotClient({
 
 ```python
 from copilot import CopilotClient
-from copilot.types import ModelInfo, ModelCapabilities, ModelSupports, ModelLimits
+from copilot.client import ModelInfo, ModelCapabilities, ModelSupports, ModelLimits
 
 client = CopilotClient({
     "on_list_models": lambda: [

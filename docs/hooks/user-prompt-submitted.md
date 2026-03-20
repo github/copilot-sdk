@@ -35,18 +35,18 @@ type UserPromptSubmittedHandler = (
 
 <!-- docs-validate: hidden -->
 ```python
-from copilot.types import UserPromptSubmittedHookInput, HookInvocation, UserPromptSubmittedHookOutput
+from copilot.session import UserPromptSubmittedHookInput, UserPromptSubmittedHookOutput
 from typing import Callable, Awaitable
 
 UserPromptSubmittedHandler = Callable[
-    [UserPromptSubmittedHookInput, HookInvocation],
+    [UserPromptSubmittedHookInput, dict[str, str]],
     Awaitable[UserPromptSubmittedHookOutput | None]
 ]
 ```
 <!-- /docs-validate: hidden -->
 ```python
 UserPromptSubmittedHandler = Callable[
-    [UserPromptSubmittedHookInput, HookInvocation],
+    [UserPromptSubmittedHookInput, dict[str, str]],
     Awaitable[UserPromptSubmittedHookOutput | None]
 ]
 ```

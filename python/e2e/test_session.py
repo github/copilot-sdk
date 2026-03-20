@@ -4,8 +4,10 @@ import os
 
 import pytest
 
-from copilot import CopilotClient, PermissionHandler, SubprocessConfig
-from copilot.types import Tool, ToolResult
+from copilot import CopilotClient
+from copilot.client import SubprocessConfig
+from copilot.session import PermissionHandler
+from copilot.tools import Tool, ToolResult
 
 from .testharness import E2ETestContext, get_final_assistant_message, get_next_event_of_type
 

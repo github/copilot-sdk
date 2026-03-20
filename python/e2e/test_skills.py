@@ -7,7 +7,7 @@ import shutil
 
 import pytest
 
-from copilot import PermissionHandler
+from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
 

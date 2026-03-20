@@ -13,15 +13,10 @@ import pytest
 import pytest_asyncio
 from pydantic import BaseModel, Field
 
-from copilot import (
-    CopilotClient,
-    ExternalServerConfig,
-    PermissionHandler,
-    PermissionRequestResult,
-    SubprocessConfig,
-    ToolInvocation,
-    define_tool,
-)
+from copilot import CopilotClient, define_tool
+from copilot.client import ExternalServerConfig, SubprocessConfig
+from copilot.session import PermissionHandler, PermissionRequestResult
+from copilot.tools import ToolInvocation
 
 from .testharness import get_final_assistant_message
 from .testharness.proxy import CapiProxy

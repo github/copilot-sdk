@@ -1,6 +1,7 @@
 import asyncio
 import os
-from copilot import CopilotClient, PermissionHandler, SubprocessConfig
+from copilot import CopilotClient
+from copilot.client import SubprocessConfig
 
 
 async def main():
@@ -10,15 +11,14 @@ async def main():
     ))
 
     try:
-        session = await client.create_session(
-            on_permission_request=PermissionHandler.approve_all,
-            model="claude-haiku-4.5",
-            available_tools=[],
-            system_message={
+        session = await client.create_session({
+            "model": "claude-haiku-4.5",
+            "available_tools": [],
+            "system_message": {
                 "mode": "replace",
                 "content": "You have no tools. Respond with text only.",
             },
-        )
+        })
 
         response = await session.send_and_wait("Use the grep tool to search for 'SDK' in README.md.")
         if response:

@@ -2,7 +2,9 @@
 
 import pytest
 
-from copilot import CopilotClient, PermissionHandler, StopError, SubprocessConfig
+from copilot import CopilotClient
+from copilot.client import StopError, SubprocessConfig
+from copilot.session import PermissionHandler
 
 from .testharness import CLI_PATH
 
