@@ -392,6 +392,9 @@ type Data struct {
 	Path *string `json:"path,omitempty"`
 	// ISO 8601 timestamp when the handoff occurred
 	HandoffTime *time.Time `json:"handoffTime,omitempty"`
+	// GitHub host URL for the source session (e.g., https://github.com or
+	// https://tenant.ghe.com)
+	Host *string `json:"host,omitempty"`
 	// Session ID of the remote session being handed off
 	RemoteSessionID *string `json:"remoteSessionId,omitempty"`
 	// Repository context for the handed-off session

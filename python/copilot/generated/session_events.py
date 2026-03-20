@@ -1943,6 +1943,10 @@ class Data:
     handoff_time: datetime | None = None
     """ISO 8601 timestamp when the handoff occurred"""
 
+    host: str | None = None
+    """GitHub host URL for the source session (e.g., https://github.com or
+    https://tenant.ghe.com)
+    """
     remote_session_id: str | None = None
     """Session ID of the remote session being handed off"""
 
@@ -2503,6 +2507,7 @@ class Data:
         operation = from_union([Operation, from_none], obj.get("operation"))
         path = from_union([from_str, from_none], obj.get("path"))
         handoff_time = from_union([from_datetime, from_none], obj.get("handoffTime"))
+        host = from_union([from_str, from_none], obj.get("host"))
         remote_session_id = from_union([from_str, from_none], obj.get("remoteSessionId"))
         repository = from_union([RepositoryClass.from_dict, from_str, from_none], obj.get("repository"))
         source_type = from_union([SourceType, from_none], obj.get("sourceType"))
@@ -2627,7 +2632,7 @@ class Data:
         servers = from_union([lambda x: from_list(Server.from_dict, x), from_none], obj.get("servers"))
         status = from_union([ServerStatus, from_none], obj.get("status"))
         extensions = from_union([lambda x: from_list(Extension.from_dict, x), from_none], obj.get("extensions"))
-        return Data(already_in_use, context, copilot_version, producer, reasoning_effort, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, url, background_tasks, title, info_type, warning_type, new_model, previous_model, previous_reasoning_effort, new_mode, previous_mode, operation, path, handoff_time, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, conversation_tokens, current_model, current_tokens, error_reason, model_metrics, session_start_time, shutdown_type, system_tokens, tool_definitions_tokens, total_api_duration_ms, total_premium_requests, base_commit, branch, cwd, git_root, head_commit, host_type, is_initial, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, interaction_id, source, transformed_content, turn_id, intent, reasoning_id, delta_content, total_response_size_bytes, encrypted_content, message_id, output_tokens, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, api_call_id, cache_read_tokens, cache_write_tokens, copilot_usage, cost, duration, initiator, input_tokens, model, quota_snapshots, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, name, plugin_name, plugin_version, agent_description, agent_display_name, agent_name, tools, hook_invocation_id, hook_type, input, output, metadata, role, kind, permission_request, allow_freeform, choices, question, elicitation_source, mode, requested_schema, server_name, server_url, static_client_config, traceparent, tracestate, command, args, command_name, commands, actions, plan_content, recommended_action, skills, servers, status, extensions)
+        return Data(already_in_use, context, copilot_version, producer, reasoning_effort, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, url, background_tasks, title, info_type, warning_type, new_model, previous_model, previous_reasoning_effort, new_mode, previous_mode, operation, path, handoff_time, host, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, conversation_tokens, current_model, current_tokens, error_reason, model_metrics, session_start_time, shutdown_type, system_tokens, tool_definitions_tokens, total_api_duration_ms, total_premium_requests, base_commit, branch, cwd, git_root, head_commit, host_type, is_initial, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, interaction_id, source, transformed_content, turn_id, intent, reasoning_id, delta_content, total_response_size_bytes, encrypted_content, message_id, output_tokens, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, api_call_id, cache_read_tokens, cache_write_tokens, copilot_usage, cost, duration, initiator, input_tokens, model, quota_snapshots, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, name, plugin_name, plugin_version, agent_description, agent_display_name, agent_name, tools, hook_invocation_id, hook_type, input, output, metadata, role, kind, permission_request, allow_freeform, choices, question, elicitation_source, mode, requested_schema, server_name, server_url, static_client_config, traceparent, tracestate, command, args, command_name, commands, actions, plan_content, recommended_action, skills, servers, status, extensions)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -2689,6 +2694,8 @@ class Data:
             result["path"] = from_union([from_str, from_none], self.path)
         if self.handoff_time is not None:
             result["handoffTime"] = from_union([lambda x: x.isoformat(), from_none], self.handoff_time)
+        if self.host is not None:
+            result["host"] = from_union([from_str, from_none], self.host)
         if self.remote_session_id is not None:
             result["remoteSessionId"] = from_union([from_str, from_none], self.remote_session_id)
         if self.repository is not None:

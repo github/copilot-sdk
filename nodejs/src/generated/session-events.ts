@@ -562,6 +562,10 @@ export type SessionEvent =
          * Session ID of the remote session being handed off
          */
         remoteSessionId?: string;
+        /**
+         * GitHub host URL for the source session (e.g., https://github.com or https://tenant.ghe.com)
+         */
+        host?: string;
       };
     }
   | {
