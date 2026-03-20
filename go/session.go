@@ -458,23 +458,27 @@ func (s *Session) registerTransformCallbacks(callbacks map[string]SectionTransfo
 	s.transformCallbacks = callbacks
 }
 
+type systemMessageTransformSection struct {
+	Content string `json:"content"`
+}
+
 type systemMessageTransformRequest struct {
-	SessionID string                              `json:"sessionId"`
-	Sections  map[string]struct{ Content string } `json:"sections"`
+	SessionID string                                   `json:"sessionId"`
+	Sections  map[string]systemMessageTransformSection `json:"sections"`
 }
 
 type systemMessageTransformResponse struct {
-	Sections map[string]struct{ Content string } `json:"sections"`
+	Sections map[string]systemMessageTransformSection `json:"sections"`
 }
 
 // handleSystemMessageTransform handles a system message transform request from the Copilot CLI.
 // This is an internal method called by the SDK when the CLI requests section transforms.
-func (s *Session) handleSystemMessageTransform(sections map[string]struct{ Content string }) (systemMessageTransformResponse, error) {
+func (s *Session) handleSystemMessageTransform(sections map[string]systemMessageTransformSection) (systemMessageTransformResponse, error) {
 	s.transformMu.Lock()
 	callbacks := s.transformCallbacks
 	s.transformMu.Unlock()
 
-	result := make(map[string]struct{ Content string })
+	result := make(map[string]systemMessageTransformSection)
 	for sectionID, data := range sections {
 		var callback SectionTransformFn
 		if callbacks != nil {
@@ -483,12 +487,12 @@ func (s *Session) handleSystemMessageTransform(sections map[string]struct{ Conte
 		if callback != nil {
 			transformed, err := callback(data.Content)
 			if err != nil {
-				result[sectionID] = struct{ Content string }{Content: data.Content}
+				result[sectionID] = systemMessageTransformSection{Content: data.Content}
 			} else {
-				result[sectionID] = struct{ Content string }{Content: transformed}
+				result[sectionID] = systemMessageTransformSection{Content: transformed}
 			}
 		} else {
-			result[sectionID] = struct{ Content string }{Content: data.Content}
+			result[sectionID] = systemMessageTransformSection{Content: data.Content}
 		}
 	}
 	return systemMessageTransformResponse{Sections: result}, nil
