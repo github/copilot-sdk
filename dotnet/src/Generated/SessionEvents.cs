@@ -17,7 +17,7 @@ namespace GitHub.Copilot.SDK;
 [DebuggerDisplay("{DebuggerDisplay,nq}")]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
+    IgnoreUnrecognizedTypeDiscriminators = true)]
 [JsonDerivedType(typeof(AbortEvent), "abort")]
 [JsonDerivedType(typeof(AssistantIntentEvent), "assistant.intent")]
 [JsonDerivedType(typeof(AssistantMessageEvent), "assistant.message")]
@@ -79,7 +79,7 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(UserInputCompletedEvent), "user_input.completed")]
 [JsonDerivedType(typeof(UserInputRequestedEvent), "user_input.requested")]
 [JsonDerivedType(typeof(UserMessageEvent), "user.message")]
-public abstract partial class SessionEvent
+public partial class SessionEvent
 {
     /// <summary>Unique event identifier (UUID v4), generated when the event is emitted.</summary>
     [JsonPropertyName("id")]
@@ -102,7 +102,7 @@ public abstract partial class SessionEvent
     /// The event type discriminator.
     /// </summary>
     [JsonIgnore]
-    public abstract string Type { get; }
+    public virtual string Type => "unknown";
 
     /// <summary>Deserializes a JSON string into a <see cref="SessionEvent"/>.</summary>
     public static SessionEvent FromJson(string json) =>
