@@ -39,14 +39,14 @@ from copilot.session import PostToolUseHookInput, PostToolUseHookOutput
 from typing import Callable, Awaitable
 
 PostToolUseHandler = Callable[
-    [PostToolUseHookInput, HookInvocation],
+    [PostToolUseHookInput, dict[str, str]],
     Awaitable[PostToolUseHookOutput | None]
 ]
 ```
 <!-- /docs-validate: hidden -->
 ```python
 PostToolUseHandler = Callable[
-    [PostToolUseHookInput, HookInvocation],
+    [PostToolUseHookInput, dict[str, str]],
     Awaitable[PostToolUseHookOutput | None]
 ]
 ```

@@ -39,14 +39,14 @@ from copilot.session import PreToolUseHookInput, PreToolUseHookOutput
 from typing import Callable, Awaitable
 
 PreToolUseHandler = Callable[
-    [PreToolUseHookInput, HookInvocation],
+    [PreToolUseHookInput, dict[str, str]],
     Awaitable[PreToolUseHookOutput | None]
 ]
 ```
 <!-- /docs-validate: hidden -->
 ```python
 PreToolUseHandler = Callable[
-    [PreToolUseHookInput, HookInvocation],
+    [PreToolUseHookInput, dict[str, str]],
     Awaitable[PreToolUseHookOutput | None]
 ]
 ```

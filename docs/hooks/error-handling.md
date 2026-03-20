@@ -39,14 +39,14 @@ from copilot.session import ErrorOccurredHookInput, ErrorOccurredHookOutput
 from typing import Callable, Awaitable
 
 ErrorOccurredHandler = Callable[
-    [ErrorOccurredHookInput, HookInvocation],
+    [ErrorOccurredHookInput, dict[str, str]],
     Awaitable[ErrorOccurredHookOutput | None]
 ]
 ```
 <!-- /docs-validate: hidden -->
 ```python
 ErrorOccurredHandler = Callable[
-    [ErrorOccurredHookInput, HookInvocation],
+    [ErrorOccurredHookInput, dict[str, str]],
     Awaitable[ErrorOccurredHookOutput | None]
 ]
 ```

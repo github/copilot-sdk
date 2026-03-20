@@ -39,14 +39,14 @@ from copilot.session import UserPromptSubmittedHookInput, UserPromptSubmittedHoo
 from typing import Callable, Awaitable
 
 UserPromptSubmittedHandler = Callable[
-    [UserPromptSubmittedHookInput, HookInvocation],
+    [UserPromptSubmittedHookInput, dict[str, str]],
     Awaitable[UserPromptSubmittedHookOutput | None]
 ]
 ```
 <!-- /docs-validate: hidden -->
 ```python
 UserPromptSubmittedHandler = Callable[
-    [UserPromptSubmittedHookInput, HookInvocation],
+    [UserPromptSubmittedHookInput, dict[str, str]],
     Awaitable[UserPromptSubmittedHookOutput | None]
 ]
 ```
