@@ -40,6 +40,7 @@ from .session import (
     MCPServerConfig,
     ProviderConfig,
     ReasoningEffort,
+    SectionTransformFn,
     SessionHooks,
     SystemMessageConfig,
     UserInputHandler,
@@ -674,6 +675,40 @@ def _get_bundled_cli_path() -> str | None:
     return None
 
 
+def _extract_transform_callbacks(
+    system_message: dict | None,
+) -> tuple[dict | None, dict[str, SectionTransformFn] | None]:
+    """Extract function-valued actions from system message config.
+
+    Returns a wire-safe payload (with callable actions replaced by ``"transform"``)
+    and a dict of transform callbacks keyed by section ID.
+    """
+    if (
+        not system_message
+        or system_message.get("mode") != "customize"
+        or not system_message.get("sections")
+    ):
+        return system_message, None
+
+    callbacks: dict[str, SectionTransformFn] = {}
+    wire_sections: dict[str, dict] = {}
+    for section_id, override in system_message["sections"].items():
+        if not override:
+            continue
+        action = override.get("action")
+        if callable(action):
+            callbacks[section_id] = action
+            wire_sections[section_id] = {"action": "transform"}
+        else:
+            wire_sections[section_id] = override
+
+    if not callbacks:
+        return system_message, None
+
+    wire_payload = {**system_message, "sections": wire_sections}
+    return wire_payload, callbacks
+
+
 class CopilotClient:
     """
     Main client for interacting with the Copilot CLI.
@@ -1131,8 +1166,9 @@ class CopilotClient:
         if tool_defs:
             payload["tools"] = tool_defs
 
-        if system_message:
-            payload["systemMessage"] = system_message
+        wire_system_message, transform_callbacks = _extract_transform_callbacks(system_message)
+        if wire_system_message:
+            payload["systemMessage"] = wire_system_message
 
         if available_tools is not None:
             payload["availableTools"] = available_tools
@@ -1223,6 +1259,8 @@ class CopilotClient:
             session._register_user_input_handler(on_user_input_request)
         if hooks:
             session._register_hooks(hooks)
+        if transform_callbacks:
+            session._register_transform_callbacks(transform_callbacks)
         if on_event:
             session.on(on_event)
         with self._sessions_lock:
@@ -1352,8 +1390,9 @@ class CopilotClient:
             payload["reasoningEffort"] = reasoning_effort
         if tool_defs:
             payload["tools"] = tool_defs
-        if system_message:
-            payload["systemMessage"] = system_message
+        wire_system_message, transform_callbacks = _extract_transform_callbacks(system_message)
+        if wire_system_message:
+            payload["systemMessage"] = wire_system_message
         if available_tools is not None:
             payload["availableTools"] = available_tools
         if excluded_tools is not None:
@@ -1424,6 +1463,8 @@ class CopilotClient:
             session._register_user_input_handler(on_user_input_request)
         if hooks:
             session._register_hooks(hooks)
+        if transform_callbacks:
+            session._register_transform_callbacks(transform_callbacks)
         if on_event:
             session.on(on_event)
         with self._sessions_lock:
@@ -2069,6 +2110,9 @@ class CopilotClient:
         self._client.set_request_handler("permission.request", self._handle_permission_request_v2)
         self._client.set_request_handler("userInput.request", self._handle_user_input_request)
         self._client.set_request_handler("hooks.invoke", self._handle_hooks_invoke)
+        self._client.set_request_handler(
+            "systemMessage.transform", self._handle_system_message_transform
+        )
 
         # Start listening for messages
         loop = asyncio.get_running_loop()
@@ -2154,6 +2198,9 @@ class CopilotClient:
         self._client.set_request_handler("permission.request", self._handle_permission_request_v2)
         self._client.set_request_handler("userInput.request", self._handle_user_input_request)
         self._client.set_request_handler("hooks.invoke", self._handle_hooks_invoke)
+        self._client.set_request_handler(
+            "systemMessage.transform", self._handle_system_message_transform
+        )
 
         # Start listening for messages
         loop = asyncio.get_running_loop()
@@ -2213,6 +2260,21 @@ class CopilotClient:
 
         output = await session._handle_hooks_invoke(hook_type, input_data)
         return {"output": output}
+
+    async def _handle_system_message_transform(self, params: dict) -> dict:
+        """Handle a systemMessage.transform request from the CLI server."""
+        session_id = params.get("sessionId")
+        sections = params.get("sections")
+
+        if not session_id or not sections:
+            raise ValueError("invalid systemMessage.transform payload")
+
+        with self._sessions_lock:
+            session = self._sessions.get(session_id)
+        if not session:
+            raise ValueError(f"unknown session {session_id}")
+
+        return await session._handle_system_message_transform(sections)
 
     # ========================================================================
     # Protocol v2 backward-compatibility adapters

@@ -150,6 +150,12 @@ class PermissionRequestResult:
     path: str | None = None
 
 
+SectionTransformFn = Callable[[str], str | Awaitable[str]]
+"""Transform callback: receives current section content, returns new content."""
+
+SectionOverrideAction = Literal["replace", "remove", "append", "prepend"] | SectionTransformFn
+"""Override action: a string literal for static overrides, or a callback for transforms."""
+
 _PermissionHandlerFn = Callable[
     [PermissionRequest, dict[str, str]],
     PermissionRequestResult | Awaitable[PermissionRequestResult],
@@ -609,6 +615,8 @@ class CopilotSession:
         self._user_input_handler_lock = threading.Lock()
         self._hooks: SessionHooks | None = None
         self._hooks_lock = threading.Lock()
+        self._transform_callbacks: dict[str, SectionTransformFn] | None = None
+        self._transform_callbacks_lock = threading.Lock()
         self._rpc: SessionRpc | None = None
 
     @property
@@ -1087,6 +1095,13 @@ class CopilotSession:
         except Exception:
             raise
 
+    def _register_transform_callbacks(
+        self, callbacks: dict[str, SectionTransformFn] | None
+    ) -> None:
+        """Register transform callbacks for system message sections."""
+        with self._transform_callbacks_lock:
+            self._transform_callbacks = callbacks
+
     def _register_hooks(self, hooks: SessionHooks | None) -> None:
         """
         Register hook handlers for session lifecycle events.
@@ -1103,6 +1118,29 @@ class CopilotSession:
         """
         with self._hooks_lock:
             self._hooks = hooks
+
+    async def _handle_system_message_transform(
+        self, sections: dict[str, dict[str, str]]
+    ) -> dict[str, dict[str, dict[str, str]]]:
+        """Handle a systemMessage.transform request from the runtime."""
+        with self._transform_callbacks_lock:
+            callbacks = self._transform_callbacks
+
+        result: dict[str, dict[str, str]] = {}
+        for section_id, section_data in sections.items():
+            content = section_data.get("content", "")
+            callback = callbacks.get(section_id) if callbacks else None
+            if callback:
+                try:
+                    transformed = callback(content)
+                    if inspect.isawaitable(transformed):
+                        transformed = await transformed
+                    result[section_id] = {"content": str(transformed)}
+                except Exception:
+                    result[section_id] = {"content": content}
+            else:
+                result[section_id] = {"content": content}
+        return {"sections": result}
 
     async def _handle_hooks_invoke(self, hook_type: str, input_data: Any) -> Any:
         """
