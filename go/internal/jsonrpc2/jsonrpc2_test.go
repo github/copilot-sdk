@@ -3,7 +3,6 @@ package jsonrpc2
 import (
 	"errors"
 	"io"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -72,9 +71,9 @@ func TestOnCloseNotCalledOnIntentionalStop(t *testing.T) {
 
 // TestSetProcessDone_ErrorAvailableImmediately validates that getProcessError()
 // returns the correct error immediately after processDone is closed.
-// The current implementation copies the error in an async goroutine, which
-// creates a race: the channel close is visible to callers before the error
-// is stored, so getProcessError() can return nil.
+// The current implementation stores a pointer to the process error
+// synchronously when the processDone channel is closed, so callers should
+// never observe a nil error after the channel has been closed.
 func TestSetProcessDone_ErrorAvailableImmediately(t *testing.T) {
 	misses := 0
 	const iterations = 1000
@@ -107,15 +106,15 @@ func TestSetProcessDone_ErrorAvailableImmediately(t *testing.T) {
 	}
 
 	if misses > 0 {
-		t.Errorf("SetProcessDone race: getProcessError() returned nil %d/%d times "+
-			"immediately after processDone was closed. The async goroutine had not "+
-			"yet copied the error.", misses, iterations)
+		t.Errorf("SetProcessDone regression: getProcessError() returned nil %d/%d times "+
+			"immediately after processDone was closed, even though the error pointer "+
+			"should be stored synchronously.", misses, iterations)
 	}
 }
 
 // TestSetProcessDone_RequestMissesProcessError validates that the Request()
-// method can fall through to the generic "process exited unexpectedly" message
-// when the SetProcessDone goroutine hasn't copied the error in time.
+// method returns the specific process error instead of the generic
+// "process exited unexpectedly" message once processDone has been closed.
 func TestSetProcessDone_RequestMissesProcessError(t *testing.T) {
 	misses := 0
 	const iterations = 100
@@ -150,15 +149,15 @@ func TestSetProcessDone_RequestMissesProcessError(t *testing.T) {
 	}
 
 	if misses > 0 {
-		t.Errorf("Request() race: returned generic 'process exited unexpectedly' %d/%d times "+
-			"instead of the actual process error. The error was lost because "+
-			"SetProcessDone copies it asynchronously.", misses, iterations)
+		t.Errorf("Request() bug: returned generic 'process exited unexpectedly' %d/%d times "+
+			"instead of the actual process error after process exit; the process "+
+			"error was not correctly propagated from SetProcessDone.", misses, iterations)
 	}
 }
 
-// TestSetProcessDone_ErrorCopiedEventually verifies that the error IS eventually
-// available if we give the goroutine time to run — confirming the issue is
-// purely a timing race, not a logic error.
+// TestSetProcessDone_ErrorAvailableImmediately verifies that the process error
+// is available as soon as the done channel is closed, matching the
+// pointer-based implementation where no asynchronous copy is required.
 func TestSetProcessDone_ErrorCopiedEventually(t *testing.T) {
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
@@ -174,14 +173,13 @@ func TestSetProcessDone_ErrorCopiedEventually(t *testing.T) {
 
 	client.SetProcessDone(done, &processErr)
 
-	// Close the channel and yield to let the goroutine run.
+	// Close the channel: the process error should now be observable immediately,
+	// without needing to yield to another goroutine.
 	close(done)
-	runtime.Gosched()
-	time.Sleep(10 * time.Millisecond)
 
 	err := client.getProcessError()
 	if err == nil {
-		t.Fatal("expected process error to be available after yielding, got nil")
+		t.Fatal("expected process error to be available immediately after done is closed, got nil")
 	}
 	if err.Error() != processErr.Error() {
 		t.Errorf("expected %q, got %q", processErr.Error(), err.Error())

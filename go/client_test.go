@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -1302,29 +1303,50 @@ func TestCreateSessionResponse_Capabilities(t *testing.T) {
 }
 
 // TestHelperProcess is a helper used by tests that need to spawn a process
-// which writes to stderr and exits with a non-zero status. It is invoked
+// which writes to stderr and exits with a given status. It is invoked
 // via "go test" by running the test binary itself with -test.run.
+// The stderr message and exit code are passed via environment variables
+// HELPER_STDERR_MSG and HELPER_EXIT_CODE (defaulting to "" and 1).
 func TestHelperProcess(t *testing.T) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
 		// Not in helper process mode; let the test run normally.
 		return
 	}
 
-	// Find the "--" separator and treat the argument after it as the stderr message.
-	args := os.Args
-	i := 0
-	for i < len(args) && args[i] != "--" {
-		i++
+	msg := os.Getenv("HELPER_STDERR_MSG")
+	if msg == "" {
+		// Fall back to command-line args after "--" for backwards compat.
+		for i, arg := range os.Args {
+			if arg == "--" && i+1 < len(os.Args) {
+				msg = os.Args[i+1]
+				break
+			}
+		}
 	}
-	var msg string
-	if i+1 < len(args) {
-		msg = args[i+1]
-	} else {
-		msg = "no stderr message provided"
+	if msg != "" {
+		_, _ = os.Stderr.WriteString(msg + "\n")
 	}
 
-	_, _ = os.Stderr.WriteString(msg + "\n")
-	os.Exit(1)
+	exitCode := 1
+	if ec := os.Getenv("HELPER_EXIT_CODE"); ec != "" {
+		if v, err := strconv.Atoi(ec); err == nil {
+			exitCode = v
+		}
+	}
+	os.Exit(exitCode)
+}
+
+// newStderrTestCommand constructs a command that re-invokes the current test
+// binary to run TestHelperProcess with the provided stderr message and exit
+// code. This avoids any dependency on a shell like "sh" and is portable.
+func newStderrTestCommand(stderrMsg string, exitCode int) *exec.Cmd {
+	cmd := exec.Command(os.Args[0], "-test.run=TestHelperProcess")
+	cmd.Env = append(os.Environ(),
+		"GO_WANT_HELPER_PROCESS=1",
+		"HELPER_STDERR_MSG="+stderrMsg,
+		"HELPER_EXIT_CODE="+strconv.Itoa(exitCode),
+	)
+	return cmd
 }
 
 // TestMonitorProcess_StderrCaptured validates that when the CLI process
@@ -1371,7 +1393,7 @@ func TestMonitorProcess_StderrCapturedOnZeroExit(t *testing.T) {
 	}
 
 	stderrMsg := "warning: version mismatch, shutting down"
-	client.process = exec.Command("sh", "-c", "echo '"+stderrMsg+"' >&2; exit 0")
+	client.process = newStderrTestCommand(stderrMsg, 0)
 	client.process.Stderr = &bytes.Buffer{}
 
 	if err := client.process.Start(); err != nil {
@@ -1398,7 +1420,7 @@ func TestMonitorProcess_StderrCapturedOnZeroExit(t *testing.T) {
 func TestStartCLIServer_StderrFieldSet(t *testing.T) {
 	// Verify that a bytes.Buffer assigned to Stderr is recognized by
 	// monitorProcess (type assertion to *bytes.Buffer).
-	cmd := exec.Command("true")
+	cmd := exec.Command(os.Args[0])
 	buf := &bytes.Buffer{}
 	cmd.Stderr = buf
 	if _, ok := cmd.Stderr.(*bytes.Buffer); !ok {
