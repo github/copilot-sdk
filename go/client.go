@@ -30,7 +30,6 @@ package copilot
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -49,6 +48,7 @@ import (
 
 	"github.com/github/copilot-sdk/go/internal/embeddedcli"
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
+	"github.com/github/copilot-sdk/go/internal/truncbuffer"
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
@@ -1443,6 +1443,11 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 	return nil
 }
 
+// stderrBufferSize is the maximum number of bytes kept from the CLI process's
+// stderr. Only the tail is retained so that memory stays bounded even when the
+// process produces a large amount of diagnostic output.
+const stderrBufferSize = 64 * 1024
+
 // startCLIServer starts the CLI server process.
 //
 // This spawns the CLI server as a subprocess using the configured transport
@@ -1559,7 +1564,7 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 			return fmt.Errorf("failed to create stdout pipe: %w", err)
 		}
 
-		c.process.Stderr = &bytes.Buffer{}
+		c.process.Stderr = truncbuffer.NewTruncBuffer(stderrBufferSize)
 
 		if err := c.process.Start(); err != nil {
 			return fmt.Errorf("failed to start CLI server: %w", err)
@@ -1592,7 +1597,7 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 			return fmt.Errorf("failed to create stdout pipe: %w", err)
 		}
 
-		c.process.Stderr = &bytes.Buffer{}
+		c.process.Stderr = truncbuffer.NewTruncBuffer(stderrBufferSize)
 
 		if err := c.process.Start(); err != nil {
 			return fmt.Errorf("failed to start CLI server: %w", err)
@@ -1600,6 +1605,7 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 
 		c.monitorProcess()
 
+		proc := c.process
 		scanner := bufio.NewScanner(stdout)
 		portRegex := regexp.MustCompile(`listening on port (\d+)`)
 
@@ -1610,10 +1616,22 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
 				killErr := c.killProcess()
-				return errors.Join(fmt.Errorf("failed waiting for CLI server to start: %w", ctx.Err()), killErr)
+				baseErr := fmt.Errorf("failed waiting for CLI server to start: %w", ctx.Err())
+				if buf, ok := proc.Stderr.(*truncbuffer.TruncBuffer); ok {
+					if stderr := strings.TrimSpace(buf.String()); stderr != "" {
+						baseErr = fmt.Errorf("%w; stderr: %s", baseErr, stderr)
+					}
+				}
+				return errors.Join(baseErr, killErr)
 			case <-c.processDone:
 				killErr := c.killProcess()
-				return errors.Join(errors.New("CLI server process exited before reporting port"), killErr)
+				baseErr := errors.New("CLI server process exited before reporting port")
+				if buf, ok := proc.Stderr.(*truncbuffer.TruncBuffer); ok {
+					if stderr := strings.TrimSpace(buf.String()); stderr != "" {
+						baseErr = fmt.Errorf("%w; stderr: %s", baseErr, stderr)
+					}
+				}
+				return errors.Join(baseErr, killErr)
 			default:
 				if scanner.Scan() {
 					line := scanner.Text()
@@ -1657,7 +1675,7 @@ func (c *Client) monitorProcess() {
 	go func() {
 		waitErr := proc.Wait()
 		var stderrOutput string
-		if buf, ok := proc.Stderr.(*bytes.Buffer); ok {
+		if buf, ok := proc.Stderr.(*truncbuffer.TruncBuffer); ok {
 			stderrOutput = strings.TrimSpace(buf.String())
 		}
 		if waitErr != nil {
