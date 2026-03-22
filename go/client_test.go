@@ -1,7 +1,6 @@
 package copilot
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -13,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/github/copilot-sdk/go/internal/truncbuffer"
 )
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.go instead
@@ -713,7 +714,7 @@ func TestMonitorProcess_StderrCaptured(t *testing.T) {
 	client.process.Env = append(os.Environ(), "GO_WANT_HELPER_PROCESS=1")
 
 	// Replicate what startCLIServer now does: capture stderr.
-	client.process.Stderr = &bytes.Buffer{}
+	client.process.Stderr = truncbuffer.NewTruncBuffer(stderrBufferSize)
 
 	if err := client.process.Start(); err != nil {
 		t.Fatalf("failed to start test process: %v", err)
@@ -745,7 +746,7 @@ func TestMonitorProcess_StderrCapturedOnZeroExit(t *testing.T) {
 
 	stderrMsg := "warning: version mismatch, shutting down"
 	client.process = newStderrTestCommand(stderrMsg, 0)
-	client.process.Stderr = &bytes.Buffer{}
+	client.process.Stderr = truncbuffer.NewTruncBuffer(stderrBufferSize)
 
 	if err := client.process.Start(); err != nil {
 		t.Fatalf("failed to start test process: %v", err)
@@ -767,14 +768,12 @@ func TestMonitorProcess_StderrCapturedOnZeroExit(t *testing.T) {
 }
 
 // TestStartCLIServer_StderrFieldSet verifies that startCLIServer sets
-// exec.Cmd.Stderr to a bytes.Buffer so CLI diagnostic output is captured.
+// exec.Cmd.Stderr to a *truncbuffer.TruncBuffer so CLI diagnostic output is captured.
 func TestStartCLIServer_StderrFieldSet(t *testing.T) {
-	// Verify that a bytes.Buffer assigned to Stderr is recognized by
-	// monitorProcess (type assertion to *bytes.Buffer).
 	cmd := exec.Command(os.Args[0])
-	buf := &bytes.Buffer{}
+	buf := truncbuffer.NewTruncBuffer(stderrBufferSize)
 	cmd.Stderr = buf
-	if _, ok := cmd.Stderr.(*bytes.Buffer); !ok {
-		t.Error("expected Stderr to be *bytes.Buffer after assignment")
+	if _, ok := cmd.Stderr.(*truncbuffer.TruncBuffer); !ok {
+		t.Error("expected Stderr to be *truncbuffer.TruncBuffer after assignment")
 	}
 }
