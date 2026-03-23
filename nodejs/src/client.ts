@@ -639,6 +639,7 @@ export class CopilotClient {
             this.onGetTraceContext
         );
         session.registerTools(config.tools);
+        session.registerCommands(config.commands);
         session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
             session.registerUserInputHandler(config.onUserInputRequest);
@@ -674,6 +675,10 @@ export class CopilotClient {
                     overridesBuiltInTool: tool.overridesBuiltInTool,
                     skipPermission: tool.skipPermission,
                 })),
+                commands: config.commands?.map((cmd) => ({
+                    name: cmd.name,
+                    description: cmd.description,
+                })),
                 systemMessage: wireSystemMessage,
                 availableTools: config.availableTools,
                 excludedTools: config.excludedTools,
@@ -693,11 +698,13 @@ export class CopilotClient {
                 infiniteSessions: config.infiniteSessions,
             });
 
-            const { workspacePath } = response as {
+            const { workspacePath, capabilities } = response as {
                 sessionId: string;
                 workspacePath?: string;
+                capabilities?: { ui?: { elicitation?: boolean } };
             };
             session["_workspacePath"] = workspacePath;
+            session.setCapabilities(capabilities);
         } catch (e) {
             this.sessions.delete(sessionId);
             throw e;
@@ -754,6 +761,7 @@ export class CopilotClient {
             this.onGetTraceContext
         );
         session.registerTools(config.tools);
+        session.registerCommands(config.commands);
         session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
             session.registerUserInputHandler(config.onUserInputRequest);
@@ -792,6 +800,10 @@ export class CopilotClient {
                     overridesBuiltInTool: tool.overridesBuiltInTool,
                     skipPermission: tool.skipPermission,
                 })),
+                commands: config.commands?.map((cmd) => ({
+                    name: cmd.name,
+                    description: cmd.description,
+                })),
                 provider: config.provider,
                 requestPermission: true,
                 requestUserInput: !!config.onUserInputRequest,
@@ -809,11 +821,13 @@ export class CopilotClient {
                 disableResume: config.disableResume,
             });
 
-            const { workspacePath } = response as {
+            const { workspacePath, capabilities } = response as {
                 sessionId: string;
                 workspacePath?: string;
+                capabilities?: { ui?: { elicitation?: boolean } };
             };
             session["_workspacePath"] = workspacePath;
+            session.setCapabilities(capabilities);
         } catch (e) {
             this.sessions.delete(sessionId);
             throw e;
