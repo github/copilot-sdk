@@ -279,6 +279,20 @@ Get all events/messages from this session.
 
 Disconnect the session and free resources. Session data on disk is preserved for later resumption.
 
+##### `capabilities: SessionCapabilities`
+
+Host capabilities reported when the session was created or resumed. Use this to check feature support before calling capability-gated APIs.
+
+```typescript
+if (session.capabilities.ui?.elicitation) {
+    const ok = await session.ui.confirm("Deploy?");
+}
+```
+
+##### `ui: SessionUiApi`
+
+Interactive UI methods for showing dialogs to the user. Only available when the CLI host supports elicitation (`session.capabilities.ui?.elicitation === true`). See [UI Elicitation](#ui-elicitation) for full details.
+
 ##### `destroy(): Promise<void>` *(deprecated)*
 
 Deprecated — use `disconnect()` instead.
@@ -294,6 +308,8 @@ Sessions emit various events during processing:
 - `assistant.message_delta` - Streaming response chunk
 - `tool.execution_start` - Tool execution started
 - `tool.execution_complete` - Tool execution completed
+- `command.execute` - Command dispatch request (handled internally by the SDK)
+- `commands.changed` - Command registration changed
 - And more...
 
 See `SessionEvent` type in the source for full details.
@@ -454,6 +470,72 @@ defineTool("safe_lookup", {
     handler: async ({ id }) => { /* your logic */ },
 })
 ```
+
+### Commands
+
+Register slash commands so that users of the CLI's TUI can invoke custom actions via `/commandName`. Each command has a `name`, optional `description`, and a `handler` called when the user executes it.
+
+```ts
+const session = await client.createSession({
+    onPermissionRequest: approveAll,
+    commands: [
+        {
+            name: "deploy",
+            description: "Deploy the app to production",
+            handler: async ({ commandName, args }) => {
+                console.log(`Deploying with args: ${args}`);
+                // Do work here — any thrown error is reported back to the CLI
+            },
+        },
+    ],
+});
+```
+
+When the user types `/deploy staging` in the CLI, the SDK receives a `command.execute` event, routes it to your handler, and automatically responds to the CLI. If the handler throws, the error message is forwarded.
+
+Commands are sent to the CLI on both `createSession` and `resumeSession`, so you can update the command set when resuming.
+
+### UI Elicitation
+
+When the CLI is running with a TUI (not in headless mode), the SDK can request interactive form dialogs from the user. The `session.ui` object provides convenience methods built on a single generic `elicitation` RPC.
+
+> **Capability check:** Elicitation is only available when the host advertises support. Always check `session.capabilities.ui?.elicitation` before calling UI methods.
+
+```ts
+const session = await client.createSession({ onPermissionRequest: approveAll });
+
+if (session.capabilities.ui?.elicitation) {
+    // Confirm dialog — returns boolean
+    const ok = await session.ui.confirm("Deploy to production?");
+
+    // Selection dialog — returns selected value or null
+    const env = await session.ui.select("Pick environment", ["production", "staging", "dev"]);
+
+    // Text input — returns string or null
+    const name = await session.ui.input("Project name:", {
+        title: "Name",
+        minLength: 1,
+        maxLength: 50,
+    });
+
+    // Generic elicitation with full schema control
+    const result = await session.ui.elicitation({
+        message: "Configure deployment",
+        requestedSchema: {
+            type: "object",
+            properties: {
+                region: { type: "string", enum: ["us-east", "eu-west"] },
+                dryRun: { type: "boolean", default: true },
+            },
+            required: ["region"],
+        },
+    });
+    // result.action: "accept" | "decline" | "cancel"
+    // result.content: { region: "us-east", dryRun: true } (when accepted)
+}
+```
+
+All UI methods throw if elicitation is not supported by the host.
 
 ### System Message Customization
 
