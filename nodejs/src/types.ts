@@ -410,6 +410,30 @@ export interface ElicitationParams {
 }
 
 /**
+ * Request payload passed to an elicitation handler callback.
+ * Extends ElicitationParams with optional metadata fields.
+ */
+export interface ElicitationRequest {
+    /** Message describing what information is needed from the user. */
+    message: string;
+    /** JSON Schema describing the form fields to present. */
+    requestedSchema?: ElicitationSchema;
+    /** Elicitation mode: "form" for structured input, "url" for browser redirect. */
+    mode?: "form" | "url";
+    /** The source that initiated the request (e.g. MCP server name). */
+    elicitationSource?: string;
+}
+
+/**
+ * Handler invoked when the server dispatches an elicitation request to this client.
+ * Return an {@link ElicitationResult} with the user's response.
+ */
+export type ElicitationHandler = (
+    request: ElicitationRequest,
+    invocation: { sessionId: string }
+) => Promise<ElicitationResult> | ElicitationResult;
+
+/**
  * Options for the `input()` convenience method.
  */
 export interface InputOptions {
@@ -1083,6 +1107,13 @@ export interface SessionConfig {
     onUserInputRequest?: UserInputHandler;
 
     /**
+     * Handler for elicitation requests from the agent.
+     * When provided, the server calls back to this client for form-based UI dialogs.
+     * Also enables the `elicitation` capability on the session.
+     */
+    onElicitationRequest?: ElicitationHandler;
+
+    /**
      * Hook handlers for intercepting session lifecycle events.
      * When provided, enables hooks callback allowing custom logic at various points.
      */
@@ -1167,6 +1198,7 @@ export type ResumeSessionConfig = Pick<
     | "reasoningEffort"
     | "onPermissionRequest"
     | "onUserInputRequest"
+    | "onElicitationRequest"
     | "hooks"
     | "workingDirectory"
     | "configDir"

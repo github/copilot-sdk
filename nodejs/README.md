@@ -120,6 +120,7 @@ Create a new conversation session.
 - `provider?: ProviderConfig` - Custom API provider configuration (BYOK - Bring Your Own Key). See [Custom Providers](#custom-providers) section.
 - `onPermissionRequest: PermissionHandler` - **Required.** Handler called before each tool execution to approve or deny it. Use `approveAll` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
 - `onUserInputRequest?: UserInputHandler` - Handler for user input requests from the agent. Enables the `ask_user` tool. See [User Input Requests](#user-input-requests) section.
+- `onElicitationRequest?: ElicitationHandler` - Handler for elicitation requests dispatched by the server. Enables this client to present form-based UI dialogs on behalf of the agent or other session participants. See [Elicitation Requests](#elicitation-requests) section.
 - `hooks?: SessionHooks` - Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
 ##### `resumeSession(sessionId: string, config?: ResumeSessionConfig): Promise<CopilotSession>`
@@ -292,6 +293,8 @@ if (session.capabilities.ui?.elicitation) {
     const ok = await session.ui.confirm("Deploy?");
 }
 ```
+
+Capabilities may update during the session. For example, when another client joins or disconnects with an elicitation handler. The SDK automatically applies `capabilities.changed` events, so this property always reflects the current state.
 
 ##### `ui: SessionUiApi`
 
@@ -505,9 +508,9 @@ Commands are sent to the CLI on both `createSession` and `resumeSession`, so you
 
 ### UI Elicitation
 
-When the CLI is running with a TUI (not in headless mode), the SDK can request interactive form dialogs from the user. The `session.ui` object provides convenience methods built on a single generic `elicitation` RPC.
+When the session has elicitation support — either from the CLI's TUI or from another client that registered an `onElicitationRequest` handler (see [Elicitation Requests](#elicitation-requests)). The SDK can request interactive form dialogs from the user. The `session.ui` object provides convenience methods built on a single generic `elicitation` RPC.
 
-> **Capability check:** Elicitation is only available when the host advertises support. Always check `session.capabilities.ui?.elicitation` before calling UI methods.
+> **Capability check:** Elicitation is only available when at least one connected participant advertises support. Always check `session.capabilities.ui?.elicitation` before calling UI methods — this property updates automatically as participants join and leave.
 
 ```ts
 const session = await client.createSession({ onPermissionRequest: approveAll });
@@ -898,6 +901,41 @@ const session = await client.createSession({
     },
 });
 ```
+
+## Elicitation Requests
+
+Register an `onElicitationRequest` handler to let your client act as an elicitation provider — presenting form-based UI dialogs on behalf of the agent. When provided, the server dispatches `elicitation.request` RPCs to your client whenever a tool or MCP server needs structured user input.
+
+```typescript
+const session = await client.createSession({
+    model: "gpt-5",
+    onPermissionRequest: approveAll,
+    onElicitationRequest: async (request, invocation) => {
+        // request.message - Description of what information is needed
+        // request.requestedSchema - JSON Schema describing the form fields
+        // request.mode - "form" (structured input) or "url" (browser redirect)
+        // request.elicitationSource - Origin of the request (e.g. MCP server name)
+
+        console.log(`Elicitation from ${request.elicitationSource}: ${request.message}`);
+
+        // Present UI to the user and collect their response...
+        return {
+            action: "accept", // "accept", "decline", or "cancel"
+            content: { region: "us-east", dryRun: true },
+        };
+    },
+});
+
+// The session now reports elicitation capability
+console.log(session.capabilities.ui?.elicitation); // true
+```
+
+When `onElicitationRequest` is provided, the SDK sends `requestElicitation: true` during session create/resume, which enables `session.capabilities.ui.elicitation` on the session.
+
+In multi-client scenarios:
+- If no connected client was previously providing an elicitation capability, but a new client joins that can, all clients will receive a `capabilities.changed` event to notify them that elicitation is now possible. The SDK automatically updates `session.capabilities` when these events arrive.
+- Similarly, if the last elicitation provider disconnects, all clients receive a `capabilities.changed` event indicating elicitation is no longer available.
+- The server fans out elicitation requests to **all** connected clients that registered a handler — the first response wins.
 
 ## Session Hooks
 

@@ -13,8 +13,10 @@ import { createSessionRpc } from "./generated/rpc.js";
 import { getTraceContext } from "./telemetry.js";
 import type {
     CommandHandler,
+    ElicitationHandler,
     ElicitationParams,
     ElicitationResult,
+    ElicitationRequest,
     InputOptions,
     MessageOptions,
     PermissionHandler,
@@ -77,6 +79,7 @@ export class CopilotSession {
     private commandHandlers: Map<string, CommandHandler> = new Map();
     private permissionHandler?: PermissionHandler;
     private userInputHandler?: UserInputHandler;
+    private elicitationHandler?: ElicitationHandler;
     private hooks?: SessionHooks;
     private transformCallbacks?: Map<string, SectionTransformFn>;
     private _rpc: ReturnType<typeof createSessionRpc> | null = null;
@@ -414,6 +417,9 @@ export class CopilotSession {
                 args: string;
             };
             void this._executeCommandAndRespond(requestId, commandName, command, args);
+        } else if ((event as { type: string }).type === "capabilities.changed") {
+            const data = (event as { data: Partial<SessionCapabilities> }).data;
+            this._capabilities = { ...this._capabilities, ...data };
         }
     }
 
@@ -579,6 +585,30 @@ export class CopilotSession {
         for (const cmd of commands) {
             this.commandHandlers.set(cmd.name, cmd.handler);
         }
+    }
+
+    /**
+     * Registers the elicitation handler for this session.
+     *
+     * @param handler - The handler to invoke when the server dispatches an elicitation request
+     * @internal This method is typically called internally when creating/resuming a session.
+     */
+    registerElicitationHandler(handler?: ElicitationHandler): void {
+        this.elicitationHandler = handler;
+    }
+
+    /**
+     * Handles an elicitation.request RPC callback from the server.
+     * @internal
+     */
+    async _handleElicitationRequest(
+        request: ElicitationRequest,
+        sessionId: string
+    ): Promise<ElicitationResult> {
+        if (!this.elicitationHandler) {
+            throw new Error("Elicitation requested but no handler registered");
+        }
+        return await this.elicitationHandler(request, { sessionId });
     }
 
     /**

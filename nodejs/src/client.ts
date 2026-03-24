@@ -31,6 +31,8 @@ import { getTraceContext } from "./telemetry.js";
 import type {
     ConnectionState,
     CopilotClientOptions,
+    ElicitationRequest,
+    ElicitationResult,
     ForegroundSessionInfo,
     GetAuthStatusResponse,
     GetStatusResponse,
@@ -647,6 +649,9 @@ export class CopilotClient {
         if (config.onUserInputRequest) {
             session.registerUserInputHandler(config.onUserInputRequest);
         }
+        if (config.onElicitationRequest) {
+            session.registerElicitationHandler(config.onElicitationRequest);
+        }
         if (config.hooks) {
             session.registerHooks(config.hooks);
         }
@@ -688,6 +693,7 @@ export class CopilotClient {
                 provider: config.provider,
                 requestPermission: true,
                 requestUserInput: !!config.onUserInputRequest,
+                requestElicitation: !!config.onElicitationRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
                 streaming: config.streaming,
@@ -769,6 +775,9 @@ export class CopilotClient {
         if (config.onUserInputRequest) {
             session.registerUserInputHandler(config.onUserInputRequest);
         }
+        if (config.onElicitationRequest) {
+            session.registerElicitationHandler(config.onElicitationRequest);
+        }
         if (config.hooks) {
             session.registerHooks(config.hooks);
         }
@@ -810,6 +819,7 @@ export class CopilotClient {
                 provider: config.provider,
                 requestPermission: true,
                 requestUserInput: !!config.onUserInputRequest,
+                requestElicitation: !!config.onElicitationRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
                 configDir: config.configDir,
@@ -1598,6 +1608,18 @@ export class CopilotClient {
         );
 
         this.connection.onRequest(
+            "elicitation.request",
+            async (params: {
+                sessionId: string;
+                requestId: string;
+                message: string;
+                requestedSchema?: unknown;
+                mode?: "form" | "url";
+                elicitationSource?: string;
+            }): Promise<ElicitationResult> => await this.handleElicitationRequest(params)
+        );
+
+        this.connection.onRequest(
             "hooks.invoke",
             async (params: {
                 sessionId: string;
@@ -1702,6 +1724,34 @@ export class CopilotClient {
             allowFreeform: params.allowFreeform,
         });
         return result;
+    }
+
+    private async handleElicitationRequest(params: {
+        sessionId: string;
+        requestId: string;
+        message: string;
+        requestedSchema?: unknown;
+        mode?: "form" | "url";
+        elicitationSource?: string;
+    }): Promise<ElicitationResult> {
+        if (!params || typeof params.sessionId !== "string" || typeof params.message !== "string") {
+            throw new Error("Invalid elicitation request payload");
+        }
+
+        const session = this.sessions.get(params.sessionId);
+        if (!session) {
+            throw new Error(`Session not found: ${params.sessionId}`);
+        }
+
+        return await session._handleElicitationRequest(
+            {
+                message: params.message,
+                requestedSchema: params.requestedSchema as ElicitationRequest["requestedSchema"],
+                mode: params.mode,
+                elicitationSource: params.elicitationSource,
+            },
+            params.sessionId
+        );
     }
 
     private async handleHooksInvoke(params: {

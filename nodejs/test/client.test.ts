@@ -897,5 +897,51 @@ describe("CopilotClient", () => {
                 })
             ).rejects.toThrow(/not supported/);
         });
+
+        it("sends requestElicitation flag when onElicitationRequest is provided", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const rpcSpy = vi.spyOn((client as any).connection!, "sendRequest");
+
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                onElicitationRequest: async () => ({
+                    action: "accept" as const,
+                    content: {},
+                }),
+            });
+
+            const createCall = rpcSpy.mock.calls.find((c) => c[0] === "session.create");
+            expect(createCall).toBeDefined();
+            expect(createCall![1]).toEqual(
+                expect.objectContaining({
+                    requestElicitation: true,
+                })
+            );
+            rpcSpy.mockRestore();
+        });
+
+        it("does not send requestElicitation when no handler provided", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const rpcSpy = vi.spyOn((client as any).connection!, "sendRequest");
+
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+            });
+
+            const createCall = rpcSpy.mock.calls.find((c) => c[0] === "session.create");
+            expect(createCall).toBeDefined();
+            expect(createCall![1]).toEqual(
+                expect.objectContaining({
+                    requestElicitation: false,
+                })
+            );
+            rpcSpy.mockRestore();
+        });
     });
 });
