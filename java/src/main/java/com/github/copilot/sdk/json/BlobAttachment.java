@@ -45,6 +45,7 @@ public final class BlobAttachment implements MessageAttachment {
      *
      * @return {@code "blob"}
      */
+    @Override
     public String getType() {
         return type;
     }
