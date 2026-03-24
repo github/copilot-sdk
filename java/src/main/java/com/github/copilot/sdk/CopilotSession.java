@@ -120,6 +120,7 @@ public final class CopilotSession implements AutoCloseable {
     private final AtomicReference<SessionHooks> hooksHandler = new AtomicReference<>();
     private volatile EventErrorHandler eventErrorHandler;
     private volatile EventErrorPolicy eventErrorPolicy = EventErrorPolicy.PROPAGATE_AND_LOG_ERRORS;
+    private volatile Map<String, java.util.function.Function<String, CompletableFuture<String>>> transformCallbacks;
 
     /** Tracks whether this session instance has been terminated via close(). */
     private volatile boolean isTerminated = false;
@@ -709,6 +710,11 @@ public final class CopilotSession implements AutoCloseable {
                 invocation.setSessionId(sessionId);
                 handler.handle(permissionRequest, invocation).thenAccept(result -> {
                     try {
+                        if (PermissionRequestResultKind.NO_RESULT.equals(result.getKind())) {
+                            // Handler explicitly abstains — leave the request unanswered
+                            // so another client can handle it.
+                            return;
+                        }
                         rpc.invoke("session.permissions.handlePendingPermissionRequest",
                                 Map.of("sessionId", sessionId, "requestId", requestId, "result", result), Object.class);
                     } catch (Exception e) {
@@ -868,6 +874,67 @@ public final class CopilotSession implements AutoCloseable {
     }
 
     /**
+     * Registers transform callbacks for system message sections.
+     * <p>
+     * Called internally when creating or resuming a session with
+     * {@link com.github.copilot.sdk.SystemMessageMode#CUSTOMIZE} and transform
+     * callbacks.
+     *
+     * @param callbacks
+     *            the transform callbacks keyed by section identifier; {@code null}
+     *            clears any previously registered callbacks
+     */
+    void registerTransformCallbacks(
+            Map<String, java.util.function.Function<String, CompletableFuture<String>>> callbacks) {
+        this.transformCallbacks = callbacks;
+    }
+
+    /**
+     * Handles a {@code systemMessage.transform} RPC call from the Copilot CLI.
+     * <p>
+     * The CLI sends section content; the SDK invokes the registered transform
+     * callbacks and returns the transformed sections.
+     *
+     * @param sections
+     *            JSON node containing sections keyed by section identifier
+     * @return a future resolving with a map of transformed sections
+     */
+    CompletableFuture<Map<String, Object>> handleSystemMessageTransform(JsonNode sections) {
+        var callbacks = this.transformCallbacks;
+        var result = new java.util.LinkedHashMap<String, Object>();
+        var futures = new ArrayList<CompletableFuture<Void>>();
+
+        if (sections != null && sections.isObject()) {
+            sections.fields().forEachRemaining(entry -> {
+                String sectionId = entry.getKey();
+                String content = entry.getValue().has("content") ? entry.getValue().get("content").asText("") : "";
+
+                java.util.function.Function<String, CompletableFuture<String>> cb = callbacks != null
+                        ? callbacks.get(sectionId)
+                        : null;
+
+                if (cb != null) {
+                    CompletableFuture<Void> f = cb.apply(content).exceptionally(ex -> content)
+                            .thenAccept(transformed -> {
+                                synchronized (result) {
+                                    result.put(sectionId, Map.of("content", transformed != null ? transformed : ""));
+                                }
+                            });
+                    futures.add(f);
+                } else {
+                    result.put(sectionId, Map.of("content", content));
+                }
+            });
+        }
+
+        return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).thenApply(v -> {
+            Map<String, Object> response = new java.util.LinkedHashMap<>();
+            response.put("sections", result);
+            return response;
+        });
+    }
+
+    /**
      * Handles a hook invocation from the Copilot CLI.
      * <p>
      * Called internally when the server invokes a hook.
@@ -983,6 +1050,38 @@ public final class CopilotSession implements AutoCloseable {
     }
 
     /**
+     * Changes the model for this session with an optional reasoning effort level.
+     * <p>
+     * The new model takes effect for the next message. Conversation history is
+     * preserved.
+     *
+     * <pre>{@code
+     * session.setModel("gpt-4.1").get();
+     * session.setModel("claude-sonnet-4.6", "high").get();
+     * }</pre>
+     *
+     * @param model
+     *            the model ID to switch to (e.g., {@code "gpt-4.1"})
+     * @param reasoningEffort
+     *            reasoning effort level (e.g., {@code "low"}, {@code "medium"},
+     *            {@code "high"}, {@code "xhigh"}); {@code null} to use default
+     * @return a future that completes when the model switch is acknowledged
+     * @throws IllegalStateException
+     *             if this session has been terminated
+     * @since 1.2.0
+     */
+    public CompletableFuture<Void> setModel(String model, String reasoningEffort) {
+        ensureNotTerminated();
+        var params = new java.util.HashMap<String, Object>();
+        params.put("sessionId", sessionId);
+        params.put("modelId", model);
+        if (reasoningEffort != null) {
+            params.put("reasoningEffort", reasoningEffort);
+        }
+        return rpc.invoke("session.model.switchTo", params, Void.class);
+    }
+
+    /**
      * Changes the model for this session.
      * <p>
      * The new model takes effect for the next message. Conversation history is
@@ -1000,8 +1099,56 @@ public final class CopilotSession implements AutoCloseable {
      * @since 1.0.11
      */
     public CompletableFuture<Void> setModel(String model) {
+        return setModel(model, null);
+    }
+
+    /**
+     * Logs a message to the session timeline.
+     * <p>
+     * The message appears in the session event stream and is visible to SDK
+     * consumers. Non-ephemeral messages are also persisted to the session event log
+     * on disk.
+     *
+     * <h2>Example Usage</h2>
+     *
+     * <pre>{@code
+     * session.log("Build completed successfully").get();
+     * session.log("Disk space low", "warning", null).get();
+     * session.log("Temporary status", null, true).get();
+     * session.log("Details at link", "info", null, "https://example.com").get();
+     * }</pre>
+     *
+     * @param message
+     *            the message to log
+     * @param level
+     *            the log severity level ({@code "info"}, {@code "warning"},
+     *            {@code "error"}), or {@code null} to use the default
+     *            ({@code "info"})
+     * @param ephemeral
+     *            when {@code true}, the message is transient and not persisted to
+     *            disk; {@code null} uses default behavior
+     * @param url
+     *            optional URL to associate with the log entry; {@code null} to omit
+     * @return a future that completes when the message is logged
+     * @throws IllegalStateException
+     *             if this session has been terminated
+     * @since 1.2.0
+     */
+    public CompletableFuture<Void> log(String message, String level, Boolean ephemeral, String url) {
         ensureNotTerminated();
-        return rpc.invoke("session.model.switchTo", Map.of("sessionId", sessionId, "modelId", model), Void.class);
+        var params = new java.util.HashMap<String, Object>();
+        params.put("sessionId", sessionId);
+        params.put("message", message);
+        if (level != null) {
+            params.put("level", level);
+        }
+        if (ephemeral != null) {
+            params.put("ephemeral", ephemeral);
+        }
+        if (url != null) {
+            params.put("url", url);
+        }
+        return rpc.invoke("session.log", params, Void.class);
     }
 
     /**
@@ -1033,17 +1180,7 @@ public final class CopilotSession implements AutoCloseable {
      *             if this session has been terminated
      */
     public CompletableFuture<Void> log(String message, String level, Boolean ephemeral) {
-        ensureNotTerminated();
-        var params = new java.util.HashMap<String, Object>();
-        params.put("sessionId", sessionId);
-        params.put("message", message);
-        if (level != null) {
-            params.put("level", level);
-        }
-        if (ephemeral != null) {
-            params.put("ephemeral", ephemeral);
-        }
-        return rpc.invoke("session.log", params, Void.class);
+        return log(message, level, ephemeral, null);
     }
 
     /**

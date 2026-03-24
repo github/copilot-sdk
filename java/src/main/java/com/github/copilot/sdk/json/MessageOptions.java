@@ -25,6 +25,15 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * session.send(options).get();
  * }</pre>
  *
+ * <h2>Blob Attachment Example</h2>
+ *
+ * <pre>{@code
+ * var options = new MessageOptions().setPrompt("Describe this image").setAttachments(List.of(new BlobAttachment()
+ * 		.setData("iVBORw0KGgoAAAANSUhEUg...").setMimeType("image/png").setDisplayName("screenshot.png")));
+ *
+ * session.send(options).get();
+ * }</pre>
+ *
  * @see com.github.copilot.sdk.CopilotSession#send(MessageOptions)
  * @since 1.0.0
  */
@@ -32,7 +41,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 public class MessageOptions {
 
     private String prompt;
-    private List<Attachment> attachments;
+    private List<Object> attachments;
     private String mode;
 
     /**
@@ -57,27 +66,33 @@ public class MessageOptions {
     }
 
     /**
-     * Gets the file attachments.
+     * Gets the attachments.
      *
      * @return the list of attachments
      */
-    public List<Attachment> getAttachments() {
+    public List<Object> getAttachments() {
         return attachments == null ? null : Collections.unmodifiableList(attachments);
     }
 
     /**
-     * Sets file attachments to include with the message.
+     * Sets attachments to include with the message.
      * <p>
-     * Attachments provide additional context to the assistant, such as source code
-     * files, documents, or other relevant files.
+     * Attachments provide additional context to the assistant. Supported types:
+     * <ul>
+     * <li>{@link Attachment} — file, directory, code selection, or GitHub
+     * reference</li>
+     * <li>{@link BlobAttachment} — inline base64-encoded binary data (e.g. images)
+     * </li>
+     * </ul>
      *
      * @param attachments
-     *            the list of file attachments
+     *            the list of attachments
      * @return this options instance for method chaining
      * @see Attachment
+     * @see BlobAttachment
      */
-    public MessageOptions setAttachments(List<Attachment> attachments) {
-        this.attachments = attachments;
+    public MessageOptions setAttachments(List<?> attachments) {
+        this.attachments = attachments != null ? new ArrayList<>(attachments) : null;
         return this;
     }
 

@@ -74,6 +74,8 @@ final class RpcHandlerDispatcher {
         rpc.registerMethodHandler("userInput.request",
                 (requestId, params) -> handleUserInputRequest(rpc, requestId, params));
         rpc.registerMethodHandler("hooks.invoke", (requestId, params) -> handleHooksInvoke(rpc, requestId, params));
+        rpc.registerMethodHandler("systemMessage.transform",
+                (requestId, params) -> handleSystemMessageTransform(rpc, requestId, params));
     }
 
     private void handleSessionEvent(JsonNode params) {
@@ -191,6 +193,11 @@ final class RpcHandlerDispatcher {
 
                 session.handlePermissionRequest(permissionRequest).thenAccept(result -> {
                     try {
+                        if (PermissionRequestResultKind.NO_RESULT.equals(result.getKind())) {
+                            // Handler explicitly abstains — do not send a response,
+                            // allowing another client to handle the request.
+                            return;
+                        }
                         rpc.sendResponse(Long.parseLong(requestId), Map.of("result", result));
                     } catch (IOException e) {
                         LOG.log(Level.SEVERE, "Error sending permission result", e);
@@ -309,5 +316,37 @@ final class RpcHandlerDispatcher {
     interface LifecycleEventDispatcher {
 
         void dispatch(SessionLifecycleEvent event);
+    }
+
+    private void handleSystemMessageTransform(JsonRpcClient rpc, String requestId, JsonNode params) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                String sessionId = params.has("sessionId") ? params.get("sessionId").asText() : null;
+                JsonNode sections = params.get("sections");
+
+                CopilotSession session = sessionId != null ? sessions.get(sessionId) : null;
+                if (session == null) {
+                    rpc.sendErrorResponse(Long.parseLong(requestId), -32602, "Unknown session " + sessionId);
+                    return;
+                }
+
+                session.handleSystemMessageTransform(sections).thenAccept(result -> {
+                    try {
+                        rpc.sendResponse(Long.parseLong(requestId), result);
+                    } catch (IOException e) {
+                        LOG.log(Level.SEVERE, "Error sending systemMessage.transform response", e);
+                    }
+                }).exceptionally(ex -> {
+                    try {
+                        rpc.sendErrorResponse(Long.parseLong(requestId), -32603, "Transform error: " + ex.getMessage());
+                    } catch (IOException e) {
+                        LOG.log(Level.SEVERE, "Error sending transform error response", e);
+                    }
+                    return null;
+                });
+            } catch (Exception e) {
+                LOG.log(Level.SEVERE, "Error handling systemMessage.transform", e);
+            }
+        });
     }
 }

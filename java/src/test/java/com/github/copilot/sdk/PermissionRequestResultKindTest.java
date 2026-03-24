@@ -28,6 +28,7 @@ public class PermissionRequestResultKindTest {
                 PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER.getValue());
         assertEquals("denied-interactively-by-user",
                 PermissionRequestResultKind.DENIED_INTERACTIVELY_BY_USER.getValue());
+        assertEquals("no-result", PermissionRequestResultKind.NO_RESULT.getValue());
     }
 
     @Test
@@ -113,7 +114,7 @@ public class PermissionRequestResultKindTest {
         PermissionRequestResultKind[] kinds = {PermissionRequestResultKind.APPROVED,
                 PermissionRequestResultKind.DENIED_BY_RULES,
                 PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER,
-                PermissionRequestResultKind.DENIED_INTERACTIVELY_BY_USER,};
+                PermissionRequestResultKind.DENIED_INTERACTIVELY_BY_USER, PermissionRequestResultKind.NO_RESULT,};
         for (PermissionRequestResultKind kind : kinds) {
             var result = new PermissionRequestResult().setKind(kind);
             String json = mapper.writeValueAsString(result);

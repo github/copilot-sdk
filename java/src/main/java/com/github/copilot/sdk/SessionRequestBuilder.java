@@ -4,10 +4,18 @@
 
 package com.github.copilot.sdk;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
+
 import com.github.copilot.sdk.json.CreateSessionRequest;
 import com.github.copilot.sdk.json.ResumeSessionConfig;
 import com.github.copilot.sdk.json.ResumeSessionRequest;
+import com.github.copilot.sdk.json.SectionOverride;
+import com.github.copilot.sdk.json.SectionOverrideAction;
 import com.github.copilot.sdk.json.SessionConfig;
+import com.github.copilot.sdk.json.SystemMessageConfig;
 
 /**
  * Builds JSON-RPC request objects from session configuration.
@@ -20,6 +28,58 @@ final class SessionRequestBuilder {
 
     private SessionRequestBuilder() {
         // Utility class
+    }
+
+    /**
+     * Extracts transform callbacks from a {@link SystemMessageConfig} and returns a
+     * wire-safe copy of the config alongside the extracted callbacks.
+     * <p>
+     * When the system message mode is {@link SystemMessageMode#CUSTOMIZE} and some
+     * sections have {@link SectionOverride#getTransform() transform} callbacks set,
+     * this method:
+     * <ol>
+     * <li>Removes the callbacks from the wire config (they must not be
+     * serialized).</li>
+     * <li>Replaces each transform section with
+     * {@link SectionOverrideAction#TRANSFORM} in the wire config.</li>
+     * <li>Returns the callbacks so they can be registered with the session.</li>
+     * </ol>
+     *
+     * @param systemMessage
+     *            the system message config, may be {@code null}
+     * @return a two-element array: {@code [wireConfig, callbacks]}; either may be
+     *         {@code null} if not applicable
+     */
+    static Object[] extractTransformCallbacks(SystemMessageConfig systemMessage) {
+        if (systemMessage == null || systemMessage.getMode() != SystemMessageMode.CUSTOMIZE
+                || systemMessage.getSections() == null) {
+            return new Object[]{systemMessage, null};
+        }
+
+        Map<String, Function<String, CompletableFuture<String>>> callbacks = new HashMap<>();
+        Map<String, SectionOverride> wireSections = new HashMap<>();
+
+        for (Map.Entry<String, SectionOverride> entry : systemMessage.getSections().entrySet()) {
+            String sectionId = entry.getKey();
+            SectionOverride override = entry.getValue();
+
+            if (override.getTransform() != null) {
+                callbacks.put(sectionId, override.getTransform());
+                wireSections.put(sectionId, new SectionOverride().setAction(SectionOverrideAction.TRANSFORM));
+            } else {
+                wireSections.put(sectionId, override);
+            }
+        }
+
+        if (callbacks.isEmpty()) {
+            return new Object[]{systemMessage, null};
+        }
+
+        // Build a wire-safe copy of the system message with callbacks removed
+        var wireConfig = new SystemMessageConfig().setMode(systemMessage.getMode())
+                .setContent(systemMessage.getContent()).setSections(wireSections);
+
+        return new Object[]{wireConfig, callbacks};
     }
 
     /**
