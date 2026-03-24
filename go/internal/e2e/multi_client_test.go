@@ -16,11 +16,8 @@ import (
 func TestMultiClient(t *testing.T) {
 	// Use TCP mode so a second client can connect to the same CLI process
 	ctx := testharness.NewTestContext(t)
-	client1 := copilot.NewClient(&copilot.ClientOptions{
-		CLIPath:  ctx.CLIPath,
-		Cwd:      ctx.WorkDir,
-		Env:      ctx.Env(),
-		UseStdio: copilot.Bool(false),
+	client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {
+		opts.UseStdio = copilot.Bool(false)
 	})
 	t.Cleanup(func() { client1.ForceStop() })
 

@@ -158,7 +158,8 @@ func (c *TestContext) Env() []string {
 }
 
 // NewClient creates a CopilotClient configured for this test context.
-func (c *TestContext) NewClient() *copilot.Client {
+// Optional overrides can be applied to the default ClientOptions via the opts function.
+func (c *TestContext) NewClient(opts ...func(*copilot.ClientOptions)) *copilot.Client {
 	options := &copilot.ClientOptions{
 		CLIPath: c.CLIPath,
 		Cwd:     c.WorkDir,
@@ -168,6 +169,10 @@ func (c *TestContext) NewClient() *copilot.Client {
 	// Use fake token in CI to allow cached responses without real auth
 	if os.Getenv("GITHUB_ACTIONS") == "true" {
 		options.GitHubToken = "fake-token-for-e2e-tests"
+	}
+
+	for _, opt := range opts {
+		opt(options)
 	}
 
 	return copilot.NewClient(options)

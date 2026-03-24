@@ -214,9 +214,15 @@ func (c *Client) Request(method string, params any) (json.RawMessage, error) {
 		}
 	}
 
-	paramsData, err := json.Marshal(params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal params: %w", err)
+	var paramsData json.RawMessage
+	if params == nil {
+		paramsData = json.RawMessage("{}")
+	} else {
+		var err error
+		paramsData, err = json.Marshal(params)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal params: %w", err)
+		}
 	}
 
 	// Send request
@@ -224,7 +230,7 @@ func (c *Client) Request(method string, params any) (json.RawMessage, error) {
 		JSONRPC: "2.0",
 		ID:      json.RawMessage(`"` + requestID + `"`),
 		Method:  method,
-		Params:  json.RawMessage(paramsData),
+		Params:  paramsData,
 	}
 
 	if err := c.sendMessage(request); err != nil {
@@ -261,15 +267,19 @@ func (c *Client) Request(method string, params any) (json.RawMessage, error) {
 
 // Notify sends a JSON-RPC notification (no response expected)
 func (c *Client) Notify(method string, params any) error {
-	paramsData, err := json.Marshal(params)
-	if err != nil {
-		return fmt.Errorf("failed to marshal params: %w", err)
+	var paramsData json.RawMessage
+	if params != nil {
+		var err error
+		paramsData, err = json.Marshal(params)
+		if err != nil {
+			return fmt.Errorf("failed to marshal params: %w", err)
+		}
 	}
 
 	notification := Request{
 		JSONRPC: "2.0",
 		Method:  method,
-		Params:  json.RawMessage(paramsData),
+		Params:  paramsData,
 	}
 	return c.sendMessage(notification)
 }
