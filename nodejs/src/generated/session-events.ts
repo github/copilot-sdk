@@ -2124,6 +2124,10 @@ export type SessionEvent =
          * Version of the plugin this skill originated from, when applicable
          */
         pluginVersion?: string;
+        /**
+         * Description of the skill from its SKILL.md frontmatter
+         */
+        description?: string;
       };
     }
   | {
@@ -2200,6 +2204,22 @@ export type SessionEvent =
          * Human-readable display name of the sub-agent
          */
         agentDisplayName: string;
+        /**
+         * Model used by the sub-agent
+         */
+        model?: string;
+        /**
+         * Total number of tool calls made by the sub-agent
+         */
+        totalToolCalls?: number;
+        /**
+         * Total tokens (input + output) consumed by the sub-agent
+         */
+        totalTokens?: number;
+        /**
+         * Wall-clock duration of the sub-agent execution in milliseconds
+         */
+        durationMs?: number;
       };
     }
   | {
@@ -2240,6 +2260,22 @@ export type SessionEvent =
          * Error message describing why the sub-agent failed
          */
         error: string;
+        /**
+         * Model used by the sub-agent (if any model calls succeeded before failure)
+         */
+        model?: string;
+        /**
+         * Total number of tool calls made before the sub-agent failed
+         */
+        totalToolCalls?: number;
+        /**
+         * Total tokens (input + output) consumed before the sub-agent failed
+         */
+        totalTokens?: number;
+        /**
+         * Wall-clock duration of the sub-agent execution in milliseconds
+         */
+        durationMs?: number;
       };
     }
   | {
@@ -3398,6 +3434,69 @@ export type SessionEvent =
            */
           path?: string;
         }[];
+      };
+    }
+  | {
+      /**
+       * Unique event identifier (UUID v4), generated when the event is emitted
+       */
+      id: string;
+      /**
+       * ISO 8601 timestamp when the event was created
+       */
+      timestamp: string;
+      /**
+       * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+       */
+      parentId: string | null;
+      ephemeral: true;
+      type: "session.custom_agents_updated";
+      data: {
+        /**
+         * Array of loaded custom agent metadata
+         */
+        agents: {
+          /**
+           * Unique identifier for the agent
+           */
+          id: string;
+          /**
+           * Internal name of the agent
+           */
+          name: string;
+          /**
+           * Human-readable display name
+           */
+          displayName: string;
+          /**
+           * Description of what the agent does
+           */
+          description: string;
+          /**
+           * Source location: user, project, inherited, remote, or plugin
+           */
+          source: string;
+          /**
+           * List of tool names available to this agent
+           */
+          tools: string[];
+          /**
+           * Whether the agent can be selected by the user
+           */
+          userInvocable: boolean;
+          /**
+           * Model override for this agent, if set
+           */
+          model?: string;
+        }[];
+        /**
+         * Non-fatal warnings from agent loading
+         */
+        warnings: string[];
+        /**
+         * Fatal errors from agent loading
+         */
+        errors: string[];
       };
     }
   | {
