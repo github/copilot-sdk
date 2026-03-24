@@ -321,24 +321,32 @@ final class RpcHandlerDispatcher {
     private void handleSystemMessageTransform(JsonRpcClient rpc, String requestId, JsonNode params) {
         CompletableFuture.runAsync(() -> {
             try {
+                final long requestIdLong;
+                try {
+                    requestIdLong = Long.parseLong(requestId);
+                } catch (NumberFormatException nfe) {
+                    LOG.log(Level.SEVERE, "Invalid requestId for systemMessage.transform: " + requestId, nfe);
+                    return;
+                }
+
                 String sessionId = params.has("sessionId") ? params.get("sessionId").asText() : null;
                 JsonNode sections = params.get("sections");
 
                 CopilotSession session = sessionId != null ? sessions.get(sessionId) : null;
                 if (session == null) {
-                    rpc.sendErrorResponse(Long.parseLong(requestId), -32602, "Unknown session " + sessionId);
+                    rpc.sendErrorResponse(requestIdLong, -32602, "Unknown session " + sessionId);
                     return;
                 }
 
                 session.handleSystemMessageTransform(sections).thenAccept(result -> {
                     try {
-                        rpc.sendResponse(Long.parseLong(requestId), result);
+                        rpc.sendResponse(requestIdLong, result);
                     } catch (IOException e) {
                         LOG.log(Level.SEVERE, "Error sending systemMessage.transform response", e);
                     }
                 }).exceptionally(ex -> {
                     try {
-                        rpc.sendErrorResponse(Long.parseLong(requestId), -32603, "Transform error: " + ex.getMessage());
+                        rpc.sendErrorResponse(requestIdLong, -32603, "Transform error: " + ex.getMessage());
                     } catch (IOException e) {
                         LOG.log(Level.SEVERE, "Error sending transform error response", e);
                     }
