@@ -213,11 +213,12 @@ class TestOverridesBuiltInTool:
             )
 
             captured = {}
-            original_request = client._client.request
 
             async def mock_request(method, params):
                 captured[method] = params
-                return await original_request(method, params)
+                # Return a fake response instead of calling the real CLI,
+                # which would fail without auth credentials.
+                return {"sessionId": params["sessionId"]}
 
             client._client.request = mock_request
 
