@@ -202,8 +202,7 @@ func TestSessionRpc(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
-
-		if err := session.SetModel(t.Context(), "gpt-4.1", copilot.SetModelOptions{ReasoningEffort: "high"}); err != nil {
+		if err := session.SetModel(t.Context(), "gpt-4.1", &copilot.SetModelOptions{ReasoningEffort: copilot.String("high")}); err != nil {
 			t.Fatalf("SetModel returned error: %v", err)
 		}
 	})
