@@ -710,7 +710,7 @@ public final class CopilotSession implements AutoCloseable {
                 invocation.setSessionId(sessionId);
                 handler.handle(permissionRequest, invocation).thenAccept(result -> {
                     try {
-                        PermissionRequestResultKind kind = PermissionRequestResultKind.valueOf(result.getKind());
+                        PermissionRequestResultKind kind = new PermissionRequestResultKind(result.getKind());
                         if (PermissionRequestResultKind.NO_RESULT.equals(kind)) {
                             // Handler explicitly abstains — leave the request unanswered
                             // so another client can handle it.
