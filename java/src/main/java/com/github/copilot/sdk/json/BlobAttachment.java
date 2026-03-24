@@ -26,7 +26,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @since 1.2.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class BlobAttachment {
+public final class BlobAttachment implements MessageAttachment {
 
     @JsonProperty("type")
     private final String type = "blob";

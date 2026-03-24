@@ -41,7 +41,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 public class MessageOptions {
 
     private String prompt;
-    private List<Object> attachments;
+    private List<MessageAttachment> attachments;
     private String mode;
 
     /**
@@ -70,7 +70,7 @@ public class MessageOptions {
      *
      * @return the list of attachments
      */
-    public List<Object> getAttachments() {
+    public List<MessageAttachment> getAttachments() {
         return attachments == null ? null : Collections.unmodifiableList(attachments);
     }
 
@@ -91,7 +91,7 @@ public class MessageOptions {
      * @see Attachment
      * @see BlobAttachment
      */
-    public MessageOptions setAttachments(List<?> attachments) {
+    public MessageOptions setAttachments(List<? extends MessageAttachment> attachments) {
         this.attachments = attachments != null ? new ArrayList<>(attachments) : null;
         return this;
     }
