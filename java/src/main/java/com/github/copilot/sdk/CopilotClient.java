@@ -336,17 +336,14 @@ public final class CopilotClient implements AutoCloseable {
             // Callbacks are registered with the session; a wire-safe copy of the
             // system message (with transform sections replaced by action="transform")
             // is used in the RPC request.
-            Object[] extracted = SessionRequestBuilder.extractTransformCallbacks(config.getSystemMessage());
-            var wireSystemMessage = (com.github.copilot.sdk.json.SystemMessageConfig) extracted[0];
-            @SuppressWarnings("unchecked")
-            var transformCallbacks = (java.util.Map<String, java.util.function.Function<String, java.util.concurrent.CompletableFuture<String>>>) extracted[1];
-            if (transformCallbacks != null) {
-                session.registerTransformCallbacks(transformCallbacks);
+            var extracted = SessionRequestBuilder.extractTransformCallbacks(config.getSystemMessage());
+            if (extracted.transformCallbacks() != null) {
+                session.registerTransformCallbacks(extracted.transformCallbacks());
             }
 
             var request = SessionRequestBuilder.buildCreateRequest(config, sessionId);
-            if (wireSystemMessage != config.getSystemMessage()) {
-                request.setSystemMessage(wireSystemMessage);
+            if (extracted.wireSystemMessage() != config.getSystemMessage()) {
+                request.setSystemMessage(extracted.wireSystemMessage());
             }
 
             return connection.rpc.invoke("session.create", request, CreateSessionResponse.class).thenApply(response -> {
@@ -406,17 +403,14 @@ public final class CopilotClient implements AutoCloseable {
             sessions.put(sessionId, session);
 
             // Extract transform callbacks from the system message config.
-            Object[] extracted = SessionRequestBuilder.extractTransformCallbacks(config.getSystemMessage());
-            var wireSystemMessage = (com.github.copilot.sdk.json.SystemMessageConfig) extracted[0];
-            @SuppressWarnings("unchecked")
-            var transformCallbacks = (java.util.Map<String, java.util.function.Function<String, java.util.concurrent.CompletableFuture<String>>>) extracted[1];
-            if (transformCallbacks != null) {
-                session.registerTransformCallbacks(transformCallbacks);
+            var extracted = SessionRequestBuilder.extractTransformCallbacks(config.getSystemMessage());
+            if (extracted.transformCallbacks() != null) {
+                session.registerTransformCallbacks(extracted.transformCallbacks());
             }
 
             var request = SessionRequestBuilder.buildResumeRequest(sessionId, config);
-            if (wireSystemMessage != config.getSystemMessage()) {
-                request.setSystemMessage(wireSystemMessage);
+            if (extracted.wireSystemMessage() != config.getSystemMessage()) {
+                request.setSystemMessage(extracted.wireSystemMessage());
             }
 
             return connection.rpc.invoke("session.resume", request, ResumeSessionResponse.class).thenApply(response -> {

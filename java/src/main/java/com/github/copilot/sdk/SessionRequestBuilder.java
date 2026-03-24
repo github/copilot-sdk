@@ -47,13 +47,13 @@ final class SessionRequestBuilder {
      *
      * @param systemMessage
      *            the system message config, may be {@code null}
-     * @return a two-element array: {@code [wireConfig, callbacks]}; either may be
-     *         {@code null} if not applicable
+     * @return an {@link ExtractedTransforms} containing the wire-safe config and
+     *         any extracted callbacks
      */
-    static Object[] extractTransformCallbacks(SystemMessageConfig systemMessage) {
+    static ExtractedTransforms extractTransformCallbacks(SystemMessageConfig systemMessage) {
         if (systemMessage == null || systemMessage.getMode() != SystemMessageMode.CUSTOMIZE
                 || systemMessage.getSections() == null) {
-            return new Object[]{systemMessage, null};
+            return new ExtractedTransforms(systemMessage, null);
         }
 
         Map<String, Function<String, CompletableFuture<String>>> callbacks = new HashMap<>();
@@ -72,14 +72,14 @@ final class SessionRequestBuilder {
         }
 
         if (callbacks.isEmpty()) {
-            return new Object[]{systemMessage, null};
+            return new ExtractedTransforms(systemMessage, null);
         }
 
         // Build a wire-safe copy of the system message with callbacks removed
         var wireConfig = new SystemMessageConfig().setMode(systemMessage.getMode())
                 .setContent(systemMessage.getContent()).setSections(wireSections);
 
-        return new Object[]{wireConfig, callbacks};
+        return new ExtractedTransforms(wireConfig, callbacks);
     }
 
     /**
