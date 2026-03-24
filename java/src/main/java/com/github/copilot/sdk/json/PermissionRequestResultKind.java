@@ -58,6 +58,11 @@ public final class PermissionRequestResultKind {
      * cannot or chooses not to handle a given permission request, it can return
      * {@code NO_RESULT} to leave the request unanswered, allowing another client to
      * handle it.
+     * <p>
+     * <strong>Warning:</strong> This kind is only valid with protocol v3 servers
+     * (broadcast permission model). When connected to a protocol v2 server, the SDK
+     * will throw {@link IllegalStateException} because v2 expects exactly one
+     * response per permission request.
      */
     public static final PermissionRequestResultKind NO_RESULT = new PermissionRequestResultKind("no-result");
 

@@ -194,9 +194,11 @@ final class RpcHandlerDispatcher {
                 session.handlePermissionRequest(permissionRequest).thenAccept(result -> {
                     try {
                         if (PermissionRequestResultKind.NO_RESULT.getValue().equalsIgnoreCase(result.getKind())) {
-                            // Handler explicitly abstains — do not send a response,
-                            // allowing another client to handle the request.
-                            return;
+                            // Protocol v2 does not support NO_RESULT — the server
+                            // expects exactly one response per request, so abstaining
+                            // would leave it hanging.
+                            throw new IllegalStateException(
+                                    "Permission handlers cannot return 'no-result' when connected to a protocol v2 server.");
                         }
                         rpc.sendResponse(Long.parseLong(requestId), Map.of("result", result));
                     } catch (IOException e) {
