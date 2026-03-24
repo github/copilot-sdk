@@ -49,6 +49,7 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(SessionCompactionCompleteEvent), "session.compaction_complete")]
 [JsonDerivedType(typeof(SessionCompactionStartEvent), "session.compaction_start")]
 [JsonDerivedType(typeof(SessionContextChangedEvent), "session.context_changed")]
+[JsonDerivedType(typeof(SessionCustomAgentsUpdatedEvent), "session.custom_agents_updated")]
 [JsonDerivedType(typeof(SessionErrorEvent), "session.error")]
 [JsonDerivedType(typeof(SessionExtensionsLoadedEvent), "session.extensions_loaded")]
 [JsonDerivedType(typeof(SessionHandoffEvent), "session.handoff")]
@@ -978,6 +979,18 @@ public partial class SessionSkillsLoadedEvent : SessionEvent
     public required SessionSkillsLoadedData Data { get; set; }
 }
 
+/// <summary>Represents the <c>session.custom_agents_updated</c> event.</summary>
+public partial class SessionCustomAgentsUpdatedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.custom_agents_updated";
+
+    /// <summary>The <c>session.custom_agents_updated</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionCustomAgentsUpdatedData Data { get; set; }
+}
+
 /// <summary>Represents the <c>session.mcp_servers_loaded</c> event.</summary>
 public partial class SessionMcpServersLoadedEvent : SessionEvent
 {
@@ -1258,6 +1271,11 @@ public partial class SessionHandoffData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("remoteSessionId")]
     public string? RemoteSessionId { get; set; }
+
+    /// <summary>GitHub host URL for the source session (e.g., https://github.com or https://tenant.ghe.com).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("host")]
+    public string? Host { get; set; }
 }
 
 /// <summary>Conversation truncation statistics including token counts and removed content metrics.</summary>
@@ -1949,6 +1967,11 @@ public partial class SkillInvokedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("pluginVersion")]
     public string? PluginVersion { get; set; }
+
+    /// <summary>Description of the skill from its SKILL.md frontmatter.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
 }
 
 /// <summary>Sub-agent startup details including parent tool call and agent information.</summary>
@@ -1985,6 +2008,26 @@ public partial class SubagentCompletedData
     /// <summary>Human-readable display name of the sub-agent.</summary>
     [JsonPropertyName("agentDisplayName")]
     public required string AgentDisplayName { get; set; }
+
+    /// <summary>Model used by the sub-agent.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
+    /// <summary>Total number of tool calls made by the sub-agent.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("totalToolCalls")]
+    public double? TotalToolCalls { get; set; }
+
+    /// <summary>Total tokens (input + output) consumed by the sub-agent.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("totalTokens")]
+    public double? TotalTokens { get; set; }
+
+    /// <summary>Wall-clock duration of the sub-agent execution in milliseconds.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("durationMs")]
+    public double? DurationMs { get; set; }
 }
 
 /// <summary>Sub-agent failure details including error message and agent information.</summary>
@@ -2005,6 +2048,26 @@ public partial class SubagentFailedData
     /// <summary>Error message describing why the sub-agent failed.</summary>
     [JsonPropertyName("error")]
     public required string Error { get; set; }
+
+    /// <summary>Model used by the sub-agent (if any model calls succeeded before failure).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
+    /// <summary>Total number of tool calls made before the sub-agent failed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("totalToolCalls")]
+    public double? TotalToolCalls { get; set; }
+
+    /// <summary>Total tokens (input + output) consumed before the sub-agent failed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("totalTokens")]
+    public double? TotalTokens { get; set; }
+
+    /// <summary>Wall-clock duration of the sub-agent execution in milliseconds.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("durationMs")]
+    public double? DurationMs { get; set; }
 }
 
 /// <summary>Custom agent selection details including name and available tools.</summary>
@@ -2380,6 +2443,22 @@ public partial class SessionSkillsLoadedData
     /// <summary>Array of resolved skill metadata.</summary>
     [JsonPropertyName("skills")]
     public required SessionSkillsLoadedDataSkillsItem[] Skills { get; set; }
+}
+
+/// <summary>Event payload for <see cref="SessionCustomAgentsUpdatedEvent"/>.</summary>
+public partial class SessionCustomAgentsUpdatedData
+{
+    /// <summary>Array of loaded custom agent metadata.</summary>
+    [JsonPropertyName("agents")]
+    public required SessionCustomAgentsUpdatedDataAgentsItem[] Agents { get; set; }
+
+    /// <summary>Non-fatal warnings from agent loading.</summary>
+    [JsonPropertyName("warnings")]
+    public required string[] Warnings { get; set; }
+
+    /// <summary>Fatal errors from agent loading.</summary>
+    [JsonPropertyName("errors")]
+    public required string[] Errors { get; set; }
 }
 
 /// <summary>Event payload for <see cref="SessionMcpServersLoadedEvent"/>.</summary>
@@ -3536,6 +3615,43 @@ public partial class SessionSkillsLoadedDataSkillsItem
     public string? Path { get; set; }
 }
 
+/// <summary>Nested data type for <c>SessionCustomAgentsUpdatedDataAgentsItem</c>.</summary>
+public partial class SessionCustomAgentsUpdatedDataAgentsItem
+{
+    /// <summary>Unique identifier for the agent.</summary>
+    [JsonPropertyName("id")]
+    public required string Id { get; set; }
+
+    /// <summary>Internal name of the agent.</summary>
+    [JsonPropertyName("name")]
+    public required string Name { get; set; }
+
+    /// <summary>Human-readable display name.</summary>
+    [JsonPropertyName("displayName")]
+    public required string DisplayName { get; set; }
+
+    /// <summary>Description of what the agent does.</summary>
+    [JsonPropertyName("description")]
+    public required string Description { get; set; }
+
+    /// <summary>Source location: user, project, inherited, remote, or plugin.</summary>
+    [JsonPropertyName("source")]
+    public required string Source { get; set; }
+
+    /// <summary>List of tool names available to this agent.</summary>
+    [JsonPropertyName("tools")]
+    public required string[] Tools { get; set; }
+
+    /// <summary>Whether the agent can be selected by the user.</summary>
+    [JsonPropertyName("userInvocable")]
+    public required bool UserInvocable { get; set; }
+
+    /// <summary>Model override for this agent, if set.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+}
+
 /// <summary>Nested data type for <c>SessionMcpServersLoadedDataServersItem</c>.</summary>
 public partial class SessionMcpServersLoadedDataServersItem
 {
@@ -3893,6 +4009,9 @@ public enum SessionExtensionsLoadedDataExtensionsItemStatus
 [JsonSerializable(typeof(SessionCompactionStartEvent))]
 [JsonSerializable(typeof(SessionContextChangedData))]
 [JsonSerializable(typeof(SessionContextChangedEvent))]
+[JsonSerializable(typeof(SessionCustomAgentsUpdatedData))]
+[JsonSerializable(typeof(SessionCustomAgentsUpdatedDataAgentsItem))]
+[JsonSerializable(typeof(SessionCustomAgentsUpdatedEvent))]
 [JsonSerializable(typeof(SessionErrorData))]
 [JsonSerializable(typeof(SessionErrorEvent))]
 [JsonSerializable(typeof(SessionEvent))]

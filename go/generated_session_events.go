@@ -392,6 +392,9 @@ type Data struct {
 	Path *string `json:"path,omitempty"`
 	// ISO 8601 timestamp when the handoff occurred
 	HandoffTime *time.Time `json:"handoffTime,omitempty"`
+	// GitHub host URL for the source session (e.g., https://github.com or
+	// https://tenant.ghe.com)
+	Host *string `json:"host,omitempty"`
 	// Session ID of the remote session being handed off
 	RemoteSessionID *string `json:"remoteSessionId,omitempty"`
 	// Repository context for the handed-off session
@@ -654,6 +657,10 @@ type Data struct {
 	// Model identifier used for this API call
 	//
 	// Model identifier that generated this tool call
+	//
+	// Model used by the sub-agent
+	//
+	// Model used by the sub-agent (if any model calls succeeded before failure)
 	Model *string `json:"model,omitempty"`
 	// Per-quota resource usage snapshots, keyed by quota identifier
 	QuotaSnapshots map[string]QuotaSnapshot `json:"quotaSnapshots,omitempty"`
@@ -707,6 +714,8 @@ type Data struct {
 	ToolTelemetry map[string]interface{} `json:"toolTelemetry,omitempty"`
 	// Tool names that should be auto-approved when this skill is active
 	AllowedTools []string `json:"allowedTools,omitempty"`
+	// Description of the skill from its SKILL.md frontmatter
+	Description *string `json:"description,omitempty"`
 	// Name of the invoked skill
 	//
 	// Optional name identifier for the message source
@@ -725,6 +734,16 @@ type Data struct {
 	//
 	// Internal name of the selected custom agent
 	AgentName *string `json:"agentName,omitempty"`
+	// Wall-clock duration of the sub-agent execution in milliseconds
+	DurationMS *float64 `json:"durationMs,omitempty"`
+	// Total tokens (input + output) consumed by the sub-agent
+	//
+	// Total tokens (input + output) consumed before the sub-agent failed
+	TotalTokens *float64 `json:"totalTokens,omitempty"`
+	// Total number of tool calls made by the sub-agent
+	//
+	// Total number of tool calls made before the sub-agent failed
+	TotalToolCalls *float64 `json:"totalToolCalls,omitempty"`
 	// List of tool names available to this agent, or null for all tools
 	Tools []string `json:"tools"`
 	// Unique identifier for this hook invocation
@@ -790,12 +809,37 @@ type Data struct {
 	RecommendedAction *string `json:"recommendedAction,omitempty"`
 	// Array of resolved skill metadata
 	Skills []Skill `json:"skills,omitempty"`
+	// Array of loaded custom agent metadata
+	Agents []DataAgent `json:"agents,omitempty"`
+	// Fatal errors from agent loading
+	Errors []string `json:"errors,omitempty"`
+	// Non-fatal warnings from agent loading
+	Warnings []string `json:"warnings,omitempty"`
 	// Array of MCP server status summaries
 	Servers []Server `json:"servers,omitempty"`
 	// New connection status: connected, failed, pending, disabled, or not_configured
 	Status *ServerStatus `json:"status,omitempty"`
 	// Array of discovered extensions and their status
 	Extensions []Extension `json:"extensions,omitempty"`
+}
+
+type DataAgent struct {
+	// Description of what the agent does
+	Description string `json:"description"`
+	// Human-readable display name
+	DisplayName string `json:"displayName"`
+	// Unique identifier for the agent
+	ID string `json:"id"`
+	// Model override for this agent, if set
+	Model *string `json:"model,omitempty"`
+	// Internal name of the agent
+	Name string `json:"name"`
+	// Source location: user, project, inherited, remote, or plugin
+	Source string `json:"source"`
+	// List of tool names available to this agent
+	Tools []string `json:"tools"`
+	// Whether the agent can be selected by the user
+	UserInvocable bool `json:"userInvocable"`
 }
 
 // A user message attachment — a file, directory, code selection, blob, or GitHub reference
@@ -879,13 +923,13 @@ type Start struct {
 // Background tasks still running when the agent became idle
 type BackgroundTasks struct {
 	// Currently running background agents
-	Agents []Agent `json:"agents"`
+	Agents []BackgroundTasksAgent `json:"agents"`
 	// Currently running background shell commands
 	Shells []Shell `json:"shells"`
 }
 
 // A background agent task
-type Agent struct {
+type BackgroundTasksAgent struct {
 	// Unique identifier of the background agent
 	AgentID string `json:"agentId"`
 	// Type of the background agent
@@ -1550,6 +1594,7 @@ const (
 	SessionEventTypeSessionCompactionComplete     SessionEventType = "session.compaction_complete"
 	SessionEventTypeSessionCompactionStart        SessionEventType = "session.compaction_start"
 	SessionEventTypeSessionContextChanged         SessionEventType = "session.context_changed"
+	SessionEventTypeSessionCustomAgentsUpdated    SessionEventType = "session.custom_agents_updated"
 	SessionEventTypeSessionError                  SessionEventType = "session.error"
 	SessionEventTypeSessionExtensionsLoaded       SessionEventType = "session.extensions_loaded"
 	SessionEventTypeSessionHandoff                SessionEventType = "session.handoff"

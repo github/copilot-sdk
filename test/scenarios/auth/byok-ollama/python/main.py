@@ -1,7 +1,8 @@
 import asyncio
 import os
 import sys
-from copilot import CopilotClient, PermissionHandler, SubprocessConfig
+from copilot import CopilotClient
+from copilot.client import SubprocessConfig
 
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2:3b")
@@ -17,19 +18,18 @@ async def main():
     ))
 
     try:
-        session = await client.create_session(
-            on_permission_request=PermissionHandler.approve_all,
-            model=OLLAMA_MODEL,
-            provider={
+        session = await client.create_session({
+            "model": OLLAMA_MODEL,
+            "provider": {
                 "type": "openai",
                 "base_url": OLLAMA_BASE_URL,
             },
-            available_tools=[],
-            system_message={
+            "available_tools": [],
+            "system_message": {
                 "mode": "replace",
                 "content": COMPACT_SYSTEM_PROMPT,
             },
-        )
+        })
 
         response = await session.send_and_wait(
             "What is the capital of France?"

@@ -2,8 +2,10 @@
 
 import pytest
 
-from copilot import CopilotClient, PermissionHandler, SubprocessConfig
+from copilot import CopilotClient
+from copilot.client import SubprocessConfig
 from copilot.generated.rpc import PingParams
+from copilot.session import PermissionHandler
 
 from .testharness import CLI_PATH, E2ETestContext
 

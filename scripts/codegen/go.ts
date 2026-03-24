@@ -8,16 +8,16 @@
 
 import { execFile } from "child_process";
 import fs from "fs/promises";
-import { promisify } from "util";
 import type { JSONSchema7 } from "json-schema";
 import { FetchingJSONSchemaStore, InputData, JSONSchemaInput, quicktype } from "quicktype-core";
+import { promisify } from "util";
 import {
-    getSessionEventsSchemaPath,
     getApiSchemaPath,
+    getSessionEventsSchemaPath,
+    isNodeFullyExperimental,
+    isRpcMethod,
     postProcessSchema,
     writeGeneratedFile,
-    isRpcMethod,
-    isNodeFullyExperimental,
     type ApiSchema,
     type RpcMethod,
 } from "./utils.js";
@@ -261,6 +261,8 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     }
     // Remove trailing blank lines from quicktype output before appending
     qtCode = qtCode.replace(/\n+$/, "");
+    // Replace interface{} with any (quicktype emits the pre-1.18 form)
+    qtCode = qtCode.replace(/\binterface\{\}/g, "any");
 
     // Build method wrappers
     const lines: string[] = [];
@@ -301,9 +303,17 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     const topLevelMethods = Object.entries(node).filter(([, v]) => isRpcMethod(v));
 
     const wrapperName = isSession ? "SessionRpc" : "ServerRpc";
-    const apiSuffix = "RpcApi";
+    const apiSuffix = "Api";
+    const serviceName = isSession ? "sessionApi" : "serverApi";
 
-    // Emit API structs for groups
+    // Emit the common service struct (unexported, shared by all API groups via type cast)
+    lines.push(`type ${serviceName} struct {`);
+    lines.push(`\tclient *jsonrpc2.Client`);
+    if (isSession) lines.push(`\tsessionID string`);
+    lines.push(`}`);
+    lines.push(``);
+
+    // Emit API types for groups
     for (const [groupName, groupNode] of groups) {
         const prefix = isSession ? "" : "Server";
         const apiName = prefix + toPascalCase(groupName) + apiSuffix;
@@ -311,14 +321,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
         if (groupExperimental) {
             lines.push(`// Experimental: ${apiName} contains experimental APIs that may change or be removed.`);
         }
-        lines.push(`type ${apiName} struct {`);
-        if (isSession) {
-            lines.push(`\tclient    *jsonrpc2.Client`);
-            lines.push(`\tsessionID string`);
-        } else {
-            lines.push(`\tclient *jsonrpc2.Client`);
-        }
-        lines.push(`}`);
+        lines.push(`type ${apiName} ${serviceName}`);
         lines.push(``);
         for (const [key, value] of Object.entries(groupNode as Record<string, unknown>)) {
             if (!isRpcMethod(value)) continue;
@@ -328,15 +331,15 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
 
     // Compute field name lengths for gofmt-compatible column alignment
     const groupPascalNames = groups.map(([g]) => toPascalCase(g));
-    const allFieldNames = isSession ? ["client", "sessionID", ...groupPascalNames] : ["client", ...groupPascalNames];
+    const allFieldNames = isSession ? ["common", ...groupPascalNames] : ["common", ...groupPascalNames];
     const maxFieldLen = Math.max(...allFieldNames.map((n) => n.length));
     const pad = (name: string) => name.padEnd(maxFieldLen);
 
     // Emit wrapper struct
     lines.push(`// ${wrapperName} provides typed ${isSession ? "session" : "server"}-scoped RPC methods.`);
     lines.push(`type ${wrapperName} struct {`);
-    lines.push(`\t${pad("client")} *jsonrpc2.Client`);
-    if (isSession) lines.push(`\t${pad("sessionID")} string`);
+    lines.push(`\t${pad("common")} ${serviceName} // Reuse a single struct instead of allocating one for each service on the heap.`);
+    lines.push(``);
     for (const [groupName] of groups) {
         const prefix = isSession ? "" : "Server";
         lines.push(`\t${pad(toPascalCase(groupName))} *${prefix}${toPascalCase(groupName)}${apiSuffix}`);
@@ -344,34 +347,31 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     lines.push(`}`);
     lines.push(``);
 
-    // Top-level methods (server only)
+    // Top-level methods on the wrapper use the common service fields
     for (const [key, value] of topLevelMethods) {
         if (!isRpcMethod(value)) continue;
-        emitMethod(lines, wrapperName, key, value, isSession, resolveType, fieldNames, false);
+        emitMethod(lines, wrapperName, key, value, isSession, resolveType, fieldNames, false, true);
     }
-
-    // Compute key alignment for constructor composite literal (gofmt aligns key: value)
-    const maxKeyLen = Math.max(...groupPascalNames.map((n) => n.length + 1)); // +1 for colon
-    const padKey = (name: string) => (name + ":").padEnd(maxKeyLen + 1); // +1 for min trailing space
 
     // Constructor
     const ctorParams = isSession ? "client *jsonrpc2.Client, sessionID string" : "client *jsonrpc2.Client";
-    const ctorFields = isSession ? "client: client, sessionID: sessionID," : "client: client,";
     lines.push(`func New${wrapperName}(${ctorParams}) *${wrapperName} {`);
-    lines.push(`\treturn &${wrapperName}{${ctorFields}`);
+    lines.push(`\tr := &${wrapperName}{}`);
+    if (isSession) {
+        lines.push(`\tr.common = ${serviceName}{client: client, sessionID: sessionID}`);
+    } else {
+        lines.push(`\tr.common = ${serviceName}{client: client}`);
+    }
     for (const [groupName] of groups) {
         const prefix = isSession ? "" : "Server";
-        const apiInit = isSession
-            ? `&${toPascalCase(groupName)}${apiSuffix}{client: client, sessionID: sessionID}`
-            : `&${prefix}${toPascalCase(groupName)}${apiSuffix}{client: client}`;
-        lines.push(`\t\t${padKey(toPascalCase(groupName))}${apiInit},`);
+        lines.push(`\tr.${toPascalCase(groupName)} = (*${prefix}${toPascalCase(groupName)}${apiSuffix})(&r.common)`);
     }
-    lines.push(`\t}`);
+    lines.push(`\treturn r`);
     lines.push(`}`);
     lines.push(``);
 }
 
-function emitMethod(lines: string[], receiver: string, name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, fieldNames: Map<string, Map<string, string>>, groupExperimental = false): void {
+function emitMethod(lines: string[], receiver: string, name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, fieldNames: Map<string, Map<string, string>>, groupExperimental = false, isWrapper = false): void {
     const methodName = toPascalCase(name);
     const resultType = resolveType(toPascalCase(method.rpcMethod) + "Result");
 
@@ -380,6 +380,10 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
     const nonSessionParams = Object.keys(paramProps).filter((k) => k !== "sessionId");
     const hasParams = isSession ? nonSessionParams.length > 0 : Object.keys(paramProps).length > 0;
     const paramsType = hasParams ? resolveType(toPascalCase(method.rpcMethod) + "Params") : "";
+
+    // For wrapper-level methods, access fields through a.common; for service type aliases, use a directly
+    const clientRef = isWrapper ? "a.common.client" : "a.client";
+    const sessionIDRef = isWrapper ? "a.common.sessionID" : "a.sessionID";
 
     if (method.stability === "experimental" && !groupExperimental) {
         lines.push(`// Experimental: ${methodName} is an experimental API and may change or be removed in future versions.`);
@@ -391,7 +395,7 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
     lines.push(sig + ` {`);
 
     if (isSession) {
-        lines.push(`\treq := map[string]interface{}{"sessionId": a.sessionID}`);
+        lines.push(`\treq := map[string]any{"sessionId": ${sessionIDRef}}`);
         if (hasParams) {
             lines.push(`\tif params != nil {`);
             for (const pName of nonSessionParams) {
@@ -408,10 +412,10 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
             }
             lines.push(`\t}`);
         }
-        lines.push(`\traw, err := a.client.Request("${method.rpcMethod}", req)`);
+        lines.push(`\traw, err := ${clientRef}.Request("${method.rpcMethod}", req)`);
     } else {
-        const arg = hasParams ? "params" : "map[string]interface{}{}";
-        lines.push(`\traw, err := a.client.Request("${method.rpcMethod}", ${arg})`);
+        const arg = hasParams ? "params" : "nil";
+        lines.push(`\traw, err := ${clientRef}.Request("${method.rpcMethod}", ${arg})`);
     }
 
     lines.push(`\tif err != nil {`);

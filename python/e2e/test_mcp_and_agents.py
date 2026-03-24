@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from copilot import CustomAgentConfig, MCPServerConfig, PermissionHandler
+from copilot.session import CustomAgentConfig, MCPServerConfig, PermissionHandler
 
 from .testharness import E2ETestContext, get_final_assistant_message
 

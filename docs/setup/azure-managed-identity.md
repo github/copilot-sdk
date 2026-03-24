@@ -42,7 +42,8 @@ import asyncio
 import os
 
 from azure.identity import DefaultAzureCredential
-from copilot import CopilotClient, PermissionHandler
+from copilot import CopilotClient
+from copilot.session import ProviderConfig, SessionConfig
 
 COGNITIVE_SERVICES_SCOPE = "https://cognitiveservices.azure.com/.default"
 
@@ -58,14 +59,15 @@ async def main():
     await client.start()
 
     session = await client.create_session(
-        on_permission_request=PermissionHandler.approve_all,
-        model="gpt-4.1",
-        provider={
-            "type": "openai",
-            "base_url": f"{foundry_url.rstrip('/')}/openai/v1/",
-            "bearer_token": token,  # Short-lived bearer token
-            "wire_api": "responses",
-        },
+        SessionConfig(
+            model="gpt-4.1",
+            provider=ProviderConfig(
+                type="openai",
+                base_url=f"{foundry_url.rstrip('/')}/openai/v1/",
+                bearer_token=token,  # Short-lived bearer token
+                wire_api="responses",
+            ),
+        )
     )
 
     response = await session.send_and_wait({"prompt": "Hello from Managed Identity!"})
@@ -83,7 +85,8 @@ Bearer tokens expire (typically after ~1 hour). For servers or long-running agen
 
 ```python
 from azure.identity import DefaultAzureCredential
-from copilot import CopilotClient, PermissionHandler
+from copilot import CopilotClient
+from copilot.session import ProviderConfig, SessionConfig
 
 COGNITIVE_SERVICES_SCOPE = "https://cognitiveservices.azure.com/.default"
 
@@ -97,21 +100,24 @@ class ManagedIdentityCopilotAgent:
         self.credential = DefaultAzureCredential()
         self.client = CopilotClient()
 
-    def _get_provider_config(self) -> dict:
-        """Build a provider config dict with a fresh bearer token."""
+    def _get_session_config(self) -> SessionConfig:
+        """Build a SessionConfig with a fresh bearer token."""
         token = self.credential.get_token(COGNITIVE_SERVICES_SCOPE).token
-        return {
-            "type": "openai",
-            "base_url": f"{self.foundry_url}/openai/v1/",
-            "bearer_token": token,
-            "wire_api": "responses",
-        }
+        return SessionConfig(
+            model=self.model,
+            provider=ProviderConfig(
+                type="openai",
+                base_url=f"{self.foundry_url}/openai/v1/",
+                bearer_token=token,
+                wire_api="responses",
+            ),
+        )
 
     async def chat(self, prompt: str) -> str:
         """Send a prompt and return the response text."""
         # Fresh token for each session
-        provider = self._get_provider_config()
-        session = await self.client.create_session(on_permission_request=PermissionHandler.approve_all, model=self.model, provider=provider)
+        config = self._get_session_config()
+        session = await self.client.create_session(config)
 
         response = await session.send_and_wait({"prompt": prompt})
         await session.disconnect()

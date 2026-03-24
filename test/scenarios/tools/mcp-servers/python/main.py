@@ -1,6 +1,7 @@
 import asyncio
 import os
-from copilot import CopilotClient, PermissionHandler, SubprocessConfig
+from copilot import CopilotClient
+from copilot.client import SubprocessConfig
 
 
 async def main():
@@ -22,7 +23,8 @@ async def main():
                 "args": args,
             }
 
-        session_kwargs = {
+        session_config = {
+            "model": "claude-haiku-4.5",
             "available_tools": [],
             "system_message": {
                 "mode": "replace",
@@ -30,11 +32,9 @@ async def main():
             },
         }
         if mcp_servers:
-            session_kwargs["mcp_servers"] = mcp_servers
+            session_config["mcp_servers"] = mcp_servers
 
-        session = await client.create_session(
-            on_permission_request=PermissionHandler.approve_all, model="claude-haiku-4.5", **session_kwargs
-        )
+        session = await client.create_session(session_config)
 
         response = await session.send_and_wait(
             "What is the capital of France?"

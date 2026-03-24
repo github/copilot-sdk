@@ -261,6 +261,205 @@ export function defineTool<T = unknown>(
     return { name, ...config };
 }
 
+// ============================================================================
+// Commands
+// ============================================================================
+
+/**
+ * Context passed to a command handler when a command is executed.
+ */
+export interface CommandContext {
+    /** Session ID where the command was invoked */
+    sessionId: string;
+    /** The full command text (e.g. "/deploy production") */
+    command: string;
+    /** Command name without leading / */
+    commandName: string;
+    /** Raw argument string after the command name */
+    args: string;
+}
+
+/**
+ * Handler invoked when a registered command is executed by a user.
+ */
+export type CommandHandler = (context: CommandContext) => Promise<void> | void;
+
+/**
+ * Definition of a slash command registered with the session.
+ * When the CLI is running with a TUI, registered commands appear as
+ * `/commandName` for the user to invoke.
+ */
+export interface CommandDefinition {
+    /** Command name (without leading /). */
+    name: string;
+    /** Human-readable description shown in command completion UI. */
+    description?: string;
+    /** Handler invoked when the command is executed. */
+    handler: CommandHandler;
+}
+
+// ============================================================================
+// UI Elicitation
+// ============================================================================
+
+/**
+ * Capabilities reported by the CLI host for this session.
+ */
+export interface SessionCapabilities {
+    ui?: {
+        /** Whether the host supports interactive elicitation dialogs. */
+        elicitation?: boolean;
+    };
+}
+
+/**
+ * A single field in an elicitation schema — matches the MCP SDK's
+ * `PrimitiveSchemaDefinition` union.
+ */
+export type ElicitationSchemaField =
+    | {
+          type: "string";
+          title?: string;
+          description?: string;
+          enum: string[];
+          enumNames?: string[];
+          default?: string;
+      }
+    | {
+          type: "string";
+          title?: string;
+          description?: string;
+          oneOf: { const: string; title: string }[];
+          default?: string;
+      }
+    | {
+          type: "array";
+          title?: string;
+          description?: string;
+          minItems?: number;
+          maxItems?: number;
+          items: { type: "string"; enum: string[] };
+          default?: string[];
+      }
+    | {
+          type: "array";
+          title?: string;
+          description?: string;
+          minItems?: number;
+          maxItems?: number;
+          items: { anyOf: { const: string; title: string }[] };
+          default?: string[];
+      }
+    | {
+          type: "boolean";
+          title?: string;
+          description?: string;
+          default?: boolean;
+      }
+    | {
+          type: "string";
+          title?: string;
+          description?: string;
+          minLength?: number;
+          maxLength?: number;
+          format?: "email" | "uri" | "date" | "date-time";
+          default?: string;
+      }
+    | {
+          type: "number" | "integer";
+          title?: string;
+          description?: string;
+          minimum?: number;
+          maximum?: number;
+          default?: number;
+      };
+
+/**
+ * Schema describing the form fields for an elicitation request.
+ */
+export interface ElicitationSchema {
+    type: "object";
+    properties: Record<string, ElicitationSchemaField>;
+    required?: string[];
+}
+
+/**
+ * Primitive field value in an elicitation result.
+ * Matches MCP SDK's `ElicitResult.content` value type.
+ */
+export type ElicitationFieldValue = string | number | boolean | string[];
+
+/**
+ * Result returned from an elicitation request.
+ */
+export interface ElicitationResult {
+    /** User action: "accept" (submitted), "decline" (rejected), or "cancel" (dismissed). */
+    action: "accept" | "decline" | "cancel";
+    /** Form values submitted by the user (present when action is "accept"). */
+    content?: Record<string, ElicitationFieldValue>;
+}
+
+/**
+ * Parameters for a raw elicitation request.
+ */
+export interface ElicitationParams {
+    /** Message describing what information is needed from the user. */
+    message: string;
+    /** JSON Schema describing the form fields to present. */
+    requestedSchema: ElicitationSchema;
+}
+
+/**
+ * Options for the `input()` convenience method.
+ */
+export interface InputOptions {
+    /** Title label for the input field. */
+    title?: string;
+    /** Descriptive text shown below the field. */
+    description?: string;
+    /** Minimum character length. */
+    minLength?: number;
+    /** Maximum character length. */
+    maxLength?: number;
+    /** Semantic format hint. */
+    format?: "email" | "uri" | "date" | "date-time";
+    /** Default value pre-populated in the field. */
+    default?: string;
+}
+
+/**
+ * The `session.ui` API object providing interactive UI methods.
+ * Only usable when the CLI host supports elicitation.
+ */
+export interface SessionUiApi {
+    /**
+     * Shows a generic elicitation dialog with a custom schema.
+     * @throws Error if the host does not support elicitation.
+     */
+    elicitation(params: ElicitationParams): Promise<ElicitationResult>;
+
+    /**
+     * Shows a confirmation dialog and returns the user's boolean answer.
+     * Returns `false` if the user declines or cancels.
+     * @throws Error if the host does not support elicitation.
+     */
+    confirm(message: string): Promise<boolean>;
+
+    /**
+     * Shows a selection dialog with the given options.
+     * Returns the selected value, or `null` if the user declines/cancels.
+     * @throws Error if the host does not support elicitation.
+     */
+    select(message: string, options: string[]): Promise<string | null>;
+
+    /**
+     * Shows a text input dialog.
+     * Returns the entered text, or `null` if the user declines/cancels.
+     * @throws Error if the host does not support elicitation.
+     */
+    input(message: string, options?: InputOptions): Promise<string | null>;
+}
+
 export interface ToolCallRequestPayload {
     sessionId: string;
     toolCallId: string;
@@ -841,6 +1040,13 @@ export interface SessionConfig {
     tools?: Tool<any>[];
 
     /**
+     * Slash commands registered for this session.
+     * When the CLI has a TUI, each command appears as `/name` for the user to invoke.
+     * The handler is called when the user executes the command.
+     */
+    commands?: CommandDefinition[];
+
+    /**
      * System message configuration
      * Controls how the system prompt is constructed
      */
@@ -952,6 +1158,7 @@ export type ResumeSessionConfig = Pick<
     | "clientName"
     | "model"
     | "tools"
+    | "commands"
     | "systemMessage"
     | "availableTools"
     | "excludedTools"

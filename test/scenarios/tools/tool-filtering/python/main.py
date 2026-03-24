@@ -1,6 +1,7 @@
 import asyncio
 import os
-from copilot import CopilotClient, PermissionHandler, SubprocessConfig
+from copilot import CopilotClient
+from copilot.client import SubprocessConfig
 
 SYSTEM_PROMPT = """You are a helpful assistant. You have access to a limited set of tools. When asked about your tools, list exactly which tools you have available."""
 
@@ -13,10 +14,11 @@ async def main():
 
     try:
         session = await client.create_session(
-            on_permission_request=PermissionHandler.approve_all,
-            model="claude-haiku-4.5",
-            system_message={"mode": "replace", "content": SYSTEM_PROMPT},
-            available_tools=["grep", "glob", "view"],
+            {
+                "model": "claude-haiku-4.5",
+                "system_message": {"mode": "replace", "content": SYSTEM_PROMPT},
+                "available_tools": ["grep", "glob", "view"],
+            }
         )
 
         response = await session.send_and_wait(
