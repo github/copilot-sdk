@@ -193,7 +193,7 @@ final class RpcHandlerDispatcher {
 
                 session.handlePermissionRequest(permissionRequest).thenAccept(result -> {
                     try {
-                        if (PermissionRequestResultKind.NO_RESULT.name().equals(result.getKind())) {
+                        if (PermissionRequestResultKind.NO_RESULT.getValue().equals(result.getKind())) {
                             // Handler explicitly abstains — do not send a response,
                             // allowing another client to handle the request.
                             return;
