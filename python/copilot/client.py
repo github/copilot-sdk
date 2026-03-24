@@ -1252,7 +1252,7 @@ class CopilotClient:
 
         # Create and register the session before issuing the RPC so that
         # events emitted by the CLI (e.g. session.start) are not dropped.
-        session = CopilotSession(actual_session_id, self._client, None)
+        session = CopilotSession(actual_session_id, self._client, workspace_path=None)
         session._register_tools(tools)
         session._register_permission_handler(on_permission_request)
         if on_user_input_request:
@@ -1456,7 +1456,7 @@ class CopilotClient:
 
         # Create and register the session before issuing the RPC so that
         # events emitted by the CLI (e.g. session.start) are not dropped.
-        session = CopilotSession(session_id, self._client, None)
+        session = CopilotSession(session_id, self._client, workspace_path=None)
         session._register_tools(tools)
         session._register_permission_handler(on_permission_request)
         if on_user_input_request:
