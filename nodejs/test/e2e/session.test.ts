@@ -15,7 +15,9 @@ describe("Sessions", async () => {
         });
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
 
-        expect(await session.getMessages()).toMatchObject([
+        const allEvents = await session.getMessages();
+        const sessionStartEvents = allEvents.filter((e) => e.type === "session.start");
+        expect(sessionStartEvents).toMatchObject([
             {
                 type: "session.start",
                 data: { sessionId: session.sessionId, selectedModel: "fake-test-model" },

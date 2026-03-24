@@ -308,6 +308,22 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           }
         }
 
+        // Beyond this point, we're only going to be able to supply responses in CI if we have a snapshot,
+        // and we only store snapshots for chat completion. For anything else (e.g., custom-agents fetches),
+        // return 404 so the CLI treats them as unavailable instead of erroring.
+        if (options.requestOptions.path !== chatCompletionEndpoint) {
+          const headers = {
+            "content-type": "application/json",
+            "x-github-request-id": "proxy-not-found",
+          };
+          options.onResponseStart(404, headers);
+          options.onData(
+            Buffer.from(JSON.stringify({ error: "Not found by test proxy" })),
+          );
+          options.onResponseEnd();
+          return;
+        }
+
         // Fallback to normal proxying if no cached response found
         // This implicitly captures the new exchange too
         const isCI = process.env.GITHUB_ACTIONS === "true";
