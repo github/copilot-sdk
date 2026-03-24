@@ -1078,14 +1078,7 @@ export class CopilotClient {
             }>;
         };
 
-        return sessions.map((s) => ({
-            sessionId: s.sessionId,
-            startTime: new Date(s.startTime),
-            modifiedTime: new Date(s.modifiedTime),
-            summary: s.summary,
-            isRemote: s.isRemote,
-            context: s.context,
-        }));
+        return sessions.map(CopilotClient.toSessionMetadata);
     }
 
     /**
@@ -1127,13 +1120,24 @@ export class CopilotClient {
             return undefined;
         }
 
+        return CopilotClient.toSessionMetadata(session);
+    }
+
+    private static toSessionMetadata(raw: {
+        sessionId: string;
+        startTime: string;
+        modifiedTime: string;
+        summary?: string;
+        isRemote: boolean;
+        context?: SessionContext;
+    }): SessionMetadata {
         return {
-            sessionId: session.sessionId,
-            startTime: new Date(session.startTime),
-            modifiedTime: new Date(session.modifiedTime),
-            summary: session.summary,
-            isRemote: session.isRemote,
-            context: session.context,
+            sessionId: raw.sessionId,
+            startTime: new Date(raw.startTime),
+            modifiedTime: new Date(raw.modifiedTime),
+            summary: raw.summary,
+            isRemote: raw.isRemote,
+            context: raw.context,
         };
     }
 

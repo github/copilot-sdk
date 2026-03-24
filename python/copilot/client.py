@@ -1643,7 +1643,7 @@ class CopilotClient:
         sessions_data = response.get("sessions", [])
         return [SessionMetadata.from_dict(session) for session in sessions_data]
 
-    async def get_session_metadata(self, session_id: str) -> "SessionMetadata | None":
+    async def get_session_metadata(self, session_id: str) -> SessionMetadata | None:
         """
         Get metadata for a specific session by ID.
 
