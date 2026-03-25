@@ -309,7 +309,9 @@ export class CopilotClient {
         this.onGetTraceContext = options.onGetTraceContext;
 
         this.options = {
-            cliPath: options.cliUrl ? undefined : options.cliPath || getBundledCliPath(),
+            cliPath: options.cliUrl
+                ? undefined
+                : options.cliPath || process.env.COPILOT_CLI_PATH || getBundledCliPath(),
             cliArgs: options.cliArgs ?? [],
             cwd: options.cwd ?? process.cwd(),
             port: options.port || 0,

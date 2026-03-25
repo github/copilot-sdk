@@ -1,5 +1,8 @@
 import * as readline from "node:readline";
-import { CopilotClient, approveAll, type SessionEvent } from "@github/copilot-sdk";
+
+// Normally these should be imported from @github/copilot-sdk, but within this repo
+// we import from source to enable debugging into the SDK code.
+import { CopilotClient, approveAll, type SessionEvent } from "../src/index.js";
 
 async function main() {
     const client = new CopilotClient();
