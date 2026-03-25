@@ -125,7 +125,7 @@ CopilotClient(
 
 **SubprocessConfig** — spawn a local CLI process:
 
-- `cli_path` (str | None): Path to CLI executable (default: bundled binary)
+- `cli_path` (str | None): Path to CLI executable (default: `COPILOT_CLI_PATH` env var, or bundled binary)
 - `cli_args` (list[str]): Extra arguments for the CLI executable
 - `cwd` (str | None): Working directory for CLI process (default: current dir)
 - `use_stdio` (bool): Use stdio transport instead of TCP (default: True)

@@ -794,16 +794,21 @@ class CopilotClient:
         else:
             self._actual_port = None
 
-            # Resolve CLI path: explicit > bundled binary
+            # Resolve CLI path: explicit > COPILOT_CLI_PATH env var > bundled binary
+            effective_env = config.env if config.env is not None else os.environ
             if config.cli_path is None:
-                bundled_path = _get_bundled_cli_path()
-                if bundled_path:
-                    config.cli_path = bundled_path
+                env_cli_path = effective_env.get("COPILOT_CLI_PATH")
+                if env_cli_path:
+                    config.cli_path = env_cli_path
                 else:
-                    raise RuntimeError(
-                        "Copilot CLI not found. The bundled CLI binary is not available. "
-                        "Ensure you installed a platform-specific wheel, or provide cli_path."
-                    )
+                    bundled_path = _get_bundled_cli_path()
+                    if bundled_path:
+                        config.cli_path = bundled_path
+                    else:
+                        raise RuntimeError(
+                            "Copilot CLI not found. The bundled CLI binary is not available. "
+                            "Ensure you installed a platform-specific wheel, or provide cli_path."
+                        )
 
             # Resolve use_logged_in_user default
             if config.use_logged_in_user is None:
