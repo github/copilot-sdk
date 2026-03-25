@@ -8,7 +8,8 @@ public static class TestHelper
 {
     public static async Task<AssistantMessageEvent?> GetFinalAssistantMessageAsync(
         CopilotSession session,
-        TimeSpan? timeout = null)
+        TimeSpan? timeout = null,
+        bool alreadyIdle = false)
     {
         var tcs = new TaskCompletionSource<AssistantMessageEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(60));
@@ -42,7 +43,7 @@ public static class TestHelper
         {
             try
             {
-                var existing = await GetExistingFinalResponseAsync(session);
+                var existing = await GetExistingFinalResponseAsync(session, alreadyIdle);
                 if (existing != null) tcs.TrySetResult(existing);
             }
             catch (Exception ex)
@@ -52,7 +53,7 @@ public static class TestHelper
         }
     }
 
-    private static async Task<AssistantMessageEvent?> GetExistingFinalResponseAsync(CopilotSession session)
+    private static async Task<AssistantMessageEvent?> GetExistingFinalResponseAsync(CopilotSession session, bool alreadyIdle)
     {
         var messages = (await session.GetMessagesAsync()).ToList();
 
@@ -62,7 +63,7 @@ public static class TestHelper
         var error = currentTurn.OfType<SessionErrorEvent>().FirstOrDefault();
         if (error != null) throw new Exception(error.Data.Message ?? "session error");
 
-        var idleIdx = currentTurn.FindIndex(m => m is SessionIdleEvent);
+        var idleIdx = alreadyIdle ? currentTurn.Count : currentTurn.FindIndex(m => m is SessionIdleEvent);
         if (idleIdx == -1) return null;
 
         for (var i = idleIdx - 1; i >= 0; i--)

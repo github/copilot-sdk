@@ -329,6 +329,8 @@ type Data struct {
 	SessionID *string `json:"sessionId,omitempty"`
 	// ISO 8601 timestamp when the session was created
 	StartTime *time.Time `json:"startTime,omitempty"`
+	// Whether this session supports remote steering via Mission Control
+	Steerable *bool `json:"steerable,omitempty"`
 	// Schema version number for the session event format
 	Version *float64 `json:"version,omitempty"`
 	// Total number of persisted events in the session at the time of resume

@@ -5,12 +5,13 @@
 import { AssistantMessageEvent, CopilotSession, SessionEvent } from "../../../src";
 
 export async function getFinalAssistantMessage(
-    session: CopilotSession
+    session: CopilotSession,
+    { alreadyIdle = false }: { alreadyIdle?: boolean } = {}
 ): Promise<AssistantMessageEvent> {
     // We don't know whether the answer has already arrived or not, so race both possibilities
     return new Promise<AssistantMessageEvent>(async (resolve, reject) => {
         getFutureFinalResponse(session).then(resolve).catch(reject);
-        getExistingFinalResponse(session)
+        getExistingFinalResponse(session, alreadyIdle)
             .then((msg) => {
                 if (msg) {
                     resolve(msg);
@@ -21,7 +22,8 @@ export async function getFinalAssistantMessage(
 }
 
 function getExistingFinalResponse(
-    session: CopilotSession
+    session: CopilotSession,
+    alreadyIdle: boolean = false
 ): Promise<AssistantMessageEvent | undefined> {
     return new Promise<AssistantMessageEvent | undefined>(async (resolve, reject) => {
         const messages = await session.getMessages();
@@ -37,9 +39,9 @@ function getExistingFinalResponse(
             return;
         }
 
-        const sessionIdleMessageIndex = currentTurnMessages.findIndex(
-            (m) => m.type === "session.idle"
-        );
+        const sessionIdleMessageIndex = alreadyIdle
+            ? currentTurnMessages.length
+            : currentTurnMessages.findIndex((m) => m.type === "session.idle");
         if (sessionIdleMessageIndex !== -1) {
             const lastAssistantMessage = currentTurnMessages
                 .slice(0, sessionIdleMessageIndex)

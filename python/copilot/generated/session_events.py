@@ -1911,6 +1911,9 @@ class Data:
     start_time: datetime | None = None
     """ISO 8601 timestamp when the session was created"""
 
+    steerable: bool | None = None
+    """Whether this session supports remote steering via Mission Control"""
+
     version: float | None = None
     """Schema version number for the session event format"""
 
@@ -2567,6 +2570,7 @@ class Data:
         selected_model = from_union([from_str, from_none], obj.get("selectedModel"))
         session_id = from_union([from_str, from_none], obj.get("sessionId"))
         start_time = from_union([from_datetime, from_none], obj.get("startTime"))
+        steerable = from_union([from_bool, from_none], obj.get("steerable"))
         version = from_union([from_float, from_none], obj.get("version"))
         event_count = from_union([from_float, from_none], obj.get("eventCount"))
         resume_time = from_union([from_datetime, from_none], obj.get("resumeTime"))
@@ -2720,7 +2724,7 @@ class Data:
         servers = from_union([lambda x: from_list(Server.from_dict, x), from_none], obj.get("servers"))
         status = from_union([ServerStatus, from_none], obj.get("status"))
         extensions = from_union([lambda x: from_list(Extension.from_dict, x), from_none], obj.get("extensions"))
-        return Data(already_in_use, context, copilot_version, producer, reasoning_effort, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, url, background_tasks, title, info_type, warning_type, new_model, previous_model, previous_reasoning_effort, new_mode, previous_mode, operation, path, handoff_time, host, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, conversation_tokens, current_model, current_tokens, error_reason, model_metrics, session_start_time, shutdown_type, system_tokens, tool_definitions_tokens, total_api_duration_ms, total_premium_requests, base_commit, branch, cwd, git_root, head_commit, host_type, is_initial, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, interaction_id, source, transformed_content, turn_id, intent, reasoning_id, delta_content, total_response_size_bytes, encrypted_content, message_id, output_tokens, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, api_call_id, cache_read_tokens, cache_write_tokens, copilot_usage, cost, duration, initiator, input_tokens, model, quota_snapshots, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, description, name, plugin_name, plugin_version, agent_description, agent_display_name, agent_name, duration_ms, total_tokens, total_tool_calls, tools, hook_invocation_id, hook_type, input, output, metadata, role, kind, permission_request, allow_freeform, choices, question, elicitation_source, mode, requested_schema, server_name, server_url, static_client_config, traceparent, tracestate, command, args, command_name, commands, actions, plan_content, recommended_action, skills, agents, errors, warnings, servers, status, extensions)
+        return Data(already_in_use, context, copilot_version, producer, reasoning_effort, selected_model, session_id, start_time, steerable, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, url, background_tasks, title, info_type, warning_type, new_model, previous_model, previous_reasoning_effort, new_mode, previous_mode, operation, path, handoff_time, host, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, conversation_tokens, current_model, current_tokens, error_reason, model_metrics, session_start_time, shutdown_type, system_tokens, tool_definitions_tokens, total_api_duration_ms, total_premium_requests, base_commit, branch, cwd, git_root, head_commit, host_type, is_initial, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, interaction_id, source, transformed_content, turn_id, intent, reasoning_id, delta_content, total_response_size_bytes, encrypted_content, message_id, output_tokens, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, api_call_id, cache_read_tokens, cache_write_tokens, copilot_usage, cost, duration, initiator, input_tokens, model, quota_snapshots, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, description, name, plugin_name, plugin_version, agent_description, agent_display_name, agent_name, duration_ms, total_tokens, total_tool_calls, tools, hook_invocation_id, hook_type, input, output, metadata, role, kind, permission_request, allow_freeform, choices, question, elicitation_source, mode, requested_schema, server_name, server_url, static_client_config, traceparent, tracestate, command, args, command_name, commands, actions, plan_content, recommended_action, skills, agents, errors, warnings, servers, status, extensions)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -2740,6 +2744,8 @@ class Data:
             result["sessionId"] = from_union([from_str, from_none], self.session_id)
         if self.start_time is not None:
             result["startTime"] = from_union([lambda x: x.isoformat(), from_none], self.start_time)
+        if self.steerable is not None:
+            result["steerable"] = from_union([from_bool, from_none], self.steerable)
         if self.version is not None:
             result["version"] = from_union([to_float, from_none], self.version)
         if self.event_count is not None:
