@@ -230,19 +230,6 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
           return;
         }
 
-        // Handle custom-agents endpoints - return empty list in tests
-        if (options.requestOptions.path?.match(/\/agents\/.*\/custom-agents\//)) {
-          const body = JSON.stringify({ agents: [] });
-          const headers = {
-            "content-type": "application/json",
-            ...commonResponseHeaders,
-          };
-          options.onResponseStart(200, headers);
-          options.onData(Buffer.from(body));
-          options.onResponseEnd();
-          return;
-        }
-
         // Handle /chat/completions endpoint
         if (
           state.storedData &&
