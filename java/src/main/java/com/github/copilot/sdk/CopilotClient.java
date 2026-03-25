@@ -332,7 +332,19 @@ public final class CopilotClient implements AutoCloseable {
             SessionRequestBuilder.configureSession(session, config);
             sessions.put(sessionId, session);
 
+            // Extract transform callbacks from the system message config.
+            // Callbacks are registered with the session; a wire-safe copy of the
+            // system message (with transform sections replaced by action="transform")
+            // is used in the RPC request.
+            var extracted = SessionRequestBuilder.extractTransformCallbacks(config.getSystemMessage());
+            if (extracted.transformCallbacks() != null) {
+                session.registerTransformCallbacks(extracted.transformCallbacks());
+            }
+
             var request = SessionRequestBuilder.buildCreateRequest(config, sessionId);
+            if (extracted.wireSystemMessage() != config.getSystemMessage()) {
+                request.setSystemMessage(extracted.wireSystemMessage());
+            }
 
             return connection.rpc.invoke("session.create", request, CreateSessionResponse.class).thenApply(response -> {
                 session.setWorkspacePath(response.workspacePath());
@@ -390,7 +402,16 @@ public final class CopilotClient implements AutoCloseable {
             SessionRequestBuilder.configureSession(session, config);
             sessions.put(sessionId, session);
 
+            // Extract transform callbacks from the system message config.
+            var extracted = SessionRequestBuilder.extractTransformCallbacks(config.getSystemMessage());
+            if (extracted.transformCallbacks() != null) {
+                session.registerTransformCallbacks(extracted.transformCallbacks());
+            }
+
             var request = SessionRequestBuilder.buildResumeRequest(sessionId, config);
+            if (extracted.wireSystemMessage() != config.getSystemMessage()) {
+                request.setSystemMessage(extracted.wireSystemMessage());
+            }
 
             return connection.rpc.invoke("session.resume", request, ResumeSessionResponse.class).thenApply(response -> {
                 session.setWorkspacePath(response.workspacePath());

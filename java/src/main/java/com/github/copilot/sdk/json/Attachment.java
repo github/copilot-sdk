@@ -30,5 +30,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record Attachment(@JsonProperty("type") String type, @JsonProperty("path") String path,
-        @JsonProperty("displayName") String displayName) {
+        @JsonProperty("displayName") String displayName) implements MessageAttachment {
+
+    @Override
+    public String getType() {
+        return type;
+    }
 }

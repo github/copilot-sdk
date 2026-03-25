@@ -51,6 +51,21 @@ public final class PermissionRequestResultKind {
     public static final PermissionRequestResultKind DENIED_INTERACTIVELY_BY_USER = new PermissionRequestResultKind(
             "denied-interactively-by-user");
 
+    /**
+     * Leaves the pending permission request unanswered.
+     * <p>
+     * When the SDK is used as an extension and the extension's permission handler
+     * cannot or chooses not to handle a given permission request, it can return
+     * {@code NO_RESULT} to leave the request unanswered, allowing another client to
+     * handle it.
+     * <p>
+     * <strong>Warning:</strong> This kind is only valid with protocol v3 servers
+     * (broadcast permission model). When connected to a protocol v2 server, the SDK
+     * will throw {@link IllegalStateException} because v2 expects exactly one
+     * response per permission request.
+     */
+    public static final PermissionRequestResultKind NO_RESULT = new PermissionRequestResultKind("no-result");
+
     private final String value;
 
     /**

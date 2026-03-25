@@ -52,6 +52,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  *            when {@code true}, indicates that this tool intentionally
  *            overrides a built-in CLI tool with the same name; {@code null} or
  *            {@code false} means the tool is purely custom
+ * @param skipPermission
+ *            when {@code true}, the CLI skips the permission request for this
+ *            tool invocation; {@code null} or {@code false} uses normal
+ *            permission handling
  * @see SessionConfig#setTools(java.util.List)
  * @see ToolHandler
  * @since 1.0.0
@@ -59,7 +63,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("description") String description,
         @JsonProperty("parameters") Object parameters, @JsonIgnore ToolHandler handler,
-        @JsonProperty("overridesBuiltInTool") Boolean overridesBuiltInTool) {
+        @JsonProperty("overridesBuiltInTool") Boolean overridesBuiltInTool,
+        @JsonProperty("skipPermission") Boolean skipPermission) {
 
     /**
      * Creates a tool definition with a JSON schema for parameters.
@@ -79,7 +84,7 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      */
     public static ToolDefinition create(String name, String description, Map<String, Object> schema,
             ToolHandler handler) {
-        return new ToolDefinition(name, description, schema, handler, null);
+        return new ToolDefinition(name, description, schema, handler, null, null);
     }
 
     /**
@@ -103,6 +108,29 @@ public record ToolDefinition(@JsonProperty("name") String name, @JsonProperty("d
      */
     public static ToolDefinition createOverride(String name, String description, Map<String, Object> schema,
             ToolHandler handler) {
-        return new ToolDefinition(name, description, schema, handler, true);
+        return new ToolDefinition(name, description, schema, handler, true, null);
+    }
+
+    /**
+     * Creates a tool definition that skips the permission request.
+     * <p>
+     * Use this factory method when the tool is safe to invoke without user
+     * permission confirmation. Setting {@code skipPermission} to {@code true}
+     * signals to the CLI that no permission check is needed.
+     *
+     * @param name
+     *            the unique name of the tool
+     * @param description
+     *            a description of what the tool does
+     * @param schema
+     *            the JSON Schema as a {@code Map}
+     * @param handler
+     *            the handler function to execute when invoked
+     * @return a new tool definition with permission skipping enabled
+     * @since 1.2.0
+     */
+    public static ToolDefinition createSkipPermission(String name, String description, Map<String, Object> schema,
+            ToolHandler handler) {
+        return new ToolDefinition(name, description, schema, handler, null, true);
     }
 }

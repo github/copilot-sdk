@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.sdk.json.PermissionRequestResult;
+import com.github.copilot.sdk.json.PermissionRequestResultKind;
 import com.github.copilot.sdk.json.SessionEndHookOutput;
 import com.github.copilot.sdk.json.SessionHooks;
 import com.github.copilot.sdk.json.SessionStartHookOutput;
@@ -113,6 +114,26 @@ public class SessionHandlerTest {
         PermissionRequestResult result = session.handlePermissionRequest(data).get();
 
         assertEquals("allow", result.getKind());
+    }
+
+    // ===== handlePermissionRequest: handler returns NO_RESULT (v3 path) =====
+
+    @Test
+    void testHandlePermissionRequestNoResultPassesThrough() throws Exception {
+        session.registerPermissionHandler((request, invocation) -> {
+            var res = new PermissionRequestResult();
+            res.setKind(PermissionRequestResultKind.NO_RESULT);
+            return CompletableFuture.completedFuture(res);
+        });
+
+        JsonNode data = MAPPER.valueToTree(Map.of("tool", "read_file"));
+
+        PermissionRequestResult result = session.handlePermissionRequest(data).get();
+
+        // In v3, NO_RESULT is a valid response — the session just returns it
+        // and the caller (CopilotSession.executePermissionAndRespondAsync) decides
+        // to skip sending the RPC response.
+        assertEquals("no-result", result.getKind());
     }
 
     // ===== handleUserInputRequest: no handler registered =====

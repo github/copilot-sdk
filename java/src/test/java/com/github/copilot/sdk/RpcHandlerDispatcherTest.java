@@ -25,6 +25,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.copilot.sdk.json.PermissionRequestResult;
+import com.github.copilot.sdk.json.PermissionRequestResultKind;
 import com.github.copilot.sdk.json.PreToolUseHookOutput;
 import com.github.copilot.sdk.json.SessionHooks;
 import com.github.copilot.sdk.json.SessionLifecycleEvent;
@@ -337,6 +338,25 @@ class RpcHandlerDispatcherTest {
 
         JsonNode response = readResponse();
         // CopilotSession catches the exception and returns a denied result
+        JsonNode result = response.get("result").get("result");
+        assertEquals("denied-no-approval-rule-and-could-not-request-from-user", result.get("kind").asText());
+    }
+
+    @Test
+    void permissionRequestV2RejectsNoResult() throws Exception {
+        CopilotSession session = createSession("s1");
+        session.registerPermissionHandler((request, invocation) -> CompletableFuture
+                .completedFuture(new PermissionRequestResult().setKind(PermissionRequestResultKind.NO_RESULT)));
+
+        ObjectNode params = MAPPER.createObjectNode();
+        params.put("sessionId", "s1");
+        params.putObject("permissionRequest");
+
+        invokeHandler("permission.request", "13", params);
+
+        // V2 protocol does not support NO_RESULT — the handler should fall through
+        // to the exception path and respond with denied.
+        JsonNode response = readResponse();
         JsonNode result = response.get("result").get("result");
         assertEquals("denied-no-approval-rule-and-could-not-request-from-user", result.get("kind").asText());
     }

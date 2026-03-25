@@ -31,7 +31,7 @@ public final class SendMessageRequest {
     private String prompt;
 
     @JsonProperty("attachments")
-    private List<Attachment> attachments;
+    private List<MessageAttachment> attachments;
 
     @JsonProperty("mode")
     private String mode;
@@ -57,12 +57,12 @@ public final class SendMessageRequest {
     }
 
     /** Gets the attachments. @return the list of attachments */
-    public List<Attachment> getAttachments() {
+    public List<MessageAttachment> getAttachments() {
         return attachments == null ? null : Collections.unmodifiableList(attachments);
     }
 
     /** Sets the attachments. @param attachments the list of attachments */
-    public void setAttachments(List<Attachment> attachments) {
+    public void setAttachments(List<MessageAttachment> attachments) {
         this.attachments = attachments;
     }
 

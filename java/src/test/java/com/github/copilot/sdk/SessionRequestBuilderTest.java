@@ -251,4 +251,58 @@ public class SessionRequestBuilderTest {
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("session-id", config);
         assertEquals("my-agent", request.getAgent());
     }
+
+    // =========================================================================
+    // extractTransformCallbacks
+    // =========================================================================
+
+    @Test
+    void extractTransformCallbacks_nullSystemMessage_returnsNull() {
+        ExtractedTransforms result = SessionRequestBuilder.extractTransformCallbacks(null);
+        assertNull(result.wireSystemMessage());
+        assertNull(result.transformCallbacks());
+    }
+
+    @Test
+    void extractTransformCallbacks_appendMode_returnsOriginalConfig() {
+        var config = new com.github.copilot.sdk.json.SystemMessageConfig()
+                .setMode(com.github.copilot.sdk.SystemMessageMode.APPEND).setContent("extra content");
+        ExtractedTransforms result = SessionRequestBuilder.extractTransformCallbacks(config);
+        assertSame(config, result.wireSystemMessage());
+        assertNull(result.transformCallbacks());
+    }
+
+    @Test
+    void extractTransformCallbacks_customizeModeNoTransforms_returnsOriginalConfig() {
+        var sections = Map.of("tone", new com.github.copilot.sdk.json.SectionOverride()
+                .setAction(com.github.copilot.sdk.json.SectionOverrideAction.REMOVE));
+        var config = new com.github.copilot.sdk.json.SystemMessageConfig()
+                .setMode(com.github.copilot.sdk.SystemMessageMode.CUSTOMIZE).setSections(sections);
+        ExtractedTransforms result = SessionRequestBuilder.extractTransformCallbacks(config);
+        assertSame(config, result.wireSystemMessage());
+        assertNull(result.transformCallbacks());
+    }
+
+    @Test
+    void extractTransformCallbacks_customizeModeWithTransform_extractsCallbacks() {
+        var transformFn = (java.util.function.Function<String, CompletableFuture<String>>) content -> CompletableFuture
+                .completedFuture(content + " modified");
+        var sections = Map.of("identity", new com.github.copilot.sdk.json.SectionOverride().setTransform(transformFn));
+        var config = new com.github.copilot.sdk.json.SystemMessageConfig()
+                .setMode(com.github.copilot.sdk.SystemMessageMode.CUSTOMIZE).setSections(sections);
+
+        ExtractedTransforms result = SessionRequestBuilder.extractTransformCallbacks(config);
+
+        // Wire config should be different from original
+        assertNotSame(config, result.wireSystemMessage());
+        // Callbacks should be extracted
+        assertNotNull(result.transformCallbacks());
+        assertTrue(result.transformCallbacks().containsKey("identity"));
+        // Wire config should have transform action instead of callback
+        assertNotNull(result.wireSystemMessage().getSections());
+        var wireSection = result.wireSystemMessage().getSections().get("identity");
+        assertNotNull(wireSection);
+        assertEquals(com.github.copilot.sdk.json.SectionOverrideAction.TRANSFORM, wireSection.getAction());
+        assertNull(wireSection.getTransform());
+    }
 }

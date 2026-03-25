@@ -122,8 +122,14 @@ public class SessionEventParser {
 
             Class<? extends AbstractSessionEvent> eventClass = TYPE_MAP.get(type);
             if (eventClass == null) {
-                LOG.fine("Unknown event type: " + type);
-                return null;
+                LOG.fine("Unknown event type: " + type + " — returning UnknownSessionEvent for forward compatibility");
+                UnknownSessionEvent base = MAPPER.treeToValue(node, UnknownSessionEvent.class);
+                UnknownSessionEvent result = new UnknownSessionEvent(type);
+                result.setId(base.getId());
+                result.setTimestamp(base.getTimestamp());
+                result.setParentId(base.getParentId());
+                result.setEphemeral(base.getEphemeral());
+                return result;
             }
 
             return MAPPER.treeToValue(node, eventClass);

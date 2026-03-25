@@ -73,7 +73,9 @@ public abstract sealed class AbstractSessionEvent permits
         SkillInvokedEvent,
         // Other events
         SubagentStartedEvent, SubagentCompletedEvent, SubagentFailedEvent, SubagentSelectedEvent,
-        SubagentDeselectedEvent, HookStartEvent, HookEndEvent, SystemMessageEvent {
+        SubagentDeselectedEvent, HookStartEvent, HookEndEvent, SystemMessageEvent,
+        // Forward-compatibility placeholder for event types not yet known to this SDK
+        UnknownSessionEvent {
 
     @JsonProperty("id")
     private UUID id;

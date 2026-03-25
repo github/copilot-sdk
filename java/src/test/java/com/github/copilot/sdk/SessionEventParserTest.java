@@ -845,7 +845,12 @@ public class SessionEventParserTest {
                 """;
 
         AbstractSessionEvent event = parseJson(json);
-        assertNull(event, "Unknown event types should return null");
+        assertNotNull(event, "Unknown event types should return an UnknownSessionEvent");
+        assertInstanceOf(com.github.copilot.sdk.events.UnknownSessionEvent.class, event,
+                "Unknown event types should return UnknownSessionEvent for forward compatibility");
+        assertEquals("unknown", event.getType());
+        assertEquals("unknown.event.type",
+                ((com.github.copilot.sdk.events.UnknownSessionEvent) event).getOriginalType());
     }
 
     @Test
