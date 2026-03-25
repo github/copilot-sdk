@@ -196,7 +196,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         var session2 = await ResumeSessionAsync(sessionId);
         Assert.Equal(sessionId, session2.SessionId);
 
-        var answer2 = await TestHelper.GetFinalAssistantMessageAsync(session2);
+        var answer2 = await TestHelper.GetFinalAssistantMessageAsync(session2, alreadyIdle: true);
         Assert.NotNull(answer2);
         Assert.Contains("2", answer2!.Data.Content ?? string.Empty);
 
