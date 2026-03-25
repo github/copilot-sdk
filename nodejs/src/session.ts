@@ -417,6 +417,21 @@ export class CopilotSession {
                 args: string;
             };
             void this._executeCommandAndRespond(requestId, commandName, command, args);
+        } else if ((event as { type: string }).type === "elicitation.requested") {
+            // TODO: Remove type casts above once session-events codegen includes these event types
+            if (this.elicitationHandler) {
+                const data = (event as { data: Record<string, unknown> }).data;
+                void this._handleElicitationRequest(
+                    {
+                        message: data.message as string,
+                        requestedSchema:
+                            data.requestedSchema as ElicitationRequest["requestedSchema"],
+                        mode: data.mode as ElicitationRequest["mode"],
+                        elicitationSource: data.elicitationSource as string | undefined,
+                    },
+                    data.requestId as string
+                );
+            }
         } else if ((event as { type: string }).type === "capabilities.changed") {
             const data = (event as { data: Partial<SessionCapabilities> }).data;
             this._capabilities = { ...this._capabilities, ...data };
@@ -598,17 +613,33 @@ export class CopilotSession {
     }
 
     /**
-     * Handles an elicitation.request RPC callback from the server.
+     * Handles an elicitation.requested broadcast event.
+     * Invokes the registered handler and responds via handlePendingElicitation RPC.
      * @internal
      */
-    async _handleElicitationRequest(
-        request: ElicitationRequest,
-        sessionId: string
-    ): Promise<ElicitationResult> {
+    async _handleElicitationRequest(request: ElicitationRequest, requestId: string): Promise<void> {
         if (!this.elicitationHandler) {
-            throw new Error("Elicitation requested but no handler registered");
+            return;
         }
-        return await this.elicitationHandler(request, { sessionId });
+        try {
+            const result = await this.elicitationHandler(request, { sessionId: this.sessionId });
+            await this.connection.sendRequest("session.ui.handlePendingElicitation", {
+                sessionId: this.sessionId,
+                requestId,
+                result,
+            });
+        } catch {
+            // Handler failed — attempt to cancel so the request doesn't hang
+            try {
+                await this.connection.sendRequest("session.ui.handlePendingElicitation", {
+                    sessionId: this.sessionId,
+                    requestId,
+                    result: { action: "cancel" },
+                });
+            } catch {
+                // Best effort — another client may have already responded
+            }
+        }
     }
 
     /**
