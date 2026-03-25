@@ -8,7 +8,9 @@ import os
 from copilot import CopilotSession
 
 
-async def get_final_assistant_message(session: CopilotSession, timeout: float = 10.0, already_idle: bool = False):
+async def get_final_assistant_message(
+    session: CopilotSession, timeout: float = 10.0, already_idle: bool = False
+):
     """
     Wait for and return the final assistant message from a session turn.
 

@@ -495,8 +495,10 @@ class TestSessions:
         assert "assistant.message" in event_types
         assert "session.idle" in event_types
 
-        # Verify the assistant response contains the expected answer
-        assistant_message = await get_final_assistant_message(session)
+        # Verify the assistant response contains the expected answer.
+        # session.idle is ephemeral and not in get_messages(), but we already
+        # confirmed idle via the live event handler above.
+        assistant_message = await get_final_assistant_message(session, already_idle=True)
         assert "300" in assistant_message.data.content
 
     async def test_should_create_session_with_custom_config_dir(self, ctx: E2ETestContext):
