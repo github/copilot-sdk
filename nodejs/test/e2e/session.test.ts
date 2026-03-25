@@ -49,10 +49,13 @@ describe("Sessions", async () => {
         }
     });
 
-    // TODO: Re-enable once test harness CAPI proxy supports this test's session lifecycle
-    it.skip("should get session metadata by ID", { timeout: 60000 }, async () => {
+    it("should get session metadata by ID", { timeout: 60000 }, async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
+
+        // Send a message to persist the session to disk
+        await session.sendAndWait({ prompt: "Say hello" });
+        await new Promise((r) => setTimeout(r, 200));
 
         // Get metadata for the session we just created
         const metadata = await client.getSessionMetadata(session.sessionId);

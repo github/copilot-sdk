@@ -407,11 +407,14 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         }
     }
 
-    // TODO: Re-enable once test harness CAPI proxy supports this test's session lifecycle
-    [Fact(Skip = "Needs test harness CAPI proxy support")]
+    [Fact]
     public async Task Should_Get_Session_Metadata_By_Id()
     {
         var session = await CreateSessionAsync();
+
+        // Send a message to persist the session to disk
+        await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say hello" });
+        await Task.Delay(200);
 
         var metadata = await Client.GetSessionMetadataAsync(session.SessionId);
         Assert.NotNull(metadata);
