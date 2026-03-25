@@ -190,7 +190,7 @@ class TestSessions:
             session_id, on_permission_request=PermissionHandler.approve_all
         )
         assert session2.session_id == session_id
-        answer2 = await get_final_assistant_message(session2)
+        answer2 = await get_final_assistant_message(session2, already_idle=True)
         assert "2" in answer2.data.content
 
         # Can continue the conversation statefully

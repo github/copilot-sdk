@@ -407,7 +407,7 @@ func TestSession(t *testing.T) {
 			t.Errorf("Expected resumed session ID to match, got %q vs %q", session2.SessionID, sessionID)
 		}
 
-		answer2, err := testharness.GetFinalAssistantMessage(t.Context(), session2)
+		answer2, err := testharness.GetFinalAssistantMessage(t.Context(), session2, true)
 		if err != nil {
 			t.Fatalf("Failed to get assistant message from resumed session: %v", err)
 		}

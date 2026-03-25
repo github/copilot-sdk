@@ -231,8 +231,10 @@ describe("Sessions", async () => {
         });
         expect(session2.sessionId).toBe(sessionId);
 
-        // TODO: There's an inconsistency here. When resuming with a new client, we don't see
-        // the session.idle message in the history, which means we can't use getFinalAssistantMessage.
+        // session.idle is ephemeral and not persisted, so use alreadyIdle
+        // to find the assistant message from the completed session.
+        const answer2 = await getFinalAssistantMessage(session2, { alreadyIdle: true });
+        expect(answer2?.data.content).toContain("2");
 
         const messages = await session2.getMessages();
         expect(messages).toContainEqual(expect.objectContaining({ type: "user.message" }));
