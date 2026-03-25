@@ -6,7 +6,6 @@ import com.github.copilot.sdk.events.SessionUsageInfoEvent;
 import com.github.copilot.sdk.json.MessageOptions;
 import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.SessionConfig;
-import java.util.concurrent.CompletableFuture;
 
 import static java.lang.System.out;
 
