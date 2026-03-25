@@ -91,6 +91,10 @@ export type SessionEvent =
          * Whether the session was already in use by another client at start time
          */
         alreadyInUse?: boolean;
+        /**
+         * Whether this session supports remote steering via Mission Control
+         */
+        steerable?: boolean;
       };
     }
   | {

@@ -407,7 +407,7 @@ func TestSession(t *testing.T) {
 			t.Errorf("Expected resumed session ID to match, got %q vs %q", session2.SessionID, sessionID)
 		}
 
-		answer2, err := testharness.GetFinalAssistantMessage(t.Context(), session2)
+		answer2, err := testharness.GetFinalAssistantMessage(t.Context(), session2, true)
 		if err != nil {
 			t.Fatalf("Failed to get assistant message from resumed session: %v", err)
 		}
@@ -713,8 +713,10 @@ func TestSession(t *testing.T) {
 			t.Error("Expected to receive session.idle event")
 		}
 
-		// Verify the assistant response contains the expected answer
-		assistantMessage, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		// Verify the assistant response contains the expected answer.
+		// session.idle is ephemeral and not in GetMessages(), but we already
+		// confirmed idle via the live event handler above.
+		assistantMessage, err := testharness.GetFinalAssistantMessage(t.Context(), session, true)
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}

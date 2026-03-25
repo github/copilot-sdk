@@ -1069,6 +1069,11 @@ public partial class SessionStartData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("alreadyInUse")]
     public bool? AlreadyInUse { get; set; }
+
+    /// <summary>Whether this session supports remote steering via Mission Control.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("steerable")]
+    public bool? Steerable { get; set; }
 }
 
 /// <summary>Session resume metadata including current context and event count.</summary>
