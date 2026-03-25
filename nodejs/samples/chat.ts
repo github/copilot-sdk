@@ -1,5 +1,5 @@
-import * as readline from "node:readline";
 import { CopilotClient, approveAll, type SessionEvent } from "@github/copilot-sdk";
+import * as readline from "node:readline";
 
 async function main() {
     const client = new CopilotClient();

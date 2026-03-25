@@ -1064,8 +1064,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private static async Task<(Process Process, int? DetectedLocalhostTcpPort, StringBuilder StderrBuffer)> StartCliServerAsync(CopilotClientOptions options, ILogger logger, CancellationToken cancellationToken)
     {
-        // Use explicit path or bundled CLI - no PATH fallback
-        var cliPath = options.CliPath ?? GetBundledCliPath(out var searchedPath)
+        // Use explicit path, COPILOT_CLI_PATH env var (from options.Environment or process env), or bundled CLI - no PATH fallback
+        var envCliPath = options.Environment is not null && options.Environment.TryGetValue("COPILOT_CLI_PATH", out var envValue) ? envValue
+            : System.Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
+        var cliPath = options.CliPath
+            ?? envCliPath
+            ?? GetBundledCliPath(out var searchedPath)
             ?? throw new InvalidOperationException($"Copilot CLI not found at '{searchedPath}'. Ensure the SDK NuGet package was restored correctly or provide an explicit CliPath.");
         var args = new List<string>();
 

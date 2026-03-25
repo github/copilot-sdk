@@ -67,7 +67,7 @@ new CopilotClient(CopilotClientOptions? options = null)
 
 **Options:**
 
-- `CliPath` - Path to CLI executable (default: "copilot" from PATH)
+- `CliPath` - Path to CLI executable (default: `COPILOT_CLI_PATH` env var, or bundled CLI)
 - `CliArgs` - Extra arguments prepended before SDK-managed flags
 - `CliUrl` - URL of existing CLI server to connect to (e.g., `"localhost:8080"`). When provided, the client will not spawn a CLI process.
 - `Port` - Server port (default: 0 for random)

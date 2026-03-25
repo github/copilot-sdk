@@ -308,8 +308,11 @@ export class CopilotClient {
         this.onListModels = options.onListModels;
         this.onGetTraceContext = options.onGetTraceContext;
 
+        const effectiveEnv = options.env ?? process.env;
         this.options = {
-            cliPath: options.cliUrl ? undefined : options.cliPath || getBundledCliPath(),
+            cliPath: options.cliUrl
+                ? undefined
+                : options.cliPath || effectiveEnv.COPILOT_CLI_PATH || getBundledCliPath(),
             cliArgs: options.cliArgs ?? [],
             cwd: options.cwd ?? process.cwd(),
             port: options.port || 0,
@@ -320,7 +323,7 @@ export class CopilotClient {
             autoStart: options.autoStart ?? true,
             autoRestart: false,
 
-            env: options.env ?? process.env,
+            env: effectiveEnv,
             githubToken: options.githubToken,
             // Default useLoggedInUser to false when githubToken is provided, otherwise true
             useLoggedInUser: options.useLoggedInUser ?? (options.githubToken ? false : true),

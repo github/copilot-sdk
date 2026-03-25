@@ -60,7 +60,10 @@ await client.stop();
 Sessions also support `Symbol.asyncDispose` for use with [`await using`](https://github.com/tc39/proposal-explicit-resource-management) (TypeScript 5.2+/Node.js 18.0+):
 
 ```typescript
-await using session = await client.createSession({ model: "gpt-5", onPermissionRequest: approveAll });
+await using session = await client.createSession({
+    model: "gpt-5",
+    onPermissionRequest: approveAll,
+});
 // session is automatically disconnected when leaving scope
 ```
 
@@ -76,7 +79,7 @@ new CopilotClient(options?: CopilotClientOptions)
 
 **Options:**
 
-- `cliPath?: string` - Path to CLI executable (default: "copilot" from PATH)
+- `cliPath?: string` - Path to CLI executable (default: uses COPILOT_CLI_PATH env var or bundled instance)
 - `cliArgs?: string[]` - Extra arguments prepended before SDK-managed flags (e.g. `["./dist-cli/index.js"]` when using `node`)
 - `cliUrl?: string` - URL of existing CLI server to connect to (e.g., `"localhost:8080"`, `"http://127.0.0.1:9000"`, or just `"8080"`). When provided, the client will not spawn a CLI process.
 - `port?: number` - Server port (default: 0 for random)
@@ -184,6 +187,7 @@ const unsubscribe = client.on((event) => {
 ```
 
 **Lifecycle Event Types:**
+
 - `session.created` - A new session was created
 - `session.deleted` - A session was deleted
 - `session.updated` - A session was updated (e.g., new messages)
@@ -293,7 +297,7 @@ if (session.capabilities.ui?.elicitation) {
 
 Interactive UI methods for showing dialogs to the user. Only available when the CLI host supports elicitation (`session.capabilities.ui?.elicitation === true`). See [UI Elicitation](#ui-elicitation) for full details.
 
-##### `destroy(): Promise<void>` *(deprecated)*
+##### `destroy(): Promise<void>` _(deprecated)_
 
 Deprecated — use `disconnect()` instead.
 
@@ -454,8 +458,10 @@ defineTool("edit_file", {
     description: "Custom file editor with project-specific validation",
     parameters: z.object({ path: z.string(), content: z.string() }),
     overridesBuiltInTool: true,
-    handler: async ({ path, content }) => { /* your logic */ },
-})
+    handler: async ({ path, content }) => {
+        /* your logic */
+    },
+});
 ```
 
 #### Skipping Permission Prompts
@@ -467,8 +473,10 @@ defineTool("safe_lookup", {
     description: "A read-only lookup that needs no confirmation",
     parameters: z.object({ id: z.string() }),
     skipPermission: true,
-    handler: async ({ id }) => { /* your logic */ },
-})
+    handler: async ({ id }) => {
+        /* your logic */
+    },
+});
 ```
 
 ### Commands
@@ -571,7 +579,10 @@ const session = await client.createSession({
         mode: "customize",
         sections: {
             // Replace the tone/style section
-            tone: { action: "replace", content: "Respond in a warm, professional tone. Be thorough in explanations." },
+            tone: {
+                action: "replace",
+                content: "Respond in a warm, professional tone. Be thorough in explanations.",
+            },
             // Remove coding-specific rules
             code_change_rules: { action: "remove" },
             // Append to existing guidelines
@@ -586,6 +597,7 @@ const session = await client.createSession({
 Available section IDs: `identity`, `tone`, `tool_efficiency`, `environment_context`, `code_change_rules`, `guidelines`, `safety`, `tool_instructions`, `custom_instructions`, `last_instructions`. Use the `SYSTEM_PROMPT_SECTIONS` constant for descriptions of each section.
 
 Each section override supports four actions:
+
 - **`replace`** — Replace the section content entirely
 - **`remove`** — Remove the section from the prompt
 - **`append`** — Add content after the existing section
@@ -624,7 +636,7 @@ const session = await client.createSession({
     model: "gpt-5",
     infiniteSessions: {
         enabled: true,
-        backgroundCompactionThreshold: 0.80, // Start compacting at 80% context usage
+        backgroundCompactionThreshold: 0.8, // Start compacting at 80% context usage
         bufferExhaustionThreshold: 0.95, // Block at 95% until compaction completes
     },
 });
@@ -723,8 +735,8 @@ const session = await client.createSession({
 const session = await client.createSession({
     model: "gpt-4",
     provider: {
-        type: "azure",  // Must be "azure" for Azure endpoints, NOT "openai"
-        baseUrl: "https://my-resource.openai.azure.com",  // Just the host, no path
+        type: "azure", // Must be "azure" for Azure endpoints, NOT "openai"
+        baseUrl: "https://my-resource.openai.azure.com", // Just the host, no path
         apiKey: process.env.AZURE_OPENAI_KEY,
         azure: {
             apiVersion: "2024-10-21",
@@ -734,6 +746,7 @@ const session = await client.createSession({
 ```
 
 > **Important notes:**
+>
 > - When using a custom provider, the `model` parameter is **required**. The SDK will throw an error if no model is specified.
 > - For Azure OpenAI endpoints (`*.openai.azure.com`), you **must** use `type: "azure"`, not `type: "openai"`.
 > - The `baseUrl` should be just the host (e.g., `https://my-resource.openai.azure.com`). Do **not** include `/openai/v1` in the URL - the SDK handles path construction automatically.
@@ -744,9 +757,9 @@ The SDK supports OpenTelemetry for distributed tracing. Provide a `telemetry` co
 
 ```typescript
 const client = new CopilotClient({
-  telemetry: {
-    otlpEndpoint: "http://localhost:4318",
-  },
+    telemetry: {
+        otlpEndpoint: "http://localhost:4318",
+    },
 });
 ```
 
@@ -772,12 +785,12 @@ If you're already using `@opentelemetry/api` in your app and want this linkage, 
 import { propagation, context } from "@opentelemetry/api";
 
 const client = new CopilotClient({
-  telemetry: { otlpEndpoint: "http://localhost:4318" },
-  onGetTraceContext: () => {
-    const carrier: Record<string, string> = {};
-    propagation.inject(context.active(), carrier);
-    return carrier;
-  },
+    telemetry: { otlpEndpoint: "http://localhost:4318" },
+    onGetTraceContext: () => {
+        const carrier: Record<string, string> = {};
+        propagation.inject(context.active(), carrier);
+        return carrier;
+    },
 });
 ```
 
@@ -837,14 +850,15 @@ const session = await client.createSession({
 
 ### Permission Result Kinds
 
-| Kind | Meaning |
-|------|---------|
-| `"approved"` | Allow the tool to run |
-| `"denied-interactively-by-user"` | User explicitly denied the request |
-| `"denied-no-approval-rule-and-could-not-request-from-user"` | No approval rule matched and user could not be asked |
-| `"denied-by-rules"` | Denied by a policy rule |
-| `"denied-by-content-exclusion-policy"` | Denied due to a content exclusion policy |
-| `"no-result"` | Leave the request unanswered (only valid with protocol v1; rejected by protocol v2 servers) |
+| Kind                                                        | Meaning                                                                                     |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `"approved"`                                                | Allow the tool to run                                                                       |
+| `"denied-interactively-by-user"`                            | User explicitly denied the request                                                          |
+| `"denied-no-approval-rule-and-could-not-request-from-user"` | No approval rule matched and user could not be asked                                        |
+| `"denied-by-rules"`                                         | Denied by a policy rule                                                                     |
+| `"denied-by-content-exclusion-policy"`                      | Denied due to a content exclusion policy                                                    |
+| `"no-result"`                                               | Leave the request unanswered (only valid with protocol v1; rejected by protocol v2 servers) |
+
 ### Resuming Sessions
 
 Pass `onPermissionRequest` when resuming a session too — it is required:
