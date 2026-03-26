@@ -428,7 +428,7 @@ unsubscribeIdle();
 ```python
 from copilot import CopilotClient
 from copilot.generated.session_events import SessionEvent, SessionEventType
-from copilot.session import PermissionHandler, PermissionRequestResult
+from copilot.session import PermissionRequestResult
 
 client = CopilotClient()
 
