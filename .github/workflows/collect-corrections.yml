@@ -1,7 +1,6 @@
 name: Collect triage agent corrections
 
 on:
-  push: # temporary: bootstrap workflow registration, remove after first run
   issue_comment:
     types: [created, edited]
   workflow_dispatch:
