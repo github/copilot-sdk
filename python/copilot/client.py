@@ -727,10 +727,8 @@ class CopilotClient:
         >>>
         >>> # Create a session and send a message
         >>> session = await client.create_session(
-        ...     {
-        ...         "on_permission_request": PermissionHandler.approve_all,
-        ...         "model": "gpt-4",
-        ...     }
+        ...     on_permission_request=PermissionHandler.approve_all,
+        ...     model="gpt-4",
         ... )
         >>> session.on(lambda event: print(event.type))
         >>> await session.send("Hello!")

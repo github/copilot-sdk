@@ -137,9 +137,7 @@ async def main():
     await client.start()
 
     session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-4.1")
-    response = await session.send_and_wait({"prompt": "What is 2 + 2?"})
-
-    response = await session.send_and_wait({"prompt": "What is 2 + 2?"})
+    response = await session.send_and_wait("What is 2 + 2?")
     print(response.data.content)
 
     await client.stop()
@@ -296,7 +294,7 @@ async def main():
 
     session.on(handle_event)
 
-    await session.send_and_wait({"prompt": "Tell me a short joke"})
+    await session.send_and_wait("Tell me a short joke")
 
     await client.stop()
 
@@ -430,10 +428,11 @@ unsubscribeIdle();
 ```python
 from copilot import CopilotClient
 from copilot.generated.session_events import SessionEvent, SessionEventType
+from copilot.session import PermissionHandler, PermissionRequestResult
 
 client = CopilotClient()
 
-session = client.create_session(on_permission_request=lambda req, inv: {"kind": "approved"})
+session = await client.create_session(on_permission_request=lambda req, inv: PermissionRequestResult(kind="approved"))
 
 # Subscribe to all events
 unsubscribe = session.on(lambda event: print(f"Event: {event.type}"))
@@ -688,9 +687,7 @@ async def main():
 
     session.on(handle_event)
 
-    await session.send_and_wait({
-        "prompt": "What's the weather like in Seattle and Tokyo?"
-    })
+    await session.send_and_wait("What's the weather like in Seattle and Tokyo?")
 
     await client.stop()
 
@@ -965,7 +962,7 @@ async def main():
             break
 
         sys.stdout.write("Assistant: ")
-        await session.send_and_wait({"prompt": user_input})
+        await session.send_and_wait(user_input)
         print("\n")
 
     await client.stop()

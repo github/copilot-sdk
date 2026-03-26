@@ -59,7 +59,7 @@ async def main():
     )
 
     # Copilot now has access to skills in those directories
-    await session.send_and_wait({"prompt": "Review this code for security issues"})
+    await session.send_and_wait("Review this code for security issues")
 
     await client.stop()
 ```
@@ -160,7 +160,7 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import PermissionHandler
+from copilot.session import PermissionHandler
 
 session = await client.create_session(
     on_permission_request=PermissionHandler.approve_all,

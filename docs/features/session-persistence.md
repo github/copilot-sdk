@@ -46,7 +46,8 @@ await session.sendAndWait({ prompt: "Analyze my codebase" });
 ### Python
 
 ```python
-from copilot import CopilotClient, PermissionHandler
+from copilot import CopilotClient
+from copilot.session import PermissionHandler
 
 client = CopilotClient()
 await client.start()
@@ -55,7 +56,7 @@ await client.start()
 session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-5.2-codex", session_id="user-123-task-456")
 
 # Do some work...
-await session.send_and_wait({"prompt": "Analyze my codebase"})
+await session.send_and_wait("Analyze my codebase")
 
 # Session state is automatically persisted
 ```
@@ -160,7 +161,7 @@ await session.sendAndWait({ prompt: "What did we discuss earlier?" });
 session = await client.resume_session("user-123-task-456", on_permission_request=PermissionHandler.approve_all)
 
 # Continue where you left off
-await session.send_and_wait({"prompt": "What did we discuss earlier?"})
+await session.send_and_wait("What did we discuss earlier?")
 ```
 
 ### Go
@@ -413,7 +414,7 @@ Each SDK also provides idiomatic automatic cleanup patterns:
 | Language | Pattern | Example |
 |----------|---------|---------|
 | **TypeScript** | `Symbol.asyncDispose` | `await using session = await client.createSession(config);` |
-| **Python** | `async with` context manager | `async with await client.create_session(config) as session:` |
+| **Python** | `async with` context manager | `async with await client.create_session(on_permission_request=handler) as session:` |
 | **C#** | `IAsyncDisposable` | `await using var session = await client.CreateSessionAsync(config);` |
 | **Go** | `defer` | `defer session.Disconnect()` |
 

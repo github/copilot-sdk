@@ -85,7 +85,8 @@ await client.stop();
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient, PermissionHandler
+from copilot import CopilotClient
+from copilot.session import PermissionHandler
 from pathlib import Path
 
 client = CopilotClient({
@@ -94,7 +95,7 @@ client = CopilotClient({
 await client.start()
 
 session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-4.1")
-response = await session.send_and_wait({"prompt": "Hello!"})
+response = await session.send_and_wait("Hello!")
 print(response.data.content)
 
 await client.stop()

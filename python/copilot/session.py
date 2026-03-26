@@ -631,7 +631,9 @@ class CopilotSession:
         session_id: The unique identifier for this session.
 
     Example:
-        >>> async with await client.create_session() as session:
+        >>> async with await client.create_session(
+        ...     on_permission_request=PermissionHandler.approve_all,
+        ... ) as session:
         ...     # Subscribe to events
         ...     unsubscribe = session.on(lambda event: print(event.type))
         ...

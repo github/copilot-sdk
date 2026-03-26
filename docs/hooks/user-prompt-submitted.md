@@ -141,7 +141,7 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import PermissionHandler
+from copilot.session import PermissionHandler
 
 async def on_user_prompt_submitted(input_data, invocation):
     print(f"[{invocation['session_id']}] User: {input_data['prompt']}")
