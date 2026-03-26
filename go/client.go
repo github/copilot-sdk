@@ -789,6 +789,38 @@ func (c *Client) ListSessions(ctx context.Context, filter *SessionListFilter) ([
 	return response.Sessions, nil
 }
 
+// GetSessionMetadata returns metadata for a specific session by ID.
+//
+// This provides an efficient O(1) lookup of a single session's metadata
+// instead of listing all sessions. Returns nil if the session is not found.
+//
+// Example:
+//
+//	metadata, err := client.GetSessionMetadata(context.Background(), "session-123")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	if metadata != nil {
+//	    fmt.Printf("Session started at: %s\n", metadata.StartTime)
+//	}
+func (c *Client) GetSessionMetadata(ctx context.Context, sessionID string) (*SessionMetadata, error) {
+	if err := c.ensureConnected(ctx); err != nil {
+		return nil, err
+	}
+
+	result, err := c.client.Request("session.getMetadata", getSessionMetadataRequest{SessionID: sessionID})
+	if err != nil {
+		return nil, err
+	}
+
+	var response getSessionMetadataResponse
+	if err := json.Unmarshal(result, &response); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal session metadata response: %w", err)
+	}
+
+	return response.Session, nil
+}
+
 // DeleteSession permanently deletes a session and all its data from disk,
 // including conversation history, planning state, and artifacts.
 //

@@ -408,6 +408,26 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     }
 
     [Fact]
+    public async Task Should_Get_Session_Metadata_By_Id()
+    {
+        var session = await CreateSessionAsync();
+
+        // Send a message to persist the session to disk
+        await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say hello" });
+        await Task.Delay(200);
+
+        var metadata = await Client.GetSessionMetadataAsync(session.SessionId);
+        Assert.NotNull(metadata);
+        Assert.Equal(session.SessionId, metadata.SessionId);
+        Assert.NotEqual(default, metadata.StartTime);
+        Assert.NotEqual(default, metadata.ModifiedTime);
+
+        // Verify non-existent session returns null
+        var notFound = await Client.GetSessionMetadataAsync("non-existent-session-id");
+        Assert.Null(notFound);
+    }
+
+    [Fact]
     public async Task SendAndWait_Throws_On_Timeout()
     {
         var session = await CreateSessionAsync();

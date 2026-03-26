@@ -825,6 +825,16 @@ type listSessionsResponse struct {
 	Sessions []SessionMetadata `json:"sessions"`
 }
 
+// getSessionMetadataRequest is the request for session.getMetadata
+type getSessionMetadataRequest struct {
+	SessionID string `json:"sessionId"`
+}
+
+// getSessionMetadataResponse is the response from session.getMetadata
+type getSessionMetadataResponse struct {
+	Session *SessionMetadata `json:"session,omitempty"`
+}
+
 // deleteSessionRequest is the request for session.delete
 type deleteSessionRequest struct {
 	SessionID string `json:"sessionId"`

@@ -49,6 +49,28 @@ describe("Sessions", async () => {
         }
     });
 
+    it("should get session metadata by ID", { timeout: 60000 }, async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
+
+        // Send a message to persist the session to disk
+        await session.sendAndWait({ prompt: "Say hello" });
+        await new Promise((r) => setTimeout(r, 200));
+
+        // Get metadata for the session we just created
+        const metadata = await client.getSessionMetadata(session.sessionId);
+
+        expect(metadata).toBeDefined();
+        expect(metadata!.sessionId).toBe(session.sessionId);
+        expect(metadata!.startTime).toBeInstanceOf(Date);
+        expect(metadata!.modifiedTime).toBeInstanceOf(Date);
+        expect(typeof metadata!.isRemote).toBe("boolean");
+
+        // Verify non-existent session returns undefined
+        const notFound = await client.getSessionMetadata("non-existent-session-id");
+        expect(notFound).toBeUndefined();
+    });
+
     it("should have stateful conversation", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
         const assistantMessage = await session.sendAndWait({ prompt: "What is 1+1?" });

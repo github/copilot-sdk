@@ -1081,14 +1081,67 @@ export class CopilotClient {
             }>;
         };
 
-        return sessions.map((s) => ({
-            sessionId: s.sessionId,
-            startTime: new Date(s.startTime),
-            modifiedTime: new Date(s.modifiedTime),
-            summary: s.summary,
-            isRemote: s.isRemote,
-            context: s.context,
-        }));
+        return sessions.map(CopilotClient.toSessionMetadata);
+    }
+
+    /**
+     * Gets metadata for a specific session by ID.
+     *
+     * This provides an efficient O(1) lookup of a single session's metadata
+     * instead of listing all sessions. Returns undefined if the session is not found.
+     *
+     * @param sessionId - The ID of the session to look up
+     * @returns A promise that resolves with the session metadata, or undefined if not found
+     * @throws Error if the client is not connected
+     *
+     * @example
+     * ```typescript
+     * const metadata = await client.getSessionMetadata("session-123");
+     * if (metadata) {
+     *   console.log(`Session started at: ${metadata.startTime}`);
+     * }
+     * ```
+     */
+    async getSessionMetadata(sessionId: string): Promise<SessionMetadata | undefined> {
+        if (!this.connection) {
+            throw new Error("Client not connected");
+        }
+
+        const response = await this.connection.sendRequest("session.getMetadata", { sessionId });
+        const { session } = response as {
+            session?: {
+                sessionId: string;
+                startTime: string;
+                modifiedTime: string;
+                summary?: string;
+                isRemote: boolean;
+                context?: SessionContext;
+            };
+        };
+
+        if (!session) {
+            return undefined;
+        }
+
+        return CopilotClient.toSessionMetadata(session);
+    }
+
+    private static toSessionMetadata(raw: {
+        sessionId: string;
+        startTime: string;
+        modifiedTime: string;
+        summary?: string;
+        isRemote: boolean;
+        context?: SessionContext;
+    }): SessionMetadata {
+        return {
+            sessionId: raw.sessionId,
+            startTime: new Date(raw.startTime),
+            modifiedTime: new Date(raw.modifiedTime),
+            summary: raw.summary,
+            isRemote: raw.isRemote,
+            context: raw.context,
+        };
     }
 
     /**

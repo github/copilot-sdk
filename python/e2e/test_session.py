@@ -320,6 +320,35 @@ class TestSessions:
                 session_id, on_permission_request=PermissionHandler.approve_all
             )
 
+    async def test_should_get_session_metadata(self, ctx: E2ETestContext):
+        import asyncio
+
+        # Create a session and send a message to persist it
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all
+        )
+        await session.send_and_wait("Say hello")
+
+        # Small delay to ensure session file is written to disk
+        await asyncio.sleep(0.2)
+
+        # Get metadata for the session we just created
+        metadata = await ctx.client.get_session_metadata(session.session_id)
+        assert metadata is not None
+        assert metadata.sessionId == session.session_id
+        assert isinstance(metadata.startTime, str)
+        assert isinstance(metadata.modifiedTime, str)
+        assert isinstance(metadata.isRemote, bool)
+
+        # Verify context field is present
+        if metadata.context is not None:
+            assert hasattr(metadata.context, "cwd")
+            assert isinstance(metadata.context.cwd, str)
+
+        # Verify non-existent session returns None
+        not_found = await ctx.client.get_session_metadata("non-existent-session-id")
+        assert not_found is None
+
     async def test_should_get_last_session_id(self, ctx: E2ETestContext):
         import asyncio
 

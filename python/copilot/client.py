@@ -1679,6 +1679,36 @@ class CopilotClient:
         sessions_data = response.get("sessions", [])
         return [SessionMetadata.from_dict(session) for session in sessions_data]
 
+    async def get_session_metadata(self, session_id: str) -> SessionMetadata | None:
+        """
+        Get metadata for a specific session by ID.
+
+        This provides an efficient O(1) lookup of a single session's metadata
+        instead of listing all sessions. Returns None if the session is not found.
+
+        Args:
+            session_id: The ID of the session to look up.
+
+        Returns:
+            A SessionMetadata object, or None if the session was not found.
+
+        Raises:
+            RuntimeError: If the client is not connected.
+
+        Example:
+            >>> metadata = await client.get_session_metadata("session-123")
+            >>> if metadata:
+            ...     print(f"Session started at: {metadata.startTime}")
+        """
+        if not self._client:
+            raise RuntimeError("Client not connected")
+
+        response = await self._client.request("session.getMetadata", {"sessionId": session_id})
+        session_data = response.get("session")
+        if session_data is None:
+            return None
+        return SessionMetadata.from_dict(session_data)
+
     async def delete_session(self, session_id: str) -> None:
         """
         Permanently delete a session and all its data from disk, including

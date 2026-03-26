@@ -841,6 +841,36 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
+    /// Gets metadata for a specific session by ID.
+    /// </summary>
+    /// <remarks>
+    /// This provides an efficient O(1) lookup of a single session's metadata
+    /// instead of listing all sessions.
+    /// </remarks>
+    /// <param name="sessionId">The ID of the session to look up.</param>
+    /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
+    /// <returns>A task that resolves with the <see cref="SessionMetadata"/>, or null if the session was not found.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the client is not connected.</exception>
+    /// <example>
+    /// <code>
+    /// var metadata = await client.GetSessionMetadataAsync("session-123");
+    /// if (metadata != null)
+    /// {
+    ///     Console.WriteLine($"Session started at: {metadata.StartTime}");
+    /// }
+    /// </code>
+    /// </example>
+    public async Task<SessionMetadata?> GetSessionMetadataAsync(string sessionId, CancellationToken cancellationToken = default)
+    {
+        var connection = await EnsureConnectedAsync(cancellationToken);
+
+        var response = await InvokeRpcAsync<GetSessionMetadataResponse>(
+            connection.Rpc, "session.getMetadata", [new GetSessionMetadataRequest(sessionId)], cancellationToken);
+
+        return response.Session;
+    }
+
+    /// <summary>
     /// Gets the ID of the session currently displayed in the TUI.
     /// </summary>
     /// <remarks>
@@ -1633,6 +1663,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     internal record ListSessionsResponse(
         List<SessionMetadata> Sessions);
 
+    internal record GetSessionMetadataRequest(
+        string SessionId);
+
+    internal record GetSessionMetadataResponse(
+        SessionMetadata? Session);
+
     internal record UserInputRequestResponse(
         string Answer,
         bool WasFreeform);
@@ -1739,6 +1775,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(HooksInvokeResponse))]
     [JsonSerializable(typeof(ListSessionsRequest))]
     [JsonSerializable(typeof(ListSessionsResponse))]
+    [JsonSerializable(typeof(GetSessionMetadataRequest))]
+    [JsonSerializable(typeof(GetSessionMetadataResponse))]
     [JsonSerializable(typeof(PermissionRequestResult))]
     [JsonSerializable(typeof(PermissionRequestResponseV2))]
     [JsonSerializable(typeof(ProviderConfig))]

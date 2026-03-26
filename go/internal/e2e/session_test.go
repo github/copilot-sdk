@@ -897,6 +897,61 @@ func TestSession(t *testing.T) {
 			t.Error("Expected error when resuming deleted session")
 		}
 	})
+	t.Run("should get session metadata", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		// Create a session and send a message to persist it
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{OnPermissionRequest: copilot.PermissionHandler.ApproveAll})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Say hello"})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		// Small delay to ensure session file is written to disk
+		time.Sleep(200 * time.Millisecond)
+
+		// Get metadata for the session we just created
+		metadata, err := client.GetSessionMetadata(t.Context(), session.SessionID)
+		if err != nil {
+			t.Fatalf("Failed to get session metadata: %v", err)
+		}
+
+		if metadata == nil {
+			t.Fatal("Expected metadata to be non-nil")
+		}
+
+		if metadata.SessionID != session.SessionID {
+			t.Errorf("Expected sessionId %s, got %s", session.SessionID, metadata.SessionID)
+		}
+
+		if metadata.StartTime == "" {
+			t.Error("Expected startTime to be non-empty")
+		}
+
+		if metadata.ModifiedTime == "" {
+			t.Error("Expected modifiedTime to be non-empty")
+		}
+
+		// Verify context field
+		if metadata.Context != nil {
+			if metadata.Context.Cwd == "" {
+				t.Error("Expected context.Cwd to be non-empty when context is present")
+			}
+		}
+
+		// Verify non-existent session returns nil
+		notFound, err := client.GetSessionMetadata(t.Context(), "non-existent-session-id")
+		if err != nil {
+			t.Fatalf("Expected no error for non-existent session, got: %v", err)
+		}
+		if notFound != nil {
+			t.Error("Expected nil metadata for non-existent session")
+		}
+	})
 	t.Run("should get last session id", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
