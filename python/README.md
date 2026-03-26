@@ -346,25 +346,26 @@ async def main():
             done = asyncio.Event()
 
             def on_event(event):
-                if event.type.value == "assistant.message_delta":
-                    # Streaming message chunk - print incrementally
-                    delta = event.data.delta_content or ""
-                    print(delta, end="", flush=True)
-                elif event.type.value == "assistant.reasoning_delta":
-                    # Streaming reasoning chunk (if model supports reasoning)
-                    delta = event.data.delta_content or ""
-                    print(delta, end="", flush=True)
-                elif event.type.value == "assistant.message":
-                    # Final message - complete content
-                    print("\n--- Final message ---")
-                    print(event.data.content)
-                elif event.type.value == "assistant.reasoning":
-                    # Final reasoning content (if model supports reasoning)
-                    print("--- Reasoning ---")
-                    print(event.data.content)
-                elif event.type.value == "session.idle":
-                    # Session finished processing
-                    done.set()
+                match event.type.value:
+                    case "assistant.message_delta":
+                        # Streaming message chunk - print incrementally
+                        delta = event.data.delta_content or ""
+                        print(delta, end="", flush=True)
+                    case "assistant.reasoning_delta":
+                        # Streaming reasoning chunk (if model supports reasoning)
+                        delta = event.data.delta_content or ""
+                        print(delta, end="", flush=True)
+                    case "assistant.message":
+                        # Final message - complete content
+                        print("\n--- Final message ---")
+                        print(event.data.content)
+                    case "assistant.reasoning":
+                        # Final reasoning content (if model supports reasoning)
+                        print("--- Reasoning ---")
+                        print(event.data.content)
+                    case "session.idle":
+                        # Session finished processing
+                        done.set()
 
             session.on(on_event)
             await session.send("Tell me a short story")
