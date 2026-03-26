@@ -4,6 +4,8 @@ CopilotClient Unit Tests
 This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py instead.
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 from copilot import CopilotClient, define_tool
@@ -490,3 +492,39 @@ class TestSessionConfigForwarding:
             assert captured["session.model.switchTo"]["modelId"] == "gpt-4.1"
         finally:
             await client.force_stop()
+
+
+class TestCopilotClientContextManager:
+    @pytest.mark.asyncio
+    async def test_aenter_calls_start_and_returns_self(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        with patch.object(client, "start", new_callable=AsyncMock) as mock_start:
+            result = await client.__aenter__()
+            mock_start.assert_awaited_once()
+            assert result is client
+
+    @pytest.mark.asyncio
+    async def test_aexit_calls_stop(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        with patch.object(client, "stop", new_callable=AsyncMock) as mock_stop:
+            await client.__aexit__(None, None, None)
+            mock_stop.assert_awaited_once()
+
+
+class TestCopilotSessionContextManager:
+    @pytest.mark.asyncio
+    async def test_aenter_returns_self(self):
+        from copilot.session import CopilotSession
+
+        session = CopilotSession.__new__(CopilotSession)
+        result = await session.__aenter__()
+        assert result is session
+
+    @pytest.mark.asyncio
+    async def test_aexit_calls_disconnect(self):
+        from copilot.session import CopilotSession
+
+        session = CopilotSession.__new__(CopilotSession)
+        with patch.object(session, "disconnect", new_callable=AsyncMock) as mock_disconnect:
+            await session.__aexit__(None, None, None)
+            mock_disconnect.assert_awaited_once()
