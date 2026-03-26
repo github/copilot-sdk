@@ -414,9 +414,7 @@ def handle_event(event):
 
 unsubscribe = session.on(handle_event)
 
-response = await session.send_and_wait({
-    "prompt": "Research how authentication works in this codebase"
-})
+response = await session.send_and_wait("Research how authentication works in this codebase")
 ```
 
 </details>

@@ -152,7 +152,7 @@ Package manager: ${projectInfo.packageManager}
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import PermissionHandler
+from copilot.session import PermissionHandler
 
 async def on_session_start(input_data, invocation):
     print(f"Session {invocation['session_id']} started ({input_data['source']})")
@@ -371,7 +371,7 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import PermissionHandler
+from copilot.session import PermissionHandler
 
 session_start_times = {}
 

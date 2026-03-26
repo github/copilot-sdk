@@ -153,7 +153,7 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import PermissionHandler
+from copilot.session import PermissionHandler
 
 async def on_pre_tool_use(input_data, invocation):
     print(f"[{invocation['session_id']}] Calling {input_data['toolName']}")

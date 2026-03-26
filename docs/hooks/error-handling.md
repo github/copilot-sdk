@@ -146,7 +146,7 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import PermissionHandler
+from copilot.session import PermissionHandler
 
 async def on_error_occurred(input_data, invocation):
     print(f"[{invocation['session_id']}] Error: {input_data['error']}")

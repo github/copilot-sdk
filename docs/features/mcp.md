@@ -59,7 +59,8 @@ const session = await client.createSession({
 
 ```python
 import asyncio
-from copilot import CopilotClient, PermissionHandler
+from copilot import CopilotClient
+from copilot.session import PermissionHandler
 
 async def main():
     client = CopilotClient()
@@ -85,9 +86,7 @@ async def main():
         },
     })
 
-    response = await session.send_and_wait({
-        "prompt": "List my recent GitHub notifications"
-    })
+    response = await session.send_and_wait("List my recent GitHub notifications")
     print(response.data.content)
 
     await client.stop()

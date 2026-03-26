@@ -145,7 +145,8 @@ const response = await session.sendAndWait({ prompt: "Hello!" });
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient, PermissionHandler
+from copilot import CopilotClient
+from copilot.session import PermissionHandler
 
 def create_client_for_user(user_token: str) -> CopilotClient:
     return CopilotClient({
@@ -159,7 +160,7 @@ await client.start()
 
 session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-4.1", session_id=f"user-{user_id}-session")
 
-response = await session.send_and_wait({"prompt": "Hello!"})
+response = await session.send_and_wait("Hello!")
 ```
 
 </details>

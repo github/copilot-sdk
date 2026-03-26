@@ -258,15 +258,15 @@ await session.send({
 
 ```python
 from copilot import CopilotClient
-from copilot.types import PermissionRequestResult
+from copilot.session import PermissionRequestResult
 
 client = CopilotClient()
 await client.start()
 
-session = await client.create_session({
-    "model": "gpt-4.1",
-    "on_permission_request": lambda req, inv: PermissionRequestResult(kind="approved"),
-})
+session = await client.create_session(
+    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approved"),
+    model="gpt-4.1",
+)
 
 base64_image_data = "..."  # your base64-encoded image
 await session.send(
