@@ -31,7 +31,7 @@ async def main():
     # Client automatically starts on enter and cleans up on exit
     async with CopilotClient() as client:
         # Create a session with automatic cleanup
-        async with await client.create_session({"model": "gpt-4o"}) as session:
+        async with await client.create_session({"model": "gpt-5"}) as session:
             # Wait for response using session.idle event
             done = asyncio.Event()
 
@@ -64,7 +64,7 @@ async def main():
 
     # Create a session (on_permission_request is required)
     session = await client.create_session({
-        "model": "gpt-4o",
+        "model": "gpt-5",
         "on_permission_request": PermissionHandler.approve_all,
     })
 
@@ -87,17 +87,6 @@ async def main():
 asyncio.run(main())
 ```
 
-Sessions also support the `async with` context manager pattern for automatic cleanup:
-
-```python
-async with await client.create_session({
-    "model": "gpt-4o",
-    "on_permission_request": PermissionHandler.approve_all,
-}) as session:
-    await session.send("What is 2+2?")
-    # session is automatically disconnected when leaving the block
-```
-
 ## Features
 
 - ✅ Full JSON-RPC protocol support
@@ -116,7 +105,7 @@ async with await client.create_session({
 from copilot import CopilotClient, SubprocessConfig
 
 async with CopilotClient() as client:
-    async with await client.create_session({"model": "gpt-4o"}) as session:
+    async with await client.create_session({"model": "gpt-5"}) as session:
         def on_event(event):
             print(f"Event: {event['type']}")
 
@@ -165,7 +154,7 @@ CopilotClient(
 
 **SessionConfig Options (for `create_session`):**
 
-- `model` (str): Model to use ("gpt-4o", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
+- `model` (str): Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
 - `reasoning_effort` (str): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh"). Use `list_models()` to check which models support this option.
 - `session_id` (str): Custom session ID
 - `tools` (list): Custom tools exposed to the CLI
@@ -223,7 +212,7 @@ async def lookup_issue(params: LookupIssueParams) -> str:
     return issue.summary
 
 async with await client.create_session({
-    "model": "gpt-4o",
+    "model": "gpt-5",
     "tools": [lookup_issue],
 }) as session:
     ...
@@ -249,7 +238,7 @@ async def lookup_issue(invocation):
     }
 
 async with await client.create_session({
-    "model": "gpt-4o",
+    "model": "gpt-5",
     "tools": [
         Tool(
             name="lookup_issue",
@@ -340,7 +329,7 @@ from copilot import CopilotClient
 async def main():
     async with CopilotClient() as client:
         async with await client.create_session({
-            "model": "gpt-4o",
+            "model": "gpt-5",
             "streaming": True,
         }) as session:
             # Use asyncio.Event to wait for completion
@@ -389,14 +378,14 @@ By default, sessions use **infinite sessions** which automatically manage contex
 
 ```python
 # Default: infinite sessions enabled with default thresholds
-async with await client.create_session({"model": "gpt-4o"}) as session:
+async with await client.create_session({"model": "gpt-5"}) as session:
     # Access the workspace path for checkpoints and files
     print(session.workspace_path)
     # => ~/.copilot/session-state/{session_id}/
 
 # Custom thresholds
 async with await client.create_session({
-    "model": "gpt-4o",
+    "model": "gpt-5",
     "infinite_sessions": {
         "enabled": True,
         "background_compaction_threshold": 0.80,  # Start compacting at 80% context usage
@@ -407,7 +396,7 @@ async with await client.create_session({
 
 # Disable infinite sessions
 async with await client.create_session({
-    "model": "gpt-4o",
+    "model": "gpt-5",
     "infinite_sessions": {"enabled": False},
 }) as session:
     ...
@@ -523,7 +512,7 @@ Use the built-in `PermissionHandler.approve_all` helper to allow every tool call
 from copilot import CopilotClient, PermissionHandler
 
 session = await client.create_session({
-    "model": "gpt-4o",
+    "model": "gpt-5",
     "on_permission_request": PermissionHandler.approve_all,
 })
 ```
@@ -557,7 +546,7 @@ def on_permission_request(request: PermissionRequest, invocation: dict) -> Permi
     return PermissionRequestResult(kind="approved")
 
 session = await client.create_session({
-    "model": "gpt-4o",
+    "model": "gpt-5",
     "on_permission_request": on_permission_request,
 })
 ```
@@ -617,7 +606,7 @@ async def handle_user_input(request, invocation):
     }
 
 async with await client.create_session({
-    "model": "gpt-4o",
+    "model": "gpt-5",
     "on_user_input_request": handle_user_input,
 }) as session:
     ...
@@ -665,7 +654,7 @@ async def on_error_occurred(input, invocation):
     }
 
 async with await client.create_session({
-    "model": "gpt-4o",
+    "model": "gpt-5",
     "hooks": {
         "on_pre_tool_use": on_pre_tool_use,
         "on_post_tool_use": on_post_tool_use,
