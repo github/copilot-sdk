@@ -891,7 +891,7 @@ class CopilotClient:
 
         return (host, port)
 
-    async def __aenter__(self) -> "CopilotClient":
+    async def __aenter__(self) -> CopilotClient:
         """
         Enter the async context manager.
 
