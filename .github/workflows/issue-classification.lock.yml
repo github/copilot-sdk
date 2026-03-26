@@ -22,11 +22,7 @@
 #
 # Classifies newly opened issues with routing labels for the copilot-sdk repository
 #
-# Resolved workflow manifest:
-#   Includes:
-#     - shared/triage-classification.md
-#
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"d020f7481b83e49beb9ea382c52ff238d45b8a637756d7483b38583e98325a73","compiler_version":"v0.62.5","strict":true,"agent_id":"copilot"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"a595cada347fad357f1a08bf37da43aa17a0797885430f900b15fc0907c13443","compiler_version":"v0.62.5","strict":true,"agent_id":"copilot"}
 
 name: "Issue Classification Agent"
 "on":
@@ -79,7 +75,7 @@ jobs:
           GH_AW_INFO_WORKFLOW_NAME: "Issue Classification Agent"
           GH_AW_INFO_EXPERIMENTAL: "false"
           GH_AW_INFO_SUPPORTS_TOOLS_ALLOWLIST: "true"
-          GH_AW_INFO_STAGED: "true"
+          GH_AW_INFO_STAGED: "false"
           GH_AW_INFO_ALLOWED_DOMAINS: '["defaults"]'
           GH_AW_INFO_FIREWALL_ENABLED: "true"
           GH_AW_INFO_AWF_VERSION: "v0.24.5"
@@ -587,7 +583,6 @@ jobs:
           GH_AW_PHASE: agent
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
           GH_AW_SAFE_OUTPUTS: ${{ env.GH_AW_SAFE_OUTPUTS }}
-          GH_AW_SAFE_OUTPUTS_STAGED: true
           GH_AW_VERSION: v0.62.5
           GITHUB_API_URL: ${{ github.api_url }}
           GITHUB_AW: true
@@ -867,7 +862,11 @@ jobs:
       - safe_outputs
     if: always() && (needs.agent.result != 'skipped' || needs.activation.outputs.lockdown_check_failed == 'true')
     runs-on: ubuntu-slim
-    permissions: {}
+    permissions:
+      contents: read
+      discussions: write
+      issues: write
+      pull-requests: write
     concurrency:
       group: "gh-aw-conclusion-issue-classification"
       cancel-in-progress: false
@@ -966,12 +965,15 @@ jobs:
     needs: agent
     if: (!cancelled()) && needs.agent.result != 'skipped' && needs.agent.outputs.detection_success == 'true'
     runs-on: ubuntu-slim
-    permissions: {}
+    permissions:
+      contents: read
+      discussions: write
+      issues: write
+      pull-requests: write
     timeout-minutes: 15
     env:
       GH_AW_CALLER_WORKFLOW_ID: "${{ github.repository }}/issue-classification"
       GH_AW_ENGINE_ID: "copilot"
-      GH_AW_SAFE_OUTPUTS_STAGED: "true"
       GH_AW_WORKFLOW_ID: "issue-classification"
       GH_AW_WORKFLOW_NAME: "Issue Classification Agent"
     outputs:
@@ -1018,7 +1020,6 @@ jobs:
           GITHUB_SERVER_URL: ${{ github.server_url }}
           GITHUB_API_URL: ${{ github.api_url }}
           GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG: "{\"add_comment\":{\"max\":1,\"target\":\"triggering\"},\"add_labels\":{\"allowed\":[\"bug\",\"enhancement\",\"question\",\"documentation\",\"ai-triaged\"],\"max\":2,\"target\":\"triggering\"},\"missing_data\":{},\"missing_tool\":{},\"noop\":{\"max\":1,\"report-as-issue\":\"true\"}}"
-          GH_AW_SAFE_OUTPUTS_STAGED: "true"
         with:
           github-token: ${{ secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           script: |
@@ -1026,4 +1027,11 @@ jobs:
             setupGlobals(core, github, context, exec, io);
             const { main } = require('${{ runner.temp }}/gh-aw/actions/safe_output_handler_manager.cjs');
             await main();
+      - name: Upload safe output items
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: safe-output-items
+          path: /tmp/gh-aw/safe-output-items.jsonl
+          if-no-files-found: ignore
 
