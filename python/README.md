@@ -28,7 +28,37 @@ import asyncio
 from copilot import CopilotClient, PermissionHandler
 
 async def main():
-    # Create and start client
+    # Client automatically starts on enter and cleans up on exit
+    async with CopilotClient() as client:
+        # Create a session with automatic cleanup
+        async with await client.create_session({"model": "gpt-5"}) as session:
+            # Wait for response using session.idle event
+            done = asyncio.Event()
+
+            def on_event(event):
+                if event.type.value == "assistant.message":
+                    print(event.data.content)
+                elif event.type.value == "session.idle":
+                    done.set()
+
+            session.on(on_event)
+
+            # Send a message and wait for completion
+            await session.send("What is 2+2?")
+            await done.wait()
+
+asyncio.run(main())
+```
+
+### Manual Resource Management
+
+If you need more control over the lifecycle, you can call `start()`, `stop()`, and `disconnect()` manually:
+
+```python
+import asyncio
+from copilot import CopilotClient
+
+async def main():
     client = CopilotClient()
     await client.start()
 
@@ -38,7 +68,6 @@ async def main():
         "on_permission_request": PermissionHandler.approve_all,
     })
 
-    # Wait for response using session.idle event
     done = asyncio.Event()
 
     def on_event(event):
@@ -48,27 +77,14 @@ async def main():
             done.set()
 
     session.on(on_event)
-
-    # Send a message and wait for completion
     await session.send("What is 2+2?")
     await done.wait()
 
-    # Clean up
+    # Clean up manually
     await session.disconnect()
     await client.stop()
 
 asyncio.run(main())
-```
-
-Sessions also support the `async with` context manager pattern for automatic cleanup:
-
-```python
-async with await client.create_session({
-    "model": "gpt-5",
-    "on_permission_request": PermissionHandler.approve_all,
-}) as session:
-    await session.send("What is 2+2?")
-    # session is automatically disconnected when leaving the block
 ```
 
 ## Features
@@ -79,6 +95,7 @@ async with await client.create_session({
 - ✅ Session history with `get_messages()`
 - ✅ Type hints throughout
 - ✅ Async/await native
+- ✅ Async context manager support for automatic resource cleanup
 
 ## API Reference
 
@@ -87,23 +104,18 @@ async with await client.create_session({
 ```python
 from copilot import CopilotClient, SubprocessConfig
 
-# Spawn a local CLI process (default)
-client = CopilotClient()  # uses bundled CLI, stdio transport
-await client.start()
+async with CopilotClient() as client:
+    async with await client.create_session({"model": "gpt-5"}) as session:
+        def on_event(event):
+            print(f"Event: {event['type']}")
 
-session = await client.create_session({"model": "gpt-5"})
+        session.on(on_event)
+        await session.send("Hello!")
 
-def on_event(event):
-    print(f"Event: {event['type']}")
-
-session.on(on_event)
-await session.send("Hello!")
-
-# ... wait for events ...
-
-await session.disconnect()
-await client.stop()
+        # ... wait for events ...
 ```
+
+> **Note:** For manual lifecycle management, see [Manual Resource Management](#manual-resource-management) above.
 
 ```python
 from copilot import CopilotClient, ExternalServerConfig
@@ -199,10 +211,11 @@ async def lookup_issue(params: LookupIssueParams) -> str:
     issue = await fetch_issue(params.id)
     return issue.summary
 
-session = await client.create_session({
+async with await client.create_session({
     "model": "gpt-5",
     "tools": [lookup_issue],
-})
+}) as session:
+    ...
 ```
 
 > **Note:** When using `from __future__ import annotations`, define Pydantic models at module level (not inside functions).
@@ -224,7 +237,7 @@ async def lookup_issue(invocation):
         "sessionLog": f"Fetched issue {issue_id}",
     }
 
-session = await client.create_session({
+async with await client.create_session({
     "model": "gpt-5",
     "tools": [
         Tool(
@@ -240,7 +253,8 @@ session = await client.create_session({
             handler=lookup_issue,
         )
     ],
-})
+}) as session:
+    ...
 ```
 
 The SDK automatically handles `tool.call`, executes your handler (sync or async), and responds with the final result when the tool completes.
@@ -313,44 +327,38 @@ import asyncio
 from copilot import CopilotClient
 
 async def main():
-    client = CopilotClient()
-    await client.start()
+    async with CopilotClient() as client:
+        async with await client.create_session({
+            "model": "gpt-5",
+            "streaming": True,
+        }) as session:
+            # Use asyncio.Event to wait for completion
+            done = asyncio.Event()
 
-    session = await client.create_session({
-        "model": "gpt-5",
-        "streaming": True
-    })
+            def on_event(event):
+                if event.type.value == "assistant.message_delta":
+                    # Streaming message chunk - print incrementally
+                    delta = event.data.delta_content or ""
+                    print(delta, end="", flush=True)
+                elif event.type.value == "assistant.reasoning_delta":
+                    # Streaming reasoning chunk (if model supports reasoning)
+                    delta = event.data.delta_content or ""
+                    print(delta, end="", flush=True)
+                elif event.type.value == "assistant.message":
+                    # Final message - complete content
+                    print("\n--- Final message ---")
+                    print(event.data.content)
+                elif event.type.value == "assistant.reasoning":
+                    # Final reasoning content (if model supports reasoning)
+                    print("--- Reasoning ---")
+                    print(event.data.content)
+                elif event.type.value == "session.idle":
+                    # Session finished processing
+                    done.set()
 
-    # Use asyncio.Event to wait for completion
-    done = asyncio.Event()
-
-    def on_event(event):
-        if event.type.value == "assistant.message_delta":
-            # Streaming message chunk - print incrementally
-            delta = event.data.delta_content or ""
-            print(delta, end="", flush=True)
-        elif event.type.value == "assistant.reasoning_delta":
-            # Streaming reasoning chunk (if model supports reasoning)
-            delta = event.data.delta_content or ""
-            print(delta, end="", flush=True)
-        elif event.type.value == "assistant.message":
-            # Final message - complete content
-            print("\n--- Final message ---")
-            print(event.data.content)
-        elif event.type.value == "assistant.reasoning":
-            # Final reasoning content (if model supports reasoning)
-            print("--- Reasoning ---")
-            print(event.data.content)
-        elif event.type.value == "session.idle":
-            # Session finished processing
-            done.set()
-
-    session.on(on_event)
-    await session.send("Tell me a short story")
-    await done.wait()  # Wait for streaming to complete
-
-    await session.disconnect()
-    await client.stop()
+            session.on(on_event)
+            await session.send("Tell me a short story")
+            await done.wait()  # Wait for streaming to complete
 
 asyncio.run(main())
 ```
@@ -370,27 +378,28 @@ By default, sessions use **infinite sessions** which automatically manage contex
 
 ```python
 # Default: infinite sessions enabled with default thresholds
-session = await client.create_session({"model": "gpt-5"})
-
-# Access the workspace path for checkpoints and files
-print(session.workspace_path)
-# => ~/.copilot/session-state/{session_id}/
+async with await client.create_session({"model": "gpt-5"}) as session:
+    # Access the workspace path for checkpoints and files
+    print(session.workspace_path)
+    # => ~/.copilot/session-state/{session_id}/
 
 # Custom thresholds
-session = await client.create_session({
+async with await client.create_session({
     "model": "gpt-5",
     "infinite_sessions": {
         "enabled": True,
         "background_compaction_threshold": 0.80,  # Start compacting at 80% context usage
         "buffer_exhaustion_threshold": 0.95,  # Block at 95% until compaction completes
     },
-})
+}) as session:
+    ...
 
 # Disable infinite sessions
-session = await client.create_session({
+async with await client.create_session({
     "model": "gpt-5",
     "infinite_sessions": {"enabled": False},
-})
+}) as session:
+    ...
 ```
 
 When enabled, sessions emit compaction events:
@@ -414,16 +423,15 @@ The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own K
 **Example with Ollama:**
 
 ```python
-session = await client.create_session({
+async with await client.create_session({
     "model": "deepseek-coder-v2:16b",  # Required when using custom provider
     "provider": {
         "type": "openai",
         "base_url": "http://localhost:11434/v1",  # Ollama endpoint
         # api_key not required for Ollama
     },
-})
-
-await session.send("Hello!")
+}) as session:
+    await session.send("Hello!")
 ```
 
 **Example with custom OpenAI-compatible API:**
@@ -431,14 +439,15 @@ await session.send("Hello!")
 ```python
 import os
 
-session = await client.create_session({
+async with await client.create_session({
     "model": "gpt-4",
     "provider": {
         "type": "openai",
         "base_url": "https://my-api.example.com/v1",
         "api_key": os.environ["MY_API_KEY"],
     },
-})
+}) as session:
+    ...
 ```
 
 **Example with Azure OpenAI:**
@@ -446,7 +455,7 @@ session = await client.create_session({
 ```python
 import os
 
-session = await client.create_session({
+async with await client.create_session({
     "model": "gpt-4",
     "provider": {
         "type": "azure",  # Must be "azure" for Azure endpoints, NOT "openai"
@@ -456,7 +465,8 @@ session = await client.create_session({
             "api_version": "2024-10-21",
         },
     },
-})
+}) as session:
+    ...
 ```
 
 > **Important notes:**
@@ -595,10 +605,11 @@ async def handle_user_input(request, invocation):
         "wasFreeform": True,  # Whether the answer was freeform (not from choices)
     }
 
-session = await client.create_session({
+async with await client.create_session({
     "model": "gpt-5",
     "on_user_input_request": handle_user_input,
-})
+}) as session:
+    ...
 ```
 
 ## Session Hooks
@@ -642,7 +653,7 @@ async def on_error_occurred(input, invocation):
         "errorHandling": "retry",  # "retry", "skip", or "abort"
     }
 
-session = await client.create_session({
+async with await client.create_session({
     "model": "gpt-5",
     "hooks": {
         "on_pre_tool_use": on_pre_tool_use,
@@ -652,7 +663,8 @@ session = await client.create_session({
         "on_session_end": on_session_end,
         "on_error_occurred": on_error_occurred,
     },
-})
+}) as session:
+    ...
 ```
 
 **Available hooks:**

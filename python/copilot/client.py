@@ -26,6 +26,7 @@ import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
+from types import TracebackType
 from typing import Any, Literal, TypedDict, cast, overload
 
 from ._jsonrpc import JsonRpcClient, ProcessExitedError
@@ -889,6 +890,38 @@ class CopilotClient:
             raise ValueError(f"Invalid port in cli_url: {url}")
 
         return (host, port)
+
+    async def __aenter__(self) -> CopilotClient:
+        """
+        Enter the async context manager.
+
+        Automatically starts the CLI server and establishes a connection if not
+        already connected.
+
+        Returns:
+            The CopilotClient instance.
+
+        Example:
+            >>> async with CopilotClient() as client:
+            ...     session = await client.create_session()
+            ...     await session.send("Hello!")
+        """
+        await self.start()
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None = None,
+        exc_val: BaseException | None = None,
+        exc_tb: TracebackType | None = None,
+    ) -> None:
+        """
+        Exit the async context manager.
+
+        Performs graceful cleanup by destroying all active sessions and stopping
+        the CLI server.
+        """
+        await self.stop()
 
     async def start(self) -> None:
         """
