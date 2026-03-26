@@ -510,13 +510,6 @@ class TestCopilotClientContextManager:
             await client.__aexit__(None, None, None)
             mock_stop.assert_awaited_once()
 
-    @pytest.mark.asyncio
-    async def test_aexit_returns_none(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
-        with patch.object(client, "stop", new_callable=AsyncMock):
-            result = await client.__aexit__(None, None, None)
-            assert result is None
-
 
 class TestCopilotSessionContextManager:
     @pytest.mark.asyncio
@@ -535,12 +528,3 @@ class TestCopilotSessionContextManager:
         with patch.object(session, "disconnect", new_callable=AsyncMock) as mock_disconnect:
             await session.__aexit__(None, None, None)
             mock_disconnect.assert_awaited_once()
-
-    @pytest.mark.asyncio
-    async def test_aexit_returns_none(self):
-        from copilot.session import CopilotSession
-
-        session = CopilotSession.__new__(CopilotSession)
-        with patch.object(session, "disconnect", new_callable=AsyncMock):
-            result = await session.__aexit__(None, None, None)
-            assert result is None

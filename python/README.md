@@ -64,7 +64,7 @@ async def main():
 
     # Create a session (on_permission_request is required)
     session = await client.create_session({
-        "model": "gpt-5",
+        "model": "gpt-4o",
         "on_permission_request": PermissionHandler.approve_all,
     })
 
@@ -91,7 +91,7 @@ Sessions also support the `async with` context manager pattern for automatic cle
 
 ```python
 async with await client.create_session({
-    "model": "gpt-5",
+    "model": "gpt-4o",
     "on_permission_request": PermissionHandler.approve_all,
 }) as session:
     await session.send("What is 2+2?")
@@ -523,7 +523,7 @@ Use the built-in `PermissionHandler.approve_all` helper to allow every tool call
 from copilot import CopilotClient, PermissionHandler
 
 session = await client.create_session({
-    "model": "gpt-5",
+    "model": "gpt-4o",
     "on_permission_request": PermissionHandler.approve_all,
 })
 ```
@@ -557,7 +557,7 @@ def on_permission_request(request: PermissionRequest, invocation: dict) -> Permi
     return PermissionRequestResult(kind="approved")
 
 session = await client.create_session({
-    "model": "gpt-5",
+    "model": "gpt-4o",
     "on_permission_request": on_permission_request,
 })
 ```
