@@ -13,15 +13,10 @@ import pytest
 import pytest_asyncio
 from pydantic import BaseModel, Field
 
-from copilot import (
-    CopilotClient,
-    ExternalServerConfig,
-    PermissionHandler,
-    PermissionRequestResult,
-    SubprocessConfig,
-    ToolInvocation,
-    define_tool,
-)
+from copilot import CopilotClient, define_tool
+from copilot.client import ExternalServerConfig, SubprocessConfig
+from copilot.session import PermissionHandler, PermissionRequestResult
+from copilot.tools import ToolInvocation
 
 from .testharness import get_final_assistant_message
 from .testharness.proxy import CapiProxy
@@ -68,7 +63,7 @@ class MultiClientContext:
 
         # Trigger connection by creating and disconnecting an init session
         init_session = await self._client1.create_session(
-            {"on_permission_request": PermissionHandler.approve_all}
+            on_permission_request=PermissionHandler.approve_all
         )
         await init_session.disconnect()
 
@@ -199,15 +194,13 @@ class TestMultiClientBroadcast:
 
         # Client 1 creates a session with a custom tool
         session1 = await mctx.client1.create_session(
-            {"on_permission_request": PermissionHandler.approve_all, "tools": [magic_number]}
+            on_permission_request=PermissionHandler.approve_all, tools=[magic_number]
         )
 
         # Client 2 resumes with NO tools — should not overwrite client 1's tools
         session2 = await mctx.client2.resume_session(
-            session1.session_id, {"on_permission_request": PermissionHandler.approve_all}
+            session1.session_id, on_permission_request=PermissionHandler.approve_all
         )
-
-        # Track events seen by each client
         client1_events = []
         client2_events = []
         session1.on(lambda event: client1_events.append(event))
@@ -240,17 +233,15 @@ class TestMultiClientBroadcast:
 
         # Client 1 creates a session and manually approves permission requests
         session1 = await mctx.client1.create_session(
-            {
-                "on_permission_request": lambda request, invocation: (
-                    permission_requests.append(request) or PermissionRequestResult(kind="approved")
-                ),
-            }
+            on_permission_request=lambda request, invocation: (
+                permission_requests.append(request) or PermissionRequestResult(kind="approved")
+            ),
         )
 
         # Client 2 resumes — its handler never resolves, so only client 1's approval takes effect
         session2 = await mctx.client2.resume_session(
             session1.session_id,
-            {"on_permission_request": lambda request, invocation: asyncio.Future()},
+            on_permission_request=lambda request, invocation: asyncio.Future(),
         )
 
         client1_events = []
@@ -288,17 +279,15 @@ class TestMultiClientBroadcast:
         """One client rejects a permission request and both see the result."""
         # Client 1 creates a session and denies all permission requests
         session1 = await mctx.client1.create_session(
-            {
-                "on_permission_request": lambda request, invocation: PermissionRequestResult(
-                    kind="denied-interactively-by-user"
-                ),
-            }
+            on_permission_request=lambda request, invocation: PermissionRequestResult(
+                kind="denied-interactively-by-user"
+            ),
         )
 
         # Client 2 resumes — its handler never resolves
         session2 = await mctx.client2.resume_session(
             session1.session_id,
-            {"on_permission_request": lambda request, invocation: asyncio.Future()},
+            on_permission_request=lambda request, invocation: asyncio.Future(),
         )
 
         client1_events = []
@@ -355,13 +344,14 @@ class TestMultiClientBroadcast:
 
         # Client 1 creates a session with tool A
         session1 = await mctx.client1.create_session(
-            {"on_permission_request": PermissionHandler.approve_all, "tools": [city_lookup]}
+            on_permission_request=PermissionHandler.approve_all, tools=[city_lookup]
         )
 
         # Client 2 resumes with tool B (different tool, union should have both)
         session2 = await mctx.client2.resume_session(
             session1.session_id,
-            {"on_permission_request": PermissionHandler.approve_all, "tools": [currency_lookup]},
+            on_permission_request=PermissionHandler.approve_all,
+            tools=[currency_lookup],
         )
 
         # Send prompts sequentially to avoid nondeterministic tool_call ordering
@@ -402,13 +392,14 @@ class TestMultiClientBroadcast:
 
         # Client 1 creates a session with stable_tool
         session1 = await mctx.client1.create_session(
-            {"on_permission_request": PermissionHandler.approve_all, "tools": [stable_tool]}
+            on_permission_request=PermissionHandler.approve_all, tools=[stable_tool]
         )
 
         # Client 2 resumes with ephemeral_tool
         await mctx.client2.resume_session(
             session1.session_id,
-            {"on_permission_request": PermissionHandler.approve_all, "tools": [ephemeral_tool]},
+            on_permission_request=PermissionHandler.approve_all,
+            tools=[ephemeral_tool],
         )
 
         # Verify both tools work before disconnect.

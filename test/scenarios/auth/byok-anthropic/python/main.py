@@ -1,7 +1,8 @@
 import asyncio
 import os
 import sys
-from copilot import CopilotClient, SubprocessConfig
+from copilot import CopilotClient
+from copilot.client import SubprocessConfig
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")

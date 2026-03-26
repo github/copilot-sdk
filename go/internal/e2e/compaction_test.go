@@ -36,10 +36,10 @@ func TestCompaction(t *testing.T) {
 		var compactionCompleteEvents []copilot.SessionEvent
 
 		session.On(func(event copilot.SessionEvent) {
-			if event.Type == copilot.SessionCompactionStart {
+			if event.Type == copilot.SessionEventTypeSessionCompactionStart {
 				compactionStartEvents = append(compactionStartEvents, event)
 			}
-			if event.Type == copilot.SessionCompactionComplete {
+			if event.Type == copilot.SessionEventTypeSessionCompactionComplete {
 				compactionCompleteEvents = append(compactionCompleteEvents, event)
 			}
 		})
@@ -105,7 +105,7 @@ func TestCompaction(t *testing.T) {
 
 		var compactionEvents []copilot.SessionEvent
 		session.On(func(event copilot.SessionEvent) {
-			if event.Type == copilot.SessionCompactionStart || event.Type == copilot.SessionCompactionComplete {
+			if event.Type == copilot.SessionEventTypeSessionCompactionStart || event.Type == copilot.SessionEventTypeSessionCompactionComplete {
 				compactionEvents = append(compactionEvents, event)
 			}
 		})

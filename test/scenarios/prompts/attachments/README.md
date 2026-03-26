@@ -11,18 +11,35 @@ Demonstrates sending **file attachments** alongside a prompt using the Copilot S
 
 ## Attachment Format
 
+### File Attachment
+
 | Field | Value | Description |
 |-------|-------|-------------|
 | `type` | `"file"` | Indicates a local file attachment |
 | `path` | Absolute path to file | The SDK reads and sends the file content to the model |
 
+### Blob Attachment
+
+| Field | Value | Description |
+|-------|-------|-------------|
+| `type` | `"blob"` | Indicates an inline data attachment |
+| `data` | Base64-encoded string | The file content encoded as base64 |
+| `mimeType` | MIME type string | The MIME type of the data (e.g., `"image/png"`) |
+| `displayName` | *(optional)* string | User-facing display name for the attachment |
+
 ### Language-Specific Usage
 
-| Language | Attachment Syntax |
-|----------|------------------|
+| Language | File Attachment Syntax |
+|----------|------------------------|
 | TypeScript | `attachments: [{ type: "file", path: sampleFile }]` |
 | Python | `"attachments": [{"type": "file", "path": sample_file}]` |
 | Go | `Attachments: []copilot.Attachment{{Type: "file", Path: sampleFile}}` |
+
+| Language | Blob Attachment Syntax |
+|----------|------------------------|
+| TypeScript | `attachments: [{ type: "blob", data: base64Data, mimeType: "image/png" }]` |
+| Python | `"attachments": [{"type": "blob", "data": base64_data, "mimeType": "image/png"}]` |
+| Go | `Attachments: []copilot.Attachment{{Type: copilot.AttachmentTypeBlob, Data: &data, MIMEType: &mime}}` |
 
 ## Sample Data
 

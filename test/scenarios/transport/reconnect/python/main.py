@@ -1,7 +1,8 @@
 import asyncio
 import os
 import sys
-from copilot import CopilotClient, ExternalServerConfig
+from copilot import CopilotClient
+from copilot.client import ExternalServerConfig
 
 
 async def main():

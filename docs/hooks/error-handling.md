@@ -35,18 +35,18 @@ type ErrorOccurredHandler = (
 
 <!-- docs-validate: hidden -->
 ```python
-from copilot.types import ErrorOccurredHookInput, HookInvocation, ErrorOccurredHookOutput
+from copilot.session import ErrorOccurredHookInput, ErrorOccurredHookOutput
 from typing import Callable, Awaitable
 
 ErrorOccurredHandler = Callable[
-    [ErrorOccurredHookInput, HookInvocation],
+    [ErrorOccurredHookInput, dict[str, str]],
     Awaitable[ErrorOccurredHookOutput | None]
 ]
 ```
 <!-- /docs-validate: hidden -->
 ```python
 ErrorOccurredHandler = Callable[
-    [ErrorOccurredHookInput, HookInvocation],
+    [ErrorOccurredHookInput, dict[str, str]],
     Awaitable[ErrorOccurredHookOutput | None]
 ]
 ```
@@ -146,15 +146,15 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
+from copilot import PermissionHandler
+
 async def on_error_occurred(input_data, invocation):
     print(f"[{invocation['session_id']}] Error: {input_data['error']}")
     print(f"  Context: {input_data['errorContext']}")
     print(f"  Recoverable: {input_data['recoverable']}")
     return None
 
-session = await client.create_session({
-    "hooks": {"on_error_occurred": on_error_occurred}
-})
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, hooks={"on_error_occurred": on_error_occurred})
 ```
 
 </details>

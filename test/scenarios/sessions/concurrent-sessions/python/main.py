@@ -1,6 +1,7 @@
 import asyncio
 import os
-from copilot import CopilotClient, SubprocessConfig
+from copilot import CopilotClient
+from copilot.client import SubprocessConfig
 
 PIRATE_PROMPT = "You are a pirate. Always say Arrr!"
 ROBOT_PROMPT = "You are a robot. Always say BEEP BOOP!"

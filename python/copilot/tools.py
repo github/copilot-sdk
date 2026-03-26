@@ -9,12 +9,59 @@ from __future__ import annotations
 
 import inspect
 import json
-from collections.abc import Callable
-from typing import Any, TypeVar, get_type_hints, overload
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+from typing import Any, Literal, TypeVar, get_type_hints, overload
 
 from pydantic import BaseModel
 
-from .types import Tool, ToolInvocation, ToolResult
+ToolResultType = Literal["success", "failure", "rejected", "denied"]
+
+
+@dataclass
+class ToolBinaryResult:
+    """Binary content returned by a tool."""
+
+    data: str = ""
+    mime_type: str = ""
+    type: str = ""
+    description: str = ""
+
+
+@dataclass
+class ToolResult:
+    """Result of a tool invocation."""
+
+    text_result_for_llm: str = ""
+    result_type: ToolResultType = "success"
+    error: str | None = None
+    binary_results_for_llm: list[ToolBinaryResult] | None = None
+    session_log: str | None = None
+    tool_telemetry: dict[str, Any] | None = None
+
+
+@dataclass
+class ToolInvocation:
+    """Context passed to a tool handler when invoked."""
+
+    session_id: str = ""
+    tool_call_id: str = ""
+    tool_name: str = ""
+    arguments: Any = None
+
+
+ToolHandler = Callable[[ToolInvocation], ToolResult | Awaitable[ToolResult]]
+
+
+@dataclass
+class Tool:
+    name: str
+    description: str
+    handler: ToolHandler
+    parameters: dict[str, Any] | None = None
+    overrides_built_in_tool: bool = False
+    skip_permission: bool = False
+
 
 T = TypeVar("T", bound=BaseModel)
 R = TypeVar("R")

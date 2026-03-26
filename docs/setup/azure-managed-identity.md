@@ -42,7 +42,8 @@ import asyncio
 import os
 
 from azure.identity import DefaultAzureCredential
-from copilot import CopilotClient, ProviderConfig, SessionConfig
+from copilot import CopilotClient
+from copilot.session import ProviderConfig, SessionConfig
 
 COGNITIVE_SERVICES_SCOPE = "https://cognitiveservices.azure.com/.default"
 
@@ -84,7 +85,8 @@ Bearer tokens expire (typically after ~1 hour). For servers or long-running agen
 
 ```python
 from azure.identity import DefaultAzureCredential
-from copilot import CopilotClient, ProviderConfig, SessionConfig
+from copilot import CopilotClient
+from copilot.session import ProviderConfig, SessionConfig
 
 COGNITIVE_SERVICES_SCOPE = "https://cognitiveservices.azure.com/.default"
 

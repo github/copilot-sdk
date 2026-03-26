@@ -12,16 +12,23 @@ import { ConnectionError, ResponseError } from "vscode-jsonrpc/node.js";
 import { createSessionRpc } from "./generated/rpc.js";
 import { getTraceContext } from "./telemetry.js";
 import type {
+    CommandHandler,
+    ElicitationParams,
+    ElicitationResult,
+    InputOptions,
     MessageOptions,
     PermissionHandler,
     PermissionRequest,
     PermissionRequestResult,
     ReasoningEffort,
+    SectionTransformFn,
+    SessionCapabilities,
     SessionEvent,
     SessionEventHandler,
     SessionEventPayload,
     SessionEventType,
     SessionHooks,
+    SessionUiApi,
     Tool,
     ToolHandler,
     TraceContextProvider,
@@ -67,11 +74,14 @@ export class CopilotSession {
     private typedEventHandlers: Map<SessionEventType, Set<(event: SessionEvent) => void>> =
         new Map();
     private toolHandlers: Map<string, ToolHandler> = new Map();
+    private commandHandlers: Map<string, CommandHandler> = new Map();
     private permissionHandler?: PermissionHandler;
     private userInputHandler?: UserInputHandler;
     private hooks?: SessionHooks;
+    private transformCallbacks?: Map<string, SectionTransformFn>;
     private _rpc: ReturnType<typeof createSessionRpc> | null = null;
     private traceContextProvider?: TraceContextProvider;
+    private _capabilities: SessionCapabilities = {};
 
     /**
      * Creates a new CopilotSession instance.
@@ -108,6 +118,35 @@ export class CopilotSession {
      */
     get workspacePath(): string | undefined {
         return this._workspacePath;
+    }
+
+    /**
+     * Host capabilities reported when the session was created or resumed.
+     * Use this to check feature support before calling capability-gated APIs.
+     */
+    get capabilities(): SessionCapabilities {
+        return this._capabilities;
+    }
+
+    /**
+     * Interactive UI methods for showing dialogs to the user.
+     * Only available when the CLI host supports elicitation
+     * (`session.capabilities.ui?.elicitation === true`).
+     *
+     * @example
+     * ```typescript
+     * if (session.capabilities.ui?.elicitation) {
+     *   const ok = await session.ui.confirm("Deploy to production?");
+     * }
+     * ```
+     */
+    get ui(): SessionUiApi {
+        return {
+            elicitation: (params: ElicitationParams) => this._elicitation(params),
+            confirm: (message: string) => this._confirm(message),
+            select: (message: string, options: string[]) => this._select(message, options),
+            input: (message: string, options?: InputOptions) => this._input(message, options),
+        };
     }
 
     /**
@@ -367,6 +406,14 @@ export class CopilotSession {
             if (this.permissionHandler) {
                 void this._executePermissionAndRespond(requestId, permissionRequest);
             }
+        } else if (event.type === "command.execute") {
+            const { requestId, commandName, command, args } = event.data as {
+                requestId: string;
+                command: string;
+                commandName: string;
+                args: string;
+            };
+            void this._executeCommandAndRespond(requestId, commandName, command, args);
         }
     }
 
@@ -448,6 +495,46 @@ export class CopilotSession {
     }
 
     /**
+     * Executes a command handler and sends the result back via RPC.
+     * @internal
+     */
+    private async _executeCommandAndRespond(
+        requestId: string,
+        commandName: string,
+        command: string,
+        args: string
+    ): Promise<void> {
+        const handler = this.commandHandlers.get(commandName);
+        if (!handler) {
+            try {
+                await this.rpc.commands.handlePendingCommand({
+                    requestId,
+                    error: `Unknown command: ${commandName}`,
+                });
+            } catch (rpcError) {
+                if (!(rpcError instanceof ConnectionError || rpcError instanceof ResponseError)) {
+                    throw rpcError;
+                }
+            }
+            return;
+        }
+
+        try {
+            await handler({ sessionId: this.sessionId, command, commandName, args });
+            await this.rpc.commands.handlePendingCommand({ requestId });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            try {
+                await this.rpc.commands.handlePendingCommand({ requestId, error: message });
+            } catch (rpcError) {
+                if (!(rpcError instanceof ConnectionError || rpcError instanceof ResponseError)) {
+                    throw rpcError;
+                }
+            }
+        }
+    }
+
+    /**
      * Registers custom tool handlers for this session.
      *
      * Tools allow the assistant to execute custom functions. When the assistant
@@ -476,6 +563,108 @@ export class CopilotSession {
      */
     getToolHandler(name: string): ToolHandler | undefined {
         return this.toolHandlers.get(name);
+    }
+
+    /**
+     * Registers command handlers for this session.
+     *
+     * @param commands - An array of command definitions with handlers, or undefined to clear
+     * @internal This method is typically called internally when creating/resuming a session.
+     */
+    registerCommands(commands?: { name: string; handler: CommandHandler }[]): void {
+        this.commandHandlers.clear();
+        if (!commands) {
+            return;
+        }
+        for (const cmd of commands) {
+            this.commandHandlers.set(cmd.name, cmd.handler);
+        }
+    }
+
+    /**
+     * Sets the host capabilities for this session.
+     *
+     * @param capabilities - The capabilities object from the create/resume response
+     * @internal This method is typically called internally when creating/resuming a session.
+     */
+    setCapabilities(capabilities?: SessionCapabilities): void {
+        this._capabilities = capabilities ?? {};
+    }
+
+    private assertElicitation(): void {
+        if (!this._capabilities.ui?.elicitation) {
+            throw new Error(
+                "Elicitation is not supported by the host. " +
+                    "Check session.capabilities.ui?.elicitation before calling UI methods."
+            );
+        }
+    }
+
+    private async _elicitation(params: ElicitationParams): Promise<ElicitationResult> {
+        this.assertElicitation();
+        return this.rpc.ui.elicitation({
+            message: params.message,
+            requestedSchema: params.requestedSchema,
+        });
+    }
+
+    private async _confirm(message: string): Promise<boolean> {
+        this.assertElicitation();
+        const result = await this.rpc.ui.elicitation({
+            message,
+            requestedSchema: {
+                type: "object",
+                properties: {
+                    confirmed: { type: "boolean", default: true },
+                },
+                required: ["confirmed"],
+            },
+        });
+        return result.action === "accept" && (result.content?.confirmed as boolean) === true;
+    }
+
+    private async _select(message: string, options: string[]): Promise<string | null> {
+        this.assertElicitation();
+        const result = await this.rpc.ui.elicitation({
+            message,
+            requestedSchema: {
+                type: "object",
+                properties: {
+                    selection: { type: "string", enum: options },
+                },
+                required: ["selection"],
+            },
+        });
+        if (result.action === "accept" && result.content?.selection != null) {
+            return result.content.selection as string;
+        }
+        return null;
+    }
+
+    private async _input(message: string, options?: InputOptions): Promise<string | null> {
+        this.assertElicitation();
+        const field: Record<string, unknown> = { type: "string" as const };
+        if (options?.title) field.title = options.title;
+        if (options?.description) field.description = options.description;
+        if (options?.minLength != null) field.minLength = options.minLength;
+        if (options?.maxLength != null) field.maxLength = options.maxLength;
+        if (options?.format) field.format = options.format;
+        if (options?.default != null) field.default = options.default;
+
+        const result = await this.rpc.ui.elicitation({
+            message,
+            requestedSchema: {
+                type: "object",
+                properties: {
+                    value: field as ElicitationParams["requestedSchema"]["properties"][string],
+                },
+                required: ["value"],
+            },
+        });
+        if (result.action === "accept" && result.content?.value != null) {
+            return result.content.value as string;
+        }
+        return null;
     }
 
     /**
@@ -515,6 +704,48 @@ export class CopilotSession {
      */
     registerHooks(hooks?: SessionHooks): void {
         this.hooks = hooks;
+    }
+
+    /**
+     * Registers transform callbacks for system message sections.
+     *
+     * @param callbacks - Map of section ID to transform callback, or undefined to clear
+     * @internal This method is typically called internally when creating a session.
+     */
+    registerTransformCallbacks(callbacks?: Map<string, SectionTransformFn>): void {
+        this.transformCallbacks = callbacks;
+    }
+
+    /**
+     * Handles a systemMessage.transform request from the runtime.
+     * Dispatches each section to its registered transform callback.
+     *
+     * @param sections - Map of section IDs to their current rendered content
+     * @returns A promise that resolves with the transformed sections
+     * @internal This method is for internal use by the SDK.
+     */
+    async _handleSystemMessageTransform(
+        sections: Record<string, { content: string }>
+    ): Promise<{ sections: Record<string, { content: string }> }> {
+        const result: Record<string, { content: string }> = {};
+
+        for (const [sectionId, { content }] of Object.entries(sections)) {
+            const callback = this.transformCallbacks?.get(sectionId);
+            if (callback) {
+                try {
+                    const transformed = await callback(content);
+                    result[sectionId] = { content: transformed };
+                } catch (_error) {
+                    // Callback failed — return original content
+                    result[sectionId] = { content };
+                }
+            } else {
+                // No callback for this section — pass through unchanged
+                result[sectionId] = { content };
+            }
+        }
+
+        return { sections: result };
     }
 
     /**

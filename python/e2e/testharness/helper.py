@@ -8,7 +8,9 @@ import os
 from copilot import CopilotSession
 
 
-async def get_final_assistant_message(session: CopilotSession, timeout: float = 10.0):
+async def get_final_assistant_message(
+    session: CopilotSession, timeout: float = 10.0, already_idle: bool = False
+):
     """
     Wait for and return the final assistant message from a session turn.
 
@@ -46,7 +48,7 @@ async def get_final_assistant_message(session: CopilotSession, timeout: float = 
 
     try:
         # Also check existing messages in case the response already arrived
-        existing = await _get_existing_final_response(session)
+        existing = await _get_existing_final_response(session, already_idle)
         if existing is not None:
             return existing
 
@@ -55,7 +57,7 @@ async def get_final_assistant_message(session: CopilotSession, timeout: float = 
         unsubscribe()
 
 
-async def _get_existing_final_response(session: CopilotSession):
+async def _get_existing_final_response(session: CopilotSession, already_idle: bool = False):
     """Check existing messages for a final response."""
     messages = await session.get_messages()
 
@@ -78,11 +80,14 @@ async def _get_existing_final_response(session: CopilotSession):
             raise RuntimeError(err_msg)
 
     # Find session.idle and get last assistant message before it
-    session_idle_index = -1
-    for i, msg in enumerate(current_turn_messages):
-        if msg.type.value == "session.idle":
-            session_idle_index = i
-            break
+    if already_idle:
+        session_idle_index = len(current_turn_messages)
+    else:
+        session_idle_index = -1
+        for i, msg in enumerate(current_turn_messages):
+            if msg.type.value == "session.idle":
+                session_idle_index = i
+                break
 
     if session_idle_index != -1:
         # Find last assistant.message before session.idle

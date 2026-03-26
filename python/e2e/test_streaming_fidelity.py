@@ -4,7 +4,9 @@ import os
 
 import pytest
 
-from copilot import CopilotClient, PermissionHandler, SubprocessConfig
+from copilot import CopilotClient
+from copilot.client import SubprocessConfig
+from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
 
@@ -14,7 +16,7 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 class TestStreamingFidelity:
     async def test_should_produce_delta_events_when_streaming_is_enabled(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
-            {"streaming": True, "on_permission_request": PermissionHandler.approve_all}
+            on_permission_request=PermissionHandler.approve_all, streaming=True
         )
 
         events = []
@@ -46,7 +48,7 @@ class TestStreamingFidelity:
 
     async def test_should_not_produce_deltas_when_streaming_is_disabled(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
-            {"streaming": False, "on_permission_request": PermissionHandler.approve_all}
+            on_permission_request=PermissionHandler.approve_all, streaming=False
         )
 
         events = []
@@ -67,7 +69,7 @@ class TestStreamingFidelity:
 
     async def test_should_produce_deltas_after_session_resume(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
-            {"streaming": False, "on_permission_request": PermissionHandler.approve_all}
+            on_permission_request=PermissionHandler.approve_all, streaming=False
         )
         await session.send_and_wait("What is 3 + 6?")
         await session.disconnect()
@@ -88,7 +90,8 @@ class TestStreamingFidelity:
         try:
             session2 = await new_client.resume_session(
                 session.session_id,
-                {"streaming": True, "on_permission_request": PermissionHandler.approve_all},
+                on_permission_request=PermissionHandler.approve_all,
+                streaming=True,
             )
             events = []
             session2.on(lambda event: events.append(event))

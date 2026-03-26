@@ -44,9 +44,10 @@ func main() {
     }
     defer client.Stop()
 
-    // Create a session
+    // Create a session (OnPermissionRequest is required)
     session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
-        Model: "gpt-5",
+        Model:               "gpt-5",
+        OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
     })
     if err != nil {
         log.Fatal(err)
@@ -149,15 +150,20 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `ReasoningEffort` (string): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh"). Use `ListModels()` to check which models support this option.
 - `SessionID` (string): Custom session ID
 - `Tools` ([]Tool): Custom tools exposed to the CLI
-- `SystemMessage` (\*SystemMessageConfig): System message configuration
+- `SystemMessage` (\*SystemMessageConfig): System message configuration. Supports three modes:
+  - **append** (default): Appends `Content` after the SDK-managed prompt
+  - **replace**: Replaces the entire prompt with `Content`
+  - **customize**: Selectively override individual sections via `Sections` map (keys: `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionLastInstructions`; values: `SectionOverride` with `Action` and optional `Content`)
 - `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
 - `Streaming` (bool): Enable streaming delta events
 - `InfiniteSessions` (\*InfiniteSessionConfig): Automatic context compaction configuration
+- `OnPermissionRequest` (PermissionHandlerFunc): **Required.** Handler called before each tool execution to approve or deny it. Use `copilot.PermissionHandler.ApproveAll` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` (UserInputHandler): Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
 - `Hooks` (\*SessionHooks): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
 **ResumeSessionConfig:**
 
+- `OnPermissionRequest` (PermissionHandlerFunc): **Required.** Handler called before each tool execution to approve or deny it. See [Permission Handling](#permission-handling) section.
 - `Tools` ([]Tool): Tools to expose when resuming
 - `ReasoningEffort` (string): Reasoning effort level for models that support it
 - `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
@@ -176,17 +182,77 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 
 - `Bool(v bool) *bool` - Helper to create bool pointers for `AutoStart` option
 
-## Image Support
+### System Message Customization
 
-The SDK supports image attachments via the `Attachments` field in `MessageOptions`. You can attach images by providing their file path:
+Control the system prompt using `SystemMessage` in session config:
 
 ```go
+session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+    SystemMessage: &copilot.SystemMessageConfig{
+        Content: "Always check for security vulnerabilities before suggesting changes.",
+    },
+})
+```
+
+The SDK auto-injects environment context, tool instructions, and security guardrails. The default CLI persona is preserved, and your `Content` is appended after SDK-managed sections. To change the persona or fully redefine the prompt, use `Mode: "replace"` or `Mode: "customize"`.
+
+#### Customize Mode
+
+Use `Mode: "customize"` to selectively override individual sections of the prompt while preserving the rest:
+
+```go
+session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+    SystemMessage: &copilot.SystemMessageConfig{
+        Mode: "customize",
+        Sections: map[string]copilot.SectionOverride{
+            // Replace the tone/style section
+            copilot.SectionTone: {Action: "replace", Content: "Respond in a warm, professional tone. Be thorough in explanations."},
+            // Remove coding-specific rules
+            copilot.SectionCodeChangeRules: {Action: "remove"},
+            // Append to existing guidelines
+            copilot.SectionGuidelines: {Action: "append", Content: "\n* Always cite data sources"},
+        },
+        // Additional instructions appended after all sections
+        Content: "Focus on financial analysis and reporting.",
+    },
+})
+```
+
+Available section constants: `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionLastInstructions`.
+
+Each section override supports four actions:
+- **`replace`** — Replace the section content entirely
+- **`remove`** — Remove the section from the prompt
+- **`append`** — Add content after the existing section
+- **`prepend`** — Add content before the existing section
+
+Unknown section IDs are handled gracefully: content from `replace`/`append`/`prepend` overrides is appended to additional instructions, and `remove` overrides are silently ignored.
+
+## Image Support
+
+The SDK supports image attachments via the `Attachments` field in `MessageOptions`. You can attach images by providing their file path, or by passing base64-encoded data directly using a blob attachment:
+
+```go
+// File attachment — runtime reads from disk
 _, err = session.Send(context.Background(), copilot.MessageOptions{
     Prompt: "What's in this image?",
     Attachments: []copilot.Attachment{
         {
             Type: "file",
             Path: "/path/to/image.jpg",
+        },
+    },
+})
+
+// Blob attachment — provide base64 data directly
+mimeType := "image/png"
+_, err = session.Send(context.Background(), copilot.MessageOptions{
+    Prompt: "What's in this image?",
+    Attachments: []copilot.Attachment{
+        {
+            Type:     copilot.AttachmentTypeBlob,
+            Data:     &base64ImageData,
+            MIMEType: &mimeType,
         },
     },
 })
@@ -498,6 +564,77 @@ Trace context (`traceparent`/`tracestate`) is automatically propagated between t
 > **Note:** The current `ToolHandler` signature does not accept a `context.Context`, so the inbound trace context cannot be passed to handler code. Spans created inside a tool handler will not be automatically parented to the CLI's `execute_tool` span. A future version may add a context parameter.
 
 Dependency: `go.opentelemetry.io/otel`
+
+## Permission Handling
+
+An `OnPermissionRequest` handler is **required** whenever you create or resume a session. The handler is called before the agent executes each tool (file writes, shell commands, custom tools, etc.) and must return a decision.
+
+### Approve All (simplest)
+
+Use the built-in `PermissionHandler.ApproveAll` helper to allow every tool call without any checks:
+
+```go
+session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
+    Model:               "gpt-5",
+    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+})
+```
+
+### Custom Permission Handler
+
+Provide your own `PermissionHandlerFunc` to inspect each request and apply custom logic:
+
+```go
+session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
+    Model: "gpt-5",
+    OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+        // request.Kind — what type of operation is being requested:
+        //   copilot.KindShell  — executing a shell command
+        //   copilot.Write      — writing or editing a file
+        //   copilot.Read       — reading a file
+        //   copilot.MCP        — calling an MCP tool
+        //   copilot.CustomTool — calling one of your registered tools
+        //   copilot.URL        — fetching a URL
+        //   copilot.Memory     — accessing or updating Copilot-managed memory
+        //   copilot.Hook       — invoking a registered hook
+        // request.ToolCallID  — pointer to the tool call that triggered this request
+        // request.ToolName    — pointer to the name of the tool (for custom-tool / mcp)
+        // request.FileName    — pointer to the file being written (for write)
+        // request.FullCommandText — pointer to the full shell command (for shell)
+
+        if request.Kind == copilot.KindShell {
+            // Deny shell commands
+            return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindDeniedInteractivelyByUser}, nil
+        }
+
+        return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+    },
+})
+```
+
+### Permission Result Kinds
+
+| Constant | Meaning |
+|----------|---------|
+| `PermissionRequestResultKindApproved` | Allow the tool to run |
+| `PermissionRequestResultKindDeniedInteractivelyByUser` | User explicitly denied the request |
+| `PermissionRequestResultKindDeniedCouldNotRequestFromUser` | No approval rule matched and user could not be asked |
+| `PermissionRequestResultKindDeniedByRules` | Denied by a policy rule |
+| `PermissionRequestResultKindNoResult` | Leave the permission request unanswered (protocol v1 only; not allowed for protocol v2) |
+
+### Resuming Sessions
+
+Pass `OnPermissionRequest` when resuming a session too — it is required:
+
+```go
+session, err := client.ResumeSession(context.Background(), sessionID, &copilot.ResumeSessionConfig{
+    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+})
+```
+
+### Per-Tool Skip Permission
+
+To let a specific custom tool bypass the permission prompt entirely, set `SkipPermission = true` on the tool. See [Skipping Permission Prompts](#skipping-permission-prompts) under Tools.
 
 ## User Input Requests
 

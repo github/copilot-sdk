@@ -14,6 +14,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
 import { Socket } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,6 +36,7 @@ import type {
     GetStatusResponse,
     ModelInfo,
     ResumeSessionConfig,
+    SectionTransformFn,
     SessionConfig,
     SessionContext,
     SessionEvent,
@@ -43,6 +45,7 @@ import type {
     SessionLifecycleHandler,
     SessionListFilter,
     SessionMetadata,
+    SystemMessageCustomizeConfig,
     TelemetryConfig,
     Tool,
     ToolCallRequestPayload,
@@ -81,6 +84,45 @@ function toJsonSchema(parameters: Tool["parameters"]): Record<string, unknown> |
     return parameters;
 }
 
+/**
+ * Extract transform callbacks from a system message config and prepare the wire payload.
+ * Function-valued actions are replaced with `{ action: "transform" }` for serialization,
+ * and the original callbacks are returned in a separate map.
+ */
+function extractTransformCallbacks(systemMessage: SessionConfig["systemMessage"]): {
+    wirePayload: SessionConfig["systemMessage"];
+    transformCallbacks: Map<string, SectionTransformFn> | undefined;
+} {
+    if (!systemMessage || systemMessage.mode !== "customize" || !systemMessage.sections) {
+        return { wirePayload: systemMessage, transformCallbacks: undefined };
+    }
+
+    const transformCallbacks = new Map<string, SectionTransformFn>();
+    const wireSections: Record<string, { action: string; content?: string }> = {};
+
+    for (const [sectionId, override] of Object.entries(systemMessage.sections)) {
+        if (!override) continue;
+
+        if (typeof override.action === "function") {
+            transformCallbacks.set(sectionId, override.action);
+            wireSections[sectionId] = { action: "transform" };
+        } else {
+            wireSections[sectionId] = { action: override.action, content: override.content };
+        }
+    }
+
+    if (transformCallbacks.size === 0) {
+        return { wirePayload: systemMessage, transformCallbacks: undefined };
+    }
+
+    const wirePayload: SystemMessageCustomizeConfig = {
+        ...systemMessage,
+        sections: wireSections as SystemMessageCustomizeConfig["sections"],
+    };
+
+    return { wirePayload, transformCallbacks };
+}
+
 function getNodeExecPath(): string {
     if (process.versions.bun) {
         return "node";
@@ -91,14 +133,35 @@ function getNodeExecPath(): string {
 /**
  * Gets the path to the bundled CLI from the @github/copilot package.
  * Uses index.js directly rather than npm-loader.js (which spawns the native binary).
+ *
+ * In ESM, uses import.meta.resolve directly. In CJS (e.g., VS Code extensions
+ * bundled with esbuild format:"cjs"), import.meta is empty so we fall back to
+ * walking node_modules to find the package.
  */
 function getBundledCliPath(): string {
-    // Find the actual location of the @github/copilot package by resolving its sdk export
-    const sdkUrl = import.meta.resolve("@github/copilot/sdk");
-    const sdkPath = fileURLToPath(sdkUrl);
-    // sdkPath is like .../node_modules/@github/copilot/sdk/index.js
-    // Go up two levels to get the package root, then append index.js
-    return join(dirname(dirname(sdkPath)), "index.js");
+    if (typeof import.meta.resolve === "function") {
+        // ESM: resolve via import.meta.resolve
+        const sdkUrl = import.meta.resolve("@github/copilot/sdk");
+        const sdkPath = fileURLToPath(sdkUrl);
+        // sdkPath is like .../node_modules/@github/copilot/sdk/index.js
+        // Go up two levels to get the package root, then append index.js
+        return join(dirname(dirname(sdkPath)), "index.js");
+    }
+
+    // CJS fallback: the @github/copilot package has ESM-only exports so
+    // require.resolve cannot reach it. Walk the module search paths instead.
+    const req = createRequire(__filename);
+    const searchPaths = req.resolve.paths("@github/copilot") ?? [];
+    for (const base of searchPaths) {
+        const candidate = join(base, "@github", "copilot", "index.js");
+        if (existsSync(candidate)) {
+            return candidate;
+        }
+    }
+    throw new Error(
+        `Could not find @github/copilot package. Searched ${searchPaths.length} paths. ` +
+            `Ensure it is installed, or pass cliPath/cliUrl to CopilotClient.`
+    );
 }
 
 /**
@@ -245,8 +308,11 @@ export class CopilotClient {
         this.onListModels = options.onListModels;
         this.onGetTraceContext = options.onGetTraceContext;
 
+        const effectiveEnv = options.env ?? process.env;
         this.options = {
-            cliPath: options.cliUrl ? undefined : options.cliPath || getBundledCliPath(),
+            cliPath: options.cliUrl
+                ? undefined
+                : options.cliPath || effectiveEnv.COPILOT_CLI_PATH || getBundledCliPath(),
             cliArgs: options.cliArgs ?? [],
             cwd: options.cwd ?? process.cwd(),
             port: options.port || 0,
@@ -257,7 +323,7 @@ export class CopilotClient {
             autoStart: options.autoStart ?? true,
             autoRestart: false,
 
-            env: options.env ?? process.env,
+            env: effectiveEnv,
             githubToken: options.githubToken,
             // Default useLoggedInUser to false when githubToken is provided, otherwise true
             useLoggedInUser: options.useLoggedInUser ?? (options.githubToken ? false : true),
@@ -576,6 +642,7 @@ export class CopilotClient {
             this.onGetTraceContext
         );
         session.registerTools(config.tools);
+        session.registerCommands(config.commands);
         session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
             session.registerUserInputHandler(config.onUserInputRequest);
@@ -583,6 +650,15 @@ export class CopilotClient {
         if (config.hooks) {
             session.registerHooks(config.hooks);
         }
+
+        // Extract transform callbacks from system message config before serialization.
+        const { wirePayload: wireSystemMessage, transformCallbacks } = extractTransformCallbacks(
+            config.systemMessage
+        );
+        if (transformCallbacks) {
+            session.registerTransformCallbacks(transformCallbacks);
+        }
+
         if (config.onEvent) {
             session.on(config.onEvent);
         }
@@ -602,7 +678,11 @@ export class CopilotClient {
                     overridesBuiltInTool: tool.overridesBuiltInTool,
                     skipPermission: tool.skipPermission,
                 })),
-                systemMessage: config.systemMessage,
+                commands: config.commands?.map((cmd) => ({
+                    name: cmd.name,
+                    description: cmd.description,
+                })),
+                systemMessage: wireSystemMessage,
                 availableTools: config.availableTools,
                 excludedTools: config.excludedTools,
                 provider: config.provider,
@@ -621,11 +701,13 @@ export class CopilotClient {
                 infiniteSessions: config.infiniteSessions,
             });
 
-            const { workspacePath } = response as {
+            const { workspacePath, capabilities } = response as {
                 sessionId: string;
                 workspacePath?: string;
+                capabilities?: { ui?: { elicitation?: boolean } };
             };
             session["_workspacePath"] = workspacePath;
+            session.setCapabilities(capabilities);
         } catch (e) {
             this.sessions.delete(sessionId);
             throw e;
@@ -682,6 +764,7 @@ export class CopilotClient {
             this.onGetTraceContext
         );
         session.registerTools(config.tools);
+        session.registerCommands(config.commands);
         session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
             session.registerUserInputHandler(config.onUserInputRequest);
@@ -689,6 +772,15 @@ export class CopilotClient {
         if (config.hooks) {
             session.registerHooks(config.hooks);
         }
+
+        // Extract transform callbacks from system message config before serialization.
+        const { wirePayload: wireSystemMessage, transformCallbacks } = extractTransformCallbacks(
+            config.systemMessage
+        );
+        if (transformCallbacks) {
+            session.registerTransformCallbacks(transformCallbacks);
+        }
+
         if (config.onEvent) {
             session.on(config.onEvent);
         }
@@ -701,7 +793,7 @@ export class CopilotClient {
                 clientName: config.clientName,
                 model: config.model,
                 reasoningEffort: config.reasoningEffort,
-                systemMessage: config.systemMessage,
+                systemMessage: wireSystemMessage,
                 availableTools: config.availableTools,
                 excludedTools: config.excludedTools,
                 tools: config.tools?.map((tool) => ({
@@ -710,6 +802,10 @@ export class CopilotClient {
                     parameters: toJsonSchema(tool.parameters),
                     overridesBuiltInTool: tool.overridesBuiltInTool,
                     skipPermission: tool.skipPermission,
+                })),
+                commands: config.commands?.map((cmd) => ({
+                    name: cmd.name,
+                    description: cmd.description,
                 })),
                 provider: config.provider,
                 requestPermission: true,
@@ -728,11 +824,13 @@ export class CopilotClient {
                 disableResume: config.disableResume,
             });
 
-            const { workspacePath } = response as {
+            const { workspacePath, capabilities } = response as {
                 sessionId: string;
                 workspacePath?: string;
+                capabilities?: { ui?: { elicitation?: boolean } };
             };
             session["_workspacePath"] = workspacePath;
+            session.setCapabilities(capabilities);
         } catch (e) {
             this.sessions.delete(sessionId);
             throw e;
@@ -1455,6 +1553,15 @@ export class CopilotClient {
             }): Promise<{ output?: unknown }> => await this.handleHooksInvoke(params)
         );
 
+        this.connection.onRequest(
+            "systemMessage.transform",
+            async (params: {
+                sessionId: string;
+                sections: Record<string, { content: string }>;
+            }): Promise<{ sections: Record<string, { content: string }> }> =>
+                await this.handleSystemMessageTransform(params)
+        );
+
         this.connection.onClose(() => {
             this.state = "disconnected";
         });
@@ -1564,6 +1671,27 @@ export class CopilotClient {
 
         const output = await session._handleHooksInvoke(params.hookType, params.input);
         return { output };
+    }
+
+    private async handleSystemMessageTransform(params: {
+        sessionId: string;
+        sections: Record<string, { content: string }>;
+    }): Promise<{ sections: Record<string, { content: string }> }> {
+        if (
+            !params ||
+            typeof params.sessionId !== "string" ||
+            !params.sections ||
+            typeof params.sections !== "object"
+        ) {
+            throw new Error("Invalid systemMessage.transform payload");
+        }
+
+        const session = this.sessions.get(params.sessionId);
+        if (!session) {
+            throw new Error(`Session not found: ${params.sessionId}`);
+        }
+
+        return await session._handleSystemMessageTransform(params.sections);
     }
 
     // ========================================================================

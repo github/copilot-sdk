@@ -1,6 +1,7 @@
 import asyncio
 import os
-from copilot import CopilotClient, SubprocessConfig
+from copilot import CopilotClient
+from copilot.client import SubprocessConfig
 
 
 async def main():

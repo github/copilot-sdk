@@ -4,7 +4,8 @@ import os
 import time
 import urllib.request
 
-from copilot import CopilotClient, SubprocessConfig
+from copilot import CopilotClient
+from copilot.client import SubprocessConfig
 
 
 DEVICE_CODE_URL = "https://github.com/login/device/code"

@@ -4,7 +4,7 @@ Tests for user input (ask_user) functionality
 
 import pytest
 
-from copilot import PermissionHandler
+from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
 
@@ -30,10 +30,8 @@ class TestAskUser:
             }
 
         session = await ctx.client.create_session(
-            {
-                "on_user_input_request": on_user_input_request,
-                "on_permission_request": PermissionHandler.approve_all,
-            }
+            on_permission_request=PermissionHandler.approve_all,
+            on_user_input_request=on_user_input_request,
         )
 
         await session.send_and_wait(
@@ -65,10 +63,8 @@ class TestAskUser:
             }
 
         session = await ctx.client.create_session(
-            {
-                "on_user_input_request": on_user_input_request,
-                "on_permission_request": PermissionHandler.approve_all,
-            }
+            on_permission_request=PermissionHandler.approve_all,
+            on_user_input_request=on_user_input_request,
         )
 
         await session.send_and_wait(
@@ -102,10 +98,8 @@ class TestAskUser:
             }
 
         session = await ctx.client.create_session(
-            {
-                "on_user_input_request": on_user_input_request,
-                "on_permission_request": PermissionHandler.approve_all,
-            }
+            on_permission_request=PermissionHandler.approve_all,
+            on_user_input_request=on_user_input_request,
         )
 
         response = await session.send_and_wait(

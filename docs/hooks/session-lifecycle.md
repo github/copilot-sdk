@@ -39,18 +39,18 @@ type SessionStartHandler = (
 
 <!-- docs-validate: hidden -->
 ```python
-from copilot.types import SessionStartHookInput, HookInvocation, SessionStartHookOutput
+from copilot.session import SessionStartHookInput, SessionStartHookOutput
 from typing import Callable, Awaitable
 
 SessionStartHandler = Callable[
-    [SessionStartHookInput, HookInvocation],
+    [SessionStartHookInput, dict[str, str]],
     Awaitable[SessionStartHookOutput | None]
 ]
 ```
 <!-- /docs-validate: hidden -->
 ```python
 SessionStartHandler = Callable[
-    [SessionStartHookInput, HookInvocation],
+    [SessionStartHookInput, dict[str, str]],
     Awaitable[SessionStartHookOutput | None]
 ]
 ```
@@ -152,6 +152,8 @@ Package manager: ${projectInfo.packageManager}
 <summary><strong>Python</strong></summary>
 
 ```python
+from copilot import PermissionHandler
+
 async def on_session_start(input_data, invocation):
     print(f"Session {invocation['session_id']} started ({input_data['source']})")
     
@@ -165,9 +167,7 @@ Package manager: {project_info['packageManager']}
         """.strip()
     }
 
-session = await client.create_session({
-    "hooks": {"on_session_start": on_session_start}
-})
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, hooks={"on_session_start": on_session_start})
 ```
 
 </details>
@@ -249,18 +249,18 @@ type SessionEndHandler = (
 
 <!-- docs-validate: hidden -->
 ```python
-from copilot.types import SessionEndHookInput, HookInvocation
+from copilot.session import SessionEndHookInput
 from typing import Callable, Awaitable
 
 SessionEndHandler = Callable[
-    [SessionEndHookInput, HookInvocation],
+    [SessionEndHookInput, dict[str, str]],
     Awaitable[None]
 ]
 ```
 <!-- /docs-validate: hidden -->
 ```python
 SessionEndHandler = Callable[
-    [SessionEndHookInput, HookInvocation],
+    [SessionEndHookInput, dict[str, str]],
     Awaitable[SessionEndHookOutput | None]
 ]
 ```
@@ -371,6 +371,8 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
+from copilot import PermissionHandler
+
 session_start_times = {}
 
 async def on_session_start(input_data, invocation):
@@ -390,12 +392,10 @@ async def on_session_end(input_data, invocation):
     session_start_times.pop(invocation["session_id"], None)
     return None
 
-session = await client.create_session({
-    "hooks": {
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, hooks={
         "on_session_start": on_session_start,
         "on_session_end": on_session_end,
-    }
-})
+    })
 ```
 
 </details>

@@ -5,11 +5,19 @@
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: api.schema.json
 
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using StreamJsonRpc;
 
 namespace GitHub.Copilot.SDK.Rpc;
+
+/// <summary>Diagnostic IDs for the Copilot SDK.</summary>
+internal static class Diagnostics
+{
+    /// <summary>Indicates an experimental API that may change or be removed.</summary>
+    internal const string Experimental = "GHCP001";
+}
 
 /// <summary>RPC data type for Ping operations.</summary>
 public class PingResult
@@ -237,6 +245,10 @@ internal class SessionLogRequest
     /// <summary>When true, the message is transient and not persisted to the session event log on disk.</summary>
     [JsonPropertyName("ephemeral")]
     public bool? Ephemeral { get; set; }
+
+    /// <summary>Optional URL the user can open in their browser for more details.</summary>
+    [JsonPropertyName("url")]
+    public string? Url { get; set; }
 }
 
 /// <summary>RPC data type for SessionModelGetCurrent operations.</summary>
@@ -427,6 +439,7 @@ internal class SessionWorkspaceCreateFileRequest
 }
 
 /// <summary>RPC data type for SessionFleetStart operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 public class SessionFleetStartResult
 {
     /// <summary>Whether fleet mode was successfully activated.</summary>
@@ -435,6 +448,7 @@ public class SessionFleetStartResult
 }
 
 /// <summary>RPC data type for SessionFleetStart operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal class SessionFleetStartRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -463,6 +477,7 @@ public class Agent
 }
 
 /// <summary>RPC data type for SessionAgentList operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 public class SessionAgentListResult
 {
     /// <summary>Available custom agents.</summary>
@@ -471,6 +486,7 @@ public class SessionAgentListResult
 }
 
 /// <summary>RPC data type for SessionAgentList operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal class SessionAgentListRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -495,6 +511,7 @@ public class SessionAgentGetCurrentResultAgent
 }
 
 /// <summary>RPC data type for SessionAgentGetCurrent operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 public class SessionAgentGetCurrentResult
 {
     /// <summary>Currently selected custom agent, or null if using the default agent.</summary>
@@ -503,6 +520,7 @@ public class SessionAgentGetCurrentResult
 }
 
 /// <summary>RPC data type for SessionAgentGetCurrent operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal class SessionAgentGetCurrentRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -527,6 +545,7 @@ public class SessionAgentSelectResultAgent
 }
 
 /// <summary>RPC data type for SessionAgentSelect operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 public class SessionAgentSelectResult
 {
     /// <summary>The newly selected custom agent.</summary>
@@ -535,6 +554,7 @@ public class SessionAgentSelectResult
 }
 
 /// <summary>RPC data type for SessionAgentSelect operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal class SessionAgentSelectRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -547,11 +567,13 @@ internal class SessionAgentSelectRequest
 }
 
 /// <summary>RPC data type for SessionAgentDeselect operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 public class SessionAgentDeselectResult
 {
 }
 
 /// <summary>RPC data type for SessionAgentDeselect operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal class SessionAgentDeselectRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -559,7 +581,349 @@ internal class SessionAgentDeselectRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>RPC data type for SessionAgentReload operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class SessionAgentReloadResult
+{
+    /// <summary>Reloaded custom agents.</summary>
+    [JsonPropertyName("agents")]
+    public List<Agent> Agents { get => field ??= []; set; }
+}
+
+/// <summary>RPC data type for SessionAgentReload operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal class SessionAgentReloadRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for Skill operations.</summary>
+public class Skill
+{
+    /// <summary>Unique identifier for the skill.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Description of what the skill does.</summary>
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>Source location type (e.g., project, personal, plugin).</summary>
+    [JsonPropertyName("source")]
+    public string Source { get; set; } = string.Empty;
+
+    /// <summary>Whether the skill can be invoked by the user as a slash command.</summary>
+    [JsonPropertyName("userInvocable")]
+    public bool UserInvocable { get; set; }
+
+    /// <summary>Whether the skill is currently enabled.</summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+
+    /// <summary>Absolute path to the skill file.</summary>
+    [JsonPropertyName("path")]
+    public string? Path { get; set; }
+}
+
+/// <summary>RPC data type for SessionSkillsList operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class SessionSkillsListResult
+{
+    /// <summary>Available skills.</summary>
+    [JsonPropertyName("skills")]
+    public List<Skill> Skills { get => field ??= []; set; }
+}
+
+/// <summary>RPC data type for SessionSkillsList operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal class SessionSkillsListRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionSkillsEnable operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class SessionSkillsEnableResult
+{
+}
+
+/// <summary>RPC data type for SessionSkillsEnable operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal class SessionSkillsEnableRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Name of the skill to enable.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionSkillsDisable operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class SessionSkillsDisableResult
+{
+}
+
+/// <summary>RPC data type for SessionSkillsDisable operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal class SessionSkillsDisableRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Name of the skill to disable.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionSkillsReload operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class SessionSkillsReloadResult
+{
+}
+
+/// <summary>RPC data type for SessionSkillsReload operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal class SessionSkillsReloadRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for Server operations.</summary>
+public class Server
+{
+    /// <summary>Server name (config key).</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Connection status: connected, failed, pending, disabled, or not_configured.</summary>
+    [JsonPropertyName("status")]
+    public ServerStatus Status { get; set; }
+
+    /// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
+    [JsonPropertyName("source")]
+    public string? Source { get; set; }
+
+    /// <summary>Error message if the server failed to connect.</summary>
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+}
+
+/// <summary>RPC data type for SessionMcpList operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class SessionMcpListResult
+{
+    /// <summary>Configured MCP servers.</summary>
+    [JsonPropertyName("servers")]
+    public List<Server> Servers { get => field ??= []; set; }
+}
+
+/// <summary>RPC data type for SessionMcpList operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal class SessionMcpListRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionMcpEnable operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class SessionMcpEnableResult
+{
+}
+
+/// <summary>RPC data type for SessionMcpEnable operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal class SessionMcpEnableRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Name of the MCP server to enable.</summary>
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionMcpDisable operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class SessionMcpDisableResult
+{
+}
+
+/// <summary>RPC data type for SessionMcpDisable operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal class SessionMcpDisableRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Name of the MCP server to disable.</summary>
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionMcpReload operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class SessionMcpReloadResult
+{
+}
+
+/// <summary>RPC data type for SessionMcpReload operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal class SessionMcpReloadRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for Plugin operations.</summary>
+public class Plugin
+{
+    /// <summary>Plugin name.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Marketplace the plugin came from.</summary>
+    [JsonPropertyName("marketplace")]
+    public string Marketplace { get; set; } = string.Empty;
+
+    /// <summary>Installed version.</summary>
+    [JsonPropertyName("version")]
+    public string? Version { get; set; }
+
+    /// <summary>Whether the plugin is currently enabled.</summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+}
+
+/// <summary>RPC data type for SessionPluginsList operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class SessionPluginsListResult
+{
+    /// <summary>Installed plugins.</summary>
+    [JsonPropertyName("plugins")]
+    public List<Plugin> Plugins { get => field ??= []; set; }
+}
+
+/// <summary>RPC data type for SessionPluginsList operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal class SessionPluginsListRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for Extension operations.</summary>
+public class Extension
+{
+    /// <summary>Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper').</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Extension name (directory name).</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/).</summary>
+    [JsonPropertyName("source")]
+    public ExtensionSource Source { get; set; }
+
+    /// <summary>Current status: running, disabled, failed, or starting.</summary>
+    [JsonPropertyName("status")]
+    public ExtensionStatus Status { get; set; }
+
+    /// <summary>Process ID if the extension is running.</summary>
+    [JsonPropertyName("pid")]
+    public double? Pid { get; set; }
+}
+
+/// <summary>RPC data type for SessionExtensionsList operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class SessionExtensionsListResult
+{
+    /// <summary>Discovered extensions and their current status.</summary>
+    [JsonPropertyName("extensions")]
+    public List<Extension> Extensions { get => field ??= []; set; }
+}
+
+/// <summary>RPC data type for SessionExtensionsList operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal class SessionExtensionsListRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionExtensionsEnable operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class SessionExtensionsEnableResult
+{
+}
+
+/// <summary>RPC data type for SessionExtensionsEnable operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal class SessionExtensionsEnableRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Source-qualified extension ID to enable.</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionExtensionsDisable operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class SessionExtensionsDisableResult
+{
+}
+
+/// <summary>RPC data type for SessionExtensionsDisable operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal class SessionExtensionsDisableRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Source-qualified extension ID to disable.</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionExtensionsReload operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class SessionExtensionsReloadResult
+{
+}
+
+/// <summary>RPC data type for SessionExtensionsReload operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal class SessionExtensionsReloadRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>RPC data type for SessionCompactionCompact operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 public class SessionCompactionCompactResult
 {
     /// <summary>Whether compaction completed successfully.</summary>
@@ -576,6 +940,7 @@ public class SessionCompactionCompactResult
 }
 
 /// <summary>RPC data type for SessionCompactionCompact operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal class SessionCompactionCompactRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -609,6 +974,74 @@ internal class SessionToolsHandlePendingToolCallRequest
     /// <summary>Gets or sets the <c>error</c> value.</summary>
     [JsonPropertyName("error")]
     public string? Error { get; set; }
+}
+
+/// <summary>RPC data type for SessionCommandsHandlePendingCommand operations.</summary>
+public class SessionCommandsHandlePendingCommandResult
+{
+    /// <summary>Gets or sets the <c>success</c> value.</summary>
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+/// <summary>RPC data type for SessionCommandsHandlePendingCommand operations.</summary>
+internal class SessionCommandsHandlePendingCommandRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Request ID from the command invocation event.</summary>
+    [JsonPropertyName("requestId")]
+    public string RequestId { get; set; } = string.Empty;
+
+    /// <summary>Error message if the command handler failed.</summary>
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+}
+
+/// <summary>RPC data type for SessionUiElicitation operations.</summary>
+public class SessionUiElicitationResult
+{
+    /// <summary>The user's response: accept (submitted), decline (rejected), or cancel (dismissed).</summary>
+    [JsonPropertyName("action")]
+    public SessionUiElicitationResultAction Action { get; set; }
+
+    /// <summary>The form values submitted by the user (present when action is 'accept').</summary>
+    [JsonPropertyName("content")]
+    public Dictionary<string, object>? Content { get; set; }
+}
+
+/// <summary>JSON Schema describing the form fields to present to the user.</summary>
+public class SessionUiElicitationRequestRequestedSchema
+{
+    /// <summary>Schema type indicator (always 'object').</summary>
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = string.Empty;
+
+    /// <summary>Form field definitions, keyed by field name.</summary>
+    [JsonPropertyName("properties")]
+    public Dictionary<string, object> Properties { get => field ??= []; set; }
+
+    /// <summary>List of required field names.</summary>
+    [JsonPropertyName("required")]
+    public List<string>? Required { get; set; }
+}
+
+/// <summary>RPC data type for SessionUiElicitation operations.</summary>
+internal class SessionUiElicitationRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Message describing what information is needed from the user.</summary>
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+
+    /// <summary>JSON Schema describing the form fields to present to the user.</summary>
+    [JsonPropertyName("requestedSchema")]
+    public SessionUiElicitationRequestRequestedSchema RequestedSchema { get => field ??= new(); set; }
 }
 
 /// <summary>RPC data type for SessionPermissionsHandlePendingPermissionRequest operations.</summary>
@@ -716,6 +1149,76 @@ public enum SessionModeGetResultMode
     /// <summary>The <c>autopilot</c> variant.</summary>
     [JsonStringEnumMemberName("autopilot")]
     Autopilot,
+}
+
+
+/// <summary>Connection status: connected, failed, pending, disabled, or not_configured.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ServerStatus>))]
+public enum ServerStatus
+{
+    /// <summary>The <c>connected</c> variant.</summary>
+    [JsonStringEnumMemberName("connected")]
+    Connected,
+    /// <summary>The <c>failed</c> variant.</summary>
+    [JsonStringEnumMemberName("failed")]
+    Failed,
+    /// <summary>The <c>pending</c> variant.</summary>
+    [JsonStringEnumMemberName("pending")]
+    Pending,
+    /// <summary>The <c>disabled</c> variant.</summary>
+    [JsonStringEnumMemberName("disabled")]
+    Disabled,
+    /// <summary>The <c>not_configured</c> variant.</summary>
+    [JsonStringEnumMemberName("not_configured")]
+    NotConfigured,
+}
+
+
+/// <summary>Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/).</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ExtensionSource>))]
+public enum ExtensionSource
+{
+    /// <summary>The <c>project</c> variant.</summary>
+    [JsonStringEnumMemberName("project")]
+    Project,
+    /// <summary>The <c>user</c> variant.</summary>
+    [JsonStringEnumMemberName("user")]
+    User,
+}
+
+
+/// <summary>Current status: running, disabled, failed, or starting.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ExtensionStatus>))]
+public enum ExtensionStatus
+{
+    /// <summary>The <c>running</c> variant.</summary>
+    [JsonStringEnumMemberName("running")]
+    Running,
+    /// <summary>The <c>disabled</c> variant.</summary>
+    [JsonStringEnumMemberName("disabled")]
+    Disabled,
+    /// <summary>The <c>failed</c> variant.</summary>
+    [JsonStringEnumMemberName("failed")]
+    Failed,
+    /// <summary>The <c>starting</c> variant.</summary>
+    [JsonStringEnumMemberName("starting")]
+    Starting,
+}
+
+
+/// <summary>The user's response: accept (submitted), decline (rejected), or cancel (dismissed).</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<SessionUiElicitationResultAction>))]
+public enum SessionUiElicitationResultAction
+{
+    /// <summary>The <c>accept</c> variant.</summary>
+    [JsonStringEnumMemberName("accept")]
+    Accept,
+    /// <summary>The <c>decline</c> variant.</summary>
+    [JsonStringEnumMemberName("decline")]
+    Decline,
+    /// <summary>The <c>cancel</c> variant.</summary>
+    [JsonStringEnumMemberName("cancel")]
+    Cancel,
 }
 
 
@@ -833,8 +1336,14 @@ public class SessionRpc
         Workspace = new WorkspaceApi(rpc, sessionId);
         Fleet = new FleetApi(rpc, sessionId);
         Agent = new AgentApi(rpc, sessionId);
+        Skills = new SkillsApi(rpc, sessionId);
+        Mcp = new McpApi(rpc, sessionId);
+        Plugins = new PluginsApi(rpc, sessionId);
+        Extensions = new ExtensionsApi(rpc, sessionId);
         Compaction = new CompactionApi(rpc, sessionId);
         Tools = new ToolsApi(rpc, sessionId);
+        Commands = new CommandsApi(rpc, sessionId);
+        Ui = new UiApi(rpc, sessionId);
         Permissions = new PermissionsApi(rpc, sessionId);
         Shell = new ShellApi(rpc, sessionId);
     }
@@ -857,11 +1366,29 @@ public class SessionRpc
     /// <summary>Agent APIs.</summary>
     public AgentApi Agent { get; }
 
+    /// <summary>Skills APIs.</summary>
+    public SkillsApi Skills { get; }
+
+    /// <summary>Mcp APIs.</summary>
+    public McpApi Mcp { get; }
+
+    /// <summary>Plugins APIs.</summary>
+    public PluginsApi Plugins { get; }
+
+    /// <summary>Extensions APIs.</summary>
+    public ExtensionsApi Extensions { get; }
+
     /// <summary>Compaction APIs.</summary>
     public CompactionApi Compaction { get; }
 
     /// <summary>Tools APIs.</summary>
     public ToolsApi Tools { get; }
+
+    /// <summary>Commands APIs.</summary>
+    public CommandsApi Commands { get; }
+
+    /// <summary>Ui APIs.</summary>
+    public UiApi Ui { get; }
 
     /// <summary>Permissions APIs.</summary>
     public PermissionsApi Permissions { get; }
@@ -870,9 +1397,9 @@ public class SessionRpc
     public ShellApi Shell { get; }
 
     /// <summary>Calls "session.log".</summary>
-    public async Task<SessionLogResult> LogAsync(string message, SessionLogRequestLevel? level = null, bool? ephemeral = null, CancellationToken cancellationToken = default)
+    public async Task<SessionLogResult> LogAsync(string message, SessionLogRequestLevel? level = null, bool? ephemeral = null, string? url = null, CancellationToken cancellationToken = default)
     {
-        var request = new SessionLogRequest { SessionId = _sessionId, Message = message, Level = level, Ephemeral = ephemeral };
+        var request = new SessionLogRequest { SessionId = _sessionId, Message = message, Level = level, Ephemeral = ephemeral, Url = url };
         return await CopilotClient.InvokeRpcAsync<SessionLogResult>(_rpc, "session.log", [request], cancellationToken);
     }
 }
@@ -1000,6 +1527,7 @@ public class WorkspaceApi
 }
 
 /// <summary>Provides session-scoped Fleet APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public class FleetApi
 {
     private readonly JsonRpc _rpc;
@@ -1020,6 +1548,7 @@ public class FleetApi
 }
 
 /// <summary>Provides session-scoped Agent APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public class AgentApi
 {
     private readonly JsonRpc _rpc;
@@ -1058,9 +1587,164 @@ public class AgentApi
         var request = new SessionAgentDeselectRequest { SessionId = _sessionId };
         return await CopilotClient.InvokeRpcAsync<SessionAgentDeselectResult>(_rpc, "session.agent.deselect", [request], cancellationToken);
     }
+
+    /// <summary>Calls "session.agent.reload".</summary>
+    public async Task<SessionAgentReloadResult> ReloadAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new SessionAgentReloadRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionAgentReloadResult>(_rpc, "session.agent.reload", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped Skills APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class SkillsApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal SkillsApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.skills.list".</summary>
+    public async Task<SessionSkillsListResult> ListAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new SessionSkillsListRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionSkillsListResult>(_rpc, "session.skills.list", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.skills.enable".</summary>
+    public async Task<SessionSkillsEnableResult> EnableAsync(string name, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionSkillsEnableRequest { SessionId = _sessionId, Name = name };
+        return await CopilotClient.InvokeRpcAsync<SessionSkillsEnableResult>(_rpc, "session.skills.enable", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.skills.disable".</summary>
+    public async Task<SessionSkillsDisableResult> DisableAsync(string name, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionSkillsDisableRequest { SessionId = _sessionId, Name = name };
+        return await CopilotClient.InvokeRpcAsync<SessionSkillsDisableResult>(_rpc, "session.skills.disable", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.skills.reload".</summary>
+    public async Task<SessionSkillsReloadResult> ReloadAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new SessionSkillsReloadRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionSkillsReloadResult>(_rpc, "session.skills.reload", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped Mcp APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class McpApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal McpApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.mcp.list".</summary>
+    public async Task<SessionMcpListResult> ListAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new SessionMcpListRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionMcpListResult>(_rpc, "session.mcp.list", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.mcp.enable".</summary>
+    public async Task<SessionMcpEnableResult> EnableAsync(string serverName, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionMcpEnableRequest { SessionId = _sessionId, ServerName = serverName };
+        return await CopilotClient.InvokeRpcAsync<SessionMcpEnableResult>(_rpc, "session.mcp.enable", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.mcp.disable".</summary>
+    public async Task<SessionMcpDisableResult> DisableAsync(string serverName, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionMcpDisableRequest { SessionId = _sessionId, ServerName = serverName };
+        return await CopilotClient.InvokeRpcAsync<SessionMcpDisableResult>(_rpc, "session.mcp.disable", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.mcp.reload".</summary>
+    public async Task<SessionMcpReloadResult> ReloadAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new SessionMcpReloadRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionMcpReloadResult>(_rpc, "session.mcp.reload", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped Plugins APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class PluginsApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal PluginsApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.plugins.list".</summary>
+    public async Task<SessionPluginsListResult> ListAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new SessionPluginsListRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionPluginsListResult>(_rpc, "session.plugins.list", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped Extensions APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class ExtensionsApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal ExtensionsApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.extensions.list".</summary>
+    public async Task<SessionExtensionsListResult> ListAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new SessionExtensionsListRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionExtensionsListResult>(_rpc, "session.extensions.list", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.extensions.enable".</summary>
+    public async Task<SessionExtensionsEnableResult> EnableAsync(string id, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionExtensionsEnableRequest { SessionId = _sessionId, Id = id };
+        return await CopilotClient.InvokeRpcAsync<SessionExtensionsEnableResult>(_rpc, "session.extensions.enable", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.extensions.disable".</summary>
+    public async Task<SessionExtensionsDisableResult> DisableAsync(string id, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionExtensionsDisableRequest { SessionId = _sessionId, Id = id };
+        return await CopilotClient.InvokeRpcAsync<SessionExtensionsDisableResult>(_rpc, "session.extensions.disable", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.extensions.reload".</summary>
+    public async Task<SessionExtensionsReloadResult> ReloadAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new SessionExtensionsReloadRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionExtensionsReloadResult>(_rpc, "session.extensions.reload", [request], cancellationToken);
+    }
 }
 
 /// <summary>Provides session-scoped Compaction APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public class CompactionApi
 {
     private readonly JsonRpc _rpc;
@@ -1097,6 +1781,46 @@ public class ToolsApi
     {
         var request = new SessionToolsHandlePendingToolCallRequest { SessionId = _sessionId, RequestId = requestId, Result = result, Error = error };
         return await CopilotClient.InvokeRpcAsync<SessionToolsHandlePendingToolCallResult>(_rpc, "session.tools.handlePendingToolCall", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped Commands APIs.</summary>
+public class CommandsApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal CommandsApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.commands.handlePendingCommand".</summary>
+    public async Task<SessionCommandsHandlePendingCommandResult> HandlePendingCommandAsync(string requestId, string? error = null, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionCommandsHandlePendingCommandRequest { SessionId = _sessionId, RequestId = requestId, Error = error };
+        return await CopilotClient.InvokeRpcAsync<SessionCommandsHandlePendingCommandResult>(_rpc, "session.commands.handlePendingCommand", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped Ui APIs.</summary>
+public class UiApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal UiApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.ui.elicitation".</summary>
+    public async Task<SessionUiElicitationResult> ElicitationAsync(string message, SessionUiElicitationRequestRequestedSchema requestedSchema, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionUiElicitationRequest { SessionId = _sessionId, Message = message, RequestedSchema = requestedSchema };
+        return await CopilotClient.InvokeRpcAsync<SessionUiElicitationResult>(_rpc, "session.ui.elicitation", [request], cancellationToken);
     }
 }
 
@@ -1154,6 +1878,7 @@ public class ShellApi
 [JsonSerializable(typeof(AccountGetQuotaResult))]
 [JsonSerializable(typeof(AccountGetQuotaResultQuotaSnapshotsValue))]
 [JsonSerializable(typeof(Agent))]
+[JsonSerializable(typeof(Extension))]
 [JsonSerializable(typeof(Model))]
 [JsonSerializable(typeof(ModelBilling))]
 [JsonSerializable(typeof(ModelCapabilities))]
@@ -1163,6 +1888,8 @@ public class ShellApi
 [JsonSerializable(typeof(ModelsListResult))]
 [JsonSerializable(typeof(PingRequest))]
 [JsonSerializable(typeof(PingResult))]
+[JsonSerializable(typeof(Plugin))]
+[JsonSerializable(typeof(Server))]
 [JsonSerializable(typeof(SessionAgentDeselectRequest))]
 [JsonSerializable(typeof(SessionAgentDeselectResult))]
 [JsonSerializable(typeof(SessionAgentGetCurrentRequest))]
@@ -1170,15 +1897,35 @@ public class ShellApi
 [JsonSerializable(typeof(SessionAgentGetCurrentResultAgent))]
 [JsonSerializable(typeof(SessionAgentListRequest))]
 [JsonSerializable(typeof(SessionAgentListResult))]
+[JsonSerializable(typeof(SessionAgentReloadRequest))]
+[JsonSerializable(typeof(SessionAgentReloadResult))]
 [JsonSerializable(typeof(SessionAgentSelectRequest))]
 [JsonSerializable(typeof(SessionAgentSelectResult))]
 [JsonSerializable(typeof(SessionAgentSelectResultAgent))]
+[JsonSerializable(typeof(SessionCommandsHandlePendingCommandRequest))]
+[JsonSerializable(typeof(SessionCommandsHandlePendingCommandResult))]
 [JsonSerializable(typeof(SessionCompactionCompactRequest))]
 [JsonSerializable(typeof(SessionCompactionCompactResult))]
+[JsonSerializable(typeof(SessionExtensionsDisableRequest))]
+[JsonSerializable(typeof(SessionExtensionsDisableResult))]
+[JsonSerializable(typeof(SessionExtensionsEnableRequest))]
+[JsonSerializable(typeof(SessionExtensionsEnableResult))]
+[JsonSerializable(typeof(SessionExtensionsListRequest))]
+[JsonSerializable(typeof(SessionExtensionsListResult))]
+[JsonSerializable(typeof(SessionExtensionsReloadRequest))]
+[JsonSerializable(typeof(SessionExtensionsReloadResult))]
 [JsonSerializable(typeof(SessionFleetStartRequest))]
 [JsonSerializable(typeof(SessionFleetStartResult))]
 [JsonSerializable(typeof(SessionLogRequest))]
 [JsonSerializable(typeof(SessionLogResult))]
+[JsonSerializable(typeof(SessionMcpDisableRequest))]
+[JsonSerializable(typeof(SessionMcpDisableResult))]
+[JsonSerializable(typeof(SessionMcpEnableRequest))]
+[JsonSerializable(typeof(SessionMcpEnableResult))]
+[JsonSerializable(typeof(SessionMcpListRequest))]
+[JsonSerializable(typeof(SessionMcpListResult))]
+[JsonSerializable(typeof(SessionMcpReloadRequest))]
+[JsonSerializable(typeof(SessionMcpReloadResult))]
 [JsonSerializable(typeof(SessionModeGetRequest))]
 [JsonSerializable(typeof(SessionModeGetResult))]
 [JsonSerializable(typeof(SessionModeSetRequest))]
@@ -1195,18 +1942,32 @@ public class ShellApi
 [JsonSerializable(typeof(SessionPlanReadResult))]
 [JsonSerializable(typeof(SessionPlanUpdateRequest))]
 [JsonSerializable(typeof(SessionPlanUpdateResult))]
+[JsonSerializable(typeof(SessionPluginsListRequest))]
+[JsonSerializable(typeof(SessionPluginsListResult))]
 [JsonSerializable(typeof(SessionShellExecRequest))]
 [JsonSerializable(typeof(SessionShellExecResult))]
 [JsonSerializable(typeof(SessionShellKillRequest))]
 [JsonSerializable(typeof(SessionShellKillResult))]
+[JsonSerializable(typeof(SessionSkillsDisableRequest))]
+[JsonSerializable(typeof(SessionSkillsDisableResult))]
+[JsonSerializable(typeof(SessionSkillsEnableRequest))]
+[JsonSerializable(typeof(SessionSkillsEnableResult))]
+[JsonSerializable(typeof(SessionSkillsListRequest))]
+[JsonSerializable(typeof(SessionSkillsListResult))]
+[JsonSerializable(typeof(SessionSkillsReloadRequest))]
+[JsonSerializable(typeof(SessionSkillsReloadResult))]
 [JsonSerializable(typeof(SessionToolsHandlePendingToolCallRequest))]
 [JsonSerializable(typeof(SessionToolsHandlePendingToolCallResult))]
+[JsonSerializable(typeof(SessionUiElicitationRequest))]
+[JsonSerializable(typeof(SessionUiElicitationRequestRequestedSchema))]
+[JsonSerializable(typeof(SessionUiElicitationResult))]
 [JsonSerializable(typeof(SessionWorkspaceCreateFileRequest))]
 [JsonSerializable(typeof(SessionWorkspaceCreateFileResult))]
 [JsonSerializable(typeof(SessionWorkspaceListFilesRequest))]
 [JsonSerializable(typeof(SessionWorkspaceListFilesResult))]
 [JsonSerializable(typeof(SessionWorkspaceReadFileRequest))]
 [JsonSerializable(typeof(SessionWorkspaceReadFileResult))]
+[JsonSerializable(typeof(Skill))]
 [JsonSerializable(typeof(Tool))]
 [JsonSerializable(typeof(ToolsListRequest))]
 [JsonSerializable(typeof(ToolsListResult))]

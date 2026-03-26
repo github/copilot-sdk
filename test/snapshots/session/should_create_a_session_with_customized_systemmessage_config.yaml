@@ -1,0 +1,35 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Who are you?
+      - role: assistant
+        content: >-
+          I'm **GitHub Copilot CLI**, a terminal assistant built by GitHub. I'm powered by claude-sonnet-4.5 (model ID:
+          claude-sonnet-4.5).
+
+
+          I'm here to help you with software engineering tasks, including:
+
+          - Writing, debugging, and refactoring code
+
+          - Running commands and managing development workflows
+
+          - Exploring codebases and understanding how things work
+
+          - Setting up projects, installing dependencies, and configuring tools
+
+          - Working with Git, testing, and deployment tasks
+
+          - Planning and implementing features
+
+
+          I have access to a variety of tools including file operations, shell commands, code search, and specialized
+          sub-agents for specific tasks. I can work with multiple languages and frameworks, and I'm designed to be
+          efficient by running tasks in parallel when possible.
+
+
+          How can I help you today?

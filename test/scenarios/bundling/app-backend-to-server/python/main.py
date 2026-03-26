@@ -5,7 +5,8 @@ import sys
 import urllib.request
 
 from flask import Flask, request, jsonify
-from copilot import CopilotClient, ExternalServerConfig
+from copilot import CopilotClient
+from copilot.client import ExternalServerConfig
 
 app = Flask(__name__)
 

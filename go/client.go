@@ -199,13 +199,27 @@ func NewClient(options *ClientOptions) *Client {
 		opts.Env = os.Environ()
 	}
 
-	// Check environment variable for CLI path
-	if cliPath := os.Getenv("COPILOT_CLI_PATH"); cliPath != "" {
-		opts.CLIPath = cliPath
+	// Check effective environment for CLI path (only if not explicitly set via options)
+	if opts.CLIPath == "" {
+		if cliPath := getEnvValue(opts.Env, "COPILOT_CLI_PATH"); cliPath != "" {
+			opts.CLIPath = cliPath
+		}
 	}
 
 	client.options = opts
 	return client
+}
+
+// getEnvValue looks up a key in an environment slice ([]string of "KEY=VALUE").
+// Returns the value if found, or empty string otherwise.
+func getEnvValue(env []string, key string) string {
+	prefix := key + "="
+	for i := len(env) - 1; i >= 0; i-- {
+		if strings.HasPrefix(env[i], prefix) {
+			return env[i][len(prefix):]
+		}
+	}
+	return ""
 }
 
 // parseCliUrl parses a CLI URL into host and port components.
@@ -443,12 +457,12 @@ func (c *Client) ForceStop() {
 	c.RPC = nil
 }
 
-func (c *Client) ensureConnected() error {
+func (c *Client) ensureConnected(ctx context.Context) error {
 	if c.client != nil {
 		return nil
 	}
 	if c.autoStart {
-		return c.Start(context.Background())
+		return c.Start(ctx)
 	}
 	return fmt.Errorf("client not connected. Call Start() first")
 }
@@ -482,12 +496,43 @@ func (c *Client) ensureConnected() error {
 //	        },
 //	    },
 //	})
+//
+// extractTransformCallbacks separates transform callbacks from a SystemMessageConfig,
+// returning a wire-safe config and a map of callbacks (nil if none).
+func extractTransformCallbacks(config *SystemMessageConfig) (*SystemMessageConfig, map[string]SectionTransformFn) {
+	if config == nil || config.Mode != "customize" || len(config.Sections) == 0 {
+		return config, nil
+	}
+
+	callbacks := make(map[string]SectionTransformFn)
+	wireSections := make(map[string]SectionOverride)
+	for id, override := range config.Sections {
+		if override.Transform != nil {
+			callbacks[id] = override.Transform
+			wireSections[id] = SectionOverride{Action: "transform"}
+		} else {
+			wireSections[id] = override
+		}
+	}
+
+	if len(callbacks) == 0 {
+		return config, nil
+	}
+
+	wireConfig := &SystemMessageConfig{
+		Mode:     config.Mode,
+		Content:  config.Content,
+		Sections: wireSections,
+	}
+	return wireConfig, callbacks
+}
+
 func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Session, error) {
 	if config == nil || config.OnPermissionRequest == nil {
 		return nil, fmt.Errorf("an OnPermissionRequest handler is required when creating a session. For example, to allow all permissions, use &copilot.SessionConfig{OnPermissionRequest: copilot.PermissionHandler.ApproveAll}")
 	}
 
-	if err := c.ensureConnected(); err != nil {
+	if err := c.ensureConnected(ctx); err != nil {
 		return nil, err
 	}
 
@@ -497,7 +542,8 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.ReasoningEffort = config.ReasoningEffort
 	req.ConfigDir = config.ConfigDir
 	req.Tools = config.Tools
-	req.SystemMessage = config.SystemMessage
+	wireSystemMessage, transformCallbacks := extractTransformCallbacks(config.SystemMessage)
+	req.SystemMessage = wireSystemMessage
 	req.AvailableTools = config.AvailableTools
 	req.ExcludedTools = config.ExcludedTools
 	req.Provider = config.Provider
@@ -547,6 +593,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	}
 	if config.Hooks != nil {
 		session.registerHooks(config.Hooks)
+	}
+	if transformCallbacks != nil {
+		session.registerTransformCallbacks(transformCallbacks)
 	}
 	if config.OnEvent != nil {
 		session.On(config.OnEvent)
@@ -607,7 +656,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		return nil, fmt.Errorf("an OnPermissionRequest handler is required when resuming a session. For example, to allow all permissions, use &copilot.ResumeSessionConfig{OnPermissionRequest: copilot.PermissionHandler.ApproveAll}")
 	}
 
-	if err := c.ensureConnected(); err != nil {
+	if err := c.ensureConnected(ctx); err != nil {
 		return nil, err
 	}
 
@@ -616,7 +665,8 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.ClientName = config.ClientName
 	req.Model = config.Model
 	req.ReasoningEffort = config.ReasoningEffort
-	req.SystemMessage = config.SystemMessage
+	wireSystemMessage, transformCallbacks := extractTransformCallbacks(config.SystemMessage)
+	req.SystemMessage = wireSystemMessage
 	req.Tools = config.Tools
 	req.Provider = config.Provider
 	req.AvailableTools = config.AvailableTools
@@ -664,6 +714,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	}
 	if config.Hooks != nil {
 		session.registerHooks(config.Hooks)
+	}
+	if transformCallbacks != nil {
+		session.registerTransformCallbacks(transformCallbacks)
 	}
 	if config.OnEvent != nil {
 		session.On(config.OnEvent)
@@ -715,7 +768,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 //
 //	sessions, err := client.ListSessions(context.Background(), &SessionListFilter{Repository: "owner/repo"})
 func (c *Client) ListSessions(ctx context.Context, filter *SessionListFilter) ([]SessionMetadata, error) {
-	if err := c.ensureConnected(); err != nil {
+	if err := c.ensureConnected(ctx); err != nil {
 		return nil, err
 	}
 
@@ -750,7 +803,7 @@ func (c *Client) ListSessions(ctx context.Context, filter *SessionListFilter) ([
 //	    log.Fatal(err)
 //	}
 func (c *Client) DeleteSession(ctx context.Context, sessionID string) error {
-	if err := c.ensureConnected(); err != nil {
+	if err := c.ensureConnected(ctx); err != nil {
 		return err
 	}
 
@@ -797,7 +850,7 @@ func (c *Client) DeleteSession(ctx context.Context, sessionID string) error {
 //	    })
 //	}
 func (c *Client) GetLastSessionID(ctx context.Context) (*string, error) {
-	if err := c.ensureConnected(); err != nil {
+	if err := c.ensureConnected(ctx); err != nil {
 		return nil, err
 	}
 
@@ -829,14 +882,8 @@ func (c *Client) GetLastSessionID(ctx context.Context) (*string, error) {
 //	    fmt.Printf("TUI is displaying session: %s\n", *sessionID)
 //	}
 func (c *Client) GetForegroundSessionID(ctx context.Context) (*string, error) {
-	if c.client == nil {
-		if c.autoStart {
-			if err := c.Start(ctx); err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, fmt.Errorf("client not connected. Call Start() first")
-		}
+	if err := c.ensureConnected(ctx); err != nil {
+		return nil, err
 	}
 
 	result, err := c.client.Request("session.getForeground", getForegroundSessionRequest{})
@@ -863,14 +910,8 @@ func (c *Client) GetForegroundSessionID(ctx context.Context) (*string, error) {
 //	    log.Fatal(err)
 //	}
 func (c *Client) SetForegroundSessionID(ctx context.Context, sessionID string) error {
-	if c.client == nil {
-		if c.autoStart {
-			if err := c.Start(ctx); err != nil {
-				return err
-			}
-		} else {
-			return fmt.Errorf("client not connected. Call Start() first")
-		}
+	if err := c.ensureConnected(ctx); err != nil {
+		return err
 	}
 
 	result, err := c.client.Request("session.setForeground", setForegroundSessionRequest{SessionID: sessionID})
@@ -1200,7 +1241,7 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		args = append([]string{cliPath}, args...)
 	}
 
-	c.process = exec.CommandContext(ctx, command, args...)
+	c.process = exec.Command(command, args...)
 
 	// Configure platform-specific process attributes (e.g., hide window on Windows)
 	configureProcAttr(c.process)
@@ -1289,14 +1330,16 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		c.monitorProcess()
 
 		scanner := bufio.NewScanner(stdout)
-		timeout := time.After(10 * time.Second)
 		portRegex := regexp.MustCompile(`listening on port (\d+)`)
+
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
 
 		for {
 			select {
-			case <-timeout:
+			case <-ctx.Done():
 				killErr := c.killProcess()
-				return errors.Join(errors.New("timeout waiting for CLI server to start"), killErr)
+				return errors.Join(fmt.Errorf("failed waiting for CLI server to start: %w", ctx.Err()), killErr)
 			case <-c.processDone:
 				killErr := c.killProcess()
 				return errors.Join(errors.New("CLI server process exited before reporting port"), killErr)
@@ -1368,12 +1411,13 @@ func (c *Client) connectViaTcp(ctx context.Context) error {
 		return fmt.Errorf("server port not available")
 	}
 
-	// Create TCP connection that cancels on context done or after 10 seconds
+	// Merge a 10-second timeout with the caller's context so whichever
+	// deadline comes first wins.
 	address := net.JoinHostPort(c.actualHost, fmt.Sprintf("%d", c.actualPort))
-	dialer := net.Dialer{
-		Timeout: 10 * time.Second,
-	}
-	conn, err := dialer.DialContext(ctx, "tcp", address)
+	dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	var dialer net.Dialer
+	conn, err := dialer.DialContext(dialCtx, "tcp", address)
 	if err != nil {
 		return fmt.Errorf("failed to connect to CLI server at %s: %w", address, err)
 	}
@@ -1411,6 +1455,7 @@ func (c *Client) setupNotificationHandler() {
 	c.client.SetRequestHandler("permission.request", jsonrpc2.RequestHandlerFor(c.handlePermissionRequestV2))
 	c.client.SetRequestHandler("userInput.request", jsonrpc2.RequestHandlerFor(c.handleUserInputRequest))
 	c.client.SetRequestHandler("hooks.invoke", jsonrpc2.RequestHandlerFor(c.handleHooksInvoke))
+	c.client.SetRequestHandler("systemMessage.transform", jsonrpc2.RequestHandlerFor(c.handleSystemMessageTransform))
 }
 
 func (c *Client) handleSessionEvent(req sessionEventRequest) {
@@ -1475,6 +1520,26 @@ func (c *Client) handleHooksInvoke(req hooksInvokeRequest) (map[string]any, *jso
 		result["output"] = output
 	}
 	return result, nil
+}
+
+// handleSystemMessageTransform handles a system message transform request from the CLI server.
+func (c *Client) handleSystemMessageTransform(req systemMessageTransformRequest) (systemMessageTransformResponse, *jsonrpc2.Error) {
+	if req.SessionID == "" {
+		return systemMessageTransformResponse{}, &jsonrpc2.Error{Code: -32602, Message: "invalid system message transform payload"}
+	}
+
+	c.sessionsMux.Lock()
+	session, ok := c.sessions[req.SessionID]
+	c.sessionsMux.Unlock()
+	if !ok {
+		return systemMessageTransformResponse{}, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", req.SessionID)}
+	}
+
+	resp, err := session.handleSystemMessageTransform(req.Sections)
+	if err != nil {
+		return systemMessageTransformResponse{}, &jsonrpc2.Error{Code: -32603, Message: err.Error()}
+	}
+	return resp, nil
 }
 
 // ========================================================================

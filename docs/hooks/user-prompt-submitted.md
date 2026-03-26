@@ -35,18 +35,18 @@ type UserPromptSubmittedHandler = (
 
 <!-- docs-validate: hidden -->
 ```python
-from copilot.types import UserPromptSubmittedHookInput, HookInvocation, UserPromptSubmittedHookOutput
+from copilot.session import UserPromptSubmittedHookInput, UserPromptSubmittedHookOutput
 from typing import Callable, Awaitable
 
 UserPromptSubmittedHandler = Callable[
-    [UserPromptSubmittedHookInput, HookInvocation],
+    [UserPromptSubmittedHookInput, dict[str, str]],
     Awaitable[UserPromptSubmittedHookOutput | None]
 ]
 ```
 <!-- /docs-validate: hidden -->
 ```python
 UserPromptSubmittedHandler = Callable[
-    [UserPromptSubmittedHookInput, HookInvocation],
+    [UserPromptSubmittedHookInput, dict[str, str]],
     Awaitable[UserPromptSubmittedHookOutput | None]
 ]
 ```
@@ -141,13 +141,13 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
+from copilot import PermissionHandler
+
 async def on_user_prompt_submitted(input_data, invocation):
     print(f"[{invocation['session_id']}] User: {input_data['prompt']}")
     return None
 
-session = await client.create_session({
-    "hooks": {"on_user_prompt_submitted": on_user_prompt_submitted}
-})
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, hooks={"on_user_prompt_submitted": on_user_prompt_submitted})
 ```
 
 </details>

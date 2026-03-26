@@ -1,6 +1,7 @@
 import asyncio
 import os
-from copilot import CopilotClient, SubprocessConfig
+from copilot import CopilotClient
+from copilot.client import SubprocessConfig
 
 # Track which tools requested permission
 permission_log: list[str] = []
