@@ -47,10 +47,6 @@ async def main():
             await session.send("What is 2+2?")
             await done.wait()
 
-        # Session automatically disconnected here
-
-    # Client automatically stopped here
-
 asyncio.run(main())
 ```
 
