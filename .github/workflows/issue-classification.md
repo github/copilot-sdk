@@ -42,7 +42,8 @@ Your **only** job is to classify the issue and delegate to a handler workflow, o
    - If the issue is an **enhancement**: call the `handle-enhancement` workflow with the issue number
    - If the issue is a **question**: call the `handle-question` workflow with the issue number
    - If the issue is a **documentation** issue: call the `handle-documentation` workflow with the issue number
-   - If the issue does **not** clearly fit any category: leave a brief comment explaining why the issue couldn't be classified and that a human will review it
+   - If the issue does **not** clearly fit any category: leave a brief comment explaining why the issue couldn't be classified and that a human will review it. End the comment with this feedback placeholder (include it verbatim as an HTML comment):
+     <!-- triage-agent: [insert your feedback here] -->
 
 When calling a handler workflow, pass `issue_number` set to the issue number.
 

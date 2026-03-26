@@ -30,4 +30,6 @@ timeout-minutes: 5
 
 # Documentation Handler
 
-Add the `documentation` label to issue #${{ inputs.issue_number }}.
+Add the `documentation` label to issue #${{ inputs.issue_number }} and leave a comment. The comment should say the issue was classified as a documentation issue, and must end with this HTML comment (include it verbatim):
+
+<!-- triage-agent: [insert your feedback here] -->

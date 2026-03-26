@@ -2,7 +2,7 @@ name: Collect triage agent corrections
 
 on:
   issue_comment:
-    types: [created]
+    types: [created, edited]
 
 concurrency:
   group: collect-corrections
@@ -22,7 +22,28 @@ jobs:
         github.event.comment.author_association == 'OWNER'
       )
     steps:
+      - name: Validate correction content
+        id: validate
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          # Extract the triage-agent correction text from the HTML comment
+          CORRECTION_TEXT=$(echo "$COMMENT_BODY" | grep -oP '<!-- triage-agent:\s*\K.*?(?=\s*-->)' || echo "")
+
+          # Trim whitespace
+          CORRECTION_TEXT=$(echo "$CORRECTION_TEXT" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+          # Ignore empty or placeholder content (text fully enclosed in square brackets)
+          if [ -z "$CORRECTION_TEXT" ] || echo "$CORRECTION_TEXT" | grep -qP '^\[.*\]$'; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Skipping: empty or placeholder correction"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Valid correction detected"
+          fi
+
       - name: Add correction label to the issue
+        if: steps.validate.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -30,6 +51,7 @@ jobs:
         run: gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --add-label "triage-agent-correction"
 
       - name: Find or create tracking issue
+        if: steps.validate.outputs.skip != 'true'
         id: tracking
         env:
           GH_TOKEN: ${{ github.token }}
@@ -64,8 +86,8 @@ jobs:
 
           ## Corrections
 
-          | # | Issue | Correction | Date |
-          |---|-------|------------|------|
+          | # | Issue | Correction | Comment ID | Date |
+          |---|-------|------------|------------|------|
           EOF
             )
             TRACKING_ISSUE=$(gh issue create \
@@ -79,7 +101,8 @@ jobs:
 
           echo "tracking_issue=$TRACKING_ISSUE" >> "$GITHUB_OUTPUT"
 
-      - name: Append correction to tracking issue
+      - name: Append or update correction in tracking issue
+        if: steps.validate.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -87,9 +110,10 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           COMMENT_URL: ${{ github.event.comment.html_url }}
+          COMMENT_ID: ${{ github.event.comment.id }}
           COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
-          # Extract the triage-agent correction text from the HTML comment
+          # Extract the triage-agent correction text
           CORRECTION_TEXT=$(echo "$COMMENT_BODY" | grep -oP '<!-- triage-agent:\s*\K.*?(?=\s*-->)' || echo "(see comment)")
 
           # Sanitize inputs for markdown table (escape pipes, strip newlines)
@@ -99,21 +123,33 @@ jobs:
           # Get the current tracking issue body
           CURRENT_BODY=$(gh issue view "$TRACKING_ISSUE" --repo "$REPO" --json body --jq '.body')
 
-          # Count existing corrections to determine the next number
-          NEXT_NUM=$(( $(echo "$CURRENT_BODY" | grep -c '^| [0-9]') + 1 ))
-
-          # Get today's date
           TODAY=$(date -u +%Y-%m-%d)
 
-          # Append new row to the table
-          NEW_ROW="| ${NEXT_NUM} | [#${ISSUE_NUMBER}](https://github.com/${REPO}/issues/${ISSUE_NUMBER}) — ${SAFE_TITLE} | [comment](${COMMENT_URL}) — ${SAFE_CORRECTION} | ${TODAY} |"
-          UPDATED_BODY="${CURRENT_BODY}
+          # Check if this comment was already tracked (dedup by comment ID)
+          if echo "$CURRENT_BODY" | grep -qF "comment-${COMMENT_ID}"; then
+            echo "Comment already tracked, updating existing row..."
+            # Extract the existing row number
+            ROW_NUM=$(echo "$CURRENT_BODY" | grep -F "comment-${COMMENT_ID}" | awk -F '|' '{gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2}')
+            NEW_ROW="| ${ROW_NUM} | [#${ISSUE_NUMBER}](https://github.com/${REPO}/issues/${ISSUE_NUMBER}) — ${SAFE_TITLE} | [comment](${COMMENT_URL}) — ${SAFE_CORRECTION} | comment-${COMMENT_ID} | ${TODAY} |"
+
+            # Replace the line containing this comment ID
+            UPDATED_BODY=$(echo "$CURRENT_BODY" | awk -v id="comment-${COMMENT_ID}" -v newrow="$NEW_ROW" '
+              index($0, id) { print newrow; next }
+              { print }
+            ')
+          else
+            echo "New correction, appending..."
+            NEXT_NUM=$(( $(echo "$CURRENT_BODY" | grep -c '^| [0-9]') + 1 ))
+            NEW_ROW="| ${NEXT_NUM} | [#${ISSUE_NUMBER}](https://github.com/${REPO}/issues/${ISSUE_NUMBER}) — ${SAFE_TITLE} | [comment](${COMMENT_URL}) — ${SAFE_CORRECTION} | comment-${COMMENT_ID} | ${TODAY} |"
+            UPDATED_BODY="${CURRENT_BODY}
           ${NEW_ROW}"
+          fi
 
           gh issue edit "$TRACKING_ISSUE" --repo "$REPO" --body "$UPDATED_BODY"
-          echo "Appended correction #$NEXT_NUM to tracking issue #$TRACKING_ISSUE"
+          echo "Updated tracking issue #$TRACKING_ISSUE"
 
       - name: Auto-assign CCA if threshold reached
+        if: steps.validate.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}

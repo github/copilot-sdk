@@ -30,4 +30,6 @@ timeout-minutes: 5
 
 # Bug Handler
 
-Add the `bug` label to issue #${{ inputs.issue_number }}.
+Add the `bug` label to issue #${{ inputs.issue_number }} and leave a comment. The comment should say the issue was classified as a bug, and must end with this HTML comment (include it verbatim):
+
+<!-- triage-agent: [insert your feedback here] -->
