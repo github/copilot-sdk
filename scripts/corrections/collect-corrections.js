@@ -203,7 +203,7 @@ async function maybeAssignCCA(github, owner, repo, trackingIssue, correctionCoun
  */
 module.exports = async ({ github, context }) => {
   const { owner, repo } = context.repo;
-  const payload = context.payload.client_payload;
+  const payload = context.payload.client_payload ?? {};
   const sender = context.payload.sender?.login ?? "unknown";
 
   const correction = resolveContext(payload, sender);
