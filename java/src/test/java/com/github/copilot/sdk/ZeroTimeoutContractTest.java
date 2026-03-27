@@ -9,13 +9,10 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.events.AssistantMessageEvent;
-import com.github.copilot.sdk.events.SessionIdleEvent;
 import com.github.copilot.sdk.json.MessageOptions;
 
 /**
@@ -28,26 +25,23 @@ public class ZeroTimeoutContractTest {
     @Test
     void sendAndWaitWithZeroTimeoutShouldNotTimeOut() throws Exception {
         // Build a session via reflection (package-private constructor)
-        var ctor = CopilotSession.class.getDeclaredConstructor(
-                String.class, JsonRpcClient.class, String.class);
+        var ctor = CopilotSession.class.getDeclaredConstructor(String.class, JsonRpcClient.class, String.class);
         ctor.setAccessible(true);
 
         var mockRpc = mock(JsonRpcClient.class);
-        when(mockRpc.invoke(any(), any(), any()))
-                .thenReturn(new CompletableFuture<>());
+        when(mockRpc.invoke(any(), any(), any())).thenReturn(new CompletableFuture<>());
 
         var session = ctor.newInstance("zero-timeout-test", mockRpc, null);
 
         // Per the Javadoc: timeoutMs of 0 means "no timeout".
         // The future should NOT complete with TimeoutException.
-        CompletableFuture<AssistantMessageEvent> result =
-                session.sendAndWait(new MessageOptions().setPrompt("test"), 0);
+        CompletableFuture<AssistantMessageEvent> result = session.sendAndWait(new MessageOptions().setPrompt("test"),
+                0);
 
         // Give the scheduler a chance to fire if it was (incorrectly) scheduled
         Thread.sleep(200);
 
         // The future should still be pending — not timed out
-        assertFalse(result.isDone(),
-                "Future should not be done; timeoutMs=0 means no timeout per Javadoc");
+        assertFalse(result.isDone(), "Future should not be done; timeoutMs=0 means no timeout per Javadoc");
     }
 }

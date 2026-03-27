@@ -34,14 +34,12 @@ public class SchedulerShutdownRaceTest {
     @Test
     void sendAndWaitShouldReturnFailedFutureWhenSchedulerIsShutDown() throws Exception {
         // Build a session via reflection (package-private constructor)
-        var ctor = CopilotSession.class.getDeclaredConstructor(
-                String.class, JsonRpcClient.class, String.class);
+        var ctor = CopilotSession.class.getDeclaredConstructor(String.class, JsonRpcClient.class, String.class);
         ctor.setAccessible(true);
 
         // Mock JsonRpcClient so send() returns a pending future instead of NPE
         var mockRpc = mock(JsonRpcClient.class);
-        when(mockRpc.invoke(any(), any(), any()))
-                .thenReturn(new CompletableFuture<>());
+        when(mockRpc.invoke(any(), any(), any())).thenReturn(new CompletableFuture<>());
 
         var session = ctor.newInstance("race-test", mockRpc, null);
 
@@ -54,12 +52,10 @@ public class SchedulerShutdownRaceTest {
 
         // With the fix: sendAndWait returns a future that completes exceptionally.
         // Without the fix: sendAndWait throws RejectedExecutionException directly.
-        CompletableFuture<?> result = session.sendAndWait(
-                new MessageOptions().setPrompt("test"), 5000);
+        CompletableFuture<?> result = session.sendAndWait(new MessageOptions().setPrompt("test"), 5000);
 
         assertNotNull(result, "sendAndWait should return a future, not throw");
-        var ex = assertThrows(ExecutionException.class,
-                () -> result.get(1, TimeUnit.SECONDS));
+        var ex = assertThrows(ExecutionException.class, () -> result.get(1, TimeUnit.SECONDS));
         assertInstanceOf(RejectedExecutionException.class, ex.getCause());
     }
 }
