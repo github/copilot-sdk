@@ -130,7 +130,7 @@ Create `main.py`:
 ```python
 import asyncio
 from copilot import CopilotClient
-from copilot.session import PermissionHandler
+from copilot.types import PermissionHandler
 
 async def main():
     client = CopilotClient()
