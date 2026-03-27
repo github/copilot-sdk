@@ -13,6 +13,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -125,6 +127,7 @@ public final class CopilotSession implements AutoCloseable {
     private volatile EventErrorPolicy eventErrorPolicy = EventErrorPolicy.PROPAGATE_AND_LOG_ERRORS;
     private volatile Map<String, java.util.function.Function<String, CompletableFuture<String>>> transformCallbacks;
     private final ScheduledExecutorService timeoutScheduler;
+    private volatile Executor executor;
 
     /** Tracks whether this session instance has been terminated via close(). */
     private volatile boolean isTerminated = false;
@@ -168,6 +171,14 @@ public final class CopilotSession implements AutoCloseable {
         });
         executor.setRemoveOnCancelPolicy(true);
         this.timeoutScheduler = executor;
+    }
+
+    /**
+     * Sets the executor for internal async operations. Package-private; called by
+     * CopilotClient after construction.
+     */
+    void setExecutor(Executor executor) {
+        this.executor = executor;
     }
 
     /**
@@ -673,7 +684,7 @@ public final class CopilotSession implements AutoCloseable {
      */
     private void executeToolAndRespondAsync(String requestId, String toolName, String toolCallId, Object arguments,
             ToolDefinition tool) {
-        CompletableFuture.runAsync(() -> {
+        Runnable task = () -> {
             try {
                 JsonNode argumentsNode = arguments instanceof JsonNode jn
                         ? jn
@@ -718,7 +729,12 @@ public final class CopilotSession implements AutoCloseable {
                     LOG.log(Level.WARNING, "Error sending tool error for requestId=" + requestId, sendEx);
                 }
             }
-        });
+        };
+        if (executor != null) {
+            CompletableFuture.runAsync(task, executor);
+        } else {
+            CompletableFuture.runAsync(task);
+        }
     }
 
     /**
@@ -727,7 +743,7 @@ public final class CopilotSession implements AutoCloseable {
      */
     private void executePermissionAndRespondAsync(String requestId, PermissionRequest permissionRequest,
             PermissionHandler handler) {
-        CompletableFuture.runAsync(() -> {
+        Runnable task = () -> {
             try {
                 var invocation = new PermissionInvocation();
                 invocation.setSessionId(sessionId);
@@ -766,7 +782,12 @@ public final class CopilotSession implements AutoCloseable {
                     LOG.log(Level.WARNING, "Error sending permission denied for requestId=" + requestId, sendEx);
                 }
             }
-        });
+        };
+        if (executor != null) {
+            CompletableFuture.runAsync(task, executor);
+        } else {
+            CompletableFuture.runAsync(task);
+        }
     }
 
     /**

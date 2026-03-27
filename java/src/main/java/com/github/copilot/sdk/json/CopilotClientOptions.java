@@ -7,6 +7,7 @@ package com.github.copilot.sdk.json;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -49,6 +50,7 @@ public class CopilotClientOptions {
     private Boolean useLoggedInUser;
     private Supplier<CompletableFuture<List<ModelInfo>>> onListModels;
     private TelemetryConfig telemetry;
+    private Executor executor;
 
     /**
      * Gets the path to the Copilot CLI executable.
@@ -413,6 +415,37 @@ public class CopilotClientOptions {
     }
 
     /**
+     * Gets the executor used for internal asynchronous operations.
+     *
+     * @return the executor, or {@code null} to use the default
+     *         {@code ForkJoinPool.commonPool()}
+     */
+    public Executor getExecutor() {
+        return executor;
+    }
+
+    /**
+     * Sets the executor used for internal asynchronous operations.
+     * <p>
+     * When provided, the SDK uses this executor for all internal
+     * {@code CompletableFuture} combinators instead of the default
+     * {@code ForkJoinPool.commonPool()}. This allows callers to isolate SDK
+     * work onto a dedicated thread pool or integrate with container-managed
+     * threading.
+     *
+     * @param executor
+     *            the executor to use, or {@code null} for the default
+     * @return this options instance for fluent chaining
+     */
+    public CopilotClientOptions setExecutor(Executor executor) {
+        if (null == executor) {
+            throw new IllegalArgumentException("PENDING(copilot): not implemented");
+        }
+        this.executor = executor;
+        return this;
+    }
+
+    /**
      * Creates a shallow clone of this {@code CopilotClientOptions} instance.
      * <p>
      * Array properties (like {@code cliArgs}) are copied into new arrays so that
@@ -439,6 +472,7 @@ public class CopilotClientOptions {
         copy.useLoggedInUser = this.useLoggedInUser;
         copy.onListModels = this.onListModels;
         copy.telemetry = this.telemetry;
+        copy.executor = this.executor;
         return copy;
     }
 }

@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -45,6 +46,7 @@ final class RpcHandlerDispatcher {
 
     private final Map<String, CopilotSession> sessions;
     private final LifecycleEventDispatcher lifecycleDispatcher;
+    private final Executor executor;
 
     /**
      * Creates a dispatcher with session registry and lifecycle dispatcher.
@@ -53,10 +55,14 @@ final class RpcHandlerDispatcher {
      *            the session registry to look up sessions by ID
      * @param lifecycleDispatcher
      *            callback for dispatching lifecycle events
+     * @param executor
+     *            the executor for async dispatch, or {@code null} for default
      */
-    RpcHandlerDispatcher(Map<String, CopilotSession> sessions, LifecycleEventDispatcher lifecycleDispatcher) {
+    RpcHandlerDispatcher(Map<String, CopilotSession> sessions, LifecycleEventDispatcher lifecycleDispatcher,
+            Executor executor) {
         this.sessions = sessions;
         this.lifecycleDispatcher = lifecycleDispatcher;
+        this.executor = executor;
     }
 
     /**
@@ -118,7 +124,7 @@ final class RpcHandlerDispatcher {
     }
 
     private void handleToolCall(JsonRpcClient rpc, String requestId, JsonNode params) {
-        CompletableFuture.runAsync(() -> {
+        runAsync(() -> {
             try {
                 String sessionId = params.get("sessionId").asText();
                 String toolCallId = params.get("toolCallId").asText();
@@ -178,7 +184,7 @@ final class RpcHandlerDispatcher {
     }
 
     private void handlePermissionRequest(JsonRpcClient rpc, String requestId, JsonNode params) {
-        CompletableFuture.runAsync(() -> {
+        runAsync(() -> {
             try {
                 String sessionId = params.get("sessionId").asText();
                 JsonNode permissionRequest = params.get("permissionRequest");
@@ -222,7 +228,7 @@ final class RpcHandlerDispatcher {
 
     private void handleUserInputRequest(JsonRpcClient rpc, String requestId, JsonNode params) {
         LOG.fine("Received userInput.request: " + params);
-        CompletableFuture.runAsync(() -> {
+        runAsync(() -> {
             try {
                 String sessionId = params.get("sessionId").asText();
                 String question = params.get("question").asText();
@@ -278,7 +284,7 @@ final class RpcHandlerDispatcher {
     }
 
     private void handleHooksInvoke(JsonRpcClient rpc, String requestId, JsonNode params) {
-        CompletableFuture.runAsync(() -> {
+        runAsync(() -> {
             try {
                 String sessionId = params.get("sessionId").asText();
                 String hookType = params.get("hookType").asText();
@@ -321,7 +327,7 @@ final class RpcHandlerDispatcher {
     }
 
     private void handleSystemMessageTransform(JsonRpcClient rpc, String requestId, JsonNode params) {
-        CompletableFuture.runAsync(() -> {
+        runAsync(() -> {
             try {
                 final long requestIdLong;
                 try {
@@ -358,5 +364,13 @@ final class RpcHandlerDispatcher {
                 LOG.log(Level.SEVERE, "Error handling systemMessage.transform", e);
             }
         });
+    }
+
+    private void runAsync(Runnable task) {
+        if (executor != null) {
+            CompletableFuture.runAsync(task, executor);
+        } else {
+            CompletableFuture.runAsync(task);
+        }
     }
 }
