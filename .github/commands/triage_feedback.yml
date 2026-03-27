@@ -7,17 +7,9 @@ steps:
   - type: form
     style: modal
     body:
-      - type: dropdown
-        attributes:
-          label: What went wrong?
-          options:
-            - label: Wrong classification
-            - label: Investigation errors
-            - label: Missing context
-            - label: Other
       - type: textarea
         attributes:
-          label: Details
+          label: Feedback
           placeholder: Describe what the agent got wrong and what the correct action should have been...
     actions:
       submit: Submit feedback

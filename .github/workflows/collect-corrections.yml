@@ -20,45 +20,32 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          # From slash command form fields (keyed by label)
-          FORM_CATEGORY: ${{ github.event.client_payload['What went wrong?'] }}
-          FORM_DETAILS: ${{ github.event.client_payload.Details }}
+          # From slash command form field (keyed by label)
+          FORM_FEEDBACK: ${{ github.event.client_payload.Feedback }}
           # From slash command context
           COMMAND_ISSUE_NUMBER: ${{ github.event.client_payload.command.resource.number }}
           # From manual CLI dispatch
           CLI_ISSUE_NUMBER: ${{ github.event.client_payload.issue_number }}
-          CLI_CATEGORY: ${{ github.event.client_payload.category }}
-          CLI_DETAILS: ${{ github.event.client_payload.details }}
+          CLI_FEEDBACK: ${{ github.event.client_payload.feedback }}
           SENDER: ${{ github.event.sender.login }}
         run: |
           # Resolve fields from either slash command or CLI dispatch
           ISSUE_NUMBER="${COMMAND_ISSUE_NUMBER:-$CLI_ISSUE_NUMBER}"
-          CATEGORY="${FORM_CATEGORY:-$CLI_CATEGORY}"
-          DETAILS="${FORM_DETAILS:-$CLI_DETAILS}"
+          FEEDBACK="${FORM_FEEDBACK:-$CLI_FEEDBACK}"
           # Validate required fields
           if [ -z "$ISSUE_NUMBER" ]; then
             echo "::error::Missing issue_number in payload"
             exit 1
           fi
-          if [ -z "$DETAILS" ] && [ -z "$CATEGORY" ]; then
-            echo "::error::At least one of category or details must be provided"
+          if [ -z "$FEEDBACK" ]; then
+            echo "::error::Missing feedback in payload"
             exit 1
-          fi
-
-          # Build the correction text from category + details
-          if [ -n "$CATEGORY" ] && [ -n "$DETAILS" ]; then
-            CORRECTION_TEXT="${CATEGORY}: ${DETAILS}"
-          elif [ -n "$DETAILS" ]; then
-            CORRECTION_TEXT="$DETAILS"
-          else
-            CORRECTION_TEXT="$CATEGORY"
           fi
 
           ISSUE_TITLE=$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json title --jq '.title')
 
           echo "issue_number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
           echo "sender=$SENDER" >> "$GITHUB_OUTPUT"
-          echo "category=$CATEGORY" >> "$GITHUB_OUTPUT"
 
           {
             echo "issue_title<<EOF_TITLE"
@@ -67,9 +54,9 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
           {
-            echo "correction_text<<EOF_CORRECTION"
-            echo "$CORRECTION_TEXT"
-            echo "EOF_CORRECTION"
+            echo "feedback<<EOF_FEEDBACK"
+            echo "$FEEDBACK"
+            echo "EOF_FEEDBACK"
           } >> "$GITHUB_OUTPUT"
 
       - name: Find or create tracking issue
@@ -107,8 +94,8 @@ jobs:
 
           ## Corrections
 
-          | # | Issue | Category | Details | Submitted by | Date |
-          |---|-------|----------|---------|--------------|------|
+          | # | Issue | Feedback | Submitted by | Date |
+          |---|-------|----------|--------------|------|
           EOF
             )
             TRACKING_ISSUE=$(gh issue create \
@@ -129,14 +116,12 @@ jobs:
           TRACKING_ISSUE: ${{ steps.tracking.outputs.tracking_issue }}
           ISSUE_NUMBER: ${{ steps.context.outputs.issue_number }}
           ISSUE_TITLE: ${{ steps.context.outputs.issue_title }}
-          CORRECTION_TEXT: ${{ steps.context.outputs.correction_text }}
+          FEEDBACK: ${{ steps.context.outputs.feedback }}
           SENDER: ${{ steps.context.outputs.sender }}
-          CATEGORY: ${{ steps.context.outputs.category }}
         run: |
           # Sanitize inputs for markdown table (escape pipes, strip newlines)
           SAFE_TITLE=$(echo "$ISSUE_TITLE" | tr -d '\n\r' | sed 's/|/\\|/g')
-          SAFE_CATEGORY=$(echo "$CATEGORY" | tr -d '\n\r' | sed 's/|/\\|/g')
-          SAFE_CORRECTION=$(echo "$CORRECTION_TEXT" | tr -d '\n\r' | sed 's/|/\\|/g')
+          SAFE_FEEDBACK=$(echo "$FEEDBACK" | tr -d '\n\r' | sed 's/|/\\|/g')
 
           # Get the current tracking issue body
           CURRENT_BODY=$(gh issue view "$TRACKING_ISSUE" --repo "$REPO" --json body --jq '.body')
@@ -144,7 +129,7 @@ jobs:
           TODAY=$(date -u +%Y-%m-%d)
 
           NEXT_NUM=$(( $(echo "$CURRENT_BODY" | grep -c '^| [0-9]') + 1 ))
-          NEW_ROW="| ${NEXT_NUM} | [#${ISSUE_NUMBER}](https://github.com/${REPO}/issues/${ISSUE_NUMBER}) — ${SAFE_TITLE} | ${SAFE_CATEGORY} | ${SAFE_CORRECTION} | @${SENDER} | ${TODAY} |"
+          NEW_ROW="| ${NEXT_NUM} | [#${ISSUE_NUMBER}](https://github.com/${REPO}/issues/${ISSUE_NUMBER}) — ${SAFE_TITLE} | ${SAFE_FEEDBACK} | @${SENDER} | ${TODAY} |"
           UPDATED_BODY="${CURRENT_BODY}
           ${NEW_ROW}"
 
