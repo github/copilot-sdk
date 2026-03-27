@@ -6,6 +6,9 @@ on:
       - '.github/workflows/*.md'
       - '.github/workflows/*.lock.yml'
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest

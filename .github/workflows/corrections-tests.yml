@@ -8,6 +8,9 @@ on:
     paths:
       - 'scripts/corrections/**'
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
