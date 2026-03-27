@@ -15,9 +15,6 @@ import (
 const version = "2.0"
 
 // Standard JSON-RPC 2.0 error codes.
-// These can be used with errors.Is to match error codes:
-//
-//	errors.Is(err, jsonrpc2.ErrInvalidParams)
 var (
 	ErrParse          = &Error{Code: -32700, Message: "parse error"}
 	ErrInvalidRequest = &Error{Code: -32600, Message: "invalid request"}

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -61,6 +62,9 @@ func (r *headerReader) Read() ([]byte, error) {
 	}
 	if contentLength == 0 {
 		return nil, fmt.Errorf("missing Content-Length header")
+	}
+	if contentLength > math.MaxInt {
+		return nil, fmt.Errorf("Content-Length too large: %d", contentLength)
 	}
 	data := make([]byte, contentLength)
 	if _, err := io.ReadFull(r.in, data); err != nil {
