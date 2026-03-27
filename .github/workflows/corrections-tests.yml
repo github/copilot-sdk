@@ -2,6 +2,7 @@ name: "Triage Agent Corrections Tests"
 
 on:
   push:
+    branches: [main]
     paths:
       - 'scripts/corrections/**'
   pull_request:
