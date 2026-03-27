@@ -20,22 +20,15 @@
 #
 # For more information: https://github.github.com/gh-aw/introduction/overview/
 #
-# Reviews PRs to ensure features are implemented consistently across all SDK language implementations
+# Classifies newly opened issues and delegates to type-specific handler workflows
 #
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"b591408a58d759a5671fa269caa210a98d731190332634326bf80a423c1e122f","compiler_version":"v0.64.2","strict":true,"agent_id":"copilot"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"1c9f9a62a510a7796b96187fbe0537fd05da1c082d8fab86cd7b99bf001aee01","compiler_version":"v0.64.2","strict":true,"agent_id":"copilot"}
 
-name: "SDK Consistency Review Agent"
+name: "Issue Classification Agent"
 "on":
-  pull_request:
-    paths:
-    - nodejs/**
-    - python/**
-    - go/**
-    - dotnet/**
+  issues:
     types:
     - opened
-    - synchronize
-    - reopened
   # roles: all # Roles processed as role check in pre-activation job
   workflow_dispatch:
     inputs:
@@ -44,22 +37,20 @@ name: "SDK Consistency Review Agent"
         description: Agent caller context (used internally by Agentic Workflows).
         required: false
         type: string
-      pr_number:
-        description: PR number to review
+      issue_number:
+        description: Issue number to triage
         required: true
         type: string
 
 permissions: {}
 
 concurrency:
-  group: "gh-aw-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref || github.run_id }}"
-  cancel-in-progress: true
+  group: "gh-aw-${{ github.workflow }}-${{ github.event.issue.number || github.run_id }}"
 
-run-name: "SDK Consistency Review Agent"
+run-name: "Issue Classification Agent"
 
 jobs:
   activation:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.id == github.repository_id
     runs-on: ubuntu-slim
     permissions:
       contents: read
@@ -86,7 +77,7 @@ jobs:
           GH_AW_INFO_VERSION: "latest"
           GH_AW_INFO_AGENT_VERSION: "latest"
           GH_AW_INFO_CLI_VERSION: "v0.64.2"
-          GH_AW_INFO_WORKFLOW_NAME: "SDK Consistency Review Agent"
+          GH_AW_INFO_WORKFLOW_NAME: "Issue Classification Agent"
           GH_AW_INFO_EXPERIMENTAL: "false"
           GH_AW_INFO_SUPPORTS_TOOLS_ALLOWLIST: "true"
           GH_AW_INFO_STAGED: "false"
@@ -120,7 +111,7 @@ jobs:
       - name: Check workflow file timestamps
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
-          GH_AW_WORKFLOW_FILE: "sdk-consistency-review.lock.yml"
+          GH_AW_WORKFLOW_FILE: "issue-classification.lock.yml"
         with:
           script: |
             const { setupGlobals } = require('${{ runner.temp }}/gh-aw/actions/setup_globals.cjs');
@@ -140,11 +131,12 @@ jobs:
         env:
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
           GH_AW_SAFE_OUTPUTS: ${{ runner.temp }}/gh-aw/safeoutputs/outputs.jsonl
-          GH_AW_EXPR_A0E5D436: ${{ github.event.pull_request.number || inputs.pr_number }}
+          GH_AW_EXPR_54492A5B: ${{ github.event.issue.number || inputs.issue_number }}
           GH_AW_GITHUB_ACTOR: ${{ github.actor }}
           GH_AW_GITHUB_EVENT_COMMENT_ID: ${{ github.event.comment.id }}
           GH_AW_GITHUB_EVENT_DISCUSSION_NUMBER: ${{ github.event.discussion.number }}
           GH_AW_GITHUB_EVENT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          GH_AW_GITHUB_EVENT_ISSUE_TITLE: ${{ github.event.issue.title }}
           GH_AW_GITHUB_EVENT_PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
           GH_AW_GITHUB_REPOSITORY: ${{ github.repository }}
           GH_AW_GITHUB_RUN_ID: ${{ github.run_id }}
@@ -153,16 +145,16 @@ jobs:
         run: |
           bash ${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh
           {
-          cat << 'GH_AW_PROMPT_3172fa1409c4ed29_EOF'
+          cat << 'GH_AW_PROMPT_0e5e0cb2acba7dc0_EOF'
           <system>
-          GH_AW_PROMPT_3172fa1409c4ed29_EOF
+          GH_AW_PROMPT_0e5e0cb2acba7dc0_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_3172fa1409c4ed29_EOF'
+          cat << 'GH_AW_PROMPT_0e5e0cb2acba7dc0_EOF'
           <safe-output-tools>
-          Tools: add_comment, create_pull_request_review_comment(max:10), missing_tool, missing_data, noop
+          Tools: add_comment, call_workflow, missing_tool, missing_data, noop
           </safe-output-tools>
           <github-context>
           The following GitHub context information is available for this workflow:
@@ -192,20 +184,21 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_3172fa1409c4ed29_EOF
+          GH_AW_PROMPT_0e5e0cb2acba7dc0_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_3172fa1409c4ed29_EOF'
+          cat << 'GH_AW_PROMPT_0e5e0cb2acba7dc0_EOF'
           </system>
-          GH_AW_PROMPT_3172fa1409c4ed29_EOF
-          cat << 'GH_AW_PROMPT_3172fa1409c4ed29_EOF'
-          {{#runtime-import .github/workflows/sdk-consistency-review.md}}
-          GH_AW_PROMPT_3172fa1409c4ed29_EOF
+          GH_AW_PROMPT_0e5e0cb2acba7dc0_EOF
+          cat << 'GH_AW_PROMPT_0e5e0cb2acba7dc0_EOF'
+          {{#runtime-import .github/workflows/issue-classification.md}}
+          GH_AW_PROMPT_0e5e0cb2acba7dc0_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
-          GH_AW_EXPR_A0E5D436: ${{ github.event.pull_request.number || inputs.pr_number }}
+          GH_AW_EXPR_54492A5B: ${{ github.event.issue.number || inputs.issue_number }}
+          GH_AW_GITHUB_EVENT_ISSUE_TITLE: ${{ github.event.issue.title }}
           GH_AW_GITHUB_REPOSITORY: ${{ github.repository }}
         with:
           script: |
@@ -217,11 +210,12 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
-          GH_AW_EXPR_A0E5D436: ${{ github.event.pull_request.number || inputs.pr_number }}
+          GH_AW_EXPR_54492A5B: ${{ github.event.issue.number || inputs.issue_number }}
           GH_AW_GITHUB_ACTOR: ${{ github.actor }}
           GH_AW_GITHUB_EVENT_COMMENT_ID: ${{ github.event.comment.id }}
           GH_AW_GITHUB_EVENT_DISCUSSION_NUMBER: ${{ github.event.discussion.number }}
           GH_AW_GITHUB_EVENT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          GH_AW_GITHUB_EVENT_ISSUE_TITLE: ${{ github.event.issue.title }}
           GH_AW_GITHUB_EVENT_PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
           GH_AW_GITHUB_REPOSITORY: ${{ github.repository }}
           GH_AW_GITHUB_RUN_ID: ${{ github.run_id }}
@@ -237,11 +231,12 @@ jobs:
             return await substitutePlaceholders({
               file: process.env.GH_AW_PROMPT,
               substitutions: {
-                GH_AW_EXPR_A0E5D436: process.env.GH_AW_EXPR_A0E5D436,
+                GH_AW_EXPR_54492A5B: process.env.GH_AW_EXPR_54492A5B,
                 GH_AW_GITHUB_ACTOR: process.env.GH_AW_GITHUB_ACTOR,
                 GH_AW_GITHUB_EVENT_COMMENT_ID: process.env.GH_AW_GITHUB_EVENT_COMMENT_ID,
                 GH_AW_GITHUB_EVENT_DISCUSSION_NUMBER: process.env.GH_AW_GITHUB_EVENT_DISCUSSION_NUMBER,
                 GH_AW_GITHUB_EVENT_ISSUE_NUMBER: process.env.GH_AW_GITHUB_EVENT_ISSUE_NUMBER,
+                GH_AW_GITHUB_EVENT_ISSUE_TITLE: process.env.GH_AW_GITHUB_EVENT_ISSUE_TITLE,
                 GH_AW_GITHUB_EVENT_PULL_REQUEST_NUMBER: process.env.GH_AW_GITHUB_EVENT_PULL_REQUEST_NUMBER,
                 GH_AW_GITHUB_REPOSITORY: process.env.GH_AW_GITHUB_REPOSITORY,
                 GH_AW_GITHUB_RUN_ID: process.env.GH_AW_GITHUB_RUN_ID,
@@ -281,7 +276,7 @@ jobs:
       GH_AW_ASSETS_BRANCH: ""
       GH_AW_ASSETS_MAX_SIZE_KB: 0
       GH_AW_MCP_LOG_DIR: /tmp/gh-aw/mcp-logs/safeoutputs
-      GH_AW_WORKFLOW_ID_SANITIZED: sdkconsistencyreview
+      GH_AW_WORKFLOW_ID_SANITIZED: issueclassification
     outputs:
       checkout_pr_success: ${{ steps.checkout-pr.outputs.checkout_pr_success || 'true' }}
       has_patch: ${{ steps.collect_output.outputs.has_patch }}
@@ -342,16 +337,12 @@ jobs:
           GH_HOST: github.com
       - name: Install AWF binary
         run: bash ${RUNNER_TEMP}/gh-aw/actions/install_awf_binary.sh v0.25.1
-      - name: Determine automatic lockdown mode for GitHub MCP Server
-        id: determine-automatic-lockdown
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+      - name: Parse integrity filter lists
+        id: parse-guard-vars
         env:
-          GH_AW_GITHUB_TOKEN: ${{ secrets.GH_AW_GITHUB_TOKEN }}
-          GH_AW_GITHUB_MCP_SERVER_TOKEN: ${{ secrets.GH_AW_GITHUB_MCP_SERVER_TOKEN }}
-        with:
-          script: |
-            const determineAutomaticLockdown = require('${{ runner.temp }}/gh-aw/actions/determine_automatic_lockdown.cjs');
-            await determineAutomaticLockdown(github, context, core);
+          GH_AW_BLOCKED_USERS_VAR: ${{ vars.GH_AW_GITHUB_BLOCKED_USERS || '' }}
+          GH_AW_APPROVAL_LABELS_VAR: ${{ vars.GH_AW_GITHUB_APPROVAL_LABELS || '' }}
+        run: bash ${RUNNER_TEMP}/gh-aw/actions/parse_guard_list.sh
       - name: Download container images
         run: bash ${RUNNER_TEMP}/gh-aw/actions/download_docker_images.sh ghcr.io/github/gh-aw-firewall/agent:0.25.1 ghcr.io/github/gh-aw-firewall/api-proxy:0.25.1 ghcr.io/github/gh-aw-firewall/squid:0.25.1 ghcr.io/github/gh-aw-mcpg:v0.2.6 ghcr.io/github/github-mcp-server:v0.32.0 node:lts-alpine
       - name: Write Safe Outputs Config
@@ -359,22 +350,110 @@ jobs:
           mkdir -p ${RUNNER_TEMP}/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > ${RUNNER_TEMP}/gh-aw/safeoutputs/config.json << 'GH_AW_SAFE_OUTPUTS_CONFIG_3a1cb8446b73baad_EOF'
-          {"add_comment":{"max":1},"create_pull_request_review_comment":{"max":10,"side":"RIGHT"},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_3a1cb8446b73baad_EOF
+          cat > ${RUNNER_TEMP}/gh-aw/safeoutputs/config.json << 'GH_AW_SAFE_OUTPUTS_CONFIG_0e1d49da13fc6a56_EOF'
+          {"add_comment":{"max":1,"target":"triggering"},"call_workflow":{"max":1,"workflow_files":{"handle-bug":"./.github/workflows/handle-bug.lock.yml","handle-documentation":"./.github/workflows/handle-documentation.lock.yml","handle-enhancement":"./.github/workflows/handle-enhancement.lock.yml","handle-question":"./.github/workflows/handle-question.lock.yml"},"workflows":["handle-bug","handle-enhancement","handle-question","handle-documentation"]},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"}}
+          GH_AW_SAFE_OUTPUTS_CONFIG_0e1d49da13fc6a56_EOF
       - name: Write Safe Outputs Tools
         run: |
-          cat > ${RUNNER_TEMP}/gh-aw/safeoutputs/tools_meta.json << 'GH_AW_SAFE_OUTPUTS_TOOLS_META_24b5ae9d1c9c0b5d_EOF'
+          cat > ${RUNNER_TEMP}/gh-aw/safeoutputs/tools_meta.json << 'GH_AW_SAFE_OUTPUTS_TOOLS_META_cb7604137f200fa1_EOF'
           {
             "description_suffixes": {
-              "add_comment": " CONSTRAINTS: Maximum 1 comment(s) can be added.",
-              "create_pull_request_review_comment": " CONSTRAINTS: Maximum 10 review comment(s) can be created. Comments will be on the RIGHT side of the diff."
+              "add_comment": " CONSTRAINTS: Maximum 1 comment(s) can be added. Target: triggering."
             },
             "repo_params": {},
-            "dynamic_tools": []
+            "dynamic_tools": [
+              {
+                "_call_workflow_name": "handle-bug",
+                "description": "Call the 'handle-bug' reusable workflow via workflow_call. This workflow must support workflow_call and be in .github/workflows/ directory in the same repository.",
+                "inputSchema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "issue_number": {
+                      "description": "Input parameter 'issue_number' for workflow handle-bug",
+                      "type": "string"
+                    },
+                    "payload": {
+                      "description": "Input parameter 'payload' for workflow handle-bug",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "issue_number"
+                  ],
+                  "type": "object"
+                },
+                "name": "handle_bug"
+              },
+              {
+                "_call_workflow_name": "handle-enhancement",
+                "description": "Call the 'handle-enhancement' reusable workflow via workflow_call. This workflow must support workflow_call and be in .github/workflows/ directory in the same repository.",
+                "inputSchema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "issue_number": {
+                      "description": "Input parameter 'issue_number' for workflow handle-enhancement",
+                      "type": "string"
+                    },
+                    "payload": {
+                      "description": "Input parameter 'payload' for workflow handle-enhancement",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "issue_number"
+                  ],
+                  "type": "object"
+                },
+                "name": "handle_enhancement"
+              },
+              {
+                "_call_workflow_name": "handle-question",
+                "description": "Call the 'handle-question' reusable workflow via workflow_call. This workflow must support workflow_call and be in .github/workflows/ directory in the same repository.",
+                "inputSchema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "issue_number": {
+                      "description": "Input parameter 'issue_number' for workflow handle-question",
+                      "type": "string"
+                    },
+                    "payload": {
+                      "description": "Input parameter 'payload' for workflow handle-question",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "issue_number"
+                  ],
+                  "type": "object"
+                },
+                "name": "handle_question"
+              },
+              {
+                "_call_workflow_name": "handle-documentation",
+                "description": "Call the 'handle-documentation' reusable workflow via workflow_call. This workflow must support workflow_call and be in .github/workflows/ directory in the same repository.",
+                "inputSchema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "issue_number": {
+                      "description": "Input parameter 'issue_number' for workflow handle-documentation",
+                      "type": "string"
+                    },
+                    "payload": {
+                      "description": "Input parameter 'payload' for workflow handle-documentation",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "issue_number"
+                  ],
+                  "type": "object"
+                },
+                "name": "handle_documentation"
+              }
+            ]
           }
-          GH_AW_SAFE_OUTPUTS_TOOLS_META_24b5ae9d1c9c0b5d_EOF
-          cat > ${RUNNER_TEMP}/gh-aw/safeoutputs/validation.json << 'GH_AW_SAFE_OUTPUTS_VALIDATION_46a7873453726c04_EOF'
+          GH_AW_SAFE_OUTPUTS_TOOLS_META_cb7604137f200fa1_EOF
+          cat > ${RUNNER_TEMP}/gh-aw/safeoutputs/validation.json << 'GH_AW_SAFE_OUTPUTS_VALIDATION_5ae9c10ad5b5014d_EOF'
           {
             "add_comment": {
               "defaultMax": 1,
@@ -393,43 +472,6 @@ jobs:
                   "maxLength": 256
                 }
               }
-            },
-            "create_pull_request_review_comment": {
-              "defaultMax": 1,
-              "fields": {
-                "body": {
-                  "required": true,
-                  "type": "string",
-                  "sanitize": true,
-                  "maxLength": 65000
-                },
-                "line": {
-                  "required": true,
-                  "positiveInteger": true
-                },
-                "path": {
-                  "required": true,
-                  "type": "string"
-                },
-                "pull_request_number": {
-                  "optionalPositiveInteger": true
-                },
-                "repo": {
-                  "type": "string",
-                  "maxLength": 256
-                },
-                "side": {
-                  "type": "string",
-                  "enum": [
-                    "LEFT",
-                    "RIGHT"
-                  ]
-                },
-                "start_line": {
-                  "optionalPositiveInteger": true
-                }
-              },
-              "customValidation": "startLineLessOrEqualLine"
             },
             "missing_data": {
               "defaultMax": 20,
@@ -489,7 +531,7 @@ jobs:
               }
             }
           }
-          GH_AW_SAFE_OUTPUTS_VALIDATION_46a7873453726c04_EOF
+          GH_AW_SAFE_OUTPUTS_VALIDATION_5ae9c10ad5b5014d_EOF
           node ${RUNNER_TEMP}/gh-aw/actions/generate_safe_outputs_tools.cjs
       - name: Generate Safe Outputs MCP Server Config
         id: safe-outputs-config
@@ -535,8 +577,6 @@ jobs:
           GH_AW_SAFE_OUTPUTS: ${{ steps.set-runtime-paths.outputs.GH_AW_SAFE_OUTPUTS }}
           GH_AW_SAFE_OUTPUTS_API_KEY: ${{ steps.safe-outputs-start.outputs.api_key }}
           GH_AW_SAFE_OUTPUTS_PORT: ${{ steps.safe-outputs-start.outputs.port }}
-          GITHUB_MCP_GUARD_MIN_INTEGRITY: ${{ steps.determine-automatic-lockdown.outputs.min_integrity }}
-          GITHUB_MCP_GUARD_REPOS: ${{ steps.determine-automatic-lockdown.outputs.repos }}
           GITHUB_MCP_SERVER_TOKEN: ${{ secrets.GH_AW_GITHUB_MCP_SERVER_TOKEN || secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           set -eo pipefail
@@ -557,7 +597,7 @@ jobs:
           export MCP_GATEWAY_DOCKER_COMMAND='docker run -i --rm --network host -v /var/run/docker.sock:/var/run/docker.sock -e MCP_GATEWAY_PORT -e MCP_GATEWAY_DOMAIN -e MCP_GATEWAY_API_KEY -e MCP_GATEWAY_PAYLOAD_DIR -e MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD -e DEBUG -e MCP_GATEWAY_LOG_DIR -e GH_AW_MCP_LOG_DIR -e GH_AW_SAFE_OUTPUTS -e GH_AW_SAFE_OUTPUTS_CONFIG_PATH -e GH_AW_SAFE_OUTPUTS_TOOLS_PATH -e GH_AW_ASSETS_BRANCH -e GH_AW_ASSETS_MAX_SIZE_KB -e GH_AW_ASSETS_ALLOWED_EXTS -e DEFAULT_BRANCH -e GITHUB_MCP_SERVER_TOKEN -e GITHUB_MCP_GUARD_MIN_INTEGRITY -e GITHUB_MCP_GUARD_REPOS -e GITHUB_REPOSITORY -e GITHUB_SERVER_URL -e GITHUB_SHA -e GITHUB_WORKSPACE -e GITHUB_TOKEN -e GITHUB_RUN_ID -e GITHUB_RUN_NUMBER -e GITHUB_RUN_ATTEMPT -e GITHUB_JOB -e GITHUB_ACTION -e GITHUB_EVENT_NAME -e GITHUB_EVENT_PATH -e GITHUB_ACTOR -e GITHUB_ACTOR_ID -e GITHUB_TRIGGERING_ACTOR -e GITHUB_WORKFLOW -e GITHUB_WORKFLOW_REF -e GITHUB_WORKFLOW_SHA -e GITHUB_REF -e GITHUB_REF_NAME -e GITHUB_REF_TYPE -e GITHUB_HEAD_REF -e GITHUB_BASE_REF -e GH_AW_SAFE_OUTPUTS_PORT -e GH_AW_SAFE_OUTPUTS_API_KEY -v /tmp/gh-aw/mcp-payloads:/tmp/gh-aw/mcp-payloads:rw -v /opt:/opt:ro -v /tmp:/tmp:rw -v '"${GITHUB_WORKSPACE}"':'"${GITHUB_WORKSPACE}"':rw ghcr.io/github/gh-aw-mcpg:v0.2.6'
           
           mkdir -p /home/runner/.copilot
-          cat << GH_AW_MCP_CONFIG_98edebd262d2913a_EOF | bash ${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.sh
+          cat << GH_AW_MCP_CONFIG_5ad084c2b5bc2d53_EOF | bash ${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.sh
           {
             "mcpServers": {
               "github": {
@@ -571,8 +611,10 @@ jobs:
                 },
                 "guard-policies": {
                   "allow-only": {
-                    "min-integrity": "$GITHUB_MCP_GUARD_MIN_INTEGRITY",
-                    "repos": "$GITHUB_MCP_GUARD_REPOS"
+                    "approval-labels": ${{ steps.parse-guard-vars.outputs.approval_labels }},
+                    "blocked-users": ${{ steps.parse-guard-vars.outputs.blocked_users }},
+                    "min-integrity": "none",
+                    "repos": "all"
                   }
                 }
               },
@@ -598,7 +640,7 @@ jobs:
               "payloadDir": "${MCP_GATEWAY_PAYLOAD_DIR}"
             }
           }
-          GH_AW_MCP_CONFIG_98edebd262d2913a_EOF
+          GH_AW_MCP_CONFIG_5ad084c2b5bc2d53_EOF
       - name: Download activation artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -610,7 +652,7 @@ jobs:
       - name: Execute GitHub Copilot CLI
         id: agentic_execution
         # Copilot CLI tool arguments (sorted):
-        timeout-minutes: 15
+        timeout-minutes: 10
         run: |
           set -o pipefail
           touch /tmp/gh-aw/agent-step-summary.md
@@ -774,6 +816,8 @@ jobs:
             /tmp/gh-aw/sandbox/agent/logs/
             /tmp/gh-aw/redacted-urls.log
             /tmp/gh-aw/mcp-logs/
+            /tmp/gh-aw/proxy-logs/
+            !/tmp/gh-aw/proxy-logs/proxy-tls/
             /tmp/gh-aw/agent-stdio.log
             /tmp/gh-aw/agent/
             /tmp/gh-aw/safeoutputs.jsonl
@@ -791,10 +835,70 @@ jobs:
             /tmp/gh-aw/sandbox/firewall/audit/
           if-no-files-found: ignore
 
+  call-handle-bug:
+    needs: safe_outputs
+    if: needs.safe_outputs.outputs.call_workflow_name == 'handle-bug'
+    permissions:
+      contents: read
+      discussions: write
+      issues: write
+      pull-requests: write
+    uses: ./.github/workflows/handle-bug.lock.yml
+    with:
+      issue_number: ${{ fromJSON(needs.safe_outputs.outputs.call_workflow_payload).issue_number }}
+      payload: ${{ needs.safe_outputs.outputs.call_workflow_payload }}
+    secrets: inherit
+
+  call-handle-documentation:
+    needs: safe_outputs
+    if: needs.safe_outputs.outputs.call_workflow_name == 'handle-documentation'
+    permissions:
+      contents: read
+      discussions: write
+      issues: write
+      pull-requests: write
+    uses: ./.github/workflows/handle-documentation.lock.yml
+    with:
+      issue_number: ${{ fromJSON(needs.safe_outputs.outputs.call_workflow_payload).issue_number }}
+      payload: ${{ needs.safe_outputs.outputs.call_workflow_payload }}
+    secrets: inherit
+
+  call-handle-enhancement:
+    needs: safe_outputs
+    if: needs.safe_outputs.outputs.call_workflow_name == 'handle-enhancement'
+    permissions:
+      contents: read
+      discussions: write
+      issues: write
+      pull-requests: write
+    uses: ./.github/workflows/handle-enhancement.lock.yml
+    with:
+      issue_number: ${{ fromJSON(needs.safe_outputs.outputs.call_workflow_payload).issue_number }}
+      payload: ${{ needs.safe_outputs.outputs.call_workflow_payload }}
+    secrets: inherit
+
+  call-handle-question:
+    needs: safe_outputs
+    if: needs.safe_outputs.outputs.call_workflow_name == 'handle-question'
+    permissions:
+      contents: read
+      discussions: write
+      issues: write
+      pull-requests: write
+    uses: ./.github/workflows/handle-question.lock.yml
+    with:
+      issue_number: ${{ fromJSON(needs.safe_outputs.outputs.call_workflow_payload).issue_number }}
+      payload: ${{ needs.safe_outputs.outputs.call_workflow_payload }}
+    secrets: inherit
+
   conclusion:
     needs:
       - activation
       - agent
+      - call-handle-bug
+      - call-handle-documentation
+      - call-handle-enhancement
+      - call-handle-question
       - detection
       - safe_outputs
     if: always() && (needs.agent.result != 'skipped' || needs.activation.outputs.lockdown_check_failed == 'true')
@@ -805,7 +909,7 @@ jobs:
       issues: write
       pull-requests: write
     concurrency:
-      group: "gh-aw-conclusion-sdk-consistency-review"
+      group: "gh-aw-conclusion-issue-classification"
       cancel-in-progress: false
     outputs:
       noop_message: ${{ steps.noop.outputs.noop_message }}
@@ -836,7 +940,7 @@ jobs:
         env:
           GH_AW_AGENT_OUTPUT: ${{ steps.setup-agent-output-env.outputs.GH_AW_AGENT_OUTPUT }}
           GH_AW_NOOP_MAX: "1"
-          GH_AW_WORKFLOW_NAME: "SDK Consistency Review Agent"
+          GH_AW_WORKFLOW_NAME: "Issue Classification Agent"
         with:
           github-token: ${{ secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           script: |
@@ -849,7 +953,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           GH_AW_AGENT_OUTPUT: ${{ steps.setup-agent-output-env.outputs.GH_AW_AGENT_OUTPUT }}
-          GH_AW_WORKFLOW_NAME: "SDK Consistency Review Agent"
+          GH_AW_WORKFLOW_NAME: "Issue Classification Agent"
         with:
           github-token: ${{ secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           script: |
@@ -863,17 +967,17 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           GH_AW_AGENT_OUTPUT: ${{ steps.setup-agent-output-env.outputs.GH_AW_AGENT_OUTPUT }}
-          GH_AW_WORKFLOW_NAME: "SDK Consistency Review Agent"
+          GH_AW_WORKFLOW_NAME: "Issue Classification Agent"
           GH_AW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           GH_AW_AGENT_CONCLUSION: ${{ needs.agent.result }}
-          GH_AW_WORKFLOW_ID: "sdk-consistency-review"
+          GH_AW_WORKFLOW_ID: "issue-classification"
           GH_AW_SECRET_VERIFICATION_RESULT: ${{ needs.activation.outputs.secret_verification_result }}
           GH_AW_CHECKOUT_PR_SUCCESS: ${{ needs.agent.outputs.checkout_pr_success }}
           GH_AW_INFERENCE_ACCESS_ERROR: ${{ needs.agent.outputs.inference_access_error }}
           GH_AW_LOCKDOWN_CHECK_FAILED: ${{ needs.activation.outputs.lockdown_check_failed }}
           GH_AW_GROUP_REPORTS: "false"
           GH_AW_FAILURE_REPORT_AS_ISSUE: "true"
-          GH_AW_TIMEOUT_MINUTES: "15"
+          GH_AW_TIMEOUT_MINUTES: "10"
         with:
           github-token: ${{ secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           script: |
@@ -886,7 +990,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           GH_AW_AGENT_OUTPUT: ${{ steps.setup-agent-output-env.outputs.GH_AW_AGENT_OUTPUT }}
-          GH_AW_WORKFLOW_NAME: "SDK Consistency Review Agent"
+          GH_AW_WORKFLOW_NAME: "Issue Classification Agent"
           GH_AW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           GH_AW_AGENT_CONCLUSION: ${{ needs.agent.result }}
           GH_AW_NOOP_MESSAGE: ${{ steps.noop.outputs.noop_message }}
@@ -963,8 +1067,8 @@ jobs:
         if: always() && steps.detection_guard.outputs.run_detection == 'true'
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
-          WORKFLOW_NAME: "SDK Consistency Review Agent"
-          WORKFLOW_DESCRIPTION: "Reviews PRs to ensure features are implemented consistently across all SDK language implementations"
+          WORKFLOW_NAME: "Issue Classification Agent"
+          WORKFLOW_DESCRIPTION: "Classifies newly opened issues and delegates to type-specific handler workflows"
           HAS_PATCH: ${{ needs.agent.outputs.has_patch }}
         with:
           script: |
@@ -1046,12 +1150,14 @@ jobs:
       pull-requests: write
     timeout-minutes: 15
     env:
-      GH_AW_CALLER_WORKFLOW_ID: "${{ github.repository }}/sdk-consistency-review"
+      GH_AW_CALLER_WORKFLOW_ID: "${{ github.repository }}/issue-classification"
       GH_AW_ENGINE_ID: "copilot"
       GH_AW_ENGINE_MODEL: ${{ needs.agent.outputs.model }}
-      GH_AW_WORKFLOW_ID: "sdk-consistency-review"
-      GH_AW_WORKFLOW_NAME: "SDK Consistency Review Agent"
+      GH_AW_WORKFLOW_ID: "issue-classification"
+      GH_AW_WORKFLOW_NAME: "Issue Classification Agent"
     outputs:
+      call_workflow_name: ${{ steps.process_safe_outputs.outputs.call_workflow_name }}
+      call_workflow_payload: ${{ steps.process_safe_outputs.outputs.call_workflow_payload }}
       code_push_failure_count: ${{ steps.process_safe_outputs.outputs.code_push_failure_count }}
       code_push_failure_errors: ${{ steps.process_safe_outputs.outputs.code_push_failure_errors }}
       comment_id: ${{ steps.process_safe_outputs.outputs.comment_id }}
@@ -1096,7 +1202,7 @@ jobs:
           GH_AW_ALLOWED_DOMAINS: "api.business.githubcopilot.com,api.enterprise.githubcopilot.com,api.github.com,api.githubcopilot.com,api.individual.githubcopilot.com,api.snapcraft.io,archive.ubuntu.com,azure.archive.ubuntu.com,crl.geotrust.com,crl.globalsign.com,crl.identrust.com,crl.sectigo.com,crl.thawte.com,crl.usertrust.com,crl.verisign.com,crl3.digicert.com,crl4.digicert.com,crls.ssl.com,github.com,host.docker.internal,json-schema.org,json.schemastore.org,keyserver.ubuntu.com,ocsp.digicert.com,ocsp.geotrust.com,ocsp.globalsign.com,ocsp.identrust.com,ocsp.sectigo.com,ocsp.ssl.com,ocsp.thawte.com,ocsp.usertrust.com,ocsp.verisign.com,packagecloud.io,packages.cloud.google.com,packages.microsoft.com,ppa.launchpad.net,raw.githubusercontent.com,registry.npmjs.org,s.symcb.com,s.symcd.com,security.ubuntu.com,telemetry.enterprise.githubcopilot.com,ts-crl.ws.symantec.com,ts-ocsp.ws.symantec.com,www.googleapis.com"
           GITHUB_SERVER_URL: ${{ github.server_url }}
           GITHUB_API_URL: ${{ github.api_url }}
-          GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG: "{\"add_comment\":{\"max\":1},\"create_pull_request_review_comment\":{\"max\":10,\"side\":\"RIGHT\"},\"missing_data\":{},\"missing_tool\":{},\"noop\":{\"max\":1,\"report-as-issue\":\"true\"}}"
+          GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG: "{\"add_comment\":{\"max\":1,\"target\":\"triggering\"},\"call_workflow\":{\"max\":1,\"workflow_files\":{\"handle-bug\":\"./.github/workflows/handle-bug.lock.yml\",\"handle-documentation\":\"./.github/workflows/handle-documentation.lock.yml\",\"handle-enhancement\":\"./.github/workflows/handle-enhancement.lock.yml\",\"handle-question\":\"./.github/workflows/handle-question.lock.yml\"},\"workflows\":[\"handle-bug\",\"handle-enhancement\",\"handle-question\",\"handle-documentation\"]},\"missing_data\":{},\"missing_tool\":{},\"noop\":{\"max\":1,\"report-as-issue\":\"true\"}}"
         with:
           github-token: ${{ secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           script: |

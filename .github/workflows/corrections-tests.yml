@@ -1,0 +1,22 @@
+name: "Triage Agent Corrections Tests"
+
+on:
+  push:
+    paths:
+      - 'scripts/corrections/**'
+  pull_request:
+    paths:
+      - 'scripts/corrections/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+        working-directory: scripts/corrections
+      - run: npm test
+        working-directory: scripts/corrections

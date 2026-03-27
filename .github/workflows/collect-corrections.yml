@@ -1,0 +1,24 @@
+name: Collect triage agent corrections
+
+on:
+  repository_dispatch:
+    types: [triage_feedback]
+
+concurrency:
+  group: collect-corrections
+  cancel-in-progress: false
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/github-script@v8
+        with:
+          script: |
+            const script = require('./scripts/corrections/collect-corrections.js')
+            await script({ github, context })

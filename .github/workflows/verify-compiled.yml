@@ -1,0 +1,28 @@
+name: Verify compiled workflows
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/*.md'
+      - '.github/workflows/*.lock.yml'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install gh-aw CLI
+        uses: github/gh-aw/actions/setup-cli@main
+      - name: Recompile workflows
+        run: gh aw compile
+      - name: Check for uncommitted changes
+        run: |
+          if [ -n "$(git diff)" ]; then
+            echo "::error::Lock files are out of date. Run 'gh aw compile' and commit the results."
+            echo ""
+            git diff --stat
+            echo ""
+            git diff -- '*.lock.yml'
+            exit 1
+          fi
+          echo "All lock files are up to date."

@@ -9,7 +9,7 @@ on:
         description: "Issue number to triage"
         required: true
         type: string
-roles: all
+  roles: all
 permissions:
   contents: read
   issues: read
