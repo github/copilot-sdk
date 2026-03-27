@@ -74,19 +74,20 @@ public class TimeoutEdgeCaseTest {
     void testTimeoutDoesNotFireAfterSessionClose() throws Exception {
         JsonRpcClient rpc = createHangingRpcClient();
         try {
-            CopilotSession session = new CopilotSession("test-timeout-id", rpc);
+            try (CopilotSession session = new CopilotSession("test-timeout-id", rpc)) {
 
-            CompletableFuture<AssistantMessageEvent> result = session
-                    .sendAndWait(new MessageOptions().setPrompt("hello"), 2000);
+                CompletableFuture<AssistantMessageEvent> result = session
+                        .sendAndWait(new MessageOptions().setPrompt("hello"), 2000);
 
-            assertFalse(result.isDone(), "Future should be pending before timeout fires");
+                assertFalse(result.isDone(), "Future should be pending before timeout fires");
 
-            // close() blocks up to 5s on session.destroy RPC. The 2s timeout
-            // fires during that window with the current per-call scheduler.
-            session.close();
+                // close() blocks up to 5s on session.destroy RPC. The 2s timeout
+                // fires during that window with the current per-call scheduler.
+                session.close();
 
-            assertFalse(result.isDone(), "Future should not be completed by a timeout after session is closed. "
-                    + "The per-call ScheduledExecutorService leaked a TimeoutException.");
+                assertFalse(result.isDone(), "Future should not be completed by a timeout after session is closed. "
+                        + "The per-call ScheduledExecutorService leaked a TimeoutException.");
+            }
         } finally {
             rpc.close();
         }
@@ -105,31 +106,31 @@ public class TimeoutEdgeCaseTest {
     void testSendAndWaitReusesTimeoutThread() throws Exception {
         JsonRpcClient rpc = createHangingRpcClient();
         try {
-            CopilotSession session = new CopilotSession("test-thread-count-id", rpc);
+            try (CopilotSession session = new CopilotSession("test-thread-count-id", rpc)) {
 
-            long baselineCount = countTimeoutThreads();
+                long baselineCount = countTimeoutThreads();
 
-            CompletableFuture<AssistantMessageEvent> result1 = session
-                    .sendAndWait(new MessageOptions().setPrompt("hello1"), 30000);
+                CompletableFuture<AssistantMessageEvent> result1 = session
+                        .sendAndWait(new MessageOptions().setPrompt("hello1"), 30000);
 
-            Thread.sleep(100);
-            long afterFirst = countTimeoutThreads();
-            assertTrue(afterFirst >= baselineCount + 1,
-                    "Expected at least one new sendAndWait-timeout thread after first call. " + "Baseline: "
-                            + baselineCount + ", after: " + afterFirst);
+                Thread.sleep(100);
+                long afterFirst = countTimeoutThreads();
+                assertTrue(afterFirst >= baselineCount + 1,
+                        "Expected at least one new sendAndWait-timeout thread after first call. " + "Baseline: "
+                                + baselineCount + ", after: " + afterFirst);
 
-            CompletableFuture<AssistantMessageEvent> result2 = session
-                    .sendAndWait(new MessageOptions().setPrompt("hello2"), 30000);
+                CompletableFuture<AssistantMessageEvent> result2 = session
+                        .sendAndWait(new MessageOptions().setPrompt("hello2"), 30000);
 
-            Thread.sleep(100);
-            long afterSecond = countTimeoutThreads();
-            assertTrue(afterSecond == afterFirst,
-                    "Shared scheduler should reuse the same thread — no new threads after second call. "
-                            + "After first: " + afterFirst + ", after second: " + afterSecond);
+                Thread.sleep(100);
+                long afterSecond = countTimeoutThreads();
+                assertTrue(afterSecond == afterFirst,
+                        "Shared scheduler should reuse the same thread — no new threads after second call. "
+                                + "After first: " + afterFirst + ", after second: " + afterSecond);
 
-            result1.cancel(true);
-            result2.cancel(true);
-            session.close();
+                result1.cancel(true);
+                result2.cancel(true);
+            }
         } finally {
             rpc.close();
         }
