@@ -14,7 +14,9 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -417,14 +419,26 @@ public final class CopilotSession implements AutoCloseable {
             return null;
         });
 
-        // Schedule timeout on the shared session-level scheduler
-        var timeoutTask = timeoutScheduler.schedule(() -> {
-            if (!future.isDone()) {
-                future.completeExceptionally(new TimeoutException("sendAndWait timed out after " + timeoutMs + "ms"));
-            }
-        }, timeoutMs, TimeUnit.MILLISECONDS);
-
         var result = new CompletableFuture<AssistantMessageEvent>();
+
+        // Schedule timeout on the shared session-level scheduler
+        ScheduledFuture<?> timeoutTask;
+        try {
+            timeoutTask = timeoutScheduler.schedule(() -> {
+                if (!future.isDone()) {
+                    future.completeExceptionally(
+                            new TimeoutException("sendAndWait timed out after " + timeoutMs + "ms"));
+                }
+            }, timeoutMs, TimeUnit.MILLISECONDS);
+        } catch (RejectedExecutionException e) {
+            try {
+                subscription.close();
+            } catch (IOException closeEx) {
+                e.addSuppressed(closeEx);
+            }
+            result.completeExceptionally(e);
+            return result;
+        }
 
         // When inner future completes, run cleanup and propagate to result
         future.whenComplete((r, ex) -> {
