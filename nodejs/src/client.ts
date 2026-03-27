@@ -46,7 +46,7 @@ import type {
     SessionListFilter,
     SessionMetadata,
     SystemMessageCustomizeConfig,
-    SessionDataStoreConfig,
+    SessionFsConfig,
     TelemetryConfig,
     Tool,
     ToolCallRequestPayload,
@@ -217,7 +217,7 @@ export class CopilotClient {
             | "onListModels"
             | "telemetry"
             | "onGetTraceContext"
-            | "sessionDataStore"
+            | "sessionFs"
         >
     > & {
         cliPath?: string;
@@ -240,8 +240,8 @@ export class CopilotClient {
     private _rpc: ReturnType<typeof createServerRpc> | null = null;
     private processExitPromise: Promise<never> | null = null; // Rejects when CLI process exits
     private negotiatedProtocolVersion: number | null = null;
-    /** Connection-level session data store config, set via constructor option. */
-    private sessionDataStoreConfig: SessionDataStoreConfig | null = null;
+    /** Connection-level session filesystem config, set via constructor option. */
+    private sessionFsConfig: SessionFsConfig | null = null;
 
     /**
      * Typed server-scoped RPC methods.
@@ -311,7 +311,7 @@ export class CopilotClient {
 
         this.onListModels = options.onListModels;
         this.onGetTraceContext = options.onGetTraceContext;
-        this.sessionDataStoreConfig = options.sessionDataStore ?? null;
+        this.sessionFsConfig = options.sessionFs ?? null;
 
         const effectiveEnv = options.env ?? process.env;
         this.options = {
@@ -404,10 +404,12 @@ export class CopilotClient {
             // Verify protocol version compatibility
             await this.verifyProtocolVersion();
 
-            // If a session data store was configured, register as the storage provider
-            if (this.sessionDataStoreConfig) {
-                await this.connection!.sendRequest("sessionDataStore.setDataStore", {
-                    descriptor: this.sessionDataStoreConfig.descriptor,
+            // If a session filesystem provider was configured, register it
+            if (this.sessionFsConfig) {
+                await this.connection!.sendRequest("sessionFs.setProvider", {
+                    initialCwd: this.sessionFsConfig.initialCwd,
+                    sessionStatePath: this.sessionFsConfig.sessionStatePath,
+                    conventions: this.sessionFsConfig.conventions,
                 });
             }
 
@@ -1637,10 +1639,10 @@ export class CopilotClient {
                 await this.handleSystemMessageTransform(params)
         );
 
-        // Register session data store RPC handlers if configured.
-        if (this.sessionDataStoreConfig) {
+        // Register session filesystem RPC handlers if configured.
+        if (this.sessionFsConfig) {
             registerClientApiHandlers(this.connection, {
-                sessionDataStore: this.sessionDataStoreConfig,
+                sessionFs: this.sessionFsConfig,
             });
         }
 

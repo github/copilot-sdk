@@ -12,18 +12,24 @@ export type SessionEvent = GeneratedSessionEvent;
 
 // Re-export generated client API types
 export type {
-    SessionDataStoreHandler,
-    SessionDataStoreLoadParams,
-    SessionDataStoreLoadResult,
-    SessionDataStoreAppendParams,
-    SessionDataStoreTruncateParams,
-    SessionDataStoreTruncateResult,
-    SessionDataStoreListResult,
-    SessionDataStoreDeleteParams,
+    SessionFsHandler,
+    SessionFsReadFileParams,
+    SessionFsReadFileResult,
+    SessionFsWriteFileParams,
+    SessionFsAppendFileParams,
+    SessionFsExistsParams,
+    SessionFsExistsResult,
+    SessionFsStatParams,
+    SessionFsStatResult,
+    SessionFsMkdirParams,
+    SessionFsReaddirParams,
+    SessionFsReaddirResult,
+    SessionFsRmParams,
+    SessionFsRenameParams,
     ClientApiHandlers,
 } from "./generated/rpc.js";
 
-import type { SessionDataStoreHandler } from "./generated/rpc.js";
+import type { SessionFsHandler } from "./generated/rpc.js";
 
 /**
  * Options for creating a CopilotClient
@@ -188,12 +194,12 @@ export interface CopilotClientOptions {
     onGetTraceContext?: TraceContextProvider;
 
     /**
-     * Custom session data storage backend.
-     * When provided, the client registers as the session data storage provider
-     * on connection, routing all event persistence through these callbacks
-     * instead of the server's default file-based storage.
+     * Custom session filesystem provider.
+     * When provided, the client registers as the session filesystem provider
+     * on connection, routing all session-scoped file I/O through these callbacks
+     * instead of the server's default local filesystem storage.
      */
-    sessionDataStore?: SessionDataStoreConfig;
+    sessionFs?: SessionFsConfig;
 }
 
 /**
@@ -1376,17 +1382,27 @@ export interface SessionContext {
 }
 
 /**
- * Configuration for a custom session data store backend.
+ * Configuration for a custom session filesystem provider.
  *
- * Extends the generated {@link SessionDataStoreHandler} with a `descriptor`
- * that identifies the storage backend for display purposes.
+ * Extends the generated {@link SessionFsHandler} with registration
+ * parameters sent to the server's `sessionFs.setProvider` call.
  */
-export interface SessionDataStoreConfig extends SessionDataStoreHandler {
+export interface SessionFsConfig extends SessionFsHandler {
     /**
-     * Opaque descriptor identifying this storage backend.
-     * Used for UI display (e.g., `"redis://localhost/sessions"`).
+     * Initial working directory for sessions (user's project directory).
      */
-    descriptor: string;
+    initialCwd: string;
+
+    /**
+     * Path within each session's SessionFs where the runtime stores
+     * session-scoped files (events, workspace, checkpoints, etc.).
+     */
+    sessionStatePath: string;
+
+    /**
+     * Path conventions used by this filesystem provider.
+     */
+    conventions: "windows" | "linux";
 }
 
 /**

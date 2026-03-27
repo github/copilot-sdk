@@ -5,6 +5,6 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: What is 7 + 7?
+        content: Hello
       - role: assistant
-        content: 7 + 7 = 14
+        content: Hello! How can I help you today?

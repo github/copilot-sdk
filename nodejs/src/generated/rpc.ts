@@ -179,18 +179,26 @@ export interface AccountGetQuotaResult {
   };
 }
 
-export interface SessionDataStoreSetDataStoreResult {
+export interface SessionFsSetProviderResult {
   /**
-   * Whether the data store was set successfully
+   * Whether the provider was set successfully
    */
   success: boolean;
 }
 
-export interface SessionDataStoreSetDataStoreParams {
+export interface SessionFsSetProviderParams {
   /**
-   * Opaque descriptor identifying the storage backend (e.g., 'redis://localhost/sessions')
+   * Initial working directory for sessions
    */
-  descriptor: string;
+  initialCwd: string;
+  /**
+   * Path within each session's SessionFs where the runtime stores files for that session
+   */
+  sessionStatePath: string;
+  /**
+   * Path conventions used by this filesystem
+   */
+  conventions: "windows" | "linux";
 }
 
 export interface SessionModelGetCurrentResult {
@@ -1097,76 +1105,143 @@ export interface SessionShellKillParams {
   signal?: "SIGTERM" | "SIGKILL" | "SIGINT";
 }
 
-export interface SessionDataStoreLoadResult {
+export interface SessionFsReadFileResult {
   /**
-   * All persisted events for the session, in order
+   * File content as UTF-8 string
    */
-  events: {
-    [k: string]: unknown;
-  }[];
+  content: string;
 }
 
-export interface SessionDataStoreLoadParams {
+export interface SessionFsReadFileParams {
   /**
-   * The session to load events for
-   */
-  sessionId: string;
-}
-
-export interface SessionDataStoreAppendParams {
-  /**
-   * The session to append events to
+   * Target session identifier
    */
   sessionId: string;
   /**
-   * Events to append, in order
+   * Path using SessionFs conventions
    */
-  events: {
-    [k: string]: unknown;
-  }[];
+  path: string;
 }
 
-export interface SessionDataStoreTruncateResult {
+export interface SessionFsWriteFileParams {
   /**
-   * Number of events removed
-   */
-  eventsRemoved: number;
-  /**
-   * Number of events kept
-   */
-  eventsKept: number;
-}
-
-export interface SessionDataStoreTruncateParams {
-  /**
-   * The session to truncate
+   * Target session identifier
    */
   sessionId: string;
   /**
-   * Event ID marking the truncation boundary (excluded)
+   * Path using SessionFs conventions
    */
-  upToEventId: string;
-}
-
-export interface SessionDataStoreListResult {
-  sessions: {
-    sessionId: string;
-    /**
-     * ISO 8601 timestamp of last modification
-     */
-    mtime: string;
-    /**
-     * ISO 8601 timestamp of creation
-     */
-    birthtime: string;
-  }[];
-}
-
-export interface SessionDataStoreDeleteParams {
+  path: string;
   /**
-   * The session to delete
+   * Content to write
+   */
+  content: string;
+  /**
+   * Optional POSIX-style mode for newly created files
+   */
+  mode?: number;
+}
+
+export interface SessionFsAppendFileParams {
+  /**
+   * Target session identifier
    */
   sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+  /**
+   * Content to append
+   */
+  content: string;
+  /**
+   * Optional POSIX-style mode for newly created files
+   */
+  mode?: number;
+}
+
+export interface SessionFsExistsResult {
+  exists: boolean;
+}
+
+export interface SessionFsExistsParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+}
+
+export interface SessionFsStatResult {
+  isFile: boolean;
+  isDirectory: boolean;
+  size: number;
+  /**
+   * ISO 8601 timestamp of last modification
+   */
+  mtime: string;
+  /**
+   * ISO 8601 timestamp of creation
+   */
+  birthtime: string;
+}
+
+export interface SessionFsStatParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+}
+
+export interface SessionFsMkdirParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  path: string;
+  recursive?: boolean;
+}
+
+export interface SessionFsReaddirResult {
+  /**
+   * Entry names in the directory
+   */
+  entries: string[];
+}
+
+export interface SessionFsReaddirParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  path: string;
+}
+
+export interface SessionFsRmParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  path: string;
+  recursive?: boolean;
+  force?: boolean;
+}
+
+export interface SessionFsRenameParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  src: string;
+  dest: string;
 }
 
 /** Create typed server-scoped RPC methods (no session required). */
@@ -1186,9 +1261,9 @@ export function createServerRpc(connection: MessageConnection) {
             getQuota: async (): Promise<AccountGetQuotaResult> =>
                 connection.sendRequest("account.getQuota", {}),
         },
-        sessionDataStore: {
-            setDataStore: async (params: SessionDataStoreSetDataStoreParams): Promise<SessionDataStoreSetDataStoreResult> =>
-                connection.sendRequest("sessionDataStore.setDataStore", params),
+        sessionFs: {
+            setProvider: async (params: SessionFsSetProviderParams): Promise<SessionFsSetProviderResult> =>
+                connection.sendRequest("sessionFs.setProvider", params),
         },
     };
 }
@@ -1315,20 +1390,24 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
 }
 
 /**
- * Handler interface for the `sessionDataStore` client API group.
- * Implement this to provide a custom sessionDataStore backend.
+ * Handler interface for the `sessionFs` client API group.
+ * Implement this to provide a custom sessionFs backend.
  */
-export interface SessionDataStoreHandler {
-    load(params: SessionDataStoreLoadParams): Promise<SessionDataStoreLoadResult>;
-    append(params: SessionDataStoreAppendParams): Promise<void>;
-    truncate(params: SessionDataStoreTruncateParams): Promise<SessionDataStoreTruncateResult>;
-    list(): Promise<SessionDataStoreListResult>;
-    delete(params: SessionDataStoreDeleteParams): Promise<void>;
+export interface SessionFsHandler {
+    readFile(params: SessionFsReadFileParams): Promise<SessionFsReadFileResult>;
+    writeFile(params: SessionFsWriteFileParams): Promise<void>;
+    appendFile(params: SessionFsAppendFileParams): Promise<void>;
+    exists(params: SessionFsExistsParams): Promise<SessionFsExistsResult>;
+    stat(params: SessionFsStatParams): Promise<SessionFsStatResult>;
+    mkdir(params: SessionFsMkdirParams): Promise<void>;
+    readdir(params: SessionFsReaddirParams): Promise<SessionFsReaddirResult>;
+    rm(params: SessionFsRmParams): Promise<void>;
+    rename(params: SessionFsRenameParams): Promise<void>;
 }
 
 /** All client API handler groups. Each group is optional. */
 export interface ClientApiHandlers {
-    sessionDataStore?: SessionDataStoreHandler;
+    sessionFs?: SessionFsHandler;
 }
 
 /**
@@ -1341,12 +1420,16 @@ export function registerClientApiHandlers(
     connection: MessageConnection,
     handlers: ClientApiHandlers,
 ): void {
-    if (handlers.sessionDataStore) {
-        const h = handlers.sessionDataStore!;
-        connection.onRequest("sessionDataStore.load", (params: SessionDataStoreLoadParams) => h.load(params));
-        connection.onRequest("sessionDataStore.append", (params: SessionDataStoreAppendParams) => h.append(params));
-        connection.onRequest("sessionDataStore.truncate", (params: SessionDataStoreTruncateParams) => h.truncate(params));
-        connection.onRequest("sessionDataStore.list", () => h.list());
-        connection.onRequest("sessionDataStore.delete", (params: SessionDataStoreDeleteParams) => h.delete(params));
+    if (handlers.sessionFs) {
+        const h = handlers.sessionFs!;
+        connection.onRequest("sessionFs.readFile", (params: SessionFsReadFileParams) => h.readFile(params));
+        connection.onRequest("sessionFs.writeFile", (params: SessionFsWriteFileParams) => h.writeFile(params));
+        connection.onRequest("sessionFs.appendFile", (params: SessionFsAppendFileParams) => h.appendFile(params));
+        connection.onRequest("sessionFs.exists", (params: SessionFsExistsParams) => h.exists(params));
+        connection.onRequest("sessionFs.stat", (params: SessionFsStatParams) => h.stat(params));
+        connection.onRequest("sessionFs.mkdir", (params: SessionFsMkdirParams) => h.mkdir(params));
+        connection.onRequest("sessionFs.readdir", (params: SessionFsReaddirParams) => h.readdir(params));
+        connection.onRequest("sessionFs.rm", (params: SessionFsRmParams) => h.rm(params));
+        connection.onRequest("sessionFs.rename", (params: SessionFsRenameParams) => h.rename(params));
     }
 }
