@@ -52,8 +52,8 @@ public class TimeoutEdgeCaseTest {
         };
         ByteArrayOutputStream sinkOutput = new ByteArrayOutputStream();
 
-        var ctor = JsonRpcClient.class.getDeclaredConstructor(
-                InputStream.class, java.io.OutputStream.class, Socket.class, Process.class);
+        var ctor = JsonRpcClient.class.getDeclaredConstructor(InputStream.class, java.io.OutputStream.class,
+                Socket.class, Process.class);
         ctor.setAccessible(true);
         return (JsonRpcClient) ctor.newInstance(blockingInput, sinkOutput, null, null);
     }
@@ -76,8 +76,8 @@ public class TimeoutEdgeCaseTest {
         try {
             CopilotSession session = new CopilotSession("test-timeout-id", rpc);
 
-            CompletableFuture<AssistantMessageEvent> result = session.sendAndWait(
-                    new MessageOptions().setPrompt("hello"), 2000);
+            CompletableFuture<AssistantMessageEvent> result = session
+                    .sendAndWait(new MessageOptions().setPrompt("hello"), 2000);
 
             assertFalse(result.isDone(), "Future should be pending before timeout fires");
 
@@ -85,9 +85,8 @@ public class TimeoutEdgeCaseTest {
             // fires during that window with the current per-call scheduler.
             session.close();
 
-            assertFalse(result.isDone(),
-                    "Future should not be completed by a timeout after session is closed. "
-                            + "The per-call ScheduledExecutorService leaked a TimeoutException.");
+            assertFalse(result.isDone(), "Future should not be completed by a timeout after session is closed. "
+                    + "The per-call ScheduledExecutorService leaked a TimeoutException.");
         } finally {
             rpc.close();
         }
@@ -110,17 +109,17 @@ public class TimeoutEdgeCaseTest {
 
             long baselineCount = countTimeoutThreads();
 
-            CompletableFuture<AssistantMessageEvent> result1 = session.sendAndWait(
-                    new MessageOptions().setPrompt("hello1"), 30000);
+            CompletableFuture<AssistantMessageEvent> result1 = session
+                    .sendAndWait(new MessageOptions().setPrompt("hello1"), 30000);
 
             Thread.sleep(100);
             long afterFirst = countTimeoutThreads();
             assertTrue(afterFirst >= baselineCount + 1,
-                    "Expected at least one new sendAndWait-timeout thread after first call. "
-                            + "Baseline: " + baselineCount + ", after: " + afterFirst);
+                    "Expected at least one new sendAndWait-timeout thread after first call. " + "Baseline: "
+                            + baselineCount + ", after: " + afterFirst);
 
-            CompletableFuture<AssistantMessageEvent> result2 = session.sendAndWait(
-                    new MessageOptions().setPrompt("hello2"), 30000);
+            CompletableFuture<AssistantMessageEvent> result2 = session
+                    .sendAndWait(new MessageOptions().setPrompt("hello2"), 30000);
 
             Thread.sleep(100);
             long afterSecond = countTimeoutThreads();
@@ -140,9 +139,7 @@ public class TimeoutEdgeCaseTest {
      * Counts the number of live threads whose name contains "sendAndWait-timeout".
      */
     private long countTimeoutThreads() {
-        return Thread.getAllStackTraces().keySet().stream()
-                .filter(t -> t.getName().contains("sendAndWait-timeout"))
-                .filter(Thread::isAlive)
-                .count();
+        return Thread.getAllStackTraces().keySet().stream().filter(t -> t.getName().contains("sendAndWait-timeout"))
+                .filter(Thread::isAlive).count();
     }
 }
