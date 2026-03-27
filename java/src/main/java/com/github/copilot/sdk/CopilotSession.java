@@ -421,33 +421,39 @@ public final class CopilotSession implements AutoCloseable {
 
         var result = new CompletableFuture<AssistantMessageEvent>();
 
-        // Schedule timeout on the shared session-level scheduler
-        ScheduledFuture<?> timeoutTask;
-        try {
-            timeoutTask = timeoutScheduler.schedule(() -> {
-                if (!future.isDone()) {
-                    future.completeExceptionally(
-                            new TimeoutException("sendAndWait timed out after " + timeoutMs + "ms"));
-                }
-            }, timeoutMs, TimeUnit.MILLISECONDS);
-        } catch (RejectedExecutionException e) {
+        // Schedule timeout on the shared session-level scheduler.
+        // Per Javadoc, timeoutMs <= 0 means "no timeout".
+        ScheduledFuture<?> timeoutTask = null;
+        if (timeoutMs > 0) {
             try {
-                subscription.close();
-            } catch (IOException closeEx) {
-                e.addSuppressed(closeEx);
+                timeoutTask = timeoutScheduler.schedule(() -> {
+                    if (!future.isDone()) {
+                        future.completeExceptionally(
+                                new TimeoutException("sendAndWait timed out after " + timeoutMs + "ms"));
+                    }
+                }, timeoutMs, TimeUnit.MILLISECONDS);
+            } catch (RejectedExecutionException e) {
+                try {
+                    subscription.close();
+                } catch (IOException closeEx) {
+                    e.addSuppressed(closeEx);
+                }
+                result.completeExceptionally(e);
+                return result;
             }
-            result.completeExceptionally(e);
-            return result;
         }
 
         // When inner future completes, run cleanup and propagate to result
+        final ScheduledFuture<?> taskToCancel = timeoutTask;
         future.whenComplete((r, ex) -> {
             try {
                 subscription.close();
             } catch (IOException e) {
                 LOG.log(Level.SEVERE, "Error closing subscription", e);
             }
-            timeoutTask.cancel(false);
+            if (taskToCancel != null) {
+                taskToCancel.cancel(false);
+            }
             if (!result.isDone()) {
                 if (ex != null) {
                     result.completeExceptionally(ex);
