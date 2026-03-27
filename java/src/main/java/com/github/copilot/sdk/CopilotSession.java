@@ -15,6 +15,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -159,11 +160,13 @@ public final class CopilotSession implements AutoCloseable {
         this.sessionId = sessionId;
         this.rpc = rpc;
         this.workspacePath = workspacePath;
-        this.timeoutScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+        var executor = new ScheduledThreadPoolExecutor(1, r -> {
             var t = new Thread(r, "sendAndWait-timeout");
             t.setDaemon(true);
             return t;
         });
+        executor.setRemoveOnCancelPolicy(true);
+        this.timeoutScheduler = executor;
     }
 
     /**
