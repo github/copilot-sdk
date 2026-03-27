@@ -1,7 +1,6 @@
 package jsonrpc2
 
 import (
-	"bufio"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
@@ -13,11 +12,25 @@ import (
 	"sync/atomic"
 )
 
-// Error represents a JSON-RPC error response
+const version = "2.0"
+
+// Standard JSON-RPC 2.0 error codes.
+// These can be used with errors.Is to match error codes:
+//
+//	errors.Is(err, jsonrpc2.ErrInvalidParams)
+var (
+	ErrParse          = &Error{Code: -32700, Message: "parse error"}
+	ErrInvalidRequest = &Error{Code: -32600, Message: "invalid request"}
+	ErrMethodNotFound = &Error{Code: -32601, Message: "method not found"}
+	ErrInvalidParams  = &Error{Code: -32602, Message: "invalid params"}
+	ErrInternal       = &Error{Code: -32603, Message: "internal error"}
+)
+
+// Error represents a JSON-RPC error response.
 type Error struct {
-	Code    int            `json:"code"`
-	Message string         `json:"message"`
-	Data    map[string]any `json:"data,omitempty"`
+	Code    int             `json:"code"`
+	Message string          `json:"message"`
+	Data    json.RawMessage `json:"data,omitempty"`
 }
 
 func (e *Error) Error() string {
@@ -50,10 +63,11 @@ type NotificationHandler func(method string, params json.RawMessage)
 // RequestHandler handles incoming server requests and returns a result or error
 type RequestHandler func(params json.RawMessage) (json.RawMessage, *Error)
 
-// Client is a minimal JSON-RPC 2.0 client for stdio transport
+// Client is a minimal JSON-RPC 2.0 client for stdio transport.
 type Client struct {
-	stdin           io.WriteCloser
+	reader          *headerReader // reads frames from the remote side
 	stdout          io.ReadCloser
+	writer          chan *headerWriter // 1-buffered; holds the writer when not in use
 	mu              sync.Mutex
 	pendingRequests map[string]chan *Response
 	requestHandlers map[string]RequestHandler
@@ -66,15 +80,18 @@ type Client struct {
 	onClose         func()        // called when the read loop exits unexpectedly
 }
 
-// NewClient creates a new JSON-RPC client
+// NewClient creates a new JSON-RPC client.
 func NewClient(stdin io.WriteCloser, stdout io.ReadCloser) *Client {
-	return &Client{
-		stdin:           stdin,
+	c := &Client{
+		reader:          newHeaderReader(stdout),
 		stdout:          stdout,
+		writer:          make(chan *headerWriter, 1),
 		pendingRequests: make(map[string]chan *Response),
 		requestHandlers: make(map[string]RequestHandler),
 		stopChan:        make(chan struct{}),
 	}
+	c.writer <- newHeaderWriter(stdin)
+	return c
 }
 
 // SetProcessDone sets a channel that will be closed when the process exits,
@@ -133,7 +150,7 @@ func NotificationHandlerFor[In any](handler func(params In)) RequestHandler {
 		}
 		if err := json.Unmarshal(params, target); err != nil {
 			return nil, &Error{
-				Code:    -32602,
+				Code:    ErrInvalidParams.Code,
 				Message: fmt.Sprintf("Invalid params: %v", err),
 			}
 		}
@@ -154,7 +171,7 @@ func RequestHandlerFor[In, Out any](handler func(params In) (Out, *Error)) Reque
 		}
 		if err := json.Unmarshal(params, target); err != nil {
 			return nil, &Error{
-				Code:    -32602,
+				Code:    ErrInvalidParams.Code,
 				Message: fmt.Sprintf("Invalid params: %v", err),
 			}
 		}
@@ -165,7 +182,7 @@ func RequestHandlerFor[In, Out any](handler func(params In) (Out, *Error)) Reque
 		outData, err := json.Marshal(out)
 		if err != nil {
 			return nil, &Error{
-				Code:    -32603,
+				Code:    ErrInternal.Code,
 				Message: fmt.Sprintf("Failed to marshal response: %v", err),
 			}
 		}
@@ -227,7 +244,7 @@ func (c *Client) Request(method string, params any) (json.RawMessage, error) {
 
 	// Send request
 	request := Request{
-		JSONRPC: "2.0",
+		JSONRPC: version,
 		ID:      json.RawMessage(`"` + requestID + `"`),
 		Method:  method,
 		Params:  paramsData,
@@ -265,45 +282,18 @@ func (c *Client) Request(method string, params any) (json.RawMessage, error) {
 	}
 }
 
-// Notify sends a JSON-RPC notification (no response expected)
-func (c *Client) Notify(method string, params any) error {
-	var paramsData json.RawMessage
-	if params != nil {
-		var err error
-		paramsData, err = json.Marshal(params)
-		if err != nil {
-			return fmt.Errorf("failed to marshal params: %w", err)
-		}
-	}
-
-	notification := Request{
-		JSONRPC: "2.0",
-		Method:  method,
-		Params:  paramsData,
-	}
-	return c.sendMessage(notification)
-}
-
-// sendMessage writes a message to stdin
+// sendMessage writes a message to the stream.
+// Write serialization is achieved via a 1-buffered channel that holds the
+// writer when not in use, avoiding the need for a mutex on the write path.
 func (c *Client) sendMessage(message any) error {
 	data, err := json.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %w", err)
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	// Write Content-Length header + message
-	header := fmt.Sprintf("Content-Length: %d\r\n\r\n", len(data))
-	if _, err := c.stdin.Write([]byte(header)); err != nil {
-		return fmt.Errorf("failed to write header: %w", err)
-	}
-	if _, err := c.stdin.Write(data); err != nil {
-		return fmt.Errorf("failed to write message: %w", err)
-	}
-
-	return nil
+	w := <-c.writer
+	defer func() { c.writer <- w }()
+	return w.Write(data)
 }
 
 // SetOnClose sets a callback invoked when the read loop exits unexpectedly
@@ -312,7 +302,7 @@ func (c *Client) SetOnClose(fn func()) {
 	c.onClose = fn
 }
 
-// readLoop reads messages from stdout in a background goroutine
+// readLoop reads messages from the stream in a background goroutine.
 func (c *Client) readLoop() {
 	defer c.wg.Done()
 	defer func() {
@@ -323,59 +313,30 @@ func (c *Client) readLoop() {
 		}
 	}()
 
-	reader := bufio.NewReader(c.stdout)
-
 	for c.running.Load() {
-		// Read Content-Length header
-		var contentLength int
-		for {
-			line, err := reader.ReadString('\n')
-			if err != nil {
-				// Only log unexpected errors (not EOF or closed pipe during shutdown)
-				if err != io.EOF && !errors.Is(err, os.ErrClosed) && c.running.Load() {
-					fmt.Printf("Error reading header: %v\n", err)
-				}
-				return
-			}
-
-			// Check for blank line (end of headers)
-			if line == "\r\n" || line == "\n" {
-				break
-			}
-
-			// Parse Content-Length
-			var length int
-			if _, err := fmt.Sscanf(line, "Content-Length: %d", &length); err == nil {
-				contentLength = length
-			}
-		}
-
-		if contentLength == 0 {
-			continue
-		}
-
-		// Read message body
-		body := make([]byte, contentLength)
-		if _, err := io.ReadFull(reader, body); err != nil {
-			// Only log unexpected errors (not EOF or closed pipe during shutdown)
-			if err != io.EOF && !errors.Is(err, os.ErrClosed) && c.running.Load() {
-				fmt.Printf("Error reading body: %v\n", err)
+		// Read the next frame.
+		data, err := c.reader.Read()
+		if err != nil {
+			if !(errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, os.ErrClosed)) && c.running.Load() {
+				fmt.Printf("Error reading message: %v\n", err)
 			}
 			return
 		}
 
-		// Try to parse as request first (has both ID and Method)
-		var request Request
-		if err := json.Unmarshal(body, &request); err == nil && request.Method != "" {
-			c.handleRequest(&request)
+		// Decode using a single unmarshal into the combined wire format.
+		msg, err := decodeMessage(data)
+		if err != nil {
+			if c.running.Load() {
+				fmt.Printf("Error decoding message: %v\n", err)
+			}
 			continue
 		}
 
-		// Try to parse as response (has ID but no Method)
-		var response Response
-		if err := json.Unmarshal(body, &response); err == nil && len(response.ID) > 0 {
-			c.handleResponse(&response)
-			continue
+		switch msg := msg.(type) {
+		case *Request:
+			c.handleRequest(msg)
+		case *Response:
+			c.handleResponse(msg)
 		}
 	}
 }
@@ -405,7 +366,10 @@ func (c *Client) handleRequest(request *Request) {
 
 	if handler == nil {
 		if request.IsCall() {
-			c.sendErrorResponse(request.ID, -32601, fmt.Sprintf("Method not found: %s", request.Method), nil)
+			c.sendErrorResponse(request.ID, &Error{
+				Code:    ErrMethodNotFound.Code,
+				Message: fmt.Sprintf("Method not found: %s", request.Method),
+			})
 		}
 		return
 	}
@@ -419,13 +383,16 @@ func (c *Client) handleRequest(request *Request) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				c.sendErrorResponse(request.ID, -32603, fmt.Sprintf("request handler panic: %v", r), nil)
+				c.sendErrorResponse(request.ID, &Error{
+					Code:    ErrInternal.Code,
+					Message: fmt.Sprintf("request handler panic: %v", r),
+				})
 			}
 		}()
 
 		result, err := handler(request.Params)
 		if err != nil {
-			c.sendErrorResponse(request.ID, err.Code, err.Message, err.Data)
+			c.sendErrorResponse(request.ID, err)
 			return
 		}
 		c.sendResponse(request.ID, result)
@@ -434,7 +401,7 @@ func (c *Client) handleRequest(request *Request) {
 
 func (c *Client) sendResponse(id json.RawMessage, result json.RawMessage) {
 	response := Response{
-		JSONRPC: "2.0",
+		JSONRPC: version,
 		ID:      id,
 		Result:  result,
 	}
@@ -443,15 +410,11 @@ func (c *Client) sendResponse(id json.RawMessage, result json.RawMessage) {
 	}
 }
 
-func (c *Client) sendErrorResponse(id json.RawMessage, code int, message string, data map[string]any) {
+func (c *Client) sendErrorResponse(id json.RawMessage, rpcErr *Error) {
 	response := Response{
-		JSONRPC: "2.0",
+		JSONRPC: version,
 		ID:      id,
-		Error: &Error{
-			Code:    code,
-			Message: message,
-			Data:    data,
-		},
+		Error:   rpcErr,
 	}
 	if err := c.sendMessage(response); err != nil {
 		fmt.Printf("Failed to send JSON-RPC error response: %v\n", err)
@@ -465,4 +428,41 @@ func generateUUID() string {
 	b[6] = (b[6] & 0x0f) | 0x40 // Version 4
 	b[8] = (b[8] & 0x3f) | 0x80 // Variant is 10
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
+
+// decodeMessage decodes a JSON-RPC message from raw bytes, returning either
+// a *Request or a *Response.
+func decodeMessage(data []byte) (any, error) {
+	// msg contains all fields of both Request and Response.
+	var msg struct {
+		JSONRPC string          `json:"jsonrpc"`
+		ID      json.RawMessage `json:"id,omitempty"`
+		Method  string          `json:"method,omitempty"`
+		Params  json.RawMessage `json:"params,omitempty"`
+		Result  json.RawMessage `json:"result,omitempty"`
+		Error   *Error          `json:"error,omitempty"`
+	}
+	if err := json.Unmarshal(data, &msg); err != nil {
+		return nil, fmt.Errorf("unmarshaling jsonrpc message: %w", err)
+	}
+	if msg.JSONRPC != version {
+		return nil, fmt.Errorf("unsupported JSON-RPC version %q; expected %q", msg.JSONRPC, version)
+	}
+	if msg.Method != "" {
+		return &Request{
+			JSONRPC: msg.JSONRPC,
+			ID:      msg.ID,
+			Method:  msg.Method,
+			Params:  msg.Params,
+		}, nil
+	}
+	if len(msg.ID) > 0 {
+		return &Response{
+			JSONRPC: msg.JSONRPC,
+			ID:      msg.ID,
+			Result:  msg.Result,
+			Error:   msg.Error,
+		}, nil
+	}
+	return nil, fmt.Errorf("message is neither a request nor a response: %w", ErrInvalidRequest)
 }
