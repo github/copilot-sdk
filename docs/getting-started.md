@@ -210,7 +210,11 @@ Create a new console project and add this to `Program.cs`:
 using GitHub.Copilot.SDK;
 
 await using var client = new CopilotClient();
-await using var session = await client.CreateSessionAsync(new SessionConfig { Model = "gpt-4.1" });
+await using var session = await client.CreateSessionAsync(new SessionConfig
+{
+    Model = "gpt-4.1",
+    OnPermissionRequest = PermissionHandler.ApproveAll
+});
 
 var response = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2 + 2?" });
 Console.WriteLine(response?.Data.Content);
@@ -368,6 +372,7 @@ await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
     Model = "gpt-4.1",
+    OnPermissionRequest = PermissionHandler.ApproveAll,
     Streaming = true,
 });
 
@@ -811,6 +816,7 @@ var getWeather = AIFunctionFactory.Create(
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
     Model = "gpt-4.1",
+    OnPermissionRequest = PermissionHandler.ApproveAll,
     Streaming = true,
     Tools = [getWeather],
 });
@@ -1114,6 +1120,7 @@ await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
     Model = "gpt-4.1",
+    OnPermissionRequest = PermissionHandler.ApproveAll,
     Streaming = true,
     Tools = [getWeather]
 });
