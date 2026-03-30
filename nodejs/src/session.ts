@@ -622,21 +622,19 @@ export class CopilotSession {
         }
         try {
             const result = await this.elicitationHandler(request, { sessionId: this.sessionId });
-            await this.connection.sendRequest("session.ui.handlePendingElicitation", {
-                sessionId: this.sessionId,
-                requestId,
-                result,
-            });
+            await this.rpc.ui.handlePendingElicitation({ requestId, result });
         } catch {
             // Handler failed — attempt to cancel so the request doesn't hang
             try {
-                await this.connection.sendRequest("session.ui.handlePendingElicitation", {
-                    sessionId: this.sessionId,
+                await this.rpc.ui.handlePendingElicitation({
                     requestId,
                     result: { action: "cancel" },
                 });
-            } catch {
-                // Best effort — another client may have already responded
+            } catch (rpcError) {
+                if (!(rpcError instanceof ConnectionError || rpcError instanceof ResponseError)) {
+                    throw rpcError;
+                }
+                // Connection lost or RPC error — nothing we can do
             }
         }
     }
