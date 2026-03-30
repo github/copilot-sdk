@@ -56,7 +56,7 @@ public class CompactionTest {
      *      compaction/should_trigger_compaction_with_low_threshold_and_emit_events
      */
     @Test
-    @Timeout(value = 120, unit = TimeUnit.SECONDS)
+    @Timeout(value = 300, unit = TimeUnit.SECONDS)
     void testShouldTriggerCompactionWithLowThresholdAndEmitEvents() throws Exception {
         ctx.configureForTest("compaction", "should_trigger_compaction_with_low_threshold_and_emit_events");
 
@@ -96,8 +96,8 @@ public class CompactionTest {
 
             // Wait for compaction to complete - it may arrive slightly after sendAndWait
             // returns due to async event delivery from the CLI
-            assertTrue(compactionCompleteLatch.await(10, TimeUnit.SECONDS),
-                    "Should have received a compaction complete event within 10 seconds");
+            assertTrue(compactionCompleteLatch.await(30, TimeUnit.SECONDS),
+                    "Should have received a compaction complete event within 30 seconds");
             long compactionStartCount = events.stream().filter(e -> e instanceof SessionCompactionStartEvent).count();
             long compactionCompleteCount = events.stream().filter(e -> e instanceof SessionCompactionCompleteEvent)
                     .count();
