@@ -33,7 +33,7 @@ import com.github.copilot.sdk.json.ToolDefinition;
 import com.github.copilot.sdk.json.UserInputResponse;
 
 /**
- * TDD red-phase tests verifying that when an {@link Executor} is provided via
+ * Tests verifying that when an {@link Executor} is provided via
  * {@link CopilotClientOptions#setExecutor(Executor)}, all internal
  * {@code CompletableFuture.*Async} calls are routed through that executor
  * instead of {@code ForkJoinPool.commonPool()}.
