@@ -10,6 +10,7 @@
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 import { ConnectionError, ResponseError } from "vscode-jsonrpc/node.js";
 import { createSessionRpc } from "./generated/rpc.js";
+import type { ClientSessionApiHandlers } from "./generated/rpc.js";
 import { getTraceContext } from "./telemetry.js";
 import type {
     CommandHandler,
@@ -85,6 +86,9 @@ export class CopilotSession {
     private _rpc: ReturnType<typeof createSessionRpc> | null = null;
     private traceContextProvider?: TraceContextProvider;
     private _capabilities: SessionCapabilities = {};
+
+    /** @internal Client session API handlers, populated by CopilotClient during create/resume. */
+    clientSessionApis: ClientSessionApiHandlers = {};
 
     /**
      * Creates a new CopilotSession instance.

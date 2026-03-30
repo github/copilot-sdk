@@ -149,52 +149,60 @@ function createMemorySessionFs(
         initialCwd,
         sessionStatePath,
         conventions: "linux",
-        readFile: async ({ sessionId, path }) => {
-            const content = await provider.readFile(sp(sessionId, path), "utf8");
-            return { content: content as string };
-        },
-        writeFile: async ({ sessionId, path, content }) => {
-            await provider.writeFile(sp(sessionId, path), content);
-        },
-        appendFile: async ({ sessionId, path, content }) => {
-            await provider.appendFile(sp(sessionId, path), content);
-        },
-        exists: async ({ sessionId, path }) => {
-            return { exists: await provider.exists(sp(sessionId, path)) };
-        },
-        stat: async ({ sessionId, path }) => {
-            const st = await provider.stat(sp(sessionId, path));
-            return {
-                isFile: st.isFile(),
-                isDirectory: st.isDirectory(),
-                size: st.size,
-                mtime: new Date(st.mtimeMs).toISOString(),
-                birthtime: new Date(st.birthtimeMs).toISOString(),
-            };
-        },
-        mkdir: async ({ sessionId, path, recursive, mode }) => {
-            await provider.mkdir(sp(sessionId, path), { recursive: recursive ?? false, mode });
-        },
-        readdir: async ({ sessionId, path }) => {
-            const entries = await provider.readdir(sp(sessionId, path));
-            return { entries: entries as string[] };
-        },
-        readdirWithTypes: async ({ sessionId, path }) => {
-            const names = await provider.readdir(sp(sessionId, path)) as string[];
-            const entries = await Promise.all(
-                names.map(async (name) => {
-                    const st = await provider.stat(sp(sessionId, `${path}/${name}`));
-                    return { name, type: st.isDirectory() ? "directory" as const : "file" as const };
-                }),
-            );
-            return { entries };
-        },
-        rm: async ({ sessionId, path }) => {
-            await provider.unlink(sp(sessionId, path));
-        },
-        rename: async ({ sessionId, src, dest }) => {
-            await provider.rename(sp(sessionId, src), sp(sessionId, dest));
-        },
+        createHandler: (session) => ({
+            readFile: async ({ path }) => {
+                const content = await provider.readFile(sp(session.sessionId, path), "utf8");
+                return { content: content as string };
+            },
+            writeFile: async ({ path, content }) => {
+                await provider.writeFile(sp(session.sessionId, path), content);
+            },
+            appendFile: async ({ path, content }) => {
+                await provider.appendFile(sp(session.sessionId, path), content);
+            },
+            exists: async ({ path }) => {
+                return { exists: await provider.exists(sp(session.sessionId, path)) };
+            },
+            stat: async ({ path }) => {
+                const st = await provider.stat(sp(session.sessionId, path));
+                return {
+                    isFile: st.isFile(),
+                    isDirectory: st.isDirectory(),
+                    size: st.size,
+                    mtime: new Date(st.mtimeMs).toISOString(),
+                    birthtime: new Date(st.birthtimeMs).toISOString(),
+                };
+            },
+            mkdir: async ({ path, recursive, mode }) => {
+                await provider.mkdir(sp(session.sessionId, path), {
+                    recursive: recursive ?? false,
+                    mode,
+                });
+            },
+            readdir: async ({ path }) => {
+                const entries = await provider.readdir(sp(session.sessionId, path));
+                return { entries: entries as string[] };
+            },
+            readdirWithTypes: async ({ path }) => {
+                const names = (await provider.readdir(sp(session.sessionId, path))) as string[];
+                const entries = await Promise.all(
+                    names.map(async (name) => {
+                        const st = await provider.stat(sp(session.sessionId, `${path}/${name}`));
+                        return {
+                            name,
+                            type: st.isDirectory() ? ("directory" as const) : ("file" as const),
+                        };
+                    })
+                );
+                return { entries };
+            },
+            rm: async ({ path }) => {
+                await provider.unlink(sp(session.sessionId, path));
+            },
+            rename: async ({ src, dest }) => {
+                await provider.rename(sp(session.sessionId, src), sp(session.sessionId, dest));
+            },
+        }),
     };
 
     return { config };

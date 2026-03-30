@@ -1229,16 +1229,14 @@ export interface SessionFsReaddirParams {
   path: string;
 }
 
-export interface SessionFsDirEntry {
-  name: string;
-  type: "file" | "directory";
-}
-
 export interface SessionFsReaddirWithTypesResult {
   /**
    * Directory entries with type information
    */
-  entries: SessionFsDirEntry[];
+  entries: {
+    name: string;
+    type: "file" | "directory";
+  }[];
 }
 
 export interface SessionFsReaddirWithTypesParams {
@@ -1413,10 +1411,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
     };
 }
 
-/**
- * Handler interface for the `sessionFs` client API group.
- * Implement this to provide a custom sessionFs backend.
- */
+/** Handler for `sessionFs` client session API methods. */
 export interface SessionFsHandler {
     readFile(params: SessionFsReadFileParams): Promise<SessionFsReadFileResult>;
     writeFile(params: SessionFsWriteFileParams): Promise<void>;
@@ -1430,32 +1425,89 @@ export interface SessionFsHandler {
     rename(params: SessionFsRenameParams): Promise<void>;
 }
 
-/** All client API handler groups. Each group is optional. */
-export interface ClientApiHandlers {
+/** All client session API handler groups. */
+export interface ClientSessionApiHandlers {
     sessionFs?: SessionFsHandler;
 }
 
 /**
- * Register client API handlers on a JSON-RPC connection.
+ * Register client session API handlers on a JSON-RPC connection.
  * The server calls these methods to delegate work to the client.
- * Methods for unregistered groups will respond with a standard JSON-RPC
- * method-not-found error.
+ * Each incoming call includes a `sessionId` in the params; the registration
+ * function uses `getHandlers` to resolve the session's handlers.
  */
-export function registerClientApiHandlers(
+export function registerClientSessionApiHandlers(
     connection: MessageConnection,
-    handlers: ClientApiHandlers,
+    getHandlers: (sessionId: string) => ClientSessionApiHandlers | undefined,
 ): void {
-    if (handlers.sessionFs) {
-        const h = handlers.sessionFs!;
-        connection.onRequest("sessionFs.readFile", (params: SessionFsReadFileParams) => h.readFile(params));
-        connection.onRequest("sessionFs.writeFile", (params: SessionFsWriteFileParams) => h.writeFile(params));
-        connection.onRequest("sessionFs.appendFile", (params: SessionFsAppendFileParams) => h.appendFile(params));
-        connection.onRequest("sessionFs.exists", (params: SessionFsExistsParams) => h.exists(params));
-        connection.onRequest("sessionFs.stat", (params: SessionFsStatParams) => h.stat(params));
-        connection.onRequest("sessionFs.mkdir", (params: SessionFsMkdirParams) => h.mkdir(params));
-        connection.onRequest("sessionFs.readdir", (params: SessionFsReaddirParams) => h.readdir(params));
-        connection.onRequest("sessionFs.readdirWithTypes", (params: SessionFsReaddirWithTypesParams) => h.readdirWithTypes(params));
-        connection.onRequest("sessionFs.rm", (params: SessionFsRmParams) => h.rm(params));
-        connection.onRequest("sessionFs.rename", (params: SessionFsRenameParams) => h.rename(params));
-    }
+    connection.onRequest("sessionFs.readFile", async (params: SessionFsReadFileParams) => {
+        const handlers = getHandlers(params.sessionId);
+        if (!handlers) throw new Error(`No session found for sessionId: ${params.sessionId}`);
+        const handler = handlers.sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.readFile(params);
+    });
+    connection.onRequest("sessionFs.writeFile", async (params: SessionFsWriteFileParams) => {
+        const handlers = getHandlers(params.sessionId);
+        if (!handlers) throw new Error(`No session found for sessionId: ${params.sessionId}`);
+        const handler = handlers.sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.writeFile(params);
+    });
+    connection.onRequest("sessionFs.appendFile", async (params: SessionFsAppendFileParams) => {
+        const handlers = getHandlers(params.sessionId);
+        if (!handlers) throw new Error(`No session found for sessionId: ${params.sessionId}`);
+        const handler = handlers.sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.appendFile(params);
+    });
+    connection.onRequest("sessionFs.exists", async (params: SessionFsExistsParams) => {
+        const handlers = getHandlers(params.sessionId);
+        if (!handlers) throw new Error(`No session found for sessionId: ${params.sessionId}`);
+        const handler = handlers.sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.exists(params);
+    });
+    connection.onRequest("sessionFs.stat", async (params: SessionFsStatParams) => {
+        const handlers = getHandlers(params.sessionId);
+        if (!handlers) throw new Error(`No session found for sessionId: ${params.sessionId}`);
+        const handler = handlers.sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.stat(params);
+    });
+    connection.onRequest("sessionFs.mkdir", async (params: SessionFsMkdirParams) => {
+        const handlers = getHandlers(params.sessionId);
+        if (!handlers) throw new Error(`No session found for sessionId: ${params.sessionId}`);
+        const handler = handlers.sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.mkdir(params);
+    });
+    connection.onRequest("sessionFs.readdir", async (params: SessionFsReaddirParams) => {
+        const handlers = getHandlers(params.sessionId);
+        if (!handlers) throw new Error(`No session found for sessionId: ${params.sessionId}`);
+        const handler = handlers.sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.readdir(params);
+    });
+    connection.onRequest("sessionFs.readdirWithTypes", async (params: SessionFsReaddirWithTypesParams) => {
+        const handlers = getHandlers(params.sessionId);
+        if (!handlers) throw new Error(`No session found for sessionId: ${params.sessionId}`);
+        const handler = handlers.sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.readdirWithTypes(params);
+    });
+    connection.onRequest("sessionFs.rm", async (params: SessionFsRmParams) => {
+        const handlers = getHandlers(params.sessionId);
+        if (!handlers) throw new Error(`No session found for sessionId: ${params.sessionId}`);
+        const handler = handlers.sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.rm(params);
+    });
+    connection.onRequest("sessionFs.rename", async (params: SessionFsRenameParams) => {
+        const handlers = getHandlers(params.sessionId);
+        if (!handlers) throw new Error(`No session found for sessionId: ${params.sessionId}`);
+        const handler = handlers.sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.rename(params);
+    });
 }

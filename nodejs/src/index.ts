@@ -60,7 +60,6 @@ export type {
     SessionUiApi,
     SessionFsConfig,
     SessionFsHandler,
-    ClientApiHandlers,
     SystemMessageAppendConfig,
     SystemMessageConfig,
     SystemMessageCustomizeConfig,

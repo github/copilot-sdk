@@ -10,29 +10,8 @@
 import type { SessionEvent as GeneratedSessionEvent } from "./generated/session-events.js";
 export type SessionEvent = GeneratedSessionEvent;
 
-// Re-export generated client API types
-export type {
-    SessionFsHandler,
-    SessionFsReadFileParams,
-    SessionFsReadFileResult,
-    SessionFsWriteFileParams,
-    SessionFsAppendFileParams,
-    SessionFsExistsParams,
-    SessionFsExistsResult,
-    SessionFsStatParams,
-    SessionFsStatResult,
-    SessionFsMkdirParams,
-    SessionFsReaddirParams,
-    SessionFsReaddirResult,
-    SessionFsDirEntry,
-    SessionFsReaddirWithTypesParams,
-    SessionFsReaddirWithTypesResult,
-    SessionFsRmParams,
-    SessionFsRenameParams,
-    ClientApiHandlers,
-} from "./generated/rpc.js";
-
 import type { SessionFsHandler } from "./generated/rpc.js";
+export type { SessionFsHandler } from "./generated/rpc.js";
 
 /**
  * Options for creating a CopilotClient
@@ -670,6 +649,7 @@ export interface PermissionRequest {
 }
 
 import type { SessionPermissionsHandlePendingPermissionRequestParams } from "./generated/rpc.js";
+import { CopilotSession } from "./session.js";
 
 export type PermissionRequestResult =
     | SessionPermissionsHandlePendingPermissionRequestParams["result"]
@@ -1386,11 +1366,8 @@ export interface SessionContext {
 
 /**
  * Configuration for a custom session filesystem provider.
- *
- * Extends the generated {@link SessionFsHandler} with registration
- * parameters sent to the server's `sessionFs.setProvider` call.
  */
-export interface SessionFsConfig extends SessionFsHandler {
+export interface SessionFsConfig {
     /**
      * Initial working directory for sessions (user's project directory).
      */
@@ -1406,6 +1383,11 @@ export interface SessionFsConfig extends SessionFsHandler {
      * Path conventions used by this filesystem provider.
      */
     conventions: "windows" | "linux";
+
+    /**
+     * Supplies a handler for session filesystem operations.
+     */
+    createHandler: (session: CopilotSession) => SessionFsHandler;
 }
 
 /**

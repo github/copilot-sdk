@@ -86,9 +86,9 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
 `);
 
     const allMethods = [...collectRpcMethods(schema.server || {}), ...collectRpcMethods(schema.session || {})];
-    const clientMethods = collectRpcMethods(schema.client || {});
+    const clientSessionMethods = collectRpcMethods(schema.clientSession || {});
 
-    for (const method of [...allMethods, ...clientMethods]) {
+    for (const method of [...allMethods, ...clientSessionMethods]) {
         if (method.result) {
             const compiled = await compile(method.result, resultTypeName(method.rpcMethod), {
                 bannerComment: "",
@@ -135,9 +135,9 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
         lines.push("");
     }
 
-    // Generate client API handler interfaces and registration function
-    if (schema.client) {
-        lines.push(...emitClientApiHandlers(schema.client));
+    // Generate client session API handler interfaces and registration function
+    if (schema.clientSession) {
+        lines.push(...emitClientSessionApiRegistration(schema.clientSession));
     }
 
     const outPath = await writeGeneratedFile("nodejs/src/generated/rpc.ts", lines.join("\n"));
@@ -193,11 +193,11 @@ function emitGroup(node: Record<string, unknown>, indent: string, isSession: boo
     return lines;
 }
 
-// ── Client API Handler Generation ───────────────────────────────────────────
+// ── Client Session API Handler Generation ───────────────────────────────────
 
 /**
  * Collect client API methods grouped by their top-level namespace.
- * Returns a map like: { sessionStore: [{ rpcMethod, params, result }, ...] }
+ * Returns a map like: { sessionFs: [{ rpcMethod, params, result }, ...] }
  */
 function collectClientGroups(node: Record<string, unknown>): Map<string, RpcMethod[]> {
     const groups = new Map<string, RpcMethod[]>();
@@ -211,7 +211,7 @@ function collectClientGroups(node: Record<string, unknown>): Map<string, RpcMeth
 
 /**
  * Derive the handler method name from the full RPC method name.
- * e.g., "sessionStore.load" → "load"
+ * e.g., "sessionFs.readFile" → "readFile"
  */
 function handlerMethodName(rpcMethod: string): string {
     const parts = rpcMethod.split(".");
@@ -219,40 +219,41 @@ function handlerMethodName(rpcMethod: string): string {
 }
 
 /**
- * Generate handler interfaces and a registration function for client API groups.
+ * Generate handler interfaces and a registration function for client session API groups.
+ *
+ * Client session API methods have `sessionId` on the wire (injected by the
+ * runtime's proxy layer). The generated registration function accepts a
+ * `getHandler` callback that resolves a sessionId to a handler object.
+ * Param types include sessionId — handler code can simply ignore it.
  */
-function emitClientApiHandlers(clientSchema: Record<string, unknown>): string[] {
+function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>): string[] {
     const lines: string[] = [];
     const groups = collectClientGroups(clientSchema);
 
     // Emit a handler interface per group
     for (const [groupName, methods] of groups) {
         const interfaceName = toPascalCase(groupName) + "Handler";
-        lines.push(`/**`);
-        lines.push(` * Handler interface for the \`${groupName}\` client API group.`);
-        lines.push(` * Implement this to provide a custom ${groupName} backend.`);
-        lines.push(` */`);
+        lines.push(`/** Handler for \`${groupName}\` client session API methods. */`);
         lines.push(`export interface ${interfaceName} {`);
-
         for (const method of methods) {
             const name = handlerMethodName(method.rpcMethod);
             const hasParams = method.params?.properties && Object.keys(method.params.properties).length > 0;
             const pType = hasParams ? paramsTypeName(method.rpcMethod) : "";
             const rType = method.result ? resultTypeName(method.rpcMethod) : "void";
 
-            const sig = hasParams
-                ? `    ${name}(params: ${pType}): Promise<${rType}>;`
-                : `    ${name}(): Promise<${rType}>;`;
-            lines.push(sig);
+            if (hasParams) {
+                lines.push(`    ${name}(params: ${pType}): Promise<${rType}>;`);
+            } else {
+                lines.push(`    ${name}(): Promise<${rType}>;`);
+            }
         }
-
         lines.push(`}`);
         lines.push("");
     }
 
-    // Emit combined ClientApiHandlers type
-    lines.push(`/** All client API handler groups. Each group is optional. */`);
-    lines.push(`export interface ClientApiHandlers {`);
+    // Emit combined ClientSessionApiHandlers type
+    lines.push(`/** All client session API handler groups. */`);
+    lines.push(`export interface ClientSessionApiHandlers {`);
     for (const [groupName] of groups) {
         const interfaceName = toPascalCase(groupName) + "Handler";
         lines.push(`    ${groupName}?: ${interfaceName};`);
@@ -262,33 +263,36 @@ function emitClientApiHandlers(clientSchema: Record<string, unknown>): string[] 
 
     // Emit registration function
     lines.push(`/**`);
-    lines.push(` * Register client API handlers on a JSON-RPC connection.`);
+    lines.push(` * Register client session API handlers on a JSON-RPC connection.`);
     lines.push(` * The server calls these methods to delegate work to the client.`);
-    lines.push(` * Methods for unregistered groups will respond with a standard JSON-RPC`);
-    lines.push(` * method-not-found error.`);
+    lines.push(` * Each incoming call includes a \`sessionId\` in the params; the registration`);
+    lines.push(` * function uses \`getHandlers\` to resolve the session's handlers.`);
     lines.push(` */`);
-    lines.push(`export function registerClientApiHandlers(`);
+    lines.push(`export function registerClientSessionApiHandlers(`);
     lines.push(`    connection: MessageConnection,`);
-    lines.push(`    handlers: ClientApiHandlers,`);
+    lines.push(`    getHandlers: (sessionId: string) => ClientSessionApiHandlers | undefined,`);
     lines.push(`): void {`);
 
     for (const [groupName, methods] of groups) {
-        lines.push(`    if (handlers.${groupName}) {`);
-        lines.push(`        const h = handlers.${groupName}!;`);
-
         for (const method of methods) {
             const name = handlerMethodName(method.rpcMethod);
+            const pType = paramsTypeName(method.rpcMethod);
             const hasParams = method.params?.properties && Object.keys(method.params.properties).length > 0;
-            const pType = hasParams ? paramsTypeName(method.rpcMethod) : "";
 
             if (hasParams) {
-                lines.push(`        connection.onRequest("${method.rpcMethod}", (params: ${pType}) => h.${name}(params));`);
+                lines.push(`    connection.onRequest("${method.rpcMethod}", async (params: ${pType}) => {`);
+                lines.push(`        const handlers = getHandlers(params.sessionId);`);
+                lines.push(`        if (!handlers) throw new Error(\`No session found for sessionId: \${params.sessionId}\`);`);
+                lines.push(`        const handler = handlers.${groupName};`);
+                lines.push(`        if (!handler) throw new Error(\`No ${groupName} handler registered for session: \${params.sessionId}\`);`);
+                lines.push(`        return handler.${name}(params);`);
+                lines.push(`    });`);
             } else {
-                lines.push(`        connection.onRequest("${method.rpcMethod}", () => h.${name}());`);
+                lines.push(`    connection.onRequest("${method.rpcMethod}", async () => {`);
+                lines.push(`        throw new Error("No params provided for ${method.rpcMethod}");`);
+                lines.push(`    });`);
             }
         }
-
-        lines.push(`    }`);
     }
 
     lines.push(`}`);

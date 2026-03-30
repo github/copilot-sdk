@@ -132,7 +132,7 @@ export interface RpcMethod {
 export interface ApiSchema {
     server?: Record<string, unknown>;
     session?: Record<string, unknown>;
-    client?: Record<string, unknown>;
+    clientSession?: Record<string, unknown>;
 }
 
 export function isRpcMethod(node: unknown): node is RpcMethod {
