@@ -75,7 +75,7 @@ new CopilotClient(CopilotClientOptions? options = null)
 - `LogLevel` - Log level (default: "info")
 - `AutoStart` - Auto-start server (default: true)
 - `Cwd` - Working directory for the CLI process
-- `Environment` - Environment variables to pass to the CLI process
+- `Environment` - Environment variables to set for the CLI process. Specified keys override their inherited values; all other variables are inherited from the current process. When null, the CLI process inherits the current environment unchanged.
 - `Logger` - `ILogger` instance for SDK logging
 - `GitHubToken` - GitHub token for authentication. When provided, takes priority over other auth methods.
 - `UseLoggedInUser` - Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `CliUrl`.

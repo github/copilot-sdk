@@ -107,7 +107,10 @@ public class CopilotClientOptions
     [Obsolete("AutoRestart has no effect and will be removed in a future release.")]
     public bool AutoRestart { get; set; }
     /// <summary>
-    /// Environment variables to pass to the CLI process.
+    /// Environment variables to set for the CLI process.
+    /// When provided, these keys override (or add to) the inherited environment variables;
+    /// the CLI process still inherits all other variables from the current process.
+    /// When null, the CLI process inherits the current process environment unchanged.
     /// </summary>
     public IReadOnlyDictionary<string, string>? Environment { get; set; }
     /// <summary>
