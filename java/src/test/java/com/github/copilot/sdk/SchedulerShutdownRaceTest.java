@@ -19,14 +19,16 @@ import org.junit.jupiter.api.Test;
 import com.github.copilot.sdk.json.MessageOptions;
 
 /**
- * Reproduces the race between {@code sendAndWait()} and {@code close()}.
+ * Regression coverage for the race between {@code sendAndWait()} and
+ * {@code close()}.
  * <p>
  * If {@code close()} shuts down the timeout scheduler after
  * {@code ensureNotTerminated()} passes but before
  * {@code timeoutScheduler.schedule()} executes, the schedule call throws
- * {@link RejectedExecutionException}. Without a fix the exception propagates
- * uncaught, leaking the event subscription and leaving the returned future
- * incomplete.
+ * {@link RejectedExecutionException}. This test asserts that
+ * {@code sendAndWait()} handles this race by returning a future that completes
+ * exceptionally (rather than propagating the exception to the caller or leaving
+ * the returned future incomplete).
  */
 public class SchedulerShutdownRaceTest {
 
@@ -50,8 +52,7 @@ public class SchedulerShutdownRaceTest {
         var scheduler = (ScheduledExecutorService) schedulerField.get(session);
         scheduler.shutdownNow();
 
-        // With the fix: sendAndWait returns a future that completes exceptionally.
-        // Without the fix: sendAndWait throws RejectedExecutionException directly.
+        // sendAndWait must return a failed future rather than throwing directly.
         CompletableFuture<?> result = session.sendAndWait(new MessageOptions().setPrompt("test"), 5000);
 
         assertNotNull(result, "sendAndWait should return a future, not throw");

@@ -19,15 +19,16 @@ import com.github.copilot.sdk.events.AssistantMessageEvent;
 import com.github.copilot.sdk.json.MessageOptions;
 
 /**
- * Tests for timeout edge cases in {@link CopilotSession#sendAndWait}.
+ * Regression tests for timeout edge cases in
+ * {@link CopilotSession#sendAndWait}.
  * <p>
- * These tests prove two defects in the current per-call
+ * These tests assert two behavioral contracts of the shared
  * {@code ScheduledExecutorService} approach:
  * <ol>
- * <li>A timeout fires after {@code close()}, leaking a {@code TimeoutException}
- * onto the returned future.</li>
- * <li>Each {@code sendAndWait} call spawns a new OS thread (~1 MB stack),
- * instead of reusing a shared scheduler thread.</li>
+ * <li>A pending timeout must NOT fire after {@code close()} and must NOT
+ * complete the returned future with a {@code TimeoutException}.</li>
+ * <li>Multiple {@code sendAndWait} calls must reuse a single shared scheduler
+ * thread rather than spawning a new OS thread per call.</li>
  * </ol>
  */
 public class TimeoutEdgeCaseTest {
@@ -62,13 +63,10 @@ public class TimeoutEdgeCaseTest {
      * After {@code close()}, the future returned by {@code sendAndWait} must NOT be
      * completed by a stale timeout.
      * <p>
-     * Current buggy behavior: the per-call scheduler is not cancelled by
-     * {@code close()}, so its 2-second timeout fires during the 5-second
-     * {@code session.destroy} RPC wait, completing the future with
-     * {@code TimeoutException}.
-     * <p>
-     * Expected behavior after fix: {@code close()} cancels pending timeouts before
-     * the blocking RPC call, so the future remains incomplete.
+     * Contract: {@code close()} shuts down the timeout scheduler before the
+     * blocking {@code session.destroy} RPC call, so any pending timeout task is
+     * cancelled and the future remains incomplete (not exceptionally completed with
+     * {@code TimeoutException}).
      */
     @Test
     void testTimeoutDoesNotFireAfterSessionClose() throws Exception {
@@ -94,13 +92,11 @@ public class TimeoutEdgeCaseTest {
     }
 
     /**
-     * A shared scheduler should reuse a single thread across multiple
+     * A shared scheduler must reuse a single thread across multiple
      * {@code sendAndWait} calls, rather than spawning a new OS thread per call.
      * <p>
-     * Current buggy behavior: two calls create two {@code sendAndWait-timeout}
-     * threads.
-     * <p>
-     * Expected behavior after fix: two calls still use only one scheduler thread.
+     * Contract: after two consecutive {@code sendAndWait} calls the number of live
+     * {@code sendAndWait-timeout} threads must not increase after the second call.
      */
     @Test
     void testSendAndWaitReusesTimeoutThread() throws Exception {
