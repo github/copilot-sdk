@@ -30,6 +30,8 @@ type SessionEvent struct {
 	//
 	// Session resume metadata including current context and event count
 	//
+	// Notifies Mission Control that the session's remote steering capability has changed
+	//
 	// Error details for timeline display including message and optional diagnostic information
 	//
 	// Payload indicating the agent is idle; includes any background tasks still in flight
@@ -137,6 +139,11 @@ type SessionEvent struct {
 	//
 	// Elicitation request completion notification signaling UI dismissal
 	//
+	// Sampling request from an MCP server; contains the server name and a requestId for
+	// correlation
+	//
+	// Sampling request completion notification signaling UI dismissal
+	//
 	// OAuth authentication request for an MCP server
 	//
 	// MCP OAuth request completion notification
@@ -152,6 +159,8 @@ type SessionEvent struct {
 	// Queued command completion notification signaling UI dismissal
 	//
 	// SDK command registration change notification
+	//
+	// Session capability change notification
 	//
 	// Plan approval request with plan content and available user actions
 	//
@@ -172,6 +181,8 @@ type SessionEvent struct {
 // Session initialization metadata including context and configuration
 //
 // # Session resume metadata including current context and event count
+//
+// # Notifies Mission Control that the session's remote steering capability has changed
 //
 // # Error details for timeline display including message and optional diagnostic information
 //
@@ -280,6 +291,11 @@ type SessionEvent struct {
 //
 // # Elicitation request completion notification signaling UI dismissal
 //
+// Sampling request from an MCP server; contains the server name and a requestId for
+// correlation
+//
+// # Sampling request completion notification signaling UI dismissal
+//
 // # OAuth authentication request for an MCP server
 //
 // # MCP OAuth request completion notification
@@ -295,6 +311,8 @@ type SessionEvent struct {
 // # Queued command completion notification signaling UI dismissal
 //
 // # SDK command registration change notification
+//
+// # Session capability change notification
 //
 // # Plan approval request with plan content and available user actions
 //
@@ -319,6 +337,10 @@ type Data struct {
 	//
 	// Reasoning effort level after the model change, if applicable
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
+	// Whether this session supports remote steering via Mission Control
+	//
+	// Whether this session now supports remote steering via Mission Control
+	RemoteSteerable *bool `json:"remoteSteerable,omitempty"`
 	// Model selected at session creation time, if any
 	//
 	// Model currently selected at resume time
@@ -329,8 +351,6 @@ type Data struct {
 	SessionID *string `json:"sessionId,omitempty"`
 	// ISO 8601 timestamp when the session was created
 	StartTime *time.Time `json:"startTime,omitempty"`
-	// Whether this session supports remote steering via Mission Control
-	Steerable *bool `json:"steerable,omitempty"`
 	// Schema version number for the session event format
 	Version *float64 `json:"version,omitempty"`
 	// Total number of persisted events in the session at the time of resume
@@ -534,6 +554,12 @@ type Data struct {
 	// Request ID of the resolved elicitation request; clients should dismiss any UI for this
 	// request
 	//
+	// Unique identifier for this sampling request; used to respond via
+	// session.respondToSampling()
+	//
+	// Request ID of the resolved sampling request; clients should dismiss any UI for this
+	// request
+	//
 	// Unique identifier for this OAuth request; used to respond via
 	// session.respondToMcpOAuth()
 	//
@@ -652,10 +678,13 @@ type Data struct {
 	Cost *float64 `json:"cost,omitempty"`
 	// Duration of the API call in milliseconds
 	Duration *float64 `json:"duration,omitempty"`
-	// What initiated this API call (e.g., "sub-agent"); absent for user-initiated calls
+	// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for
+	// user-initiated calls
 	Initiator *string `json:"initiator,omitempty"`
 	// Number of input tokens consumed
 	InputTokens *float64 `json:"inputTokens,omitempty"`
+	// Average inter-token latency in milliseconds. Only available for streaming requests
+	InterTokenLatencyMS *float64 `json:"interTokenLatencyMs,omitempty"`
 	// Model identifier used for this API call
 	//
 	// Model identifier that generated this tool call
@@ -666,6 +695,8 @@ type Data struct {
 	Model *string `json:"model,omitempty"`
 	// Per-quota resource usage snapshots, keyed by quota identifier
 	QuotaSnapshots map[string]QuotaSnapshot `json:"quotaSnapshots,omitempty"`
+	// Time to first token in milliseconds. Only available for streaming requests
+	TtftMS *float64 `json:"ttftMs,omitempty"`
 	// Reason the current turn was aborted (e.g., "user initiated")
 	Reason *string `json:"reason,omitempty"`
 	// Arguments for the tool invocation
@@ -781,6 +812,10 @@ type Data struct {
 	Mode *Mode `json:"mode,omitempty"`
 	// JSON Schema describing the form fields to present to the user (form mode only)
 	RequestedSchema *RequestedSchema `json:"requestedSchema,omitempty"`
+	// The JSON-RPC request ID from the MCP protocol
+	MCPRequestID *MCPRequestID `json:"mcpRequestId"`
+	// Name of the MCP server that initiated the sampling request
+	//
 	// Display name of the MCP server that requires OAuth
 	//
 	// Name of the MCP server whose status changed
@@ -803,6 +838,8 @@ type Data struct {
 	CommandName *string `json:"commandName,omitempty"`
 	// Current list of registered SDK commands
 	Commands []DataCommand `json:"commands,omitempty"`
+	// UI capability changes
+	UI *UI `json:"ui,omitempty"`
 	// Available actions the user can take (e.g., approve, edit, reject)
 	Actions []string `json:"actions,omitempty"`
 	// Full content of the plan file
@@ -1375,6 +1412,12 @@ type ToolRequest struct {
 	Type *ToolRequestType `json:"type,omitempty"`
 }
 
+// UI capability changes
+type UI struct {
+	// Whether elicitation is now supported
+	Elicitation *bool `json:"elicitation,omitempty"`
+}
+
 // The agent mode that was active when this message was sent
 type AgentMode string
 
@@ -1575,6 +1618,7 @@ const (
 	SessionEventTypeAssistantTurnEnd              SessionEventType = "assistant.turn_end"
 	SessionEventTypeAssistantTurnStart            SessionEventType = "assistant.turn_start"
 	SessionEventTypeAssistantUsage                SessionEventType = "assistant.usage"
+	SessionEventTypeCapabilitiesChanged           SessionEventType = "capabilities.changed"
 	SessionEventTypeCommandCompleted              SessionEventType = "command.completed"
 	SessionEventTypeCommandExecute                SessionEventType = "command.execute"
 	SessionEventTypeCommandQueued                 SessionEventType = "command.queued"
@@ -1592,6 +1636,8 @@ const (
 	SessionEventTypePendingMessagesModified       SessionEventType = "pending_messages.modified"
 	SessionEventTypePermissionCompleted           SessionEventType = "permission.completed"
 	SessionEventTypePermissionRequested           SessionEventType = "permission.requested"
+	SessionEventTypeSamplingCompleted             SessionEventType = "sampling.completed"
+	SessionEventTypeSamplingRequested             SessionEventType = "sampling.requested"
 	SessionEventTypeSessionBackgroundTasksChanged SessionEventType = "session.background_tasks_changed"
 	SessionEventTypeSessionCompactionComplete     SessionEventType = "session.compaction_complete"
 	SessionEventTypeSessionCompactionStart        SessionEventType = "session.compaction_start"
@@ -1607,6 +1653,7 @@ const (
 	SessionEventTypeSessionModeChanged            SessionEventType = "session.mode_changed"
 	SessionEventTypeSessionModelChange            SessionEventType = "session.model_change"
 	SessionEventTypeSessionPlanChanged            SessionEventType = "session.plan_changed"
+	SessionEventTypeSessionRemoteSteerableChanged SessionEventType = "session.remote_steerable_changed"
 	SessionEventTypeSessionResume                 SessionEventType = "session.resume"
 	SessionEventTypeSessionShutdown               SessionEventType = "session.shutdown"
 	SessionEventTypeSessionSkillsLoaded           SessionEventType = "session.skills_loaded"
@@ -1679,6 +1726,26 @@ func (x *ErrorUnion) UnmarshalJSON(data []byte) error {
 
 func (x *ErrorUnion) MarshalJSON() ([]byte, error) {
 	return marshalUnion(nil, nil, nil, x.String, false, nil, x.ErrorClass != nil, x.ErrorClass, false, nil, false, nil, false)
+}
+
+// The JSON-RPC request ID from the MCP protocol
+type MCPRequestID struct {
+	Double *float64
+	String *string
+}
+
+func (x *MCPRequestID) UnmarshalJSON(data []byte) error {
+	object, err := unmarshalUnion(data, nil, &x.Double, nil, &x.String, false, nil, false, nil, false, nil, false, nil, false)
+	if err != nil {
+		return err
+	}
+	if object {
+	}
+	return nil
+}
+
+func (x *MCPRequestID) MarshalJSON() ([]byte, error) {
+	return marshalUnion(nil, x.Double, nil, x.String, false, nil, false, nil, false, nil, false, nil, false)
 }
 
 type RepositoryUnion struct {

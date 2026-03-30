@@ -647,6 +647,9 @@ export class CopilotClient {
         if (config.onUserInputRequest) {
             session.registerUserInputHandler(config.onUserInputRequest);
         }
+        if (config.onElicitationRequest) {
+            session.registerElicitationHandler(config.onElicitationRequest);
+        }
         if (config.hooks) {
             session.registerHooks(config.hooks);
         }
@@ -688,6 +691,7 @@ export class CopilotClient {
                 provider: config.provider,
                 requestPermission: true,
                 requestUserInput: !!config.onUserInputRequest,
+                requestElicitation: !!config.onElicitationRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
                 streaming: config.streaming,
@@ -769,6 +773,9 @@ export class CopilotClient {
         if (config.onUserInputRequest) {
             session.registerUserInputHandler(config.onUserInputRequest);
         }
+        if (config.onElicitationRequest) {
+            session.registerElicitationHandler(config.onElicitationRequest);
+        }
         if (config.hooks) {
             session.registerHooks(config.hooks);
         }
@@ -810,6 +817,7 @@ export class CopilotClient {
                 provider: config.provider,
                 requestPermission: true,
                 requestUserInput: !!config.onUserInputRequest,
+                requestElicitation: !!config.onElicitationRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
                 configDir: config.configDir,

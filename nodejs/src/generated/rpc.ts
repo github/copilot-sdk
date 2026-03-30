@@ -937,6 +937,39 @@ export interface SessionUiElicitationParams {
   };
 }
 
+export interface SessionUiHandlePendingElicitationResult {
+  /**
+   * Whether the response was accepted. False if the request was already resolved by another client.
+   */
+  success: boolean;
+}
+
+export interface SessionUiHandlePendingElicitationParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * The unique request ID from the elicitation.requested event
+   */
+  requestId: string;
+  /**
+   * The elicitation response (accept with form values, decline, or cancel)
+   */
+  result: {
+    /**
+     * The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
+     */
+    action: "accept" | "decline" | "cancel";
+    /**
+     * The form values submitted by the user (present when action is 'accept')
+     */
+    content?: {
+      [k: string]: string | number | boolean | string[];
+    };
+  };
+}
+
 export interface SessionPermissionsHandlePendingPermissionRequestResult {
   /**
    * Whether the permission request was handled successfully
@@ -1173,6 +1206,8 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         ui: {
             elicitation: async (params: Omit<SessionUiElicitationParams, "sessionId">): Promise<SessionUiElicitationResult> =>
                 connection.sendRequest("session.ui.elicitation", { sessionId, ...params }),
+            handlePendingElicitation: async (params: Omit<SessionUiHandlePendingElicitationParams, "sessionId">): Promise<SessionUiHandlePendingElicitationResult> =>
+                connection.sendRequest("session.ui.handlePendingElicitation", { sessionId, ...params }),
         },
         permissions: {
             handlePendingPermissionRequest: async (params: Omit<SessionPermissionsHandlePendingPermissionRequestParams, "sessionId">): Promise<SessionPermissionsHandlePendingPermissionRequestResult> =>

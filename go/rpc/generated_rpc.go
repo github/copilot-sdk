@@ -528,6 +528,27 @@ type OneOf struct {
 	Title string `json:"title"`
 }
 
+type SessionUIHandlePendingElicitationResult struct {
+	// Whether the response was accepted. False if the request was already resolved by another
+	// client.
+	Success bool `json:"success"`
+}
+
+type SessionUIHandlePendingElicitationParams struct {
+	// The unique request ID from the elicitation.requested event
+	RequestID string `json:"requestId"`
+	// The elicitation response (accept with form values, decline, or cancel)
+	Result SessionUIHandlePendingElicitationParamsResult `json:"result"`
+}
+
+// The elicitation response (accept with form values, decline, or cancel)
+type SessionUIHandlePendingElicitationParamsResult struct {
+	// The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
+	Action Action `json:"action"`
+	// The form values submitted by the user (present when action is 'accept')
+	Content map[string]*Content `json:"content,omitempty"`
+}
+
 type SessionPermissionsHandlePendingPermissionRequestResult struct {
 	// Whether the permission request was handled successfully
 	Success bool `json:"success"`
@@ -1315,6 +1336,23 @@ func (a *UiApi) Elicitation(ctx context.Context, params *SessionUIElicitationPar
 		return nil, err
 	}
 	var result SessionUIElicitationResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *UiApi) HandlePendingElicitation(ctx context.Context, params *SessionUIHandlePendingElicitationParams) (*SessionUIHandlePendingElicitationResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["requestId"] = params.RequestID
+		req["result"] = params.Result
+	}
+	raw, err := a.client.Request("session.ui.handlePendingElicitation", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionUIHandlePendingElicitationResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}

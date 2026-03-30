@@ -13,8 +13,10 @@ import { createSessionRpc } from "./generated/rpc.js";
 import { getTraceContext } from "./telemetry.js";
 import type {
     CommandHandler,
+    ElicitationHandler,
     ElicitationParams,
     ElicitationResult,
+    ElicitationRequest,
     InputOptions,
     MessageOptions,
     PermissionHandler,
@@ -77,6 +79,7 @@ export class CopilotSession {
     private commandHandlers: Map<string, CommandHandler> = new Map();
     private permissionHandler?: PermissionHandler;
     private userInputHandler?: UserInputHandler;
+    private elicitationHandler?: ElicitationHandler;
     private hooks?: SessionHooks;
     private transformCallbacks?: Map<string, SectionTransformFn>;
     private _rpc: ReturnType<typeof createSessionRpc> | null = null;
@@ -414,6 +417,23 @@ export class CopilotSession {
                 args: string;
             };
             void this._executeCommandAndRespond(requestId, commandName, command, args);
+        } else if (event.type === "elicitation.requested") {
+            if (this.elicitationHandler) {
+                const { message, requestedSchema, mode, elicitationSource, url, requestId } =
+                    event.data;
+                void this._handleElicitationRequest(
+                    {
+                        message,
+                        requestedSchema: requestedSchema as ElicitationRequest["requestedSchema"],
+                        mode,
+                        elicitationSource,
+                        url,
+                    },
+                    requestId
+                );
+            }
+        } else if (event.type === "capabilities.changed") {
+            this._capabilities = { ...this._capabilities, ...event.data };
         }
     }
 
@@ -578,6 +598,44 @@ export class CopilotSession {
         }
         for (const cmd of commands) {
             this.commandHandlers.set(cmd.name, cmd.handler);
+        }
+    }
+
+    /**
+     * Registers the elicitation handler for this session.
+     *
+     * @param handler - The handler to invoke when the server dispatches an elicitation request
+     * @internal This method is typically called internally when creating/resuming a session.
+     */
+    registerElicitationHandler(handler?: ElicitationHandler): void {
+        this.elicitationHandler = handler;
+    }
+
+    /**
+     * Handles an elicitation.requested broadcast event.
+     * Invokes the registered handler and responds via handlePendingElicitation RPC.
+     * @internal
+     */
+    async _handleElicitationRequest(request: ElicitationRequest, requestId: string): Promise<void> {
+        if (!this.elicitationHandler) {
+            return;
+        }
+        try {
+            const result = await this.elicitationHandler(request, { sessionId: this.sessionId });
+            await this.rpc.ui.handlePendingElicitation({ requestId, result });
+        } catch {
+            // Handler failed — attempt to cancel so the request doesn't hang
+            try {
+                await this.rpc.ui.handlePendingElicitation({
+                    requestId,
+                    result: { action: "cancel" },
+                });
+            } catch (rpcError) {
+                if (!(rpcError instanceof ConnectionError || rpcError instanceof ResponseError)) {
+                    throw rpcError;
+                }
+                // Connection lost or RPC error — nothing we can do
+            }
         }
     }
 
