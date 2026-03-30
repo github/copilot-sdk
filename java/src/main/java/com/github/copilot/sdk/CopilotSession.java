@@ -795,8 +795,7 @@ public final class CopilotSession implements AutoCloseable {
                 CompletableFuture.runAsync(task);
             }
         } catch (RejectedExecutionException e) {
-            LOG.log(Level.WARNING, "Executor rejected permission task for requestId=" + requestId + "; running inline",
-                    e);
+            LOG.log(Level.WARNING, "Executor rejected perm task for requestId=" + requestId + "; running inline", e);
             task.run();
         }
     }
