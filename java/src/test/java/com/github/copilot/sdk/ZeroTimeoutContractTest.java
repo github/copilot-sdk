@@ -29,19 +29,29 @@ public class ZeroTimeoutContractTest {
         ctor.setAccessible(true);
 
         var mockRpc = mock(JsonRpcClient.class);
-        when(mockRpc.invoke(any(), any(), any())).thenReturn(new CompletableFuture<>());
+        when(mockRpc.invoke(any(), any(), any())).thenAnswer(invocation -> {
+            Object method = invocation.getArgument(0);
+            if ("session.destroy".equals(method)) {
+                // Make session.close() non-blocking by completing destroy immediately
+                return CompletableFuture.completedFuture(null);
+            }
+            // For other calls (e.g., message send), return an incomplete future so the
+            // sendAndWait result does not complete due to a mock response.
+            return new CompletableFuture<>();
+        });
 
-        var session = ctor.newInstance("zero-timeout-test", mockRpc, null);
+        try (var session = ctor.newInstance("zero-timeout-test", mockRpc, null)) {
 
-        // Per the Javadoc: timeoutMs of 0 means "no timeout".
-        // The future should NOT complete with TimeoutException.
-        CompletableFuture<AssistantMessageEvent> result = session.sendAndWait(new MessageOptions().setPrompt("test"),
-                0);
+            // Per the Javadoc: timeoutMs of 0 means "no timeout".
+            // The future should NOT complete with TimeoutException.
+            CompletableFuture<AssistantMessageEvent> result = session
+                    .sendAndWait(new MessageOptions().setPrompt("test"), 0);
 
-        // Give the scheduler a chance to fire if it was (incorrectly) scheduled
-        Thread.sleep(200);
+            // Give the scheduler a chance to fire if it was (incorrectly) scheduled
+            Thread.sleep(200);
 
-        // The future should still be pending — not timed out
-        assertFalse(result.isDone(), "Future should not be done; timeoutMs=0 means no timeout per Javadoc");
+            // The future should still be pending — not timed out
+            assertFalse(result.isDone(), "Future should not be done; timeoutMs=0 means no timeout per Javadoc");
+        }
     }
 }
