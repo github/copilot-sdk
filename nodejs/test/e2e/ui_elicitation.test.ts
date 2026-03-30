@@ -78,8 +78,9 @@ describe("UI Elicitation Multi-Client Capabilities", async () => {
             expect(session1.capabilities.ui?.elicitation).toBe(false);
 
             // Listen for capabilities.changed event
+            let unsubscribe: (() => void) | undefined;
             const capChangedPromise = new Promise<SessionEvent>((resolve) => {
-                session1.on((event) => {
+                unsubscribe = session1.on((event) => {
                     if ((event as { type: string }).type === "capabilities.changed") {
                         resolve(event);
                     }
@@ -94,6 +95,7 @@ describe("UI Elicitation Multi-Client Capabilities", async () => {
             });
 
             const capEvent = await capChangedPromise;
+            unsubscribe?.();
             const data = (capEvent as { data: { ui?: { elicitation?: boolean } } }).data;
             expect(data.ui?.elicitation).toBe(true);
 
@@ -115,8 +117,9 @@ describe("UI Elicitation Multi-Client Capabilities", async () => {
             expect(session1.capabilities.ui?.elicitation).toBe(false);
 
             // Wait for elicitation to become available
+            let unsubEnabled: (() => void) | undefined;
             const capEnabledPromise = new Promise<void>((resolve) => {
-                session1.on((event) => {
+                unsubEnabled = session1.on((event) => {
                     const data = event as {
                         type: string;
                         data: { ui?: { elicitation?: boolean } };
@@ -141,11 +144,13 @@ describe("UI Elicitation Multi-Client Capabilities", async () => {
             });
 
             await capEnabledPromise;
+            unsubEnabled?.();
             expect(session1.capabilities.ui?.elicitation).toBe(true);
 
             // Now listen for the capability being removed
+            let unsubDisabled: (() => void) | undefined;
             const capDisabledPromise = new Promise<void>((resolve) => {
-                session1.on((event) => {
+                unsubDisabled = session1.on((event) => {
                     const data = event as {
                         type: string;
                         data: { ui?: { elicitation?: boolean } };
@@ -163,6 +168,7 @@ describe("UI Elicitation Multi-Client Capabilities", async () => {
             await client3.forceStop();
 
             await capDisabledPromise;
+            unsubDisabled?.();
             expect(session1.capabilities.ui?.elicitation).toBe(false);
         }
     );

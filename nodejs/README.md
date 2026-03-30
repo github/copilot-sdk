@@ -508,7 +508,7 @@ Commands are sent to the CLI on both `createSession` and `resumeSession`, so you
 
 ### UI Elicitation
 
-When the session has elicitation support — either from the CLI's TUI or from another client that registered an `onElicitationRequest` handler (see [Elicitation Requests](#elicitation-requests)). The SDK can request interactive form dialogs from the user. The `session.ui` object provides convenience methods built on a single generic `elicitation` RPC.
+When the session has elicitation support — either from the CLI's TUI or from another client that registered an `onElicitationRequest` handler (see [Elicitation Requests](#elicitation-requests)) — the SDK can request interactive form dialogs from the user. The `session.ui` object provides convenience methods built on a single generic `elicitation` RPC.
 
 > **Capability check:** Elicitation is only available when at least one connected participant advertises support. Always check `session.capabilities.ui?.elicitation` before calling UI methods — this property updates automatically as participants join and leave.
 
@@ -904,7 +904,7 @@ const session = await client.createSession({
 
 ## Elicitation Requests
 
-Register an `onElicitationRequest` handler to let your client act as an elicitation provider — presenting form-based UI dialogs on behalf of the agent. When provided, the server dispatches `elicitation.request` RPCs to your client whenever a tool or MCP server needs structured user input.
+Register an `onElicitationRequest` handler to let your client act as an elicitation provider — presenting form-based UI dialogs on behalf of the agent. When provided, the server notifies your client whenever a tool or MCP server needs structured user input.
 
 ```typescript
 const session = await client.createSession({
@@ -933,6 +933,7 @@ console.log(session.capabilities.ui?.elicitation); // true
 When `onElicitationRequest` is provided, the SDK sends `requestElicitation: true` during session create/resume, which enables `session.capabilities.ui.elicitation` on the session.
 
 In multi-client scenarios:
+
 - If no connected client was previously providing an elicitation capability, but a new client joins that can, all clients will receive a `capabilities.changed` event to notify them that elicitation is now possible. The SDK automatically updates `session.capabilities` when these events arrive.
 - Similarly, if the last elicitation provider disconnects, all clients receive a `capabilities.changed` event indicating elicitation is no longer available.
 - The server fans out elicitation requests to **all** connected clients that registered a handler — the first response wins.

@@ -1044,6 +1044,42 @@ internal class SessionUiElicitationRequest
     public SessionUiElicitationRequestRequestedSchema RequestedSchema { get => field ??= new(); set; }
 }
 
+/// <summary>RPC data type for SessionUiHandlePendingElicitation operations.</summary>
+public class SessionUiHandlePendingElicitationResult
+{
+    /// <summary>Whether the response was accepted. False if the request was already resolved by another client.</summary>
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+/// <summary>The elicitation response (accept with form values, decline, or cancel).</summary>
+public class SessionUiHandlePendingElicitationRequestResult
+{
+    /// <summary>The user's response: accept (submitted), decline (rejected), or cancel (dismissed).</summary>
+    [JsonPropertyName("action")]
+    public SessionUiElicitationResultAction Action { get; set; }
+
+    /// <summary>The form values submitted by the user (present when action is 'accept').</summary>
+    [JsonPropertyName("content")]
+    public Dictionary<string, object>? Content { get; set; }
+}
+
+/// <summary>RPC data type for SessionUiHandlePendingElicitation operations.</summary>
+internal class SessionUiHandlePendingElicitationRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>The unique request ID from the elicitation.requested event.</summary>
+    [JsonPropertyName("requestId")]
+    public string RequestId { get; set; } = string.Empty;
+
+    /// <summary>The elicitation response (accept with form values, decline, or cancel).</summary>
+    [JsonPropertyName("result")]
+    public SessionUiHandlePendingElicitationRequestResult Result { get => field ??= new(); set; }
+}
+
 /// <summary>RPC data type for SessionPermissionsHandlePendingPermissionRequest operations.</summary>
 public class SessionPermissionsHandlePendingPermissionRequestResult
 {
@@ -1822,6 +1858,13 @@ public class UiApi
         var request = new SessionUiElicitationRequest { SessionId = _sessionId, Message = message, RequestedSchema = requestedSchema };
         return await CopilotClient.InvokeRpcAsync<SessionUiElicitationResult>(_rpc, "session.ui.elicitation", [request], cancellationToken);
     }
+
+    /// <summary>Calls "session.ui.handlePendingElicitation".</summary>
+    public async Task<SessionUiHandlePendingElicitationResult> HandlePendingElicitationAsync(string requestId, SessionUiHandlePendingElicitationRequestResult result, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionUiHandlePendingElicitationRequest { SessionId = _sessionId, RequestId = requestId, Result = result };
+        return await CopilotClient.InvokeRpcAsync<SessionUiHandlePendingElicitationResult>(_rpc, "session.ui.handlePendingElicitation", [request], cancellationToken);
+    }
 }
 
 /// <summary>Provides session-scoped Permissions APIs.</summary>
@@ -1961,6 +2004,9 @@ public class ShellApi
 [JsonSerializable(typeof(SessionUiElicitationRequest))]
 [JsonSerializable(typeof(SessionUiElicitationRequestRequestedSchema))]
 [JsonSerializable(typeof(SessionUiElicitationResult))]
+[JsonSerializable(typeof(SessionUiHandlePendingElicitationRequest))]
+[JsonSerializable(typeof(SessionUiHandlePendingElicitationRequestResult))]
+[JsonSerializable(typeof(SessionUiHandlePendingElicitationResult))]
 [JsonSerializable(typeof(SessionWorkspaceCreateFileRequest))]
 [JsonSerializable(typeof(SessionWorkspaceCreateFileResult))]
 [JsonSerializable(typeof(SessionWorkspaceListFilesRequest))]

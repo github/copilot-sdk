@@ -422,6 +422,8 @@ export interface ElicitationRequest {
     mode?: "form" | "url";
     /** The source that initiated the request (e.g. MCP server name). */
     elicitationSource?: string;
+    /** URL to open in the user's browser (url mode only). */
+    url?: string;
 }
 
 /**

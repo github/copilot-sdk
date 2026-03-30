@@ -417,24 +417,23 @@ export class CopilotSession {
                 args: string;
             };
             void this._executeCommandAndRespond(requestId, commandName, command, args);
-        } else if ((event as { type: string }).type === "elicitation.requested") {
-            // TODO: Remove type casts above once session-events codegen includes these event types
+        } else if (event.type === "elicitation.requested") {
             if (this.elicitationHandler) {
-                const data = (event as { data: Record<string, unknown> }).data;
+                const { message, requestedSchema, mode, elicitationSource, url, requestId } =
+                    event.data;
                 void this._handleElicitationRequest(
                     {
-                        message: data.message as string,
-                        requestedSchema:
-                            data.requestedSchema as ElicitationRequest["requestedSchema"],
-                        mode: data.mode as ElicitationRequest["mode"],
-                        elicitationSource: data.elicitationSource as string | undefined,
+                        message,
+                        requestedSchema: requestedSchema as ElicitationRequest["requestedSchema"],
+                        mode,
+                        elicitationSource,
+                        url,
                     },
-                    data.requestId as string
+                    requestId
                 );
             }
-        } else if ((event as { type: string }).type === "capabilities.changed") {
-            const data = (event as { data: Partial<SessionCapabilities> }).data;
-            this._capabilities = { ...this._capabilities, ...data };
+        } else if (event.type === "capabilities.changed") {
+            this._capabilities = { ...this._capabilities, ...event.data };
         }
     }
 

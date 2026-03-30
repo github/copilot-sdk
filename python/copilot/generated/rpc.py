@@ -1822,6 +1822,72 @@ class SessionUIElicitationParams:
 
 
 @dataclass
+class SessionUIHandlePendingElicitationResult:
+    success: bool
+    """Whether the response was accepted. False if the request was already resolved by another
+    client.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionUIHandlePendingElicitationResult':
+        assert isinstance(obj, dict)
+        success = from_bool(obj.get("success"))
+        return SessionUIHandlePendingElicitationResult(success)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["success"] = from_bool(self.success)
+        return result
+
+
+@dataclass
+class SessionUIHandlePendingElicitationParamsResult:
+    """The elicitation response (accept with form values, decline, or cancel)"""
+
+    action: Action
+    """The user's response: accept (submitted), decline (rejected), or cancel (dismissed)"""
+
+    content: dict[str, float | bool | list[str] | str] | None = None
+    """The form values submitted by the user (present when action is 'accept')"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionUIHandlePendingElicitationParamsResult':
+        assert isinstance(obj, dict)
+        action = Action(obj.get("action"))
+        content = from_union([lambda x: from_dict(lambda x: from_union([from_float, from_bool, lambda x: from_list(from_str, x), from_str], x), x), from_none], obj.get("content"))
+        return SessionUIHandlePendingElicitationParamsResult(action, content)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["action"] = to_enum(Action, self.action)
+        if self.content is not None:
+            result["content"] = from_union([lambda x: from_dict(lambda x: from_union([to_float, from_bool, lambda x: from_list(from_str, x), from_str], x), x), from_none], self.content)
+        return result
+
+
+@dataclass
+class SessionUIHandlePendingElicitationParams:
+    request_id: str
+    """The unique request ID from the elicitation.requested event"""
+
+    result: SessionUIHandlePendingElicitationParamsResult
+    """The elicitation response (accept with form values, decline, or cancel)"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionUIHandlePendingElicitationParams':
+        assert isinstance(obj, dict)
+        request_id = from_str(obj.get("requestId"))
+        result = SessionUIHandlePendingElicitationParamsResult.from_dict(obj.get("result"))
+        return SessionUIHandlePendingElicitationParams(request_id, result)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["requestId"] = from_str(self.request_id)
+        result["result"] = to_class(SessionUIHandlePendingElicitationParamsResult, self.result)
+        return result
+
+
+@dataclass
 class SessionPermissionsHandlePendingPermissionRequestResult:
     success: bool
     """Whether the permission request was handled successfully"""
@@ -2493,6 +2559,22 @@ def session_ui_elicitation_params_to_dict(x: SessionUIElicitationParams) -> Any:
     return to_class(SessionUIElicitationParams, x)
 
 
+def session_ui_handle_pending_elicitation_result_from_dict(s: Any) -> SessionUIHandlePendingElicitationResult:
+    return SessionUIHandlePendingElicitationResult.from_dict(s)
+
+
+def session_ui_handle_pending_elicitation_result_to_dict(x: SessionUIHandlePendingElicitationResult) -> Any:
+    return to_class(SessionUIHandlePendingElicitationResult, x)
+
+
+def session_ui_handle_pending_elicitation_params_from_dict(s: Any) -> SessionUIHandlePendingElicitationParams:
+    return SessionUIHandlePendingElicitationParams.from_dict(s)
+
+
+def session_ui_handle_pending_elicitation_params_to_dict(x: SessionUIHandlePendingElicitationParams) -> Any:
+    return to_class(SessionUIHandlePendingElicitationParams, x)
+
+
 def session_permissions_handle_pending_permission_request_result_from_dict(s: Any) -> SessionPermissionsHandlePendingPermissionRequestResult:
     return SessionPermissionsHandlePendingPermissionRequestResult.from_dict(s)
 
@@ -2822,6 +2904,11 @@ class UiApi:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return SessionUIElicitationResult.from_dict(await self._client.request("session.ui.elicitation", params_dict, **_timeout_kwargs(timeout)))
+
+    async def handle_pending_elicitation(self, params: SessionUIHandlePendingElicitationParams, *, timeout: float | None = None) -> SessionUIHandlePendingElicitationResult:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return SessionUIHandlePendingElicitationResult.from_dict(await self._client.request("session.ui.handlePendingElicitation", params_dict, **_timeout_kwargs(timeout)))
 
 
 class PermissionsApi:

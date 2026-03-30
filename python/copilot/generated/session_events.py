@@ -1742,10 +1742,32 @@ class ToolRequest:
 
 
 @dataclass
+class UI:
+    """UI capability changes"""
+
+    elicitation: bool | None = None
+    """Whether elicitation is now supported"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'UI':
+        assert isinstance(obj, dict)
+        elicitation = from_union([from_bool, from_none], obj.get("elicitation"))
+        return UI(elicitation)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.elicitation is not None:
+            result["elicitation"] = from_union([from_bool, from_none], self.elicitation)
+        return result
+
+
+@dataclass
 class Data:
     """Session initialization metadata including context and configuration
     
     Session resume metadata including current context and event count
+    
+    Notifies Mission Control that the session's remote steering capability has changed
     
     Error details for timeline display including message and optional diagnostic information
     
@@ -1854,6 +1876,11 @@ class Data:
     
     Elicitation request completion notification signaling UI dismissal
     
+    Sampling request from an MCP server; contains the server name and a requestId for
+    correlation
+    
+    Sampling request completion notification signaling UI dismissal
+    
     OAuth authentication request for an MCP server
     
     MCP OAuth request completion notification
@@ -1869,6 +1896,8 @@ class Data:
     Queued command completion notification signaling UI dismissal
     
     SDK command registration change notification
+    
+    Session capability change notification
     
     Plan approval request with plan content and available user actions
     
@@ -1898,6 +1927,11 @@ class Data:
     
     Reasoning effort level after the model change, if applicable
     """
+    remote_steerable: bool | None = None
+    """Whether this session supports remote steering via Mission Control
+    
+    Whether this session now supports remote steering via Mission Control
+    """
     selected_model: str | None = None
     """Model selected at session creation time, if any
     
@@ -1910,9 +1944,6 @@ class Data:
     """
     start_time: datetime | None = None
     """ISO 8601 timestamp when the session was created"""
-
-    steerable: bool | None = None
-    """Whether this session supports remote steering via Mission Control"""
 
     version: float | None = None
     """Schema version number for the session event format"""
@@ -2182,6 +2213,12 @@ class Data:
     Request ID of the resolved elicitation request; clients should dismiss any UI for this
     request
     
+    Unique identifier for this sampling request; used to respond via
+    session.respondToSampling()
+    
+    Request ID of the resolved sampling request; clients should dismiss any UI for this
+    request
+    
     Unique identifier for this OAuth request; used to respond via
     session.respondToMcpOAuth()
     
@@ -2329,10 +2366,14 @@ class Data:
     """Duration of the API call in milliseconds"""
 
     initiator: str | None = None
-    """What initiated this API call (e.g., "sub-agent"); absent for user-initiated calls"""
-
+    """What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for
+    user-initiated calls
+    """
     input_tokens: float | None = None
     """Number of input tokens consumed"""
+
+    inter_token_latency_ms: float | None = None
+    """Average inter-token latency in milliseconds. Only available for streaming requests"""
 
     model: str | None = None
     """Model identifier used for this API call
@@ -2345,6 +2386,9 @@ class Data:
     """
     quota_snapshots: dict[str, QuotaSnapshot] | None = None
     """Per-quota resource usage snapshots, keyed by quota identifier"""
+
+    ttft_ms: float | None = None
+    """Time to first token in milliseconds. Only available for streaming requests"""
 
     reason: str | None = None
     """Reason the current turn was aborted (e.g., "user initiated")"""
@@ -2498,8 +2542,13 @@ class Data:
     requested_schema: RequestedSchema | None = None
     """JSON Schema describing the form fields to present to the user (form mode only)"""
 
+    mcp_request_id: float | str | None = None
+    """The JSON-RPC request ID from the MCP protocol"""
+
     server_name: str | None = None
-    """Display name of the MCP server that requires OAuth
+    """Name of the MCP server that initiated the sampling request
+    
+    Display name of the MCP server that requires OAuth
     
     Name of the MCP server whose status changed
     """
@@ -2528,6 +2577,9 @@ class Data:
 
     commands: list[DataCommand] | None = None
     """Current list of registered SDK commands"""
+
+    ui: UI | None = None
+    """UI capability changes"""
 
     actions: list[str] | None = None
     """Available actions the user can take (e.g., approve, edit, reject)"""
@@ -2567,10 +2619,10 @@ class Data:
         copilot_version = from_union([from_str, from_none], obj.get("copilotVersion"))
         producer = from_union([from_str, from_none], obj.get("producer"))
         reasoning_effort = from_union([from_str, from_none], obj.get("reasoningEffort"))
+        remote_steerable = from_union([from_bool, from_none], obj.get("remoteSteerable"))
         selected_model = from_union([from_str, from_none], obj.get("selectedModel"))
         session_id = from_union([from_str, from_none], obj.get("sessionId"))
         start_time = from_union([from_datetime, from_none], obj.get("startTime"))
-        steerable = from_union([from_bool, from_none], obj.get("steerable"))
         version = from_union([from_float, from_none], obj.get("version"))
         event_count = from_union([from_float, from_none], obj.get("eventCount"))
         resume_time = from_union([from_datetime, from_none], obj.get("resumeTime"))
@@ -2666,8 +2718,10 @@ class Data:
         duration = from_union([from_float, from_none], obj.get("duration"))
         initiator = from_union([from_str, from_none], obj.get("initiator"))
         input_tokens = from_union([from_float, from_none], obj.get("inputTokens"))
+        inter_token_latency_ms = from_union([from_float, from_none], obj.get("interTokenLatencyMs"))
         model = from_union([from_str, from_none], obj.get("model"))
         quota_snapshots = from_union([lambda x: from_dict(QuotaSnapshot.from_dict, x), from_none], obj.get("quotaSnapshots"))
+        ttft_ms = from_union([from_float, from_none], obj.get("ttftMs"))
         reason = from_union([from_str, from_none], obj.get("reason"))
         arguments = obj.get("arguments")
         tool_call_id = from_union([from_str, from_none], obj.get("toolCallId"))
@@ -2705,6 +2759,7 @@ class Data:
         elicitation_source = from_union([from_str, from_none], obj.get("elicitationSource"))
         mode = from_union([Mode, from_none], obj.get("mode"))
         requested_schema = from_union([RequestedSchema.from_dict, from_none], obj.get("requestedSchema"))
+        mcp_request_id = from_union([from_float, from_str, from_none], obj.get("mcpRequestId"))
         server_name = from_union([from_str, from_none], obj.get("serverName"))
         server_url = from_union([from_str, from_none], obj.get("serverUrl"))
         static_client_config = from_union([StaticClientConfig.from_dict, from_none], obj.get("staticClientConfig"))
@@ -2714,6 +2769,7 @@ class Data:
         args = from_union([from_str, from_none], obj.get("args"))
         command_name = from_union([from_str, from_none], obj.get("commandName"))
         commands = from_union([lambda x: from_list(DataCommand.from_dict, x), from_none], obj.get("commands"))
+        ui = from_union([UI.from_dict, from_none], obj.get("ui"))
         actions = from_union([lambda x: from_list(from_str, x), from_none], obj.get("actions"))
         plan_content = from_union([from_str, from_none], obj.get("planContent"))
         recommended_action = from_union([from_str, from_none], obj.get("recommendedAction"))
@@ -2724,7 +2780,7 @@ class Data:
         servers = from_union([lambda x: from_list(Server.from_dict, x), from_none], obj.get("servers"))
         status = from_union([ServerStatus, from_none], obj.get("status"))
         extensions = from_union([lambda x: from_list(Extension.from_dict, x), from_none], obj.get("extensions"))
-        return Data(already_in_use, context, copilot_version, producer, reasoning_effort, selected_model, session_id, start_time, steerable, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, url, background_tasks, title, info_type, warning_type, new_model, previous_model, previous_reasoning_effort, new_mode, previous_mode, operation, path, handoff_time, host, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, conversation_tokens, current_model, current_tokens, error_reason, model_metrics, session_start_time, shutdown_type, system_tokens, tool_definitions_tokens, total_api_duration_ms, total_premium_requests, base_commit, branch, cwd, git_root, head_commit, host_type, is_initial, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, interaction_id, source, transformed_content, turn_id, intent, reasoning_id, delta_content, total_response_size_bytes, encrypted_content, message_id, output_tokens, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, api_call_id, cache_read_tokens, cache_write_tokens, copilot_usage, cost, duration, initiator, input_tokens, model, quota_snapshots, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, description, name, plugin_name, plugin_version, agent_description, agent_display_name, agent_name, duration_ms, total_tokens, total_tool_calls, tools, hook_invocation_id, hook_type, input, output, metadata, role, kind, permission_request, allow_freeform, choices, question, elicitation_source, mode, requested_schema, server_name, server_url, static_client_config, traceparent, tracestate, command, args, command_name, commands, actions, plan_content, recommended_action, skills, agents, errors, warnings, servers, status, extensions)
+        return Data(already_in_use, context, copilot_version, producer, reasoning_effort, remote_steerable, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, url, background_tasks, title, info_type, warning_type, new_model, previous_model, previous_reasoning_effort, new_mode, previous_mode, operation, path, handoff_time, host, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, conversation_tokens, current_model, current_tokens, error_reason, model_metrics, session_start_time, shutdown_type, system_tokens, tool_definitions_tokens, total_api_duration_ms, total_premium_requests, base_commit, branch, cwd, git_root, head_commit, host_type, is_initial, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, interaction_id, source, transformed_content, turn_id, intent, reasoning_id, delta_content, total_response_size_bytes, encrypted_content, message_id, output_tokens, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, api_call_id, cache_read_tokens, cache_write_tokens, copilot_usage, cost, duration, initiator, input_tokens, inter_token_latency_ms, model, quota_snapshots, ttft_ms, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, description, name, plugin_name, plugin_version, agent_description, agent_display_name, agent_name, duration_ms, total_tokens, total_tool_calls, tools, hook_invocation_id, hook_type, input, output, metadata, role, kind, permission_request, allow_freeform, choices, question, elicitation_source, mode, requested_schema, mcp_request_id, server_name, server_url, static_client_config, traceparent, tracestate, command, args, command_name, commands, ui, actions, plan_content, recommended_action, skills, agents, errors, warnings, servers, status, extensions)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -2738,14 +2794,14 @@ class Data:
             result["producer"] = from_union([from_str, from_none], self.producer)
         if self.reasoning_effort is not None:
             result["reasoningEffort"] = from_union([from_str, from_none], self.reasoning_effort)
+        if self.remote_steerable is not None:
+            result["remoteSteerable"] = from_union([from_bool, from_none], self.remote_steerable)
         if self.selected_model is not None:
             result["selectedModel"] = from_union([from_str, from_none], self.selected_model)
         if self.session_id is not None:
             result["sessionId"] = from_union([from_str, from_none], self.session_id)
         if self.start_time is not None:
             result["startTime"] = from_union([lambda x: x.isoformat(), from_none], self.start_time)
-        if self.steerable is not None:
-            result["steerable"] = from_union([from_bool, from_none], self.steerable)
         if self.version is not None:
             result["version"] = from_union([to_float, from_none], self.version)
         if self.event_count is not None:
@@ -2936,10 +2992,14 @@ class Data:
             result["initiator"] = from_union([from_str, from_none], self.initiator)
         if self.input_tokens is not None:
             result["inputTokens"] = from_union([to_float, from_none], self.input_tokens)
+        if self.inter_token_latency_ms is not None:
+            result["interTokenLatencyMs"] = from_union([to_float, from_none], self.inter_token_latency_ms)
         if self.model is not None:
             result["model"] = from_union([from_str, from_none], self.model)
         if self.quota_snapshots is not None:
             result["quotaSnapshots"] = from_union([lambda x: from_dict(lambda x: to_class(QuotaSnapshot, x), x), from_none], self.quota_snapshots)
+        if self.ttft_ms is not None:
+            result["ttftMs"] = from_union([to_float, from_none], self.ttft_ms)
         if self.reason is not None:
             result["reason"] = from_union([from_str, from_none], self.reason)
         if self.arguments is not None:
@@ -3014,6 +3074,8 @@ class Data:
             result["mode"] = from_union([lambda x: to_enum(Mode, x), from_none], self.mode)
         if self.requested_schema is not None:
             result["requestedSchema"] = from_union([lambda x: to_class(RequestedSchema, x), from_none], self.requested_schema)
+        if self.mcp_request_id is not None:
+            result["mcpRequestId"] = from_union([to_float, from_str, from_none], self.mcp_request_id)
         if self.server_name is not None:
             result["serverName"] = from_union([from_str, from_none], self.server_name)
         if self.server_url is not None:
@@ -3032,6 +3094,8 @@ class Data:
             result["commandName"] = from_union([from_str, from_none], self.command_name)
         if self.commands is not None:
             result["commands"] = from_union([lambda x: from_list(lambda x: to_class(DataCommand, x), x), from_none], self.commands)
+        if self.ui is not None:
+            result["ui"] = from_union([lambda x: to_class(UI, x), from_none], self.ui)
         if self.actions is not None:
             result["actions"] = from_union([lambda x: from_list(from_str, x), from_none], self.actions)
         if self.plan_content is not None:
@@ -3066,6 +3130,7 @@ class SessionEventType(Enum):
     ASSISTANT_TURN_END = "assistant.turn_end"
     ASSISTANT_TURN_START = "assistant.turn_start"
     ASSISTANT_USAGE = "assistant.usage"
+    CAPABILITIES_CHANGED = "capabilities.changed"
     COMMANDS_CHANGED = "commands.changed"
     COMMAND_COMPLETED = "command.completed"
     COMMAND_EXECUTE = "command.execute"
@@ -3083,6 +3148,8 @@ class SessionEventType(Enum):
     PENDING_MESSAGES_MODIFIED = "pending_messages.modified"
     PERMISSION_COMPLETED = "permission.completed"
     PERMISSION_REQUESTED = "permission.requested"
+    SAMPLING_COMPLETED = "sampling.completed"
+    SAMPLING_REQUESTED = "sampling.requested"
     SESSION_BACKGROUND_TASKS_CHANGED = "session.background_tasks_changed"
     SESSION_COMPACTION_COMPLETE = "session.compaction_complete"
     SESSION_COMPACTION_START = "session.compaction_start"
@@ -3098,6 +3165,7 @@ class SessionEventType(Enum):
     SESSION_MODEL_CHANGE = "session.model_change"
     SESSION_MODE_CHANGED = "session.mode_changed"
     SESSION_PLAN_CHANGED = "session.plan_changed"
+    SESSION_REMOTE_STEERABLE_CHANGED = "session.remote_steerable_changed"
     SESSION_RESUME = "session.resume"
     SESSION_SHUTDOWN = "session.shutdown"
     SESSION_SKILLS_LOADED = "session.skills_loaded"
@@ -3142,6 +3210,8 @@ class SessionEvent:
     """Session initialization metadata including context and configuration
     
     Session resume metadata including current context and event count
+    
+    Notifies Mission Control that the session's remote steering capability has changed
     
     Error details for timeline display including message and optional diagnostic information
     
@@ -3250,6 +3320,11 @@ class SessionEvent:
     
     Elicitation request completion notification signaling UI dismissal
     
+    Sampling request from an MCP server; contains the server name and a requestId for
+    correlation
+    
+    Sampling request completion notification signaling UI dismissal
+    
     OAuth authentication request for an MCP server
     
     MCP OAuth request completion notification
@@ -3265,6 +3340,8 @@ class SessionEvent:
     Queued command completion notification signaling UI dismissal
     
     SDK command registration change notification
+    
+    Session capability change notification
     
     Plan approval request with plan content and available user actions
     
