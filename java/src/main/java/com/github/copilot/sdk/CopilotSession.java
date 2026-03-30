@@ -13,7 +13,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -121,6 +124,7 @@ public final class CopilotSession implements AutoCloseable {
     private volatile EventErrorHandler eventErrorHandler;
     private volatile EventErrorPolicy eventErrorPolicy = EventErrorPolicy.PROPAGATE_AND_LOG_ERRORS;
     private volatile Map<String, java.util.function.Function<String, CompletableFuture<String>>> transformCallbacks;
+    private final ScheduledExecutorService timeoutScheduler;
 
     /** Tracks whether this session instance has been terminated via close(). */
     private volatile boolean isTerminated = false;
@@ -157,6 +161,13 @@ public final class CopilotSession implements AutoCloseable {
         this.sessionId = sessionId;
         this.rpc = rpc;
         this.workspacePath = workspacePath;
+        var executor = new ScheduledThreadPoolExecutor(1, r -> {
+            var t = new Thread(r, "sendAndWait-timeout");
+            t.setDaemon(true);
+            return t;
+        });
+        executor.setRemoveOnCancelPolicy(true);
+        this.timeoutScheduler = executor;
     }
 
     /**
@@ -407,29 +418,41 @@ public final class CopilotSession implements AutoCloseable {
             return null;
         });
 
-        // Set up timeout with daemon thread so it doesn't prevent JVM exit
-        var scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
-            var t = new Thread(r, "sendAndWait-timeout");
-            t.setDaemon(true);
-            return t;
-        });
-        scheduler.schedule(() -> {
-            if (!future.isDone()) {
-                future.completeExceptionally(new TimeoutException("sendAndWait timed out after " + timeoutMs + "ms"));
-            }
-            scheduler.shutdown();
-        }, timeoutMs, TimeUnit.MILLISECONDS);
-
         var result = new CompletableFuture<AssistantMessageEvent>();
 
+        // Schedule timeout on the shared session-level scheduler.
+        // Per Javadoc, timeoutMs <= 0 means "no timeout".
+        ScheduledFuture<?> timeoutTask = null;
+        if (timeoutMs > 0) {
+            try {
+                timeoutTask = timeoutScheduler.schedule(() -> {
+                    if (!future.isDone()) {
+                        future.completeExceptionally(
+                                new TimeoutException("sendAndWait timed out after " + timeoutMs + "ms"));
+                    }
+                }, timeoutMs, TimeUnit.MILLISECONDS);
+            } catch (RejectedExecutionException e) {
+                try {
+                    subscription.close();
+                } catch (IOException closeEx) {
+                    e.addSuppressed(closeEx);
+                }
+                result.completeExceptionally(e);
+                return result;
+            }
+        }
+
         // When inner future completes, run cleanup and propagate to result
+        final ScheduledFuture<?> taskToCancel = timeoutTask;
         future.whenComplete((r, ex) -> {
             try {
                 subscription.close();
             } catch (IOException e) {
                 LOG.log(Level.SEVERE, "Error closing subscription", e);
             }
-            scheduler.shutdown();
+            if (taskToCancel != null) {
+                taskToCancel.cancel(false);
+            }
             if (!result.isDone()) {
                 if (ex != null) {
                     result.completeExceptionally(ex);
@@ -1302,6 +1325,8 @@ public final class CopilotSession implements AutoCloseable {
             }
             isTerminated = true;
         }
+
+        timeoutScheduler.shutdownNow();
 
         try {
             rpc.invoke("session.destroy", Map.of("sessionId", sessionId), Void.class).get(5, TimeUnit.SECONDS);
