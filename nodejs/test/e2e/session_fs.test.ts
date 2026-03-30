@@ -172,12 +172,22 @@ function createMemorySessionFs(
                 birthtime: new Date(st.birthtimeMs).toISOString(),
             };
         },
-        mkdir: async ({ sessionId, path, recursive }) => {
-            await provider.mkdir(sp(sessionId, path), { recursive: recursive ?? false });
+        mkdir: async ({ sessionId, path, recursive, mode }) => {
+            await provider.mkdir(sp(sessionId, path), { recursive: recursive ?? false, mode });
         },
         readdir: async ({ sessionId, path }) => {
             const entries = await provider.readdir(sp(sessionId, path));
             return { entries: entries as string[] };
+        },
+        readdirWithTypes: async ({ sessionId, path }) => {
+            const names = await provider.readdir(sp(sessionId, path)) as string[];
+            const entries = await Promise.all(
+                names.map(async (name) => {
+                    const st = await provider.stat(sp(sessionId, `${path}/${name}`));
+                    return { name, type: st.isDirectory() ? "directory" as const : "file" as const };
+                }),
+            );
+            return { entries };
         },
         rm: async ({ sessionId, path }) => {
             await provider.unlink(sp(sessionId, path));
