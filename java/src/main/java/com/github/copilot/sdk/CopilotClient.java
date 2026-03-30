@@ -188,8 +188,7 @@ public final class CopilotClient implements AutoCloseable {
         } catch (Exception e) {
             String stderr = serverManager.getStderrOutput();
             if (!stderr.isEmpty()) {
-                throw new CompletionException(
-                        new IOException("CLI process exited unexpectedly. stderr: " + stderr, e));
+                throw new CompletionException(new IOException("CLI process exited unexpectedly. stderr: " + stderr, e));
             }
             throw new CompletionException(e);
         }
@@ -245,9 +244,8 @@ public final class CopilotClient implements AutoCloseable {
                     LOG.log(Level.WARNING, "Error closing session " + session.getSessionId(), e);
                 }
             };
-            closeFutures.add(exec != null
-                    ? CompletableFuture.runAsync(closeTask, exec)
-                    : CompletableFuture.runAsync(closeTask));
+            closeFutures.add(
+                    exec != null ? CompletableFuture.runAsync(closeTask, exec) : CompletableFuture.runAsync(closeTask));
         }
         sessions.clear();
 

@@ -25,7 +25,6 @@ import com.github.copilot.sdk.events.AssistantMessageEvent;
 import com.github.copilot.sdk.json.CopilotClientOptions;
 import com.github.copilot.sdk.json.MessageOptions;
 import com.github.copilot.sdk.json.PermissionHandler;
-import com.github.copilot.sdk.json.PermissionRequest;
 import com.github.copilot.sdk.json.PermissionRequestResult;
 import com.github.copilot.sdk.json.PreToolUseHookOutput;
 import com.github.copilot.sdk.json.SessionConfig;
@@ -62,8 +61,8 @@ public class ExecutorWiringTest {
     }
 
     /**
-     * A decorator executor that delegates to a real executor while counting
-     * task submissions.
+     * A decorator executor that delegates to a real executor while counting task
+     * submissions.
      */
     static class TrackingExecutor implements Executor {
 
@@ -101,8 +100,8 @@ public class ExecutorWiringTest {
      *
      * <p>
      * {@code CopilotClient.startCore()} uses
-     * {@code CompletableFuture.supplyAsync(...)} to initialize the connection.
-     * This test asserts that the start-up task goes through the caller-supplied
+     * {@code CompletableFuture.supplyAsync(...)} to initialize the connection. This
+     * test asserts that the start-up task goes through the caller-supplied
      * executor, not {@code ForkJoinPool.commonPool()}.
      * </p>
      *
@@ -129,9 +128,8 @@ public class ExecutorWiringTest {
      * Verifies that tool call dispatch routes through the provided executor.
      *
      * <p>
-     * When a custom tool is invoked by the LLM, the
-     * {@code RpcHandlerDispatcher} calls
-     * {@code CompletableFuture.runAsync(...)} to dispatch the tool handler.
+     * When a custom tool is invoked by the LLM, the {@code RpcHandlerDispatcher}
+     * calls {@code CompletableFuture.runAsync(...)} to dispatch the tool handler.
      * This test asserts that dispatch goes through the caller-supplied executor.
      * </p>
      *
@@ -187,10 +185,9 @@ public class ExecutorWiringTest {
      * executor.
      *
      * <p>
-     * When the LLM requests a permission, the {@code RpcHandlerDispatcher}
-     * calls {@code CompletableFuture.runAsync(...)} to dispatch the permission
-     * handler. This test asserts that dispatch goes through the caller-supplied
-     * executor.
+     * When the LLM requests a permission, the {@code RpcHandlerDispatcher} calls
+     * {@code CompletableFuture.runAsync(...)} to dispatch the permission handler.
+     * This test asserts that dispatch goes through the caller-supplied executor.
      * </p>
      *
      * @see Snapshot: permissions/permission_handler_for_write_operations
@@ -212,8 +209,7 @@ public class ExecutorWiringTest {
 
             int beforeSend = trackingExecutor.getTaskCount();
 
-            session.sendAndWait(
-                    new MessageOptions().setPrompt("Edit test.txt and replace 'original' with 'modified'"))
+            session.sendAndWait(new MessageOptions().setPrompt("Edit test.txt and replace 'original' with 'modified'"))
                     .get(60, TimeUnit.SECONDS);
 
             assertTrue(trackingExecutor.getTaskCount() > beforeSend,
@@ -231,9 +227,8 @@ public class ExecutorWiringTest {
      *
      * <p>
      * When the LLM asks for user input, the {@code RpcHandlerDispatcher} calls
-     * {@code CompletableFuture.runAsync(...)} to dispatch the user input
-     * handler. This test asserts that dispatch goes through the caller-supplied
-     * executor.
+     * {@code CompletableFuture.runAsync(...)} to dispatch the user input handler.
+     * This test asserts that dispatch goes through the caller-supplied executor.
      * </p>
      *
      * @see Snapshot:
@@ -278,8 +273,8 @@ public class ExecutorWiringTest {
      *
      * <p>
      * When the LLM triggers a hook, the {@code RpcHandlerDispatcher} calls
-     * {@code CompletableFuture.runAsync(...)} to dispatch the hooks handler.
-     * This test asserts that dispatch goes through the caller-supplied executor.
+     * {@code CompletableFuture.runAsync(...)} to dispatch the hooks handler. This
+     * test asserts that dispatch goes through the caller-supplied executor.
      * </p>
      *
      * @see Snapshot: hooks/invoke_pre_tool_use_hook_when_model_runs_a_tool
@@ -316,14 +311,13 @@ public class ExecutorWiringTest {
     }
 
     /**
-     * Verifies that {@code CopilotClient.stop()} routes session closure through
-     * the provided executor.
+     * Verifies that {@code CopilotClient.stop()} routes session closure through the
+     * provided executor.
      *
      * <p>
-     * {@code CopilotClient.stop()} uses
-     * {@code CompletableFuture.runAsync(...)} to close each active session.
-     * This test asserts that those closures go through the caller-supplied
-     * executor.
+     * {@code CopilotClient.stop()} uses {@code CompletableFuture.runAsync(...)} to
+     * close each active session. This test asserts that those closures go through
+     * the caller-supplied executor.
      * </p>
      *
      * @see Snapshot: tools/invokes_custom_tool

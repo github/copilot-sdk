@@ -429,18 +429,14 @@ public class CopilotClientOptions {
      * <p>
      * When provided, the SDK uses this executor for all internal
      * {@code CompletableFuture} combinators instead of the default
-     * {@code ForkJoinPool.commonPool()}. This allows callers to isolate SDK
-     * work onto a dedicated thread pool or integrate with container-managed
-     * threading.
+     * {@code ForkJoinPool.commonPool()}. This allows callers to isolate SDK work
+     * onto a dedicated thread pool or integrate with container-managed threading.
      *
      * @param executor
      *            the executor to use, or {@code null} for the default
      * @return this options instance for fluent chaining
      */
     public CopilotClientOptions setExecutor(Executor executor) {
-        if (null == executor) {
-            throw new IllegalArgumentException("PENDING(copilot): not implemented");
-        }
         this.executor = executor;
         return this;
     }
