@@ -35,42 +35,70 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class CopilotClientOptions {
 
-    private String cliPath;
-    private String[] cliArgs;
-    private String cwd;
-    private int port;
-    private boolean useStdio = true;
-    private String cliUrl;
-    private String logLevel = "info";
-    private boolean autoStart = true;
     @Deprecated
     private boolean autoRestart;
+    private boolean autoStart = true;
+    private String[] cliArgs;
+    private String cliPath;
+    private String cliUrl;
+    private String cwd;
     private Map<String, String> environment;
-    private String gitHubToken;
-    private Boolean useLoggedInUser;
-    private Supplier<CompletableFuture<List<ModelInfo>>> onListModels;
-    private TelemetryConfig telemetry;
     private Executor executor;
+    private String gitHubToken;
+    private String logLevel = "info";
+    private Supplier<CompletableFuture<List<ModelInfo>>> onListModels;
+    private int port;
+    private TelemetryConfig telemetry;
+    private Boolean useLoggedInUser;
+    private boolean useStdio = true;
 
     /**
-     * Gets the path to the Copilot CLI executable.
+     * Returns whether the client should automatically restart the server on crash.
      *
-     * @return the CLI path, or {@code null} to use "copilot" from PATH
+     * @return the auto-restart flag value (no longer has any effect)
+     * @deprecated This option has no effect and will be removed in a future
+     *             release.
      */
-    public String getCliPath() {
-        return cliPath;
+    @Deprecated
+    public boolean isAutoRestart() {
+        return autoRestart;
     }
 
     /**
-     * Sets the path to the Copilot CLI executable.
+     * Sets whether the client should automatically restart the CLI server if it
+     * crashes unexpectedly.
      *
-     * @param cliPath
-     *            the path to the CLI executable, or {@code null} to use "copilot"
-     *            from PATH
+     * @param autoRestart
+     *            ignored — this option no longer has any effect
+     * @return this options instance for method chaining
+     * @deprecated This option has no effect and will be removed in a future
+     *             release.
+     */
+    @Deprecated
+    public CopilotClientOptions setAutoRestart(boolean autoRestart) {
+        this.autoRestart = autoRestart;
+        return this;
+    }
+
+    /**
+     * Returns whether the client should automatically start the server.
+     *
+     * @return {@code true} to auto-start (default), {@code false} for manual start
+     */
+    public boolean isAutoStart() {
+        return autoStart;
+    }
+
+    /**
+     * Sets whether the client should automatically start the CLI server when the
+     * first request is made.
+     *
+     * @param autoStart
+     *            {@code true} to auto-start, {@code false} for manual start
      * @return this options instance for method chaining
      */
-    public CopilotClientOptions setCliPath(String cliPath) {
-        this.cliPath = cliPath;
+    public CopilotClientOptions setAutoStart(boolean autoStart) {
+        this.autoStart = autoStart;
         return this;
     }
 
@@ -98,70 +126,24 @@ public class CopilotClientOptions {
     }
 
     /**
-     * Gets the working directory for the CLI process.
+     * Gets the path to the Copilot CLI executable.
      *
-     * @return the working directory path
+     * @return the CLI path, or {@code null} to use "copilot" from PATH
      */
-    public String getCwd() {
-        return cwd;
+    public String getCliPath() {
+        return cliPath;
     }
 
     /**
-     * Sets the working directory for the CLI process.
+     * Sets the path to the Copilot CLI executable.
      *
-     * @param cwd
-     *            the working directory path
+     * @param cliPath
+     *            the path to the CLI executable, or {@code null} to use "copilot"
+     *            from PATH
      * @return this options instance for method chaining
      */
-    public CopilotClientOptions setCwd(String cwd) {
-        this.cwd = cwd;
-        return this;
-    }
-
-    /**
-     * Gets the TCP port for the CLI server.
-     *
-     * @return the port number, or 0 for a random port
-     */
-    public int getPort() {
-        return port;
-    }
-
-    /**
-     * Sets the TCP port for the CLI server to listen on.
-     * <p>
-     * This is only used when {@link #isUseStdio()} is {@code false}.
-     *
-     * @param port
-     *            the port number, or 0 for a random port
-     * @return this options instance for method chaining
-     */
-    public CopilotClientOptions setPort(int port) {
-        this.port = port;
-        return this;
-    }
-
-    /**
-     * Returns whether to use stdio transport instead of TCP.
-     *
-     * @return {@code true} to use stdio (default), {@code false} to use TCP
-     */
-    public boolean isUseStdio() {
-        return useStdio;
-    }
-
-    /**
-     * Sets whether to use stdio transport instead of TCP.
-     * <p>
-     * Stdio transport is more efficient and is the default. TCP transport can be
-     * useful for debugging or connecting to remote servers.
-     *
-     * @param useStdio
-     *            {@code true} to use stdio, {@code false} to use TCP
-     * @return this options instance for method chaining
-     */
-    public CopilotClientOptions setUseStdio(boolean useStdio) {
-        this.useStdio = useStdio;
+    public CopilotClientOptions setCliPath(String cliPath) {
+        this.cliPath = cliPath;
         return this;
     }
 
@@ -193,75 +175,23 @@ public class CopilotClientOptions {
     }
 
     /**
-     * Gets the log level for the CLI process.
+     * Gets the working directory for the CLI process.
      *
-     * @return the log level (default: "info")
+     * @return the working directory path
      */
-    public String getLogLevel() {
-        return logLevel;
+    public String getCwd() {
+        return cwd;
     }
 
     /**
-     * Sets the log level for the CLI process.
-     * <p>
-     * Valid levels include: "error", "warn", "info", "debug", "trace".
+     * Sets the working directory for the CLI process.
      *
-     * @param logLevel
-     *            the log level
+     * @param cwd
+     *            the working directory path
      * @return this options instance for method chaining
      */
-    public CopilotClientOptions setLogLevel(String logLevel) {
-        this.logLevel = logLevel;
-        return this;
-    }
-
-    /**
-     * Returns whether the client should automatically start the server.
-     *
-     * @return {@code true} to auto-start (default), {@code false} for manual start
-     */
-    public boolean isAutoStart() {
-        return autoStart;
-    }
-
-    /**
-     * Sets whether the client should automatically start the CLI server when the
-     * first request is made.
-     *
-     * @param autoStart
-     *            {@code true} to auto-start, {@code false} for manual start
-     * @return this options instance for method chaining
-     */
-    public CopilotClientOptions setAutoStart(boolean autoStart) {
-        this.autoStart = autoStart;
-        return this;
-    }
-
-    /**
-     * Returns whether the client should automatically restart the server on crash.
-     *
-     * @return the auto-restart flag value (no longer has any effect)
-     * @deprecated This option has no effect and will be removed in a future
-     *             release.
-     */
-    @Deprecated
-    public boolean isAutoRestart() {
-        return autoRestart;
-    }
-
-    /**
-     * Sets whether the client should automatically restart the CLI server if it
-     * crashes unexpectedly.
-     *
-     * @param autoRestart
-     *            ignored — this option no longer has any effect
-     * @return this options instance for method chaining
-     * @deprecated This option has no effect and will be removed in a future
-     *             release.
-     */
-    @Deprecated
-    public CopilotClientOptions setAutoRestart(boolean autoRestart) {
-        this.autoRestart = autoRestart;
+    public CopilotClientOptions setCwd(String cwd) {
+        this.cwd = cwd;
         return this;
     }
 
@@ -285,6 +215,33 @@ public class CopilotClientOptions {
      */
     public CopilotClientOptions setEnvironment(Map<String, String> environment) {
         this.environment = environment;
+        return this;
+    }
+
+    /**
+     * Gets the executor used for internal asynchronous operations.
+     *
+     * @return the executor, or {@code null} to use the default
+     *         {@code ForkJoinPool.commonPool()}
+     */
+    public Executor getExecutor() {
+        return executor;
+    }
+
+    /**
+     * Sets the executor used for internal asynchronous operations.
+     * <p>
+     * When provided, the SDK uses this executor for all internal
+     * {@code CompletableFuture} combinators instead of the default
+     * {@code ForkJoinPool.commonPool()}. This allows callers to isolate SDK work
+     * onto a dedicated thread pool or integrate with container-managed threading.
+     *
+     * @param executor
+     *            the executor to use, or {@code null} for the default
+     * @return this options instance for fluent chaining
+     */
+    public CopilotClientOptions setExecutor(Executor executor) {
+        this.executor = executor;
         return this;
     }
 
@@ -338,28 +295,25 @@ public class CopilotClientOptions {
     }
 
     /**
-     * Returns whether to use the logged-in user for authentication.
+     * Gets the log level for the CLI process.
      *
-     * @return {@code true} to use logged-in user auth, {@code false} to use only
-     *         explicit tokens, or {@code null} to use default behavior
+     * @return the log level (default: "info")
      */
-    public Boolean getUseLoggedInUser() {
-        return useLoggedInUser;
+    public String getLogLevel() {
+        return logLevel;
     }
 
     /**
-     * Sets whether to use the logged-in user for authentication.
+     * Sets the log level for the CLI process.
      * <p>
-     * When true, the CLI server will attempt to use stored OAuth tokens or gh CLI
-     * auth. When false, only explicit tokens (gitHubToken or environment variables)
-     * are used. Default: true (but defaults to false when gitHubToken is provided).
+     * Valid levels include: "error", "warn", "info", "debug", "trace".
      *
-     * @param useLoggedInUser
-     *            {@code true} to use logged-in user auth, {@code false} otherwise
+     * @param logLevel
+     *            the log level
      * @return this options instance for method chaining
      */
-    public CopilotClientOptions setUseLoggedInUser(Boolean useLoggedInUser) {
-        this.useLoggedInUser = useLoggedInUser;
+    public CopilotClientOptions setLogLevel(String logLevel) {
+        this.logLevel = logLevel;
         return this;
     }
 
@@ -385,6 +339,29 @@ public class CopilotClientOptions {
      */
     public CopilotClientOptions setOnListModels(Supplier<CompletableFuture<List<ModelInfo>>> onListModels) {
         this.onListModels = onListModels;
+        return this;
+    }
+
+    /**
+     * Gets the TCP port for the CLI server.
+     *
+     * @return the port number, or 0 for a random port
+     */
+    public int getPort() {
+        return port;
+    }
+
+    /**
+     * Sets the TCP port for the CLI server to listen on.
+     * <p>
+     * This is only used when {@link #isUseStdio()} is {@code false}.
+     *
+     * @param port
+     *            the port number, or 0 for a random port
+     * @return this options instance for method chaining
+     */
+    public CopilotClientOptions setPort(int port) {
+        this.port = port;
         return this;
     }
 
@@ -415,29 +392,52 @@ public class CopilotClientOptions {
     }
 
     /**
-     * Gets the executor used for internal asynchronous operations.
+     * Returns whether to use the logged-in user for authentication.
      *
-     * @return the executor, or {@code null} to use the default
-     *         {@code ForkJoinPool.commonPool()}
+     * @return {@code true} to use logged-in user auth, {@code false} to use only
+     *         explicit tokens, or {@code null} to use default behavior
      */
-    public Executor getExecutor() {
-        return executor;
+    public Boolean getUseLoggedInUser() {
+        return useLoggedInUser;
     }
 
     /**
-     * Sets the executor used for internal asynchronous operations.
+     * Sets whether to use the logged-in user for authentication.
      * <p>
-     * When provided, the SDK uses this executor for all internal
-     * {@code CompletableFuture} combinators instead of the default
-     * {@code ForkJoinPool.commonPool()}. This allows callers to isolate SDK work
-     * onto a dedicated thread pool or integrate with container-managed threading.
+     * When true, the CLI server will attempt to use stored OAuth tokens or gh CLI
+     * auth. When false, only explicit tokens (gitHubToken or environment variables)
+     * are used. Default: true (but defaults to false when gitHubToken is provided).
      *
-     * @param executor
-     *            the executor to use, or {@code null} for the default
-     * @return this options instance for fluent chaining
+     * @param useLoggedInUser
+     *            {@code true} to use logged-in user auth, {@code false} otherwise
+     * @return this options instance for method chaining
      */
-    public CopilotClientOptions setExecutor(Executor executor) {
-        this.executor = executor;
+    public CopilotClientOptions setUseLoggedInUser(Boolean useLoggedInUser) {
+        this.useLoggedInUser = useLoggedInUser;
+        return this;
+    }
+
+    /**
+     * Returns whether to use stdio transport instead of TCP.
+     *
+     * @return {@code true} to use stdio (default), {@code false} to use TCP
+     */
+    public boolean isUseStdio() {
+        return useStdio;
+    }
+
+    /**
+     * Sets whether to use stdio transport instead of TCP.
+     * <p>
+     * Stdio transport is more efficient and is the default. TCP transport can be
+     * useful for debugging or connecting to remote servers.
+     *
+     * @param useStdio
+     *            {@code true} to use stdio, {@code false} to use TCP
+     * @return this options instance for method chaining
+     */
+    public CopilotClientOptions setUseStdio(boolean useStdio) {
+        this.useStdio = useStdio;
         return this;
     }
 
@@ -454,21 +454,21 @@ public class CopilotClientOptions {
     @Override
     public CopilotClientOptions clone() {
         CopilotClientOptions copy = new CopilotClientOptions();
-        copy.cliPath = this.cliPath;
-        copy.cliArgs = this.cliArgs != null ? this.cliArgs.clone() : null;
-        copy.cwd = this.cwd;
-        copy.port = this.port;
-        copy.useStdio = this.useStdio;
-        copy.cliUrl = this.cliUrl;
-        copy.logLevel = this.logLevel;
-        copy.autoStart = this.autoStart;
         copy.autoRestart = this.autoRestart;
+        copy.autoStart = this.autoStart;
+        copy.cliArgs = this.cliArgs != null ? this.cliArgs.clone() : null;
+        copy.cliPath = this.cliPath;
+        copy.cliUrl = this.cliUrl;
+        copy.cwd = this.cwd;
         copy.environment = this.environment != null ? new java.util.HashMap<>(this.environment) : null;
-        copy.gitHubToken = this.gitHubToken;
-        copy.useLoggedInUser = this.useLoggedInUser;
-        copy.onListModels = this.onListModels;
-        copy.telemetry = this.telemetry;
         copy.executor = this.executor;
+        copy.gitHubToken = this.gitHubToken;
+        copy.logLevel = this.logLevel;
+        copy.onListModels = this.onListModels;
+        copy.port = this.port;
+        copy.telemetry = this.telemetry;
+        copy.useLoggedInUser = this.useLoggedInUser;
+        copy.useStdio = this.useStdio;
         return copy;
     }
 }
