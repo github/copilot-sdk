@@ -14,6 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -152,9 +153,13 @@ public final class CopilotClient implements AutoCloseable {
         LOG.fine("Starting Copilot client");
 
         Executor exec = options.getExecutor();
-        return exec != null
-                ? CompletableFuture.supplyAsync(this::startCoreBody, exec)
-                : CompletableFuture.supplyAsync(this::startCoreBody);
+        try {
+            return exec != null
+                    ? CompletableFuture.supplyAsync(this::startCoreBody, exec)
+                    : CompletableFuture.supplyAsync(this::startCoreBody);
+        } catch (RejectedExecutionException e) {
+            return CompletableFuture.failedFuture(e);
+        }
     }
 
     private Connection startCoreBody() {
@@ -244,8 +249,17 @@ public final class CopilotClient implements AutoCloseable {
                     LOG.log(Level.WARNING, "Error closing session " + session.getSessionId(), e);
                 }
             };
-            closeFutures.add(
-                    exec != null ? CompletableFuture.runAsync(closeTask, exec) : CompletableFuture.runAsync(closeTask));
+            CompletableFuture<Void> future;
+            try {
+                future = exec != null
+                        ? CompletableFuture.runAsync(closeTask, exec)
+                        : CompletableFuture.runAsync(closeTask);
+            } catch (RejectedExecutionException e) {
+                LOG.log(Level.WARNING, "Executor rejected session close task; closing inline", e);
+                closeTask.run();
+                future = CompletableFuture.completedFuture(null);
+            }
+            closeFutures.add(future);
         }
         sessions.clear();
 

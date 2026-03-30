@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -367,10 +368,15 @@ final class RpcHandlerDispatcher {
     }
 
     private void runAsync(Runnable task) {
-        if (executor != null) {
-            CompletableFuture.runAsync(task, executor);
-        } else {
-            CompletableFuture.runAsync(task);
+        try {
+            if (executor != null) {
+                CompletableFuture.runAsync(task, executor);
+            } else {
+                CompletableFuture.runAsync(task);
+            }
+        } catch (RejectedExecutionException e) {
+            LOG.log(Level.WARNING, "Executor rejected handler task; running inline", e);
+            task.run();
         }
     }
 }

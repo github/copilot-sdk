@@ -730,10 +730,15 @@ public final class CopilotSession implements AutoCloseable {
                 }
             }
         };
-        if (executor != null) {
-            CompletableFuture.runAsync(task, executor);
-        } else {
-            CompletableFuture.runAsync(task);
+        try {
+            if (executor != null) {
+                CompletableFuture.runAsync(task, executor);
+            } else {
+                CompletableFuture.runAsync(task);
+            }
+        } catch (RejectedExecutionException e) {
+            LOG.log(Level.WARNING, "Executor rejected tool task for requestId=" + requestId + "; running inline", e);
+            task.run();
         }
     }
 
@@ -783,10 +788,16 @@ public final class CopilotSession implements AutoCloseable {
                 }
             }
         };
-        if (executor != null) {
-            CompletableFuture.runAsync(task, executor);
-        } else {
-            CompletableFuture.runAsync(task);
+        try {
+            if (executor != null) {
+                CompletableFuture.runAsync(task, executor);
+            } else {
+                CompletableFuture.runAsync(task);
+            }
+        } catch (RejectedExecutionException e) {
+            LOG.log(Level.WARNING, "Executor rejected permission task for requestId=" + requestId + "; running inline",
+                    e);
+            task.run();
         }
     }
 
