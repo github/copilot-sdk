@@ -912,6 +912,7 @@ describe("CopilotClient", () => {
                     content: {},
                 }),
             });
+            expect(session).toBeDefined();
 
             const createCall = rpcSpy.mock.calls.find((c) => c[0] === "session.create");
             expect(createCall).toBeDefined();
@@ -933,6 +934,7 @@ describe("CopilotClient", () => {
             const session = await client.createSession({
                 onPermissionRequest: approveAll,
             });
+            expect(session).toBeDefined();
 
             const createCall = rpcSpy.mock.calls.find((c) => c[0] === "session.create");
             expect(createCall).toBeDefined();
