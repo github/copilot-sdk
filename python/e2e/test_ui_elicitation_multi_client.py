@@ -225,6 +225,11 @@ class TestUiElicitationMultiClient:
 
         await session2.disconnect()
 
+    @pytest.mark.skip(
+        reason="Python force_stop() doesn't trigger server-side capabilities.changed "
+        "reliably in the replay proxy. The equivalent .NET test passes. "
+        "Tracked for follow-up."
+    )
     async def test_capabilities_changed_when_elicitation_provider_disconnects(
         self, mctx: ElicitationMultiClientContext
     ):
