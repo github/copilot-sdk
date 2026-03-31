@@ -2265,11 +2265,11 @@ class CopilotClient:
                 try:
                     self.stdin.close()
                 except OSError:
-                    pass
+                    pass  # Safe to ignore — socket may already be closed
                 try:
                     self._socket.close()
                 except OSError:
-                    pass
+                    pass  # Safe to ignore — socket may already be closed
 
             def kill(self):
                 self.terminate()

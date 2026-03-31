@@ -698,8 +698,10 @@ public sealed partial class CopilotSession : IAsyncDisposable
             });
             await Rpc.Commands.HandlePendingCommandAsync(requestId);
         }
-        catch (Exception error)
+        catch (Exception error) when (error is not OperationCanceledException)
         {
+            // User handler can throw any exception — report the error back to the server
+            // so the pending command doesn't hang.
             var message = error.Message;
             try
             {
@@ -730,9 +732,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 Content = result.Content
             });
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // Handler failed — attempt to cancel so the request doesn't hang
+            // User handler can throw any exception — attempt to cancel so the request doesn't hang.
             try
             {
                 await Rpc.Ui.HandlePendingElicitationAsync(requestId, new SessionUiHandlePendingElicitationRequestResult
@@ -827,7 +829,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 {
                     string s => s,
                     JsonElement { ValueKind: JsonValueKind.String } je => je.GetString(),
-                    _ => val?.ToString()
+                    _ => val.ToString()
                 };
             }
             return null;
@@ -859,7 +861,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 {
                     string s => s,
                     JsonElement { ValueKind: JsonValueKind.String } je => je.GetString(),
-                    _ => val?.ToString()
+                    _ => val.ToString()
                 };
             }
             return null;
