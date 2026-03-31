@@ -511,7 +511,7 @@ class SessionUiApi:
         if options:
             for key in ("title", "description", "minLength", "maxLength", "format", "default"):
                 if key in options:
-                    field[key] = options[key]  # type: ignore[literal-required]
+                    field[key] = options[key]
 
         rpc_result = await self._session.rpc.ui.elicitation(
             SessionUIElicitationParams(
@@ -1255,7 +1255,7 @@ class CopilotSession:
             if event.data.requested_schema is not None:
                 request["requestedSchema"] = event.data.requested_schema.to_dict()
             if event.data.mode is not None:
-                request["mode"] = event.data.mode.value  # type: ignore[assignment]
+                request["mode"] = event.data.mode.value
             if event.data.elicitation_source is not None:
                 request["elicitationSource"] = event.data.elicitation_source
             if event.data.url is not None:
@@ -1513,7 +1513,7 @@ class CopilotSession:
         Args:
             capabilities: The capabilities object from the create/resume response.
         """
-        self._capabilities = capabilities or {}
+        self._capabilities: SessionCapabilities = capabilities if capabilities is not None else {}
 
     def _register_tools(self, tools: list[Tool] | None) -> None:
         """
