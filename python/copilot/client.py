@@ -2259,17 +2259,26 @@ class CopilotClient:
                 self._socket = sock_obj
 
             def terminate(self):
-                # Close the file wrapper first — makefile() holds its own
-                # reference to the socket, so socket.close() alone won't
-                # release the OS-level resource until the wrapper is closed too.
+                import socket as _socket_mod
+
+                # shutdown() sends TCP FIN to the server (triggering
+                # server-side disconnect detection) and interrupts any
+                # pending blocking reads on other threads immediately.
+                try:
+                    self._socket.shutdown(_socket_mod.SHUT_RDWR)
+                except OSError:
+                    pass  # Safe to ignore — socket may already be closed
+                # Close the file wrapper — makefile() holds its own
+                # reference to the fd, so socket.close() alone won't
+                # release the OS resource until the wrapper is closed too.
                 try:
                     self.stdin.close()
                 except OSError:
-                    pass  # Safe to ignore — socket may already be closed
+                    pass  # Safe to ignore — already closed
                 try:
                     self._socket.close()
                 except OSError:
-                    pass  # Safe to ignore — socket may already be closed
+                    pass  # Safe to ignore — already closed
 
             def kill(self):
                 self.terminate()
