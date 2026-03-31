@@ -4,7 +4,7 @@ Java SDK for programmatic control of GitHub Copilot CLI via JSON-RPC.
 
 > **📦 The Java SDK is maintained in a separate repository: [`github/copilot-sdk-java`](https://github.com/github/copilot-sdk-java)**
 >
-> This folder exists for discoverability. All source code, issues, releases, and documentation live in the dedicated repository.
+> **Note:** This SDK is in technical preview and may change in breaking ways.
 
 [![Build](https://github.com/github/copilot-sdk-java/actions/workflows/build-test.yml/badge.svg)](https://github.com/github/copilot-sdk-java/actions/workflows/build-test.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/com.github/copilot-sdk-java)](https://central.sonatype.com/artifact/com.github/copilot-sdk-java)
