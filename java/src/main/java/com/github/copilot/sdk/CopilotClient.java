@@ -13,6 +13,8 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -150,42 +152,51 @@ public final class CopilotClient implements AutoCloseable {
     private CompletableFuture<Connection> startCore() {
         LOG.fine("Starting Copilot client");
 
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                JsonRpcClient rpc;
-                Process process = null;
+        Executor exec = options.getExecutor();
+        try {
+            return exec != null
+                    ? CompletableFuture.supplyAsync(this::startCoreBody, exec)
+                    : CompletableFuture.supplyAsync(this::startCoreBody);
+        } catch (RejectedExecutionException e) {
+            return CompletableFuture.failedFuture(e);
+        }
+    }
 
-                if (optionsHost != null && optionsPort != null) {
-                    // External server (TCP)
-                    rpc = serverManager.connectToServer(null, optionsHost, optionsPort);
-                } else {
-                    // Child process (stdio or TCP)
-                    CliServerManager.ProcessInfo processInfo = serverManager.startCliServer();
-                    process = processInfo.process();
-                    rpc = serverManager.connectToServer(process, processInfo.port() != null ? "localhost" : null,
-                            processInfo.port());
-                }
+    private Connection startCoreBody() {
+        try {
+            JsonRpcClient rpc;
+            Process process = null;
 
-                Connection connection = new Connection(rpc, process);
-
-                // Register handlers for server-to-client calls
-                RpcHandlerDispatcher dispatcher = new RpcHandlerDispatcher(sessions, lifecycleManager::dispatch);
-                dispatcher.registerHandlers(rpc);
-
-                // Verify protocol version
-                verifyProtocolVersion(connection);
-
-                LOG.info("Copilot client connected");
-                return connection;
-            } catch (Exception e) {
-                String stderr = serverManager.getStderrOutput();
-                if (!stderr.isEmpty()) {
-                    throw new CompletionException(
-                            new IOException("CLI process exited unexpectedly. stderr: " + stderr, e));
-                }
-                throw new CompletionException(e);
+            if (optionsHost != null && optionsPort != null) {
+                // External server (TCP)
+                rpc = serverManager.connectToServer(null, optionsHost, optionsPort);
+            } else {
+                // Child process (stdio or TCP)
+                CliServerManager.ProcessInfo processInfo = serverManager.startCliServer();
+                process = processInfo.process();
+                rpc = serverManager.connectToServer(process, processInfo.port() != null ? "localhost" : null,
+                        processInfo.port());
             }
-        });
+
+            Connection connection = new Connection(rpc, process);
+
+            // Register handlers for server-to-client calls
+            RpcHandlerDispatcher dispatcher = new RpcHandlerDispatcher(sessions, lifecycleManager::dispatch,
+                    options.getExecutor());
+            dispatcher.registerHandlers(rpc);
+
+            // Verify protocol version
+            verifyProtocolVersion(connection);
+
+            LOG.info("Copilot client connected");
+            return connection;
+        } catch (Exception e) {
+            String stderr = serverManager.getStderrOutput();
+            if (!stderr.isEmpty()) {
+                throw new CompletionException(new IOException("CLI process exited unexpectedly. stderr: " + stderr, e));
+            }
+            throw new CompletionException(e);
+        }
     }
 
     private static final int MIN_PROTOCOL_VERSION = 2;
@@ -228,15 +239,27 @@ public final class CopilotClient implements AutoCloseable {
      */
     public CompletableFuture<Void> stop() {
         var closeFutures = new ArrayList<CompletableFuture<Void>>();
+        Executor exec = options.getExecutor();
 
         for (CopilotSession session : new ArrayList<>(sessions.values())) {
-            closeFutures.add(CompletableFuture.runAsync(() -> {
+            Runnable closeTask = () -> {
                 try {
                     session.close();
                 } catch (Exception e) {
                     LOG.log(Level.WARNING, "Error closing session " + session.getSessionId(), e);
                 }
-            }));
+            };
+            CompletableFuture<Void> future;
+            try {
+                future = exec != null
+                        ? CompletableFuture.runAsync(closeTask, exec)
+                        : CompletableFuture.runAsync(closeTask);
+            } catch (RejectedExecutionException e) {
+                LOG.log(Level.WARNING, "Executor rejected session close task; closing inline", e);
+                closeTask.run();
+                future = CompletableFuture.completedFuture(null);
+            }
+            closeFutures.add(future);
         }
         sessions.clear();
 
@@ -329,6 +352,9 @@ public final class CopilotClient implements AutoCloseable {
                     : java.util.UUID.randomUUID().toString();
 
             var session = new CopilotSession(sessionId, connection.rpc);
+            if (options.getExecutor() != null) {
+                session.setExecutor(options.getExecutor());
+            }
             SessionRequestBuilder.configureSession(session, config);
             sessions.put(sessionId, session);
 
@@ -399,6 +425,9 @@ public final class CopilotClient implements AutoCloseable {
         return ensureConnected().thenCompose(connection -> {
             // Register the session before the RPC call to avoid missing early events.
             var session = new CopilotSession(sessionId, connection.rpc);
+            if (options.getExecutor() != null) {
+                session.setExecutor(options.getExecutor());
+            }
             SessionRequestBuilder.configureSession(session, config);
             sessions.put(sessionId, session);
 

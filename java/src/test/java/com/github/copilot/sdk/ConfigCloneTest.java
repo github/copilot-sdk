@@ -49,10 +49,16 @@ class ConfigCloneTest {
         original.setCliArgs(args);
 
         CopilotClientOptions cloned = original.clone();
-        cloned.getCliArgs()[0] = "--changed";
+
+        // Mutate the source array after set — should not affect original or clone
+        args[0] = "--changed";
 
         assertEquals("--flag1", original.getCliArgs()[0]);
-        assertEquals("--changed", cloned.getCliArgs()[0]);
+        assertEquals("--flag1", cloned.getCliArgs()[0]);
+
+        // getCliArgs() returns a copy, so mutating it should not affect internals
+        original.getCliArgs()[0] = "--mutated";
+        assertEquals("--flag1", original.getCliArgs()[0]);
     }
 
     @Test
@@ -64,12 +70,15 @@ class ConfigCloneTest {
 
         CopilotClientOptions cloned = original.clone();
 
-        // Mutate the original environment map to test independence
+        // Mutate the source map after set — should not affect original or clone
         env.put("KEY2", "value2");
 
-        // The cloned config should be unaffected by mutations to the original map
+        assertEquals(1, original.getEnvironment().size());
         assertEquals(1, cloned.getEnvironment().size());
-        assertEquals(2, original.getEnvironment().size());
+
+        // getEnvironment() returns a copy, so mutating it should not affect internals
+        original.getEnvironment().put("KEY3", "value3");
+        assertEquals(1, original.getEnvironment().size());
     }
 
     @Test
