@@ -264,13 +264,16 @@ public class CopilotClientOptions {
      * {@code CompletableFuture} combinators instead of the default
      * {@code ForkJoinPool.commonPool()}. This allows callers to isolate SDK work
      * onto a dedicated thread pool or integrate with container-managed threading.
+     * <p>
+     * Passing {@code null} reverts to the default {@code ForkJoinPool.commonPool()}
+     * behavior.
      *
      * @param executor
-     *            the executor to use
+     *            the executor to use, or {@code null} for the default
      * @return this options instance for fluent chaining
      */
     public CopilotClientOptions setExecutor(Executor executor) {
-        this.executor = Objects.requireNonNull(executor, "executor must not be null");
+        this.executor = executor;
         return this;
     }
 
