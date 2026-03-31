@@ -2259,6 +2259,13 @@ class CopilotClient:
                 self._socket = sock_obj
 
             def terminate(self):
+                # Close the file wrapper first — makefile() holds its own
+                # reference to the socket, so socket.close() alone won't
+                # release the OS-level resource until the wrapper is closed too.
+                try:
+                    self.stdin.close()
+                except OSError:
+                    pass
                 try:
                     self._socket.close()
                 except OSError:
