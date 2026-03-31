@@ -155,12 +155,10 @@ async def mctx(request):
 
 @pytest_asyncio.fixture(autouse=True, loop_scope="module")
 async def configure_cmd_test(request, mctx):
-    module_name = request.module.__name__.split(".")[-1]
-    test_file = module_name[5:] if module_name.startswith("test_") else module_name
     test_name = request.node.name
     if test_name.startswith("test_"):
         test_name = test_name[5:]
-    await mctx.configure_for_test(test_file, test_name)
+    await mctx.configure_for_test("multi_client", test_name)
     yield
 
 
