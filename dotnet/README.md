@@ -488,7 +488,7 @@ var safeLookup = AIFunctionFactory.Create(
     });
 ```
 
-### Commands
+## Commands
 
 Register slash commands so that users of the CLI's TUI can invoke custom actions via `/commandName`. Each command has a `Name`, optional `Description`, and a `Handler` called when the user executes it.
 
@@ -517,7 +517,7 @@ When the user types `/deploy staging` in the CLI, the SDK receives a `command.ex
 
 Commands are sent to the CLI on both `CreateSessionAsync` and `ResumeSessionAsync`, so you can update the command set when resuming.
 
-### UI Elicitation
+## UI Elicitation
 
 When the session has elicitation support — either from the CLI's TUI or from another client that registered an `OnElicitationRequest` handler (see [Elicitation Requests](#elicitation-requests)) — the SDK can request interactive form dialogs from the user. The `session.Ui` object provides convenience methods built on a single generic elicitation RPC.
 
