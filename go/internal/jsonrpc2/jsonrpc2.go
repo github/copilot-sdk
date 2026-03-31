@@ -314,7 +314,7 @@ func (c *Client) readLoop() {
 		// Read the next frame.
 		data, err := c.reader.Read()
 		if err != nil {
-			if !(errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, os.ErrClosed)) && c.running.Load() {
+			if !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrClosedPipe) && !errors.Is(err, os.ErrClosed) && c.running.Load() {
 				fmt.Printf("Error reading message: %v\n", err)
 			}
 			return
