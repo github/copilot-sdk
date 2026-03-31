@@ -507,9 +507,6 @@ func TestSession_ElicitationRequestSchema(t *testing.T) {
 			requestedSchema["required"] = required
 		}
 
-		if requestedSchema == nil {
-			t.Fatal("Expected schema map, got nil")
-		}
 		if requestedSchema["type"] != "object" {
 			t.Errorf("Expected schema type 'object', got %v", requestedSchema["type"])
 		}
