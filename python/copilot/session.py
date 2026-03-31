@@ -22,15 +22,25 @@ from typing import Any, Literal, NotRequired, Required, TypedDict, cast
 from ._jsonrpc import JsonRpcError, ProcessExitedError
 from ._telemetry import get_trace_context, trace_context
 from .generated.rpc import (
+    Action,
     Kind,
     Level,
+    RequestedSchema,
+    RequestedSchemaType,
+    Property,
+    PropertyType,
     ResultResult,
+    SessionCommandsHandlePendingCommandParams,
     SessionLogParams,
     SessionModelSwitchToParams,
     SessionPermissionsHandlePendingPermissionRequestParams,
     SessionPermissionsHandlePendingPermissionRequestParamsResult,
     SessionRpc,
     SessionToolsHandlePendingToolCallParams,
+    SessionUIElicitationParams,
+    SessionUIElicitationResult,
+    SessionUIHandlePendingElicitationParams,
+    SessionUIHandlePendingElicitationParamsResult,
 )
 from .generated.session_events import (
     PermissionRequest,
@@ -249,6 +259,280 @@ UserInputHandler = Callable[
     [UserInputRequest, dict[str, str]],
     UserInputResponse | Awaitable[UserInputResponse],
 ]
+
+# ============================================================================
+# Command Types
+# ============================================================================
+
+
+@dataclass
+class CommandContext:
+    """Context passed to a command handler when a command is executed."""
+
+    session_id: str
+    """Session ID where the command was invoked."""
+    command: str
+    """The full command text (e.g. ``"/deploy production"``)."""
+    command_name: str
+    """Command name without leading ``/``."""
+    args: str
+    """Raw argument string after the command name."""
+
+
+CommandHandler = Callable[[CommandContext], Awaitable[None] | None]
+"""Handler invoked when a registered command is executed by a user."""
+
+
+@dataclass
+class CommandDefinition:
+    """Definition of a slash command registered with the session.
+
+    When the CLI is running with a TUI, registered commands appear as
+    ``/commandName`` for the user to invoke.
+    """
+
+    name: str
+    """Command name (without leading ``/``)."""
+    handler: CommandHandler
+    """Handler invoked when the command is executed."""
+    description: str | None = None
+    """Human-readable description shown in command completion UI."""
+
+
+# ============================================================================
+# Session Capabilities
+# ============================================================================
+
+
+class SessionUiCapabilities(TypedDict, total=False):
+    """UI capabilities reported by the CLI host."""
+
+    elicitation: bool
+    """Whether the host supports interactive elicitation dialogs."""
+
+
+class SessionCapabilities(TypedDict, total=False):
+    """Capabilities reported by the CLI host for this session."""
+
+    ui: SessionUiCapabilities
+
+
+# ============================================================================
+# Elicitation Types (client → server)
+# ============================================================================
+
+ElicitationFieldValue = str | float | bool | list[str]
+"""Possible value types in elicitation form content."""
+
+
+class ElicitationResult(TypedDict, total=False):
+    """Result returned from an elicitation request."""
+
+    action: Required[Literal["accept", "decline", "cancel"]]
+    """User action: ``"accept"`` (submitted), ``"decline"`` (rejected), or ``"cancel"`` (dismissed)."""
+    content: dict[str, ElicitationFieldValue]
+    """Form values submitted by the user (present when action is ``"accept"``)."""
+
+
+class ElicitationParams(TypedDict):
+    """Parameters for a raw elicitation request."""
+
+    message: str
+    """Message describing what information is needed from the user."""
+    requestedSchema: dict[str, Any]
+    """JSON Schema describing the form fields to present."""
+
+
+class InputOptions(TypedDict, total=False):
+    """Options for the ``input()`` convenience method."""
+
+    title: str
+    """Title label for the input field."""
+    description: str
+    """Descriptive text shown below the field."""
+    minLength: int
+    """Minimum text length."""
+    maxLength: int
+    """Maximum text length."""
+    format: str
+    """Input format hint (e.g. ``"email"``, ``"uri"``, ``"date"``)."""
+    default: str
+    """Default value for the input field."""
+
+
+# ============================================================================
+# Elicitation Types (server → client callback)
+# ============================================================================
+
+
+class ElicitationRequest(TypedDict, total=False):
+    """Request payload passed to an elicitation handler callback."""
+
+    message: Required[str]
+    """Message describing what information is needed from the user."""
+    requestedSchema: dict[str, Any]
+    """JSON Schema describing the form fields to present."""
+    mode: Literal["form", "url"]
+    """Elicitation mode: ``"form"`` for structured input, ``"url"`` for browser redirect."""
+    elicitationSource: str
+    """The source that initiated the request (e.g. MCP server name)."""
+    url: str
+    """URL to open in the browser (when mode is ``"url"``)."""
+
+
+ElicitationHandler = Callable[
+    [ElicitationRequest, dict[str, str]],
+    ElicitationResult | Awaitable[ElicitationResult],
+]
+"""Handler invoked when the server dispatches an elicitation request to this client."""
+
+
+# ============================================================================
+# Session UI API
+# ============================================================================
+
+
+class SessionUiApi:
+    """Interactive UI methods for showing dialogs to the user.
+
+    Only available when the CLI host supports elicitation
+    (``session.capabilities["ui"]["elicitation"] is True``).
+
+    Obtained via :attr:`CopilotSession.ui`.
+    """
+
+    def __init__(self, session: CopilotSession) -> None:
+        self._session = session
+
+    async def elicitation(self, params: ElicitationParams) -> ElicitationResult:
+        """Shows a generic elicitation dialog with a custom schema.
+
+        Args:
+            params: Elicitation parameters including message and requestedSchema.
+
+        Returns:
+            The user's response (action + optional content).
+
+        Raises:
+            RuntimeError: If the host does not support elicitation.
+        """
+        self._session._assert_elicitation()
+        rpc_result = await self._session.rpc.ui.elicitation(
+            SessionUIElicitationParams(
+                message=params["message"],
+                requested_schema=RequestedSchema.from_dict(params["requestedSchema"]),
+            )
+        )
+        result: ElicitationResult = {"action": rpc_result.action.value}  # type: ignore[typeddict-item]
+        if rpc_result.content is not None:
+            result["content"] = rpc_result.content
+        return result
+
+    async def confirm(self, message: str) -> bool:
+        """Shows a confirmation dialog and returns the user's boolean answer.
+
+        Args:
+            message: The question to ask the user.
+
+        Returns:
+            ``True`` if the user accepted, ``False`` otherwise.
+
+        Raises:
+            RuntimeError: If the host does not support elicitation.
+        """
+        self._session._assert_elicitation()
+        rpc_result = await self._session.rpc.ui.elicitation(
+            SessionUIElicitationParams(
+                message=message,
+                requested_schema=RequestedSchema(
+                    type=RequestedSchemaType.OBJECT,
+                    properties={
+                        "confirmed": Property(type=PropertyType.BOOLEAN, default=True),
+                    },
+                    required=["confirmed"],
+                ),
+            )
+        )
+        return (
+            rpc_result.action == Action.ACCEPT
+            and rpc_result.content is not None
+            and rpc_result.content.get("confirmed") is True
+        )
+
+    async def select(self, message: str, options: list[str]) -> str | None:
+        """Shows a selection dialog with a list of options.
+
+        Args:
+            message: Instruction to show the user.
+            options: List of choices the user can pick from.
+
+        Returns:
+            The selected string, or ``None`` if the user declined/cancelled.
+
+        Raises:
+            RuntimeError: If the host does not support elicitation.
+        """
+        self._session._assert_elicitation()
+        rpc_result = await self._session.rpc.ui.elicitation(
+            SessionUIElicitationParams(
+                message=message,
+                requested_schema=RequestedSchema(
+                    type=RequestedSchemaType.OBJECT,
+                    properties={
+                        "selection": Property(type=PropertyType.STRING, enum=options),
+                    },
+                    required=["selection"],
+                ),
+            )
+        )
+        if (
+            rpc_result.action == Action.ACCEPT
+            and rpc_result.content is not None
+            and rpc_result.content.get("selection") is not None
+        ):
+            return str(rpc_result.content["selection"])
+        return None
+
+    async def input(self, message: str, options: InputOptions | None = None) -> str | None:
+        """Shows a text input dialog.
+
+        Args:
+            message: Instruction to show the user.
+            options: Optional constraints for the input field.
+
+        Returns:
+            The entered text, or ``None`` if the user declined/cancelled.
+
+        Raises:
+            RuntimeError: If the host does not support elicitation.
+        """
+        self._session._assert_elicitation()
+        field: dict[str, Any] = {"type": "string"}
+        if options:
+            for key in ("title", "description", "minLength", "maxLength", "format", "default"):
+                if key in options:
+                    field[key] = options[key]  # type: ignore[literal-required]
+
+        rpc_result = await self._session.rpc.ui.elicitation(
+            SessionUIElicitationParams(
+                message=message,
+                requested_schema=RequestedSchema.from_dict(
+                    {
+                        "type": "object",
+                        "properties": {"value": field},
+                        "required": ["value"],
+                    }
+                ),
+            )
+        )
+        if (
+            rpc_result.action == Action.ACCEPT
+            and rpc_result.content is not None
+            and rpc_result.content.get("value") is not None
+        ):
+            return str(rpc_result.content["value"])
+        return None
+
 
 # ============================================================================
 # Hook Types
@@ -563,6 +847,12 @@ class SessionConfig(TypedDict, total=False):
     # are delivered. Equivalent to calling session.on(handler) immediately
     # after creation, but executes earlier in the lifecycle so no events are missed.
     on_event: Callable[[SessionEvent], None]
+    # Slash commands to register with the session.
+    # When the CLI has a TUI, each command appears as /name for the user to invoke.
+    commands: list[CommandDefinition]
+    # Handler for elicitation requests from the server.
+    # When provided, the server calls back to this client for form-based UI dialogs.
+    on_elicitation_request: ElicitationHandler
 
 
 class ResumeSessionConfig(TypedDict, total=False):
@@ -612,6 +902,10 @@ class ResumeSessionConfig(TypedDict, total=False):
     # Optional event handler registered before the session.resume RPC is issued,
     # ensuring early events are delivered. See SessionConfig.on_event.
     on_event: Callable[[SessionEvent], None]
+    # Slash commands to register with the session.
+    commands: list[CommandDefinition]
+    # Handler for elicitation requests from the server.
+    on_elicitation_request: ElicitationHandler
 
 
 SessionEventHandler = Callable[[SessionEvent], None]
@@ -676,6 +970,11 @@ class CopilotSession:
         self._hooks_lock = threading.Lock()
         self._transform_callbacks: dict[str, SectionTransformFn] | None = None
         self._transform_callbacks_lock = threading.Lock()
+        self._command_handlers: dict[str, CommandHandler] = {}
+        self._command_handlers_lock = threading.Lock()
+        self._elicitation_handler: ElicitationHandler | None = None
+        self._elicitation_handler_lock = threading.Lock()
+        self._capabilities: SessionCapabilities = {}
         self._rpc: SessionRpc | None = None
         self._destroyed = False
 
@@ -685,6 +984,28 @@ class CopilotSession:
         if self._rpc is None:
             self._rpc = SessionRpc(self._client, self.session_id)
         return self._rpc
+
+    @property
+    def capabilities(self) -> SessionCapabilities:
+        """Host capabilities reported when the session was created or resumed.
+
+        Use this to check feature support before calling capability-gated APIs.
+        """
+        return self._capabilities
+
+    @property
+    def ui(self) -> SessionUiApi:
+        """Interactive UI methods for showing dialogs to the user.
+
+        Only available when the CLI host supports elicitation
+        (``session.capabilities.get("ui", {}).get("elicitation") is True``).
+
+        Example:
+            >>> ui_caps = session.capabilities.get("ui", {})
+            >>> if ui_caps.get("elicitation"):
+            ...     ok = await session.ui.confirm("Deploy to production?")
+        """
+        return SessionUiApi(self)
 
     @functools.cached_property
     def workspace_path(self) -> pathlib.Path | None:
@@ -909,6 +1230,49 @@ class CopilotSession:
                 self._execute_permission_and_respond(request_id, permission_request, perm_handler)
             )
 
+        elif event.type == SessionEventType.COMMAND_EXECUTE:
+            request_id = event.data.request_id
+            command_name = event.data.command_name
+            command = event.data.command
+            args = event.data.args
+            if not request_id or not command_name:
+                return
+            asyncio.ensure_future(
+                self._execute_command_and_respond(
+                    request_id, command_name, command or "", args or ""
+                )
+            )
+
+        elif event.type == SessionEventType.ELICITATION_REQUESTED:
+            with self._elicitation_handler_lock:
+                handler = self._elicitation_handler
+            if not handler:
+                return
+            request_id = event.data.request_id
+            if not request_id:
+                return
+            request: ElicitationRequest = {"message": event.data.message or ""}
+            if event.data.requested_schema is not None:
+                request["requestedSchema"] = event.data.requested_schema.to_dict()
+            if event.data.mode is not None:
+                request["mode"] = event.data.mode.value  # type: ignore[assignment]
+            if event.data.elicitation_source is not None:
+                request["elicitationSource"] = event.data.elicitation_source
+            if event.data.url is not None:
+                request["url"] = event.data.url
+            asyncio.ensure_future(
+                self._handle_elicitation_request(request, request_id)
+            )
+
+        elif event.type == SessionEventType.CAPABILITIES_CHANGED:
+            cap: SessionCapabilities = {}
+            if event.data.ui is not None:
+                ui_cap: SessionUiCapabilities = {}
+                if event.data.ui.elicitation is not None:
+                    ui_cap["elicitation"] = event.data.ui.elicitation
+                cap["ui"] = ui_cap
+            self._capabilities = {**self._capabilities, **cap}
+
     async def _execute_tool_and_respond(
         self,
         request_id: str,
@@ -1020,6 +1384,138 @@ class CopilotSession:
                 )
             except (JsonRpcError, ProcessExitedError, OSError):
                 pass  # Connection lost or RPC error — nothing we can do
+
+    async def _execute_command_and_respond(
+        self,
+        request_id: str,
+        command_name: str,
+        command: str,
+        args: str,
+    ) -> None:
+        """Execute a command handler and send the result back via RPC."""
+        with self._command_handlers_lock:
+            handler = self._command_handlers.get(command_name)
+
+        if not handler:
+            try:
+                await self.rpc.commands.handle_pending_command(
+                    SessionCommandsHandlePendingCommandParams(
+                        request_id=request_id,
+                        error=f"Unknown command: {command_name}",
+                    )
+                )
+            except (JsonRpcError, ProcessExitedError, OSError):
+                pass
+            return
+
+        try:
+            ctx = CommandContext(
+                session_id=self.session_id,
+                command=command,
+                command_name=command_name,
+                args=args,
+            )
+            result = handler(ctx)
+            if inspect.isawaitable(result):
+                await result
+            await self.rpc.commands.handle_pending_command(
+                SessionCommandsHandlePendingCommandParams(request_id=request_id)
+            )
+        except Exception as exc:
+            message = str(exc)
+            try:
+                await self.rpc.commands.handle_pending_command(
+                    SessionCommandsHandlePendingCommandParams(
+                        request_id=request_id,
+                        error=message,
+                    )
+                )
+            except (JsonRpcError, ProcessExitedError, OSError):
+                pass
+
+    async def _handle_elicitation_request(
+        self,
+        request: ElicitationRequest,
+        request_id: str,
+    ) -> None:
+        """Handle an elicitation.requested broadcast event.
+
+        Invokes the registered handler and responds via handlePendingElicitation RPC.
+        Auto-cancels on error so the server doesn't hang.
+        """
+        with self._elicitation_handler_lock:
+            handler = self._elicitation_handler
+        if not handler:
+            return
+        try:
+            result = handler(request, {"session_id": self.session_id})
+            if inspect.isawaitable(result):
+                result = await result
+            result = cast(ElicitationResult, result)
+            action_val = result.get("action", "cancel")
+            rpc_result = SessionUIHandlePendingElicitationParamsResult(
+                action=Action(action_val),
+                content=result.get("content"),
+            )
+            await self.rpc.ui.handle_pending_elicitation(
+                SessionUIHandlePendingElicitationParams(
+                    request_id=request_id,
+                    result=rpc_result,
+                )
+            )
+        except Exception:
+            # Handler failed — attempt to cancel so the request doesn't hang
+            try:
+                await self.rpc.ui.handle_pending_elicitation(
+                    SessionUIHandlePendingElicitationParams(
+                        request_id=request_id,
+                        result=SessionUIHandlePendingElicitationParamsResult(
+                            action=Action.CANCEL,
+                        ),
+                    )
+                )
+            except (JsonRpcError, ProcessExitedError, OSError):
+                pass  # Connection lost or RPC error — nothing we can do
+
+    def _assert_elicitation(self) -> None:
+        """Raises if the host does not support elicitation."""
+        ui_caps = self._capabilities.get("ui", {})
+        if not ui_caps.get("elicitation"):
+            raise RuntimeError(
+                "Elicitation is not supported by the host. "
+                "Check session.capabilities before calling UI methods."
+            )
+
+    def _register_commands(self, commands: list[CommandDefinition] | None) -> None:
+        """Register command handlers for this session.
+
+        Args:
+            commands: A list of CommandDefinition objects, or None to clear all commands.
+        """
+        with self._command_handlers_lock:
+            self._command_handlers.clear()
+            if not commands:
+                return
+            for cmd in commands:
+                self._command_handlers[cmd.name] = cmd.handler
+
+    def _register_elicitation_handler(self, handler: ElicitationHandler | None) -> None:
+        """Register the elicitation handler for this session.
+
+        Args:
+            handler: The handler to invoke when the server dispatches an
+                elicitation request, or None to remove the handler.
+        """
+        with self._elicitation_handler_lock:
+            self._elicitation_handler = handler
+
+    def _set_capabilities(self, capabilities: SessionCapabilities | None) -> None:
+        """Set the host capabilities for this session.
+
+        Args:
+            capabilities: The capabilities object from the create/resume response.
+        """
+        self._capabilities = capabilities or {}
 
     def _register_tools(self, tools: list[Tool] | None) -> None:
         """
@@ -1314,6 +1810,10 @@ class CopilotSession:
                 self._tool_handlers.clear()
             with self._permission_handler_lock:
                 self._permission_handler = None
+            with self._command_handlers_lock:
+                self._command_handlers.clear()
+            with self._elicitation_handler_lock:
+                self._elicitation_handler = None
 
     async def destroy(self) -> None:
         """

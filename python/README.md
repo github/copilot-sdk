@@ -700,6 +700,146 @@ async with await client.create_session(
 - `on_session_end` - Cleanup or logging when session ends.
 - `on_error_occurred` - Handle errors with retry/skip/abort strategies.
 
+## Commands
+
+Register slash commands that users can invoke from the CLI TUI. When the user types `/commandName`, the SDK dispatches the event to your handler.
+
+```python
+from copilot.session import CommandDefinition, CommandContext, PermissionHandler
+
+async def handle_deploy(ctx: CommandContext) -> None:
+    print(f"Deploying with args: {ctx.args}")
+    # ctx.session_id  — the session where the command was invoked
+    # ctx.command      — full command text (e.g. "/deploy production")
+    # ctx.command_name — command name without leading / (e.g. "deploy")
+    # ctx.args         — raw argument string (e.g. "production")
+
+async with await client.create_session(
+    on_permission_request=PermissionHandler.approve_all,
+    commands=[
+        CommandDefinition(
+            name="deploy",
+            description="Deploy the app",
+            handler=handle_deploy,
+        ),
+        CommandDefinition(
+            name="rollback",
+            description="Rollback to previous version",
+            handler=lambda ctx: print("Rolling back..."),
+        ),
+    ],
+) as session:
+    ...
+```
+
+Commands can also be provided when resuming a session via `resume_session(commands=[...])`.
+
+## UI Elicitation
+
+The `session.ui` API provides convenience methods for asking the user questions through interactive dialogs. These methods are only available when the CLI host supports elicitation — check `session.capabilities` before calling.
+
+### Capability Check
+
+```python
+ui_caps = session.capabilities.get("ui", {})
+if ui_caps.get("elicitation"):
+    # Safe to call session.ui methods
+    ...
+```
+
+### Confirm
+
+Shows a yes/no confirmation dialog:
+
+```python
+ok = await session.ui.confirm("Deploy to production?")
+if ok:
+    print("Deploying...")
+```
+
+### Select
+
+Shows a selection dialog with a list of options:
+
+```python
+env = await session.ui.select("Choose environment:", ["staging", "production", "dev"])
+if env:
+    print(f"Selected: {env}")
+```
+
+### Input
+
+Shows a text input dialog with optional constraints:
+
+```python
+name = await session.ui.input("Enter your name:")
+
+# With options
+email = await session.ui.input("Enter email:", {
+    "title": "Email Address",
+    "description": "We'll use this for notifications",
+    "format": "email",
+})
+```
+
+### Custom Elicitation
+
+For full control, use the `elicitation()` method with a custom JSON schema:
+
+```python
+result = await session.ui.elicitation({
+    "message": "Configure deployment",
+    "requestedSchema": {
+        "type": "object",
+        "properties": {
+            "region": {"type": "string", "enum": ["us-east-1", "eu-west-1"]},
+            "replicas": {"type": "number", "minimum": 1, "maximum": 10},
+        },
+        "required": ["region"],
+    },
+})
+
+if result["action"] == "accept":
+    region = result["content"]["region"]
+    replicas = result["content"].get("replicas", 1)
+```
+
+## Elicitation Request Handler
+
+When the server (or an MCP tool) needs to ask the end-user a question, it sends an `elicitation.requested` event. Provide an `on_elicitation_request` handler to respond:
+
+```python
+from copilot.session import ElicitationRequest, ElicitationResult, PermissionHandler
+
+async def handle_elicitation(
+    request: ElicitationRequest, invocation: dict[str, str]
+) -> ElicitationResult:
+    # request["message"]         — what the server is asking
+    # request.get("requestedSchema") — optional JSON schema for form fields
+    # request.get("mode")        — "form" or "url"
+    # invocation["session_id"]   — the session ID
+
+    print(f"Server asks: {request['message']}")
+
+    # Return the user's response
+    return {
+        "action": "accept",  # or "decline" or "cancel"
+        "content": {"answer": "yes"},
+    }
+
+async with await client.create_session(
+    on_permission_request=PermissionHandler.approve_all,
+    on_elicitation_request=handle_elicitation,
+) as session:
+    ...
+```
+
+When `on_elicitation_request` is provided, the SDK automatically:
+- Sends `requestElicitation: true` to the server during session creation/resumption
+- Reports the `elicitation` capability on the session
+- Dispatches `elicitation.requested` events to your handler
+- Auto-cancels if your handler throws an error (so the server doesn't hang)
+
 ## Requirements
 
 - Python 3.11+

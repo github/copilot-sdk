@@ -674,3 +674,175 @@ func TestClient_StartStopRace(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestCreateSessionRequest_Commands(t *testing.T) {
+	t.Run("forwards commands in session.create RPC", func(t *testing.T) {
+		req := createSessionRequest{
+			Commands: []wireCommand{
+				{Name: "deploy", Description: "Deploy the app"},
+				{Name: "rollback", Description: "Rollback last deploy"},
+			},
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		cmds, ok := m["commands"].([]any)
+		if !ok {
+			t.Fatalf("Expected commands to be an array, got %T", m["commands"])
+		}
+		if len(cmds) != 2 {
+			t.Fatalf("Expected 2 commands, got %d", len(cmds))
+		}
+		cmd0 := cmds[0].(map[string]any)
+		if cmd0["name"] != "deploy" {
+			t.Errorf("Expected first command name 'deploy', got %v", cmd0["name"])
+		}
+		if cmd0["description"] != "Deploy the app" {
+			t.Errorf("Expected first command description 'Deploy the app', got %v", cmd0["description"])
+		}
+	})
+
+	t.Run("omits commands from JSON when empty", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["commands"]; ok {
+			t.Error("Expected commands to be omitted when empty")
+		}
+	})
+}
+
+func TestResumeSessionRequest_Commands(t *testing.T) {
+	t.Run("forwards commands in session.resume RPC", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID: "s1",
+			Commands: []wireCommand{
+				{Name: "deploy", Description: "Deploy the app"},
+			},
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		cmds, ok := m["commands"].([]any)
+		if !ok {
+			t.Fatalf("Expected commands to be an array, got %T", m["commands"])
+		}
+		if len(cmds) != 1 {
+			t.Fatalf("Expected 1 command, got %d", len(cmds))
+		}
+		cmd0 := cmds[0].(map[string]any)
+		if cmd0["name"] != "deploy" {
+			t.Errorf("Expected command name 'deploy', got %v", cmd0["name"])
+		}
+	})
+
+	t.Run("omits commands from JSON when empty", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["commands"]; ok {
+			t.Error("Expected commands to be omitted when empty")
+		}
+	})
+}
+
+func TestCreateSessionRequest_RequestElicitation(t *testing.T) {
+	t.Run("sends requestElicitation flag when OnElicitationRequest is provided", func(t *testing.T) {
+		req := createSessionRequest{
+			RequestElicitation: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["requestElicitation"] != true {
+			t.Errorf("Expected requestElicitation to be true, got %v", m["requestElicitation"])
+		}
+	})
+
+	t.Run("does not send requestElicitation when no handler provided", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["requestElicitation"]; ok {
+			t.Error("Expected requestElicitation to be omitted when not set")
+		}
+	})
+}
+
+func TestResumeSessionRequest_RequestElicitation(t *testing.T) {
+	t.Run("sends requestElicitation flag when OnElicitationRequest is provided", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:          "s1",
+			RequestElicitation: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["requestElicitation"] != true {
+			t.Errorf("Expected requestElicitation to be true, got %v", m["requestElicitation"])
+		}
+	})
+
+	t.Run("does not send requestElicitation when no handler provided", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["requestElicitation"]; ok {
+			t.Error("Expected requestElicitation to be omitted when not set")
+		}
+	})
+}
+
+func TestCreateSessionResponse_Capabilities(t *testing.T) {
+	t.Run("reads capabilities from session.create response", func(t *testing.T) {
+		responseJSON := `{"sessionId":"s1","workspacePath":"/tmp","capabilities":{"ui":{"elicitation":true}}}`
+		var response createSessionResponse
+		if err := json.Unmarshal([]byte(responseJSON), &response); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if response.Capabilities == nil {
+			t.Fatal("Expected capabilities to be non-nil")
+		}
+		if response.Capabilities.UI == nil {
+			t.Fatal("Expected capabilities.UI to be non-nil")
+		}
+		if !response.Capabilities.UI.Elicitation {
+			t.Errorf("Expected capabilities.UI.Elicitation to be true")
+		}
+	})
+
+	t.Run("defaults capabilities when not present", func(t *testing.T) {
+		responseJSON := `{"sessionId":"s1","workspacePath":"/tmp"}`
+		var response createSessionResponse
+		if err := json.Unmarshal([]byte(responseJSON), &response); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if response.Capabilities != nil && response.Capabilities.UI != nil && response.Capabilities.UI.Elicitation {
+			t.Errorf("Expected capabilities.UI.Elicitation to be falsy when not injected")
+		}
+	})
+}

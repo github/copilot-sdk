@@ -11,8 +11,9 @@ import (
 // Returns a cleanup function that closes the channel (stopping the consumer).
 func newTestSession() (*Session, func()) {
 	s := &Session{
-		handlers: make([]sessionHandler, 0),
-		eventCh:  make(chan SessionEvent, 128),
+		handlers:        make([]sessionHandler, 0),
+		commandHandlers: make(map[string]CommandHandler),
+		eventCh:         make(chan SessionEvent, 128),
 	}
 	go s.processEvents()
 	return s, func() { close(s.eventCh) }
@@ -203,4 +204,193 @@ func TestSession_On(t *testing.T) {
 			t.Errorf("Expected 2 events dispatched, got %d", eventCount.Load())
 		}
 	})
+}
+
+func TestSession_CommandRouting(t *testing.T) {
+	t.Run("routes command.execute event to the correct handler", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		var receivedCtx CommandContext
+		session.registerCommands([]CommandDefinition{
+			{
+				Name:        "deploy",
+				Description: "Deploy the app",
+				Handler: func(ctx CommandContext) error {
+					receivedCtx = ctx
+					return nil
+				},
+			},
+			{
+				Name:        "rollback",
+				Description: "Rollback",
+				Handler: func(ctx CommandContext) error {
+					return nil
+				},
+			},
+		})
+
+		// Simulate the dispatch — executeCommandAndRespond will fail on RPC (nil client)
+		// but the handler will still be invoked. We test routing only.
+		_, ok := session.getCommandHandler("deploy")
+		if !ok {
+			t.Fatal("Expected 'deploy' handler to be registered")
+		}
+		_, ok = session.getCommandHandler("rollback")
+		if !ok {
+			t.Fatal("Expected 'rollback' handler to be registered")
+		}
+		_, ok = session.getCommandHandler("nonexistent")
+		if ok {
+			t.Fatal("Expected 'nonexistent' handler to NOT be registered")
+		}
+
+		// Directly invoke handler to verify context is correct
+		handler, _ := session.getCommandHandler("deploy")
+		err := handler(CommandContext{
+			SessionID:   "test-session",
+			Command:     "/deploy production",
+			CommandName: "deploy",
+			Args:        "production",
+		})
+		if err != nil {
+			t.Fatalf("Handler returned error: %v", err)
+		}
+		if receivedCtx.SessionID != "test-session" {
+			t.Errorf("Expected sessionID 'test-session', got %q", receivedCtx.SessionID)
+		}
+		if receivedCtx.CommandName != "deploy" {
+			t.Errorf("Expected commandName 'deploy', got %q", receivedCtx.CommandName)
+		}
+		if receivedCtx.Command != "/deploy production" {
+			t.Errorf("Expected command '/deploy production', got %q", receivedCtx.Command)
+		}
+		if receivedCtx.Args != "production" {
+			t.Errorf("Expected args 'production', got %q", receivedCtx.Args)
+		}
+	})
+
+	t.Run("skips commands with empty name or nil handler", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		session.registerCommands([]CommandDefinition{
+			{Name: "", Handler: func(ctx CommandContext) error { return nil }},
+			{Name: "valid", Handler: nil},
+			{Name: "good", Handler: func(ctx CommandContext) error { return nil }},
+		})
+
+		_, ok := session.getCommandHandler("")
+		if ok {
+			t.Error("Empty name should not be registered")
+		}
+		_, ok = session.getCommandHandler("valid")
+		if ok {
+			t.Error("Nil handler should not be registered")
+		}
+		_, ok = session.getCommandHandler("good")
+		if !ok {
+			t.Error("Expected 'good' handler to be registered")
+		}
+	})
+}
+
+func TestSession_Capabilities(t *testing.T) {
+	t.Run("defaults capabilities when not injected", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		caps := session.Capabilities()
+		if caps.UI != nil {
+			t.Errorf("Expected UI to be nil by default, got %+v", caps.UI)
+		}
+	})
+
+	t.Run("setCapabilities stores and retrieves capabilities", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		session.setCapabilities(&SessionCapabilities{
+			UI: &UICapabilities{Elicitation: true},
+		})
+		caps := session.Capabilities()
+		if caps.UI == nil || !caps.UI.Elicitation {
+			t.Errorf("Expected UI.Elicitation to be true")
+		}
+	})
+
+	t.Run("setCapabilities with nil resets to empty", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		session.setCapabilities(&SessionCapabilities{
+			UI: &UICapabilities{Elicitation: true},
+		})
+		session.setCapabilities(nil)
+		caps := session.Capabilities()
+		if caps.UI != nil {
+			t.Errorf("Expected UI to be nil after reset, got %+v", caps.UI)
+		}
+	})
+}
+
+func TestSession_ElicitationCapabilityGating(t *testing.T) {
+	t.Run("elicitation errors when capability is missing", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		err := session.assertElicitation()
+		if err == nil {
+			t.Fatal("Expected error when elicitation capability is missing")
+		}
+		expected := "elicitation is not supported"
+		if !containsString(err.Error(), expected) {
+			t.Errorf("Expected error to contain %q, got %q", expected, err.Error())
+		}
+	})
+
+	t.Run("elicitation succeeds when capability is present", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		session.setCapabilities(&SessionCapabilities{
+			UI: &UICapabilities{Elicitation: true},
+		})
+		err := session.assertElicitation()
+		if err != nil {
+			t.Errorf("Expected no error when elicitation capability is present, got %v", err)
+		}
+	})
+}
+
+func TestSession_ElicitationHandler(t *testing.T) {
+	t.Run("registerElicitationHandler stores handler", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		if session.getElicitationHandler() != nil {
+			t.Error("Expected nil handler before registration")
+		}
+
+		session.registerElicitationHandler(func(req ElicitationRequest, inv ElicitationInvocation) (ElicitationResult, error) {
+			return ElicitationResult{Action: "accept"}, nil
+		})
+
+		if session.getElicitationHandler() == nil {
+			t.Error("Expected non-nil handler after registration")
+		}
+	})
+}
+
+func containsString(s, substr string) bool {
+	return len(s) >= len(substr) && searchSubstring(s, substr)
+}
+
+func searchSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }

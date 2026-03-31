@@ -7,6 +7,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using GitHub.Copilot.SDK.Rpc;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
@@ -499,6 +500,260 @@ public class UserInputInvocation
 /// Handler for user input requests from the agent.
 /// </summary>
 public delegate Task<UserInputResponse> UserInputHandler(UserInputRequest request, UserInputInvocation invocation);
+
+// ============================================================================
+// Command Handler Types
+// ============================================================================
+
+/// <summary>
+/// Defines a slash-command that users can invoke from the CLI TUI.
+/// </summary>
+public class CommandDefinition
+{
+    /// <summary>
+    /// Command name (without leading <c>/</c>). For example, <c>"deploy"</c>.
+    /// </summary>
+    public required string Name { get; set; }
+
+    /// <summary>
+    /// Human-readable description shown in the command completion UI.
+    /// </summary>
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// Handler invoked when the command is executed.
+    /// </summary>
+    public required CommandHandler Handler { get; set; }
+}
+
+/// <summary>
+/// Context passed to a <see cref="CommandHandler"/> when a command is executed.
+/// </summary>
+public class CommandContext
+{
+    /// <summary>
+    /// Session ID where the command was invoked.
+    /// </summary>
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The full command text (e.g., <c>/deploy production</c>).
+    /// </summary>
+    public string Command { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Command name without leading <c>/</c>.
+    /// </summary>
+    public string CommandName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Raw argument string after the command name.
+    /// </summary>
+    public string Args { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Delegate for handling slash-command executions.
+/// </summary>
+public delegate Task CommandHandler(CommandContext context);
+
+// ============================================================================
+// Elicitation Types (UI — client → server)
+// ============================================================================
+
+/// <summary>
+/// JSON Schema describing the form fields to present for an elicitation dialog.
+/// </summary>
+public class ElicitationSchema
+{
+    /// <summary>
+    /// Schema type indicator (always <c>"object"</c>).
+    /// </summary>
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "object";
+
+    /// <summary>
+    /// Form field definitions, keyed by field name.
+    /// </summary>
+    [JsonPropertyName("properties")]
+    public Dictionary<string, object> Properties { get; set; } = [];
+
+    /// <summary>
+    /// List of required field names.
+    /// </summary>
+    [JsonPropertyName("required")]
+    public List<string>? Required { get; set; }
+}
+
+/// <summary>
+/// Parameters for an elicitation request sent from the SDK to the server.
+/// </summary>
+public class ElicitationParams
+{
+    /// <summary>
+    /// Message describing what information is needed from the user.
+    /// </summary>
+    public required string Message { get; set; }
+
+    /// <summary>
+    /// JSON Schema describing the form fields to present.
+    /// </summary>
+    public required ElicitationSchema RequestedSchema { get; set; }
+}
+
+/// <summary>
+/// Result returned from an elicitation dialog.
+/// </summary>
+public class ElicitationResult
+{
+    /// <summary>
+    /// User action: <c>"accept"</c> (submitted), <c>"decline"</c> (rejected), or <c>"cancel"</c> (dismissed).
+    /// </summary>
+    public SessionUiElicitationResultAction Action { get; set; }
+
+    /// <summary>
+    /// Form values submitted by the user (present when <see cref="Action"/> is <c>Accept</c>).
+    /// </summary>
+    public Dictionary<string, object>? Content { get; set; }
+}
+
+/// <summary>
+/// Options for the <see cref="ISessionUiApi.InputAsync"/> convenience method.
+/// </summary>
+public class InputOptions
+{
+    /// <summary>Title label for the input field.</summary>
+    public string? Title { get; set; }
+
+    /// <summary>Descriptive text shown below the field.</summary>
+    public string? Description { get; set; }
+
+    /// <summary>Minimum character length.</summary>
+    public int? MinLength { get; set; }
+
+    /// <summary>Maximum character length.</summary>
+    public int? MaxLength { get; set; }
+
+    /// <summary>Semantic format hint (e.g., <c>"email"</c>, <c>"uri"</c>, <c>"date"</c>, <c>"date-time"</c>).</summary>
+    public string? Format { get; set; }
+
+    /// <summary>Default value pre-populated in the field.</summary>
+    public string? Default { get; set; }
+}
+
+/// <summary>
+/// Provides UI methods for eliciting information from the user during a session.
+/// </summary>
+public interface ISessionUiApi
+{
+    /// <summary>
+    /// Shows a generic elicitation dialog with a custom schema.
+    /// </summary>
+    /// <param name="elicitationParams">The elicitation parameters including message and schema.</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    /// <returns>The <see cref="ElicitationResult"/> with the user's response.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the host does not support elicitation.</exception>
+    Task<ElicitationResult> ElicitationAsync(ElicitationParams elicitationParams, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Shows a confirmation dialog and returns the user's boolean answer.
+    /// Returns <c>false</c> if the user declines or cancels.
+    /// </summary>
+    /// <param name="message">The message to display.</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    /// <returns><c>true</c> if the user confirmed; otherwise <c>false</c>.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the host does not support elicitation.</exception>
+    Task<bool> ConfirmAsync(string message, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Shows a selection dialog with the given options.
+    /// Returns the selected value, or <c>null</c> if the user declines/cancels.
+    /// </summary>
+    /// <param name="message">The message to display.</param>
+    /// <param name="options">The options to present.</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    /// <returns>The selected string, or <c>null</c> if the user declined/cancelled.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the host does not support elicitation.</exception>
+    Task<string?> SelectAsync(string message, string[] options, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Shows a text input dialog.
+    /// Returns the entered text, or <c>null</c> if the user declines/cancels.
+    /// </summary>
+    /// <param name="message">The message to display.</param>
+    /// <param name="options">Optional input field options.</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    /// <returns>The entered string, or <c>null</c> if the user declined/cancelled.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the host does not support elicitation.</exception>
+    Task<string?> InputAsync(string message, InputOptions? options = null, CancellationToken cancellationToken = default);
+}
+
+// ============================================================================
+// Elicitation Types (server → client callback)
+// ============================================================================
+
+/// <summary>
+/// An elicitation request received from the server.
+/// </summary>
+public class ElicitationRequest
+{
+    /// <summary>Message describing what information is needed from the user.</summary>
+    public string Message { get; set; } = string.Empty;
+
+    /// <summary>JSON Schema describing the form fields to present.</summary>
+    public ElicitationSchema? RequestedSchema { get; set; }
+
+    /// <summary>Elicitation mode: <c>"form"</c> for structured input, <c>"url"</c> for browser redirect.</summary>
+    public string? Mode { get; set; }
+
+    /// <summary>The source that initiated the request (e.g., MCP server name).</summary>
+    public string? ElicitationSource { get; set; }
+
+    /// <summary>URL to open in the user's browser (url mode only).</summary>
+    public string? Url { get; set; }
+}
+
+/// <summary>
+/// Context for an elicitation handler invocation.
+/// </summary>
+public class ElicitationInvocation
+{
+    /// <summary>
+    /// Identifier of the session that triggered the elicitation request.
+    /// </summary>
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Delegate for handling elicitation requests from the server.
+/// </summary>
+public delegate Task<ElicitationResult> ElicitationHandler(ElicitationRequest request, ElicitationInvocation invocation);
+
+// ============================================================================
+// Session Capabilities
+// ============================================================================
+
+/// <summary>
+/// Represents the capabilities reported by the host for a session.
+/// </summary>
+public class SessionCapabilities
+{
+    /// <summary>
+    /// UI-related capabilities.
+    /// </summary>
+    public SessionUiCapabilities? Ui { get; set; }
+}
+
+/// <summary>
+/// UI-specific capability flags for a session.
+/// </summary>
+public class SessionUiCapabilities
+{
+    /// <summary>
+    /// Whether the host supports interactive elicitation dialogs.
+    /// </summary>
+    public bool? Elicitation { get; set; }
+}
 
 // ============================================================================
 // Hook Handler Types
@@ -1319,6 +1574,7 @@ public class SessionConfig
 
         AvailableTools = other.AvailableTools is not null ? [.. other.AvailableTools] : null;
         ClientName = other.ClientName;
+        Commands = other.Commands is not null ? [.. other.Commands] : null;
         ConfigDir = other.ConfigDir;
         CustomAgents = other.CustomAgents is not null ? [.. other.CustomAgents] : null;
         Agent = other.Agent;
@@ -1330,6 +1586,7 @@ public class SessionConfig
             ? new Dictionary<string, object>(other.McpServers, other.McpServers.Comparer)
             : null;
         Model = other.Model;
+        OnElicitationRequest = other.OnElicitationRequest;
         OnEvent = other.OnEvent;
         OnPermissionRequest = other.OnPermissionRequest;
         OnUserInputRequest = other.OnUserInputRequest;
@@ -1404,6 +1661,20 @@ public class SessionConfig
     /// When provided, enables the ask_user tool for the agent to request user input.
     /// </summary>
     public UserInputHandler? OnUserInputRequest { get; set; }
+
+    /// <summary>
+    /// Slash commands registered for this session.
+    /// When the CLI has a TUI, each command appears as <c>/name</c> for the user to invoke.
+    /// The handler is called when the user executes the command.
+    /// </summary>
+    public List<CommandDefinition>? Commands { get; set; }
+
+    /// <summary>
+    /// Handler for elicitation requests from the server or MCP tools.
+    /// When provided, the server will route elicitation requests to this handler
+    /// and report elicitation as a supported capability.
+    /// </summary>
+    public ElicitationHandler? OnElicitationRequest { get; set; }
 
     /// <summary>
     /// Hook handlers for session lifecycle events.
@@ -1503,6 +1774,7 @@ public class ResumeSessionConfig
 
         AvailableTools = other.AvailableTools is not null ? [.. other.AvailableTools] : null;
         ClientName = other.ClientName;
+        Commands = other.Commands is not null ? [.. other.Commands] : null;
         ConfigDir = other.ConfigDir;
         CustomAgents = other.CustomAgents is not null ? [.. other.CustomAgents] : null;
         Agent = other.Agent;
@@ -1515,6 +1787,7 @@ public class ResumeSessionConfig
             ? new Dictionary<string, object>(other.McpServers, other.McpServers.Comparer)
             : null;
         Model = other.Model;
+        OnElicitationRequest = other.OnElicitationRequest;
         OnEvent = other.OnEvent;
         OnPermissionRequest = other.OnPermissionRequest;
         OnUserInputRequest = other.OnUserInputRequest;
@@ -1582,6 +1855,20 @@ public class ResumeSessionConfig
     /// When provided, enables the ask_user tool for the agent to request user input.
     /// </summary>
     public UserInputHandler? OnUserInputRequest { get; set; }
+
+    /// <summary>
+    /// Slash commands registered for this session.
+    /// When the CLI has a TUI, each command appears as <c>/name</c> for the user to invoke.
+    /// The handler is called when the user executes the command.
+    /// </summary>
+    public List<CommandDefinition>? Commands { get; set; }
+
+    /// <summary>
+    /// Handler for elicitation requests from the server or MCP tools.
+    /// When provided, the server will route elicitation requests to this handler
+    /// and report elicitation as a supported capability.
+    /// </summary>
+    public ElicitationHandler? OnElicitationRequest { get; set; }
 
     /// <summary>
     /// Hook handlers for session lifecycle events.

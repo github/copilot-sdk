@@ -488,6 +488,95 @@ var safeLookup = AIFunctionFactory.Create(
     });
 ```
 
+### Commands
+
+Register slash commands so that users of the CLI's TUI can invoke custom actions via `/commandName`. Each command has a `Name`, optional `Description`, and a `Handler` called when the user executes it.
+
+```csharp
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    Model = "gpt-5",
+    OnPermissionRequest = PermissionHandler.ApproveAll,
+    Commands =
+    [
+        new CommandDefinition
+        {
+            Name = "deploy",
+            Description = "Deploy the app to production",
+            Handler = async (context) =>
+            {
+                Console.WriteLine($"Deploying with args: {context.Args}");
+                // Do work here — any thrown error is reported back to the CLI
+            },
+        },
+    ],
+});
+```
+
+When the user types `/deploy staging` in the CLI, the SDK receives a `command.execute` event, routes it to your handler, and automatically responds to the CLI. If the handler throws, the error message is forwarded.
+
+Commands are sent to the CLI on both `CreateSessionAsync` and `ResumeSessionAsync`, so you can update the command set when resuming.
+
+### UI Elicitation
+
+When the session has elicitation support — either from the CLI's TUI or from another client that registered an `OnElicitationRequest` handler (see [Elicitation Requests](#elicitation-requests)) — the SDK can request interactive form dialogs from the user. The `session.Ui` object provides convenience methods built on a single generic elicitation RPC.
+
+> **Capability check:** Elicitation is only available when at least one connected participant advertises support. Always check `session.Capabilities.Ui?.Elicitation` before calling UI methods — this property updates automatically as participants join and leave.
+
+```csharp
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    Model = "gpt-5",
+    OnPermissionRequest = PermissionHandler.ApproveAll,
+});
+
+if (session.Capabilities.Ui?.Elicitation == true)
+{
+    // Confirm dialog — returns boolean
+    bool ok = await session.Ui.ConfirmAsync("Deploy to production?");
+
+    // Selection dialog — returns selected value or null
+    string? env = await session.Ui.SelectAsync("Pick environment",
+        ["production", "staging", "dev"]);
+
+    // Text input — returns string or null
+    string? name = await session.Ui.InputAsync("Project name:", new InputOptions
+    {
+        Title = "Name",
+        MinLength = 1,
+        MaxLength = 50,
+    });
+
+    // Generic elicitation with full schema control
+    ElicitationResult result = await session.Ui.ElicitationAsync(new ElicitationParams
+    {
+        Message = "Configure deployment",
+        RequestedSchema = new ElicitationSchema
+        {
+            Type = "object",
+            Properties = new Dictionary<string, object>
+            {
+                ["region"] = new Dictionary<string, object>
+                {
+                    ["type"] = "string",
+                    ["enum"] = new[] { "us-east", "eu-west" },
+                },
+                ["dryRun"] = new Dictionary<string, object>
+                {
+                    ["type"] = "boolean",
+                    ["default"] = true,
+                },
+            },
+            Required = ["region"],
+        },
+    });
+    // result.Action: Accept, Decline, or Cancel
+    // result.Content: { "region": "us-east", "dryRun": true } (when accepted)
+}
+```
+
+All UI methods throw if elicitation is not supported by the host.
+
 ### System Message Customization
 
 Control the system prompt using `SystemMessage` in session config:
@@ -811,6 +900,49 @@ var session = await client.CreateSessionAsync(new SessionConfig
 - `OnSessionStart` - Run logic when a session starts or resumes.
 - `OnSessionEnd` - Cleanup or logging when session ends.
 - `OnErrorOccurred` - Handle errors with retry/skip/abort strategies.
+
+## Elicitation Requests
+
+Register an `OnElicitationRequest` handler to let your client act as an elicitation provider — presenting form-based UI dialogs on behalf of the agent. When provided, the server notifies your client whenever a tool or MCP server needs structured user input.
+
+```csharp
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    Model = "gpt-5",
+    OnPermissionRequest = PermissionHandler.ApproveAll,
+    OnElicitationRequest = async (request, invocation) =>
+    {
+        // request.Message - Description of what information is needed
+        // request.RequestedSchema - JSON Schema describing the form fields
+        // request.Mode - "form" (structured input) or "url" (browser redirect)
+        // request.ElicitationSource - Origin of the request (e.g. MCP server name)
+
+        Console.WriteLine($"Elicitation from {request.ElicitationSource}: {request.Message}");
+
+        // Present UI to the user and collect their response...
+        return new ElicitationResult
+        {
+            Action = SessionUiElicitationResultAction.Accept,
+            Content = new Dictionary<string, object>
+            {
+                ["region"] = "us-east",
+                ["dryRun"] = true,
+            },
+        };
+    },
+});
+
+// The session now reports elicitation capability
+Console.WriteLine(session.Capabilities.Ui?.Elicitation); // True
+```
+
+When `OnElicitationRequest` is provided, the SDK sends `RequestElicitation = true` during session create/resume, which enables `session.Capabilities.Ui.Elicitation` on the session.
+
+In multi-client scenarios:
+
+- If no connected client was previously providing an elicitation capability, but a new client joins that can, all clients will receive a `capabilities.changed` event to notify them that elicitation is now possible. The SDK automatically updates `session.Capabilities` when these events arrive.
+- Similarly, if the last elicitation provider disconnects, all clients receive a `capabilities.changed` event indicating elicitation is no longer available.
+- The server fans out elicitation requests to **all** connected clients that registered a handler — the first response wins.
 
 ## Error Handling
 

@@ -56,11 +56,13 @@ namespace GitHub.Copilot.SDK;
 public sealed partial class CopilotSession : IAsyncDisposable
 {
     private readonly Dictionary<string, AIFunction> _toolHandlers = [];
+    private readonly Dictionary<string, CommandHandler> _commandHandlers = [];
     private readonly JsonRpc _rpc;
     private readonly ILogger _logger;
 
     private volatile PermissionRequestHandler? _permissionHandler;
     private volatile UserInputHandler? _userInputHandler;
+    private volatile ElicitationHandler? _elicitationHandler;
     private ImmutableArray<SessionEventHandler> _eventHandlers = ImmutableArray<SessionEventHandler>.Empty;
 
     private SessionHooks? _hooks;
@@ -97,6 +99,30 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// or null if infinite sessions are disabled.
     /// </value>
     public string? WorkspacePath { get; internal set; }
+
+    /// <summary>
+    /// Gets the capabilities reported by the host for this session.
+    /// </summary>
+    /// <value>
+    /// A <see cref="SessionCapabilities"/> object describing what the host supports.
+    /// Capabilities are populated from the session create/resume response and updated
+    /// in real time via <c>capabilities.changed</c> events.
+    /// </value>
+    public SessionCapabilities Capabilities { get; private set; } = new();
+
+    /// <summary>
+    /// Gets the UI API for eliciting information from the user during this session.
+    /// </summary>
+    /// <value>
+    /// An <see cref="ISessionUiApi"/> implementation with convenience methods for
+    /// confirm, select, input, and custom elicitation dialogs.
+    /// </value>
+    /// <remarks>
+    /// All methods on this property throw <see cref="InvalidOperationException"/>
+    /// if the host does not report elicitation support via <see cref="Capabilities"/>.
+    /// Check <c>session.Capabilities.Ui?.Elicitation == true</c> before calling.
+    /// </remarks>
+    public ISessionUiApi Ui => new SessionUiApiImpl(this);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CopilotSession"/> class.
@@ -436,6 +462,59 @@ public sealed partial class CopilotSession : IAsyncDisposable
                         await ExecutePermissionAndRespondAsync(data.RequestId, data.PermissionRequest, handler);
                         break;
                     }
+
+                case CommandExecuteEvent cmdEvent:
+                    {
+                        var data = cmdEvent.Data;
+                        if (string.IsNullOrEmpty(data.RequestId))
+                            return;
+
+                        _ = ExecuteCommandAndRespondAsync(data.RequestId, data.CommandName, data.Command, data.Args);
+                        break;
+                    }
+
+                case ElicitationRequestedEvent elicitEvent:
+                    {
+                        var data = elicitEvent.Data;
+                        if (string.IsNullOrEmpty(data.RequestId))
+                            return;
+
+                        if (_elicitationHandler is not null)
+                        {
+                            var schema = data.RequestedSchema is not null
+                                ? new ElicitationSchema
+                                {
+                                    Type = data.RequestedSchema.Type,
+                                    Properties = data.RequestedSchema.Properties,
+                                    Required = data.RequestedSchema.Required?.ToList()
+                                }
+                                : null;
+
+                            _ = HandleElicitationRequestAsync(
+                                new ElicitationRequest
+                                {
+                                    Message = data.Message,
+                                    RequestedSchema = schema,
+                                    Mode = data.Mode?.ToString().ToLowerInvariant(),
+                                    ElicitationSource = data.ElicitationSource,
+                                    Url = data.Url
+                                },
+                                data.RequestId);
+                        }
+                        break;
+                    }
+
+                case CapabilitiesChangedEvent capEvent:
+                    {
+                        var data = capEvent.Data;
+                        Capabilities = new SessionCapabilities
+                        {
+                            Ui = data.Ui is not null
+                                ? new SessionUiCapabilities { Elicitation = data.Ui.Elicitation }
+                                : Capabilities.Ui
+                        };
+                        break;
+                    }
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -555,6 +634,239 @@ public sealed partial class CopilotSession : IAsyncDisposable
     internal void RegisterUserInputHandler(UserInputHandler handler)
     {
         _userInputHandler = handler;
+    }
+
+    /// <summary>
+    /// Registers command handlers for this session.
+    /// </summary>
+    /// <param name="commands">The command definitions to register.</param>
+    internal void RegisterCommands(IEnumerable<CommandDefinition>? commands)
+    {
+        _commandHandlers.Clear();
+        if (commands is null) return;
+        foreach (var cmd in commands)
+        {
+            _commandHandlers[cmd.Name] = cmd.Handler;
+        }
+    }
+
+    /// <summary>
+    /// Registers an elicitation handler for this session.
+    /// </summary>
+    /// <param name="handler">The handler to invoke when an elicitation request is received.</param>
+    internal void RegisterElicitationHandler(ElicitationHandler? handler)
+    {
+        _elicitationHandler = handler;
+    }
+
+    /// <summary>
+    /// Sets the capabilities reported by the host for this session.
+    /// </summary>
+    /// <param name="capabilities">The capabilities to set.</param>
+    internal void SetCapabilities(SessionCapabilities? capabilities)
+    {
+        Capabilities = capabilities ?? new SessionCapabilities();
+    }
+
+    /// <summary>
+    /// Dispatches a command.execute event to the registered handler and
+    /// responds via the commands.handlePendingCommand RPC.
+    /// </summary>
+    private async Task ExecuteCommandAndRespondAsync(string requestId, string commandName, string command, string args)
+    {
+        if (!_commandHandlers.TryGetValue(commandName, out var handler))
+        {
+            try
+            {
+                await Rpc.Commands.HandlePendingCommandAsync(requestId, error: $"Unknown command: {commandName}");
+            }
+            catch (Exception ex) when (ex is IOException or ObjectDisposedException)
+            {
+                // Connection lost — nothing we can do
+            }
+            return;
+        }
+
+        try
+        {
+            await handler(new CommandContext
+            {
+                SessionId = SessionId,
+                Command = command,
+                CommandName = commandName,
+                Args = args
+            });
+            await Rpc.Commands.HandlePendingCommandAsync(requestId);
+        }
+        catch (Exception error)
+        {
+            var message = error.Message;
+            try
+            {
+                await Rpc.Commands.HandlePendingCommandAsync(requestId, error: message);
+            }
+            catch (Exception ex) when (ex is IOException or ObjectDisposedException)
+            {
+                // Connection lost — nothing we can do
+            }
+        }
+    }
+
+    /// <summary>
+    /// Dispatches an elicitation.requested event to the registered handler and
+    /// responds via the ui.handlePendingElicitation RPC. Auto-cancels on handler errors.
+    /// </summary>
+    private async Task HandleElicitationRequestAsync(ElicitationRequest request, string requestId)
+    {
+        var handler = _elicitationHandler;
+        if (handler is null) return;
+
+        try
+        {
+            var result = await handler(request, new ElicitationInvocation { SessionId = SessionId });
+            await Rpc.Ui.HandlePendingElicitationAsync(requestId, new SessionUiHandlePendingElicitationRequestResult
+            {
+                Action = result.Action,
+                Content = result.Content
+            });
+        }
+        catch
+        {
+            // Handler failed — attempt to cancel so the request doesn't hang
+            try
+            {
+                await Rpc.Ui.HandlePendingElicitationAsync(requestId, new SessionUiHandlePendingElicitationRequestResult
+                {
+                    Action = SessionUiElicitationResultAction.Cancel
+                });
+            }
+            catch (Exception ex) when (ex is IOException or ObjectDisposedException)
+            {
+                // Connection lost — nothing we can do
+            }
+        }
+    }
+
+    /// <summary>
+    /// Throws if the host does not support elicitation.
+    /// </summary>
+    private void AssertElicitation()
+    {
+        if (Capabilities.Ui?.Elicitation != true)
+        {
+            throw new InvalidOperationException(
+                "Elicitation is not supported by the host. " +
+                "Check session.Capabilities.Ui?.Elicitation before calling UI methods.");
+        }
+    }
+
+    /// <summary>
+    /// Implements <see cref="ISessionUiApi"/> backed by the session's RPC connection.
+    /// </summary>
+    private sealed class SessionUiApiImpl(CopilotSession session) : ISessionUiApi
+    {
+        public async Task<ElicitationResult> ElicitationAsync(ElicitationParams elicitationParams, CancellationToken cancellationToken)
+        {
+            session.AssertElicitation();
+            var schema = new SessionUiElicitationRequestRequestedSchema
+            {
+                Type = elicitationParams.RequestedSchema.Type,
+                Properties = elicitationParams.RequestedSchema.Properties,
+                Required = elicitationParams.RequestedSchema.Required
+            };
+            var result = await session.Rpc.Ui.ElicitationAsync(elicitationParams.Message, schema, cancellationToken);
+            return new ElicitationResult { Action = result.Action, Content = result.Content };
+        }
+
+        public async Task<bool> ConfirmAsync(string message, CancellationToken cancellationToken)
+        {
+            session.AssertElicitation();
+            var schema = new SessionUiElicitationRequestRequestedSchema
+            {
+                Type = "object",
+                Properties = new Dictionary<string, object>
+                {
+                    ["confirmed"] = new Dictionary<string, object> { ["type"] = "boolean", ["default"] = true }
+                },
+                Required = ["confirmed"]
+            };
+            var result = await session.Rpc.Ui.ElicitationAsync(message, schema, cancellationToken);
+            if (result.Action == SessionUiElicitationResultAction.Accept && result.Content != null)
+            {
+                if (result.Content.TryGetValue("confirmed", out var val))
+                {
+                    return val switch
+                    {
+                        bool b => b,
+                        JsonElement { ValueKind: JsonValueKind.True } => true,
+                        JsonElement { ValueKind: JsonValueKind.False } => false,
+                        _ => false
+                    };
+                }
+            }
+            return false;
+        }
+
+        public async Task<string?> SelectAsync(string message, string[] options, CancellationToken cancellationToken)
+        {
+            session.AssertElicitation();
+            var schema = new SessionUiElicitationRequestRequestedSchema
+            {
+                Type = "object",
+                Properties = new Dictionary<string, object>
+                {
+                    ["selection"] = new Dictionary<string, object> { ["type"] = "string", ["enum"] = options }
+                },
+                Required = ["selection"]
+            };
+            var result = await session.Rpc.Ui.ElicitationAsync(message, schema, cancellationToken);
+            if (result.Action == SessionUiElicitationResultAction.Accept && result.Content != null)
+            {
+                if (result.Content.TryGetValue("selection", out var val))
+                {
+                    return val switch
+                    {
+                        string s => s,
+                        JsonElement { ValueKind: JsonValueKind.String } je => je.GetString(),
+                        _ => val?.ToString()
+                    };
+                }
+            }
+            return null;
+        }
+
+        public async Task<string?> InputAsync(string message, InputOptions? options, CancellationToken cancellationToken)
+        {
+            session.AssertElicitation();
+            var field = new Dictionary<string, object> { ["type"] = "string" };
+            if (options?.Title != null) field["title"] = options.Title;
+            if (options?.Description != null) field["description"] = options.Description;
+            if (options?.MinLength != null) field["minLength"] = options.MinLength;
+            if (options?.MaxLength != null) field["maxLength"] = options.MaxLength;
+            if (options?.Format != null) field["format"] = options.Format;
+            if (options?.Default != null) field["default"] = options.Default;
+
+            var schema = new SessionUiElicitationRequestRequestedSchema
+            {
+                Type = "object",
+                Properties = new Dictionary<string, object> { ["value"] = field },
+                Required = ["value"]
+            };
+            var result = await session.Rpc.Ui.ElicitationAsync(message, schema, cancellationToken);
+            if (result.Action == SessionUiElicitationResultAction.Accept && result.Content != null)
+            {
+                if (result.Content.TryGetValue("value", out var val))
+                {
+                    return val switch
+                    {
+                        string s => s,
+                        JsonElement { ValueKind: JsonValueKind.String } je => je.GetString(),
+                        _ => val?.ToString()
+                    };
+                }
+            }
+            return null;
+        }
     }
 
     /// <summary>
@@ -890,8 +1202,10 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
         _eventHandlers = ImmutableInterlocked.InterlockedExchange(ref _eventHandlers, ImmutableArray<SessionEventHandler>.Empty);
         _toolHandlers.Clear();
+        _commandHandlers.Clear();
 
         _permissionHandler = null;
+        _elicitationHandler = null;
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Unhandled exception in broadcast event handler")]
