@@ -6,6 +6,7 @@ package com.github.copilot.sdk.json;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
@@ -121,7 +122,7 @@ public class CopilotClientOptions {
      * @return this options instance for method chaining
      */
     public CopilotClientOptions setCliArgs(String[] cliArgs) {
-        this.cliArgs = cliArgs;
+        this.cliArgs = Objects.requireNonNull(cliArgs, "cliArgs must not be null");
         return this;
     }
 
@@ -138,12 +139,11 @@ public class CopilotClientOptions {
      * Sets the path to the Copilot CLI executable.
      *
      * @param cliPath
-     *            the path to the CLI executable, or {@code null} to use "copilot"
-     *            from PATH
+     *            the path to the CLI executable
      * @return this options instance for method chaining
      */
     public CopilotClientOptions setCliPath(String cliPath) {
-        this.cliPath = cliPath;
+        this.cliPath = Objects.requireNonNull(cliPath, "cliPath must not be null");
         return this;
     }
 
@@ -170,7 +170,7 @@ public class CopilotClientOptions {
      * @return this options instance for method chaining
      */
     public CopilotClientOptions setCliUrl(String cliUrl) {
-        this.cliUrl = cliUrl;
+        this.cliUrl = Objects.requireNonNull(cliUrl, "cliUrl must not be null");
         return this;
     }
 
@@ -191,7 +191,7 @@ public class CopilotClientOptions {
      * @return this options instance for method chaining
      */
     public CopilotClientOptions setCwd(String cwd) {
-        this.cwd = cwd;
+        this.cwd = Objects.requireNonNull(cwd, "cwd must not be null");
         return this;
     }
 
@@ -214,7 +214,7 @@ public class CopilotClientOptions {
      * @return this options instance for method chaining
      */
     public CopilotClientOptions setEnvironment(Map<String, String> environment) {
-        this.environment = environment;
+        this.environment = Objects.requireNonNull(environment, "environment must not be null");
         return this;
     }
 
@@ -237,11 +237,11 @@ public class CopilotClientOptions {
      * onto a dedicated thread pool or integrate with container-managed threading.
      *
      * @param executor
-     *            the executor to use, or {@code null} for the default
+     *            the executor to use
      * @return this options instance for fluent chaining
      */
     public CopilotClientOptions setExecutor(Executor executor) {
-        this.executor = executor;
+        this.executor = Objects.requireNonNull(executor, "executor must not be null");
         return this;
     }
 
@@ -265,7 +265,7 @@ public class CopilotClientOptions {
      * @return this options instance for method chaining
      */
     public CopilotClientOptions setGitHubToken(String gitHubToken) {
-        this.gitHubToken = gitHubToken;
+        this.gitHubToken = Objects.requireNonNull(gitHubToken, "gitHubToken must not be null");
         return this;
     }
 
@@ -290,7 +290,7 @@ public class CopilotClientOptions {
      */
     @Deprecated
     public CopilotClientOptions setGithubToken(String githubToken) {
-        this.gitHubToken = githubToken;
+        this.gitHubToken = Objects.requireNonNull(githubToken, "githubToken must not be null");
         return this;
     }
 
@@ -313,7 +313,7 @@ public class CopilotClientOptions {
      * @return this options instance for method chaining
      */
     public CopilotClientOptions setLogLevel(String logLevel) {
-        this.logLevel = logLevel;
+        this.logLevel = Objects.requireNonNull(logLevel, "logLevel must not be null");
         return this;
     }
 
@@ -338,7 +338,7 @@ public class CopilotClientOptions {
      * @return this options instance for method chaining
      */
     public CopilotClientOptions setOnListModels(Supplier<CompletableFuture<List<ModelInfo>>> onListModels) {
-        this.onListModels = onListModels;
+        this.onListModels = Objects.requireNonNull(onListModels, "onListModels must not be null");
         return this;
     }
 
@@ -378,8 +378,8 @@ public class CopilotClientOptions {
     /**
      * Sets the OpenTelemetry configuration for the CLI server.
      * <p>
-     * When set to a non-{@code null} value, the CLI server is started with
-     * OpenTelemetry instrumentation enabled using the provided settings.
+     * When set, the CLI server is started with OpenTelemetry instrumentation
+     * enabled using the provided settings.
      *
      * @param telemetry
      *            the telemetry configuration
@@ -387,7 +387,7 @@ public class CopilotClientOptions {
      * @since 1.2.0
      */
     public CopilotClientOptions setTelemetry(TelemetryConfig telemetry) {
-        this.telemetry = telemetry;
+        this.telemetry = Objects.requireNonNull(telemetry, "telemetry must not be null");
         return this;
     }
 

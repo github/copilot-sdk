@@ -199,8 +199,8 @@ class CliServerManagerTest {
 
     @Test
     void startCliServerWithNullCliPath() throws Exception {
-        // Test the null cliPath branch (defaults to "copilot")
-        var options = new CopilotClientOptions().setCliPath(null).setUseStdio(true);
+        // Test the default cliPath branch (defaults to "copilot" when not set)
+        var options = new CopilotClientOptions().setUseStdio(true);
         var manager = new CliServerManager(options);
 
         // "copilot" likely doesn't exist in the test env — that's fine
