@@ -1,6 +1,7 @@
 package copilot
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -294,6 +295,58 @@ func TestSession_CommandRouting(t *testing.T) {
 			t.Error("Expected 'good' handler to be registered")
 		}
 	})
+
+	t.Run("handler error is propagated", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		handlerCalled := false
+		session.registerCommands([]CommandDefinition{
+			{
+				Name: "fail",
+				Handler: func(ctx CommandContext) error {
+					handlerCalled = true
+					return fmt.Errorf("deploy failed")
+				},
+			},
+		})
+
+		handler, ok := session.getCommandHandler("fail")
+		if !ok {
+			t.Fatal("Expected 'fail' handler to be registered")
+		}
+
+		err := handler(CommandContext{
+			SessionID:   "test-session",
+			CommandName: "fail",
+			Command:     "/fail",
+			Args:        "",
+		})
+
+		if !handlerCalled {
+			t.Error("Expected handler to be called")
+		}
+		if err == nil {
+			t.Fatal("Expected error from handler")
+		}
+		if !strings.Contains(err.Error(), "deploy failed") {
+			t.Errorf("Expected error to contain 'deploy failed', got %q", err.Error())
+		}
+	})
+
+	t.Run("unknown command returns no handler", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		session.registerCommands([]CommandDefinition{
+			{Name: "deploy", Handler: func(ctx CommandContext) error { return nil }},
+		})
+
+		_, ok := session.getCommandHandler("unknown")
+		if ok {
+			t.Error("Expected no handler for unknown command")
+		}
+	})
 }
 
 func TestSession_Capabilities(t *testing.T) {
@@ -379,6 +432,58 @@ func TestSession_ElicitationHandler(t *testing.T) {
 
 		if session.getElicitationHandler() == nil {
 			t.Error("Expected non-nil handler after registration")
+		}
+	})
+
+	t.Run("handler error is returned correctly", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		session.registerElicitationHandler(func(req ElicitationRequest, inv ElicitationInvocation) (ElicitationResult, error) {
+			return ElicitationResult{}, fmt.Errorf("handler exploded")
+		})
+
+		handler := session.getElicitationHandler()
+		if handler == nil {
+			t.Fatal("Expected non-nil handler")
+		}
+
+		_, err := handler(
+			ElicitationRequest{Message: "Pick a color"},
+			ElicitationInvocation{SessionID: "test-session"},
+		)
+		if err == nil {
+			t.Fatal("Expected error from handler")
+		}
+		if !strings.Contains(err.Error(), "handler exploded") {
+			t.Errorf("Expected error to contain 'handler exploded', got %q", err.Error())
+		}
+	})
+
+	t.Run("handler success returns result", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		session.registerElicitationHandler(func(req ElicitationRequest, inv ElicitationInvocation) (ElicitationResult, error) {
+			return ElicitationResult{
+				Action:  "accept",
+				Content: map[string]any{"color": "blue"},
+			}, nil
+		})
+
+		handler := session.getElicitationHandler()
+		result, err := handler(
+			ElicitationRequest{Message: "Pick a color"},
+			ElicitationInvocation{SessionID: "test-session"},
+		)
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+		if result.Action != "accept" {
+			t.Errorf("Expected action 'accept', got %q", result.Action)
+		}
+		if result.Content["color"] != "blue" {
+			t.Errorf("Expected content color 'blue', got %v", result.Content["color"])
 		}
 	})
 }
