@@ -32,9 +32,7 @@ class TestUiElicitation:
         with pytest.raises(RuntimeError, match="not supported"):
             await session.ui.confirm("test")
 
-    async def test_session_with_elicitation_handler_reports_capability(
-        self, ctx: E2ETestContext
-    ):
+    async def test_session_with_elicitation_handler_reports_capability(self, ctx: E2ETestContext):
         """Session created with onElicitationRequest reports elicitation capability."""
 
         async def handler(

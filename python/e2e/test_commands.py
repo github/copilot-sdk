@@ -81,7 +81,7 @@ class CommandsMultiClientContext:
                 try:
                     await c.stop()
                 except Exception:
-                    pass
+                    pass  # Best-effort cleanup during teardown
         self._client1 = self._client2 = None
 
         if self._proxy:

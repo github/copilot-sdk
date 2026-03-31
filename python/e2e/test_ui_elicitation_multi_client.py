@@ -79,9 +79,7 @@ class ElicitationMultiClientContext:
         self._actual_port = self._client1.actual_port
         assert self._actual_port is not None
 
-        self._client2 = CopilotClient(
-            ExternalServerConfig(url=f"localhost:{self._actual_port}")
-        )
+        self._client2 = CopilotClient(ExternalServerConfig(url=f"localhost:{self._actual_port}"))
 
     async def teardown(self, test_failed: bool = False):
         for c in (self._client2, self._client1):
@@ -89,7 +87,7 @@ class ElicitationMultiClientContext:
                 try:
                     await c.stop()
                 except Exception:
-                    pass
+                    pass  # Best-effort cleanup during teardown
         self._client1 = self._client2 = None
 
         if self._proxy:

@@ -873,11 +873,11 @@ type createSessionRequest struct {
 	ConfigDir         string                     `json:"configDir,omitempty"`
 	SkillDirectories  []string                   `json:"skillDirectories,omitempty"`
 	DisabledSkills    []string                   `json:"disabledSkills,omitempty"`
-	InfiniteSessions     *InfiniteSessionConfig     `json:"infiniteSessions,omitempty"`
-	Commands             []wireCommand              `json:"commands,omitempty"`
-	RequestElicitation   *bool                      `json:"requestElicitation,omitempty"`
-	Traceparent          string                     `json:"traceparent,omitempty"`
-	Tracestate           string                     `json:"tracestate,omitempty"`
+	InfiniteSessions   *InfiniteSessionConfig     `json:"infiniteSessions,omitempty"`
+	Commands           []wireCommand              `json:"commands,omitempty"`
+	RequestElicitation *bool                      `json:"requestElicitation,omitempty"`
+	Traceparent        string                     `json:"traceparent,omitempty"`
+	Tracestate         string                     `json:"tracestate,omitempty"`
 }
 
 // wireCommand is the wire representation of a command (name + description only, no handler).
@@ -888,9 +888,9 @@ type wireCommand struct {
 
 // createSessionResponse is the response from session.create
 type createSessionResponse struct {
-	SessionID    string               `json:"sessionId"`
-	WorkspacePath string              `json:"workspacePath"`
-	Capabilities *SessionCapabilities `json:"capabilities,omitempty"`
+	SessionID     string               `json:"sessionId"`
+	WorkspacePath string               `json:"workspacePath"`
+	Capabilities  *SessionCapabilities `json:"capabilities,omitempty"`
 }
 
 // resumeSessionRequest is the request for session.resume
@@ -915,20 +915,20 @@ type resumeSessionRequest struct {
 	EnvValueMode      string                     `json:"envValueMode,omitempty"`
 	CustomAgents      []CustomAgentConfig        `json:"customAgents,omitempty"`
 	Agent             string                     `json:"agent,omitempty"`
-	SkillDirectories  []string                   `json:"skillDirectories,omitempty"`
-	DisabledSkills       []string                   `json:"disabledSkills,omitempty"`
-	InfiniteSessions     *InfiniteSessionConfig     `json:"infiniteSessions,omitempty"`
-	Commands             []wireCommand              `json:"commands,omitempty"`
-	RequestElicitation   *bool                      `json:"requestElicitation,omitempty"`
-	Traceparent          string                     `json:"traceparent,omitempty"`
-	Tracestate           string                     `json:"tracestate,omitempty"`
+	SkillDirectories   []string                   `json:"skillDirectories,omitempty"`
+	DisabledSkills     []string                   `json:"disabledSkills,omitempty"`
+	InfiniteSessions   *InfiniteSessionConfig     `json:"infiniteSessions,omitempty"`
+	Commands           []wireCommand              `json:"commands,omitempty"`
+	RequestElicitation *bool                      `json:"requestElicitation,omitempty"`
+	Traceparent        string                     `json:"traceparent,omitempty"`
+	Tracestate         string                     `json:"tracestate,omitempty"`
 }
 
 // resumeSessionResponse is the response from session.resume
 type resumeSessionResponse struct {
-	SessionID    string               `json:"sessionId"`
-	WorkspacePath string              `json:"workspacePath"`
-	Capabilities *SessionCapabilities `json:"capabilities,omitempty"`
+	SessionID     string               `json:"sessionId"`
+	WorkspacePath string               `json:"workspacePath"`
+	Capabilities  *SessionCapabilities `json:"capabilities,omitempty"`
 }
 
 type hooksInvokeRequest struct {

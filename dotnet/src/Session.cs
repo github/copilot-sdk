@@ -730,7 +730,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 Content = result.Content
             });
         }
-        catch
+        catch (Exception)
         {
             // Handler failed — attempt to cancel so the request doesn't hang
             try
@@ -740,7 +740,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                     Action = SessionUiElicitationResultAction.Cancel
                 });
             }
-            catch (Exception ex) when (ex is IOException or ObjectDisposedException)
+            catch (Exception innerEx) when (innerEx is IOException or ObjectDisposedException)
             {
                 // Connection lost — nothing we can do
             }
@@ -791,18 +791,17 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 Required = ["confirmed"]
             };
             var result = await session.Rpc.Ui.ElicitationAsync(message, schema, cancellationToken);
-            if (result.Action == SessionUiElicitationResultAction.Accept && result.Content != null)
+            if (result.Action == SessionUiElicitationResultAction.Accept
+                && result.Content != null
+                && result.Content.TryGetValue("confirmed", out var val))
             {
-                if (result.Content.TryGetValue("confirmed", out var val))
+                return val switch
                 {
-                    return val switch
-                    {
-                        bool b => b,
-                        JsonElement { ValueKind: JsonValueKind.True } => true,
-                        JsonElement { ValueKind: JsonValueKind.False } => false,
-                        _ => false
-                    };
-                }
+                    bool b => b,
+                    JsonElement { ValueKind: JsonValueKind.True } => true,
+                    JsonElement { ValueKind: JsonValueKind.False } => false,
+                    _ => false
+                };
             }
             return false;
         }
@@ -820,17 +819,16 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 Required = ["selection"]
             };
             var result = await session.Rpc.Ui.ElicitationAsync(message, schema, cancellationToken);
-            if (result.Action == SessionUiElicitationResultAction.Accept && result.Content != null)
+            if (result.Action == SessionUiElicitationResultAction.Accept
+                && result.Content != null
+                && result.Content.TryGetValue("selection", out var val))
             {
-                if (result.Content.TryGetValue("selection", out var val))
+                return val switch
                 {
-                    return val switch
-                    {
-                        string s => s,
-                        JsonElement { ValueKind: JsonValueKind.String } je => je.GetString(),
-                        _ => val?.ToString()
-                    };
-                }
+                    string s => s,
+                    JsonElement { ValueKind: JsonValueKind.String } je => je.GetString(),
+                    _ => val?.ToString()
+                };
             }
             return null;
         }
@@ -853,17 +851,16 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 Required = ["value"]
             };
             var result = await session.Rpc.Ui.ElicitationAsync(message, schema, cancellationToken);
-            if (result.Action == SessionUiElicitationResultAction.Accept && result.Content != null)
+            if (result.Action == SessionUiElicitationResultAction.Accept
+                && result.Content != null
+                && result.Content.TryGetValue("value", out var val))
             {
-                if (result.Content.TryGetValue("value", out var val))
+                return val switch
                 {
-                    return val switch
-                    {
-                        string s => s,
-                        JsonElement { ValueKind: JsonValueKind.String } je => je.GetString(),
-                        _ => val?.ToString()
-                    };
-                }
+                    string s => s,
+                    JsonElement { ValueKind: JsonValueKind.String } je => je.GetString(),
+                    _ => val?.ToString()
+                };
             }
             return null;
         }

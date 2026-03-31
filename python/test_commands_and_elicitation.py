@@ -6,7 +6,6 @@ Mirrors the Node.js client.test.ts tests for these features.
 """
 
 import asyncio
-from unittest.mock import AsyncMock
 
 import pytest
 
@@ -15,8 +14,6 @@ from copilot.client import SubprocessConfig
 from copilot.session import (
     CommandContext,
     CommandDefinition,
-    CopilotSession,
-    ElicitationHandler,
     ElicitationRequest,
     ElicitationResult,
     PermissionHandler,
@@ -245,9 +242,7 @@ class TestCommands:
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
                 commands=[
-                    CommandDefinition(
-                        name="deploy", handler=lambda ctx: None
-                    ),
+                    CommandDefinition(name="deploy", handler=lambda ctx: None),
                 ],
             )
 
@@ -478,17 +473,11 @@ class TestOnElicitationRequest:
             client._client.request = mock_request
 
             # Call _handle_elicitation_request directly (as Node.js test does)
-            await session._handle_elicitation_request(
-                {"message": "Pick a color"}, "req-123"
-            )
+            await session._handle_elicitation_request({"message": "Pick a color"}, "req-123")
 
             assert len(rpc_calls) >= 1
             cancel_call = next(
-                (
-                    call
-                    for call in rpc_calls
-                    if call[1].get("result", {}).get("action") == "cancel"
-                ),
+                (call for call in rpc_calls if call[1].get("result", {}).get("action") == "cancel"),
                 None,
             )
             assert cancel_call is not None

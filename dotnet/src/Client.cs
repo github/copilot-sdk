@@ -504,7 +504,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.DisabledSkills,
                 config.InfiniteSessions,
                 Commands: config.Commands?.Select(c => new CommandWireDefinition(c.Name, c.Description)).ToList(),
-                RequestElicitation: config.OnElicitationRequest != null ? true : false,
+                RequestElicitation: config.OnElicitationRequest != null,
                 Traceparent: traceparent,
                 Tracestate: tracestate);
 
@@ -624,7 +624,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.DisabledSkills,
                 config.InfiniteSessions,
                 Commands: config.Commands?.Select(c => new CommandWireDefinition(c.Name, c.Description)).ToList(),
-                RequestElicitation: config.OnElicitationRequest != null ? true : false,
+                RequestElicitation: config.OnElicitationRequest != null,
                 Traceparent: traceparent,
                 Tracestate: tracestate);
 
