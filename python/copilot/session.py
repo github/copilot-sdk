@@ -508,8 +508,7 @@ class ProviderConfig(TypedDict, total=False):
     bearer_token: str
     azure: AzureProviderOptions  # Azure-specific options
     # Maximum number of tokens the model can generate in a single response.
-    # Sent as max_tokens per LLM API request. When hit, the model stops
-    # generating and returns a truncated response.
+    # When hit, the model stops generating and returns a truncated response.
     max_output_tokens: int
     # Maximum number of tokens allowed in the prompt for a single LLM API request.
     # Used by the runtime to trigger conversation compaction before sending a

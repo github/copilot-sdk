@@ -1118,8 +1118,7 @@ public class ProviderConfig
 
     /// <summary>
     /// Maximum number of tokens the model can generate in a single response.
-    /// Sent as <c>max_tokens</c> per LLM API request. When hit, the model stops
-    /// generating and returns a truncated response.
+    /// When hit, the model stops generating and returns a truncated response.
     /// </summary>
     [JsonPropertyName("maxOutputTokens")]
     public int? MaxOutputTokens { get; set; }

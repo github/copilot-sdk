@@ -1263,7 +1263,6 @@ export interface ProviderConfig {
 
     /**
      * Maximum number of tokens the model can generate in a single response.
-     * Sent as {@link https://platform.openai.com/docs/api-reference/chat/create#chat-create-max_tokens max_tokens} per LLM API request.
      * When hit, the model stops generating and returns a truncated response.
      */
     maxOutputTokens?: number;
