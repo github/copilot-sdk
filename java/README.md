@@ -56,7 +56,7 @@ public class QuickStart {
 Run the SDK without setting up a full project using [JBang](https://www.jbang.dev/):
 
 ```bash
-jbang https://github.com/github/copilot-sdk-java/blob/latest/jbang-example.java
+jbang https://github.com/github/copilot-sdk-java/blob/main/jbang-example.java
 ```
 
 ## Documentation & Resources
