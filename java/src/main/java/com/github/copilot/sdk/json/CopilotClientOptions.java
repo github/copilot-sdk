@@ -4,6 +4,8 @@
 
 package com.github.copilot.sdk.json;
 
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -105,24 +107,35 @@ public class CopilotClientOptions {
 
     /**
      * Gets the extra CLI arguments.
+     * <p>
+     * Returns a shallow copy of the internal array, or {@code null} if no arguments
+     * have been set.
      *
-     * @return the extra arguments to pass to the CLI
+     * @return a copy of the extra arguments, or {@code null}
      */
     public String[] getCliArgs() {
-        return cliArgs;
+        return cliArgs != null ? Arrays.copyOf(cliArgs, cliArgs.length) : null;
     }
 
     /**
      * Sets extra arguments to pass to the CLI process.
      * <p>
-     * These arguments are prepended before SDK-managed flags.
+     * These arguments are prepended before SDK-managed flags. A shallow copy of the
+     * provided array is stored. If {@code null} or empty, the existing arguments
+     * are cleared.
      *
      * @param cliArgs
-     *            the extra arguments to pass
+     *            the extra arguments to pass, or {@code null}/empty to clear
      * @return this options instance for method chaining
      */
     public CopilotClientOptions setCliArgs(String[] cliArgs) {
-        this.cliArgs = Objects.requireNonNull(cliArgs, "cliArgs must not be null");
+        if (cliArgs == null || cliArgs.length == 0) {
+            if (this.cliArgs != null) {
+                this.cliArgs = new String[0];
+            }
+        } else {
+            this.cliArgs = Arrays.copyOf(cliArgs, cliArgs.length);
+        }
         return this;
     }
 
@@ -166,8 +179,11 @@ public class CopilotClientOptions {
      * {@link #setUseStdio(boolean)} and {@link #setCliPath(String)}.
      *
      * @param cliUrl
-     *            the CLI server URL to connect to
+     *            the CLI server URL to connect to (must not be {@code null} or
+     *            empty)
      * @return this options instance for method chaining
+     * @throws IllegalArgumentException
+     *             if {@code cliUrl} is {@code null} or empty
      */
     public CopilotClientOptions setCliUrl(String cliUrl) {
         this.cliUrl = Objects.requireNonNull(cliUrl, "cliUrl must not be null");
@@ -187,8 +203,10 @@ public class CopilotClientOptions {
      * Sets the working directory for the CLI process.
      *
      * @param cwd
-     *            the working directory path
+     *            the working directory path (must not be {@code null} or empty)
      * @return this options instance for method chaining
+     * @throws IllegalArgumentException
+     *             if {@code cwd} is {@code null} or empty
      */
     public CopilotClientOptions setCwd(String cwd) {
         this.cwd = Objects.requireNonNull(cwd, "cwd must not be null");
@@ -197,24 +215,35 @@ public class CopilotClientOptions {
 
     /**
      * Gets the environment variables for the CLI process.
+     * <p>
+     * Returns a shallow copy of the internal map, or {@code null} if no environment
+     * has been set.
      *
-     * @return the environment variables map
+     * @return a copy of the environment variables map, or {@code null}
      */
     public Map<String, String> getEnvironment() {
-        return environment;
+        return environment != null ? new HashMap<>(environment) : null;
     }
 
     /**
      * Sets environment variables to pass to the CLI process.
      * <p>
-     * When set, these environment variables replace the inherited environment.
+     * When set, these environment variables replace the inherited environment. A
+     * shallow copy of the provided map is stored. If {@code null} or empty, the
+     * existing environment is cleared.
      *
      * @param environment
-     *            the environment variables map
+     *            the environment variables map, or {@code null}/empty to clear
      * @return this options instance for method chaining
      */
     public CopilotClientOptions setEnvironment(Map<String, String> environment) {
-        this.environment = Objects.requireNonNull(environment, "environment must not be null");
+        if (environment == null || environment.isEmpty()) {
+            if (this.environment != null) {
+                this.environment.clear();
+            }
+        } else {
+            this.environment = new HashMap<>(environment);
+        }
         return this;
     }
 
@@ -261,8 +290,10 @@ public class CopilotClientOptions {
      * variable. This takes priority over other authentication methods.
      *
      * @param gitHubToken
-     *            the GitHub token
+     *            the GitHub token (must not be {@code null} or empty)
      * @return this options instance for method chaining
+     * @throws IllegalArgumentException
+     *             if {@code gitHubToken} is {@code null} or empty
      */
     public CopilotClientOptions setGitHubToken(String gitHubToken) {
         this.gitHubToken = Objects.requireNonNull(gitHubToken, "gitHubToken must not be null");
@@ -309,8 +340,10 @@ public class CopilotClientOptions {
      * Valid levels include: "error", "warn", "info", "debug", "trace".
      *
      * @param logLevel
-     *            the log level
+     *            the log level (must not be {@code null} or empty)
      * @return this options instance for method chaining
+     * @throws IllegalArgumentException
+     *             if {@code logLevel} is {@code null} or empty
      */
     public CopilotClientOptions setLogLevel(String logLevel) {
         this.logLevel = Objects.requireNonNull(logLevel, "logLevel must not be null");
@@ -334,8 +367,11 @@ public class CopilotClientOptions {
      * available from your custom provider.
      *
      * @param onListModels
-     *            the handler that returns the list of available models
+     *            the handler that returns the list of available models (must not be
+     *            {@code null})
      * @return this options instance for method chaining
+     * @throws IllegalArgumentException
+     *             if {@code onListModels} is {@code null}
      */
     public CopilotClientOptions setOnListModels(Supplier<CompletableFuture<List<ModelInfo>>> onListModels) {
         this.onListModels = Objects.requireNonNull(onListModels, "onListModels must not be null");
@@ -407,13 +443,16 @@ public class CopilotClientOptions {
      * When true, the CLI server will attempt to use stored OAuth tokens or gh CLI
      * auth. When false, only explicit tokens (gitHubToken or environment variables)
      * are used. Default: true (but defaults to false when gitHubToken is provided).
+     * <p>
+     * Passing {@code null} is equivalent to passing {@link Boolean#FALSE}.
      *
      * @param useLoggedInUser
-     *            {@code true} to use logged-in user auth, {@code false} otherwise
+     *            {@code true} to use logged-in user auth, {@code false} or
+     *            {@code null} otherwise
      * @return this options instance for method chaining
      */
     public CopilotClientOptions setUseLoggedInUser(Boolean useLoggedInUser) {
-        this.useLoggedInUser = useLoggedInUser;
+        this.useLoggedInUser = useLoggedInUser != null ? useLoggedInUser : Boolean.FALSE;
         return this;
     }
 
