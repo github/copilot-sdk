@@ -387,27 +387,19 @@ func TestSession_ElicitationRequestSchema(t *testing.T) {
 	t.Run("elicitation.requested passes full schema to handler", func(t *testing.T) {
 		// Verify the schema extraction logic from handleBroadcastEvent
 		// preserves type, properties, and required.
-		schemaType := RequestedSchemaType("object")
-		required := []string{"name", "age"}
-		schema := &RequestedSchema{
-			Type: schemaType,
-			Properties: map[string]any{
-				"name": map[string]any{"type": "string"},
-				"age":  map[string]any{"type": "number"},
-			},
-			Required: required,
+		properties := map[string]any{
+			"name": map[string]any{"type": "string"},
+			"age":  map[string]any{"type": "number"},
 		}
+		required := []string{"name", "age"}
 
 		// Replicate the schema extraction logic from handleBroadcastEvent
-		var requestedSchema map[string]any
-		if schema != nil {
-			requestedSchema = map[string]any{
-				"type":       string(schema.Type),
-				"properties": schema.Properties,
-			}
-			if len(schema.Required) > 0 {
-				requestedSchema["required"] = schema.Required
-			}
+		requestedSchema := map[string]any{
+			"type":       "object",
+			"properties": properties,
+		}
+		if len(required) > 0 {
+			requestedSchema["required"] = required
 		}
 
 		if requestedSchema == nil {
@@ -430,19 +422,18 @@ func TestSession_ElicitationRequestSchema(t *testing.T) {
 	})
 
 	t.Run("schema without required omits required key", func(t *testing.T) {
-		schema := &RequestedSchema{
-			Type: RequestedSchemaType("object"),
-			Properties: map[string]any{
-				"optional_field": map[string]any{"type": "string"},
-			},
+		properties := map[string]any{
+			"optional_field": map[string]any{"type": "string"},
 		}
 
 		requestedSchema := map[string]any{
-			"type":       string(schema.Type),
-			"properties": schema.Properties,
+			"type":       "object",
+			"properties": properties,
 		}
-		if len(schema.Required) > 0 {
-			requestedSchema["required"] = schema.Required
+		// Simulate: if len(schema.Required) > 0 { ... } — with empty required
+		var required []string
+		if len(required) > 0 {
+			requestedSchema["required"] = required
 		}
 
 		if _, exists := requestedSchema["required"]; exists {
