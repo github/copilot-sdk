@@ -507,6 +507,19 @@ class ProviderConfig(TypedDict, total=False):
     # Takes precedence over api_key when both are set.
     bearer_token: str
     azure: AzureProviderOptions  # Azure-specific options
+    # Overrides the maximum number of output tokens the model can generate.
+    # Takes precedence over the default limit from the model's capability catalog entry.
+    max_output_tokens: int
+    # Overrides the maximum number of prompt/input tokens.
+    # Takes precedence over the default limit from the model's capability catalog entry.
+    max_prompt_tokens: int
+    # Overrides the maximum context window size in tokens.
+    # Takes precedence over the default limit from the model's capability catalog entry.
+    max_context_window_tokens: int
+    # Model ID used to look up default token limits from the capability catalog.
+    # When unset, the session's configured model ID is used.
+    # Useful for fine-tuned models that share the same limits as a base model.
+    model_limits_id: str
 
 
 class SessionConfig(TypedDict, total=False):

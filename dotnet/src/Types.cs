@@ -1115,6 +1115,35 @@ public class ProviderConfig
     /// </summary>
     [JsonPropertyName("azure")]
     public AzureOptions? Azure { get; set; }
+
+    /// <summary>
+    /// Overrides the maximum number of output tokens the model can generate.
+    /// When set, takes precedence over the default limit resolved from the model's capability catalog entry.
+    /// </summary>
+    [JsonPropertyName("maxOutputTokens")]
+    public int? MaxOutputTokens { get; set; }
+
+    /// <summary>
+    /// Overrides the maximum number of prompt/input tokens.
+    /// When set, takes precedence over the default limit resolved from the model's capability catalog entry.
+    /// </summary>
+    [JsonPropertyName("maxPromptTokens")]
+    public int? MaxPromptTokens { get; set; }
+
+    /// <summary>
+    /// Overrides the maximum context window size in tokens.
+    /// When set, takes precedence over the default limit resolved from the model's capability catalog entry.
+    /// </summary>
+    [JsonPropertyName("maxContextWindowTokens")]
+    public int? MaxContextWindowTokens { get; set; }
+
+    /// <summary>
+    /// Specifies the model ID used to look up default token limits from the capability catalog.
+    /// When unset, the session's configured model ID (see <see cref="SessionConfig.Model"/>) is used.
+    /// This is useful for fine-tuned models that share the same limits as a base model.
+    /// </summary>
+    [JsonPropertyName("modelLimitsId")]
+    public string? ModelLimitsId { get; set; }
 }
 
 /// <summary>

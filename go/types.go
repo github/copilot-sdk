@@ -601,6 +601,19 @@ type ProviderConfig struct {
 	BearerToken string `json:"bearerToken,omitempty"`
 	// Azure contains Azure-specific options
 	Azure *AzureProviderOptions `json:"azure,omitempty"`
+	// MaxOutputTokens overrides the maximum number of output tokens the model can generate.
+	// When set, takes precedence over the default limit from the model's capability catalog entry.
+	MaxOutputTokens int `json:"maxOutputTokens,omitempty"`
+	// MaxPromptTokens overrides the maximum number of prompt/input tokens.
+	// When set, takes precedence over the default limit from the model's capability catalog entry.
+	MaxPromptTokens int `json:"maxPromptTokens,omitempty"`
+	// MaxContextWindowTokens overrides the maximum context window size in tokens.
+	// When set, takes precedence over the default limit from the model's capability catalog entry.
+	MaxContextWindowTokens int `json:"maxContextWindowTokens,omitempty"`
+	// ModelLimitsId specifies the model ID used to look up default token limits from the capability catalog.
+	// When unset, the session's configured model ID is used.
+	// Useful for fine-tuned models that share the same limits as a base model.
+	ModelLimitsId string `json:"modelLimitsId,omitempty"`
 }
 
 // AzureProviderOptions contains Azure-specific provider configuration
