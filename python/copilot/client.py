@@ -1967,9 +1967,7 @@ class CopilotClient:
         if "max_prompt_tokens" in provider:
             wire_provider["maxPromptTokens"] = provider["max_prompt_tokens"]
         if "max_context_window_tokens" in provider:
-            wire_provider["maxContextWindowTokens"] = provider[
-                "max_context_window_tokens"
-            ]
+            wire_provider["maxContextWindowTokens"] = provider["max_context_window_tokens"]
         if "model_limits_id" in provider:
             wire_provider["modelLimitsId"] = provider["model_limits_id"]
         return wire_provider
