@@ -620,13 +620,21 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 		return
 	}
 
-	resultStr := result.TextResultForLLM
-	if resultStr == "" {
-		resultStr = fmt.Sprintf("%v", result)
+	rpcResult := rpc.ResultUnion{
+		ResultResult: &rpc.ResultResult{
+			TextResultForLlm: result.TextResultForLLM,
+			ToolTelemetry:    result.ToolTelemetry,
+		},
+	}
+	if result.ResultType != "" {
+		rpcResult.ResultResult.ResultType = &result.ResultType
+	}
+	if result.Error != "" {
+		rpcResult.ResultResult.Error = &result.Error
 	}
 	s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.SessionToolsHandlePendingToolCallParams{
 		RequestID: requestID,
-		Result:    &rpc.ResultUnion{String: &resultStr},
+		Result:    &rpcResult,
 	})
 }
 

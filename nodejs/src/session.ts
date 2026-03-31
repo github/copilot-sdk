@@ -33,6 +33,8 @@ import type {
     SessionUiApi,
     Tool,
     ToolHandler,
+    ToolResult,
+    ToolResultObject,
     TraceContextProvider,
     TypedSessionEventHandler,
     UserInputHandler,
@@ -459,10 +461,12 @@ export class CopilotSession {
                 traceparent,
                 tracestate,
             });
-            let result: string;
+            let result: ToolResult;
             if (rawResult == null) {
                 result = "";
             } else if (typeof rawResult === "string") {
+                result = rawResult;
+            } else if (isToolResultObject(rawResult)) {
                 result = rawResult;
             } else {
                 result = JSON.stringify(rawResult);
@@ -1042,4 +1046,19 @@ export class CopilotSession {
     ): Promise<void> {
         await this.rpc.log({ message, ...options });
     }
+}
+
+/**
+ * Type guard that checks whether a value is a {@link ToolResultObject}.
+ * A valid object must have a string `textResultForLlm` and a string `resultType`.
+ */
+function isToolResultObject(value: unknown): value is ToolResultObject {
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        "textResultForLlm" in value &&
+        typeof (value as ToolResultObject).textResultForLlm === "string" &&
+        "resultType" in value &&
+        typeof (value as ToolResultObject).resultType === "string"
+    );
 }
