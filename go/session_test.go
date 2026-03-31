@@ -1,6 +1,7 @@
 package copilot
 
 import (
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -344,7 +345,7 @@ func TestSession_ElicitationCapabilityGating(t *testing.T) {
 			t.Fatal("Expected error when elicitation capability is missing")
 		}
 		expected := "elicitation is not supported"
-		if !containsString(err.Error(), expected) {
+		if !strings.Contains(err.Error(), expected) {
 			t.Errorf("Expected error to contain %q, got %q", expected, err.Error())
 		}
 	})
@@ -382,15 +383,60 @@ func TestSession_ElicitationHandler(t *testing.T) {
 	})
 }
 
-func containsString(s, substr string) bool {
-	return len(s) >= len(substr) && searchSubstring(s, substr)
-}
+func TestSession_ElicitationRequestSchema(t *testing.T) {
+	t.Run("elicitation.requested passes full schema to handler", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
 
-func searchSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
+		session.setCapabilities(&SessionCapabilities{
+			UI: &UICapabilities{Elicitation: true},
+		})
+
+		var receivedSchema map[string]any
+		session.registerElicitationHandler(func(req ElicitationRequest, inv ElicitationInvocation) (ElicitationResult, error) {
+			receivedSchema = req.RequestedSchema
+			return ElicitationResult{Action: "cancel"}, nil
+		})
+
+		// Build a synthetic elicitation.requested event with type, properties, and required
+		schemaType := RequestedSchemaType("object")
+		required := []string{"name", "age"}
+		event := SessionEvent{
+			Type: SessionEventTypeElicitationRequested,
+			Data: SessionEventData{
+				RequestID: String("req-1"),
+				Message:   String("Fill in your info"),
+				RequestedSchema: &RequestedSchema{
+					Type: schemaType,
+					Properties: map[string]any{
+						"name": map[string]any{"type": "string"},
+						"age":  map[string]any{"type": "number"},
+					},
+					Required: required,
+				},
+			},
 		}
-	}
-	return false
+
+		session.handleEvent(event)
+		// Give the event loop time to dispatch
+		time.Sleep(50 * time.Millisecond)
+
+		if receivedSchema == nil {
+			t.Fatal("Expected handler to receive schema, got nil")
+		}
+		if receivedSchema["type"] != "object" {
+			t.Errorf("Expected schema type 'object', got %v", receivedSchema["type"])
+		}
+		props, ok := receivedSchema["properties"].(map[string]any)
+		if !ok || props == nil {
+			t.Fatal("Expected schema properties map")
+		}
+		if len(props) != 2 {
+			t.Errorf("Expected 2 properties, got %d", len(props))
+		}
+		req, ok := receivedSchema["required"].([]string)
+		if !ok || len(req) != 2 {
+			t.Errorf("Expected required [name, age], got %v", receivedSchema["required"])
+		}
+	})
 }

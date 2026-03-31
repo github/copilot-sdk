@@ -546,6 +546,76 @@ class TestOnElicitationRequest:
         finally:
             await client.force_stop()
 
+    @pytest.mark.asyncio
+    async def test_elicitation_handler_receives_full_schema(self):
+        """Verifies that requestedSchema passes type, properties, and required to handler."""
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            handler_calls: list = []
+
+            async def elicitation_handler(
+                request: ElicitationRequest, invocation: dict[str, str]
+            ) -> ElicitationResult:
+                handler_calls.append(request)
+                return {"action": "cancel"}
+
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                on_elicitation_request=elicitation_handler,
+            )
+
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                if method == "session.ui.handlePendingElicitation":
+                    return {"success": True}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+
+            from copilot.generated.session_events import (
+                Data,
+                RequestedSchema,
+                RequestedSchemaType,
+                SessionEvent,
+                SessionEventType,
+            )
+
+            event = SessionEvent(
+                data=Data(
+                    request_id="req-schema-1",
+                    message="Fill in your details",
+                    requested_schema=RequestedSchema(
+                        type=RequestedSchemaType.OBJECT,
+                        properties={
+                            "name": {"type": "string"},
+                            "age": {"type": "number"},
+                        },
+                        required=["name", "age"],
+                    ),
+                ),
+                id="evt-schema-1",
+                timestamp="2025-01-01T00:00:00Z",
+                type=SessionEventType.ELICITATION_REQUESTED,
+                ephemeral=True,
+                parent_id=None,
+            )
+            session._dispatch_event(event)
+
+            await asyncio.sleep(0.2)
+
+            assert len(handler_calls) == 1
+            schema = handler_calls[0].get("requestedSchema")
+            assert schema is not None, "Expected requestedSchema in handler call"
+            assert schema["type"] == "object"
+            assert "name" in schema["properties"]
+            assert "age" in schema["properties"]
+            assert schema["required"] == ["name", "age"]
+        finally:
+            await client.force_stop()
+
 
 # ============================================================================
 # Capabilities changed event

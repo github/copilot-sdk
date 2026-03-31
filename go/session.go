@@ -956,7 +956,13 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 		}
 		var requestedSchema map[string]any
 		if event.Data.RequestedSchema != nil {
-			requestedSchema = event.Data.RequestedSchema.Properties
+			requestedSchema = map[string]any{
+				"type":       string(event.Data.RequestedSchema.Type),
+				"properties": event.Data.RequestedSchema.Properties,
+			}
+			if len(event.Data.RequestedSchema.Required) > 0 {
+				requestedSchema["required"] = event.Data.RequestedSchema.Required
+			}
 		}
 		mode := ""
 		if event.Data.Mode != nil {
