@@ -44,7 +44,6 @@ from .session import (
     ProviderConfig,
     ReasoningEffort,
     SectionTransformFn,
-    SessionCapabilities,
     SessionHooks,
     SystemMessageConfig,
     UserInputHandler,

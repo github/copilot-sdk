@@ -20,7 +20,6 @@ from copilot.session import (
 )
 from e2e.testharness import CLI_PATH
 
-
 # ============================================================================
 # Commands
 # ============================================================================
@@ -567,10 +566,10 @@ class TestCapabilitiesChanged:
             session._set_capabilities({})
 
             from copilot.generated.session_events import (
+                UI,
                 Data,
                 SessionEvent,
                 SessionEventType,
-                UI,
             )
 
             event = SessionEvent(

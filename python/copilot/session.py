@@ -25,10 +25,10 @@ from .generated.rpc import (
     Action,
     Kind,
     Level,
-    RequestedSchema,
-    RequestedSchemaType,
     Property,
     PropertyType,
+    RequestedSchema,
+    RequestedSchemaType,
     ResultResult,
     SessionCommandsHandlePendingCommandParams,
     SessionLogParams,
@@ -38,7 +38,6 @@ from .generated.rpc import (
     SessionRpc,
     SessionToolsHandlePendingToolCallParams,
     SessionUIElicitationParams,
-    SessionUIElicitationResult,
     SessionUIHandlePendingElicitationParams,
     SessionUIHandlePendingElicitationParamsResult,
 )
@@ -329,7 +328,8 @@ class ElicitationResult(TypedDict, total=False):
     """Result returned from an elicitation request."""
 
     action: Required[Literal["accept", "decline", "cancel"]]
-    """User action: ``"accept"`` (submitted), ``"decline"`` (rejected), or ``"cancel"`` (dismissed)."""
+    """User action: ``"accept"`` (submitted), ``"decline"`` (rejected),
+    or ``"cancel"`` (dismissed)."""
     content: dict[str, ElicitationFieldValue]
     """Form values submitted by the user (present when action is ``"accept"``)."""
 
