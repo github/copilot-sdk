@@ -704,7 +704,7 @@ public class ElicitationRequest
     public ElicitationSchema? RequestedSchema { get; set; }
 
     /// <summary>Elicitation mode: <c>"form"</c> for structured input, <c>"url"</c> for browser redirect.</summary>
-    public string? Mode { get; set; }
+    public ElicitationRequestedDataMode? Mode { get; set; }
 
     /// <summary>The source that initiated the request (e.g., MCP server name).</summary>
     public string? ElicitationSource { get; set; }

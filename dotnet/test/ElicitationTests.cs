@@ -243,14 +243,14 @@ public class ElicitationTests(E2ETestFixture fixture, ITestOutputHelper output)
                     ["color"] = new Dictionary<string, object> { ["type"] = "string", ["enum"] = new[] { "red", "blue" } },
                 },
             },
-            Mode = "form",
+            Mode = ElicitationRequestedDataMode.Form,
             ElicitationSource = "mcp-server",
             Url = null,
         };
 
         Assert.Equal("Pick a color", request.Message);
         Assert.NotNull(request.RequestedSchema);
-        Assert.Equal("form", request.Mode);
+        Assert.Equal(ElicitationRequestedDataMode.Form, request.Mode);
         Assert.Equal("mcp-server", request.ElicitationSource);
         Assert.Null(request.Url);
     }

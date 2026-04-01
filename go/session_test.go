@@ -386,6 +386,50 @@ func TestSession_Capabilities(t *testing.T) {
 			t.Errorf("Expected UI to be nil after reset, got %+v", caps.UI)
 		}
 	})
+
+	t.Run("capabilities.changed event updates session capabilities", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		// Initially no capabilities
+		caps := session.Capabilities()
+		if caps.UI != nil {
+			t.Fatal("Expected UI to be nil initially")
+		}
+
+		// Dispatch a capabilities.changed event with elicitation=true
+		elicitTrue := true
+		session.dispatchEvent(SessionEvent{
+			Type: SessionEventTypeCapabilitiesChanged,
+			Data: Data{
+				UI: &UI{Elicitation: &elicitTrue},
+			},
+		})
+
+		// Give the broadcast handler time to process
+		time.Sleep(50 * time.Millisecond)
+
+		caps = session.Capabilities()
+		if caps.UI == nil || !caps.UI.Elicitation {
+			t.Error("Expected UI.Elicitation to be true after capabilities.changed event")
+		}
+
+		// Dispatch with elicitation=false
+		elicitFalse := false
+		session.dispatchEvent(SessionEvent{
+			Type: SessionEventTypeCapabilitiesChanged,
+			Data: Data{
+				UI: &UI{Elicitation: &elicitFalse},
+			},
+		})
+
+		time.Sleep(50 * time.Millisecond)
+
+		caps = session.Capabilities()
+		if caps.UI == nil || caps.UI.Elicitation {
+			t.Error("Expected UI.Elicitation to be false after second capabilities.changed event")
+		}
+	})
 }
 
 func TestSession_ElicitationCapabilityGating(t *testing.T) {

@@ -983,6 +983,13 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 			ElicitationSource: elicitationSource,
 			URL:               url,
 		}, *requestID)
+
+	case SessionEventTypeCapabilitiesChanged:
+		if event.Data.UI != nil && event.Data.UI.Elicitation != nil {
+			s.setCapabilities(&SessionCapabilities{
+				UI: &UICapabilities{Elicitation: *event.Data.UI.Elicitation},
+			})
+		}
 	}
 }
 

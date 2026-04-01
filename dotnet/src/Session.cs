@@ -63,6 +63,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private volatile PermissionRequestHandler? _permissionHandler;
     private volatile UserInputHandler? _userInputHandler;
     private volatile ElicitationHandler? _elicitationHandler;
+    private readonly Lazy<ISessionUiApi> _ui;
     private ImmutableArray<SessionEventHandler> _eventHandlers = ImmutableArray<SessionEventHandler>.Empty;
 
     private SessionHooks? _hooks;
@@ -122,7 +123,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// if the host does not report elicitation support via <see cref="Capabilities"/>.
     /// Check <c>session.Capabilities.Ui?.Elicitation == true</c> before calling.
     /// </remarks>
-    public ISessionUiApi Ui => new SessionUiApiImpl(this);
+    public ISessionUiApi Ui => _ui.Value;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CopilotSession"/> class.
@@ -140,6 +141,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         _rpc = rpc;
         _logger = logger;
         WorkspacePath = workspacePath;
+        _ui = new Lazy<ISessionUiApi>(() => new SessionUiApiImpl(this));
 
         // Start the asynchronous processing loop.
         _ = ProcessEventsAsync();
@@ -469,7 +471,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                         if (string.IsNullOrEmpty(data.RequestId))
                             return;
 
-                        _ = ExecuteCommandAndRespondAsync(data.RequestId, data.CommandName, data.Command, data.Args);
+                        await ExecuteCommandAndRespondAsync(data.RequestId, data.CommandName, data.Command, data.Args);
                         break;
                     }
 
@@ -490,12 +492,12 @@ public sealed partial class CopilotSession : IAsyncDisposable
                                 }
                                 : null;
 
-                            _ = HandleElicitationRequestAsync(
+                            await HandleElicitationRequestAsync(
                                 new ElicitationRequest
                                 {
                                     Message = data.Message,
                                     RequestedSchema = schema,
-                                    Mode = data.Mode?.ToString().ToLowerInvariant(),
+                                    Mode = data.Mode,
                                     ElicitationSource = data.ElicitationSource,
                                     Url = data.Url
                                 },
