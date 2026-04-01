@@ -139,9 +139,16 @@ describe("Tool Results", async () => {
         expect(toolResults[0]!.content).not.toContain("toolTelemetry");
         expect(toolResults[0]!.content).not.toContain("resultType");
 
-        // Verify tool.execution_complete event carries toolTelemetry
+        // Verify tool.execution_complete event fires for this tool call
         const toolCompletes = events.filter((e) => e.type === "tool.execution_complete");
         expect(toolCompletes.length).toBeGreaterThanOrEqual(1);
+        const completeEvent = toolCompletes[0]!;
+        expect(completeEvent.data.success).toBe(true);
+        // When the server preserves the structured result, toolTelemetry should
+        // be present and non-empty (not the {} that results from stringification).
+        if (completeEvent.data.toolTelemetry) {
+            expect(Object.keys(completeEvent.data.toolTelemetry).length).toBeGreaterThan(0);
+        }
 
         await session.disconnect();
     });
