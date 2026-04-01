@@ -179,6 +179,167 @@ export interface AccountGetQuotaResult {
   };
 }
 
+export interface McpConfigListResult {
+  /**
+   * All MCP servers from user config, keyed by name
+   */
+  servers: {
+    /**
+     * MCP server configuration (local/stdio or remote/http)
+     */
+    [k: string]:
+      | {
+          /**
+           * Tools to include. Defaults to all tools if not specified.
+           */
+          tools?: string[];
+          type?: "local" | "stdio";
+          isDefaultServer?: boolean;
+          filterMapping?:
+            | {
+                [k: string]: "none" | "markdown" | "hidden_characters";
+              }
+            | ("none" | "markdown" | "hidden_characters");
+          timeout?: number;
+          command: string;
+          args: string[];
+          cwd?: string;
+          env?: {
+            [k: string]: string;
+          };
+        }
+      | {
+          /**
+           * Tools to include. Defaults to all tools if not specified.
+           */
+          tools?: string[];
+          type: "http" | "sse";
+          isDefaultServer?: boolean;
+          filterMapping?:
+            | {
+                [k: string]: "none" | "markdown" | "hidden_characters";
+              }
+            | ("none" | "markdown" | "hidden_characters");
+          timeout?: number;
+          url: string;
+          headers?: {
+            [k: string]: string;
+          };
+          oauthClientId?: string;
+          oauthPublicClient?: boolean;
+        };
+  };
+}
+
+export interface McpConfigAddParams {
+  /**
+   * Unique name for the MCP server
+   */
+  name: string;
+  /**
+   * MCP server configuration (local/stdio or remote/http)
+   */
+  config:
+    | {
+        /**
+         * Tools to include. Defaults to all tools if not specified.
+         */
+        tools?: string[];
+        type?: "local" | "stdio";
+        isDefaultServer?: boolean;
+        filterMapping?:
+          | {
+              [k: string]: "none" | "markdown" | "hidden_characters";
+            }
+          | ("none" | "markdown" | "hidden_characters");
+        timeout?: number;
+        command: string;
+        args: string[];
+        cwd?: string;
+        env?: {
+          [k: string]: string;
+        };
+      }
+    | {
+        /**
+         * Tools to include. Defaults to all tools if not specified.
+         */
+        tools?: string[];
+        type: "http" | "sse";
+        isDefaultServer?: boolean;
+        filterMapping?:
+          | {
+              [k: string]: "none" | "markdown" | "hidden_characters";
+            }
+          | ("none" | "markdown" | "hidden_characters");
+        timeout?: number;
+        url: string;
+        headers?: {
+          [k: string]: string;
+        };
+        oauthClientId?: string;
+        oauthPublicClient?: boolean;
+      };
+}
+
+export interface McpConfigUpdateParams {
+  /**
+   * Name of the MCP server to update
+   */
+  name: string;
+  /**
+   * MCP server configuration (local/stdio or remote/http)
+   */
+  config:
+    | {
+        /**
+         * Tools to include. Defaults to all tools if not specified.
+         */
+        tools?: string[];
+        type?: "local" | "stdio";
+        isDefaultServer?: boolean;
+        filterMapping?:
+          | {
+              [k: string]: "none" | "markdown" | "hidden_characters";
+            }
+          | ("none" | "markdown" | "hidden_characters");
+        timeout?: number;
+        command: string;
+        args: string[];
+        cwd?: string;
+        env?: {
+          [k: string]: string;
+        };
+      }
+    | {
+        /**
+         * Tools to include. Defaults to all tools if not specified.
+         */
+        tools?: string[];
+        type: "http" | "sse";
+        isDefaultServer?: boolean;
+        filterMapping?:
+          | {
+              [k: string]: "none" | "markdown" | "hidden_characters";
+            }
+          | ("none" | "markdown" | "hidden_characters");
+        timeout?: number;
+        url: string;
+        headers?: {
+          [k: string]: string;
+        };
+        oauthClientId?: string;
+        oauthPublicClient?: boolean;
+      };
+}
+
+export interface McpConfigRemoveParams {
+  /**
+   * Name of the MCP server to remove
+   */
+  name: string;
+}
+
 export interface SessionFsSetProviderResult {
   /**
    * Whether the provider was set successfully
@@ -198,7 +359,7 @@ export interface SessionFsSetProviderParams {
   /**
    * Path conventions used by this filesystem
    */
-  conventions: "windows" | "linux";
+  conventions: "windows" | "posix";
 }
 
 export interface SessionModelGetCurrentResult {
@@ -606,9 +767,9 @@ export interface SessionMcpListResult {
      */
     name: string;
     /**
-     * Connection status: connected, failed, pending, disabled, or not_configured
+     * Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
      */
-    status: "connected" | "failed" | "pending" | "disabled" | "not_configured";
+    status: "connected" | "failed" | "needs-auth" | "pending" | "disabled" | "not_configured";
     /**
      * Configuration source: user, workspace, plugin, or builtin
      */
@@ -1162,6 +1323,9 @@ export interface SessionFsAppendFileParams {
 }
 
 export interface SessionFsExistsResult {
+  /**
+   * Whether the path exists
+   */
   exists: boolean;
 }
 
@@ -1177,8 +1341,17 @@ export interface SessionFsExistsParams {
 }
 
 export interface SessionFsStatResult {
+  /**
+   * Whether the path is a file
+   */
   isFile: boolean;
+  /**
+   * Whether the path is a directory
+   */
   isDirectory: boolean;
+  /**
+   * File size in bytes
+   */
   size: number;
   /**
    * ISO 8601 timestamp of last modification
@@ -1206,7 +1379,13 @@ export interface SessionFsMkdirParams {
    * Target session identifier
    */
   sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
   path: string;
+  /**
+   * Create parent directories as needed
+   */
   recursive?: boolean;
   /**
    * Optional POSIX-style mode for newly created directories
@@ -1226,6 +1405,9 @@ export interface SessionFsReaddirParams {
    * Target session identifier
    */
   sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
   path: string;
 }
 
@@ -1234,7 +1416,13 @@ export interface SessionFsReaddirWithTypesResult {
    * Directory entries with type information
    */
   entries: {
+    /**
+     * Entry name
+     */
     name: string;
+    /**
+     * Entry type
+     */
     type: "file" | "directory";
   }[];
 }
@@ -1244,6 +1432,9 @@ export interface SessionFsReaddirWithTypesParams {
    * Target session identifier
    */
   sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
   path: string;
 }
 
@@ -1252,8 +1443,17 @@ export interface SessionFsRmParams {
    * Target session identifier
    */
   sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
   path: string;
+  /**
+   * Remove directories and their contents recursively
+   */
   recursive?: boolean;
+  /**
+   * Ignore errors if the path does not exist
+   */
   force?: boolean;
 }
 
@@ -1262,7 +1462,13 @@ export interface SessionFsRenameParams {
    * Target session identifier
    */
   sessionId: string;
+  /**
+   * Source path using SessionFs conventions
+   */
   src: string;
+  /**
+   * Destination path using SessionFs conventions
+   */
   dest: string;
 }
 
@@ -1282,6 +1488,18 @@ export function createServerRpc(connection: MessageConnection) {
         account: {
             getQuota: async (): Promise<AccountGetQuotaResult> =>
                 connection.sendRequest("account.getQuota", {}),
+        },
+        mcp: {
+            config: {
+                list: async (): Promise<McpConfigListResult> =>
+                    connection.sendRequest("mcp.config.list", {}),
+                add: async (params: McpConfigAddParams): Promise<void> =>
+                    connection.sendRequest("mcp.config.add", params),
+                update: async (params: McpConfigUpdateParams): Promise<void> =>
+                    connection.sendRequest("mcp.config.update", params),
+                remove: async (params: McpConfigRemoveParams): Promise<void> =>
+                    connection.sendRequest("mcp.config.remove", params),
+            },
         },
         sessionFs: {
             setProvider: async (params: SessionFsSetProviderParams): Promise<SessionFsSetProviderResult> =>

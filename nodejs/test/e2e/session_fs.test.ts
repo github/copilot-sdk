@@ -147,7 +147,7 @@ function findToolName(messages: SessionEvent[], toolCallId: string): string | un
 const sessionFsConfig: SessionFsConfig = {
     initialCwd: "/",
     sessionStatePath: "/session-state",
-    conventions: "linux",
+    conventions: "posix",
 };
 
 function createTestSessionFsHandler(

@@ -149,7 +149,7 @@ function emitGroup(node: Record<string, unknown>, indent: string, isSession: boo
     for (const [key, value] of Object.entries(node)) {
         if (isRpcMethod(value)) {
             const { rpcMethod, params } = value;
-            const resultType = resultTypeName(rpcMethod);
+            const resultType = value.result ? resultTypeName(rpcMethod) : "void";
             const paramsType = paramsTypeName(rpcMethod);
 
             const paramEntries = params?.properties ? Object.entries(params.properties).filter(([k]) => k !== "sessionId") : [];

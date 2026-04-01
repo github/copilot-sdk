@@ -1388,7 +1388,7 @@ export interface SessionFsConfig {
     /**
      * Path conventions used by this filesystem provider.
      */
-    conventions: "windows" | "linux";
+    conventions: "windows" | "posix";
 }
 
 /**
