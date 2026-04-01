@@ -41,8 +41,6 @@ class TestHooks:
 
         await session.disconnect()
 
-    # TODO: Re-enable once runtime postToolUse hooks are fixed (https://github.com/github/copilot-sdk/issues/972)
-    @pytest.mark.skip(reason="Runtime postToolUse hooks broken")
     async def test_should_invoke_posttooluse_hook_after_model_runs_a_tool(
         self, ctx: E2ETestContext
     ):
@@ -73,8 +71,6 @@ class TestHooks:
 
         await session.disconnect()
 
-    # TODO: Re-enable once runtime postToolUse hooks are fixed (https://github.com/github/copilot-sdk/issues/972)
-    @pytest.mark.skip(reason="Runtime postToolUse hooks broken")
     async def test_should_invoke_both_pretooluse_and_posttooluse_hooks_for_a_single_tool_call(
         self, ctx: E2ETestContext
     ):
