@@ -32,11 +32,12 @@ class TestToolResults:
 
         await session.send("What's the weather in Paris?")
         assistant_message = await get_final_assistant_message(session)
-        assert "sunny" in assistant_message.data.content.lower() or "72" in assistant_message.data.content
+        assert (
+            "sunny" in assistant_message.data.content.lower()
+            or "72" in assistant_message.data.content
+        )
 
-    async def test_should_handle_tool_result_with_failure_resulttype(
-        self, ctx: E2ETestContext
-    ):
+    async def test_should_handle_tool_result_with_failure_resulttype(self, ctx: E2ETestContext):
         @define_tool("check_status", description="Checks the status of a service")
         def check_status(invocation: ToolInvocation) -> ToolResult:
             return ToolResult(
@@ -83,9 +84,7 @@ class TestToolResults:
         # Verify the LLM received just textResultForLlm, not stringified JSON
         traffic = await ctx.get_exchanges()
         last_conversation = traffic[-1]
-        tool_results = [
-            m for m in last_conversation["request"]["messages"] if m["role"] == "tool"
-        ]
+        tool_results = [m for m in last_conversation["request"]["messages"] if m["role"] == "tool"]
         assert len(tool_results) == 1
         assert "toolTelemetry" not in tool_results[0]["content"]
         assert "resultType" not in tool_results[0]["content"]

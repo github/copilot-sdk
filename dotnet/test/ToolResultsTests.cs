@@ -5,6 +5,8 @@
 using GitHub.Copilot.SDK.Test.Harness;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -12,12 +14,18 @@ namespace GitHub.Copilot.SDK.Test;
 
 public class ToolResultsTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "tool_results", output)
 {
+    [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
+    [JsonSerializable(typeof(ToolResultAIContent))]
+    [JsonSerializable(typeof(ToolResultObject))]
+    [JsonSerializable(typeof(JsonElement))]
+    private partial class ToolResultsJsonContext : JsonSerializerContext;
+
     [Fact]
     public async Task Should_Handle_Structured_ToolResultObject_From_Custom_Tool()
     {
         var session = await CreateSessionAsync(new SessionConfig
         {
-            Tools = [AIFunctionFactory.Create(GetWeather, "get_weather")],
+            Tools = [AIFunctionFactory.Create(GetWeather, "get_weather", serializerOptions: ToolResultsJsonContext.Default.Options)],
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
@@ -44,7 +52,7 @@ public class ToolResultsTests(E2ETestFixture fixture, ITestOutputHelper output) 
     {
         var session = await CreateSessionAsync(new SessionConfig
         {
-            Tools = [AIFunctionFactory.Create(CheckStatus, "check_status")],
+            Tools = [AIFunctionFactory.Create(CheckStatus, "check_status", serializerOptions: ToolResultsJsonContext.Default.Options)],
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
@@ -72,7 +80,7 @@ public class ToolResultsTests(E2ETestFixture fixture, ITestOutputHelper output) 
     {
         var session = await CreateSessionAsync(new SessionConfig
         {
-            Tools = [AIFunctionFactory.Create(AnalyzeCode, "analyze_code")],
+            Tools = [AIFunctionFactory.Create(AnalyzeCode, "analyze_code", serializerOptions: ToolResultsJsonContext.Default.Options)],
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
