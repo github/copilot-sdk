@@ -5,13 +5,13 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: What is 3+3? Reply with just the number.
+        content: What is 1+1? Reply with just the number.
       - role: assistant
-        content: "6"
+        content: "2"
   - messages:
       - role: system
         content: ${system}
       - role: user
-        content: What is 1+1? Reply with just the number.
+        content: What is 3+3? Reply with just the number.
       - role: assistant
-        content: "2"
+        content: "6"

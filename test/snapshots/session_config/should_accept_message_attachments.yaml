@@ -5,6 +5,10 @@ conversations:
       - role: system
         content: ${system}
       - role: user
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
         content: |-
           Summarize the attached file
 

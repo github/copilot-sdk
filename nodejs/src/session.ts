@@ -1057,7 +1057,10 @@ function isToolResultObject(value: unknown): value is ToolResultObject {
         return false;
     }
 
-    if (!("textResultForLlm" in value) || typeof (value as ToolResultObject).textResultForLlm !== "string") {
+    if (
+        !("textResultForLlm" in value) ||
+        typeof (value as ToolResultObject).textResultForLlm !== "string"
+    ) {
         return false;
     }
 
