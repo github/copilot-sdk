@@ -46,8 +46,7 @@ public class HooksTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ET
         Assert.Contains(preToolUseInputs, i => !string.IsNullOrEmpty(i.ToolName));
     }
 
-    // TODO: Re-enable once runtime postToolUse hooks are fixed (https://github.com/github/copilot-sdk/issues/972)
-    [Fact(Skip = "Runtime postToolUse hooks broken")]
+    [Fact]
     public async Task Should_Invoke_PostToolUse_Hook_After_Model_Runs_A_Tool()
     {
         var postToolUseInputs = new List<PostToolUseHookInput>();
@@ -84,8 +83,7 @@ public class HooksTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ET
         Assert.Contains(postToolUseInputs, i => i.ToolResult != null);
     }
 
-    // TODO: Re-enable once runtime postToolUse hooks are fixed (https://github.com/github/copilot-sdk/issues/972)
-    [Fact(Skip = "Runtime postToolUse hooks broken")]
+    [Fact]
     public async Task Should_Invoke_Both_PreToolUse_And_PostToolUse_Hooks_For_Single_Tool_Call()
     {
         var preToolUseInputs = new List<PreToolUseHookInput>();

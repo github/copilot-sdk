@@ -74,9 +74,7 @@ func TestHooks(t *testing.T) {
 		}
 	})
 
-	// TODO: Re-enable once runtime postToolUse hooks are fixed (https://github.com/github/copilot-sdk/issues/972)
 	t.Run("should invoke postToolUse hook after model runs a tool", func(t *testing.T) {
-		t.Skip("Runtime postToolUse hooks broken")
 		ctx.ConfigureForTest(t)
 
 		var postToolUseInputs []copilot.PostToolUseHookInput
@@ -141,9 +139,7 @@ func TestHooks(t *testing.T) {
 		}
 	})
 
-	// TODO: Re-enable once runtime postToolUse hooks are fixed (https://github.com/github/copilot-sdk/issues/972)
 	t.Run("should invoke both preToolUse and postToolUse hooks for a single tool call", func(t *testing.T) {
-		t.Skip("Runtime postToolUse hooks broken")
 		ctx.ConfigureForTest(t)
 
 		var preToolUseInputs []copilot.PreToolUseHookInput
