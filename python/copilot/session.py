@@ -948,7 +948,7 @@ class CopilotSession:
             # sent via the top-level error param so the CLI formats them with its
             # standard "Failed to execute..." message. Deliberate user-returned
             # failures send the full structured result to preserve metadata.
-            if getattr(tool_result, "_from_exception", False):
+            if tool_result._from_exception:
                 await self.rpc.tools.handle_pending_tool_call(
                     SessionToolsHandlePendingToolCallParams(
                         request_id=request_id,

@@ -5,3 +5,4 @@ conversations:
       - role: system
         content: ${system}
       - role: user
+        content: Describe this image

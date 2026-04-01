@@ -10,7 +10,7 @@ from __future__ import annotations
 import inspect
 import json
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal, TypeVar, get_type_hints, overload
 
 from pydantic import BaseModel
@@ -38,6 +38,7 @@ class ToolResult:
     binary_results_for_llm: list[ToolBinaryResult] | None = None
     session_log: str | None = None
     tool_telemetry: dict[str, Any] | None = None
+    _from_exception: bool = field(default=False, repr=False)
 
 
 @dataclass
@@ -194,7 +195,7 @@ def define_tool(
             except Exception as exc:
                 # Don't expose detailed error information to the LLM for security reasons.
                 # The actual error is stored in the 'error' field for debugging.
-                tr = ToolResult(
+                return ToolResult(
                     text_result_for_llm=(
                         "Invoking this tool produced an error. "
                         "Detailed information is not available."
@@ -202,12 +203,8 @@ def define_tool(
                     result_type="failure",
                     error=str(exc),
                     tool_telemetry={},
+                    _from_exception=True,
                 )
-                # Mark as exception-originated so _execute_tool_and_respond
-                # sends it via the top-level error param (matching CLI formatting)
-                # rather than as a structured result.
-                tr._from_exception = True  # type: ignore[attr-defined]
-                return tr
 
         return Tool(
             name=tool_name,
