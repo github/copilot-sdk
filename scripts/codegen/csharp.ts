@@ -806,7 +806,16 @@ function emitServerInstanceMethod(
     for (const [pName, pSchema] of paramEntries) {
         if (typeof pSchema !== "object") continue;
         const isReq = requiredSet.has(pName);
-        const csType = schemaTypeToCSharp(pSchema as JSONSchema7, isReq, rpcKnownTypes);
+        const jsonSchema = pSchema as JSONSchema7;
+        let csType: string;
+        // If the property has an enum, resolve to the generated enum type
+        if (jsonSchema.enum && Array.isArray(jsonSchema.enum) && requestClassName) {
+            const valuesKey = [...jsonSchema.enum].sort().join("|");
+            const match = [...generatedEnums.values()].find((e) => [...e.values].sort().join("|") === valuesKey);
+            csType = match ? (isReq ? match.enumName : `${match.enumName}?`) : schemaTypeToCSharp(jsonSchema, isReq, rpcKnownTypes);
+        } else {
+            csType = schemaTypeToCSharp(jsonSchema, isReq, rpcKnownTypes);
+        }
         sigParams.push(`${csType} ${pName}${isReq ? "" : " = null"}`);
         bodyAssignments.push(`${toPascalCase(pName)} = ${pName}`);
     }

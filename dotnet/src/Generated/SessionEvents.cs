@@ -1216,6 +1216,11 @@ public partial class SessionIdleData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("backgroundTasks")]
     public SessionIdleDataBackgroundTasks? BackgroundTasks { get; set; }
+
+    /// <summary>True when the preceding agentic loop was cancelled via abort signal.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("aborted")]
+    public bool? Aborted { get; set; }
 }
 
 /// <summary>Session title change payload containing the new display title.</summary>
@@ -2593,7 +2598,7 @@ public partial class SessionMcpServerStatusChangedData
     [JsonPropertyName("serverName")]
     public required string ServerName { get; set; }
 
-    /// <summary>New connection status: connected, failed, pending, disabled, or not_configured.</summary>
+    /// <summary>New connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
     [JsonPropertyName("status")]
     public required SessionMcpServersLoadedDataServersItemStatus Status { get; set; }
 }
@@ -3786,7 +3791,7 @@ public partial class SessionMcpServersLoadedDataServersItem
     [JsonPropertyName("name")]
     public required string Name { get; set; }
 
-    /// <summary>Connection status: connected, failed, pending, disabled, or not_configured.</summary>
+    /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
     [JsonPropertyName("status")]
     public required SessionMcpServersLoadedDataServersItemStatus Status { get; set; }
 
@@ -3998,7 +4003,7 @@ public enum ElicitationRequestedDataMode
     Url,
 }
 
-/// <summary>Connection status: connected, failed, pending, disabled, or not_configured.</summary>
+/// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<SessionMcpServersLoadedDataServersItemStatus>))]
 public enum SessionMcpServersLoadedDataServersItemStatus
 {
@@ -4008,6 +4013,9 @@ public enum SessionMcpServersLoadedDataServersItemStatus
     /// <summary>The <c>failed</c> variant.</summary>
     [JsonStringEnumMemberName("failed")]
     Failed,
+    /// <summary>The <c>needs-auth</c> variant.</summary>
+    [JsonStringEnumMemberName("needs-auth")]
+    NeedsAuth,
     /// <summary>The <c>pending</c> variant.</summary>
     [JsonStringEnumMemberName("pending")]
     Pending,

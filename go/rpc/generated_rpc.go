@@ -131,6 +131,98 @@ type QuotaSnapshot struct {
 	UsedRequests float64 `json:"usedRequests"`
 }
 
+type MCPConfigListResult struct {
+	// All MCP servers from user config, keyed by name
+	Servers map[string]ServerValue `json:"servers"`
+}
+
+// MCP server configuration (local/stdio or remote/http)
+type ServerValue struct {
+	Args            []string            `json:"args,omitempty"`
+	Command         *string             `json:"command,omitempty"`
+	Cwd             *string             `json:"cwd,omitempty"`
+	Env             map[string]string   `json:"env,omitempty"`
+	FilterMapping   *FilterMappingUnion `json:"filterMapping"`
+	IsDefaultServer *bool               `json:"isDefaultServer,omitempty"`
+	Timeout         *float64            `json:"timeout,omitempty"`
+	// Tools to include. Defaults to all tools if not specified.
+	Tools             []string          `json:"tools,omitempty"`
+	Type              *ServerType       `json:"type,omitempty"`
+	Headers           map[string]string `json:"headers,omitempty"`
+	OauthClientID     *string           `json:"oauthClientId,omitempty"`
+	OauthPublicClient *bool             `json:"oauthPublicClient,omitempty"`
+	URL               *string           `json:"url,omitempty"`
+}
+
+type MCPConfigAddParams struct {
+	// MCP server configuration (local/stdio or remote/http)
+	Config MCPConfigAddParamsConfig `json:"config"`
+	// Unique name for the MCP server
+	Name string `json:"name"`
+}
+
+// MCP server configuration (local/stdio or remote/http)
+type MCPConfigAddParamsConfig struct {
+	Args            []string            `json:"args,omitempty"`
+	Command         *string             `json:"command,omitempty"`
+	Cwd             *string             `json:"cwd,omitempty"`
+	Env             map[string]string   `json:"env,omitempty"`
+	FilterMapping   *FilterMappingUnion `json:"filterMapping"`
+	IsDefaultServer *bool               `json:"isDefaultServer,omitempty"`
+	Timeout         *float64            `json:"timeout,omitempty"`
+	// Tools to include. Defaults to all tools if not specified.
+	Tools             []string          `json:"tools,omitempty"`
+	Type              *ServerType       `json:"type,omitempty"`
+	Headers           map[string]string `json:"headers,omitempty"`
+	OauthClientID     *string           `json:"oauthClientId,omitempty"`
+	OauthPublicClient *bool             `json:"oauthPublicClient,omitempty"`
+	URL               *string           `json:"url,omitempty"`
+}
+
+type MCPConfigUpdateParams struct {
+	// MCP server configuration (local/stdio or remote/http)
+	Config MCPConfigUpdateParamsConfig `json:"config"`
+	// Name of the MCP server to update
+	Name string `json:"name"`
+}
+
+// MCP server configuration (local/stdio or remote/http)
+type MCPConfigUpdateParamsConfig struct {
+	Args            []string            `json:"args,omitempty"`
+	Command         *string             `json:"command,omitempty"`
+	Cwd             *string             `json:"cwd,omitempty"`
+	Env             map[string]string   `json:"env,omitempty"`
+	FilterMapping   *FilterMappingUnion `json:"filterMapping"`
+	IsDefaultServer *bool               `json:"isDefaultServer,omitempty"`
+	Timeout         *float64            `json:"timeout,omitempty"`
+	// Tools to include. Defaults to all tools if not specified.
+	Tools             []string          `json:"tools,omitempty"`
+	Type              *ServerType       `json:"type,omitempty"`
+	Headers           map[string]string `json:"headers,omitempty"`
+	OauthClientID     *string           `json:"oauthClientId,omitempty"`
+	OauthPublicClient *bool             `json:"oauthPublicClient,omitempty"`
+	URL               *string           `json:"url,omitempty"`
+}
+
+type MCPConfigRemoveParams struct {
+	// Name of the MCP server to remove
+	Name string `json:"name"`
+}
+
+type SessionFSSetProviderResult struct {
+	// Whether the provider was set successfully
+	Success bool `json:"success"`
+}
+
+type SessionFSSetProviderParams struct {
+	// Path conventions used by this filesystem
+	Conventions Conventions `json:"conventions"`
+	// Initial working directory for sessions
+	InitialCwd string `json:"initialCwd"`
+	// Path within each session's SessionFs where the runtime stores files for that session
+	SessionStatePath string `json:"sessionStatePath"`
+}
+
 type SessionModelGetCurrentResult struct {
 	// Currently active model identifier
 	ModelID *string `json:"modelId,omitempty"`
@@ -338,17 +430,17 @@ type SessionSkillsReloadResult struct {
 
 type SessionMCPListResult struct {
 	// Configured MCP servers
-	Servers []Server `json:"servers"`
+	Servers []ServerElement `json:"servers"`
 }
 
-type Server struct {
+type ServerElement struct {
 	// Error message if the server failed to connect
 	Error *string `json:"error,omitempty"`
 	// Server name (config key)
 	Name string `json:"name"`
 	// Configuration source: user, workspace, plugin, or builtin
 	Source *string `json:"source,omitempty"`
-	// Connection status: connected, failed, pending, disabled, or not_configured
+	// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
 	Status ServerStatus `json:"status"`
 }
 
@@ -610,6 +702,31 @@ type SessionShellKillParams struct {
 	Signal *Signal `json:"signal,omitempty"`
 }
 
+type FilterMappingEnum string
+
+const (
+	FilterMappingEnumHiddenCharacters FilterMappingEnum = "hidden_characters"
+	FilterMappingEnumMarkdown         FilterMappingEnum = "markdown"
+	FilterMappingEnumNone             FilterMappingEnum = "none"
+)
+
+type ServerType string
+
+const (
+	ServerTypeHTTP  ServerType = "http"
+	ServerTypeLocal ServerType = "local"
+	ServerTypeSse   ServerType = "sse"
+	ServerTypeStdio ServerType = "stdio"
+)
+
+// Path conventions used by this filesystem
+type Conventions string
+
+const (
+	ConventionsPosix   Conventions = "posix"
+	ConventionsWindows Conventions = "windows"
+)
+
 // The current agent mode.
 //
 // The agent mode after switching.
@@ -623,11 +740,12 @@ const (
 	ModePlan        Mode = "plan"
 )
 
-// Connection status: connected, failed, pending, disabled, or not_configured
+// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
 type ServerStatus string
 
 const (
 	ServerStatusConnected     ServerStatus = "connected"
+	ServerStatusNeedsAuth     ServerStatus = "needs-auth"
 	ServerStatusNotConfigured ServerStatus = "not_configured"
 	ServerStatusPending       ServerStatus = "pending"
 	ServerStatusDisabled      ServerStatus = "disabled"
@@ -721,6 +839,11 @@ const (
 	SignalSIGTERM Signal = "SIGTERM"
 )
 
+type FilterMappingUnion struct {
+	Enum    *FilterMappingEnum
+	EnumMap map[string]FilterMappingEnum
+}
+
 type ResultUnion struct {
 	ResultResult *ResultResult
 	String       *string
@@ -779,13 +902,31 @@ func (a *ServerAccountApi) GetQuota(ctx context.Context) (*AccountGetQuotaResult
 	return &result, nil
 }
 
+type ServerMcpApi serverApi
+
+type ServerSessionFsApi serverApi
+
+func (a *ServerSessionFsApi) SetProvider(ctx context.Context, params *SessionFSSetProviderParams) (*SessionFSSetProviderResult, error) {
+	raw, err := a.client.Request("sessionFs.setProvider", params)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionFSSetProviderResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // ServerRpc provides typed server-scoped RPC methods.
 type ServerRpc struct {
 	common serverApi // Reuse a single struct instead of allocating one for each service on the heap.
 
-	Models  *ServerModelsApi
-	Tools   *ServerToolsApi
-	Account *ServerAccountApi
+	Models    *ServerModelsApi
+	Tools     *ServerToolsApi
+	Account   *ServerAccountApi
+	Mcp       *ServerMcpApi
+	SessionFs *ServerSessionFsApi
 }
 
 func (a *ServerRpc) Ping(ctx context.Context, params *PingParams) (*PingResult, error) {
@@ -806,6 +947,8 @@ func NewServerRpc(client *jsonrpc2.Client) *ServerRpc {
 	r.Models = (*ServerModelsApi)(&r.common)
 	r.Tools = (*ServerToolsApi)(&r.common)
 	r.Account = (*ServerAccountApi)(&r.common)
+	r.Mcp = (*ServerMcpApi)(&r.common)
+	r.SessionFs = (*ServerSessionFsApi)(&r.common)
 	return r
 }
 

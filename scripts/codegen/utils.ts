@@ -125,13 +125,14 @@ export async function writeGeneratedFile(relativePath: string, content: string):
 export interface RpcMethod {
     rpcMethod: string;
     params: JSONSchema7 | null;
-    result: JSONSchema7;
+    result: JSONSchema7 | null;
     stability?: string;
 }
 
 export interface ApiSchema {
     server?: Record<string, unknown>;
     session?: Record<string, unknown>;
+    clientSession?: Record<string, unknown>;
 }
 
 export function isRpcMethod(node: unknown): node is RpcMethod {

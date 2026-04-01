@@ -179,6 +179,189 @@ export interface AccountGetQuotaResult {
   };
 }
 
+export interface McpConfigListResult {
+  /**
+   * All MCP servers from user config, keyed by name
+   */
+  servers: {
+    /**
+     * MCP server configuration (local/stdio or remote/http)
+     */
+    [k: string]:
+      | {
+          /**
+           * Tools to include. Defaults to all tools if not specified.
+           */
+          tools?: string[];
+          type?: "local" | "stdio";
+          isDefaultServer?: boolean;
+          filterMapping?:
+            | {
+                [k: string]: "none" | "markdown" | "hidden_characters";
+              }
+            | ("none" | "markdown" | "hidden_characters");
+          timeout?: number;
+          command: string;
+          args: string[];
+          cwd?: string;
+          env?: {
+            [k: string]: string;
+          };
+        }
+      | {
+          /**
+           * Tools to include. Defaults to all tools if not specified.
+           */
+          tools?: string[];
+          type: "http" | "sse";
+          isDefaultServer?: boolean;
+          filterMapping?:
+            | {
+                [k: string]: "none" | "markdown" | "hidden_characters";
+              }
+            | ("none" | "markdown" | "hidden_characters");
+          timeout?: number;
+          url: string;
+          headers?: {
+            [k: string]: string;
+          };
+          oauthClientId?: string;
+          oauthPublicClient?: boolean;
+        };
+  };
+}
+
+export interface McpConfigAddParams {
+  /**
+   * Unique name for the MCP server
+   */
+  name: string;
+  /**
+   * MCP server configuration (local/stdio or remote/http)
+   */
+  config:
+    | {
+        /**
+         * Tools to include. Defaults to all tools if not specified.
+         */
+        tools?: string[];
+        type?: "local" | "stdio";
+        isDefaultServer?: boolean;
+        filterMapping?:
+          | {
+              [k: string]: "none" | "markdown" | "hidden_characters";
+            }
+          | ("none" | "markdown" | "hidden_characters");
+        timeout?: number;
+        command: string;
+        args: string[];
+        cwd?: string;
+        env?: {
+          [k: string]: string;
+        };
+      }
+    | {
+        /**
+         * Tools to include. Defaults to all tools if not specified.
+         */
+        tools?: string[];
+        type: "http" | "sse";
+        isDefaultServer?: boolean;
+        filterMapping?:
+          | {
+              [k: string]: "none" | "markdown" | "hidden_characters";
+            }
+          | ("none" | "markdown" | "hidden_characters");
+        timeout?: number;
+        url: string;
+        headers?: {
+          [k: string]: string;
+        };
+        oauthClientId?: string;
+        oauthPublicClient?: boolean;
+      };
+}
+
+export interface McpConfigUpdateParams {
+  /**
+   * Name of the MCP server to update
+   */
+  name: string;
+  /**
+   * MCP server configuration (local/stdio or remote/http)
+   */
+  config:
+    | {
+        /**
+         * Tools to include. Defaults to all tools if not specified.
+         */
+        tools?: string[];
+        type?: "local" | "stdio";
+        isDefaultServer?: boolean;
+        filterMapping?:
+          | {
+              [k: string]: "none" | "markdown" | "hidden_characters";
+            }
+          | ("none" | "markdown" | "hidden_characters");
+        timeout?: number;
+        command: string;
+        args: string[];
+        cwd?: string;
+        env?: {
+          [k: string]: string;
+        };
+      }
+    | {
+        /**
+         * Tools to include. Defaults to all tools if not specified.
+         */
+        tools?: string[];
+        type: "http" | "sse";
+        isDefaultServer?: boolean;
+        filterMapping?:
+          | {
+              [k: string]: "none" | "markdown" | "hidden_characters";
+            }
+          | ("none" | "markdown" | "hidden_characters");
+        timeout?: number;
+        url: string;
+        headers?: {
+          [k: string]: string;
+        };
+        oauthClientId?: string;
+        oauthPublicClient?: boolean;
+      };
+}
+
+export interface McpConfigRemoveParams {
+  /**
+   * Name of the MCP server to remove
+   */
+  name: string;
+}
+
+export interface SessionFsSetProviderResult {
+  /**
+   * Whether the provider was set successfully
+   */
+  success: boolean;
+}
+
+export interface SessionFsSetProviderParams {
+  /**
+   * Initial working directory for sessions
+   */
+  initialCwd: string;
+  /**
+   * Path within each session's SessionFs where the runtime stores files for that session
+   */
+  sessionStatePath: string;
+  /**
+   * Path conventions used by this filesystem
+   */
+  conventions: "windows" | "posix";
+}
+
 export interface SessionModelGetCurrentResult {
   /**
    * Currently active model identifier
@@ -584,9 +767,9 @@ export interface SessionMcpListResult {
      */
     name: string;
     /**
-     * Connection status: connected, failed, pending, disabled, or not_configured
+     * Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
      */
-    status: "connected" | "failed" | "pending" | "disabled" | "not_configured";
+    status: "connected" | "failed" | "needs-auth" | "pending" | "disabled" | "not_configured";
     /**
      * Configuration source: user, workspace, plugin, or builtin
      */
@@ -1083,6 +1266,212 @@ export interface SessionShellKillParams {
   signal?: "SIGTERM" | "SIGKILL" | "SIGINT";
 }
 
+export interface SessionFsReadFileResult {
+  /**
+   * File content as UTF-8 string
+   */
+  content: string;
+}
+
+export interface SessionFsReadFileParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+}
+
+export interface SessionFsWriteFileParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+  /**
+   * Content to write
+   */
+  content: string;
+  /**
+   * Optional POSIX-style mode for newly created files
+   */
+  mode?: number;
+}
+
+export interface SessionFsAppendFileParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+  /**
+   * Content to append
+   */
+  content: string;
+  /**
+   * Optional POSIX-style mode for newly created files
+   */
+  mode?: number;
+}
+
+export interface SessionFsExistsResult {
+  /**
+   * Whether the path exists
+   */
+  exists: boolean;
+}
+
+export interface SessionFsExistsParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+}
+
+export interface SessionFsStatResult {
+  /**
+   * Whether the path is a file
+   */
+  isFile: boolean;
+  /**
+   * Whether the path is a directory
+   */
+  isDirectory: boolean;
+  /**
+   * File size in bytes
+   */
+  size: number;
+  /**
+   * ISO 8601 timestamp of last modification
+   */
+  mtime: string;
+  /**
+   * ISO 8601 timestamp of creation
+   */
+  birthtime: string;
+}
+
+export interface SessionFsStatParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+}
+
+export interface SessionFsMkdirParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+  /**
+   * Create parent directories as needed
+   */
+  recursive?: boolean;
+  /**
+   * Optional POSIX-style mode for newly created directories
+   */
+  mode?: number;
+}
+
+export interface SessionFsReaddirResult {
+  /**
+   * Entry names in the directory
+   */
+  entries: string[];
+}
+
+export interface SessionFsReaddirParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+}
+
+export interface SessionFsReaddirWithTypesResult {
+  /**
+   * Directory entries with type information
+   */
+  entries: {
+    /**
+     * Entry name
+     */
+    name: string;
+    /**
+     * Entry type
+     */
+    type: "file" | "directory";
+  }[];
+}
+
+export interface SessionFsReaddirWithTypesParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+}
+
+export interface SessionFsRmParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Path using SessionFs conventions
+   */
+  path: string;
+  /**
+   * Remove directories and their contents recursively
+   */
+  recursive?: boolean;
+  /**
+   * Ignore errors if the path does not exist
+   */
+  force?: boolean;
+}
+
+export interface SessionFsRenameParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Source path using SessionFs conventions
+   */
+  src: string;
+  /**
+   * Destination path using SessionFs conventions
+   */
+  dest: string;
+}
+
 /** Create typed server-scoped RPC methods (no session required). */
 export function createServerRpc(connection: MessageConnection) {
     return {
@@ -1099,6 +1488,22 @@ export function createServerRpc(connection: MessageConnection) {
         account: {
             getQuota: async (): Promise<AccountGetQuotaResult> =>
                 connection.sendRequest("account.getQuota", {}),
+        },
+        mcp: {
+            config: {
+                list: async (): Promise<McpConfigListResult> =>
+                    connection.sendRequest("mcp.config.list", {}),
+                add: async (params: McpConfigAddParams): Promise<void> =>
+                    connection.sendRequest("mcp.config.add", params),
+                update: async (params: McpConfigUpdateParams): Promise<void> =>
+                    connection.sendRequest("mcp.config.update", params),
+                remove: async (params: McpConfigRemoveParams): Promise<void> =>
+                    connection.sendRequest("mcp.config.remove", params),
+            },
+        },
+        sessionFs: {
+            setProvider: async (params: SessionFsSetProviderParams): Promise<SessionFsSetProviderResult> =>
+                connection.sendRequest("sessionFs.setProvider", params),
         },
     };
 }
@@ -1222,4 +1627,85 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.shell.kill", { sessionId, ...params }),
         },
     };
+}
+
+/** Handler for `sessionFs` client session API methods. */
+export interface SessionFsHandler {
+    readFile(params: SessionFsReadFileParams): Promise<SessionFsReadFileResult>;
+    writeFile(params: SessionFsWriteFileParams): Promise<void>;
+    appendFile(params: SessionFsAppendFileParams): Promise<void>;
+    exists(params: SessionFsExistsParams): Promise<SessionFsExistsResult>;
+    stat(params: SessionFsStatParams): Promise<SessionFsStatResult>;
+    mkdir(params: SessionFsMkdirParams): Promise<void>;
+    readdir(params: SessionFsReaddirParams): Promise<SessionFsReaddirResult>;
+    readdirWithTypes(params: SessionFsReaddirWithTypesParams): Promise<SessionFsReaddirWithTypesResult>;
+    rm(params: SessionFsRmParams): Promise<void>;
+    rename(params: SessionFsRenameParams): Promise<void>;
+}
+
+/** All client session API handler groups. */
+export interface ClientSessionApiHandlers {
+    sessionFs?: SessionFsHandler;
+}
+
+/**
+ * Register client session API handlers on a JSON-RPC connection.
+ * The server calls these methods to delegate work to the client.
+ * Each incoming call includes a `sessionId` in the params; the registration
+ * function uses `getHandlers` to resolve the session's handlers.
+ */
+export function registerClientSessionApiHandlers(
+    connection: MessageConnection,
+    getHandlers: (sessionId: string) => ClientSessionApiHandlers,
+): void {
+    connection.onRequest("sessionFs.readFile", async (params: SessionFsReadFileParams) => {
+        const handler = getHandlers(params.sessionId).sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.readFile(params);
+    });
+    connection.onRequest("sessionFs.writeFile", async (params: SessionFsWriteFileParams) => {
+        const handler = getHandlers(params.sessionId).sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.writeFile(params);
+    });
+    connection.onRequest("sessionFs.appendFile", async (params: SessionFsAppendFileParams) => {
+        const handler = getHandlers(params.sessionId).sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.appendFile(params);
+    });
+    connection.onRequest("sessionFs.exists", async (params: SessionFsExistsParams) => {
+        const handler = getHandlers(params.sessionId).sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.exists(params);
+    });
+    connection.onRequest("sessionFs.stat", async (params: SessionFsStatParams) => {
+        const handler = getHandlers(params.sessionId).sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.stat(params);
+    });
+    connection.onRequest("sessionFs.mkdir", async (params: SessionFsMkdirParams) => {
+        const handler = getHandlers(params.sessionId).sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.mkdir(params);
+    });
+    connection.onRequest("sessionFs.readdir", async (params: SessionFsReaddirParams) => {
+        const handler = getHandlers(params.sessionId).sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.readdir(params);
+    });
+    connection.onRequest("sessionFs.readdirWithTypes", async (params: SessionFsReaddirWithTypesParams) => {
+        const handler = getHandlers(params.sessionId).sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.readdirWithTypes(params);
+    });
+    connection.onRequest("sessionFs.rm", async (params: SessionFsRmParams) => {
+        const handler = getHandlers(params.sessionId).sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.rm(params);
+    });
+    connection.onRequest("sessionFs.rename", async (params: SessionFsRenameParams) => {
+        const handler = getHandlers(params.sessionId).sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.rename(params);
+    });
 }

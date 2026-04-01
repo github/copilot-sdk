@@ -24,7 +24,7 @@ import {
     StreamMessageReader,
     StreamMessageWriter,
 } from "vscode-jsonrpc/node.js";
-import { createServerRpc } from "./generated/rpc.js";
+import { createServerRpc, registerClientSessionApiHandlers } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession, NO_RESULT_PERMISSION_V2_ERROR } from "./session.js";
 import { getTraceContext } from "./telemetry.js";
@@ -40,6 +40,7 @@ import type {
     SessionConfig,
     SessionContext,
     SessionEvent,
+    SessionFsConfig,
     SessionLifecycleEvent,
     SessionLifecycleEventType,
     SessionLifecycleHandler,
@@ -216,6 +217,7 @@ export class CopilotClient {
             | "onListModels"
             | "telemetry"
             | "onGetTraceContext"
+            | "sessionFs"
         >
     > & {
         cliPath?: string;
@@ -238,6 +240,8 @@ export class CopilotClient {
     private _rpc: ReturnType<typeof createServerRpc> | null = null;
     private processExitPromise: Promise<never> | null = null; // Rejects when CLI process exits
     private negotiatedProtocolVersion: number | null = null;
+    /** Connection-level session filesystem config, set via constructor option. */
+    private sessionFsConfig: SessionFsConfig | null = null;
 
     /**
      * Typed server-scoped RPC methods.
@@ -307,6 +311,7 @@ export class CopilotClient {
 
         this.onListModels = options.onListModels;
         this.onGetTraceContext = options.onGetTraceContext;
+        this.sessionFsConfig = options.sessionFs ?? null;
 
         const effectiveEnv = options.env ?? process.env;
         this.options = {
@@ -398,6 +403,15 @@ export class CopilotClient {
 
             // Verify protocol version compatibility
             await this.verifyProtocolVersion();
+
+            // If a session filesystem provider was configured, register it
+            if (this.sessionFsConfig) {
+                await this.connection!.sendRequest("sessionFs.setProvider", {
+                    initialCwd: this.sessionFsConfig.initialCwd,
+                    sessionStatePath: this.sessionFsConfig.sessionStatePath,
+                    conventions: this.sessionFsConfig.conventions,
+                });
+            }
 
             this.state = "connected";
         } catch (error) {
@@ -666,6 +680,15 @@ export class CopilotClient {
             session.on(config.onEvent);
         }
         this.sessions.set(sessionId, session);
+        if (this.sessionFsConfig) {
+            if (config.createSessionFsHandler) {
+                session.clientSessionApis.sessionFs = config.createSessionFsHandler(session);
+            } else {
+                throw new Error(
+                    "createSessionFsHandler is required in session config when sessionFs is enabled in client options."
+                );
+            }
+        }
 
         try {
             const response = await this.connection!.sendRequest("session.create", {
@@ -792,6 +815,15 @@ export class CopilotClient {
             session.on(config.onEvent);
         }
         this.sessions.set(sessionId, session);
+        if (this.sessionFsConfig) {
+            if (config.createSessionFsHandler) {
+                session.clientSessionApis.sessionFs = config.createSessionFsHandler(session);
+            } else {
+                throw new Error(
+                    "createSessionFsHandler is required in session config when sessionFs is enabled in client options."
+                );
+            }
+        }
 
         try {
             const response = await this.connection!.sendRequest("session.resume", {
@@ -1077,7 +1109,9 @@ export class CopilotClient {
             throw new Error("Client not connected");
         }
 
-        const response = await this.connection.sendRequest("session.list", { filter });
+        const response = await this.connection.sendRequest("session.list", {
+            filter,
+        });
         const { sessions } = response as {
             sessions: Array<{
                 sessionId: string;
@@ -1622,6 +1656,14 @@ export class CopilotClient {
             }): Promise<{ sections: Record<string, { content: string }> }> =>
                 await this.handleSystemMessageTransform(params)
         );
+
+        // Register client session API handlers.
+        const sessions = this.sessions;
+        registerClientSessionApiHandlers(this.connection, (sessionId) => {
+            const session = sessions.get(sessionId);
+            if (!session) throw new Error(`No session found for sessionId: ${sessionId}`);
+            return session.clientSessionApis;
+        });
 
         this.connection.onClose(() => {
             this.state = "disconnected";

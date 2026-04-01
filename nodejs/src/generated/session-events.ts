@@ -308,6 +308,10 @@ export type SessionEvent =
             description?: string;
           }[];
         };
+        /**
+         * True when the preceding agentic loop was cancelled via abort signal
+         */
+        aborted?: boolean;
       };
     }
   | {
@@ -3657,9 +3661,9 @@ export type SessionEvent =
            */
           name: string;
           /**
-           * Connection status: connected, failed, pending, disabled, or not_configured
+           * Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
            */
-          status: "connected" | "failed" | "pending" | "disabled" | "not_configured";
+          status: "connected" | "failed" | "needs-auth" | "pending" | "disabled" | "not_configured";
           /**
            * Configuration source: user, workspace, plugin, or builtin
            */
@@ -3692,9 +3696,9 @@ export type SessionEvent =
          */
         serverName: string;
         /**
-         * New connection status: connected, failed, pending, disabled, or not_configured
+         * New connection status: connected, failed, needs-auth, pending, disabled, or not_configured
          */
-        status: "connected" | "failed" | "pending" | "disabled" | "not_configured";
+        status: "connected" | "failed" | "needs-auth" | "pending" | "disabled" | "not_configured";
       };
     }
   | {

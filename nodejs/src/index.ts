@@ -58,6 +58,8 @@ export type {
     SessionListFilter,
     SessionMetadata,
     SessionUiApi,
+    SessionFsConfig,
+    SessionFsHandler,
     SystemMessageAppendConfig,
     SystemMessageConfig,
     SystemMessageCustomizeConfig,

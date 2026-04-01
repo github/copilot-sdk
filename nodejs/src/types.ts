@@ -7,8 +7,11 @@
  */
 
 // Import and re-export generated session event types
+import type { SessionFsHandler } from "./generated/rpc.js";
 import type { SessionEvent as GeneratedSessionEvent } from "./generated/session-events.js";
+import type { CopilotSession } from "./session.js";
 export type SessionEvent = GeneratedSessionEvent;
+export type { SessionFsHandler } from "./generated/rpc.js";
 
 /**
  * Options for creating a CopilotClient
@@ -171,6 +174,14 @@ export interface CopilotClientOptions {
      * ```
      */
     onGetTraceContext?: TraceContextProvider;
+
+    /**
+     * Custom session filesystem provider.
+     * When provided, the client registers as the session filesystem provider
+     * on connection, routing all session-scoped file I/O through these callbacks
+     * instead of the server's default local filesystem storage.
+     */
+    sessionFs?: SessionFsConfig;
 }
 
 /**
@@ -1181,6 +1192,12 @@ export interface SessionConfig {
      * but executes earlier in the lifecycle so no events are missed.
      */
     onEvent?: SessionEventHandler;
+
+    /**
+     * Supplies a handler for session filesystem operations. This takes effect
+     * only if {@link CopilotClientOptions.sessionFs} is configured.
+     */
+    createSessionFsHandler?: (session: CopilotSession) => SessionFsHandler;
 }
 
 /**
@@ -1211,6 +1228,7 @@ export type ResumeSessionConfig = Pick<
     | "disabledSkills"
     | "infiniteSessions"
     | "onEvent"
+    | "createSessionFsHandler"
 > & {
     /**
      * When true, skips emitting the session.resume event.
@@ -1350,6 +1368,27 @@ export interface SessionContext {
     repository?: string;
     /** Current git branch */
     branch?: string;
+}
+
+/**
+ * Configuration for a custom session filesystem provider.
+ */
+export interface SessionFsConfig {
+    /**
+     * Initial working directory for sessions (user's project directory).
+     */
+    initialCwd: string;
+
+    /**
+     * Path within each session's SessionFs where the runtime stores
+     * session-scoped files (events, workspace, checkpoints, etc.).
+     */
+    sessionStatePath: string;
+
+    /**
+     * Path conventions used by this filesystem provider.
+     */
+    conventions: "windows" | "posix";
 }
 
 /**

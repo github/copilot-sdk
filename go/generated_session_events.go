@@ -385,6 +385,8 @@ type Data struct {
 	//
 	// URL to open in the user's browser (url mode only)
 	URL *string `json:"url,omitempty"`
+	// True when the preceding agentic loop was cancelled via abort signal
+	Aborted *bool `json:"aborted,omitempty"`
 	// Background tasks still running when the agent became idle
 	BackgroundTasks *BackgroundTasks `json:"backgroundTasks,omitempty"`
 	// The new display title for the session
@@ -856,7 +858,7 @@ type Data struct {
 	Warnings []string `json:"warnings,omitempty"`
 	// Array of MCP server status summaries
 	Servers []Server `json:"servers,omitempty"`
-	// New connection status: connected, failed, pending, disabled, or not_configured
+	// New connection status: connected, failed, needs-auth, pending, disabled, or not_configured
 	Status *ServerStatus `json:"status,omitempty"`
 	// Array of discovered extensions and their status
 	Extensions []Extension `json:"extensions,omitempty"`
@@ -1368,7 +1370,7 @@ type Server struct {
 	Name string `json:"name"`
 	// Configuration source: user, workspace, plugin, or builtin
 	Source *string `json:"source,omitempty"`
-	// Connection status: connected, failed, pending, disabled, or not_configured
+	// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
 	Status ServerStatus `json:"status"`
 }
 
@@ -1567,14 +1569,15 @@ const (
 	RoleSystem    Role = "system"
 )
 
-// Connection status: connected, failed, pending, disabled, or not_configured
+// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
 //
-// New connection status: connected, failed, pending, disabled, or not_configured
+// New connection status: connected, failed, needs-auth, pending, disabled, or not_configured
 type ServerStatus string
 
 const (
 	ServerStatusConnected     ServerStatus = "connected"
 	ServerStatusDisabled      ServerStatus = "disabled"
+	ServerStatusNeedsAuth     ServerStatus = "needs-auth"
 	ServerStatusNotConfigured ServerStatus = "not_configured"
 	ServerStatusPending       ServerStatus = "pending"
 	ServerStatusFailed        ServerStatus = "failed"

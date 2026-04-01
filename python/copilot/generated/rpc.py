@@ -454,6 +454,355 @@ class AccountGetQuotaResult:
         return result
 
 
+class FilterMappingEnum(Enum):
+    HIDDEN_CHARACTERS = "hidden_characters"
+    MARKDOWN = "markdown"
+    NONE = "none"
+
+
+class ServerType(Enum):
+    HTTP = "http"
+    LOCAL = "local"
+    SSE = "sse"
+    STDIO = "stdio"
+
+
+@dataclass
+class ServerValue:
+    """MCP server configuration (local/stdio or remote/http)"""
+
+    args: list[str] | None = None
+    command: str | None = None
+    cwd: str | None = None
+    env: dict[str, str] | None = None
+    filter_mapping: dict[str | FilterMappingEnum] | FilterMappingEnum | None = None
+    is_default_server: bool | None = None
+    timeout: float | None = None
+    tools: list[str] | None = None
+    """Tools to include. Defaults to all tools if not specified."""
+
+    type: ServerType | None = None
+    headers: dict[str, str] | None = None
+    oauth_client_id: str | None = None
+    oauth_public_client: bool | None = None
+    url: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ServerValue':
+        assert isinstance(obj, dict)
+        args = from_union([lambda x: from_list(from_str, x), from_none], obj.get("args"))
+        command = from_union([from_str, from_none], obj.get("command"))
+        cwd = from_union([from_str, from_none], obj.get("cwd"))
+        env = from_union([lambda x: from_dict(from_str, x), from_none], obj.get("env"))
+        filter_mapping = from_union([lambda x: from_dict(FilterMappingEnum, x), FilterMappingEnum, from_none], obj.get("filterMapping"))
+        is_default_server = from_union([from_bool, from_none], obj.get("isDefaultServer"))
+        timeout = from_union([from_float, from_none], obj.get("timeout"))
+        tools = from_union([lambda x: from_list(from_str, x), from_none], obj.get("tools"))
+        type = from_union([ServerType, from_none], obj.get("type"))
+        headers = from_union([lambda x: from_dict(from_str, x), from_none], obj.get("headers"))
+        oauth_client_id = from_union([from_str, from_none], obj.get("oauthClientId"))
+        oauth_public_client = from_union([from_bool, from_none], obj.get("oauthPublicClient"))
+        url = from_union([from_str, from_none], obj.get("url"))
+        return ServerValue(args, command, cwd, env, filter_mapping, is_default_server, timeout, tools, type, headers, oauth_client_id, oauth_public_client, url)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.args is not None:
+            result["args"] = from_union([lambda x: from_list(from_str, x), from_none], self.args)
+        if self.command is not None:
+            result["command"] = from_union([from_str, from_none], self.command)
+        if self.cwd is not None:
+            result["cwd"] = from_union([from_str, from_none], self.cwd)
+        if self.env is not None:
+            result["env"] = from_union([lambda x: from_dict(from_str, x), from_none], self.env)
+        if self.filter_mapping is not None:
+            result["filterMapping"] = from_union([lambda x: from_dict(lambda x: to_enum(FilterMappingEnum, x), x), lambda x: to_enum(FilterMappingEnum, x), from_none], self.filter_mapping)
+        if self.is_default_server is not None:
+            result["isDefaultServer"] = from_union([from_bool, from_none], self.is_default_server)
+        if self.timeout is not None:
+            result["timeout"] = from_union([to_float, from_none], self.timeout)
+        if self.tools is not None:
+            result["tools"] = from_union([lambda x: from_list(from_str, x), from_none], self.tools)
+        if self.type is not None:
+            result["type"] = from_union([lambda x: to_enum(ServerType, x), from_none], self.type)
+        if self.headers is not None:
+            result["headers"] = from_union([lambda x: from_dict(from_str, x), from_none], self.headers)
+        if self.oauth_client_id is not None:
+            result["oauthClientId"] = from_union([from_str, from_none], self.oauth_client_id)
+        if self.oauth_public_client is not None:
+            result["oauthPublicClient"] = from_union([from_bool, from_none], self.oauth_public_client)
+        if self.url is not None:
+            result["url"] = from_union([from_str, from_none], self.url)
+        return result
+
+
+@dataclass
+class MCPConfigListResult:
+    servers: dict[str, ServerValue]
+    """All MCP servers from user config, keyed by name"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPConfigListResult':
+        assert isinstance(obj, dict)
+        servers = from_dict(ServerValue.from_dict, obj.get("servers"))
+        return MCPConfigListResult(servers)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["servers"] = from_dict(lambda x: to_class(ServerValue, x), self.servers)
+        return result
+
+
+@dataclass
+class MCPConfigAddParamsConfig:
+    """MCP server configuration (local/stdio or remote/http)"""
+
+    args: list[str] | None = None
+    command: str | None = None
+    cwd: str | None = None
+    env: dict[str, str] | None = None
+    filter_mapping: dict[str | FilterMappingEnum] | FilterMappingEnum | None = None
+    is_default_server: bool | None = None
+    timeout: float | None = None
+    tools: list[str] | None = None
+    """Tools to include. Defaults to all tools if not specified."""
+
+    type: ServerType | None = None
+    headers: dict[str, str] | None = None
+    oauth_client_id: str | None = None
+    oauth_public_client: bool | None = None
+    url: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPConfigAddParamsConfig':
+        assert isinstance(obj, dict)
+        args = from_union([lambda x: from_list(from_str, x), from_none], obj.get("args"))
+        command = from_union([from_str, from_none], obj.get("command"))
+        cwd = from_union([from_str, from_none], obj.get("cwd"))
+        env = from_union([lambda x: from_dict(from_str, x), from_none], obj.get("env"))
+        filter_mapping = from_union([lambda x: from_dict(FilterMappingEnum, x), FilterMappingEnum, from_none], obj.get("filterMapping"))
+        is_default_server = from_union([from_bool, from_none], obj.get("isDefaultServer"))
+        timeout = from_union([from_float, from_none], obj.get("timeout"))
+        tools = from_union([lambda x: from_list(from_str, x), from_none], obj.get("tools"))
+        type = from_union([ServerType, from_none], obj.get("type"))
+        headers = from_union([lambda x: from_dict(from_str, x), from_none], obj.get("headers"))
+        oauth_client_id = from_union([from_str, from_none], obj.get("oauthClientId"))
+        oauth_public_client = from_union([from_bool, from_none], obj.get("oauthPublicClient"))
+        url = from_union([from_str, from_none], obj.get("url"))
+        return MCPConfigAddParamsConfig(args, command, cwd, env, filter_mapping, is_default_server, timeout, tools, type, headers, oauth_client_id, oauth_public_client, url)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.args is not None:
+            result["args"] = from_union([lambda x: from_list(from_str, x), from_none], self.args)
+        if self.command is not None:
+            result["command"] = from_union([from_str, from_none], self.command)
+        if self.cwd is not None:
+            result["cwd"] = from_union([from_str, from_none], self.cwd)
+        if self.env is not None:
+            result["env"] = from_union([lambda x: from_dict(from_str, x), from_none], self.env)
+        if self.filter_mapping is not None:
+            result["filterMapping"] = from_union([lambda x: from_dict(lambda x: to_enum(FilterMappingEnum, x), x), lambda x: to_enum(FilterMappingEnum, x), from_none], self.filter_mapping)
+        if self.is_default_server is not None:
+            result["isDefaultServer"] = from_union([from_bool, from_none], self.is_default_server)
+        if self.timeout is not None:
+            result["timeout"] = from_union([to_float, from_none], self.timeout)
+        if self.tools is not None:
+            result["tools"] = from_union([lambda x: from_list(from_str, x), from_none], self.tools)
+        if self.type is not None:
+            result["type"] = from_union([lambda x: to_enum(ServerType, x), from_none], self.type)
+        if self.headers is not None:
+            result["headers"] = from_union([lambda x: from_dict(from_str, x), from_none], self.headers)
+        if self.oauth_client_id is not None:
+            result["oauthClientId"] = from_union([from_str, from_none], self.oauth_client_id)
+        if self.oauth_public_client is not None:
+            result["oauthPublicClient"] = from_union([from_bool, from_none], self.oauth_public_client)
+        if self.url is not None:
+            result["url"] = from_union([from_str, from_none], self.url)
+        return result
+
+
+@dataclass
+class MCPConfigAddParams:
+    config: MCPConfigAddParamsConfig
+    """MCP server configuration (local/stdio or remote/http)"""
+
+    name: str
+    """Unique name for the MCP server"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPConfigAddParams':
+        assert isinstance(obj, dict)
+        config = MCPConfigAddParamsConfig.from_dict(obj.get("config"))
+        name = from_str(obj.get("name"))
+        return MCPConfigAddParams(config, name)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["config"] = to_class(MCPConfigAddParamsConfig, self.config)
+        result["name"] = from_str(self.name)
+        return result
+
+
+@dataclass
+class MCPConfigUpdateParamsConfig:
+    """MCP server configuration (local/stdio or remote/http)"""
+
+    args: list[str] | None = None
+    command: str | None = None
+    cwd: str | None = None
+    env: dict[str, str] | None = None
+    filter_mapping: dict[str | FilterMappingEnum] | FilterMappingEnum | None = None
+    is_default_server: bool | None = None
+    timeout: float | None = None
+    tools: list[str] | None = None
+    """Tools to include. Defaults to all tools if not specified."""
+
+    type: ServerType | None = None
+    headers: dict[str, str] | None = None
+    oauth_client_id: str | None = None
+    oauth_public_client: bool | None = None
+    url: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPConfigUpdateParamsConfig':
+        assert isinstance(obj, dict)
+        args = from_union([lambda x: from_list(from_str, x), from_none], obj.get("args"))
+        command = from_union([from_str, from_none], obj.get("command"))
+        cwd = from_union([from_str, from_none], obj.get("cwd"))
+        env = from_union([lambda x: from_dict(from_str, x), from_none], obj.get("env"))
+        filter_mapping = from_union([lambda x: from_dict(FilterMappingEnum, x), FilterMappingEnum, from_none], obj.get("filterMapping"))
+        is_default_server = from_union([from_bool, from_none], obj.get("isDefaultServer"))
+        timeout = from_union([from_float, from_none], obj.get("timeout"))
+        tools = from_union([lambda x: from_list(from_str, x), from_none], obj.get("tools"))
+        type = from_union([ServerType, from_none], obj.get("type"))
+        headers = from_union([lambda x: from_dict(from_str, x), from_none], obj.get("headers"))
+        oauth_client_id = from_union([from_str, from_none], obj.get("oauthClientId"))
+        oauth_public_client = from_union([from_bool, from_none], obj.get("oauthPublicClient"))
+        url = from_union([from_str, from_none], obj.get("url"))
+        return MCPConfigUpdateParamsConfig(args, command, cwd, env, filter_mapping, is_default_server, timeout, tools, type, headers, oauth_client_id, oauth_public_client, url)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.args is not None:
+            result["args"] = from_union([lambda x: from_list(from_str, x), from_none], self.args)
+        if self.command is not None:
+            result["command"] = from_union([from_str, from_none], self.command)
+        if self.cwd is not None:
+            result["cwd"] = from_union([from_str, from_none], self.cwd)
+        if self.env is not None:
+            result["env"] = from_union([lambda x: from_dict(from_str, x), from_none], self.env)
+        if self.filter_mapping is not None:
+            result["filterMapping"] = from_union([lambda x: from_dict(lambda x: to_enum(FilterMappingEnum, x), x), lambda x: to_enum(FilterMappingEnum, x), from_none], self.filter_mapping)
+        if self.is_default_server is not None:
+            result["isDefaultServer"] = from_union([from_bool, from_none], self.is_default_server)
+        if self.timeout is not None:
+            result["timeout"] = from_union([to_float, from_none], self.timeout)
+        if self.tools is not None:
+            result["tools"] = from_union([lambda x: from_list(from_str, x), from_none], self.tools)
+        if self.type is not None:
+            result["type"] = from_union([lambda x: to_enum(ServerType, x), from_none], self.type)
+        if self.headers is not None:
+            result["headers"] = from_union([lambda x: from_dict(from_str, x), from_none], self.headers)
+        if self.oauth_client_id is not None:
+            result["oauthClientId"] = from_union([from_str, from_none], self.oauth_client_id)
+        if self.oauth_public_client is not None:
+            result["oauthPublicClient"] = from_union([from_bool, from_none], self.oauth_public_client)
+        if self.url is not None:
+            result["url"] = from_union([from_str, from_none], self.url)
+        return result
+
+
+@dataclass
+class MCPConfigUpdateParams:
+    config: MCPConfigUpdateParamsConfig
+    """MCP server configuration (local/stdio or remote/http)"""
+
+    name: str
+    """Name of the MCP server to update"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPConfigUpdateParams':
+        assert isinstance(obj, dict)
+        config = MCPConfigUpdateParamsConfig.from_dict(obj.get("config"))
+        name = from_str(obj.get("name"))
+        return MCPConfigUpdateParams(config, name)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["config"] = to_class(MCPConfigUpdateParamsConfig, self.config)
+        result["name"] = from_str(self.name)
+        return result
+
+
+@dataclass
+class MCPConfigRemoveParams:
+    name: str
+    """Name of the MCP server to remove"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPConfigRemoveParams':
+        assert isinstance(obj, dict)
+        name = from_str(obj.get("name"))
+        return MCPConfigRemoveParams(name)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["name"] = from_str(self.name)
+        return result
+
+
+@dataclass
+class SessionFSSetProviderResult:
+    success: bool
+    """Whether the provider was set successfully"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSSetProviderResult':
+        assert isinstance(obj, dict)
+        success = from_bool(obj.get("success"))
+        return SessionFSSetProviderResult(success)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["success"] = from_bool(self.success)
+        return result
+
+
+class Conventions(Enum):
+    """Path conventions used by this filesystem"""
+
+    POSIX = "posix"
+    WINDOWS = "windows"
+
+
+@dataclass
+class SessionFSSetProviderParams:
+    conventions: Conventions
+    """Path conventions used by this filesystem"""
+
+    initial_cwd: str
+    """Initial working directory for sessions"""
+
+    session_state_path: str
+    """Path within each session's SessionFs where the runtime stores files for that session"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSSetProviderParams':
+        assert isinstance(obj, dict)
+        conventions = Conventions(obj.get("conventions"))
+        initial_cwd = from_str(obj.get("initialCwd"))
+        session_state_path = from_str(obj.get("sessionStatePath"))
+        return SessionFSSetProviderParams(conventions, initial_cwd, session_state_path)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["conventions"] = to_enum(Conventions, self.conventions)
+        result["initialCwd"] = from_str(self.initial_cwd)
+        result["sessionStatePath"] = from_str(self.session_state_path)
+        return result
+
+
 @dataclass
 class SessionModelGetCurrentResult:
     model_id: str | None = None
@@ -1116,22 +1465,23 @@ class SessionSkillsReloadResult:
 
 
 class ServerStatus(Enum):
-    """Connection status: connected, failed, pending, disabled, or not_configured"""
+    """Connection status: connected, failed, needs-auth, pending, disabled, or not_configured"""
 
     CONNECTED = "connected"
     DISABLED = "disabled"
     FAILED = "failed"
+    NEEDS_AUTH = "needs-auth"
     NOT_CONFIGURED = "not_configured"
     PENDING = "pending"
 
 
 @dataclass
-class Server:
+class ServerElement:
     name: str
     """Server name (config key)"""
 
     status: ServerStatus
-    """Connection status: connected, failed, pending, disabled, or not_configured"""
+    """Connection status: connected, failed, needs-auth, pending, disabled, or not_configured"""
 
     error: str | None = None
     """Error message if the server failed to connect"""
@@ -1140,13 +1490,13 @@ class Server:
     """Configuration source: user, workspace, plugin, or builtin"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'Server':
+    def from_dict(obj: Any) -> 'ServerElement':
         assert isinstance(obj, dict)
         name = from_str(obj.get("name"))
         status = ServerStatus(obj.get("status"))
         error = from_union([from_str, from_none], obj.get("error"))
         source = from_union([from_str, from_none], obj.get("source"))
-        return Server(name, status, error, source)
+        return ServerElement(name, status, error, source)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -1161,18 +1511,18 @@ class Server:
 
 @dataclass
 class SessionMCPListResult:
-    servers: list[Server]
+    servers: list[ServerElement]
     """Configured MCP servers"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'SessionMCPListResult':
         assert isinstance(obj, dict)
-        servers = from_list(Server.from_dict, obj.get("servers"))
+        servers = from_list(ServerElement.from_dict, obj.get("servers"))
         return SessionMCPListResult(servers)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["servers"] = from_list(lambda x: to_class(Server, x), self.servers)
+        result["servers"] = from_list(lambda x: to_class(ServerElement, x), self.servers)
         return result
 
 
@@ -2167,6 +2517,54 @@ def account_get_quota_result_to_dict(x: AccountGetQuotaResult) -> Any:
     return to_class(AccountGetQuotaResult, x)
 
 
+def mcp_config_list_result_from_dict(s: Any) -> MCPConfigListResult:
+    return MCPConfigListResult.from_dict(s)
+
+
+def mcp_config_list_result_to_dict(x: MCPConfigListResult) -> Any:
+    return to_class(MCPConfigListResult, x)
+
+
+def mcp_config_add_params_from_dict(s: Any) -> MCPConfigAddParams:
+    return MCPConfigAddParams.from_dict(s)
+
+
+def mcp_config_add_params_to_dict(x: MCPConfigAddParams) -> Any:
+    return to_class(MCPConfigAddParams, x)
+
+
+def mcp_config_update_params_from_dict(s: Any) -> MCPConfigUpdateParams:
+    return MCPConfigUpdateParams.from_dict(s)
+
+
+def mcp_config_update_params_to_dict(x: MCPConfigUpdateParams) -> Any:
+    return to_class(MCPConfigUpdateParams, x)
+
+
+def mcp_config_remove_params_from_dict(s: Any) -> MCPConfigRemoveParams:
+    return MCPConfigRemoveParams.from_dict(s)
+
+
+def mcp_config_remove_params_to_dict(x: MCPConfigRemoveParams) -> Any:
+    return to_class(MCPConfigRemoveParams, x)
+
+
+def session_fs_set_provider_result_from_dict(s: Any) -> SessionFSSetProviderResult:
+    return SessionFSSetProviderResult.from_dict(s)
+
+
+def session_fs_set_provider_result_to_dict(x: SessionFSSetProviderResult) -> Any:
+    return to_class(SessionFSSetProviderResult, x)
+
+
+def session_fs_set_provider_params_from_dict(s: Any) -> SessionFSSetProviderParams:
+    return SessionFSSetProviderParams.from_dict(s)
+
+
+def session_fs_set_provider_params_to_dict(x: SessionFSSetProviderParams) -> Any:
+    return to_class(SessionFSSetProviderParams, x)
+
+
 def session_model_get_current_result_from_dict(s: Any) -> SessionModelGetCurrentResult:
     return SessionModelGetCurrentResult.from_dict(s)
 
@@ -2671,6 +3069,20 @@ class ServerAccountApi:
         return AccountGetQuotaResult.from_dict(await self._client.request("account.getQuota", {}, **_timeout_kwargs(timeout)))
 
 
+class ServerMcpApi:
+    def __init__(self, client: "JsonRpcClient"):
+        self._client = client
+
+
+class ServerSessionFsApi:
+    def __init__(self, client: "JsonRpcClient"):
+        self._client = client
+
+    async def set_provider(self, params: SessionFSSetProviderParams, *, timeout: float | None = None) -> SessionFSSetProviderResult:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return SessionFSSetProviderResult.from_dict(await self._client.request("sessionFs.setProvider", params_dict, **_timeout_kwargs(timeout)))
+
+
 class ServerRpc:
     """Typed server-scoped RPC methods."""
     def __init__(self, client: "JsonRpcClient"):
@@ -2678,6 +3090,8 @@ class ServerRpc:
         self.models = ServerModelsApi(client)
         self.tools = ServerToolsApi(client)
         self.account = ServerAccountApi(client)
+        self.mcp = ServerMcpApi(client)
+        self.session_fs = ServerSessionFsApi(client)
 
     async def ping(self, params: PingParams, *, timeout: float | None = None) -> PingResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}

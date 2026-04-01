@@ -1556,13 +1556,14 @@ class Role(Enum):
 
 
 class ServerStatus(Enum):
-    """Connection status: connected, failed, pending, disabled, or not_configured
+    """Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
     
-    New connection status: connected, failed, pending, disabled, or not_configured
+    New connection status: connected, failed, needs-auth, pending, disabled, or not_configured
     """
     CONNECTED = "connected"
     DISABLED = "disabled"
     FAILED = "failed"
+    NEEDS_AUTH = "needs-auth"
     NOT_CONFIGURED = "not_configured"
     PENDING = "pending"
 
@@ -1573,7 +1574,7 @@ class Server:
     """Server name (config key)"""
 
     status: ServerStatus
-    """Connection status: connected, failed, pending, disabled, or not_configured"""
+    """Connection status: connected, failed, needs-auth, pending, disabled, or not_configured"""
 
     error: str | None = None
     """Error message if the server failed to connect"""
@@ -1988,6 +1989,9 @@ class Data:
     
     URL to open in the user's browser (url mode only)
     """
+    aborted: bool | None = None
+    """True when the preceding agentic loop was cancelled via abort signal"""
+
     background_tasks: BackgroundTasks | None = None
     """Background tasks still running when the agent became idle"""
 
@@ -2606,7 +2610,7 @@ class Data:
     """Array of MCP server status summaries"""
 
     status: ServerStatus | None = None
-    """New connection status: connected, failed, pending, disabled, or not_configured"""
+    """New connection status: connected, failed, needs-auth, pending, disabled, or not_configured"""
 
     extensions: list[Extension] | None = None
     """Array of discovered extensions and their status"""
@@ -2632,6 +2636,7 @@ class Data:
         stack = from_union([from_str, from_none], obj.get("stack"))
         status_code = from_union([from_int, from_none], obj.get("statusCode"))
         url = from_union([from_str, from_none], obj.get("url"))
+        aborted = from_union([from_bool, from_none], obj.get("aborted"))
         background_tasks = from_union([BackgroundTasks.from_dict, from_none], obj.get("backgroundTasks"))
         title = from_union([from_str, from_none], obj.get("title"))
         info_type = from_union([from_str, from_none], obj.get("infoType"))
@@ -2780,7 +2785,7 @@ class Data:
         servers = from_union([lambda x: from_list(Server.from_dict, x), from_none], obj.get("servers"))
         status = from_union([ServerStatus, from_none], obj.get("status"))
         extensions = from_union([lambda x: from_list(Extension.from_dict, x), from_none], obj.get("extensions"))
-        return Data(already_in_use, context, copilot_version, producer, reasoning_effort, remote_steerable, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, url, background_tasks, title, info_type, warning_type, new_model, previous_model, previous_reasoning_effort, new_mode, previous_mode, operation, path, handoff_time, host, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, conversation_tokens, current_model, current_tokens, error_reason, model_metrics, session_start_time, shutdown_type, system_tokens, tool_definitions_tokens, total_api_duration_ms, total_premium_requests, base_commit, branch, cwd, git_root, head_commit, host_type, is_initial, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, interaction_id, source, transformed_content, turn_id, intent, reasoning_id, delta_content, total_response_size_bytes, encrypted_content, message_id, output_tokens, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, api_call_id, cache_read_tokens, cache_write_tokens, copilot_usage, cost, duration, initiator, input_tokens, inter_token_latency_ms, model, quota_snapshots, ttft_ms, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, description, name, plugin_name, plugin_version, agent_description, agent_display_name, agent_name, duration_ms, total_tokens, total_tool_calls, tools, hook_invocation_id, hook_type, input, output, metadata, role, kind, permission_request, allow_freeform, choices, question, elicitation_source, mode, requested_schema, mcp_request_id, server_name, server_url, static_client_config, traceparent, tracestate, command, args, command_name, commands, ui, actions, plan_content, recommended_action, skills, agents, errors, warnings, servers, status, extensions)
+        return Data(already_in_use, context, copilot_version, producer, reasoning_effort, remote_steerable, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, url, aborted, background_tasks, title, info_type, warning_type, new_model, previous_model, previous_reasoning_effort, new_mode, previous_mode, operation, path, handoff_time, host, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, conversation_tokens, current_model, current_tokens, error_reason, model_metrics, session_start_time, shutdown_type, system_tokens, tool_definitions_tokens, total_api_duration_ms, total_premium_requests, base_commit, branch, cwd, git_root, head_commit, host_type, is_initial, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, interaction_id, source, transformed_content, turn_id, intent, reasoning_id, delta_content, total_response_size_bytes, encrypted_content, message_id, output_tokens, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, api_call_id, cache_read_tokens, cache_write_tokens, copilot_usage, cost, duration, initiator, input_tokens, inter_token_latency_ms, model, quota_snapshots, ttft_ms, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, description, name, plugin_name, plugin_version, agent_description, agent_display_name, agent_name, duration_ms, total_tokens, total_tool_calls, tools, hook_invocation_id, hook_type, input, output, metadata, role, kind, permission_request, allow_freeform, choices, question, elicitation_source, mode, requested_schema, mcp_request_id, server_name, server_url, static_client_config, traceparent, tracestate, command, args, command_name, commands, ui, actions, plan_content, recommended_action, skills, agents, errors, warnings, servers, status, extensions)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -2820,6 +2825,8 @@ class Data:
             result["statusCode"] = from_union([from_int, from_none], self.status_code)
         if self.url is not None:
             result["url"] = from_union([from_str, from_none], self.url)
+        if self.aborted is not None:
+            result["aborted"] = from_union([from_bool, from_none], self.aborted)
         if self.background_tasks is not None:
             result["backgroundTasks"] = from_union([lambda x: to_class(BackgroundTasks, x), from_none], self.background_tasks)
         if self.title is not None:
