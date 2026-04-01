@@ -38,7 +38,7 @@ from .generated.session_events import (
     SessionEventType,
     session_event_from_dict,
 )
-from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
+from .tools import TOOL_EXCEPTION_TEXT, Tool, ToolHandler, ToolInvocation, ToolResult
 
 # Re-export SessionEvent under an alias used internally
 SessionEventTypeAlias = SessionEvent
@@ -944,17 +944,33 @@ class CopilotSession:
             else:
                 tool_result = result  # type: ignore[assignment]
 
-            await self.rpc.tools.handle_pending_tool_call(
-                SessionToolsHandlePendingToolCallParams(
-                    request_id=request_id,
-                    result=ResultResult(
-                        text_result_for_llm=tool_result.text_result_for_llm,
-                        result_type=tool_result.result_type,
+            # Exception-originated failures (from define_tool's exception handler) are
+            # sent via the top-level error param so the CLI formats them with its
+            # standard "Failed to execute..." message. Deliberate user-returned
+            # failures send the full structured result to preserve metadata.
+            if (
+                tool_result.result_type == "failure"
+                and tool_result.error
+                and tool_result.text_result_for_llm == TOOL_EXCEPTION_TEXT
+            ):
+                await self.rpc.tools.handle_pending_tool_call(
+                    SessionToolsHandlePendingToolCallParams(
+                        request_id=request_id,
                         error=tool_result.error,
-                        tool_telemetry=tool_result.tool_telemetry,
-                    ),
+                    )
                 )
-            )
+            else:
+                await self.rpc.tools.handle_pending_tool_call(
+                    SessionToolsHandlePendingToolCallParams(
+                        request_id=request_id,
+                        result=ResultResult(
+                            text_result_for_llm=tool_result.text_result_for_llm,
+                            result_type=tool_result.result_type,
+                            error=tool_result.error,
+                            tool_telemetry=tool_result.tool_telemetry,
+                        ),
+                    )
+                )
         except Exception as exc:
             try:
                 await self.rpc.tools.handle_pending_tool_call(

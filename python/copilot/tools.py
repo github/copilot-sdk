@@ -17,6 +17,11 @@ from pydantic import BaseModel
 
 ToolResultType = Literal["success", "failure", "rejected", "denied"]
 
+# Constant used by define_tool's exception handler so that
+# _execute_tool_and_respond can detect exception-originated failures
+# and send them via the top-level error param (matching CLI formatting).
+TOOL_EXCEPTION_TEXT = "Invoking this tool produced an error. Detailed information is not available."
+
 
 @dataclass
 class ToolBinaryResult:
@@ -195,8 +200,7 @@ def define_tool(
                 # Don't expose detailed error information to the LLM for security reasons.
                 # The actual error is stored in the 'error' field for debugging.
                 return ToolResult(
-                    text_result_for_llm="Invoking this tool produced an error. "
-                    "Detailed information is not available.",
+                    text_result_for_llm=TOOL_EXCEPTION_TEXT,
                     result_type="failure",
                     error=str(exc),
                     tool_telemetry={},
