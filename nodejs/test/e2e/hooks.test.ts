@@ -48,7 +48,8 @@ describe("Session hooks", async () => {
         await session.disconnect();
     });
 
-    it("should invoke postToolUse hook after model runs a tool", async () => {
+    // TODO: Re-enable once runtime postToolUse hooks are fixed (https://github.com/github/copilot-sdk/issues/972)
+    it.skip("should invoke postToolUse hook after model runs a tool", async () => {
         const postToolUseInputs: PostToolUseHookInput[] = [];
 
         const session = await client.createSession({
@@ -79,7 +80,8 @@ describe("Session hooks", async () => {
         await session.disconnect();
     });
 
-    it("should invoke both preToolUse and postToolUse hooks for a single tool call", async () => {
+    // TODO: Re-enable once runtime postToolUse hooks are fixed (https://github.com/github/copilot-sdk/issues/972)
+    it.skip("should invoke both preToolUse and postToolUse hooks for a single tool call", async () => {
         const preToolUseInputs: PreToolUseHookInput[] = [];
         const postToolUseInputs: PostToolUseHookInput[] = [];
 
