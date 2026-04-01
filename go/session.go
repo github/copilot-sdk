@@ -625,14 +625,22 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 		textResultForLLM = fmt.Sprintf("%v", result)
 	}
 
+	// Default ResultType to "success" when unset, or "failure" when there's an error.
+	effectiveResultType := result.ResultType
+	if effectiveResultType == "" {
+		if result.Error != "" {
+			effectiveResultType = "failure"
+		} else {
+			effectiveResultType = "success"
+		}
+	}
+
 	rpcResult := rpc.ResultUnion{
 		ResultResult: &rpc.ResultResult{
 			TextResultForLlm: textResultForLLM,
 			ToolTelemetry:    result.ToolTelemetry,
+			ResultType:       &effectiveResultType,
 		},
-	}
-	if result.ResultType != "" {
-		rpcResult.ResultResult.ResultType = &result.ResultType
 	}
 	if result.Error != "" {
 		rpcResult.ResultResult.Error = &result.Error

@@ -30,12 +30,15 @@ class TestToolResults:
             on_permission_request=PermissionHandler.approve_all, tools=[get_weather]
         )
 
-        await session.send("What's the weather in Paris?")
-        assistant_message = await get_final_assistant_message(session)
-        assert (
-            "sunny" in assistant_message.data.content.lower()
-            or "72" in assistant_message.data.content
-        )
+        try:
+            await session.send("What's the weather in Paris?")
+            assistant_message = await get_final_assistant_message(session)
+            assert (
+                "sunny" in assistant_message.data.content.lower()
+                or "72" in assistant_message.data.content
+            )
+        finally:
+            await session.disconnect()
 
     async def test_should_handle_tool_result_with_failure_resulttype(self, ctx: E2ETestContext):
         @define_tool("check_status", description="Checks the status of a service")
@@ -50,12 +53,15 @@ class TestToolResults:
             on_permission_request=PermissionHandler.approve_all, tools=[check_status]
         )
 
-        answer = await session.send_and_wait(
-            "Check the status of the service using check_status."
-            " If it fails, say 'service is down'."
-        )
-        assert answer is not None
-        assert "service is down" in answer.data.content.lower()
+        try:
+            answer = await session.send_and_wait(
+                "Check the status of the service using check_status."
+                " If it fails, say 'service is down'."
+            )
+            assert answer is not None
+            assert "service is down" in answer.data.content.lower()
+        finally:
+            await session.disconnect()
 
     async def test_should_preserve_tooltelemetry_and_not_stringify_structured_results_for_llm(
         self, ctx: E2ETestContext
@@ -78,14 +84,19 @@ class TestToolResults:
             on_permission_request=PermissionHandler.approve_all, tools=[analyze_code]
         )
 
-        await session.send("Analyze the file main.ts for issues.")
-        assistant_message = await get_final_assistant_message(session)
-        assert "no issues" in assistant_message.data.content.lower()
+        try:
+            await session.send("Analyze the file main.ts for issues.")
+            assistant_message = await get_final_assistant_message(session)
+            assert "no issues" in assistant_message.data.content.lower()
 
-        # Verify the LLM received just textResultForLlm, not stringified JSON
-        traffic = await ctx.get_exchanges()
-        last_conversation = traffic[-1]
-        tool_results = [m for m in last_conversation["request"]["messages"] if m["role"] == "tool"]
-        assert len(tool_results) == 1
-        assert "toolTelemetry" not in tool_results[0]["content"]
-        assert "resultType" not in tool_results[0]["content"]
+            # Verify the LLM received just textResultForLlm, not stringified JSON
+            traffic = await ctx.get_exchanges()
+            last_conversation = traffic[-1]
+            tool_results = [
+                m for m in last_conversation["request"]["messages"] if m["role"] == "tool"
+            ]
+            assert len(tool_results) == 1
+            assert "toolTelemetry" not in tool_results[0]["content"]
+            assert "resultType" not in tool_results[0]["content"]
+        finally:
+            await session.disconnect()

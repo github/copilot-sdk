@@ -1050,15 +1050,27 @@ export class CopilotSession {
 
 /**
  * Type guard that checks whether a value is a {@link ToolResultObject}.
- * A valid object must have a string `textResultForLlm` and a string `resultType`.
+ * A valid object must have a string `textResultForLlm` and a recognized `resultType`.
  */
 function isToolResultObject(value: unknown): value is ToolResultObject {
-    return (
-        typeof value === "object" &&
-        value !== null &&
-        "textResultForLlm" in value &&
-        typeof (value as ToolResultObject).textResultForLlm === "string" &&
-        "resultType" in value &&
-        typeof (value as ToolResultObject).resultType === "string"
-    );
+    if (typeof value !== "object" || value === null) {
+        return false;
+    }
+
+    if (!("textResultForLlm" in value) || typeof (value as ToolResultObject).textResultForLlm !== "string") {
+        return false;
+    }
+
+    if (!("resultType" in value) || typeof (value as ToolResultObject).resultType !== "string") {
+        return false;
+    }
+
+    const allowedResultTypes: Array<ToolResultObject["resultType"]> = [
+        "success",
+        "failure",
+        "rejected",
+        "denied",
+    ];
+
+    return allowedResultTypes.includes((value as ToolResultObject).resultType);
 }

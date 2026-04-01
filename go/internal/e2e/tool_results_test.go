@@ -53,6 +53,10 @@ func TestToolResults(t *testing.T) {
 		if !strings.Contains(strings.ToLower(content), "sunny") && !strings.Contains(content, "72") {
 			t.Errorf("Expected answer to mention sunny or 72, got %q", content)
 		}
+
+		if err := session.Disconnect(); err != nil {
+			t.Errorf("Failed to disconnect session: %v", err)
+		}
 	})
 
 	t.Run("should handle tool result with failure resulttype", func(t *testing.T) {
@@ -96,6 +100,10 @@ func TestToolResults(t *testing.T) {
 		}
 		if !strings.Contains(strings.ToLower(content), "service is down") {
 			t.Errorf("Expected 'service is down', got %q", content)
+		}
+
+		if err := session.Disconnect(); err != nil {
+			t.Errorf("Failed to disconnect session: %v", err)
 		}
 	})
 
@@ -166,6 +174,10 @@ func TestToolResults(t *testing.T) {
 		}
 		if strings.Contains(toolResults[0].Content, "resultType") {
 			t.Error("Tool result content should not contain 'resultType'")
+		}
+
+		if err := session.Disconnect(); err != nil {
+			t.Errorf("Failed to disconnect session: %v", err)
 		}
 	})
 }
