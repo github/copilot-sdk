@@ -12,7 +12,7 @@ using Xunit.Abstractions;
 
 namespace GitHub.Copilot.SDK.Test;
 
-public class ToolResultsTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "tool_results", output)
+public partial class ToolResultsTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "tool_results", output)
 {
     [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
     [JsonSerializable(typeof(ToolResultAIContent))]

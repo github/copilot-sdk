@@ -51,7 +51,8 @@ class TestToolResults:
         )
 
         answer = await session.send_and_wait(
-            "Check the status of the service using check_status. If it fails, say 'service is down'."
+            "Check the status of the service using check_status."
+            " If it fails, say 'service is down'."
         )
         assert answer is not None
         assert "service is down" in answer.data.content.lower()

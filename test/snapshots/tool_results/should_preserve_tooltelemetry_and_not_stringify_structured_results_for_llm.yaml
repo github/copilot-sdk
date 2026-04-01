@@ -17,4 +17,4 @@ conversations:
         tool_call_id: toolcall_0
         content: "Analysis of main.ts: no issues found"
       - role: assistant
-        content: "The analysis of main.ts is complete -- no issues were found."
+        content: The analysis of main.ts is complete -- no issues were found.
