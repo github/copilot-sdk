@@ -34,6 +34,8 @@ import type {
     SessionUiApi,
     Tool,
     ToolHandler,
+    ToolResult,
+    ToolResultObject,
     TraceContextProvider,
     TypedSessionEventHandler,
     UserInputHandler,
@@ -463,10 +465,12 @@ export class CopilotSession {
                 traceparent,
                 tracestate,
             });
-            let result: string;
+            let result: ToolResult;
             if (rawResult == null) {
                 result = "";
             } else if (typeof rawResult === "string") {
+                result = rawResult;
+            } else if (isToolResultObject(rawResult)) {
                 result = rawResult;
             } else {
                 result = JSON.stringify(rawResult);
@@ -1046,4 +1050,35 @@ export class CopilotSession {
     ): Promise<void> {
         await this.rpc.log({ message, ...options });
     }
+}
+
+/**
+ * Type guard that checks whether a value is a {@link ToolResultObject}.
+ * A valid object must have a string `textResultForLlm` and a recognized `resultType`.
+ */
+function isToolResultObject(value: unknown): value is ToolResultObject {
+    if (typeof value !== "object" || value === null) {
+        return false;
+    }
+
+    if (
+        !("textResultForLlm" in value) ||
+        typeof (value as ToolResultObject).textResultForLlm !== "string"
+    ) {
+        return false;
+    }
+
+    if (!("resultType" in value) || typeof (value as ToolResultObject).resultType !== "string") {
+        return false;
+    }
+
+    const allowedResultTypes: Array<ToolResultObject["resultType"]> = [
+        "success",
+        "failure",
+        "rejected",
+        "denied",
+        "timeout",
+    ];
+
+    return allowedResultTypes.includes((value as ToolResultObject).resultType);
 }

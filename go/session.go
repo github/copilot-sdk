@@ -620,13 +620,34 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 		return
 	}
 
-	resultStr := result.TextResultForLLM
-	if resultStr == "" {
-		resultStr = fmt.Sprintf("%v", result)
+	textResultForLLM := result.TextResultForLLM
+	if textResultForLLM == "" {
+		textResultForLLM = fmt.Sprintf("%v", result)
+	}
+
+	// Default ResultType to "success" when unset, or "failure" when there's an error.
+	effectiveResultType := result.ResultType
+	if effectiveResultType == "" {
+		if result.Error != "" {
+			effectiveResultType = "failure"
+		} else {
+			effectiveResultType = "success"
+		}
+	}
+
+	rpcResult := rpc.ResultUnion{
+		ResultResult: &rpc.ResultResult{
+			TextResultForLlm: textResultForLLM,
+			ToolTelemetry:    result.ToolTelemetry,
+			ResultType:       &effectiveResultType,
+		},
+	}
+	if result.Error != "" {
+		rpcResult.ResultResult.Error = &result.Error
 	}
 	s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.SessionToolsHandlePendingToolCallParams{
 		RequestID: requestID,
-		Result:    &rpc.ResultUnion{String: &resultStr},
+		Result:    &rpcResult,
 	})
 }
 
