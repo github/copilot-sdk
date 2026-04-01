@@ -15,7 +15,7 @@ from typing import Any, Literal, TypeVar, get_type_hints, overload
 
 from pydantic import BaseModel
 
-ToolResultType = Literal["success", "failure", "rejected", "denied"]
+ToolResultType = Literal["success", "failure", "rejected", "denied", "timeout"]
 
 
 @dataclass

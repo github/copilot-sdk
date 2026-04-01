@@ -176,7 +176,7 @@ export interface CopilotClientOptions {
 /**
  * Configuration for creating a session
  */
-export type ToolResultType = "success" | "failure" | "rejected" | "denied";
+export type ToolResultType = "success" | "failure" | "rejected" | "denied" | "timeout";
 
 export type ToolBinaryResult = {
     data: string;

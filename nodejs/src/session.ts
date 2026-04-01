@@ -1070,6 +1070,7 @@ function isToolResultObject(value: unknown): value is ToolResultObject {
         "failure",
         "rejected",
         "denied",
+        "timeout",
     ];
 
     return allowedResultTypes.includes((value as ToolResultObject).resultType);
