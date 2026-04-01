@@ -139,11 +139,17 @@ describe("Session Fs", async () => {
 
         const eventsPath = p(session.sessionId, "/session-state/events.jsonl");
         await expect.poll(() => provider.exists(eventsPath)).toBe(true);
+        const contentBefore = await provider.readFile(eventsPath, "utf8");
+        expect(contentBefore).not.toContain("checkpointNumber");
 
         await session.rpc.compaction.compact();
         await expect.poll(() => compactionEvent).toBeDefined();
         expect(compactionEvent!.data.success).toBe(true);
-        expect(compactionEvent!.data.summaryContent).toContain("<overview>");
+
+        // Verify the events file was rewritten with a checkpoint via sessionFs
+        await expect
+            .poll(() => provider.readFile(eventsPath, "utf8"))
+            .toContain("checkpointNumber");
     });
 });
 
