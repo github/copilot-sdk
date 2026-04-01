@@ -16,9 +16,6 @@ import {
 } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
-process.env.COPILOT_CLI_PATH =
-    "c:\\Users\\stevesa\\.copilot\\worktrees\\copilot-agent-runtime\\amber-aura\\dist-cli\\index.js";
-
 describe("Session Fs", async () => {
     // Single provider for the describe block — session IDs are unique per test,
     // so no cross-contamination between tests.
