@@ -944,27 +944,17 @@ class CopilotSession:
             else:
                 tool_result = result  # type: ignore[assignment]
 
-            # If the tool reported a failure with an error message, send it via the
-            # top-level error param so the server formats the tool message consistently
-            # with other SDKs (e.g., "Failed to execute 'tool' ... due to error: ...").
-            if tool_result.result_type == "failure" and tool_result.error:
-                await self.rpc.tools.handle_pending_tool_call(
-                    SessionToolsHandlePendingToolCallParams(
-                        request_id=request_id,
+            await self.rpc.tools.handle_pending_tool_call(
+                SessionToolsHandlePendingToolCallParams(
+                    request_id=request_id,
+                    result=ResultResult(
+                        text_result_for_llm=tool_result.text_result_for_llm,
+                        result_type=tool_result.result_type,
                         error=tool_result.error,
-                    )
+                        tool_telemetry=tool_result.tool_telemetry,
+                    ),
                 )
-            else:
-                await self.rpc.tools.handle_pending_tool_call(
-                    SessionToolsHandlePendingToolCallParams(
-                        request_id=request_id,
-                        result=ResultResult(
-                            text_result_for_llm=tool_result.text_result_for_llm,
-                            result_type=tool_result.result_type,
-                            tool_telemetry=tool_result.tool_telemetry,
-                        ),
-                    )
-                )
+            )
         except Exception as exc:
             try:
                 await self.rpc.tools.handle_pending_tool_call(
