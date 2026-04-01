@@ -5,16 +5,16 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: Check the status of the service using check_status. If it fails, say 'service is down'.
+        content: Analyze the file main.ts for issues.
       - role: assistant
         tool_calls:
           - id: toolcall_0
             type: function
             function:
-              name: check_status
-              arguments: "{}"
+              name: analyze_code
+              arguments: '{"file":"main.ts"}'
       - role: tool
         tool_call_id: toolcall_0
-        content: Service unavailable
+        content: "Analysis of main.ts: no issues found"
       - role: assistant
-        content: service is down
+        content: "The analysis of main.ts is complete -- no issues were found."

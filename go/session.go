@@ -620,9 +620,14 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 		return
 	}
 
+	textResultForLLM := result.TextResultForLLM
+	if textResultForLLM == "" {
+		textResultForLLM = fmt.Sprintf("%v", result)
+	}
+
 	rpcResult := rpc.ResultUnion{
 		ResultResult: &rpc.ResultResult{
-			TextResultForLlm: result.TextResultForLLM,
+			TextResultForLlm: textResultForLLM,
 			ToolTelemetry:    result.ToolTelemetry,
 		},
 	}

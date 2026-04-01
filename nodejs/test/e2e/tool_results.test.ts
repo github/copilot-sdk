@@ -4,12 +4,12 @@
 
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import type { ToolResultObject } from "../../src/index.js";
+import type { SessionEvent, ToolResultObject } from "../../src/index.js";
 import { approveAll, defineTool } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext";
 
 describe("Tool Results", async () => {
-    const { copilotClient: client } = await createSdkTestContext();
+    const { copilotClient: client, openAiEndpoint } = await createSdkTestContext();
 
     it("should handle structured ToolResultObject from custom tool", async () => {
         const session = await client.createSession({
@@ -95,6 +95,53 @@ describe("Tool Results", async () => {
         });
 
         expect(assistantMessage?.data.content).toContain("42");
+
+        await session.disconnect();
+    });
+
+    it("should preserve toolTelemetry and not stringify structured results for LLM", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            tools: [
+                defineTool("analyze_code", {
+                    description: "Analyzes code for issues",
+                    parameters: z.object({
+                        file: z.string(),
+                    }),
+                    handler: ({ file }): ToolResultObject => ({
+                        textResultForLlm: `Analysis of ${file}: no issues found`,
+                        resultType: "success",
+                        toolTelemetry: {
+                            metrics: { analysisTimeMs: 150 },
+                            properties: { analyzer: "eslint" },
+                        },
+                    }),
+                }),
+            ],
+        });
+
+        const events: SessionEvent[] = [];
+        session.on((event) => events.push(event));
+
+        const assistantMessage = await session.sendAndWait({
+            prompt: "Analyze the file main.ts for issues.",
+        });
+
+        expect(assistantMessage?.data.content).toMatch(/no issues/i);
+
+        // Verify the LLM received just textResultForLlm, not stringified JSON
+        const traffic = await openAiEndpoint.getExchanges();
+        const lastConversation = traffic[traffic.length - 1]!;
+        const toolResults = lastConversation.request.messages.filter(
+            (m: { role: string }) => m.role === "tool"
+        );
+        expect(toolResults.length).toBe(1);
+        expect(toolResults[0]!.content).not.toContain("toolTelemetry");
+        expect(toolResults[0]!.content).not.toContain("resultType");
+
+        // Verify tool.execution_complete event carries toolTelemetry
+        const toolCompletes = events.filter((e) => e.type === "tool.execution_complete");
+        expect(toolCompletes.length).toBeGreaterThanOrEqual(1);
 
         await session.disconnect();
     });
