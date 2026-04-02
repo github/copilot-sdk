@@ -30,9 +30,10 @@ For a complete walkthrough, see the **[Getting Started Guide](./docs/getting-sta
 
 Quick steps:
 
-1. **Install the Copilot CLI:**
+1. **(Optional) Install the Copilot CLI**
 
-   Follow the [Copilot CLI installation guide](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli) to install the CLI, or ensure `copilot` is available in your PATH.
+For Node.js, Python, and .NET SDKs, the Copilot CLI is bundled automatically and no separate installation is required.
+For the Go SDK, install the CLI manually or ensure `copilot` is available in your PATH.
 
 2. **Install your preferred SDK** using the commands above.
 
@@ -80,7 +81,11 @@ See the **[Authentication documentation](./docs/auth/index.md)** for details on 
 
 ### Do I need to install the Copilot CLI separately?
 
-Yes, the Copilot CLI must be installed separately. The SDKs communicate with the Copilot CLI in server mode to provide agent capabilities.
+No — for Node.js, Python, and .NET SDKs, the Copilot CLI is bundled automatically as a dependency. You do not need to install it separately.
+
+For Go SDK, you may still need to install the CLI manually.
+
+Advanced: You can override the bundled CLI using `cliPath` or `cliUrl` if you want to use a custom CLI binary or connect to an external server.
 
 ### What tools are enabled by default?
 
