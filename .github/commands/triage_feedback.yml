@@ -1,0 +1,18 @@
+trigger: triage_feedback
+title: Triage feedback
+description: Provide feedback on the triage agent's classification of this issue
+surfaces:
+  - issue
+steps:
+  - type: form
+    style: modal
+    body:
+      - type: textarea
+        attributes:
+          label: Feedback
+          placeholder: Describe what the agent got wrong and what the correct action should have been...
+    actions:
+      submit: Submit feedback
+      cancel: Cancel
+  - type: repository_dispatch
+    eventType: triage_feedback
