@@ -36,7 +36,7 @@ class TestUiElicitation:
         """Session created with onElicitationContext reports elicitation capability."""
 
         async def handler(
-            context: ElicitationContext, 
+            context: ElicitationContext,
         ) -> ElicitationResult:
             return {"action": "accept", "content": {}}
 
@@ -56,4 +56,3 @@ class TestUiElicitation:
         )
 
         assert session.capabilities.get("ui", {}).get("elicitation") in (False, None)
-

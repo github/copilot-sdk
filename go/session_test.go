@@ -585,4 +585,3 @@ func TestSession_ElicitationRequestSchema(t *testing.T) {
 		}
 	})
 }
-

@@ -401,7 +401,7 @@ class TestOnElicitationContext:
             client._client.request = mock_request
 
             async def elicitation_handler(
-                context: ElicitationContext, 
+                context: ElicitationContext,
             ) -> ElicitationResult:
                 return {"action": "accept", "content": {}}
 
@@ -451,7 +451,7 @@ class TestOnElicitationContext:
         try:
 
             async def bad_handler(
-                context: ElicitationContext, 
+                context: ElicitationContext,
             ) -> ElicitationResult:
                 raise RuntimeError("handler exploded")
 
@@ -497,7 +497,7 @@ class TestOnElicitationContext:
             handler_calls: list = []
 
             async def elicitation_handler(
-                context: ElicitationContext, 
+                context: ElicitationContext,
             ) -> ElicitationResult:
                 handler_calls.append(context)
                 return {"action": "accept", "content": {"color": "blue"}}
@@ -558,7 +558,7 @@ class TestOnElicitationContext:
             handler_calls: list = []
 
             async def elicitation_handler(
-                context: ElicitationContext, 
+                context: ElicitationContext,
             ) -> ElicitationResult:
                 handler_calls.append(context)
                 return {"action": "cancel"}
@@ -657,4 +657,3 @@ class TestCapabilitiesChanged:
             assert session.capabilities.get("ui", {}).get("elicitation") is True
         finally:
             await client.force_stop()
-

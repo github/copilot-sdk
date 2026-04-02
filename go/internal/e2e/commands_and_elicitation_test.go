@@ -355,4 +355,3 @@ func TestUIElicitationMultiClient(t *testing.T) {
 		unsubDisabled()
 	})
 }
-

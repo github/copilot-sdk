@@ -204,7 +204,7 @@ class TestUiElicitationMultiClient:
 
         # Client 2 joins WITH elicitation handler — triggers capabilities.changed
         async def handler(
-            context: ElicitationContext, 
+            context: ElicitationContext,
         ) -> ElicitationResult:
             return {"action": "accept", "content": {}}
 
@@ -250,7 +250,7 @@ class TestUiElicitationMultiClient:
         client3 = mctx.make_external_client()
 
         async def handler(
-            context: ElicitationContext, 
+            context: ElicitationContext,
         ) -> ElicitationResult:
             return {"action": "accept", "content": {}}
 
@@ -282,4 +282,3 @@ class TestUiElicitationMultiClient:
         await asyncio.wait_for(cap_disabled.wait(), timeout=15.0)
         unsub_disabled()
         assert session1.capabilities.get("ui", {}).get("elicitation") is False
-
