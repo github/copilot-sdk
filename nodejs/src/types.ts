@@ -421,10 +421,6 @@ export interface ElicitationParams {
 }
 
 /**
- * Request payload passed to an elicitation handler callback.
- * Extends ElicitationParams with optional metadata fields.
- */
-/**
  * Context for an elicitation handler invocation, combining the request data
  * with session context. Mirrors the single-argument pattern of {@link CommandContext}.
  */
