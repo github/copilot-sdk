@@ -12,7 +12,7 @@ public class CommandsTests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "commands", output)
 {
     [Fact]
-    public async Task Forwards_Commands_In_Session_Create()
+    public async Task Session_With_Commands_Creates_Successfully()
     {
         var session = await CreateSessionAsync(new SessionConfig
         {
@@ -31,7 +31,7 @@ public class CommandsTests(E2ETestFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task Forwards_Commands_In_Session_Resume()
+    public async Task Session_With_Commands_Resumes_Successfully()
     {
         var session1 = await CreateSessionAsync();
         var sessionId = session1.SessionId;
