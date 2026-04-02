@@ -232,7 +232,13 @@ export class CopilotSession {
             if (event.type === "assistant.message") {
                 lastAssistantMessage = event;
             } else if (event.type === "session.idle") {
-                resolveIdle();
+                const bgTasks = event.data.backgroundTasks;
+                const hasActiveTasks =
+                    bgTasks !== undefined &&
+                    (bgTasks.agents.length > 0 || bgTasks.shells.length > 0);
+                if (!hasActiveTasks) {
+                    resolveIdle();
+                }
             } else if (event.type === "session.error") {
                 const error = new Error(event.data.message);
                 error.stack = event.data.stack;

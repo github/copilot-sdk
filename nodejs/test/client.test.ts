@@ -980,4 +980,201 @@ describe("CopilotClient", () => {
             rpcSpy.mockRestore();
         });
     });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Bug repro: sendAndWait must NOT resolve on session.idle while background
+    // tasks are still running (PolyPilot #299/#389).
+    //
+    // Before fix: sendAndWait called resolveIdle() on ANY session.idle, even
+    //   when backgroundTasks.agents[] or backgroundTasks.shells[] was non-empty.
+    // After fix:  resolveIdle() is only called when backgroundTasks is absent or
+    //   both agents[] and shells[] are empty.
+    // ─────────────────────────────────────────────────────────────────────────
+    describe("sendAndWait backgroundTasks", () => {
+        it("resolves immediately when session.idle has no backgroundTasks", async () => {
+            const client = new CopilotClient({ logLevel: "error" });
+            await client.start();
+            onTestFinished(() => client.forceStop());
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+
+            const sendSpy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (method: string) => {
+                    if (method === "session.send") return { messageId: "mock-clean-idle" };
+                    throw new Error(`Unexpected RPC: ${method}`);
+                });
+            onTestFinished(() => sendSpy.mockRestore());
+
+            let resolved = false;
+            const promise = session.sendAndWait({ prompt: "hello" }, 5_000).then((r) => {
+                resolved = true;
+                return r;
+            });
+
+            await new Promise<void>((r) => setTimeout(r, 20));
+
+            // Clean idle (no backgroundTasks) — sendAndWait SHOULD resolve
+            (session as any)._dispatchEvent({
+                id: "evt-clean-idle",
+                timestamp: new Date().toISOString(),
+                parentId: null,
+                ephemeral: true,
+                type: "session.idle",
+                data: {},
+            });
+
+            await promise;
+            expect(resolved).toBe(true);
+        });
+
+        it("does NOT resolve when session.idle reports active background agents [bug #299 repro]", async () => {
+            const client = new CopilotClient({ logLevel: "error" });
+            await client.start();
+            onTestFinished(() => client.forceStop());
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+
+            const sendSpy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (method: string) => {
+                    if (method === "session.send") return { messageId: "mock-bg-idle" };
+                    throw new Error(`Unexpected RPC: ${method}`);
+                });
+            onTestFinished(() => sendSpy.mockRestore());
+
+            let resolved = false;
+            const promise = session
+                .sendAndWait({ prompt: "trigger background agents" }, 5_000)
+                .then((r) => {
+                    resolved = true;
+                    return r;
+                });
+
+            await new Promise<void>((r) => setTimeout(r, 20));
+
+            // Dispatch session.idle WITH active background agent — must NOT resolve yet
+            (session as any)._dispatchEvent({
+                id: "evt-bg-idle",
+                timestamp: new Date().toISOString(),
+                parentId: null,
+                ephemeral: true,
+                type: "session.idle",
+                data: {
+                    backgroundTasks: {
+                        agents: [{ agentId: "bg-1", agentType: "worker" }],
+                        shells: [],
+                    },
+                },
+            });
+
+            await new Promise<void>((r) => setTimeout(r, 100));
+            // Before fix: resolved === true (premature resolution — this assertion FAILS)
+            // After fix:  resolved === false (correctly waiting)
+            expect(resolved).toBe(false);
+
+            // Dispatch final idle with no background tasks — NOW it should resolve
+            (session as any)._dispatchEvent({
+                id: "evt-final-idle",
+                timestamp: new Date().toISOString(),
+                parentId: null,
+                ephemeral: true,
+                type: "session.idle",
+                data: {},
+            });
+
+            await promise;
+            expect(resolved).toBe(true);
+        });
+
+        it("does NOT resolve when session.idle reports active background shells", async () => {
+            const client = new CopilotClient({ logLevel: "error" });
+            await client.start();
+            onTestFinished(() => client.forceStop());
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+
+            const sendSpy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (method: string) => {
+                    if (method === "session.send") return { messageId: "mock-shell-idle" };
+                    throw new Error(`Unexpected RPC: ${method}`);
+                });
+            onTestFinished(() => sendSpy.mockRestore());
+
+            let resolved = false;
+            const promise = session.sendAndWait({ prompt: "trigger shell" }, 5_000).then((r) => {
+                resolved = true;
+                return r;
+            });
+
+            await new Promise<void>((r) => setTimeout(r, 20));
+
+            // Dispatch session.idle with an active background shell — must NOT resolve yet
+            (session as any)._dispatchEvent({
+                id: "evt-shell-idle",
+                timestamp: new Date().toISOString(),
+                parentId: null,
+                ephemeral: true,
+                type: "session.idle",
+                data: {
+                    backgroundTasks: {
+                        agents: [],
+                        shells: [{ shellId: "sh-1" }],
+                    },
+                },
+            });
+
+            await new Promise<void>((r) => setTimeout(r, 100));
+            expect(resolved).toBe(false);
+
+            // Dispatch final idle with empty backgroundTasks — should resolve
+            (session as any)._dispatchEvent({
+                id: "evt-final-shell-idle",
+                timestamp: new Date().toISOString(),
+                parentId: null,
+                ephemeral: true,
+                type: "session.idle",
+                data: { backgroundTasks: { agents: [], shells: [] } },
+            });
+
+            await promise;
+            expect(resolved).toBe(true);
+        });
+
+        it("resolves when session.idle has empty backgroundTasks arrays", async () => {
+            const client = new CopilotClient({ logLevel: "error" });
+            await client.start();
+            onTestFinished(() => client.forceStop());
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+
+            const sendSpy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (method: string) => {
+                    if (method === "session.send") return { messageId: "mock-empty-bg" };
+                    throw new Error(`Unexpected RPC: ${method}`);
+                });
+            onTestFinished(() => sendSpy.mockRestore());
+
+            let resolved = false;
+            const promise = session
+                .sendAndWait({ prompt: "empty background tasks" }, 5_000)
+                .then((r) => {
+                    resolved = true;
+                    return r;
+                });
+
+            await new Promise<void>((r) => setTimeout(r, 20));
+
+            // Both arrays empty → session is truly idle, SHOULD resolve
+            (session as any)._dispatchEvent({
+                id: "evt-empty-bg-idle",
+                timestamp: new Date().toISOString(),
+                parentId: null,
+                ephemeral: true,
+                type: "session.idle",
+                data: { backgroundTasks: { agents: [], shells: [] } },
+            });
+
+            await promise;
+            expect(resolved).toBe(true);
+        });
+    });
 });

@@ -243,8 +243,12 @@ public sealed partial class CopilotSession : IAsyncDisposable
                     lastAssistantMessage = assistantMessage;
                     break;
 
-                case SessionIdleEvent:
-                    tcs.TrySetResult(lastAssistantMessage);
+                case SessionIdleEvent idleEvent:
+                    var bgTasks = idleEvent.Data?.BackgroundTasks;
+                    bool hasActiveTasks = bgTasks != null &&
+                        ((bgTasks.Agents?.Length ?? 0) > 0 || (bgTasks.Shells?.Length ?? 0) > 0);
+                    if (!hasActiveTasks)
+                        tcs.TrySetResult(lastAssistantMessage);
                     break;
 
                 case SessionErrorEvent errorEvent:

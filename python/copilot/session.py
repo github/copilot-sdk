@@ -1113,7 +1113,12 @@ class CopilotSession:
             if event.type == SessionEventType.ASSISTANT_MESSAGE:
                 last_assistant_message = event
             elif event.type == SessionEventType.SESSION_IDLE:
-                idle_event.set()
+                bg_tasks = event.data.background_tasks
+                has_active = bg_tasks is not None and (
+                    len(bg_tasks.agents) > 0 or len(bg_tasks.shells) > 0
+                )
+                if not has_active:
+                    idle_event.set()
             elif event.type == SessionEventType.SESSION_ERROR:
                 error_event = Exception(
                     f"Session error: {getattr(event.data, 'message', str(event.data))}"

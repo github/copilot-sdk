@@ -197,9 +197,13 @@ func (s *Session) SendAndWait(ctx context.Context, options MessageOptions) (*Ses
 			lastAssistantMessage = &eventCopy
 			mu.Unlock()
 		case SessionEventTypeSessionIdle:
-			select {
-			case idleCh <- struct{}{}:
-			default:
+			bgTasks := event.Data.BackgroundTasks
+			hasActive := bgTasks != nil && (len(bgTasks.Agents) > 0 || len(bgTasks.Shells) > 0)
+			if !hasActive {
+				select {
+				case idleCh <- struct{}{}:
+				default:
+				}
 			}
 		case SessionEventTypeSessionError:
 			errMsg := "session error"
