@@ -11,6 +11,7 @@ on:
       issue_number:
         type: string
         required: true
+  roles: all
 permissions:
   contents: read
   issues: read
