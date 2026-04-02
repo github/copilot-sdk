@@ -21,7 +21,7 @@ export type {
     ElicitationFieldValue,
     ElicitationHandler,
     ElicitationParams,
-    ElicitationRequest,
+    ElicitationContext,
     ElicitationResult,
     ElicitationSchema,
     ElicitationSchemaField,

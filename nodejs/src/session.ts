@@ -17,7 +17,7 @@ import type {
     ElicitationHandler,
     ElicitationParams,
     ElicitationResult,
-    ElicitationRequest,
+    ElicitationContext,
     InputOptions,
     MessageOptions,
     PermissionHandler,
@@ -429,8 +429,9 @@ export class CopilotSession {
                     event.data;
                 void this._handleElicitationRequest(
                     {
+                        sessionId: this.sessionId,
                         message,
-                        requestedSchema: requestedSchema as ElicitationRequest["requestedSchema"],
+                        requestedSchema: requestedSchema as ElicitationContext["requestedSchema"],
                         mode,
                         elicitationSource,
                         url,
@@ -624,12 +625,12 @@ export class CopilotSession {
      * Invokes the registered handler and responds via handlePendingElicitation RPC.
      * @internal
      */
-    async _handleElicitationRequest(request: ElicitationRequest, requestId: string): Promise<void> {
+    async _handleElicitationRequest(context: ElicitationContext, requestId: string): Promise<void> {
         if (!this.elicitationHandler) {
             return;
         }
         try {
-            const result = await this.elicitationHandler(request, { sessionId: this.sessionId });
+            const result = await this.elicitationHandler(context);
             await this.rpc.ui.handlePendingElicitation({ requestId, result });
         } catch {
             // Handler failed — attempt to cancel so the request doesn't hang

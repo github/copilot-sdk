@@ -424,7 +424,13 @@ export interface ElicitationParams {
  * Request payload passed to an elicitation handler callback.
  * Extends ElicitationParams with optional metadata fields.
  */
-export interface ElicitationRequest {
+/**
+ * Context for an elicitation handler invocation, combining the request data
+ * with session context. Mirrors the single-argument pattern of {@link CommandContext}.
+ */
+export interface ElicitationContext {
+    /** Identifier of the session that triggered the elicitation request. */
+    sessionId: string;
     /** Message describing what information is needed from the user. */
     message: string;
     /** JSON Schema describing the form fields to present. */
@@ -442,8 +448,7 @@ export interface ElicitationRequest {
  * Return an {@link ElicitationResult} with the user's response.
  */
 export type ElicitationHandler = (
-    request: ElicitationRequest,
-    invocation: { sessionId: string }
+    context: ElicitationContext
 ) => Promise<ElicitationResult> | ElicitationResult;
 
 /**

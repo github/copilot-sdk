@@ -910,13 +910,14 @@ Register an `onElicitationRequest` handler to let your client act as an elicitat
 const session = await client.createSession({
     model: "gpt-5",
     onPermissionRequest: approveAll,
-    onElicitationRequest: async (request, invocation) => {
-        // request.message - Description of what information is needed
-        // request.requestedSchema - JSON Schema describing the form fields
-        // request.mode - "form" (structured input) or "url" (browser redirect)
-        // request.elicitationSource - Origin of the request (e.g. MCP server name)
+    onElicitationRequest: async (context) => {
+        // context.sessionId - Session that triggered the request
+        // context.message - Description of what information is needed
+        // context.requestedSchema - JSON Schema describing the form fields
+        // context.mode - "form" (structured input) or "url" (browser redirect)
+        // context.elicitationSource - Origin of the request (e.g. MCP server name)
 
-        console.log(`Elicitation from ${request.elicitationSource}: ${request.message}`);
+        console.log(`Elicitation from ${context.elicitationSource}: ${context.message}`);
 
         // Present UI to the user and collect their response...
         return {
