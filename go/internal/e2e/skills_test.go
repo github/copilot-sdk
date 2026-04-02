@@ -108,6 +108,81 @@ func TestSkills(t *testing.T) {
 		session.Disconnect()
 	})
 
+	t.Run("should allow agent with skills to invoke skill", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+		cleanSkillsDir(t, ctx.WorkDir)
+		skillsDir := createTestSkillDir(t, ctx.WorkDir, skillMarker)
+
+		customAgents := []copilot.CustomAgentConfig{
+			{
+				Name:        "skill-agent",
+				Description: "An agent with access to test-skill",
+				Prompt:      "You are a helpful test agent.",
+				Skills:      []string{"test-skill"},
+			},
+		}
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			SkillDirectories:    []string{skillsDir},
+			CustomAgents:        customAgents,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		// The agent has Skills: ["test-skill"], so it should be able to invoke the skill
+		message, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt: "Say hello briefly using the test skill.",
+		})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, skillMarker) {
+			t.Errorf("Expected message to contain skill marker '%s', got: %v", skillMarker, message.Data.Content)
+		}
+
+		session.Disconnect()
+	})
+
+	t.Run("should not provide skills to agent without skills field", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+		cleanSkillsDir(t, ctx.WorkDir)
+		skillsDir := createTestSkillDir(t, ctx.WorkDir, skillMarker)
+
+		customAgents := []copilot.CustomAgentConfig{
+			{
+				Name:        "no-skill-agent",
+				Description: "An agent without skills access",
+				Prompt:      "You are a helpful test agent.",
+			},
+		}
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			SkillDirectories:    []string{skillsDir},
+			CustomAgents:        customAgents,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		// The agent has no Skills field, so it should NOT have access to skills
+		message, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt: "Say hello briefly using the test skill.",
+		})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		if message.Data.Content != nil && strings.Contains(*message.Data.Content, skillMarker) {
+			t.Errorf("Expected message to NOT contain skill marker '%s' when agent has no skills, got: %v", skillMarker, *message.Data.Content)
+		}
+
+		session.Disconnect()
+	})
+
 	t.Run("should apply skill on session resume with skillDirectories", func(t *testing.T) {
 		t.Skip("See the big comment around the equivalent test in the Node SDK. Skipped because the feature doesn't work correctly yet.")
 		ctx.ConfigureForTest(t)

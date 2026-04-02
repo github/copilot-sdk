@@ -87,6 +87,67 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
         await session.DisposeAsync();
     }
 
+    [Fact]
+    public async Task Should_Allow_Agent_With_Skills_To_Invoke_Skill()
+    {
+        var skillsDir = CreateSkillDir();
+        var customAgents = new List<CustomAgentConfig>
+        {
+            new CustomAgentConfig
+            {
+                Name = "skill-agent",
+                Description = "An agent with access to test-skill",
+                Prompt = "You are a helpful test agent.",
+                Skills = ["test-skill"]
+            }
+        };
+
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            SkillDirectories = [skillsDir],
+            CustomAgents = customAgents
+        });
+
+        Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
+
+        // The agent has Skills = ["test-skill"], so it should be able to invoke the skill
+        var message = await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say hello briefly using the test skill." });
+        Assert.NotNull(message);
+        Assert.Contains(SkillMarker, message!.Data.Content);
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Should_Not_Provide_Skills_To_Agent_Without_Skills_Field()
+    {
+        var skillsDir = CreateSkillDir();
+        var customAgents = new List<CustomAgentConfig>
+        {
+            new CustomAgentConfig
+            {
+                Name = "no-skill-agent",
+                Description = "An agent without skills access",
+                Prompt = "You are a helpful test agent."
+            }
+        };
+
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            SkillDirectories = [skillsDir],
+            CustomAgents = customAgents
+        });
+
+        Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
+
+        // The agent has no Skills field, so it should NOT have access to skills
+        var message = await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say hello briefly using the test skill." });
+        Assert.NotNull(message);
+        Assert.DoesNotContain(SkillMarker, message!.Data.Content);
+
+        await session.DisposeAsync();
+    }
+
     [Fact(Skip = "See the big comment around the equivalent test in the Node SDK. Skipped because the feature doesn't work correctly yet.")]
     public async Task Should_Apply_Skill_On_Session_Resume_With_SkillDirectories()
     {

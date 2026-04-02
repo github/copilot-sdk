@@ -252,6 +252,7 @@ try (var client = new CopilotClient()) {
 | `prompt` | `string` | ✅ | System prompt for the agent |
 | `mcpServers` | `object` | | MCP server configurations specific to this agent |
 | `infer` | `boolean` | | Whether the runtime can auto-select this agent (default: `true`) |
+| `skills` | `string[]` | | List of skill names available to this agent |
 
 > **Tip:** A good `description` helps the runtime match user intent to the right agent. Be specific about the agent's expertise and capabilities.
 
@@ -260,6 +261,33 @@ In addition to per-agent configuration above, you can set `agent` on the **sessi
 | Session Config Property | Type | Description |
 |-------------------------|------|-------------|
 | `agent` | `string` | Name of the custom agent to pre-select at session creation. Must match a `name` in `customAgents`. |
+
+## Per-Agent Skills
+
+You can scope skills to individual agents using the `skills` property. Skills are **opt-in** — agents have no access to skills by default. The skill names listed in `skills` are resolved from the session-level `skillDirectories`.
+
+```typescript
+const session = await client.createSession({
+    skillDirectories: ["./skills"],
+    customAgents: [
+        {
+            name: "security-auditor",
+            description: "Security-focused code reviewer",
+            prompt: "Focus on OWASP Top 10 vulnerabilities",
+            skills: ["security-scan", "dependency-check"],
+        },
+        {
+            name: "docs-writer",
+            description: "Technical documentation writer",
+            prompt: "Write clear, concise documentation",
+            skills: ["markdown-lint"],
+        },
+    ],
+    onPermissionRequest: async () => ({ kind: "approved" }),
+});
+```
+
+In this example, `security-auditor` can invoke only `security-scan` and `dependency-check`, while `docs-writer` can invoke only `markdown-lint`. An agent without a `skills` field has no access to any skills.
 
 ## Selecting an Agent at Session Creation
 

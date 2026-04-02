@@ -766,6 +766,8 @@ class CustomAgentConfig(TypedDict, total=False):
     # MCP servers specific to agent
     mcp_servers: NotRequired[dict[str, MCPServerConfig]]
     infer: NotRequired[bool]  # Whether agent is available for model inference
+    # List of skill names available to this agent (opt-in; omit for no skills)
+    skills: NotRequired[list[str]]
 
 
 class InfiniteSessionConfig(TypedDict, total=False):

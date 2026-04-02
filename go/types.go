@@ -450,6 +450,8 @@ type CustomAgentConfig struct {
 	MCPServers map[string]MCPServerConfig `json:"mcpServers,omitempty"`
 	// Infer indicates whether the agent should be available for model inference
 	Infer *bool `json:"infer,omitempty"`
+	// Skills is the list of skill names available to this agent (opt-in; omit for no skills)
+	Skills []string `json:"skills,omitempty"`
 }
 
 // InfiniteSessionConfig configures infinite sessions with automatic context compaction

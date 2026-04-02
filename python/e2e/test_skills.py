@@ -7,7 +7,7 @@ import shutil
 
 import pytest
 
-from copilot.session import PermissionHandler
+from copilot.session import CustomAgentConfig, PermissionHandler
 
 from .testharness import E2ETestContext
 
@@ -82,6 +82,61 @@ class TestSkillBehavior:
         assert session.session_id is not None
 
         # The skill is disabled, so the marker should NOT appear
+        message = await session.send_and_wait("Say hello briefly using the test skill.")
+        assert message is not None
+        assert SKILL_MARKER not in message.data.content
+
+        await session.disconnect()
+
+    async def test_should_allow_agent_with_skills_to_invoke_skill(self, ctx: E2ETestContext):
+        """Test that an agent with skills can invoke the specified skill"""
+        skills_dir = create_skill_dir(ctx.work_dir)
+        custom_agents: list[CustomAgentConfig] = [
+            {
+                "name": "skill-agent",
+                "description": "An agent with access to test-skill",
+                "prompt": "You are a helpful test agent.",
+                "skills": ["test-skill"],
+            }
+        ]
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            skill_directories=[skills_dir],
+            custom_agents=custom_agents,
+        )
+
+        assert session.session_id is not None
+
+        # The agent has skills: ["test-skill"], so it should be able to invoke the skill
+        message = await session.send_and_wait("Say hello briefly using the test skill.")
+        assert message is not None
+        assert SKILL_MARKER in message.data.content
+
+        await session.disconnect()
+
+    async def test_should_not_provide_skills_to_agent_without_skills_field(
+        self, ctx: E2ETestContext
+    ):
+        """Test that an agent without skills field gets no skills (opt-in model)"""
+        skills_dir = create_skill_dir(ctx.work_dir)
+        custom_agents: list[CustomAgentConfig] = [
+            {
+                "name": "no-skill-agent",
+                "description": "An agent without skills access",
+                "prompt": "You are a helpful test agent.",
+            }
+        ]
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            skill_directories=[skills_dir],
+            custom_agents=custom_agents,
+        )
+
+        assert session.session_id is not None
+
+        # The agent has no skills field, so it should NOT have access to skills
         message = await session.send_and_wait("Say hello briefly using the test skill.")
         assert message is not None
         assert SKILL_MARKER not in message.data.content

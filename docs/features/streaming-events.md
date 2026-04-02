@@ -633,6 +633,7 @@ A skill was activated for the current conversation.
 | `allowedTools` | `string[]` | | Tools auto-approved while this skill is active |
 | `pluginName` | `string` | | Plugin the skill originated from |
 | `pluginVersion` | `string` | | Plugin version |
+| `agentName` | `string` | | Name of the agent that invoked the skill, when invoked by a custom agent |
 
 ---
 

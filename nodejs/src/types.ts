@@ -1106,6 +1106,13 @@ export interface CustomAgentConfig {
      * @default true
      */
     infer?: boolean;
+    /**
+     * List of skill names available to this agent.
+     * Skills are resolved by name from the session's loaded skill pool (configured via `skillDirectories`).
+     * When set, only the listed skills can be invoked by this agent.
+     * When omitted, the agent has no access to skills (opt-in model).
+     */
+    skills?: string[];
 }
 
 /**
