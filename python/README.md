@@ -2,7 +2,7 @@
 
 Python SDK for programmatic control of GitHub Copilot CLI via JSON-RPC.
 
-> **Note:** This SDK is in technical preview and may change in breaking ways.
+> **Note:** This SDK is in public preview and may change in breaking ways.
 
 ## Installation
 
@@ -194,6 +194,7 @@ unsubscribe()
 ```
 
 **Lifecycle Event Types:**
+
 - `session.created` - A new session was created
 - `session.deleted` - A session was deleted
 - `session.updated` - A session was updated
@@ -489,6 +490,7 @@ async with await client.create_session(
 ```
 
 > **Important notes:**
+>
 > - When using a custom provider, the `model` parameter is **required**. The SDK will throw an error if no model is specified.
 > - For Azure OpenAI endpoints (`*.openai.azure.com`), you **must** use `type: "azure"`, not `type: "openai"`.
 > - The `base_url` should be just the host (e.g., `https://my-resource.openai.azure.com`). Do **not** include `/openai/v1` in the URL - the SDK handles path construction automatically.
@@ -583,14 +585,14 @@ async def on_permission_request(request: PermissionRequest, invocation: dict) ->
 
 ### Permission Result Kinds
 
-| `kind` value | Meaning |
-|---|---------|
-| `"approved"` | Allow the tool to run |
-| `"denied-interactively-by-user"` | User explicitly denied the request |
+| `kind` value                                                | Meaning                                                                                  |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `"approved"`                                                | Allow the tool to run                                                                    |
+| `"denied-interactively-by-user"`                            | User explicitly denied the request                                                       |
 | `"denied-no-approval-rule-and-could-not-request-from-user"` | No approval rule matched and user could not be asked (default when no kind is specified) |
-| `"denied-by-rules"` | Denied by a policy rule |
-| `"denied-by-content-exclusion-policy"` | Denied due to a content exclusion policy |
-| `"no-result"` | Leave the request unanswered (not allowed for protocol v2 permission requests) |
+| `"denied-by-rules"`                                         | Denied by a policy rule                                                                  |
+| `"denied-by-content-exclusion-policy"`                      | Denied due to a content exclusion policy                                                 |
+| `"no-result"`                                               | Leave the request unanswered (not allowed for protocol v2 permission requests)           |
 
 ### Resuming Sessions
 
@@ -835,6 +837,7 @@ async with await client.create_session(
 ```
 
 When `on_elicitation_request` is provided, the SDK automatically:
+
 - Sends `requestElicitation: true` to the server during session creation/resumption
 - Reports the `elicitation` capability on the session
 - Dispatches `elicitation.requested` events to your handler

@@ -2,7 +2,7 @@
 
 A Go SDK for programmatic access to the GitHub Copilot CLI.
 
-> **Note:** This SDK is in technical preview and may change in breaking ways.
+> **Note:** This SDK is in public preview and may change in breaking ways.
 
 ## Installation
 
@@ -180,7 +180,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `Abort(ctx context.Context) error` - Abort the currently processing message
 - `GetMessages(ctx context.Context) ([]SessionEvent, error)` - Get message history
 - `Disconnect() error` - Disconnect the session (releases in-memory resources, preserves disk state)
-- `Destroy() error` - *(Deprecated)* Use `Disconnect()` instead
+- `Destroy() error` - _(Deprecated)_ Use `Disconnect()` instead
 - `UI() *SessionUI` - Interactive UI API for elicitation dialogs
 - `Capabilities() SessionCapabilities` - Host capabilities (e.g. elicitation support)
 
@@ -230,6 +230,7 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 Available section constants: `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionLastInstructions`.
 
 Each section override supports four actions:
+
 - **`replace`** — Replace the section content entirely
 - **`remove`** — Remove the section from the prompt
 - **`append`** — Add content after the existing section
@@ -543,7 +544,9 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
     },
 })
 ```
+
 > **Important notes:**
+>
 > - When using a custom provider, the `Model` parameter is **required**. The SDK will return an error if no model is specified.
 > - For Azure OpenAI endpoints (`*.openai.azure.com`), you **must** use `Type: "azure"`, not `Type: "openai"`.
 > - The `BaseURL` should be just the host (e.g., `https://my-resource.openai.azure.com`). Do **not** include `/openai/v1` in the URL - the SDK handles path construction automatically.
@@ -623,13 +626,13 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
 
 ### Permission Result Kinds
 
-| Constant | Meaning |
-|----------|---------|
-| `PermissionRequestResultKindApproved` | Allow the tool to run |
-| `PermissionRequestResultKindDeniedInteractivelyByUser` | User explicitly denied the request |
-| `PermissionRequestResultKindDeniedCouldNotRequestFromUser` | No approval rule matched and user could not be asked |
-| `PermissionRequestResultKindDeniedByRules` | Denied by a policy rule |
-| `PermissionRequestResultKindNoResult` | Leave the permission request unanswered (protocol v1 only; not allowed for protocol v2) |
+| Constant                                                   | Meaning                                                                                 |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `PermissionRequestResultKindApproved`                      | Allow the tool to run                                                                   |
+| `PermissionRequestResultKindDeniedInteractivelyByUser`     | User explicitly denied the request                                                      |
+| `PermissionRequestResultKindDeniedCouldNotRequestFromUser` | No approval rule matched and user could not be asked                                    |
+| `PermissionRequestResultKindDeniedByRules`                 | Denied by a policy rule                                                                 |
+| `PermissionRequestResultKindNoResult`                      | Leave the permission request unanswered (protocol v1 only; not allowed for protocol v2) |
 
 ### Resuming Sessions
 
@@ -840,6 +843,7 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 ```
 
 When `OnElicitationRequest` is provided, the SDK automatically:
+
 - Sends `requestElicitation: true` in the create/resume payload
 - Routes `elicitation.requested` events to your handler
 - Auto-cancels the request if your handler returns an error (so the server doesn't hang)
