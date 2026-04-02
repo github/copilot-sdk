@@ -1,6 +1,6 @@
 """
 Unit tests for Commands, UI Elicitation (client→server), and
-onElicitationRequest (server→client callback) features.
+onElicitationContext (server→client callback) features.
 
 Mirrors the Node.js client.test.ts tests for these features.
 """
@@ -14,7 +14,7 @@ from copilot.client import SubprocessConfig
 from copilot.session import (
     CommandContext,
     CommandDefinition,
-    ElicitationRequest,
+    ElicitationContext,
     ElicitationResult,
     PermissionHandler,
 )
@@ -379,14 +379,14 @@ class TestUiElicitation:
 
 
 # ============================================================================
-# onElicitationRequest (server → client callback)
+# onElicitationContext (server → client callback)
 # ============================================================================
 
 
-class TestOnElicitationRequest:
+class TestOnElicitationContext:
     @pytest.mark.asyncio
     async def test_sends_request_elicitation_flag_when_handler_provided(self):
-        """Verifies requestElicitation=true is sent when onElicitationRequest is provided."""
+        """Verifies requestElicitation=true is sent when onElicitationContext is provided."""
         client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
         await client.start()
 
@@ -401,7 +401,7 @@ class TestOnElicitationRequest:
             client._client.request = mock_request
 
             async def elicitation_handler(
-                request: ElicitationRequest, invocation: dict[str, str]
+                context: ElicitationContext, 
             ) -> ElicitationResult:
                 return {"action": "accept", "content": {}}
 
@@ -451,7 +451,7 @@ class TestOnElicitationRequest:
         try:
 
             async def bad_handler(
-                request: ElicitationRequest, invocation: dict[str, str]
+                context: ElicitationContext, 
             ) -> ElicitationResult:
                 raise RuntimeError("handler exploded")
 
@@ -472,7 +472,9 @@ class TestOnElicitationRequest:
             client._client.request = mock_request
 
             # Call _handle_elicitation_request directly (as Node.js test does)
-            await session._handle_elicitation_request({"message": "Pick a color"}, "req-123")
+            await session._handle_elicitation_request(
+                {"session_id": session.session_id, "message": "Pick a color"}, "req-123"
+            )
 
             assert len(rpc_calls) >= 1
             cancel_call = next(
@@ -495,9 +497,9 @@ class TestOnElicitationRequest:
             handler_calls: list = []
 
             async def elicitation_handler(
-                request: ElicitationRequest, invocation: dict[str, str]
+                context: ElicitationContext, 
             ) -> ElicitationResult:
-                handler_calls.append(request)
+                handler_calls.append(context)
                 return {"action": "accept", "content": {"color": "blue"}}
 
             session = await client.create_session(
@@ -556,9 +558,9 @@ class TestOnElicitationRequest:
             handler_calls: list = []
 
             async def elicitation_handler(
-                request: ElicitationRequest, invocation: dict[str, str]
+                context: ElicitationContext, 
             ) -> ElicitationResult:
-                handler_calls.append(request)
+                handler_calls.append(context)
                 return {"action": "cancel"}
 
             session = await client.create_session(
@@ -655,3 +657,4 @@ class TestCapabilitiesChanged:
             assert session.capabilities.get("ui", {}).get("elicitation") is True
         finally:
             await client.force_stop()
+

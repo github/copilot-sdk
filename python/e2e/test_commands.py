@@ -210,3 +210,4 @@ class TestCommands:
         assert "deploy" in cmd_names
 
         await session2.disconnect()
+

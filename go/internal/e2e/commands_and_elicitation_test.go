@@ -159,7 +159,7 @@ func TestUIElicitationCallback(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			OnElicitationRequest: func(req copilot.ElicitationRequest, inv copilot.ElicitationInvocation) (copilot.ElicitationResult, error) {
+			OnElicitationRequest: func(ctx copilot.ElicitationContext) (copilot.ElicitationResult, error) {
 				return copilot.ElicitationResult{Action: "accept", Content: map[string]any{}}, nil
 			},
 		})
@@ -250,7 +250,7 @@ func TestUIElicitationMultiClient(t *testing.T) {
 		session2, err := client2.ResumeSession(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			DisableResume:       true,
-			OnElicitationRequest: func(req copilot.ElicitationRequest, inv copilot.ElicitationInvocation) (copilot.ElicitationResult, error) {
+			OnElicitationRequest: func(ctx copilot.ElicitationContext) (copilot.ElicitationResult, error) {
 				return copilot.ElicitationResult{Action: "accept", Content: map[string]any{}}, nil
 			},
 		})
@@ -311,7 +311,7 @@ func TestUIElicitationMultiClient(t *testing.T) {
 		_, err = client3.ResumeSession(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			DisableResume:       true,
-			OnElicitationRequest: func(req copilot.ElicitationRequest, inv copilot.ElicitationInvocation) (copilot.ElicitationResult, error) {
+			OnElicitationRequest: func(ctx copilot.ElicitationContext) (copilot.ElicitationResult, error) {
 				return copilot.ElicitationResult{Action: "accept", Content: map[string]any{}}, nil
 			},
 		})
@@ -355,3 +355,4 @@ func TestUIElicitationMultiClient(t *testing.T) {
 		unsubDisabled()
 	})
 }
+

@@ -173,7 +173,7 @@ public class MultiClientCommandsElicitationTests
         var session2 = await Client2.ResumeSessionAsync(session1.SessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            OnElicitationRequest = (_, _) => Task.FromResult(new ElicitationResult
+            OnElicitationRequest = _ => Task.FromResult(new ElicitationResult
             {
                 Action = Rpc.SessionUiElicitationResultAction.Accept,
                 Content = new Dictionary<string, object>(),
@@ -227,7 +227,7 @@ public class MultiClientCommandsElicitationTests
         await _client3.ResumeSessionAsync(session1.SessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            OnElicitationRequest = (_, _) => Task.FromResult(new ElicitationResult
+            OnElicitationRequest = _ => Task.FromResult(new ElicitationResult
             {
                 Action = Rpc.SessionUiElicitationResultAction.Accept,
                 Content = new Dictionary<string, object>(),
@@ -259,3 +259,4 @@ public class MultiClientCommandsElicitationTests
             "After elicitation provider disconnects, capability should be removed");
     }
 }
+

@@ -493,8 +493,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
                                 : null;
 
                             await HandleElicitationRequestAsync(
-                                new ElicitationRequest
+                                new ElicitationContext
                                 {
+                                    SessionId = SessionId,
                                     Message = data.Message,
                                     RequestedSchema = schema,
                                     Mode = data.Mode,
@@ -720,14 +721,14 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// Dispatches an elicitation.requested event to the registered handler and
     /// responds via the ui.handlePendingElicitation RPC. Auto-cancels on handler errors.
     /// </summary>
-    private async Task HandleElicitationRequestAsync(ElicitationRequest request, string requestId)
+    private async Task HandleElicitationRequestAsync(ElicitationContext context, string requestId)
     {
         var handler = _elicitationHandler;
         if (handler is null) return;
 
         try
         {
-            var result = await handler(request, new ElicitationInvocation { SessionId = SessionId });
+            var result = await handler(context);
             await Rpc.Ui.HandlePendingElicitationAsync(requestId, new SessionUiHandlePendingElicitationRequestResult
             {
                 Action = result.Action,

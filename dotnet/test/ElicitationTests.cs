@@ -78,7 +78,7 @@ public class ElicitationTests(E2ETestFixture fixture, ITestOutputHelper output)
         var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            OnElicitationRequest = (_, _) => Task.FromResult(new ElicitationResult
+            OnElicitationRequest = _ => Task.FromResult(new ElicitationResult
             {
                 Action = SessionUiElicitationResultAction.Accept,
                 Content = new Dictionary<string, object>(),
@@ -97,7 +97,7 @@ public class ElicitationTests(E2ETestFixture fixture, ITestOutputHelper output)
         var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            OnElicitationRequest = (_, _) => Task.FromResult(new ElicitationResult
+            OnElicitationRequest = _ => Task.FromResult(new ElicitationResult
             {
                 Action = SessionUiElicitationResultAction.Accept,
                 Content = new Dictionary<string, object>(),
@@ -231,10 +231,11 @@ public class ElicitationTests(E2ETestFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
-    public void ElicitationRequest_Has_All_Properties()
+    public void ElicitationContext_Has_All_Properties()
     {
-        var request = new ElicitationRequest
+        var context = new ElicitationContext
         {
+            SessionId = "session-42",
             Message = "Pick a color",
             RequestedSchema = new ElicitationSchema
             {
@@ -248,28 +249,18 @@ public class ElicitationTests(E2ETestFixture fixture, ITestOutputHelper output)
             Url = null,
         };
 
-        Assert.Equal("Pick a color", request.Message);
-        Assert.NotNull(request.RequestedSchema);
-        Assert.Equal(ElicitationRequestedDataMode.Form, request.Mode);
-        Assert.Equal("mcp-server", request.ElicitationSource);
-        Assert.Null(request.Url);
-    }
-
-    [Fact]
-    public void ElicitationInvocation_Has_SessionId()
-    {
-        var invocation = new ElicitationInvocation
-        {
-            SessionId = "session-42"
-        };
-
-        Assert.Equal("session-42", invocation.SessionId);
+        Assert.Equal("session-42", context.SessionId);
+        Assert.Equal("Pick a color", context.Message);
+        Assert.NotNull(context.RequestedSchema);
+        Assert.Equal(ElicitationRequestedDataMode.Form, context.Mode);
+        Assert.Equal("mcp-server", context.ElicitationSource);
+        Assert.Null(context.Url);
     }
 
     [Fact]
     public async Task Session_Config_OnElicitationRequest_Is_Cloned()
     {
-        ElicitationHandler handler = (_, _) => Task.FromResult(new ElicitationResult
+        ElicitationHandler handler = _ => Task.FromResult(new ElicitationResult
         {
             Action = SessionUiElicitationResultAction.Cancel,
         });
@@ -288,7 +279,7 @@ public class ElicitationTests(E2ETestFixture fixture, ITestOutputHelper output)
     [Fact]
     public void Resume_Config_OnElicitationRequest_Is_Cloned()
     {
-        ElicitationHandler handler = (_, _) => Task.FromResult(new ElicitationResult
+        ElicitationHandler handler = _ => Task.FromResult(new ElicitationResult
         {
             Action = SessionUiElicitationResultAction.Cancel,
         });
@@ -304,3 +295,4 @@ public class ElicitationTests(E2ETestFixture fixture, ITestOutputHelper output)
         Assert.Same(handler, clone.OnElicitationRequest);
     }
 }
+

@@ -809,17 +809,17 @@ if result["action"] == "accept":
 When the server (or an MCP tool) needs to ask the end-user a question, it sends an `elicitation.requested` event. Provide an `on_elicitation_request` handler to respond:
 
 ```python
-from copilot.session import ElicitationRequest, ElicitationResult, PermissionHandler
+from copilot.session import ElicitationContext, ElicitationResult, PermissionHandler
 
 async def handle_elicitation(
-    request: ElicitationRequest, invocation: dict[str, str]
+    context: ElicitationContext,
 ) -> ElicitationResult:
-    # request["message"]         — what the server is asking
-    # request.get("requestedSchema") — optional JSON schema for form fields
-    # request.get("mode")        — "form" or "url"
-    # invocation["session_id"]   — the session ID
+    # context["session_id"]           — the session ID
+    # context["message"]              — what the server is asking
+    # context.get("requestedSchema")  — optional JSON schema for form fields
+    # context.get("mode")             — "form" or "url"
 
-    print(f"Server asks: {request['message']}")
+    print(f"Server asks: {context['message']}")
 
     # Return the user's response
     return {

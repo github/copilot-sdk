@@ -586,8 +586,12 @@ type ElicitationResult struct {
 	Content map[string]any `json:"content,omitempty"`
 }
 
-// ElicitationRequest describes an elicitation request from the server.
-type ElicitationRequest struct {
+// ElicitationContext describes an elicitation request from the server,
+// combining the request data with session context. Mirrors the
+// single-argument pattern of CommandContext.
+type ElicitationContext struct {
+	// SessionID is the identifier of the session that triggered the request.
+	SessionID string
 	// Message describes what information is needed from the user.
 	Message string
 	// RequestedSchema is a JSON Schema describing the form fields (form mode only).
@@ -601,14 +605,9 @@ type ElicitationRequest struct {
 }
 
 // ElicitationHandler handles elicitation requests from the server (e.g. from MCP tools).
-// It receives the request and an ElicitationInvocation for context, and must return
-// an ElicitationResult. If the handler returns an error the SDK auto-cancels the request.
-type ElicitationHandler func(request ElicitationRequest, invocation ElicitationInvocation) (ElicitationResult, error)
-
-// ElicitationInvocation provides context about an elicitation request.
-type ElicitationInvocation struct {
-	SessionID string
-}
+// It receives an ElicitationContext and must return an ElicitationResult.
+// If the handler returns an error the SDK auto-cancels the request.
+type ElicitationHandler func(ctx ElicitationContext) (ElicitationResult, error)
 
 // InputOptions configures a text input field for the Input convenience method.
 type InputOptions struct {

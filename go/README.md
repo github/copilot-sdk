@@ -822,12 +822,13 @@ When the server (or an MCP tool) needs to ask the end-user a question, it sends 
 ```go
 session, err := client.CreateSession(ctx, &copilot.SessionConfig{
     OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-    OnElicitationRequest: func(req copilot.ElicitationRequest, inv copilot.ElicitationInvocation) (copilot.ElicitationResult, error) {
-        // req.Message — what's being asked
-        // req.RequestedSchema — form schema (if mode is "form")
-        // req.Mode — "form" or "url"
-        // req.ElicitationSource — e.g. MCP server name
-        // req.URL — browser URL (if mode is "url")
+    OnElicitationRequest: func(ctx copilot.ElicitationContext) (copilot.ElicitationResult, error) {
+        // ctx.SessionID — session that triggered the request
+        // ctx.Message — what's being asked
+        // ctx.RequestedSchema — form schema (if mode is "form")
+        // ctx.Mode — "form" or "url"
+        // ctx.ElicitationSource — e.g. MCP server name
+        // ctx.URL — browser URL (if mode is "url")
 
         // Return the user's response
         return copilot.ElicitationResult{

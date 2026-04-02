@@ -910,14 +910,15 @@ var session = await client.CreateSessionAsync(new SessionConfig
 {
     Model = "gpt-5",
     OnPermissionRequest = PermissionHandler.ApproveAll,
-    OnElicitationRequest = async (request, invocation) =>
+    OnElicitationRequest = async (context) =>
     {
-        // request.Message - Description of what information is needed
-        // request.RequestedSchema - JSON Schema describing the form fields
-        // request.Mode - "form" (structured input) or "url" (browser redirect)
-        // request.ElicitationSource - Origin of the request (e.g. MCP server name)
+        // context.SessionId - Session that triggered the request
+        // context.Message - Description of what information is needed
+        // context.RequestedSchema - JSON Schema describing the form fields
+        // context.Mode - "form" (structured input) or "url" (browser redirect)
+        // context.ElicitationSource - Origin of the request (e.g. MCP server name)
 
-        Console.WriteLine($"Elicitation from {request.ElicitationSource}: {request.Message}");
+        Console.WriteLine($"Elicitation from {context.ElicitationSource}: {context.Message}");
 
         // Present UI to the user and collect their response...
         return new ElicitationResult

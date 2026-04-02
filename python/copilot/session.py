@@ -365,9 +365,12 @@ class InputOptions(TypedDict, total=False):
 # ============================================================================
 
 
-class ElicitationRequest(TypedDict, total=False):
-    """Request payload passed to an elicitation handler callback."""
+class ElicitationContext(TypedDict, total=False):
+    """Context for an elicitation handler invocation, combining the request data
+    with session context. Mirrors the single-argument pattern of CommandContext."""
 
+    session_id: Required[str]
+    """Identifier of the session that triggered the elicitation request."""
     message: Required[str]
     """Message describing what information is needed from the user."""
     requestedSchema: dict[str, Any]
@@ -381,7 +384,7 @@ class ElicitationRequest(TypedDict, total=False):
 
 
 ElicitationHandler = Callable[
-    [ElicitationRequest, dict[str, str]],
+    [ElicitationContext],
     ElicitationResult | Awaitable[ElicitationResult],
 ]
 """Handler invoked when the server dispatches an elicitation request to this client."""
@@ -1251,16 +1254,19 @@ class CopilotSession:
             request_id = event.data.request_id
             if not request_id:
                 return
-            request: ElicitationRequest = {"message": event.data.message or ""}
+            context: ElicitationContext = {
+                "session_id": self.session_id,
+                "message": event.data.message or "",
+            }
             if event.data.requested_schema is not None:
-                request["requestedSchema"] = event.data.requested_schema.to_dict()
+                context["requestedSchema"] = event.data.requested_schema.to_dict()
             if event.data.mode is not None:
-                request["mode"] = event.data.mode.value
+                context["mode"] = event.data.mode.value
             if event.data.elicitation_source is not None:
-                request["elicitationSource"] = event.data.elicitation_source
+                context["elicitationSource"] = event.data.elicitation_source
             if event.data.url is not None:
-                request["url"] = event.data.url
-            asyncio.ensure_future(self._handle_elicitation_request(request, request_id))
+                context["url"] = event.data.url
+            asyncio.ensure_future(self._handle_elicitation_request(context, request_id))
 
         elif event.type == SessionEventType.CAPABILITIES_CHANGED:
             cap: SessionCapabilities = {}
@@ -1433,7 +1439,7 @@ class CopilotSession:
 
     async def _handle_elicitation_request(
         self,
-        request: ElicitationRequest,
+        context: ElicitationContext,
         request_id: str,
     ) -> None:
         """Handle an elicitation.requested broadcast event.
@@ -1446,7 +1452,7 @@ class CopilotSession:
         if not handler:
             return
         try:
-            result = handler(request, {"session_id": self.session_id})
+            result = handler(context)
             if inspect.isawaitable(result):
                 result = await result
             result = cast(ElicitationResult, result)

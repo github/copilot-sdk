@@ -470,7 +470,7 @@ func TestSession_ElicitationHandler(t *testing.T) {
 			t.Error("Expected nil handler before registration")
 		}
 
-		session.registerElicitationHandler(func(req ElicitationRequest, inv ElicitationInvocation) (ElicitationResult, error) {
+		session.registerElicitationHandler(func(ctx ElicitationContext) (ElicitationResult, error) {
 			return ElicitationResult{Action: "accept"}, nil
 		})
 
@@ -483,7 +483,7 @@ func TestSession_ElicitationHandler(t *testing.T) {
 		session, cleanup := newTestSession()
 		defer cleanup()
 
-		session.registerElicitationHandler(func(req ElicitationRequest, inv ElicitationInvocation) (ElicitationResult, error) {
+		session.registerElicitationHandler(func(ctx ElicitationContext) (ElicitationResult, error) {
 			return ElicitationResult{}, fmt.Errorf("handler exploded")
 		})
 
@@ -493,8 +493,7 @@ func TestSession_ElicitationHandler(t *testing.T) {
 		}
 
 		_, err := handler(
-			ElicitationRequest{Message: "Pick a color"},
-			ElicitationInvocation{SessionID: "test-session"},
+			ElicitationContext{SessionID: "test-session", Message: "Pick a color"},
 		)
 		if err == nil {
 			t.Fatal("Expected error from handler")
@@ -508,7 +507,7 @@ func TestSession_ElicitationHandler(t *testing.T) {
 		session, cleanup := newTestSession()
 		defer cleanup()
 
-		session.registerElicitationHandler(func(req ElicitationRequest, inv ElicitationInvocation) (ElicitationResult, error) {
+		session.registerElicitationHandler(func(ctx ElicitationContext) (ElicitationResult, error) {
 			return ElicitationResult{
 				Action:  "accept",
 				Content: map[string]any{"color": "blue"},
@@ -517,8 +516,7 @@ func TestSession_ElicitationHandler(t *testing.T) {
 
 		handler := session.getElicitationHandler()
 		result, err := handler(
-			ElicitationRequest{Message: "Pick a color"},
-			ElicitationInvocation{SessionID: "test-session"},
+			ElicitationContext{SessionID: "test-session", Message: "Pick a color"},
 		)
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
@@ -587,3 +585,4 @@ func TestSession_ElicitationRequestSchema(t *testing.T) {
 		}
 	})
 }
+

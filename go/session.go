@@ -577,16 +577,15 @@ func (s *Session) getElicitationHandler() ElicitationHandler {
 
 // handleElicitationRequest dispatches an elicitation.requested event to the registered handler
 // and sends the result back via the RPC layer. Auto-cancels on error.
-func (s *Session) handleElicitationRequest(request ElicitationRequest, requestID string) {
+func (s *Session) handleElicitationRequest(elicitCtx ElicitationContext, requestID string) {
 	handler := s.getElicitationHandler()
 	if handler == nil {
 		return
 	}
 
 	ctx := context.Background()
-	invocation := ElicitationInvocation{SessionID: s.SessionID}
 
-	result, err := handler(request, invocation)
+	result, err := handler(elicitCtx)
 	if err != nil {
 		// Handler failed — attempt to cancel so the request doesn't hang.
 		s.RPC.Ui.HandlePendingElicitation(ctx, &rpc.SessionUIHandlePendingElicitationParams{
@@ -976,7 +975,8 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 		if event.Data.URL != nil {
 			url = *event.Data.URL
 		}
-		s.handleElicitationRequest(ElicitationRequest{
+		s.handleElicitationRequest(ElicitationContext{
+			SessionID:         s.SessionID,
 			Message:           message,
 			RequestedSchema:   requestedSchema,
 			Mode:              mode,

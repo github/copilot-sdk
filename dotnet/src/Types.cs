@@ -693,10 +693,14 @@ public interface ISessionUiApi
 // ============================================================================
 
 /// <summary>
-/// An elicitation request received from the server.
+/// Context for an elicitation handler invocation, combining the request data
+/// with session context. Mirrors the single-argument pattern of <see cref="CommandContext"/>.
 /// </summary>
-public class ElicitationRequest
+public class ElicitationContext
 {
+    /// <summary>Identifier of the session that triggered the elicitation request.</summary>
+    public string SessionId { get; set; } = string.Empty;
+
     /// <summary>Message describing what information is needed from the user.</summary>
     public string Message { get; set; } = string.Empty;
 
@@ -714,20 +718,9 @@ public class ElicitationRequest
 }
 
 /// <summary>
-/// Context for an elicitation handler invocation.
-/// </summary>
-public class ElicitationInvocation
-{
-    /// <summary>
-    /// Identifier of the session that triggered the elicitation request.
-    /// </summary>
-    public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>
 /// Delegate for handling elicitation requests from the server.
 /// </summary>
-public delegate Task<ElicitationResult> ElicitationHandler(ElicitationRequest request, ElicitationInvocation invocation);
+public delegate Task<ElicitationResult> ElicitationHandler(ElicitationContext context);
 
 // ============================================================================
 // Session Capabilities

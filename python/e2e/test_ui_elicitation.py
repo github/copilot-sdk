@@ -8,7 +8,7 @@ Uses the shared ``ctx`` fixture from conftest.py.
 import pytest
 
 from copilot.session import (
-    ElicitationRequest,
+    ElicitationContext,
     ElicitationResult,
     PermissionHandler,
 )
@@ -33,10 +33,10 @@ class TestUiElicitation:
             await session.ui.confirm("test")
 
     async def test_session_with_elicitation_handler_reports_capability(self, ctx: E2ETestContext):
-        """Session created with onElicitationRequest reports elicitation capability."""
+        """Session created with onElicitationContext reports elicitation capability."""
 
         async def handler(
-            request: ElicitationRequest, invocation: dict[str, str]
+            context: ElicitationContext, 
         ) -> ElicitationResult:
             return {"action": "accept", "content": {}}
 
@@ -50,9 +50,10 @@ class TestUiElicitation:
     async def test_session_without_elicitation_handler_reports_no_capability(
         self, ctx: E2ETestContext
     ):
-        """Session created without onElicitationRequest reports no elicitation capability."""
+        """Session created without onElicitationContext reports no elicitation capability."""
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
         )
 
         assert session.capabilities.get("ui", {}).get("elicitation") in (False, None)
+
