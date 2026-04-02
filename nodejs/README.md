@@ -2,7 +2,7 @@
 
 TypeScript SDK for programmatic control of GitHub Copilot CLI via JSON-RPC.
 
-> **Note:** This SDK is in technical preview and may change in breaking ways.
+> **Note:** This SDK is in public preview and may change in breaking ways.
 
 ## Installation
 

@@ -4,7 +4,7 @@ Java SDK for programmatic control of GitHub Copilot CLI via JSON-RPC.
 
 > **📦 The Java SDK is maintained in a separate repository: [`github/copilot-sdk-java`](https://github.com/github/copilot-sdk-java)**
 >
-> **Note:** This SDK is in technical preview and may change in breaking ways.
+> **Note:** This SDK is in public preview and may change in breaking ways.
 
 [![Build](https://github.com/github/copilot-sdk-java/actions/workflows/build-test.yml/badge.svg)](https://github.com/github/copilot-sdk-java/actions/workflows/build-test.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/com.github/copilot-sdk-java)](https://central.sonatype.com/artifact/com.github/copilot-sdk-java)
@@ -61,17 +61,17 @@ jbang https://github.com/github/copilot-sdk-java/blob/main/jbang-example.java
 
 ## Documentation & Resources
 
-| Resource | Link |
-|----------|------|
-| **Full Documentation** | [github.github.io/copilot-sdk-java](https://github.github.io/copilot-sdk-java/) |
-| **Getting Started Guide** | [Documentation](https://github.github.io/copilot-sdk-java/latest/documentation.html) |
-| **API Reference (Javadoc)** | [javadoc.io](https://javadoc.io/doc/com.github/copilot-sdk-java/latest/index.html) |
-| **MCP Servers Integration** | [MCP Guide](https://github.github.io/copilot-sdk-java/latest/mcp.html) |
-| **Cookbook** | [Recipes](https://github.com/github/copilot-sdk-java/tree/main/src/site/markdown/cookbook) |
-| **Source Code** | [github/copilot-sdk-java](https://github.com/github/copilot-sdk-java) |
-| **Issues & Feature Requests** | [GitHub Issues](https://github.com/github/copilot-sdk-java/issues) |
-| **Releases** | [GitHub Releases](https://github.com/github/copilot-sdk-java/releases) |
-| **Copilot Instructions** | [copilot-sdk-java.instructions.md](https://github.com/github/copilot-sdk-java/blob/main/instructions/copilot-sdk-java.instructions.md) |
+| Resource                      | Link                                                                                                                                   |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **Full Documentation**        | [github.github.io/copilot-sdk-java](https://github.github.io/copilot-sdk-java/)                                                        |
+| **Getting Started Guide**     | [Documentation](https://github.github.io/copilot-sdk-java/latest/documentation.html)                                                   |
+| **API Reference (Javadoc)**   | [javadoc.io](https://javadoc.io/doc/com.github/copilot-sdk-java/latest/index.html)                                                     |
+| **MCP Servers Integration**   | [MCP Guide](https://github.github.io/copilot-sdk-java/latest/mcp.html)                                                                 |
+| **Cookbook**                  | [Recipes](https://github.com/github/copilot-sdk-java/tree/main/src/site/markdown/cookbook)                                             |
+| **Source Code**               | [github/copilot-sdk-java](https://github.com/github/copilot-sdk-java)                                                                  |
+| **Issues & Feature Requests** | [GitHub Issues](https://github.com/github/copilot-sdk-java/issues)                                                                     |
+| **Releases**                  | [GitHub Releases](https://github.com/github/copilot-sdk-java/releases)                                                                 |
+| **Copilot Instructions**      | [copilot-sdk-java.instructions.md](https://github.com/github/copilot-sdk-java/blob/main/instructions/copilot-sdk-java.instructions.md) |
 
 ## Contributing
 

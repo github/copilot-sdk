@@ -2,7 +2,7 @@
 
 SDK for programmatic control of GitHub Copilot CLI.
 
-> **Note:** This SDK is in technical preview and may change in breaking ways.
+> **Note:** This SDK is in public preview and may change in breaking ways.
 
 ## Installation
 
@@ -170,6 +170,7 @@ using var subscription = client.On(SessionLifecycleEventTypes.Foreground, evt =>
 ```
 
 **Lifecycle Event Types:**
+
 - `SessionLifecycleEventTypes.Created` - A new session was created
 - `SessionLifecycleEventTypes.Deleted` - A session was deleted
 - `SessionLifecycleEventTypes.Updated` - A session was updated
@@ -766,13 +767,13 @@ var session = await client.CreateSessionAsync(new SessionConfig
 
 ### Permission Result Kinds
 
-| Value | Meaning |
-|-------|---------|
-| `PermissionRequestResultKind.Approved` | Allow the tool to run |
-| `PermissionRequestResultKind.DeniedInteractivelyByUser` | User explicitly denied the request |
-| `PermissionRequestResultKind.DeniedCouldNotRequestFromUser` | No approval rule matched and user could not be asked |
-| `PermissionRequestResultKind.DeniedByRules` | Denied by a policy rule |
-| `PermissionRequestResultKind.NoResult` | Leave the permission request unanswered (the SDK returns without calling the RPC). Not allowed for protocol v2 permission requests (will be rejected). |
+| Value                                                       | Meaning                                                                                                                                                |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `PermissionRequestResultKind.Approved`                      | Allow the tool to run                                                                                                                                  |
+| `PermissionRequestResultKind.DeniedInteractivelyByUser`     | User explicitly denied the request                                                                                                                     |
+| `PermissionRequestResultKind.DeniedCouldNotRequestFromUser` | No approval rule matched and user could not be asked                                                                                                   |
+| `PermissionRequestResultKind.DeniedByRules`                 | Denied by a policy rule                                                                                                                                |
+| `PermissionRequestResultKind.NoResult`                      | Leave the permission request unanswered (the SDK returns without calling the RPC). Not allowed for protocol v2 permission requests (will be rejected). |
 
 ### Resuming Sessions
 
