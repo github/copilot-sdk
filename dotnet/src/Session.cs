@@ -63,7 +63,6 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private volatile PermissionRequestHandler? _permissionHandler;
     private volatile UserInputHandler? _userInputHandler;
     private volatile ElicitationHandler? _elicitationHandler;
-    private readonly Lazy<ISessionUiApi> _ui;
     private ImmutableArray<SessionEventHandler> _eventHandlers = ImmutableArray<SessionEventHandler>.Empty;
 
     private SessionHooks? _hooks;
@@ -123,7 +122,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// if the host does not report elicitation support via <see cref="Capabilities"/>.
     /// Check <c>session.Capabilities.Ui?.Elicitation == true</c> before calling.
     /// </remarks>
-    public ISessionUiApi Ui => _ui.Value;
+    public ISessionUiApi Ui { get; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CopilotSession"/> class.
@@ -141,7 +140,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         _rpc = rpc;
         _logger = logger;
         WorkspacePath = workspacePath;
-        _ui = new Lazy<ISessionUiApi>(() => new SessionUiApiImpl(this));
+        Ui = new SessionUiApiImpl(this);
 
         // Start the asynchronous processing loop.
         _ = ProcessEventsAsync();
