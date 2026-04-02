@@ -960,7 +960,10 @@ describe("CopilotClient", () => {
 
             const rpcSpy = vi.spyOn((client as any).connection!, "sendRequest");
 
-            await session._handleElicitationRequest({ message: "Pick a color" }, "req-123");
+            await session._handleElicitationRequest(
+                { sessionId: session.sessionId, message: "Pick a color" },
+                "req-123"
+            );
 
             const cancelCall = rpcSpy.mock.calls.find(
                 (c) =>

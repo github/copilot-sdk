@@ -35,8 +35,10 @@ from ._telemetry import get_trace_context, trace_context
 from .generated.rpc import ServerRpc
 from .generated.session_events import PermissionRequest, SessionEvent, session_event_from_dict
 from .session import (
+    CommandDefinition,
     CopilotSession,
     CustomAgentConfig,
+    ElicitationHandler,
     InfiniteSessionConfig,
     MCPServerConfig,
     ProviderConfig,
@@ -1114,6 +1116,8 @@ class CopilotClient:
         disabled_skills: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
         on_event: Callable[[SessionEvent], None] | None = None,
+        commands: list[CommandDefinition] | None = None,
+        on_elicitation_request: ElicitationHandler | None = None,
     ) -> CopilotSession:
         """
         Create a new conversation session with the Copilot CLI.
@@ -1218,6 +1222,15 @@ class CopilotClient:
         if on_user_input_request:
             payload["requestUserInput"] = True
 
+        # Enable elicitation request callback if handler provided
+        payload["requestElicitation"] = bool(on_elicitation_request)
+
+        # Serialize commands (name + description only) into payload
+        if commands:
+            payload["commands"] = [
+                {"name": cmd.name, "description": cmd.description} for cmd in commands
+            ]
+
         # Enable hooks callback if any hook handler provided
         if hooks and any(hooks.values()):
             payload["hooks"] = True
@@ -1290,9 +1303,12 @@ class CopilotClient:
         # events emitted by the CLI (e.g. session.start) are not dropped.
         session = CopilotSession(actual_session_id, self._client, workspace_path=None)
         session._register_tools(tools)
+        session._register_commands(commands)
         session._register_permission_handler(on_permission_request)
         if on_user_input_request:
             session._register_user_input_handler(on_user_input_request)
+        if on_elicitation_request:
+            session._register_elicitation_handler(on_elicitation_request)
         if hooks:
             session._register_hooks(hooks)
         if transform_callbacks:
@@ -1305,6 +1321,8 @@ class CopilotClient:
         try:
             response = await self._client.request("session.create", payload)
             session._workspace_path = response.get("workspacePath")
+            capabilities = response.get("capabilities")
+            session._set_capabilities(capabilities)
         except BaseException:
             with self._sessions_lock:
                 self._sessions.pop(actual_session_id, None)
@@ -1337,6 +1355,8 @@ class CopilotClient:
         disabled_skills: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
         on_event: Callable[[SessionEvent], None] | None = None,
+        commands: list[CommandDefinition] | None = None,
+        on_elicitation_request: ElicitationHandler | None = None,
     ) -> CopilotSession:
         """
         Resume an existing conversation session by its ID.
@@ -1444,6 +1464,15 @@ class CopilotClient:
         if on_user_input_request:
             payload["requestUserInput"] = True
 
+        # Enable elicitation request callback if handler provided
+        payload["requestElicitation"] = bool(on_elicitation_request)
+
+        # Serialize commands (name + description only) into payload
+        if commands:
+            payload["commands"] = [
+                {"name": cmd.name, "description": cmd.description} for cmd in commands
+            ]
+
         if hooks and any(hooks.values()):
             payload["hooks"] = True
 
@@ -1494,9 +1523,12 @@ class CopilotClient:
         # events emitted by the CLI (e.g. session.start) are not dropped.
         session = CopilotSession(session_id, self._client, workspace_path=None)
         session._register_tools(tools)
+        session._register_commands(commands)
         session._register_permission_handler(on_permission_request)
         if on_user_input_request:
             session._register_user_input_handler(on_user_input_request)
+        if on_elicitation_request:
+            session._register_elicitation_handler(on_elicitation_request)
         if hooks:
             session._register_hooks(hooks)
         if transform_callbacks:
@@ -1509,6 +1541,8 @@ class CopilotClient:
         try:
             response = await self._client.request("session.resume", payload)
             session._workspace_path = response.get("workspacePath")
+            capabilities = response.get("capabilities")
+            session._set_capabilities(capabilities)
         except BaseException:
             with self._sessions_lock:
                 self._sessions.pop(session_id, None)
@@ -2225,10 +2259,26 @@ class CopilotClient:
                 self._socket = sock_obj
 
             def terminate(self):
+                import socket as _socket_mod
+
+                # shutdown() sends TCP FIN to the server (triggering
+                # server-side disconnect detection) and interrupts any
+                # pending blocking reads on other threads immediately.
+                try:
+                    self._socket.shutdown(_socket_mod.SHUT_RDWR)
+                except OSError:
+                    pass  # Safe to ignore — socket may already be closed
+                # Close the file wrapper — makefile() holds its own
+                # reference to the fd, so socket.close() alone won't
+                # release the OS resource until the wrapper is closed too.
+                try:
+                    self.stdin.close()
+                except OSError:
+                    pass  # Safe to ignore — already closed
                 try:
                     self._socket.close()
                 except OSError:
-                    pass
+                    pass  # Safe to ignore — already closed
 
             def kill(self):
                 self.terminate()

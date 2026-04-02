@@ -66,6 +66,12 @@ type Session struct {
 	hooksMux           sync.RWMutex
 	transformCallbacks map[string]SectionTransformFn
 	transformMu        sync.Mutex
+	commandHandlers    map[string]CommandHandler
+	commandHandlersMu  sync.RWMutex
+	elicitationHandler ElicitationHandler
+	elicitationMu      sync.RWMutex
+	capabilities       SessionCapabilities
+	capabilitiesMu     sync.RWMutex
 
 	// eventCh serializes user event handler dispatch. dispatchEvent enqueues;
 	// a single goroutine (processEvents) dequeues and invokes handlers in FIFO order.
@@ -86,13 +92,14 @@ func (s *Session) WorkspacePath() string {
 // newSession creates a new session wrapper with the given session ID and client.
 func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string) *Session {
 	s := &Session{
-		SessionID:     sessionID,
-		workspacePath: workspacePath,
-		client:        client,
-		handlers:      make([]sessionHandler, 0),
-		toolHandlers:  make(map[string]ToolHandler),
-		eventCh:       make(chan SessionEvent, 128),
-		RPC:           rpc.NewSessionRpc(client, sessionID),
+		SessionID:       sessionID,
+		workspacePath:   workspacePath,
+		client:          client,
+		handlers:        make([]sessionHandler, 0),
+		toolHandlers:    make(map[string]ToolHandler),
+		commandHandlers: make(map[string]CommandHandler),
+		eventCh:         make(chan SessionEvent, 128),
+		RPC:             rpc.NewSessionRpc(client, sessionID),
 	}
 	go s.processEvents()
 	return s
@@ -498,6 +505,333 @@ func (s *Session) handleSystemMessageTransform(sections map[string]systemMessage
 	return systemMessageTransformResponse{Sections: result}, nil
 }
 
+// registerCommands registers command handlers for this session.
+func (s *Session) registerCommands(commands []CommandDefinition) {
+	s.commandHandlersMu.Lock()
+	defer s.commandHandlersMu.Unlock()
+	s.commandHandlers = make(map[string]CommandHandler)
+	for _, cmd := range commands {
+		if cmd.Name == "" || cmd.Handler == nil {
+			continue
+		}
+		s.commandHandlers[cmd.Name] = cmd.Handler
+	}
+}
+
+// getCommandHandler retrieves a registered command handler by name.
+func (s *Session) getCommandHandler(name string) (CommandHandler, bool) {
+	s.commandHandlersMu.RLock()
+	handler, ok := s.commandHandlers[name]
+	s.commandHandlersMu.RUnlock()
+	return handler, ok
+}
+
+// executeCommandAndRespond dispatches a command.execute event to the registered handler
+// and sends the result (or error) back via the RPC layer.
+func (s *Session) executeCommandAndRespond(requestID, commandName, command, args string) {
+	ctx := context.Background()
+	handler, ok := s.getCommandHandler(commandName)
+	if !ok {
+		errMsg := fmt.Sprintf("Unknown command: %s", commandName)
+		s.RPC.Commands.HandlePendingCommand(ctx, &rpc.SessionCommandsHandlePendingCommandParams{
+			RequestID: requestID,
+			Error:     &errMsg,
+		})
+		return
+	}
+
+	cmdCtx := CommandContext{
+		SessionID:   s.SessionID,
+		Command:     command,
+		CommandName: commandName,
+		Args:        args,
+	}
+
+	if err := handler(cmdCtx); err != nil {
+		errMsg := err.Error()
+		s.RPC.Commands.HandlePendingCommand(ctx, &rpc.SessionCommandsHandlePendingCommandParams{
+			RequestID: requestID,
+			Error:     &errMsg,
+		})
+		return
+	}
+
+	s.RPC.Commands.HandlePendingCommand(ctx, &rpc.SessionCommandsHandlePendingCommandParams{
+		RequestID: requestID,
+	})
+}
+
+// registerElicitationHandler registers an elicitation handler for this session.
+func (s *Session) registerElicitationHandler(handler ElicitationHandler) {
+	s.elicitationMu.Lock()
+	defer s.elicitationMu.Unlock()
+	s.elicitationHandler = handler
+}
+
+// getElicitationHandler returns the currently registered elicitation handler, or nil.
+func (s *Session) getElicitationHandler() ElicitationHandler {
+	s.elicitationMu.RLock()
+	defer s.elicitationMu.RUnlock()
+	return s.elicitationHandler
+}
+
+// handleElicitationRequest dispatches an elicitation.requested event to the registered handler
+// and sends the result back via the RPC layer. Auto-cancels on error.
+func (s *Session) handleElicitationRequest(elicitCtx ElicitationContext, requestID string) {
+	handler := s.getElicitationHandler()
+	if handler == nil {
+		return
+	}
+
+	ctx := context.Background()
+
+	result, err := handler(elicitCtx)
+	if err != nil {
+		// Handler failed — attempt to cancel so the request doesn't hang.
+		s.RPC.Ui.HandlePendingElicitation(ctx, &rpc.SessionUIHandlePendingElicitationParams{
+			RequestID: requestID,
+			Result: rpc.SessionUIHandlePendingElicitationParamsResult{
+				Action: rpc.ActionCancel,
+			},
+		})
+		return
+	}
+
+	rpcContent := make(map[string]*rpc.Content)
+	for k, v := range result.Content {
+		rpcContent[k] = toRPCContent(v)
+	}
+
+	s.RPC.Ui.HandlePendingElicitation(ctx, &rpc.SessionUIHandlePendingElicitationParams{
+		RequestID: requestID,
+		Result: rpc.SessionUIHandlePendingElicitationParamsResult{
+			Action:  rpc.Action(result.Action),
+			Content: rpcContent,
+		},
+	})
+}
+
+// toRPCContent converts an arbitrary value to a *rpc.Content for elicitation responses.
+func toRPCContent(v any) *rpc.Content {
+	if v == nil {
+		return nil
+	}
+	c := &rpc.Content{}
+	switch val := v.(type) {
+	case bool:
+		c.Bool = &val
+	case float64:
+		c.Double = &val
+	case int:
+		f := float64(val)
+		c.Double = &f
+	case string:
+		c.String = &val
+	case []string:
+		c.StringArray = val
+	case []any:
+		strs := make([]string, 0, len(val))
+		for _, item := range val {
+			if s, ok := item.(string); ok {
+				strs = append(strs, s)
+			}
+		}
+		c.StringArray = strs
+	default:
+		s := fmt.Sprintf("%v", val)
+		c.String = &s
+	}
+	return c
+}
+
+// Capabilities returns the session capabilities reported by the server.
+func (s *Session) Capabilities() SessionCapabilities {
+	s.capabilitiesMu.RLock()
+	defer s.capabilitiesMu.RUnlock()
+	return s.capabilities
+}
+
+// setCapabilities updates the session capabilities.
+func (s *Session) setCapabilities(caps *SessionCapabilities) {
+	s.capabilitiesMu.Lock()
+	defer s.capabilitiesMu.Unlock()
+	if caps != nil {
+		s.capabilities = *caps
+	} else {
+		s.capabilities = SessionCapabilities{}
+	}
+}
+
+// UI returns the interactive UI API for showing elicitation dialogs.
+// Methods on the returned SessionUI will error if the host does not support
+// elicitation (check Capabilities().UI.Elicitation first).
+func (s *Session) UI() *SessionUI {
+	return &SessionUI{session: s}
+}
+
+// assertElicitation checks that the host supports elicitation and returns an error if not.
+func (s *Session) assertElicitation() error {
+	caps := s.Capabilities()
+	if caps.UI == nil || !caps.UI.Elicitation {
+		return fmt.Errorf("elicitation is not supported by the host; check session.Capabilities().UI.Elicitation before calling UI methods")
+	}
+	return nil
+}
+
+// Elicitation shows a generic elicitation dialog with a custom schema.
+func (ui *SessionUI) Elicitation(ctx context.Context, message string, requestedSchema rpc.RequestedSchema) (*ElicitationResult, error) {
+	if err := ui.session.assertElicitation(); err != nil {
+		return nil, err
+	}
+	rpcResult, err := ui.session.RPC.Ui.Elicitation(ctx, &rpc.SessionUIElicitationParams{
+		Message:         message,
+		RequestedSchema: requestedSchema,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return fromRPCElicitationResult(rpcResult), nil
+}
+
+// Confirm shows a confirmation dialog and returns the user's boolean answer.
+// Returns false if the user declines or cancels.
+func (ui *SessionUI) Confirm(ctx context.Context, message string) (bool, error) {
+	if err := ui.session.assertElicitation(); err != nil {
+		return false, err
+	}
+	defaultTrue := &rpc.Content{Bool: Bool(true)}
+	rpcResult, err := ui.session.RPC.Ui.Elicitation(ctx, &rpc.SessionUIElicitationParams{
+		Message: message,
+		RequestedSchema: rpc.RequestedSchema{
+			Type: rpc.RequestedSchemaTypeObject,
+			Properties: map[string]rpc.Property{
+				"confirmed": {
+					Type:    rpc.PropertyTypeBoolean,
+					Default: defaultTrue,
+				},
+			},
+			Required: []string{"confirmed"},
+		},
+	})
+	if err != nil {
+		return false, err
+	}
+	if rpcResult.Action == rpc.ActionAccept {
+		if c, ok := rpcResult.Content["confirmed"]; ok && c != nil && c.Bool != nil {
+			return *c.Bool, nil
+		}
+	}
+	return false, nil
+}
+
+// Select shows a selection dialog with the given options.
+// Returns the selected string, or empty string and false if the user declines/cancels.
+func (ui *SessionUI) Select(ctx context.Context, message string, options []string) (string, bool, error) {
+	if err := ui.session.assertElicitation(); err != nil {
+		return "", false, err
+	}
+	rpcResult, err := ui.session.RPC.Ui.Elicitation(ctx, &rpc.SessionUIElicitationParams{
+		Message: message,
+		RequestedSchema: rpc.RequestedSchema{
+			Type: rpc.RequestedSchemaTypeObject,
+			Properties: map[string]rpc.Property{
+				"selection": {
+					Type: rpc.PropertyTypeString,
+					Enum: options,
+				},
+			},
+			Required: []string{"selection"},
+		},
+	})
+	if err != nil {
+		return "", false, err
+	}
+	if rpcResult.Action == rpc.ActionAccept {
+		if c, ok := rpcResult.Content["selection"]; ok && c != nil && c.String != nil {
+			return *c.String, true, nil
+		}
+	}
+	return "", false, nil
+}
+
+// Input shows a text input dialog. Returns the entered text, or empty string and
+// false if the user declines/cancels.
+func (ui *SessionUI) Input(ctx context.Context, message string, opts *InputOptions) (string, bool, error) {
+	if err := ui.session.assertElicitation(); err != nil {
+		return "", false, err
+	}
+	prop := rpc.Property{Type: rpc.PropertyTypeString}
+	if opts != nil {
+		if opts.Title != "" {
+			prop.Title = &opts.Title
+		}
+		if opts.Description != "" {
+			prop.Description = &opts.Description
+		}
+		if opts.MinLength != nil {
+			f := float64(*opts.MinLength)
+			prop.MinLength = &f
+		}
+		if opts.MaxLength != nil {
+			f := float64(*opts.MaxLength)
+			prop.MaxLength = &f
+		}
+		if opts.Format != "" {
+			format := rpc.Format(opts.Format)
+			prop.Format = &format
+		}
+		if opts.Default != "" {
+			prop.Default = &rpc.Content{String: &opts.Default}
+		}
+	}
+	rpcResult, err := ui.session.RPC.Ui.Elicitation(ctx, &rpc.SessionUIElicitationParams{
+		Message: message,
+		RequestedSchema: rpc.RequestedSchema{
+			Type: rpc.RequestedSchemaTypeObject,
+			Properties: map[string]rpc.Property{
+				"value": prop,
+			},
+			Required: []string{"value"},
+		},
+	})
+	if err != nil {
+		return "", false, err
+	}
+	if rpcResult.Action == rpc.ActionAccept {
+		if c, ok := rpcResult.Content["value"]; ok && c != nil && c.String != nil {
+			return *c.String, true, nil
+		}
+	}
+	return "", false, nil
+}
+
+// fromRPCElicitationResult converts the RPC result to the SDK ElicitationResult.
+func fromRPCElicitationResult(r *rpc.SessionUIElicitationResult) *ElicitationResult {
+	if r == nil {
+		return nil
+	}
+	content := make(map[string]any)
+	for k, v := range r.Content {
+		if v == nil {
+			content[k] = nil
+			continue
+		}
+		if v.Bool != nil {
+			content[k] = *v.Bool
+		} else if v.Double != nil {
+			content[k] = *v.Double
+		} else if v.String != nil {
+			content[k] = *v.String
+		} else if v.StringArray != nil {
+			content[k] = v.StringArray
+		}
+	}
+	return &ElicitationResult{
+		Action:  string(r.Action),
+		Content: content,
+	}
+}
+
 // dispatchEvent enqueues an event for delivery to user handlers and fires
 // broadcast handlers concurrently.
 //
@@ -586,6 +920,76 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 			return
 		}
 		s.executePermissionAndRespond(*requestID, *event.Data.PermissionRequest, handler)
+
+	case SessionEventTypeCommandExecute:
+		requestID := event.Data.RequestID
+		if requestID == nil {
+			return
+		}
+		commandName := ""
+		if event.Data.CommandName != nil {
+			commandName = *event.Data.CommandName
+		}
+		command := ""
+		if event.Data.Command != nil {
+			command = *event.Data.Command
+		}
+		args := ""
+		if event.Data.Args != nil {
+			args = *event.Data.Args
+		}
+		s.executeCommandAndRespond(*requestID, commandName, command, args)
+
+	case SessionEventTypeElicitationRequested:
+		requestID := event.Data.RequestID
+		if requestID == nil {
+			return
+		}
+		handler := s.getElicitationHandler()
+		if handler == nil {
+			return
+		}
+		message := ""
+		if event.Data.Message != nil {
+			message = *event.Data.Message
+		}
+		var requestedSchema map[string]any
+		if event.Data.RequestedSchema != nil {
+			requestedSchema = map[string]any{
+				"type":       string(event.Data.RequestedSchema.Type),
+				"properties": event.Data.RequestedSchema.Properties,
+			}
+			if len(event.Data.RequestedSchema.Required) > 0 {
+				requestedSchema["required"] = event.Data.RequestedSchema.Required
+			}
+		}
+		mode := ""
+		if event.Data.Mode != nil {
+			mode = string(*event.Data.Mode)
+		}
+		elicitationSource := ""
+		if event.Data.ElicitationSource != nil {
+			elicitationSource = *event.Data.ElicitationSource
+		}
+		url := ""
+		if event.Data.URL != nil {
+			url = *event.Data.URL
+		}
+		s.handleElicitationRequest(ElicitationContext{
+			SessionID:         s.SessionID,
+			Message:           message,
+			RequestedSchema:   requestedSchema,
+			Mode:              mode,
+			ElicitationSource: elicitationSource,
+			URL:               url,
+		}, *requestID)
+
+	case SessionEventTypeCapabilitiesChanged:
+		if event.Data.UI != nil && event.Data.UI.Elicitation != nil {
+			s.setCapabilities(&SessionCapabilities{
+				UI: &UICapabilities{Elicitation: *event.Data.UI.Elicitation},
+			})
+		}
 	}
 }
 
@@ -768,6 +1172,14 @@ func (s *Session) Disconnect() error {
 	s.permissionMux.Lock()
 	s.permissionHandler = nil
 	s.permissionMux.Unlock()
+
+	s.commandHandlersMu.Lock()
+	s.commandHandlers = nil
+	s.commandHandlersMu.Unlock()
+
+	s.elicitationMu.Lock()
+	s.elicitationHandler = nil
+	s.elicitationMu.Unlock()
 
 	return nil
 }

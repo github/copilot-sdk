@@ -111,6 +111,12 @@ func Float64(v float64) *float64 {
 	return &v
 }
 
+// Int returns a pointer to the given int value.
+// Use for setting optional int parameters: MinLength: Int(1)
+func Int(v int) *int {
+	return &v
+}
+
 // Known system prompt section identifiers for the "customize" mode.
 const (
 	SectionIdentity           = "identity"
@@ -489,6 +495,14 @@ type SessionConfig struct {
 	// handler. Equivalent to calling session.On(handler) immediately after creation,
 	// but executes earlier in the lifecycle so no events are missed.
 	OnEvent SessionEventHandler
+	// Commands registers slash-commands for this session. Each command appears as
+	// /name in the CLI TUI for the user to invoke. The Handler is called when the
+	// command is executed.
+	Commands []CommandDefinition
+	// OnElicitationRequest is a handler for elicitation requests from the server.
+	// When provided, the server may call back to this client for form-based UI dialogs
+	// (e.g. from MCP tools). Also enables the elicitation capability on the session.
+	OnElicitationRequest ElicitationHandler
 }
 type Tool struct {
 	Name                 string         `json:"name"`
@@ -525,6 +539,96 @@ type ToolResult struct {
 	Error               string             `json:"error,omitempty"`
 	SessionLog          string             `json:"sessionLog,omitempty"`
 	ToolTelemetry       map[string]any     `json:"toolTelemetry,omitempty"`
+}
+
+// CommandContext provides context about a slash-command invocation.
+type CommandContext struct {
+	// SessionID is the session where the command was invoked.
+	SessionID string
+	// Command is the full command text (e.g. "/deploy production").
+	Command string
+	// CommandName is the command name without the leading / (e.g. "deploy").
+	CommandName string
+	// Args is the raw argument string after the command name.
+	Args string
+}
+
+// CommandHandler is invoked when a registered slash-command is executed.
+type CommandHandler func(ctx CommandContext) error
+
+// CommandDefinition registers a slash-command. Name is shown in the CLI TUI
+// as /name for the user to invoke.
+type CommandDefinition struct {
+	// Name is the command name (without leading /).
+	Name string
+	// Description is a human-readable description shown in command completion UI.
+	Description string
+	// Handler is invoked when the command is executed.
+	Handler CommandHandler
+}
+
+// SessionCapabilities describes what features the host supports.
+type SessionCapabilities struct {
+	UI *UICapabilities `json:"ui,omitempty"`
+}
+
+// UICapabilities describes host UI feature support.
+type UICapabilities struct {
+	// Elicitation indicates whether the host supports interactive elicitation dialogs.
+	Elicitation bool `json:"elicitation,omitempty"`
+}
+
+// ElicitationResult is the user's response to an elicitation dialog.
+type ElicitationResult struct {
+	// Action is the user response: "accept" (submitted), "decline" (rejected), or "cancel" (dismissed).
+	Action string `json:"action"`
+	// Content holds form values submitted by the user (present when Action is "accept").
+	Content map[string]any `json:"content,omitempty"`
+}
+
+// ElicitationContext describes an elicitation request from the server,
+// combining the request data with session context. Mirrors the
+// single-argument pattern of CommandContext.
+type ElicitationContext struct {
+	// SessionID is the identifier of the session that triggered the request.
+	SessionID string
+	// Message describes what information is needed from the user.
+	Message string
+	// RequestedSchema is a JSON Schema describing the form fields (form mode only).
+	RequestedSchema map[string]any
+	// Mode is "form" for structured input, "url" for browser redirect.
+	Mode string
+	// ElicitationSource is the source that initiated the request (e.g. MCP server name).
+	ElicitationSource string
+	// URL to open in the user's browser (url mode only).
+	URL string
+}
+
+// ElicitationHandler handles elicitation requests from the server (e.g. from MCP tools).
+// It receives an ElicitationContext and must return an ElicitationResult.
+// If the handler returns an error the SDK auto-cancels the request.
+type ElicitationHandler func(ctx ElicitationContext) (ElicitationResult, error)
+
+// InputOptions configures a text input field for the Input convenience method.
+type InputOptions struct {
+	// Title label for the input field.
+	Title string
+	// Description text shown below the field.
+	Description string
+	// MinLength is the minimum character length.
+	MinLength *int
+	// MaxLength is the maximum character length.
+	MaxLength *int
+	// Format is a semantic format hint: "email", "uri", "date", or "date-time".
+	Format string
+	// Default is the pre-populated value.
+	Default string
+}
+
+// SessionUI provides convenience methods for showing elicitation dialogs to the user.
+// Obtained via [Session.UI]. Methods error if the host does not support elicitation.
+type SessionUI struct {
+	session *Session
 }
 
 // ResumeSessionConfig configures options when resuming a session
@@ -585,6 +689,11 @@ type ResumeSessionConfig struct {
 	// OnEvent is an optional event handler registered before the session.resume RPC
 	// is issued, ensuring early events are delivered. See SessionConfig.OnEvent.
 	OnEvent SessionEventHandler
+	// Commands registers slash-commands for this session. See SessionConfig.Commands.
+	Commands []CommandDefinition
+	// OnElicitationRequest is a handler for elicitation requests from the server.
+	// See SessionConfig.OnElicitationRequest.
+	OnElicitationRequest ElicitationHandler
 }
 type ProviderConfig struct {
 	// Type is the provider type: "openai", "azure", or "anthropic". Defaults to "openai".
@@ -742,71 +851,83 @@ type SessionLifecycleHandler func(event SessionLifecycleEvent)
 
 // createSessionRequest is the request for session.create
 type createSessionRequest struct {
-	Model             string                     `json:"model,omitempty"`
-	SessionID         string                     `json:"sessionId,omitempty"`
-	ClientName        string                     `json:"clientName,omitempty"`
-	ReasoningEffort   string                     `json:"reasoningEffort,omitempty"`
-	Tools             []Tool                     `json:"tools,omitempty"`
-	SystemMessage     *SystemMessageConfig       `json:"systemMessage,omitempty"`
-	AvailableTools    []string                   `json:"availableTools"`
-	ExcludedTools     []string                   `json:"excludedTools,omitempty"`
-	Provider          *ProviderConfig            `json:"provider,omitempty"`
-	RequestPermission *bool                      `json:"requestPermission,omitempty"`
-	RequestUserInput  *bool                      `json:"requestUserInput,omitempty"`
-	Hooks             *bool                      `json:"hooks,omitempty"`
-	WorkingDirectory  string                     `json:"workingDirectory,omitempty"`
-	Streaming         *bool                      `json:"streaming,omitempty"`
-	MCPServers        map[string]MCPServerConfig `json:"mcpServers,omitempty"`
-	EnvValueMode      string                     `json:"envValueMode,omitempty"`
-	CustomAgents      []CustomAgentConfig        `json:"customAgents,omitempty"`
-	Agent             string                     `json:"agent,omitempty"`
-	ConfigDir         string                     `json:"configDir,omitempty"`
-	SkillDirectories  []string                   `json:"skillDirectories,omitempty"`
-	DisabledSkills    []string                   `json:"disabledSkills,omitempty"`
-	InfiniteSessions  *InfiniteSessionConfig     `json:"infiniteSessions,omitempty"`
-	Traceparent       string                     `json:"traceparent,omitempty"`
-	Tracestate        string                     `json:"tracestate,omitempty"`
+	Model              string                     `json:"model,omitempty"`
+	SessionID          string                     `json:"sessionId,omitempty"`
+	ClientName         string                     `json:"clientName,omitempty"`
+	ReasoningEffort    string                     `json:"reasoningEffort,omitempty"`
+	Tools              []Tool                     `json:"tools,omitempty"`
+	SystemMessage      *SystemMessageConfig       `json:"systemMessage,omitempty"`
+	AvailableTools     []string                   `json:"availableTools"`
+	ExcludedTools      []string                   `json:"excludedTools,omitempty"`
+	Provider           *ProviderConfig            `json:"provider,omitempty"`
+	RequestPermission  *bool                      `json:"requestPermission,omitempty"`
+	RequestUserInput   *bool                      `json:"requestUserInput,omitempty"`
+	Hooks              *bool                      `json:"hooks,omitempty"`
+	WorkingDirectory   string                     `json:"workingDirectory,omitempty"`
+	Streaming          *bool                      `json:"streaming,omitempty"`
+	MCPServers         map[string]MCPServerConfig `json:"mcpServers,omitempty"`
+	EnvValueMode       string                     `json:"envValueMode,omitempty"`
+	CustomAgents       []CustomAgentConfig        `json:"customAgents,omitempty"`
+	Agent              string                     `json:"agent,omitempty"`
+	ConfigDir          string                     `json:"configDir,omitempty"`
+	SkillDirectories   []string                   `json:"skillDirectories,omitempty"`
+	DisabledSkills     []string                   `json:"disabledSkills,omitempty"`
+	InfiniteSessions   *InfiniteSessionConfig     `json:"infiniteSessions,omitempty"`
+	Commands           []wireCommand              `json:"commands,omitempty"`
+	RequestElicitation *bool                      `json:"requestElicitation,omitempty"`
+	Traceparent        string                     `json:"traceparent,omitempty"`
+	Tracestate         string                     `json:"tracestate,omitempty"`
+}
+
+// wireCommand is the wire representation of a command (name + description only, no handler).
+type wireCommand struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
 }
 
 // createSessionResponse is the response from session.create
 type createSessionResponse struct {
-	SessionID     string `json:"sessionId"`
-	WorkspacePath string `json:"workspacePath"`
+	SessionID     string               `json:"sessionId"`
+	WorkspacePath string               `json:"workspacePath"`
+	Capabilities  *SessionCapabilities `json:"capabilities,omitempty"`
 }
 
 // resumeSessionRequest is the request for session.resume
 type resumeSessionRequest struct {
-	SessionID         string                     `json:"sessionId"`
-	ClientName        string                     `json:"clientName,omitempty"`
-	Model             string                     `json:"model,omitempty"`
-	ReasoningEffort   string                     `json:"reasoningEffort,omitempty"`
-	Tools             []Tool                     `json:"tools,omitempty"`
-	SystemMessage     *SystemMessageConfig       `json:"systemMessage,omitempty"`
-	AvailableTools    []string                   `json:"availableTools"`
-	ExcludedTools     []string                   `json:"excludedTools,omitempty"`
-	Provider          *ProviderConfig            `json:"provider,omitempty"`
-	RequestPermission *bool                      `json:"requestPermission,omitempty"`
-	RequestUserInput  *bool                      `json:"requestUserInput,omitempty"`
-	Hooks             *bool                      `json:"hooks,omitempty"`
-	WorkingDirectory  string                     `json:"workingDirectory,omitempty"`
-	ConfigDir         string                     `json:"configDir,omitempty"`
-	DisableResume     *bool                      `json:"disableResume,omitempty"`
-	Streaming         *bool                      `json:"streaming,omitempty"`
-	MCPServers        map[string]MCPServerConfig `json:"mcpServers,omitempty"`
-	EnvValueMode      string                     `json:"envValueMode,omitempty"`
-	CustomAgents      []CustomAgentConfig        `json:"customAgents,omitempty"`
-	Agent             string                     `json:"agent,omitempty"`
-	SkillDirectories  []string                   `json:"skillDirectories,omitempty"`
-	DisabledSkills    []string                   `json:"disabledSkills,omitempty"`
-	InfiniteSessions  *InfiniteSessionConfig     `json:"infiniteSessions,omitempty"`
-	Traceparent       string                     `json:"traceparent,omitempty"`
-	Tracestate        string                     `json:"tracestate,omitempty"`
+	SessionID          string                     `json:"sessionId"`
+	ClientName         string                     `json:"clientName,omitempty"`
+	Model              string                     `json:"model,omitempty"`
+	ReasoningEffort    string                     `json:"reasoningEffort,omitempty"`
+	Tools              []Tool                     `json:"tools,omitempty"`
+	SystemMessage      *SystemMessageConfig       `json:"systemMessage,omitempty"`
+	AvailableTools     []string                   `json:"availableTools"`
+	ExcludedTools      []string                   `json:"excludedTools,omitempty"`
+	Provider           *ProviderConfig            `json:"provider,omitempty"`
+	RequestPermission  *bool                      `json:"requestPermission,omitempty"`
+	RequestUserInput   *bool                      `json:"requestUserInput,omitempty"`
+	Hooks              *bool                      `json:"hooks,omitempty"`
+	WorkingDirectory   string                     `json:"workingDirectory,omitempty"`
+	ConfigDir          string                     `json:"configDir,omitempty"`
+	DisableResume      *bool                      `json:"disableResume,omitempty"`
+	Streaming          *bool                      `json:"streaming,omitempty"`
+	MCPServers         map[string]MCPServerConfig `json:"mcpServers,omitempty"`
+	EnvValueMode       string                     `json:"envValueMode,omitempty"`
+	CustomAgents       []CustomAgentConfig        `json:"customAgents,omitempty"`
+	Agent              string                     `json:"agent,omitempty"`
+	SkillDirectories   []string                   `json:"skillDirectories,omitempty"`
+	DisabledSkills     []string                   `json:"disabledSkills,omitempty"`
+	InfiniteSessions   *InfiniteSessionConfig     `json:"infiniteSessions,omitempty"`
+	Commands           []wireCommand              `json:"commands,omitempty"`
+	RequestElicitation *bool                      `json:"requestElicitation,omitempty"`
+	Traceparent        string                     `json:"traceparent,omitempty"`
+	Tracestate         string                     `json:"tracestate,omitempty"`
 }
 
 // resumeSessionResponse is the response from session.resume
 type resumeSessionResponse struct {
-	SessionID     string `json:"sessionId"`
-	WorkspacePath string `json:"workspacePath"`
+	SessionID     string               `json:"sessionId"`
+	WorkspacePath string               `json:"workspacePath"`
+	Capabilities  *SessionCapabilities `json:"capabilities,omitempty"`
 }
 
 type hooksInvokeRequest struct {

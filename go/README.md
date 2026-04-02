@@ -160,6 +160,8 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `OnPermissionRequest` (PermissionHandlerFunc): **Required.** Handler called before each tool execution to approve or deny it. Use `copilot.PermissionHandler.ApproveAll` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` (UserInputHandler): Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
 - `Hooks` (\*SessionHooks): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
+- `Commands` ([]CommandDefinition): Slash-commands registered for this session. See [Commands](#commands) section.
+- `OnElicitationRequest` (ElicitationHandler): Handler for elicitation requests from the server. See [Elicitation Requests](#elicitation-requests-serverclient) section.
 
 **ResumeSessionConfig:**
 
@@ -168,6 +170,8 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `ReasoningEffort` (string): Reasoning effort level for models that support it
 - `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
 - `Streaming` (bool): Enable streaming delta events
+- `Commands` ([]CommandDefinition): Slash-commands. See [Commands](#commands) section.
+- `OnElicitationRequest` (ElicitationHandler): Elicitation handler. See [Elicitation Requests](#elicitation-requests-serverclient) section.
 
 ### Session
 
@@ -177,10 +181,15 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `GetMessages(ctx context.Context) ([]SessionEvent, error)` - Get message history
 - `Disconnect() error` - Disconnect the session (releases in-memory resources, preserves disk state)
 - `Destroy() error` - *(Deprecated)* Use `Disconnect()` instead
+- `UI() *SessionUI` - Interactive UI API for elicitation dialogs
+- `Capabilities() SessionCapabilities` - Host capabilities (e.g. elicitation support)
 
 ### Helper Functions
 
 - `Bool(v bool) *bool` - Helper to create bool pointers for `AutoStart` option
+- `Int(v int) *int` - Helper to create int pointers for `MinLength`, `MaxLength`
+- `String(v string) *string` - Helper to create string pointers
+- `Float64(v float64) *float64` - Helper to create float64 pointers
 
 ### System Message Customization
 
@@ -730,6 +739,110 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
 - `OnSessionStart` - Run logic when a session starts or resumes.
 - `OnSessionEnd` - Cleanup or logging when session ends.
 - `OnErrorOccurred` - Handle errors with retry/skip/abort strategies.
+
+## Commands
+
+Register slash-commands that users can invoke from the CLI TUI. When a user types `/deploy production`, the SDK dispatches to your handler and responds via the RPC layer.
+
+```go
+session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+    Commands: []copilot.CommandDefinition{
+        {
+            Name:        "deploy",
+            Description: "Deploy the app to production",
+            Handler: func(ctx copilot.CommandContext) error {
+                fmt.Printf("Deploying with args: %s\n", ctx.Args)
+                // ctx.SessionID, ctx.Command, ctx.CommandName, ctx.Args
+                return nil
+            },
+        },
+        {
+            Name:        "rollback",
+            Description: "Rollback the last deployment",
+            Handler: func(ctx copilot.CommandContext) error {
+                return nil
+            },
+        },
+    },
+})
+```
+
+Commands are also available when resuming sessions:
+
+```go
+session, err := client.ResumeSession(ctx, sessionID, &copilot.ResumeSessionConfig{
+    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+    Commands: []copilot.CommandDefinition{
+        {Name: "status", Description: "Show status", Handler: statusHandler},
+    },
+})
+```
+
+If a handler returns an error, the SDK sends the error message back to the server. Unknown commands automatically receive an error response.
+
+## UI Elicitation
+
+The SDK provides convenience methods to ask the user questions via elicitation dialogs. These are gated by host capabilities — check `session.Capabilities().UI.Elicitation` before calling.
+
+```go
+ui := session.UI()
+
+// Confirmation dialog — returns bool
+confirmed, err := ui.Confirm(ctx, "Deploy to production?")
+
+// Selection dialog — returns (selected string, ok bool, error)
+choice, ok, err := ui.Select(ctx, "Pick an environment", []string{"staging", "production"})
+
+// Text input — returns (text, ok bool, error)
+name, ok, err := ui.Input(ctx, "Enter the release name", &copilot.InputOptions{
+    Title:       "Release Name",
+    Description: "A short name for the release",
+    MinLength:   copilot.Int(1),
+    MaxLength:   copilot.Int(50),
+})
+
+// Full custom elicitation with a schema
+result, err := ui.Elicitation(ctx, "Configure deployment", rpc.RequestedSchema{
+    Type: rpc.RequestedSchemaTypeObject,
+    Properties: map[string]rpc.Property{
+        "target": {Type: rpc.PropertyTypeString, Enum: []string{"staging", "production"}},
+        "force":  {Type: rpc.PropertyTypeBoolean},
+    },
+    Required: []string{"target"},
+})
+// result.Action is "accept", "decline", or "cancel"
+// result.Content has the form values when Action is "accept"
+```
+
+## Elicitation Requests (Server→Client)
+
+When the server (or an MCP tool) needs to ask the end-user a question, it sends an `elicitation.requested` event. Register a handler to respond:
+
+```go
+session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+    OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+    OnElicitationRequest: func(ctx copilot.ElicitationContext) (copilot.ElicitationResult, error) {
+        // ctx.SessionID — session that triggered the request
+        // ctx.Message — what's being asked
+        // ctx.RequestedSchema — form schema (if mode is "form")
+        // ctx.Mode — "form" or "url"
+        // ctx.ElicitationSource — e.g. MCP server name
+        // ctx.URL — browser URL (if mode is "url")
+
+        // Return the user's response
+        return copilot.ElicitationResult{
+            Action:  "accept",
+            Content: map[string]any{"confirmed": true},
+        }, nil
+    },
+})
+```
+
+When `OnElicitationRequest` is provided, the SDK automatically:
+- Sends `requestElicitation: true` in the create/resume payload
+- Routes `elicitation.requested` events to your handler
+- Auto-cancels the request if your handler returns an error (so the server doesn't hang)
 
 ## Transport Modes
 

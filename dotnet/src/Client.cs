@@ -456,6 +456,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var session = new CopilotSession(sessionId, connection.Rpc, _logger);
         session.RegisterTools(config.Tools ?? []);
         session.RegisterPermissionHandler(config.OnPermissionRequest);
+        session.RegisterCommands(config.Commands);
+        session.RegisterElicitationHandler(config.OnElicitationRequest);
         if (config.OnUserInputRequest != null)
         {
             session.RegisterUserInputHandler(config.OnUserInputRequest);
@@ -501,13 +503,16 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.SkillDirectories,
                 config.DisabledSkills,
                 config.InfiniteSessions,
-                traceparent,
-                tracestate);
+                Commands: config.Commands?.Select(c => new CommandWireDefinition(c.Name, c.Description)).ToList(),
+                RequestElicitation: config.OnElicitationRequest != null,
+                Traceparent: traceparent,
+                Tracestate: tracestate);
 
             var response = await InvokeRpcAsync<CreateSessionResponse>(
                 connection.Rpc, "session.create", [request], cancellationToken);
 
             session.WorkspacePath = response.WorkspacePath;
+            session.SetCapabilities(response.Capabilities);
         }
         catch
         {
@@ -570,6 +575,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var session = new CopilotSession(sessionId, connection.Rpc, _logger);
         session.RegisterTools(config.Tools ?? []);
         session.RegisterPermissionHandler(config.OnPermissionRequest);
+        session.RegisterCommands(config.Commands);
+        session.RegisterElicitationHandler(config.OnElicitationRequest);
         if (config.OnUserInputRequest != null)
         {
             session.RegisterUserInputHandler(config.OnUserInputRequest);
@@ -616,13 +623,16 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.SkillDirectories,
                 config.DisabledSkills,
                 config.InfiniteSessions,
-                traceparent,
-                tracestate);
+                Commands: config.Commands?.Select(c => new CommandWireDefinition(c.Name, c.Description)).ToList(),
+                RequestElicitation: config.OnElicitationRequest != null,
+                Traceparent: traceparent,
+                Tracestate: tracestate);
 
             var response = await InvokeRpcAsync<ResumeSessionResponse>(
                 connection.Rpc, "session.resume", [request], cancellationToken);
 
             session.WorkspacePath = response.WorkspacePath;
+            session.SetCapabilities(response.Capabilities);
         }
         catch
         {
@@ -1592,6 +1602,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         List<string>? SkillDirectories,
         List<string>? DisabledSkills,
         InfiniteSessionConfig? InfiniteSessions,
+        List<CommandWireDefinition>? Commands = null,
+        bool? RequestElicitation = null,
         string? Traceparent = null,
         string? Tracestate = null);
 
@@ -1614,7 +1626,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     internal record CreateSessionResponse(
         string SessionId,
-        string? WorkspacePath);
+        string? WorkspacePath,
+        SessionCapabilities? Capabilities = null);
 
     internal record ResumeSessionRequest(
         string SessionId,
@@ -1640,12 +1653,19 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         List<string>? SkillDirectories,
         List<string>? DisabledSkills,
         InfiniteSessionConfig? InfiniteSessions,
+        List<CommandWireDefinition>? Commands = null,
+        bool? RequestElicitation = null,
         string? Traceparent = null,
         string? Tracestate = null);
 
     internal record ResumeSessionResponse(
         string SessionId,
-        string? WorkspacePath);
+        string? WorkspacePath,
+        SessionCapabilities? Capabilities = null);
+
+    internal record CommandWireDefinition(
+        string Name,
+        string? Description);
 
     internal record GetLastSessionIdResponse(
         string? SessionId);
@@ -1782,9 +1802,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(ProviderConfig))]
     [JsonSerializable(typeof(ResumeSessionRequest))]
     [JsonSerializable(typeof(ResumeSessionResponse))]
+    [JsonSerializable(typeof(SessionCapabilities))]
+    [JsonSerializable(typeof(SessionUiCapabilities))]
     [JsonSerializable(typeof(SessionMetadata))]
     [JsonSerializable(typeof(SystemMessageConfig))]
     [JsonSerializable(typeof(SystemMessageTransformRpcResponse))]
+    [JsonSerializable(typeof(CommandWireDefinition))]
     [JsonSerializable(typeof(ToolCallResponseV2))]
     [JsonSerializable(typeof(ToolDefinition))]
     [JsonSerializable(typeof(ToolResultAIContent))]

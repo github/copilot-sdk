@@ -556,6 +556,17 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.DisabledSkills = config.DisabledSkills
 	req.InfiniteSessions = config.InfiniteSessions
 
+	if len(config.Commands) > 0 {
+		cmds := make([]wireCommand, 0, len(config.Commands))
+		for _, cmd := range config.Commands {
+			cmds = append(cmds, wireCommand{Name: cmd.Name, Description: cmd.Description})
+		}
+		req.Commands = cmds
+	}
+	if config.OnElicitationRequest != nil {
+		req.RequestElicitation = Bool(true)
+	}
+
 	if config.Streaming {
 		req.Streaming = Bool(true)
 	}
@@ -600,6 +611,12 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	if config.OnEvent != nil {
 		session.On(config.OnEvent)
 	}
+	if len(config.Commands) > 0 {
+		session.registerCommands(config.Commands)
+	}
+	if config.OnElicitationRequest != nil {
+		session.registerElicitationHandler(config.OnElicitationRequest)
+	}
 
 	c.sessionsMux.Lock()
 	c.sessions[sessionID] = session
@@ -622,6 +639,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	}
 
 	session.workspacePath = response.WorkspacePath
+	session.setCapabilities(response.Capabilities)
 
 	return session, nil
 }
@@ -699,6 +717,17 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.InfiniteSessions = config.InfiniteSessions
 	req.RequestPermission = Bool(true)
 
+	if len(config.Commands) > 0 {
+		cmds := make([]wireCommand, 0, len(config.Commands))
+		for _, cmd := range config.Commands {
+			cmds = append(cmds, wireCommand{Name: cmd.Name, Description: cmd.Description})
+		}
+		req.Commands = cmds
+	}
+	if config.OnElicitationRequest != nil {
+		req.RequestElicitation = Bool(true)
+	}
+
 	traceparent, tracestate := getTraceContext(ctx)
 	req.Traceparent = traceparent
 	req.Tracestate = tracestate
@@ -720,6 +749,12 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	}
 	if config.OnEvent != nil {
 		session.On(config.OnEvent)
+	}
+	if len(config.Commands) > 0 {
+		session.registerCommands(config.Commands)
+	}
+	if config.OnElicitationRequest != nil {
+		session.registerElicitationHandler(config.OnElicitationRequest)
 	}
 
 	c.sessionsMux.Lock()
@@ -743,6 +778,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	}
 
 	session.workspacePath = response.WorkspacePath
+	session.setCapabilities(response.Capabilities)
 
 	return session, nil
 }
