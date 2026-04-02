@@ -897,5 +897,84 @@ describe("CopilotClient", () => {
                 })
             ).rejects.toThrow(/not supported/);
         });
+
+        it("sends requestElicitation flag when onElicitationRequest is provided", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const rpcSpy = vi.spyOn((client as any).connection!, "sendRequest");
+
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                onElicitationRequest: async () => ({
+                    action: "accept" as const,
+                    content: {},
+                }),
+            });
+            expect(session).toBeDefined();
+
+            const createCall = rpcSpy.mock.calls.find((c) => c[0] === "session.create");
+            expect(createCall).toBeDefined();
+            expect(createCall![1]).toEqual(
+                expect.objectContaining({
+                    requestElicitation: true,
+                })
+            );
+            rpcSpy.mockRestore();
+        });
+
+        it("does not send requestElicitation when no handler provided", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const rpcSpy = vi.spyOn((client as any).connection!, "sendRequest");
+
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+            });
+            expect(session).toBeDefined();
+
+            const createCall = rpcSpy.mock.calls.find((c) => c[0] === "session.create");
+            expect(createCall).toBeDefined();
+            expect(createCall![1]).toEqual(
+                expect.objectContaining({
+                    requestElicitation: false,
+                })
+            );
+            rpcSpy.mockRestore();
+        });
+
+        it("sends cancel when elicitation handler throws", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                onElicitationRequest: async () => {
+                    throw new Error("handler exploded");
+                },
+            });
+
+            const rpcSpy = vi.spyOn((client as any).connection!, "sendRequest");
+
+            await session._handleElicitationRequest({ message: "Pick a color" }, "req-123");
+
+            const cancelCall = rpcSpy.mock.calls.find(
+                (c) =>
+                    c[0] === "session.ui.handlePendingElicitation" &&
+                    (c[1] as any)?.result?.action === "cancel"
+            );
+            expect(cancelCall).toBeDefined();
+            expect(cancelCall![1]).toEqual(
+                expect.objectContaining({
+                    requestId: "req-123",
+                    result: { action: "cancel" },
+                })
+            );
+            rpcSpy.mockRestore();
+        });
     });
 });

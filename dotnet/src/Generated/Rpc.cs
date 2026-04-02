@@ -219,6 +219,30 @@ public class AccountGetQuotaResult
     public Dictionary<string, AccountGetQuotaResultQuotaSnapshotsValue> QuotaSnapshots { get => field ??= []; set; }
 }
 
+/// <summary>RPC data type for SessionFsSetProvider operations.</summary>
+public class SessionFsSetProviderResult
+{
+    /// <summary>Whether the provider was set successfully.</summary>
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+/// <summary>RPC data type for SessionFsSetProvider operations.</summary>
+internal class SessionFsSetProviderRequest
+{
+    /// <summary>Initial working directory for sessions.</summary>
+    [JsonPropertyName("initialCwd")]
+    public string InitialCwd { get; set; } = string.Empty;
+
+    /// <summary>Path within each session's SessionFs where the runtime stores files for that session.</summary>
+    [JsonPropertyName("sessionStatePath")]
+    public string SessionStatePath { get; set; } = string.Empty;
+
+    /// <summary>Path conventions used by this filesystem.</summary>
+    [JsonPropertyName("conventions")]
+    public SessionFsSetProviderRequestConventions Conventions { get; set; }
+}
+
 /// <summary>RPC data type for SessionLog operations.</summary>
 public class SessionLogResult
 {
@@ -705,7 +729,7 @@ public class Server
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>Connection status: connected, failed, pending, disabled, or not_configured.</summary>
+    /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
     [JsonPropertyName("status")]
     public ServerStatus Status { get; set; }
 
@@ -1044,6 +1068,42 @@ internal class SessionUiElicitationRequest
     public SessionUiElicitationRequestRequestedSchema RequestedSchema { get => field ??= new(); set; }
 }
 
+/// <summary>RPC data type for SessionUiHandlePendingElicitation operations.</summary>
+public class SessionUiHandlePendingElicitationResult
+{
+    /// <summary>Whether the response was accepted. False if the request was already resolved by another client.</summary>
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+/// <summary>The elicitation response (accept with form values, decline, or cancel).</summary>
+public class SessionUiHandlePendingElicitationRequestResult
+{
+    /// <summary>The user's response: accept (submitted), decline (rejected), or cancel (dismissed).</summary>
+    [JsonPropertyName("action")]
+    public SessionUiElicitationResultAction Action { get; set; }
+
+    /// <summary>The form values submitted by the user (present when action is 'accept').</summary>
+    [JsonPropertyName("content")]
+    public Dictionary<string, object>? Content { get; set; }
+}
+
+/// <summary>RPC data type for SessionUiHandlePendingElicitation operations.</summary>
+internal class SessionUiHandlePendingElicitationRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>The unique request ID from the elicitation.requested event.</summary>
+    [JsonPropertyName("requestId")]
+    public string RequestId { get; set; } = string.Empty;
+
+    /// <summary>The elicitation response (accept with form values, decline, or cancel).</summary>
+    [JsonPropertyName("result")]
+    public SessionUiHandlePendingElicitationRequestResult Result { get => field ??= new(); set; }
+}
+
 /// <summary>RPC data type for SessionPermissionsHandlePendingPermissionRequest operations.</summary>
 public class SessionPermissionsHandlePendingPermissionRequestResult
 {
@@ -1120,6 +1180,19 @@ internal class SessionShellKillRequest
     public SessionShellKillRequestSignal? Signal { get; set; }
 }
 
+/// <summary>Path conventions used by this filesystem.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<SessionFsSetProviderRequestConventions>))]
+public enum SessionFsSetProviderRequestConventions
+{
+    /// <summary>The <c>windows</c> variant.</summary>
+    [JsonStringEnumMemberName("windows")]
+    Windows,
+    /// <summary>The <c>posix</c> variant.</summary>
+    [JsonStringEnumMemberName("posix")]
+    Posix,
+}
+
+
 /// <summary>Log severity level. Determines how the message is displayed in the timeline. Defaults to "info".</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<SessionLogRequestLevel>))]
 public enum SessionLogRequestLevel
@@ -1152,7 +1225,7 @@ public enum SessionModeGetResultMode
 }
 
 
-/// <summary>Connection status: connected, failed, pending, disabled, or not_configured.</summary>
+/// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<ServerStatus>))]
 public enum ServerStatus
 {
@@ -1162,6 +1235,9 @@ public enum ServerStatus
     /// <summary>The <c>failed</c> variant.</summary>
     [JsonStringEnumMemberName("failed")]
     Failed,
+    /// <summary>The <c>needs-auth</c> variant.</summary>
+    [JsonStringEnumMemberName("needs-auth")]
+    NeedsAuth,
     /// <summary>The <c>pending</c> variant.</summary>
     [JsonStringEnumMemberName("pending")]
     Pending,
@@ -1249,6 +1325,8 @@ public class ServerRpc
         Models = new ServerModelsApi(rpc);
         Tools = new ServerToolsApi(rpc);
         Account = new ServerAccountApi(rpc);
+        Mcp = new ServerMcpApi(rpc);
+        SessionFs = new ServerSessionFsApi(rpc);
     }
 
     /// <summary>Calls "ping".</summary>
@@ -1266,6 +1344,12 @@ public class ServerRpc
 
     /// <summary>Account APIs.</summary>
     public ServerAccountApi Account { get; }
+
+    /// <summary>Mcp APIs.</summary>
+    public ServerMcpApi Mcp { get; }
+
+    /// <summary>SessionFs APIs.</summary>
+    public ServerSessionFsApi SessionFs { get; }
 }
 
 /// <summary>Provides server-scoped Models APIs.</summary>
@@ -1317,6 +1401,35 @@ public class ServerAccountApi
     public async Task<AccountGetQuotaResult> GetQuotaAsync(CancellationToken cancellationToken = default)
     {
         return await CopilotClient.InvokeRpcAsync<AccountGetQuotaResult>(_rpc, "account.getQuota", [], cancellationToken);
+    }
+}
+
+/// <summary>Provides server-scoped Mcp APIs.</summary>
+public class ServerMcpApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerMcpApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+}
+
+/// <summary>Provides server-scoped SessionFs APIs.</summary>
+public class ServerSessionFsApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerSessionFsApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Calls "sessionFs.setProvider".</summary>
+    public async Task<SessionFsSetProviderResult> SetProviderAsync(string initialCwd, string sessionStatePath, SessionFsSetProviderRequestConventions conventions, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionFsSetProviderRequest { InitialCwd = initialCwd, SessionStatePath = sessionStatePath, Conventions = conventions };
+        return await CopilotClient.InvokeRpcAsync<SessionFsSetProviderResult>(_rpc, "sessionFs.setProvider", [request], cancellationToken);
     }
 }
 
@@ -1822,6 +1935,13 @@ public class UiApi
         var request = new SessionUiElicitationRequest { SessionId = _sessionId, Message = message, RequestedSchema = requestedSchema };
         return await CopilotClient.InvokeRpcAsync<SessionUiElicitationResult>(_rpc, "session.ui.elicitation", [request], cancellationToken);
     }
+
+    /// <summary>Calls "session.ui.handlePendingElicitation".</summary>
+    public async Task<SessionUiHandlePendingElicitationResult> HandlePendingElicitationAsync(string requestId, SessionUiHandlePendingElicitationRequestResult result, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionUiHandlePendingElicitationRequest { SessionId = _sessionId, RequestId = requestId, Result = result };
+        return await CopilotClient.InvokeRpcAsync<SessionUiHandlePendingElicitationResult>(_rpc, "session.ui.handlePendingElicitation", [request], cancellationToken);
+    }
 }
 
 /// <summary>Provides session-scoped Permissions APIs.</summary>
@@ -1916,6 +2036,8 @@ public class ShellApi
 [JsonSerializable(typeof(SessionExtensionsReloadResult))]
 [JsonSerializable(typeof(SessionFleetStartRequest))]
 [JsonSerializable(typeof(SessionFleetStartResult))]
+[JsonSerializable(typeof(SessionFsSetProviderRequest))]
+[JsonSerializable(typeof(SessionFsSetProviderResult))]
 [JsonSerializable(typeof(SessionLogRequest))]
 [JsonSerializable(typeof(SessionLogResult))]
 [JsonSerializable(typeof(SessionMcpDisableRequest))]
@@ -1961,6 +2083,9 @@ public class ShellApi
 [JsonSerializable(typeof(SessionUiElicitationRequest))]
 [JsonSerializable(typeof(SessionUiElicitationRequestRequestedSchema))]
 [JsonSerializable(typeof(SessionUiElicitationResult))]
+[JsonSerializable(typeof(SessionUiHandlePendingElicitationRequest))]
+[JsonSerializable(typeof(SessionUiHandlePendingElicitationRequestResult))]
+[JsonSerializable(typeof(SessionUiHandlePendingElicitationResult))]
 [JsonSerializable(typeof(SessionWorkspaceCreateFileRequest))]
 [JsonSerializable(typeof(SessionWorkspaceCreateFileResult))]
 [JsonSerializable(typeof(SessionWorkspaceListFilesRequest))]

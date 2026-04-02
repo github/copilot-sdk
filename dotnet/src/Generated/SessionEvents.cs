@@ -28,6 +28,7 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(AssistantTurnEndEvent), "assistant.turn_end")]
 [JsonDerivedType(typeof(AssistantTurnStartEvent), "assistant.turn_start")]
 [JsonDerivedType(typeof(AssistantUsageEvent), "assistant.usage")]
+[JsonDerivedType(typeof(CapabilitiesChangedEvent), "capabilities.changed")]
 [JsonDerivedType(typeof(CommandCompletedEvent), "command.completed")]
 [JsonDerivedType(typeof(CommandExecuteEvent), "command.execute")]
 [JsonDerivedType(typeof(CommandQueuedEvent), "command.queued")]
@@ -45,6 +46,8 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(PendingMessagesModifiedEvent), "pending_messages.modified")]
 [JsonDerivedType(typeof(PermissionCompletedEvent), "permission.completed")]
 [JsonDerivedType(typeof(PermissionRequestedEvent), "permission.requested")]
+[JsonDerivedType(typeof(SamplingCompletedEvent), "sampling.completed")]
+[JsonDerivedType(typeof(SamplingRequestedEvent), "sampling.requested")]
 [JsonDerivedType(typeof(SessionBackgroundTasksChangedEvent), "session.background_tasks_changed")]
 [JsonDerivedType(typeof(SessionCompactionCompleteEvent), "session.compaction_complete")]
 [JsonDerivedType(typeof(SessionCompactionStartEvent), "session.compaction_start")]
@@ -60,6 +63,7 @@ namespace GitHub.Copilot.SDK;
 [JsonDerivedType(typeof(SessionModeChangedEvent), "session.mode_changed")]
 [JsonDerivedType(typeof(SessionModelChangeEvent), "session.model_change")]
 [JsonDerivedType(typeof(SessionPlanChangedEvent), "session.plan_changed")]
+[JsonDerivedType(typeof(SessionRemoteSteerableChangedEvent), "session.remote_steerable_changed")]
 [JsonDerivedType(typeof(SessionResumeEvent), "session.resume")]
 [JsonDerivedType(typeof(SessionShutdownEvent), "session.shutdown")]
 [JsonDerivedType(typeof(SessionSkillsLoadedEvent), "session.skills_loaded")]
@@ -149,6 +153,19 @@ public partial class SessionResumeEvent : SessionEvent
     /// <summary>The <c>session.resume</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required SessionResumeData Data { get; set; }
+}
+
+/// <summary>Notifies Mission Control that the session's remote steering capability has changed.</summary>
+/// <remarks>Represents the <c>session.remote_steerable_changed</c> event.</remarks>
+public partial class SessionRemoteSteerableChangedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.remote_steerable_changed";
+
+    /// <summary>The <c>session.remote_steerable_changed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionRemoteSteerableChangedData Data { get; set; }
 }
 
 /// <summary>Error details for timeline display including message and optional diagnostic information.</summary>
@@ -813,6 +830,32 @@ public partial class ElicitationCompletedEvent : SessionEvent
     public required ElicitationCompletedData Data { get; set; }
 }
 
+/// <summary>Sampling request from an MCP server; contains the server name and a requestId for correlation.</summary>
+/// <remarks>Represents the <c>sampling.requested</c> event.</remarks>
+public partial class SamplingRequestedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "sampling.requested";
+
+    /// <summary>The <c>sampling.requested</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SamplingRequestedData Data { get; set; }
+}
+
+/// <summary>Sampling request completion notification signaling UI dismissal.</summary>
+/// <remarks>Represents the <c>sampling.completed</c> event.</remarks>
+public partial class SamplingCompletedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "sampling.completed";
+
+    /// <summary>The <c>sampling.completed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SamplingCompletedData Data { get; set; }
+}
+
 /// <summary>OAuth authentication request for an MCP server.</summary>
 /// <remarks>Represents the <c>mcp.oauth_required</c> event.</remarks>
 public partial class McpOauthRequiredEvent : SessionEvent
@@ -915,6 +958,19 @@ public partial class CommandsChangedEvent : SessionEvent
     /// <summary>The <c>commands.changed</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required CommandsChangedData Data { get; set; }
+}
+
+/// <summary>Session capability change notification.</summary>
+/// <remarks>Represents the <c>capabilities.changed</c> event.</remarks>
+public partial class CapabilitiesChangedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "capabilities.changed";
+
+    /// <summary>The <c>capabilities.changed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required CapabilitiesChangedData Data { get; set; }
 }
 
 /// <summary>Plan approval request with plan content and available user actions.</summary>
@@ -1072,8 +1128,8 @@ public partial class SessionStartData
 
     /// <summary>Whether this session supports remote steering via Mission Control.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("steerable")]
-    public bool? Steerable { get; set; }
+    [JsonPropertyName("remoteSteerable")]
+    public bool? RemoteSteerable { get; set; }
 }
 
 /// <summary>Session resume metadata including current context and event count.</summary>
@@ -1106,6 +1162,19 @@ public partial class SessionResumeData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("alreadyInUse")]
     public bool? AlreadyInUse { get; set; }
+
+    /// <summary>Whether this session supports remote steering via Mission Control.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("remoteSteerable")]
+    public bool? RemoteSteerable { get; set; }
+}
+
+/// <summary>Notifies Mission Control that the session's remote steering capability has changed.</summary>
+public partial class SessionRemoteSteerableChangedData
+{
+    /// <summary>Whether this session now supports remote steering via Mission Control.</summary>
+    [JsonPropertyName("remoteSteerable")]
+    public required bool RemoteSteerable { get; set; }
 }
 
 /// <summary>Error details for timeline display including message and optional diagnostic information.</summary>
@@ -1147,6 +1216,11 @@ public partial class SessionIdleData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("backgroundTasks")]
     public SessionIdleDataBackgroundTasks? BackgroundTasks { get; set; }
+
+    /// <summary>True when the preceding agentic loop was cancelled via abort signal.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("aborted")]
+    public bool? Aborted { get; set; }
 }
 
 /// <summary>Session title change payload containing the new display title.</summary>
@@ -1779,7 +1853,17 @@ public partial class AssistantUsageData
     [JsonPropertyName("duration")]
     public double? Duration { get; set; }
 
-    /// <summary>What initiated this API call (e.g., "sub-agent"); absent for user-initiated calls.</summary>
+    /// <summary>Time to first token in milliseconds. Only available for streaming requests.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("ttftMs")]
+    public double? TtftMs { get; set; }
+
+    /// <summary>Average inter-token latency in milliseconds. Only available for streaming requests.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("interTokenLatencyMs")]
+    public double? InterTokenLatencyMs { get; set; }
+
+    /// <summary>What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("initiator")]
     public string? Initiator { get; set; }
@@ -2277,6 +2361,30 @@ public partial class ElicitationCompletedData
     public required string RequestId { get; set; }
 }
 
+/// <summary>Sampling request from an MCP server; contains the server name and a requestId for correlation.</summary>
+public partial class SamplingRequestedData
+{
+    /// <summary>Unique identifier for this sampling request; used to respond via session.respondToSampling().</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+
+    /// <summary>Name of the MCP server that initiated the sampling request.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+
+    /// <summary>The JSON-RPC request ID from the MCP protocol.</summary>
+    [JsonPropertyName("mcpRequestId")]
+    public required object McpRequestId { get; set; }
+}
+
+/// <summary>Sampling request completion notification signaling UI dismissal.</summary>
+public partial class SamplingCompletedData
+{
+    /// <summary>Request ID of the resolved sampling request; clients should dismiss any UI for this request.</summary>
+    [JsonPropertyName("requestId")]
+    public required string RequestId { get; set; }
+}
+
 /// <summary>OAuth authentication request for an MCP server.</summary>
 public partial class McpOauthRequiredData
 {
@@ -2397,6 +2505,15 @@ public partial class CommandsChangedData
     public required CommandsChangedDataCommandsItem[] Commands { get; set; }
 }
 
+/// <summary>Session capability change notification.</summary>
+public partial class CapabilitiesChangedData
+{
+    /// <summary>UI capability changes.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("ui")]
+    public CapabilitiesChangedDataUi? Ui { get; set; }
+}
+
 /// <summary>Plan approval request with plan content and available user actions.</summary>
 public partial class ExitPlanModeRequestedData
 {
@@ -2481,7 +2598,7 @@ public partial class SessionMcpServerStatusChangedData
     [JsonPropertyName("serverName")]
     public required string ServerName { get; set; }
 
-    /// <summary>New connection status: connected, failed, pending, disabled, or not_configured.</summary>
+    /// <summary>New connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
     [JsonPropertyName("status")]
     public required SessionMcpServersLoadedDataServersItemStatus Status { get; set; }
 }
@@ -3591,6 +3708,16 @@ public partial class CommandsChangedDataCommandsItem
     public string? Description { get; set; }
 }
 
+/// <summary>UI capability changes.</summary>
+/// <remarks>Nested data type for <c>CapabilitiesChangedDataUi</c>.</remarks>
+public partial class CapabilitiesChangedDataUi
+{
+    /// <summary>Whether elicitation is now supported.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("elicitation")]
+    public bool? Elicitation { get; set; }
+}
+
 /// <summary>Nested data type for <c>SessionSkillsLoadedDataSkillsItem</c>.</summary>
 public partial class SessionSkillsLoadedDataSkillsItem
 {
@@ -3664,7 +3791,7 @@ public partial class SessionMcpServersLoadedDataServersItem
     [JsonPropertyName("name")]
     public required string Name { get; set; }
 
-    /// <summary>Connection status: connected, failed, pending, disabled, or not_configured.</summary>
+    /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
     [JsonPropertyName("status")]
     public required SessionMcpServersLoadedDataServersItemStatus Status { get; set; }
 
@@ -3876,7 +4003,7 @@ public enum ElicitationRequestedDataMode
     Url,
 }
 
-/// <summary>Connection status: connected, failed, pending, disabled, or not_configured.</summary>
+/// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<SessionMcpServersLoadedDataServersItemStatus>))]
 public enum SessionMcpServersLoadedDataServersItemStatus
 {
@@ -3886,6 +4013,9 @@ public enum SessionMcpServersLoadedDataServersItemStatus
     /// <summary>The <c>failed</c> variant.</summary>
     [JsonStringEnumMemberName("failed")]
     Failed,
+    /// <summary>The <c>needs-auth</c> variant.</summary>
+    [JsonStringEnumMemberName("needs-auth")]
+    NeedsAuth,
     /// <summary>The <c>pending</c> variant.</summary>
     [JsonStringEnumMemberName("pending")]
     Pending,
@@ -3955,6 +4085,9 @@ public enum SessionExtensionsLoadedDataExtensionsItemStatus
 [JsonSerializable(typeof(AssistantUsageDataCopilotUsage))]
 [JsonSerializable(typeof(AssistantUsageDataCopilotUsageTokenDetailsItem))]
 [JsonSerializable(typeof(AssistantUsageEvent))]
+[JsonSerializable(typeof(CapabilitiesChangedData))]
+[JsonSerializable(typeof(CapabilitiesChangedDataUi))]
+[JsonSerializable(typeof(CapabilitiesChangedEvent))]
 [JsonSerializable(typeof(CommandCompletedData))]
 [JsonSerializable(typeof(CommandCompletedEvent))]
 [JsonSerializable(typeof(CommandExecuteData))]
@@ -4005,6 +4138,10 @@ public enum SessionExtensionsLoadedDataExtensionsItemStatus
 [JsonSerializable(typeof(PermissionRequestWrite))]
 [JsonSerializable(typeof(PermissionRequestedData))]
 [JsonSerializable(typeof(PermissionRequestedEvent))]
+[JsonSerializable(typeof(SamplingCompletedData))]
+[JsonSerializable(typeof(SamplingCompletedEvent))]
+[JsonSerializable(typeof(SamplingRequestedData))]
+[JsonSerializable(typeof(SamplingRequestedEvent))]
 [JsonSerializable(typeof(SessionBackgroundTasksChangedData))]
 [JsonSerializable(typeof(SessionBackgroundTasksChangedEvent))]
 [JsonSerializable(typeof(SessionCompactionCompleteData))]
@@ -4044,6 +4181,8 @@ public enum SessionExtensionsLoadedDataExtensionsItemStatus
 [JsonSerializable(typeof(SessionModelChangeEvent))]
 [JsonSerializable(typeof(SessionPlanChangedData))]
 [JsonSerializable(typeof(SessionPlanChangedEvent))]
+[JsonSerializable(typeof(SessionRemoteSteerableChangedData))]
+[JsonSerializable(typeof(SessionRemoteSteerableChangedEvent))]
 [JsonSerializable(typeof(SessionResumeData))]
 [JsonSerializable(typeof(SessionResumeDataContext))]
 [JsonSerializable(typeof(SessionResumeEvent))]

@@ -1,0 +1,14 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: What is 50 + 50?
+      - role: assistant
+        content: 50 + 50 = 100
+      - role: user
+        content: What is that times 3?
+      - role: assistant
+        content: 100 × 3 = 300

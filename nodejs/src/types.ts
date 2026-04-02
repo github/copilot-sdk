@@ -7,8 +7,11 @@
  */
 
 // Import and re-export generated session event types
+import type { SessionFsHandler } from "./generated/rpc.js";
 import type { SessionEvent as GeneratedSessionEvent } from "./generated/session-events.js";
+import type { CopilotSession } from "./session.js";
 export type SessionEvent = GeneratedSessionEvent;
+export type { SessionFsHandler } from "./generated/rpc.js";
 
 /**
  * Options for creating a CopilotClient
@@ -171,12 +174,20 @@ export interface CopilotClientOptions {
      * ```
      */
     onGetTraceContext?: TraceContextProvider;
+
+    /**
+     * Custom session filesystem provider.
+     * When provided, the client registers as the session filesystem provider
+     * on connection, routing all session-scoped file I/O through these callbacks
+     * instead of the server's default local filesystem storage.
+     */
+    sessionFs?: SessionFsConfig;
 }
 
 /**
  * Configuration for creating a session
  */
-export type ToolResultType = "success" | "failure" | "rejected" | "denied";
+export type ToolResultType = "success" | "failure" | "rejected" | "denied" | "timeout";
 
 export type ToolBinaryResult = {
     data: string;
@@ -408,6 +419,32 @@ export interface ElicitationParams {
     /** JSON Schema describing the form fields to present. */
     requestedSchema: ElicitationSchema;
 }
+
+/**
+ * Request payload passed to an elicitation handler callback.
+ * Extends ElicitationParams with optional metadata fields.
+ */
+export interface ElicitationRequest {
+    /** Message describing what information is needed from the user. */
+    message: string;
+    /** JSON Schema describing the form fields to present. */
+    requestedSchema?: ElicitationSchema;
+    /** Elicitation mode: "form" for structured input, "url" for browser redirect. */
+    mode?: "form" | "url";
+    /** The source that initiated the request (e.g. MCP server name). */
+    elicitationSource?: string;
+    /** URL to open in the user's browser (url mode only). */
+    url?: string;
+}
+
+/**
+ * Handler invoked when the server dispatches an elicitation request to this client.
+ * Return an {@link ElicitationResult} with the user's response.
+ */
+export type ElicitationHandler = (
+    request: ElicitationRequest,
+    invocation: { sessionId: string }
+) => Promise<ElicitationResult> | ElicitationResult;
 
 /**
  * Options for the `input()` convenience method.
@@ -1083,6 +1120,13 @@ export interface SessionConfig {
     onUserInputRequest?: UserInputHandler;
 
     /**
+     * Handler for elicitation requests from the agent.
+     * When provided, the server calls back to this client for form-based UI dialogs.
+     * Also enables the `elicitation` capability on the session.
+     */
+    onElicitationRequest?: ElicitationHandler;
+
+    /**
      * Hook handlers for intercepting session lifecycle events.
      * When provided, enables hooks callback allowing custom logic at various points.
      */
@@ -1148,6 +1192,12 @@ export interface SessionConfig {
      * but executes earlier in the lifecycle so no events are missed.
      */
     onEvent?: SessionEventHandler;
+
+    /**
+     * Supplies a handler for session filesystem operations. This takes effect
+     * only if {@link CopilotClientOptions.sessionFs} is configured.
+     */
+    createSessionFsHandler?: (session: CopilotSession) => SessionFsHandler;
 }
 
 /**
@@ -1167,6 +1217,7 @@ export type ResumeSessionConfig = Pick<
     | "reasoningEffort"
     | "onPermissionRequest"
     | "onUserInputRequest"
+    | "onElicitationRequest"
     | "hooks"
     | "workingDirectory"
     | "configDir"
@@ -1177,6 +1228,7 @@ export type ResumeSessionConfig = Pick<
     | "disabledSkills"
     | "infiniteSessions"
     | "onEvent"
+    | "createSessionFsHandler"
 > & {
     /**
      * When true, skips emitting the session.resume event.
@@ -1316,6 +1368,27 @@ export interface SessionContext {
     repository?: string;
     /** Current git branch */
     branch?: string;
+}
+
+/**
+ * Configuration for a custom session filesystem provider.
+ */
+export interface SessionFsConfig {
+    /**
+     * Initial working directory for sessions (user's project directory).
+     */
+    initialCwd: string;
+
+    /**
+     * Path within each session's SessionFs where the runtime stores
+     * session-scoped files (events, workspace, checkpoints, etc.).
+     */
+    sessionStatePath: string;
+
+    /**
+     * Path conventions used by this filesystem provider.
+     */
+    conventions: "windows" | "posix";
 }
 
 /**

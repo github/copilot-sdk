@@ -94,7 +94,7 @@ export type SessionEvent =
         /**
          * Whether this session supports remote steering via Mission Control
          */
-        steerable?: boolean;
+        remoteSteerable?: boolean;
       };
     }
   | {
@@ -172,6 +172,38 @@ export type SessionEvent =
          * Whether the session was already in use by another client at resume time
          */
         alreadyInUse?: boolean;
+        /**
+         * Whether this session supports remote steering via Mission Control
+         */
+        remoteSteerable?: boolean;
+      };
+    }
+  | {
+      /**
+       * Unique event identifier (UUID v4), generated when the event is emitted
+       */
+      id: string;
+      /**
+       * ISO 8601 timestamp when the event was created
+       */
+      timestamp: string;
+      /**
+       * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+       */
+      parentId: string | null;
+      /**
+       * When true, the event is transient and not persisted to the session event log on disk
+       */
+      ephemeral?: boolean;
+      type: "session.remote_steerable_changed";
+      /**
+       * Notifies Mission Control that the session's remote steering capability has changed
+       */
+      data: {
+        /**
+         * Whether this session now supports remote steering via Mission Control
+         */
+        remoteSteerable: boolean;
       };
     }
   | {
@@ -276,6 +308,10 @@ export type SessionEvent =
             description?: string;
           }[];
         };
+        /**
+         * True when the preceding agentic loop was cancelled via abort signal
+         */
+        aborted?: boolean;
       };
     }
   | {
@@ -1588,7 +1624,15 @@ export type SessionEvent =
          */
         duration?: number;
         /**
-         * What initiated this API call (e.g., "sub-agent"); absent for user-initiated calls
+         * Time to first token in milliseconds. Only available for streaming requests
+         */
+        ttftMs?: number;
+        /**
+         * Average inter-token latency in milliseconds. Only available for streaming requests
+         */
+        interTokenLatencyMs?: number;
+        /**
+         * What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
          */
         initiator?: string;
         /**
@@ -3039,6 +3083,65 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
+      type: "sampling.requested";
+      /**
+       * Sampling request from an MCP server; contains the server name and a requestId for correlation
+       */
+      data: {
+        /**
+         * Unique identifier for this sampling request; used to respond via session.respondToSampling()
+         */
+        requestId: string;
+        /**
+         * Name of the MCP server that initiated the sampling request
+         */
+        serverName: string;
+        /**
+         * The JSON-RPC request ID from the MCP protocol
+         */
+        mcpRequestId: string | number;
+        [k: string]: unknown;
+      };
+    }
+  | {
+      /**
+       * Unique event identifier (UUID v4), generated when the event is emitted
+       */
+      id: string;
+      /**
+       * ISO 8601 timestamp when the event was created
+       */
+      timestamp: string;
+      /**
+       * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+       */
+      parentId: string | null;
+      ephemeral: true;
+      type: "sampling.completed";
+      /**
+       * Sampling request completion notification signaling UI dismissal
+       */
+      data: {
+        /**
+         * Request ID of the resolved sampling request; clients should dismiss any UI for this request
+         */
+        requestId: string;
+      };
+    }
+  | {
+      /**
+       * Unique event identifier (UUID v4), generated when the event is emitted
+       */
+      id: string;
+      /**
+       * ISO 8601 timestamp when the event was created
+       */
+      timestamp: string;
+      /**
+       * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+       */
+      parentId: string | null;
+      ephemeral: true;
       type: "mcp.oauth_required";
       /**
        * OAuth authentication request for an MCP server
@@ -3305,6 +3408,36 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
+      type: "capabilities.changed";
+      /**
+       * Session capability change notification
+       */
+      data: {
+        /**
+         * UI capability changes
+         */
+        ui?: {
+          /**
+           * Whether elicitation is now supported
+           */
+          elicitation?: boolean;
+        };
+      };
+    }
+  | {
+      /**
+       * Unique event identifier (UUID v4), generated when the event is emitted
+       */
+      id: string;
+      /**
+       * ISO 8601 timestamp when the event was created
+       */
+      timestamp: string;
+      /**
+       * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+       */
+      parentId: string | null;
+      ephemeral: true;
       type: "exit_plan_mode.requested";
       /**
        * Plan approval request with plan content and available user actions
@@ -3528,9 +3661,9 @@ export type SessionEvent =
            */
           name: string;
           /**
-           * Connection status: connected, failed, pending, disabled, or not_configured
+           * Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
            */
-          status: "connected" | "failed" | "pending" | "disabled" | "not_configured";
+          status: "connected" | "failed" | "needs-auth" | "pending" | "disabled" | "not_configured";
           /**
            * Configuration source: user, workspace, plugin, or builtin
            */
@@ -3563,9 +3696,9 @@ export type SessionEvent =
          */
         serverName: string;
         /**
-         * New connection status: connected, failed, pending, disabled, or not_configured
+         * New connection status: connected, failed, needs-auth, pending, disabled, or not_configured
          */
-        status: "connected" | "failed" | "pending" | "disabled" | "not_configured";
+        status: "connected" | "failed" | "needs-auth" | "pending" | "disabled" | "not_configured";
       };
     }
   | {

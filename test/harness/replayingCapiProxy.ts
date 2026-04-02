@@ -52,6 +52,9 @@ const defaultModel = "claude-sonnet-4.5";
 export class ReplayingCapiProxy extends CapturingHttpProxy {
   private state: ReplayingCapiProxyState | null = null;
   private startPromise: Promise<string> | null = null;
+  private defaultToolResultNormalizers: ToolResultNormalizer[] = [
+    { toolName: "*", normalizer: normalizeLargeOutputFilepaths },
+  ];
 
   /**
    * If true, cached responses are played back slowly (~ 2KiB/sec). Otherwise streaming responses are sent as fast as possible.
@@ -70,7 +73,12 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
     // skip the need to do a /config POST before other requests. This only makes
     // sense if the config will be static for the lifetime of the proxy.
     if (filePath && workDir) {
-      this.state = { filePath, workDir, testInfo, toolResultNormalizers: [] };
+      this.state = {
+        filePath,
+        workDir,
+        testInfo,
+        toolResultNormalizers: [...this.defaultToolResultNormalizers],
+      };
     }
   }
 
@@ -96,7 +104,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
       filePath: config.filePath,
       workDir: config.workDir,
       testInfo: config.testInfo,
-      toolResultNormalizers: [],
+      toolResultNormalizers: [...this.defaultToolResultNormalizers],
     };
 
     this.clearExchanges();
@@ -592,7 +600,10 @@ function normalizeToolCalls(
             .find((tc) => tc.id === msg.tool_call_id);
           if (precedingToolCall) {
             for (const normalizer of resultNormalizers) {
-              if (precedingToolCall.function?.name === normalizer.toolName) {
+              if (
+                precedingToolCall.function?.name === normalizer.toolName ||
+                normalizer.toolName === "*"
+              ) {
                 msg.content = normalizer.normalizer(msg.content);
               }
             }
@@ -722,6 +733,14 @@ function normalizeUserMessage(content: string): string {
       "${compaction_prompt}",
     )
     .trim();
+}
+
+function normalizeLargeOutputFilepaths(result: string): string {
+  // Replaces filenames like 1774637043987-copilot-tool-output-tk7puw.txt with PLACEHOLDER-copilot-tool-output-PLACEHOLDER
+  return result.replace(
+    /\d+-copilot-tool-output-[a-z0-9.]+/g,
+    "PLACEHOLDER-copilot-tool-output-PLACEHOLDER",
+  );
 }
 
 // Transforms a single OpenAI-style inbound response message into normalized form

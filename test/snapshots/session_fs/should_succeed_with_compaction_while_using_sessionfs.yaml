@@ -1,0 +1,75 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: What is 2+2?
+      - role: assistant
+        content: 2 + 2 = 4
+      - role: user
+        content: ${compaction_prompt}
+      - role: assistant
+        content: >-
+          <overview>
+
+          The user asked a simple arithmetic question ("What is 2+2?"). This was a minimal interaction with no technical
+          work, coding tasks, or file modifications requested or performed. The conversation consisted solely of
+          providing a basic mathematical answer.
+
+          </overview>
+
+
+          <history>
+
+          1. The user asked "What is 2+2?"
+             - Provided the answer: 4
+             - No further requests or actions were needed
+
+          2. The user requested a checkpoint summary
+             - Creating this summary to preserve conversation context before history compaction
+          </history>
+
+
+          <work_done>
+
+          No files were created, modified, or deleted. No technical work was performed. The conversation consisted only
+          of answering a simple arithmetic question.
+
+
+          Current state:
+
+          - No active tasks
+
+          - No code changes
+
+          - No systems or processes started
+
+          </work_done>
+
+
+          <technical_details>
+
+          No technical work was performed during this conversation. No technical decisions, issues, or discoveries were
+          made.
+
+          </technical_details>
+
+
+          <important_files>
+
+          No files are relevant to this conversation, as no technical work was performed.
+
+          </important_files>
+
+
+          <next_steps>
+
+          No pending work or next steps. The user's request (answering "2+2") has been completed. Awaiting further
+          instructions from the user.
+
+          </next_steps>
+
+
+          <checkpoint_title>Simple arithmetic question answered</checkpoint_title>
