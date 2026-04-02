@@ -1,6 +1,7 @@
 ---
 description: Triages newly opened issues by labeling, acknowledging, requesting clarification, and closing duplicates
 on:
+  roles: all
   issues:
     types: [opened]
   workflow_dispatch:
@@ -9,7 +10,6 @@ on:
         description: "Issue number to triage"
         required: true
         type: string
-roles: all
 permissions:
   contents: read
   issues: read
