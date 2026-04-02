@@ -61,8 +61,8 @@ type Client struct {
 	stopChan        chan struct{}
 	wg              sync.WaitGroup
 	processDone     chan struct{} // closed when the underlying process exits
-	processError    error         // set before processDone is closed
-	processErrorMu  sync.RWMutex  // protects processError
+	processErrorPtr *error        // points to the process error
+	processErrorMu  sync.RWMutex  // protects processErrorPtr
 	onClose         func()        // called when the read loop exits unexpectedly
 }
 
@@ -78,25 +78,26 @@ func NewClient(stdin io.WriteCloser, stdout io.ReadCloser) *Client {
 }
 
 // SetProcessDone sets a channel that will be closed when the process exits,
-// and stores the error that should be returned to pending/future requests.
+// and stores the error pointer that should be returned to pending/future requests.
+// The error is read directly from the pointer after the channel closes, avoiding
+// a race between an async goroutine and callers checking the error.
 func (c *Client) SetProcessDone(done chan struct{}, errPtr *error) {
 	c.processDone = done
-	// Monitor the channel and copy the error when it closes
-	go func() {
-		<-done
-		if errPtr != nil {
-			c.processErrorMu.Lock()
-			c.processError = *errPtr
-			c.processErrorMu.Unlock()
-		}
-	}()
+	c.processErrorMu.Lock()
+	c.processErrorPtr = errPtr
+	c.processErrorMu.Unlock()
 }
 
-// getProcessError returns the process exit error if the process has exited
+// getProcessError returns the process exit error if the process has exited.
+// It reads directly from the stored error pointer, which is guaranteed to be
+// set before the processDone channel is closed.
 func (c *Client) getProcessError() error {
 	c.processErrorMu.RLock()
 	defer c.processErrorMu.RUnlock()
-	return c.processError
+	if c.processErrorPtr != nil {
+		return *c.processErrorPtr
+	}
+	return nil
 }
 
 // Start begins listening for messages in a background goroutine
