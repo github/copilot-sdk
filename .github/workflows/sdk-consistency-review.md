@@ -1,6 +1,8 @@
 ---
 description: Reviews PRs to ensure features are implemented consistently across all SDK language implementations
+tracker-id: sdk-consistency-review
 on:
+  roles: all
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
@@ -14,7 +16,6 @@ on:
         description: "PR number to review"
         required: true
         type: string
-roles: all
 permissions:
   contents: read
   pull-requests: read
@@ -27,6 +28,8 @@ safe-outputs:
     max: 10
   add-comment:
     max: 1
+    hide-older-comments: true
+    allowed-reasons: [outdated]
 timeout-minutes: 15
 ---
 
