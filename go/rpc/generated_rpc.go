@@ -652,11 +652,12 @@ type SessionPermissionsHandlePendingPermissionRequestParams struct {
 }
 
 type SessionPermissionsHandlePendingPermissionRequestParamsResult struct {
-	Kind     Kind    `json:"kind"`
-	Rules    []any   `json:"rules,omitempty"`
-	Feedback *string `json:"feedback,omitempty"`
-	Message  *string `json:"message,omitempty"`
-	Path     *string `json:"path,omitempty"`
+	Kind      Kind    `json:"kind"`
+	Rules     []any   `json:"rules,omitempty"`
+	Feedback  *string `json:"feedback,omitempty"`
+	Message   *string `json:"message,omitempty"`
+	Path      *string `json:"path,omitempty"`
+	Interrupt *bool   `json:"interrupt,omitempty"`
 }
 
 type SessionLogResult struct {
@@ -815,6 +816,7 @@ type Kind string
 const (
 	KindApproved                                       Kind = "approved"
 	KindDeniedByContentExclusionPolicy                 Kind = "denied-by-content-exclusion-policy"
+	KindDeniedByPermissionRequestHook                  Kind = "denied-by-permission-request-hook"
 	KindDeniedByRules                                  Kind = "denied-by-rules"
 	KindDeniedInteractivelyByUser                      Kind = "denied-interactively-by-user"
 	KindDeniedNoApprovalRuleAndCouldNotRequestFromUser Kind = "denied-no-approval-rule-and-could-not-request-from-user"

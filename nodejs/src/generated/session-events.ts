@@ -229,7 +229,7 @@ export type SessionEvent =
        */
       data: {
         /**
-         * Category of error (e.g., "authentication", "authorization", "quota", "rate_limit", "query")
+         * Category of error (e.g., "authentication", "authorization", "quota", "rate_limit", "context_limit", "query")
          */
         errorType: string;
         /**
@@ -1480,6 +1480,10 @@ export type SessionEvent =
            * Human-readable display title for the tool
            */
           toolTitle?: string;
+          /**
+           * Name of the MCP server hosting this tool, when the tool is an MCP tool
+           */
+          mcpServerName?: string;
           /**
            * Resolved intention summary describing what this specific call does
            */
@@ -2872,6 +2876,10 @@ export type SessionEvent =
                */
               hookMessage?: string;
             };
+        /**
+         * When true, this permission was already resolved by a permissionRequest hook and requires no client action
+         */
+        resolvedByHook?: boolean;
       };
     }
   | {
@@ -2909,7 +2917,8 @@ export type SessionEvent =
             | "denied-by-rules"
             | "denied-no-approval-rule-and-could-not-request-from-user"
             | "denied-interactively-by-user"
-            | "denied-by-content-exclusion-policy";
+            | "denied-by-content-exclusion-policy"
+            | "denied-by-permission-request-hook";
         };
       };
     }

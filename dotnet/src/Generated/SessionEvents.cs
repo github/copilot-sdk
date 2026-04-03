@@ -1180,7 +1180,7 @@ public partial class SessionRemoteSteerableChangedData
 /// <summary>Error details for timeline display including message and optional diagnostic information.</summary>
 public partial class SessionErrorData
 {
-    /// <summary>Category of error (e.g., "authentication", "authorization", "quota", "rate_limit", "query").</summary>
+    /// <summary>Category of error (e.g., "authentication", "authorization", "quota", "rate_limit", "context_limit", "query").</summary>
     [JsonPropertyName("errorType")]
     public required string ErrorType { get; set; }
 
@@ -2267,6 +2267,11 @@ public partial class PermissionRequestedData
     /// <summary>Details of the permission being requested.</summary>
     [JsonPropertyName("permissionRequest")]
     public required PermissionRequest PermissionRequest { get; set; }
+
+    /// <summary>When true, this permission was already resolved by a permissionRequest hook and requires no client action.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resolvedByHook")]
+    public bool? ResolvedByHook { get; set; }
 }
 
 /// <summary>Permission request completion notification signaling UI dismissal.</summary>
@@ -2997,6 +3002,11 @@ public partial class AssistantMessageDataToolRequestsItem
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolTitle")]
     public string? ToolTitle { get; set; }
+
+    /// <summary>Name of the MCP server hosting this tool, when the tool is an MCP tool.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("mcpServerName")]
+    public string? McpServerName { get; set; }
 
     /// <summary>Resolved intention summary describing what this specific call does.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3989,6 +3999,9 @@ public enum PermissionCompletedDataResultKind
     /// <summary>The <c>denied-by-content-exclusion-policy</c> variant.</summary>
     [JsonStringEnumMemberName("denied-by-content-exclusion-policy")]
     DeniedByContentExclusionPolicy,
+    /// <summary>The <c>denied-by-permission-request-hook</c> variant.</summary>
+    [JsonStringEnumMemberName("denied-by-permission-request-hook")]
+    DeniedByPermissionRequestHook,
 }
 
 /// <summary>Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.</summary>

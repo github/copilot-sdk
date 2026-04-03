@@ -358,7 +358,7 @@ type Data struct {
 	// ISO 8601 timestamp when the session was resumed
 	ResumeTime *time.Time `json:"resumeTime,omitempty"`
 	// Category of error (e.g., "authentication", "authorization", "quota", "rate_limit",
-	// "query")
+	// "context_limit", "query")
 	ErrorType *string `json:"errorType,omitempty"`
 	// Human-readable error message
 	//
@@ -801,6 +801,9 @@ type Data struct {
 	Kind *KindClass `json:"kind,omitempty"`
 	// Details of the permission being requested
 	PermissionRequest *PermissionRequest `json:"permissionRequest,omitempty"`
+	// When true, this permission was already resolved by a permissionRequest hook and requires
+	// no client action
+	ResolvedByHook *bool `json:"resolvedByHook,omitempty"`
 	// Whether the user can provide a free-form text response in addition to predefined choices
 	AllowFreeform *bool `json:"allowFreeform,omitempty"`
 	// Predefined choices for the user to select from, if applicable
@@ -1403,6 +1406,8 @@ type ToolRequest struct {
 	Arguments interface{} `json:"arguments"`
 	// Resolved intention summary describing what this specific call does
 	IntentionSummary *string `json:"intentionSummary"`
+	// Name of the MCP server hosting this tool, when the tool is an MCP tool
+	MCPServerName *string `json:"mcpServerName,omitempty"`
 	// Name of the tool being invoked
 	Name string `json:"name"`
 	// Unique identifier for this tool call
@@ -1556,6 +1561,7 @@ type ResultKind string
 const (
 	ResultKindApproved                                       ResultKind = "approved"
 	ResultKindDeniedByContentExclusionPolicy                 ResultKind = "denied-by-content-exclusion-policy"
+	ResultKindDeniedByPermissionRequestHook                  ResultKind = "denied-by-permission-request-hook"
 	ResultKindDeniedByRules                                  ResultKind = "denied-by-rules"
 	ResultKindDeniedInteractivelyByUser                      ResultKind = "denied-interactively-by-user"
 	ResultKindDeniedNoApprovalRuleAndCouldNotRequestFromUser ResultKind = "denied-no-approval-rule-and-could-not-request-from-user"

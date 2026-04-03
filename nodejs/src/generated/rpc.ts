@@ -1185,6 +1185,11 @@ export interface SessionPermissionsHandlePendingPermissionRequestParams {
         kind: "denied-by-content-exclusion-policy";
         path: string;
         message: string;
+      }
+    | {
+        kind: "denied-by-permission-request-hook";
+        message?: string;
+        interrupt?: boolean;
       };
 }
 
