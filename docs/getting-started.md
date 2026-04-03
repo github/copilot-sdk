@@ -1239,7 +1239,7 @@ const session = await client.createSession({
 });
 ```
 
-> **Tip:** You can also set `agent: "pr-reviewer"` in the session config to pre-select this agent from the start. See the [Custom Agents guide](./guides/custom-agents.md#selecting-an-agent-at-session-creation) for details.
+> **Tip:** You can also set `agent: "pr-reviewer"` in the session config to pre-select this agent from the start. See the [Custom Agents guide](./features/custom-agents.md#selecting-an-agent-at-session-creation) for details.
 
 ### Customize the System Message
 
