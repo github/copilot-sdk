@@ -89,7 +89,7 @@ class TestSkillBehavior:
         await session.disconnect()
 
     async def test_should_allow_agent_with_skills_to_invoke_skill(self, ctx: E2ETestContext):
-        """Test that an agent with skills can invoke the specified skill"""
+        """Test that an agent with skills gets skill content preloaded into context"""
         skills_dir = create_skill_dir(ctx.work_dir)
         custom_agents: list[CustomAgentConfig] = [
             {
@@ -108,7 +108,7 @@ class TestSkillBehavior:
 
         assert session.session_id is not None
 
-        # The agent has skills: ["test-skill"], so it should be able to invoke the skill
+        # The agent has skills: ["test-skill"], so the skill content is preloaded into its context
         message = await session.send_and_wait("Say hello briefly using the test skill.")
         assert message is not None
         assert SKILL_MARKER in message.data.content
@@ -118,7 +118,7 @@ class TestSkillBehavior:
     async def test_should_not_provide_skills_to_agent_without_skills_field(
         self, ctx: E2ETestContext
     ):
-        """Test that an agent without skills field gets no skills (opt-in model)"""
+        """Test that an agent without skills field gets no skill content (opt-in model)"""
         skills_dir = create_skill_dir(ctx.work_dir)
         custom_agents: list[CustomAgentConfig] = [
             {
@@ -136,7 +136,7 @@ class TestSkillBehavior:
 
         assert session.session_id is not None
 
-        # The agent has no skills field, so it should NOT have access to skills
+        # The agent has no skills field, so no skill content is injected
         message = await session.send_and_wait("Say hello briefly using the test skill.")
         assert message is not None
         assert SKILL_MARKER not in message.data.content

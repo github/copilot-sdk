@@ -112,7 +112,7 @@ IMPORTANT: You MUST include the exact text "${SKILL_MARKER}" somewhere in EVERY 
 
             expect(session.sessionId).toBeDefined();
 
-            // The agent has skills: ["test-skill"], so it should be able to invoke the skill
+            // The agent has skills: ["test-skill"], so the skill content is preloaded into its context
             const message = await session.sendAndWait({
                 prompt: "Say hello briefly using the test skill.",
             });
@@ -140,7 +140,7 @@ IMPORTANT: You MUST include the exact text "${SKILL_MARKER}" somewhere in EVERY 
 
             expect(session.sessionId).toBeDefined();
 
-            // The agent has no skills field, so it should NOT have access to skills
+            // The agent has no skills field, so no skill content is injected
             const message = await session.sendAndWait({
                 prompt: "Say hello briefly using the test skill.",
             });

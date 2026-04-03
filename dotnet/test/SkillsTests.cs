@@ -110,7 +110,7 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
 
-        // The agent has Skills = ["test-skill"], so it should be able to invoke the skill
+        // The agent has Skills = ["test-skill"], so the skill content is preloaded into its context
         var message = await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say hello briefly using the test skill." });
         Assert.NotNull(message);
         Assert.Contains(SkillMarker, message!.Data.Content);
@@ -140,7 +140,7 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
 
-        // The agent has no Skills field, so it should NOT have access to skills
+        // The agent has no Skills field, so no skill content is injected
         var message = await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say hello briefly using the test skill." });
         Assert.NotNull(message);
         Assert.DoesNotContain(SkillMarker, message!.Data.Content);

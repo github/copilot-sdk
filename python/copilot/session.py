@@ -766,7 +766,7 @@ class CustomAgentConfig(TypedDict, total=False):
     # MCP servers specific to agent
     mcp_servers: NotRequired[dict[str, MCPServerConfig]]
     infer: NotRequired[bool]  # Whether agent is available for model inference
-    # List of skill names available to this agent (opt-in; omit for no skills)
+    # Skill names to preload into this agent's context at startup (opt-in; omit for none)
     skills: NotRequired[list[str]]
 
 

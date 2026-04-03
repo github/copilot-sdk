@@ -364,7 +364,7 @@ The markdown body contains the instructions that are injected into the session c
 
 ### Skills + Custom Agents
 
-Skills can be scoped to individual custom agents using the `skills` property. Skills are **opt-in** — agents get no skills by default. Skill names are resolved from the session-level `skillDirectories`.
+Skills listed in an agent's `skills` field are **eagerly preloaded** — their full content is injected into the agent's context at startup, so the agent has access to the skill instructions immediately without needing to invoke a skill tool. Skill names are resolved from the session-level `skillDirectories`.
 
 ```typescript
 const session = await client.createSession({
@@ -379,7 +379,7 @@ const session = await client.createSession({
 });
 ```
 
-> **Note:** When `skills` is omitted, the agent has **no** access to skills. This is an opt-in model — you must explicitly list the skills each agent needs.
+> **Note:** Skills are opt-in — when `skills` is omitted, no skill content is injected. Sub-agents do not inherit skills from the parent; you must list them explicitly per agent.
 
 ### Skills + MCP Servers
 

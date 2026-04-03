@@ -252,7 +252,7 @@ try (var client = new CopilotClient()) {
 | `prompt` | `string` | ✅ | System prompt for the agent |
 | `mcpServers` | `object` | | MCP server configurations specific to this agent |
 | `infer` | `boolean` | | Whether the runtime can auto-select this agent (default: `true`) |
-| `skills` | `string[]` | | List of skill names available to this agent |
+| `skills` | `string[]` | | Skill names to preload into the agent's context at startup |
 
 > **Tip:** A good `description` helps the runtime match user intent to the right agent. Be specific about the agent's expertise and capabilities.
 
@@ -264,7 +264,7 @@ In addition to per-agent configuration above, you can set `agent` on the **sessi
 
 ## Per-Agent Skills
 
-You can scope skills to individual agents using the `skills` property. Skills are **opt-in** — agents have no access to skills by default. The skill names listed in `skills` are resolved from the session-level `skillDirectories`.
+You can preload skills into an agent's context using the `skills` property. When specified, the **full content** of each listed skill is eagerly injected into the agent's context at startup — the agent doesn't need to invoke a skill tool; the instructions are already present. Skills are **opt-in**: agents receive no skills by default, and sub-agents do not inherit skills from the parent. Skill names are resolved from the session-level `skillDirectories`.
 
 ```typescript
 const session = await client.createSession({
@@ -287,7 +287,7 @@ const session = await client.createSession({
 });
 ```
 
-In this example, `security-auditor` can invoke only `security-scan` and `dependency-check`, while `docs-writer` can invoke only `markdown-lint`. An agent without a `skills` field has no access to any skills.
+In this example, `security-auditor` starts with `security-scan` and `dependency-check` already injected into its context, while `docs-writer` starts with `markdown-lint`. An agent without a `skills` field receives no skill content.
 
 ## Selecting an Agent at Session Creation
 
