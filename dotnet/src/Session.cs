@@ -456,6 +456,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
                         if (string.IsNullOrEmpty(data.RequestId) || data.PermissionRequest is null)
                             return;
 
+                        if (data.ResolvedByHook == true)
+                            return; // Already resolved by a permissionRequest hook; no client action needed.
+
                         var handler = _permissionHandler;
                         if (handler is null)
                             return; // This client doesn't handle permissions; another client will.

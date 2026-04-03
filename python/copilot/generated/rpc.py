@@ -2257,6 +2257,7 @@ class SessionPermissionsHandlePendingPermissionRequestResult:
 class Kind(Enum):
     APPROVED = "approved"
     DENIED_BY_CONTENT_EXCLUSION_POLICY = "denied-by-content-exclusion-policy"
+    DENIED_BY_PERMISSION_REQUEST_HOOK = "denied-by-permission-request-hook"
     DENIED_BY_RULES = "denied-by-rules"
     DENIED_INTERACTIVELY_BY_USER = "denied-interactively-by-user"
     DENIED_NO_APPROVAL_RULE_AND_COULD_NOT_REQUEST_FROM_USER = "denied-no-approval-rule-and-could-not-request-from-user"
@@ -2269,6 +2270,7 @@ class SessionPermissionsHandlePendingPermissionRequestParamsResult:
     feedback: str | None = None
     message: str | None = None
     path: str | None = None
+    interrupt: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'SessionPermissionsHandlePendingPermissionRequestParamsResult':
@@ -2278,7 +2280,8 @@ class SessionPermissionsHandlePendingPermissionRequestParamsResult:
         feedback = from_union([from_str, from_none], obj.get("feedback"))
         message = from_union([from_str, from_none], obj.get("message"))
         path = from_union([from_str, from_none], obj.get("path"))
-        return SessionPermissionsHandlePendingPermissionRequestParamsResult(kind, rules, feedback, message, path)
+        interrupt = from_union([from_bool, from_none], obj.get("interrupt"))
+        return SessionPermissionsHandlePendingPermissionRequestParamsResult(kind, rules, feedback, message, path, interrupt)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -2291,6 +2294,8 @@ class SessionPermissionsHandlePendingPermissionRequestParamsResult:
             result["message"] = from_union([from_str, from_none], self.message)
         if self.path is not None:
             result["path"] = from_union([from_str, from_none], self.path)
+        if self.interrupt is not None:
+            result["interrupt"] = from_union([from_bool, from_none], self.interrupt)
         return result
 
 

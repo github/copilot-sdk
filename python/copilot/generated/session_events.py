@@ -1500,6 +1500,7 @@ class ResultKind(Enum):
 
     APPROVED = "approved"
     DENIED_BY_CONTENT_EXCLUSION_POLICY = "denied-by-content-exclusion-policy"
+    DENIED_BY_PERMISSION_REQUEST_HOOK = "denied-by-permission-request-hook"
     DENIED_BY_RULES = "denied-by-rules"
     DENIED_INTERACTIVELY_BY_USER = "denied-interactively-by-user"
     DENIED_NO_APPROVAL_RULE_AND_COULD_NOT_REQUEST_FROM_USER = "denied-no-approval-rule-and-could-not-request-from-user"
@@ -1708,6 +1709,9 @@ class ToolRequest:
     intention_summary: str | None = None
     """Resolved intention summary describing what this specific call does"""
 
+    mcp_server_name: str | None = None
+    """Name of the MCP server hosting this tool, when the tool is an MCP tool"""
+
     tool_title: str | None = None
     """Human-readable display title for the tool"""
 
@@ -1723,9 +1727,10 @@ class ToolRequest:
         tool_call_id = from_str(obj.get("toolCallId"))
         arguments = obj.get("arguments")
         intention_summary = from_union([from_none, from_str], obj.get("intentionSummary"))
+        mcp_server_name = from_union([from_str, from_none], obj.get("mcpServerName"))
         tool_title = from_union([from_str, from_none], obj.get("toolTitle"))
         type = from_union([ToolRequestType, from_none], obj.get("type"))
-        return ToolRequest(name, tool_call_id, arguments, intention_summary, tool_title, type)
+        return ToolRequest(name, tool_call_id, arguments, intention_summary, mcp_server_name, tool_title, type)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -1735,6 +1740,8 @@ class ToolRequest:
             result["arguments"] = self.arguments
         if self.intention_summary is not None:
             result["intentionSummary"] = from_union([from_none, from_str], self.intention_summary)
+        if self.mcp_server_name is not None:
+            result["mcpServerName"] = from_union([from_str, from_none], self.mcp_server_name)
         if self.tool_title is not None:
             result["toolTitle"] = from_union([from_str, from_none], self.tool_title)
         if self.type is not None:
@@ -1957,7 +1964,7 @@ class Data:
 
     error_type: str | None = None
     """Category of error (e.g., "authentication", "authorization", "quota", "rate_limit",
-    "query")
+    "context_limit", "query")
     """
     message: str | None = None
     """Human-readable error message
@@ -2527,6 +2534,10 @@ class Data:
     permission_request: PermissionRequest | None = None
     """Details of the permission being requested"""
 
+    resolved_by_hook: bool | None = None
+    """When true, this permission was already resolved by a permissionRequest hook and requires
+    no client action
+    """
     allow_freeform: bool | None = None
     """Whether the user can provide a free-form text response in addition to predefined choices"""
 
@@ -2758,6 +2769,7 @@ class Data:
         role = from_union([Role, from_none], obj.get("role"))
         kind = from_union([KindClass.from_dict, from_none], obj.get("kind"))
         permission_request = from_union([PermissionRequest.from_dict, from_none], obj.get("permissionRequest"))
+        resolved_by_hook = from_union([from_bool, from_none], obj.get("resolvedByHook"))
         allow_freeform = from_union([from_bool, from_none], obj.get("allowFreeform"))
         choices = from_union([lambda x: from_list(from_str, x), from_none], obj.get("choices"))
         question = from_union([from_str, from_none], obj.get("question"))
@@ -2785,7 +2797,7 @@ class Data:
         servers = from_union([lambda x: from_list(Server.from_dict, x), from_none], obj.get("servers"))
         status = from_union([ServerStatus, from_none], obj.get("status"))
         extensions = from_union([lambda x: from_list(Extension.from_dict, x), from_none], obj.get("extensions"))
-        return Data(already_in_use, context, copilot_version, producer, reasoning_effort, remote_steerable, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, url, aborted, background_tasks, title, info_type, warning_type, new_model, previous_model, previous_reasoning_effort, new_mode, previous_mode, operation, path, handoff_time, host, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, conversation_tokens, current_model, current_tokens, error_reason, model_metrics, session_start_time, shutdown_type, system_tokens, tool_definitions_tokens, total_api_duration_ms, total_premium_requests, base_commit, branch, cwd, git_root, head_commit, host_type, is_initial, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, interaction_id, source, transformed_content, turn_id, intent, reasoning_id, delta_content, total_response_size_bytes, encrypted_content, message_id, output_tokens, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, api_call_id, cache_read_tokens, cache_write_tokens, copilot_usage, cost, duration, initiator, input_tokens, inter_token_latency_ms, model, quota_snapshots, ttft_ms, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, description, name, plugin_name, plugin_version, agent_description, agent_display_name, agent_name, duration_ms, total_tokens, total_tool_calls, tools, hook_invocation_id, hook_type, input, output, metadata, role, kind, permission_request, allow_freeform, choices, question, elicitation_source, mode, requested_schema, mcp_request_id, server_name, server_url, static_client_config, traceparent, tracestate, command, args, command_name, commands, ui, actions, plan_content, recommended_action, skills, agents, errors, warnings, servers, status, extensions)
+        return Data(already_in_use, context, copilot_version, producer, reasoning_effort, remote_steerable, selected_model, session_id, start_time, version, event_count, resume_time, error_type, message, provider_call_id, stack, status_code, url, aborted, background_tasks, title, info_type, warning_type, new_model, previous_model, previous_reasoning_effort, new_mode, previous_mode, operation, path, handoff_time, host, remote_session_id, repository, source_type, summary, messages_removed_during_truncation, performed_by, post_truncation_messages_length, post_truncation_tokens_in_messages, pre_truncation_messages_length, pre_truncation_tokens_in_messages, token_limit, tokens_removed_during_truncation, events_removed, up_to_event_id, code_changes, conversation_tokens, current_model, current_tokens, error_reason, model_metrics, session_start_time, shutdown_type, system_tokens, tool_definitions_tokens, total_api_duration_ms, total_premium_requests, base_commit, branch, cwd, git_root, head_commit, host_type, is_initial, messages_length, checkpoint_number, checkpoint_path, compaction_tokens_used, error, messages_removed, post_compaction_tokens, pre_compaction_messages_length, pre_compaction_tokens, request_id, success, summary_content, tokens_removed, agent_mode, attachments, content, interaction_id, source, transformed_content, turn_id, intent, reasoning_id, delta_content, total_response_size_bytes, encrypted_content, message_id, output_tokens, parent_tool_call_id, phase, reasoning_opaque, reasoning_text, tool_requests, api_call_id, cache_read_tokens, cache_write_tokens, copilot_usage, cost, duration, initiator, input_tokens, inter_token_latency_ms, model, quota_snapshots, ttft_ms, reason, arguments, tool_call_id, tool_name, mcp_server_name, mcp_tool_name, partial_output, progress_message, is_user_requested, result, tool_telemetry, allowed_tools, description, name, plugin_name, plugin_version, agent_description, agent_display_name, agent_name, duration_ms, total_tokens, total_tool_calls, tools, hook_invocation_id, hook_type, input, output, metadata, role, kind, permission_request, resolved_by_hook, allow_freeform, choices, question, elicitation_source, mode, requested_schema, mcp_request_id, server_name, server_url, static_client_config, traceparent, tracestate, command, args, command_name, commands, ui, actions, plan_content, recommended_action, skills, agents, errors, warnings, servers, status, extensions)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -3069,6 +3081,8 @@ class Data:
             result["kind"] = from_union([lambda x: to_class(KindClass, x), from_none], self.kind)
         if self.permission_request is not None:
             result["permissionRequest"] = from_union([lambda x: to_class(PermissionRequest, x), from_none], self.permission_request)
+        if self.resolved_by_hook is not None:
+            result["resolvedByHook"] = from_union([from_bool, from_none], self.resolved_by_hook)
         if self.allow_freeform is not None:
             result["allowFreeform"] = from_union([from_bool, from_none], self.allow_freeform)
         if self.choices is not None:

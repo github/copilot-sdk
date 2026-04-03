@@ -1224,6 +1224,10 @@ class CopilotSession:
             if not request_id or not permission_request:
                 return
 
+            resolved_by_hook = getattr(event.data, "resolved_by_hook", None)
+            if resolved_by_hook:
+                return  # Already resolved by a permissionRequest hook; no client action needed.
+
             with self._permission_handler_lock:
                 perm_handler = self._permission_handler
             if not perm_handler:

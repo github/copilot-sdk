@@ -915,6 +915,9 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 		if requestID == nil || event.Data.PermissionRequest == nil {
 			return
 		}
+		if event.Data.ResolvedByHook != nil && *event.Data.ResolvedByHook {
+			return // Already resolved by a permissionRequest hook; no client action needed.
+		}
 		handler := s.getPermissionHandler()
 		if handler == nil {
 			return
