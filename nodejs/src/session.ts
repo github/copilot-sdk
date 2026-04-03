@@ -408,10 +408,14 @@ export class CopilotSession {
                 );
             }
         } else if (event.type === "permission.requested") {
-            const { requestId, permissionRequest } = event.data as {
+            const { requestId, permissionRequest, resolvedByHook } = event.data as {
                 requestId: string;
                 permissionRequest: PermissionRequest;
+                resolvedByHook?: boolean;
             };
+            if (resolvedByHook) {
+                return; // Already resolved by a permissionRequest hook; no client action needed.
+            }
             if (this.permissionHandler) {
                 void this._executePermissionAndRespond(requestId, permissionRequest);
             }
