@@ -1,0 +1,18 @@
+# Placeholder snapshot for subagent denied tool E2E test.
+# This snapshot needs to be captured from a real CLI session.
+#
+# To capture:
+#   1. Ensure COPILOT_CLI_PATH is set or CLI is installed
+#   2. Run: cd go && go test -tags integration -v ./internal/e2e -run TestSubagentCustomTools
+#   3. The proxy will capture the exchanges and write this file
+#
+# Expected flow:
+#   1. Parent creates session with allowed_tool and restricted_tool, plus restricted-agent
+#   2. restricted-agent only has allowed_tool in its Tools allowlist
+#   3. User asks restricted-agent to invoke restricted_tool
+#   4. CLI sends tool.call with child session ID for restricted_tool
+#   5. SDK resolves child→parent, checks allowlist, returns "unsupported" error
+#   6. restricted_tool handler is never invoked
+models:
+  - claude-sonnet-4.5
+conversations: []

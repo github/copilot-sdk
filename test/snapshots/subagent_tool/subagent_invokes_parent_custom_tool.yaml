@@ -1,0 +1,19 @@
+# Placeholder snapshot for subagent custom tool E2E test.
+# This snapshot needs to be captured from a real CLI session.
+#
+# To capture:
+#   1. Ensure COPILOT_CLI_PATH is set or CLI is installed
+#   2. Run: cd go && go test -tags integration -v ./internal/e2e -run TestSubagentCustomTools
+#   3. The proxy will capture the exchanges and write this file
+#
+# Expected flow:
+#   1. Parent creates session with save_result tool and helper-agent subagent
+#   2. User sends message triggering helper-agent
+#   3. CLI creates child session, emits subagent.started with RemoteSessionID
+#   4. Child LLM invokes save_result tool
+#   5. CLI sends tool.call with child session ID
+#   6. SDK resolves child→parent, dispatches to save_result handler
+#   7. Tool result returned, subagent completes
+models:
+  - claude-sonnet-4.5
+conversations: []

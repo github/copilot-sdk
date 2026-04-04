@@ -72,6 +72,8 @@ type Session struct {
 	elicitationMu      sync.RWMutex
 	capabilities       SessionCapabilities
 	capabilitiesMu     sync.RWMutex
+	onDestroy          func() // set by Client when session is created; called by Destroy()
+	customAgents       []CustomAgentConfig // agent configs from SessionConfig
 
 	// eventCh serializes user event handler dispatch. dispatchEvent enqueues;
 	// a single goroutine (processEvents) dequeues and invokes handlers in FIFO order.
@@ -87,6 +89,17 @@ type Session struct {
 // Returns empty string if infinite sessions are disabled.
 func (s *Session) WorkspacePath() string {
 	return s.workspacePath
+}
+
+// getAgentConfig returns the CustomAgentConfig for the given agent name, or nil if not found.
+func (s *Session) getAgentConfig(agentName string) *CustomAgentConfig {
+	for i := range s.customAgents {
+		if s.customAgents[i].Name == agentName {
+			config := s.customAgents[i]
+			return &config
+		}
+	}
+	return nil
 }
 
 // newSession creates a new session wrapper with the given session ID and client.
@@ -993,6 +1006,23 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 	}
 }
 
+// denyToolCallBroadcast responds to a v3 broadcast tool request with a denial,
+// used when a child session attempts to invoke a tool not in its allowlist.
+func (s *Session) denyToolCallBroadcast(requestID, toolName string) {
+	errMsg := fmt.Sprintf("tool '%s' not supported", toolName)
+	resultType := "failure"
+	s.RPC.Tools.HandlePendingToolCall(context.Background(),
+		&rpc.SessionToolsHandlePendingToolCallParams{
+			RequestID: requestID,
+			Error:     &errMsg,
+			Result: &rpc.ResultUnion{ResultResult: &rpc.ResultResult{
+				TextResultForLlm: fmt.Sprintf("Tool '%s' is not supported by this client instance.", toolName),
+				ResultType:       &resultType,
+				Error:            &errMsg,
+			}},
+		})
+}
+
 // executeToolAndRespond executes a tool handler and sends the result back via RPC.
 func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, arguments any, handler ToolHandler, traceparent, tracestate string) {
 	ctx := contextWithTraceParent(context.Background(), traceparent, tracestate)
@@ -1180,6 +1210,10 @@ func (s *Session) Disconnect() error {
 	s.elicitationMu.Lock()
 	s.elicitationHandler = nil
 	s.elicitationMu.Unlock()
+
+	if s.onDestroy != nil {
+		s.onDestroy()
+	}
 
 	return nil
 }

@@ -53,6 +53,14 @@ import (
 
 const noResultPermissionV2Error = "permission handlers cannot return 'no-result' when connected to a protocol v2 server"
 
+// subagentInstance represents a single active subagent launch.
+type subagentInstance struct {
+	agentName      string
+	toolCallID     string
+	childSessionID string // empty until child session ID is known
+	startedAt      time.Time
+}
+
 // Client manages the connection to the Copilot CLI server and provides session management.
 //
 // The Client can either spawn a CLI server process or connect to an existing server.
@@ -81,6 +89,22 @@ type Client struct {
 	state            ConnectionState
 	sessions         map[string]*Session
 	sessionsMux      sync.Mutex
+
+	// childToParent maps childSessionID → parentSessionID.
+	// Populated exclusively from authoritative protocol signals.
+	// Protected by sessionsMux.
+	childToParent map[string]string
+
+	// childToAgent maps childSessionID → agentName.
+	// Used for allowlist enforcement. Populated alongside childToParent.
+	// Protected by sessionsMux.
+	childToAgent map[string]string
+
+	// subagentInstances tracks active subagent launches per parent session.
+	// Key: parentSessionID → map of toolCallID → subagentInstance.
+	// Protected by sessionsMux.
+	subagentInstances map[string]map[string]*subagentInstance
+
 	isExternalServer bool
 	conn             net.Conn // stores net.Conn for external TCP connections
 	useStdio         bool     // resolved value from options
@@ -129,8 +153,11 @@ func NewClient(options *ClientOptions) *Client {
 	client := &Client{
 		options:          opts,
 		state:            StateDisconnected,
-		sessions:         make(map[string]*Session),
-		actualHost:       "localhost",
+		sessions:          make(map[string]*Session),
+		childToParent:     make(map[string]string),
+		childToAgent:      make(map[string]string),
+		subagentInstances: make(map[string]map[string]*subagentInstance),
+		actualHost:        "localhost",
 		isExternalServer: false,
 		useStdio:         true,
 		autoStart:        true, // default
@@ -346,6 +373,9 @@ func (c *Client) Stop() error {
 
 	c.sessionsMux.Lock()
 	c.sessions = make(map[string]*Session)
+	c.childToParent = make(map[string]string)
+	c.childToAgent = make(map[string]string)
+	c.subagentInstances = make(map[string]map[string]*subagentInstance)
 	c.sessionsMux.Unlock()
 
 	c.startStopMux.Lock()
@@ -527,6 +557,34 @@ func extractTransformCallbacks(config *SystemMessageConfig) (*SystemMessageConfi
 	return wireConfig, callbacks
 }
 
+// enrichAgentToolDefinitions populates ToolDefinitions on each agent config
+// by matching agent tool names against the session's tool definitions.
+// This gives the CLI explicit tool metadata for child session setup.
+func enrichAgentToolDefinitions(agents []CustomAgentConfig, sessionTools []Tool) {
+	toolsByName := make(map[string]Tool, len(sessionTools))
+	for _, t := range sessionTools {
+		toolsByName[t.Name] = t
+	}
+	for i := range agents {
+		if agents[i].Tools == nil {
+			continue // nil = all tools; don't enumerate
+		}
+		defs := make([]Tool, 0, len(agents[i].Tools))
+		for _, name := range agents[i].Tools {
+			if t, ok := toolsByName[name]; ok {
+				defs = append(defs, Tool{
+					Name:        t.Name,
+					Description: t.Description,
+					Parameters:  t.Parameters,
+				})
+			}
+		}
+		if len(defs) > 0 {
+			agents[i].ToolDefinitions = defs
+		}
+	}
+}
+
 func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Session, error) {
 	if config == nil || config.OnPermissionRequest == nil {
 		return nil, fmt.Errorf("an OnPermissionRequest handler is required when creating a session. For example, to allow all permissions, use &copilot.SessionConfig{OnPermissionRequest: copilot.PermissionHandler.ApproveAll}")
@@ -550,7 +608,12 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.WorkingDirectory = config.WorkingDirectory
 	req.MCPServers = config.MCPServers
 	req.EnvValueMode = "direct"
-	req.CustomAgents = config.CustomAgents
+	// Copy agents slice so enrichment doesn't mutate the caller's config.
+	if len(config.CustomAgents) > 0 {
+		req.CustomAgents = make([]CustomAgentConfig, len(config.CustomAgents))
+		copy(req.CustomAgents, config.CustomAgents)
+		enrichAgentToolDefinitions(req.CustomAgents, config.Tools)
+	}
 	req.Agent = config.Agent
 	req.SkillDirectories = config.SkillDirectories
 	req.DisabledSkills = config.DisabledSkills
@@ -597,6 +660,12 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	// events emitted by the CLI (e.g. session.start) are not dropped.
 	session := newSession(sessionID, c.client, "")
 
+	session.customAgents = config.CustomAgents
+	session.onDestroy = func() {
+		c.sessionsMux.Lock()
+		c.removeChildMappingsForParentLocked(session.SessionID)
+		c.sessionsMux.Unlock()
+	}
 	session.registerTools(config.Tools)
 	session.registerPermissionHandler(config.OnPermissionRequest)
 	if config.OnUserInputRequest != nil {
@@ -710,7 +779,12 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	}
 	req.MCPServers = config.MCPServers
 	req.EnvValueMode = "direct"
-	req.CustomAgents = config.CustomAgents
+	// Copy agents slice so enrichment doesn't mutate the caller's config.
+	if len(config.CustomAgents) > 0 {
+		req.CustomAgents = make([]CustomAgentConfig, len(config.CustomAgents))
+		copy(req.CustomAgents, config.CustomAgents)
+		enrichAgentToolDefinitions(req.CustomAgents, config.Tools)
+	}
 	req.Agent = config.Agent
 	req.SkillDirectories = config.SkillDirectories
 	req.DisabledSkills = config.DisabledSkills
@@ -736,6 +810,12 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	// events emitted by the CLI (e.g. session.start) are not dropped.
 	session := newSession(sessionID, c.client, "")
 
+	session.customAgents = config.CustomAgents
+	session.onDestroy = func() {
+		c.sessionsMux.Lock()
+		c.removeChildMappingsForParentLocked(session.SessionID)
+		c.sessionsMux.Unlock()
+	}
 	session.registerTools(config.Tools)
 	session.registerPermissionHandler(config.OnPermissionRequest)
 	if config.OnUserInputRequest != nil {
@@ -896,6 +976,7 @@ func (c *Client) DeleteSession(ctx context.Context, sessionID string) error {
 	// Remove from local sessions map if present
 	c.sessionsMux.Lock()
 	delete(c.sessions, sessionID)
+	c.removeChildMappingsForParentLocked(sessionID)
 	c.sessionsMux.Unlock()
 
 	return nil
@@ -1536,8 +1617,169 @@ func (c *Client) handleSessionEvent(req sessionEventRequest) {
 	c.sessionsMux.Unlock()
 
 	if ok {
+		// Intercept subagent lifecycle events for child tracking
+		c.handleSubagentEvent(req.SessionID, req.Event)
+
+		// V3 broadcast allowlist enforcement: if this is an external_tool.requested
+		// event originating from a child session, enforce the tool allowlist.
+		if req.Event.Type == SessionEventTypeExternalToolRequested {
+			childSessionID := derefStr(req.Event.Data.SessionID)
+			toolName := derefStr(req.Event.Data.ToolName)
+			if childSessionID != "" && toolName != "" {
+				c.sessionsMux.Lock()
+				_, isChild := c.childToParent[childSessionID]
+				c.sessionsMux.Unlock()
+				if isChild && !c.isToolAllowedForChild(childSessionID, toolName) {
+					requestID := derefStr(req.Event.Data.RequestID)
+					if requestID != "" {
+						session.denyToolCallBroadcast(requestID, toolName)
+					}
+					return
+				}
+			}
+		}
+
 		session.dispatchEvent(req.Event)
 	}
+}
+
+// handleSubagentEvent intercepts subagent lifecycle events to manage child session tracking.
+func (c *Client) handleSubagentEvent(parentSessionID string, event SessionEvent) {
+	switch event.Type {
+	case SessionEventTypeSubagentStarted:
+		c.onSubagentStarted(parentSessionID, event)
+	case SessionEventTypeSubagentCompleted, SessionEventTypeSubagentFailed:
+		c.onSubagentEnded(parentSessionID, event)
+	}
+}
+
+// onSubagentStarted handles a subagent.started event by creating a subagent instance
+// and mapping the child session to its parent.
+func (c *Client) onSubagentStarted(parentSessionID string, event SessionEvent) {
+	toolCallID := derefStr(event.Data.ToolCallID)
+	agentName := derefStr(event.Data.AgentName)
+	childSessionID := derefStr(event.Data.RemoteSessionID)
+
+	c.sessionsMux.Lock()
+	defer c.sessionsMux.Unlock()
+
+	// Track instance by toolCallID (unique per launch)
+	if c.subagentInstances[parentSessionID] == nil {
+		c.subagentInstances[parentSessionID] = make(map[string]*subagentInstance)
+	}
+	c.subagentInstances[parentSessionID][toolCallID] = &subagentInstance{
+		agentName:      agentName,
+		toolCallID:     toolCallID,
+		childSessionID: childSessionID,
+		startedAt:      event.Timestamp,
+	}
+
+	// Eagerly map child→parent and child→agent
+	if childSessionID != "" {
+		c.childToParent[childSessionID] = parentSessionID
+		c.childToAgent[childSessionID] = agentName
+	}
+}
+
+// onSubagentEnded handles subagent.completed and subagent.failed events
+// by removing the subagent instance. Child-to-parent mappings are NOT removed
+// here because in-flight requests may still arrive after the subagent completes.
+func (c *Client) onSubagentEnded(parentSessionID string, event SessionEvent) {
+	toolCallID := derefStr(event.Data.ToolCallID)
+
+	c.sessionsMux.Lock()
+	defer c.sessionsMux.Unlock()
+
+	if instances, ok := c.subagentInstances[parentSessionID]; ok {
+		delete(instances, toolCallID)
+		if len(instances) == 0 {
+			delete(c.subagentInstances, parentSessionID)
+		}
+	}
+}
+
+// derefStr safely dereferences a string pointer, returning "" if nil.
+func derefStr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// resolveSession looks up a session by ID. If the ID is not a directly
+// registered session, it checks whether it is a known child session and
+// returns the parent session instead.
+//
+// Returns (session, isChild, error). isChild=true means the request came
+// from a child session and was resolved via parent lineage.
+//
+// Lock contract: acquires and releases sessionsMux internally.
+// Does NOT hold sessionsMux when returning.
+func (c *Client) resolveSession(sessionID string) (*Session, bool, error) {
+	c.sessionsMux.Lock()
+	// Direct lookup
+	if session, ok := c.sessions[sessionID]; ok {
+		c.sessionsMux.Unlock()
+		return session, false, nil
+	}
+	// Child→parent lookup (authoritative mapping only)
+	parentID, isChild := c.childToParent[sessionID]
+	if !isChild {
+		c.sessionsMux.Unlock()
+		return nil, false, fmt.Errorf("unknown session %s", sessionID)
+	}
+	session, ok := c.sessions[parentID]
+	c.sessionsMux.Unlock()
+	if !ok {
+		return nil, false, fmt.Errorf("parent session %s for child %s not found", parentID, sessionID)
+	}
+	return session, true, nil
+}
+
+// removeChildMappingsForParentLocked removes all child mappings for a parent session.
+// MUST be called with sessionsMux held.
+func (c *Client) removeChildMappingsForParentLocked(parentSessionID string) {
+	for childID, parentID := range c.childToParent {
+		if parentID == parentSessionID {
+			delete(c.childToParent, childID)
+			delete(c.childToAgent, childID)
+		}
+	}
+	delete(c.subagentInstances, parentSessionID)
+}
+
+// isToolAllowedForChild checks whether a tool is in the allowlist for the agent
+// that owns the given child session.
+func (c *Client) isToolAllowedForChild(childSessionID, toolName string) bool {
+	c.sessionsMux.Lock()
+	agentName, ok := c.childToAgent[childSessionID]
+	c.sessionsMux.Unlock()
+	if !ok {
+		return false // unknown child → deny
+	}
+
+	session, _, _ := c.resolveSession(childSessionID)
+	if session == nil {
+		return false
+	}
+
+	agentConfig := session.getAgentConfig(agentName)
+	if agentConfig == nil {
+		return false // agent not found → deny
+	}
+
+	// nil Tools = all tools allowed
+	if agentConfig.Tools == nil {
+		return true
+	}
+
+	// Explicit list — check membership
+	for _, t := range agentConfig.Tools {
+		if t == toolName {
+			return true
+		}
+	}
+	return false
 }
 
 // handleUserInputRequest handles a user input request from the CLI server.
@@ -1546,11 +1788,9 @@ func (c *Client) handleUserInputRequest(req userInputRequest) (*userInputRespons
 		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid user input request payload"}
 	}
 
-	c.sessionsMux.Lock()
-	session, ok := c.sessions[req.SessionID]
-	c.sessionsMux.Unlock()
-	if !ok {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", req.SessionID)}
+	session, _, err := c.resolveSession(req.SessionID)
+	if err != nil {
+		return nil, &jsonrpc2.Error{Code: -32602, Message: err.Error()}
 	}
 
 	response, err := session.handleUserInputRequest(UserInputRequest{
@@ -1571,11 +1811,9 @@ func (c *Client) handleHooksInvoke(req hooksInvokeRequest) (map[string]any, *jso
 		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid hooks invoke payload"}
 	}
 
-	c.sessionsMux.Lock()
-	session, ok := c.sessions[req.SessionID]
-	c.sessionsMux.Unlock()
-	if !ok {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", req.SessionID)}
+	session, _, err := c.resolveSession(req.SessionID)
+	if err != nil {
+		return nil, &jsonrpc2.Error{Code: -32602, Message: err.Error()}
 	}
 
 	output, err := session.handleHooksInvoke(req.Type, req.Input)
@@ -1646,11 +1884,19 @@ func (c *Client) handleToolCallRequestV2(req toolCallRequestV2) (*toolCallRespon
 		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid tool call payload"}
 	}
 
-	c.sessionsMux.Lock()
-	session, ok := c.sessions[req.SessionID]
-	c.sessionsMux.Unlock()
-	if !ok {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", req.SessionID)}
+	session, isChild, err := c.resolveSession(req.SessionID)
+	if err != nil {
+		return nil, &jsonrpc2.Error{Code: -32602, Message: err.Error()}
+	}
+
+	// For child sessions, enforce tool allowlist
+	if isChild && !c.isToolAllowedForChild(req.SessionID, req.ToolName) {
+		return &toolCallResponseV2{Result: ToolResult{
+			TextResultForLLM: fmt.Sprintf("Tool '%s' is not supported by this client instance.", req.ToolName),
+			ResultType:       "failure",
+			Error:            fmt.Sprintf("tool '%s' not supported", req.ToolName),
+			ToolTelemetry:    map[string]any{},
+		}}, nil
 	}
 
 	handler, ok := session.getToolHandler(req.ToolName)
@@ -1692,11 +1938,9 @@ func (c *Client) handlePermissionRequestV2(req permissionRequestV2) (*permission
 		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid permission request payload"}
 	}
 
-	c.sessionsMux.Lock()
-	session, ok := c.sessions[req.SessionID]
-	c.sessionsMux.Unlock()
-	if !ok {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", req.SessionID)}
+	session, _, err := c.resolveSession(req.SessionID)
+	if err != nil {
+		return nil, &jsonrpc2.Error{Code: -32602, Message: err.Error()}
 	}
 
 	handler := session.getPermissionHandler()
