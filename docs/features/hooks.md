@@ -415,6 +415,10 @@ var session = await client.CreateSessionAsync(new SessionConfig
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
+import com.github.copilot.sdk.PermissionHandler;
+import com.github.copilot.sdk.SessionConfig;
+import com.github.copilot.sdk.SessionHooks;
+import com.github.copilot.sdk.json.PreToolUseHookOutput;
 var readOnlyTools = Set.of("read_file", "glob", "grep", "view");
 
 var hooks = new SessionHooks()
