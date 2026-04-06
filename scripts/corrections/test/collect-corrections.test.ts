@@ -134,6 +134,24 @@ describe("resolveContext", () => {
       resolveContext({ issue_number: "1" }, "u"),
     ).toThrow("Missing feedback");
   });
+
+  it("throws on non-numeric issue number", () => {
+    expect(() =>
+      resolveContext({ issue_number: "abc", feedback: "test" }, "u"),
+    ).toThrow("Invalid issue_number: abc");
+  });
+
+  it("throws on negative issue number", () => {
+    expect(() =>
+      resolveContext({ issue_number: "-1", feedback: "test" }, "u"),
+    ).toThrow("Invalid issue_number: -1");
+  });
+
+  it("throws on decimal issue number", () => {
+    expect(() =>
+      resolveContext({ issue_number: "1.5", feedback: "test" }, "u"),
+    ).toThrow("Invalid issue_number: 1.5");
+  });
 });
 
 // ---------------------------------------------------------------------------
