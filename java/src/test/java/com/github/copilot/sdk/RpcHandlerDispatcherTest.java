@@ -542,4 +542,52 @@ class RpcHandlerDispatcherTest {
         JsonNode output = response.get("result").get("output");
         assertTrue(output == null || output.isNull(), "Output should be null when no hooks registered");
     }
+
+    // ===== systemMessage.transform tests =====
+
+    @Test
+    void systemMessageTransformWithUnknownSession() throws Exception {
+        ObjectNode params = MAPPER.createObjectNode();
+        params.put("sessionId", "nonexistent");
+        params.putObject("sections");
+
+        invokeHandler("systemMessage.transform", "40", params);
+
+        JsonNode response = readResponse();
+        assertNotNull(response.get("error"));
+        assertEquals(-32602, response.get("error").get("code").asInt());
+    }
+
+    @Test
+    void systemMessageTransformWithNullSessionId() throws Exception {
+        ObjectNode params = MAPPER.createObjectNode();
+        // sessionId omitted → null → session lookup returns null → error
+        params.putObject("sections");
+
+        invokeHandler("systemMessage.transform", "41", params);
+
+        JsonNode response = readResponse();
+        assertNotNull(response.get("error"));
+        assertEquals(-32602, response.get("error").get("code").asInt());
+    }
+
+    @Test
+    void systemMessageTransformWithKnownSessionNoCallbacks() throws Exception {
+        // Session without transform callbacks returns the sections unchanged
+        createSession("s1");
+
+        ObjectNode params = MAPPER.createObjectNode();
+        params.put("sessionId", "s1");
+        ObjectNode sections = params.putObject("sections");
+        ObjectNode sectionData = sections.putObject("identity");
+        sectionData.put("content", "Original content");
+
+        invokeHandler("systemMessage.transform", "42", params);
+
+        JsonNode response = readResponse();
+        assertNotNull(response.get("result"));
+        JsonNode resultSections = response.get("result").get("sections");
+        assertNotNull(resultSections);
+        assertEquals("Original content", resultSections.get("identity").get("content").asText());
+    }
 }

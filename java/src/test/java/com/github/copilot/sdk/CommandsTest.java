@@ -135,4 +135,22 @@ class CommandsTest {
         assertEquals("rollback", wire.getName());
         assertNull(wire.getDescription());
     }
+
+    @Test
+    void commandWireDefinitionFluentSetters() {
+        var wire = new CommandWireDefinition();
+        wire.setName("status");
+        wire.setDescription("Show deployment status");
+
+        assertEquals("status", wire.getName());
+        assertEquals("Show deployment status", wire.getDescription());
+    }
+
+    @Test
+    void commandWireDefinitionFluentSettersChaining() {
+        var wire = new CommandWireDefinition().setName("logs").setDescription("View application logs");
+
+        assertEquals("logs", wire.getName());
+        assertEquals("View application logs", wire.getDescription());
+    }
 }

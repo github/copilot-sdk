@@ -13,6 +13,7 @@ import java.net.URI;
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.json.CopilotClientOptions;
+import com.github.copilot.sdk.json.TelemetryConfig;
 
 /**
  * Unit tests for {@link CliServerManager} covering parseCliUrl,
@@ -211,5 +212,31 @@ class CliServerManagerTest {
             // Expected if "copilot" is not on PATH
             assertNotNull(e);
         }
+    }
+
+    @Test
+    void startCliServerWithTelemetryAllOptions() throws Exception {
+        // The telemetry env vars are applied before ProcessBuilder.start()
+        // so even with a nonexistent CLI path, the telemetry code path is exercised
+        var telemetry = new TelemetryConfig().setOtlpEndpoint("http://localhost:4318").setFilePath("/tmp/telemetry.log")
+                .setExporterType("otlp-http").setSourceName("test-app").setCaptureContent(true);
+        var options = new CopilotClientOptions().setCliPath("/nonexistent/copilot").setTelemetry(telemetry)
+                .setUseStdio(true);
+        var manager = new CliServerManager(options);
+
+        var ex = assertThrows(IOException.class, () -> manager.startCliServer());
+        assertNotNull(ex);
+    }
+
+    @Test
+    void startCliServerWithTelemetryCaptureContentFalse() throws Exception {
+        // Test the false branch of getCaptureContent()
+        var telemetry = new TelemetryConfig().setCaptureContent(false);
+        var options = new CopilotClientOptions().setCliPath("/nonexistent/copilot").setTelemetry(telemetry)
+                .setUseStdio(true);
+        var manager = new CliServerManager(options);
+
+        var ex = assertThrows(IOException.class, () -> manager.startCliServer());
+        assertNotNull(ex);
     }
 }

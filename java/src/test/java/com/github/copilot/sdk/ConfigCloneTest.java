@@ -17,10 +17,13 @@ import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.events.AbstractSessionEvent;
 import com.github.copilot.sdk.json.CopilotClientOptions;
+import com.github.copilot.sdk.json.InfiniteSessionConfig;
 import com.github.copilot.sdk.json.MessageOptions;
 import com.github.copilot.sdk.json.ModelInfo;
 import com.github.copilot.sdk.json.ResumeSessionConfig;
 import com.github.copilot.sdk.json.SessionConfig;
+import com.github.copilot.sdk.json.SystemMessageConfig;
+import com.github.copilot.sdk.json.TelemetryConfig;
 
 class ConfigCloneTest {
 
@@ -192,5 +195,98 @@ class ConfigCloneTest {
         MessageOptions msg = new MessageOptions();
         MessageOptions msgClone = msg.clone();
         assertNull(msgClone.getMode());
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    void copilotClientOptionsDeprecatedAutoRestart() {
+        CopilotClientOptions opts = new CopilotClientOptions();
+        assertFalse(opts.isAutoRestart());
+        opts.setAutoRestart(true);
+        assertTrue(opts.isAutoRestart());
+    }
+
+    @Test
+    void copilotClientOptionsSetCliArgsNullClearsExisting() {
+        CopilotClientOptions opts = new CopilotClientOptions();
+        opts.setCliArgs(new String[]{"--flag1"});
+        assertNotNull(opts.getCliArgs());
+
+        // Setting null should clear the existing array
+        opts.setCliArgs(null);
+        assertNotNull(opts.getCliArgs());
+        assertEquals(0, opts.getCliArgs().length);
+    }
+
+    @Test
+    void copilotClientOptionsSetEnvironmentNullClearsExisting() {
+        CopilotClientOptions opts = new CopilotClientOptions();
+        opts.setEnvironment(Map.of("KEY", "VALUE"));
+        assertNotNull(opts.getEnvironment());
+
+        // Setting null should clear the existing map (clears in-place → returns empty
+        // map)
+        opts.setEnvironment(null);
+        var env = opts.getEnvironment();
+        assertTrue(env == null || env.isEmpty());
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    void copilotClientOptionsDeprecatedGithubToken() {
+        CopilotClientOptions opts = new CopilotClientOptions();
+        opts.setGithubToken("ghp_deprecated_token");
+        assertEquals("ghp_deprecated_token", opts.getGithubToken());
+        assertEquals("ghp_deprecated_token", opts.getGitHubToken());
+    }
+
+    @Test
+    void copilotClientOptionsSetTelemetry() {
+        var telemetry = new TelemetryConfig().setOtlpEndpoint("http://localhost:4318");
+        var opts = new CopilotClientOptions();
+        opts.setTelemetry(telemetry);
+        assertSame(telemetry, opts.getTelemetry());
+    }
+
+    @Test
+    void copilotClientOptionsSetUseLoggedInUserNull() {
+        var opts = new CopilotClientOptions();
+        opts.setUseLoggedInUser(null);
+        // null → Boolean.FALSE
+        assertEquals(Boolean.FALSE, opts.getUseLoggedInUser());
+    }
+
+    @Test
+    void resumeSessionConfigAllSetters() {
+        var config = new ResumeSessionConfig();
+
+        var sysMsg = new SystemMessageConfig();
+        config.setSystemMessage(sysMsg);
+        assertSame(sysMsg, config.getSystemMessage());
+
+        config.setAvailableTools(List.of("bash", "read_file"));
+        assertEquals(List.of("bash", "read_file"), config.getAvailableTools());
+
+        config.setExcludedTools(List.of("write_file"));
+        assertEquals(List.of("write_file"), config.getExcludedTools());
+
+        config.setReasoningEffort("high");
+        assertEquals("high", config.getReasoningEffort());
+
+        config.setWorkingDirectory("/project/src");
+        assertEquals("/project/src", config.getWorkingDirectory());
+
+        config.setConfigDir("/home/user/.config/copilot");
+        assertEquals("/home/user/.config/copilot", config.getConfigDir());
+
+        config.setSkillDirectories(List.of("/skills/custom"));
+        assertEquals(List.of("/skills/custom"), config.getSkillDirectories());
+
+        config.setDisabledSkills(List.of("some-skill"));
+        assertEquals(List.of("some-skill"), config.getDisabledSkills());
+
+        var infiniteConfig = new InfiniteSessionConfig().setEnabled(true);
+        config.setInfiniteSessions(infiniteConfig);
+        assertSame(infiniteConfig, config.getInfiniteSessions());
     }
 }

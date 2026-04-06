@@ -2385,4 +2385,188 @@ public class SessionEventParserTest {
         assertNotNull(event.getData());
         assertTrue(event.getData().content().contains("Agent completed"));
     }
+
+    @Test
+    void testParseCapabilitiesChangedEvent() throws Exception {
+        String json = """
+                {
+                    "type": "capabilities.changed",
+                    "data": {
+                        "ui": {
+                            "elicitation": true
+                        }
+                    }
+                }
+                """;
+
+        AbstractSessionEvent event = parseJson(json);
+        assertNotNull(event);
+        assertInstanceOf(CapabilitiesChangedEvent.class, event);
+        assertEquals("capabilities.changed", event.getType());
+
+        var castedEvent = (CapabilitiesChangedEvent) event;
+        assertNotNull(castedEvent.getData());
+        assertNotNull(castedEvent.getData().ui());
+        assertTrue(castedEvent.getData().ui().elicitation());
+
+        // Verify setData round-trip
+        var newData = new CapabilitiesChangedEvent.CapabilitiesChangedData(
+                new CapabilitiesChangedEvent.CapabilitiesChangedUi(false));
+        castedEvent.setData(newData);
+        assertFalse(castedEvent.getData().ui().elicitation());
+    }
+
+    @Test
+    void testParseCommandExecuteEvent() throws Exception {
+        String json = """
+                {
+                    "type": "command.execute",
+                    "data": {
+                        "requestId": "req-001",
+                        "command": "/deploy production",
+                        "commandName": "deploy",
+                        "args": "production"
+                    }
+                }
+                """;
+
+        AbstractSessionEvent event = parseJson(json);
+        assertNotNull(event);
+        assertInstanceOf(CommandExecuteEvent.class, event);
+        assertEquals("command.execute", event.getType());
+
+        var castedEvent = (CommandExecuteEvent) event;
+        assertNotNull(castedEvent.getData());
+        assertEquals("req-001", castedEvent.getData().requestId());
+        assertEquals("/deploy production", castedEvent.getData().command());
+        assertEquals("deploy", castedEvent.getData().commandName());
+        assertEquals("production", castedEvent.getData().args());
+
+        // Verify setData round-trip
+        castedEvent.setData(new CommandExecuteEvent.CommandExecuteData("req-002", "/rollback", "rollback", null));
+        assertEquals("req-002", castedEvent.getData().requestId());
+    }
+
+    @Test
+    void testParseElicitationRequestedEvent() throws Exception {
+        String json = """
+                {
+                    "type": "elicitation.requested",
+                    "data": {
+                        "requestId": "elix-001",
+                        "toolCallId": "tc-123",
+                        "elicitationSource": "mcp_tool",
+                        "message": "Please provide your name",
+                        "mode": "form",
+                        "requestedSchema": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"}
+                            },
+                            "required": ["name"]
+                        },
+                        "url": null
+                    }
+                }
+                """;
+
+        AbstractSessionEvent event = parseJson(json);
+        assertNotNull(event);
+        assertInstanceOf(ElicitationRequestedEvent.class, event);
+        assertEquals("elicitation.requested", event.getType());
+
+        var castedEvent = (ElicitationRequestedEvent) event;
+        assertNotNull(castedEvent.getData());
+        assertEquals("elix-001", castedEvent.getData().requestId());
+        assertEquals("tc-123", castedEvent.getData().toolCallId());
+        assertEquals("mcp_tool", castedEvent.getData().elicitationSource());
+        assertEquals("Please provide your name", castedEvent.getData().message());
+        assertEquals("form", castedEvent.getData().mode());
+        assertNotNull(castedEvent.getData().requestedSchema());
+        assertEquals("object", castedEvent.getData().requestedSchema().type());
+        assertNotNull(castedEvent.getData().requestedSchema().properties());
+        assertNotNull(castedEvent.getData().requestedSchema().required());
+        assertTrue(castedEvent.getData().requestedSchema().required().contains("name"));
+
+        // Verify setData round-trip
+        castedEvent.setData(new ElicitationRequestedEvent.ElicitationRequestedData("elix-002", null, null, "Enter URL",
+                "url", null, "https://example.com"));
+        assertEquals("elix-002", castedEvent.getData().requestId());
+        assertEquals("url", castedEvent.getData().mode());
+    }
+
+    @Test
+    void testParseSessionContextChangedEvent() throws Exception {
+        String json = """
+                {
+                    "type": "session.context_changed",
+                    "data": {
+                        "cwd": "/home/user/project",
+                        "gitRoot": "/home/user/project",
+                        "repository": "my-repo",
+                        "branch": "main"
+                    }
+                }
+                """;
+
+        AbstractSessionEvent event = parseJson(json);
+        assertNotNull(event);
+        assertInstanceOf(SessionContextChangedEvent.class, event);
+        assertEquals("session.context_changed", event.getType());
+
+        var castedEvent = (SessionContextChangedEvent) event;
+        assertNotNull(castedEvent.getData());
+        assertEquals("/home/user/project", castedEvent.getData().getCwd());
+
+        // Verify setData round-trip
+        castedEvent.setData(null);
+        assertNull(castedEvent.getData());
+    }
+
+    @Test
+    void testParseSessionTaskCompleteEvent() throws Exception {
+        String json = """
+                {
+                    "type": "session.task_complete",
+                    "data": {
+                        "summary": "Task completed successfully"
+                    }
+                }
+                """;
+
+        AbstractSessionEvent event = parseJson(json);
+        assertNotNull(event);
+        assertInstanceOf(SessionTaskCompleteEvent.class, event);
+        assertEquals("session.task_complete", event.getType());
+
+        var castedEvent = (SessionTaskCompleteEvent) event;
+        assertNotNull(castedEvent.getData());
+        assertEquals("Task completed successfully", castedEvent.getData().summary());
+
+        // Verify setData round-trip
+        castedEvent.setData(new SessionTaskCompleteEvent.SessionTaskCompleteData("New summary"));
+        assertEquals("New summary", castedEvent.getData().summary());
+    }
+
+    @Test
+    void testParseSubagentDeselectedEvent() throws Exception {
+        String json = """
+                {
+                    "type": "subagent.deselected",
+                    "data": {}
+                }
+                """;
+
+        AbstractSessionEvent event = parseJson(json);
+        assertNotNull(event);
+        assertInstanceOf(SubagentDeselectedEvent.class, event);
+        assertEquals("subagent.deselected", event.getType());
+
+        var castedEvent = (SubagentDeselectedEvent) event;
+        assertNotNull(castedEvent.getData());
+
+        // Verify setData round-trip
+        castedEvent.setData(new SubagentDeselectedEvent.SubagentDeselectedData());
+        assertNotNull(castedEvent.getData());
+    }
 }

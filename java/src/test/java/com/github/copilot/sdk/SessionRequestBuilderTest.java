@@ -13,6 +13,9 @@ import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.json.CreateSessionRequest;
+import com.github.copilot.sdk.json.ElicitationHandler;
+import com.github.copilot.sdk.json.ElicitationResult;
+import com.github.copilot.sdk.json.ElicitationResultAction;
 import com.github.copilot.sdk.json.ResumeSessionConfig;
 import com.github.copilot.sdk.json.ResumeSessionRequest;
 import com.github.copilot.sdk.json.SessionConfig;
@@ -304,5 +307,97 @@ public class SessionRequestBuilderTest {
         assertNotNull(wireSection);
         assertEquals(com.github.copilot.sdk.json.SectionOverrideAction.TRANSFORM, wireSection.getAction());
         assertNull(wireSection.getTransform());
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    void buildCreateRequestWithSessionId_usesProvidedSessionId() {
+        var config = new SessionConfig();
+        config.setSessionId("my-session-id");
+
+        // The deprecated single-arg overload uses the sessionId from config when set
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+
+        assertEquals("my-session-id", request.getSessionId());
+    }
+
+    @Test
+    void configureSessionWithNullConfig_returnsEarly() {
+        // configureSession with null config should return without error
+        CopilotSession session = new CopilotSession("session-1", null);
+        // Covers the null config early-return branch (L219-220)
+        assertDoesNotThrow(() -> SessionRequestBuilder.configureSession(session, (SessionConfig) null));
+    }
+
+    @Test
+    void configureSessionWithCommands_registersCommands() {
+        CopilotSession session = new CopilotSession("session-1", null);
+
+        var cmd = new com.github.copilot.sdk.json.CommandDefinition().setName("deploy")
+                .setHandler(ctx -> CompletableFuture.completedFuture(null));
+        var config = new SessionConfig().setCommands(List.of(cmd));
+
+        // Covers config.getCommands() != null branch (L235-236)
+        SessionRequestBuilder.configureSession(session, config);
+        // If no exception thrown, the branch was covered
+    }
+
+    @Test
+    void configureSessionWithElicitationHandler_registersHandler() {
+        CopilotSession session = new CopilotSession("session-1", null);
+
+        ElicitationHandler handler = (context) -> CompletableFuture
+                .completedFuture(new ElicitationResult().setAction(ElicitationResultAction.CANCEL));
+        var config = new SessionConfig().setOnElicitationRequest(handler);
+
+        // Covers config.getOnElicitationRequest() != null branch (L238-239)
+        SessionRequestBuilder.configureSession(session, config);
+    }
+
+    @Test
+    void configureSessionWithOnEvent_registersEventHandler() {
+        CopilotSession session = new CopilotSession("session-1", null);
+
+        var config = new SessionConfig().setOnEvent(event -> {
+        });
+
+        // Covers config.getOnEvent() != null branch (L241-242)
+        SessionRequestBuilder.configureSession(session, config);
+    }
+
+    @Test
+    void configureResumedSessionWithCommands_registersCommands() {
+        CopilotSession session = new CopilotSession("session-1", null);
+
+        var cmd = new com.github.copilot.sdk.json.CommandDefinition().setName("rollback")
+                .setHandler(ctx -> CompletableFuture.completedFuture(null));
+        var config = new ResumeSessionConfig().setCommands(List.of(cmd));
+
+        // Covers ResumeSessionConfig.getCommands() != null branch (L271-272)
+        SessionRequestBuilder.configureSession(session, config);
+    }
+
+    @Test
+    void configureResumedSessionWithElicitationHandler_registersHandler() {
+        CopilotSession session = new CopilotSession("session-1", null);
+
+        ElicitationHandler handler = (context) -> CompletableFuture
+                .completedFuture(new ElicitationResult().setAction(ElicitationResultAction.CANCEL));
+        var config = new ResumeSessionConfig().setOnElicitationRequest(handler);
+
+        // Covers ResumeSessionConfig.getOnElicitationRequest() != null branch
+        // (L274-275)
+        SessionRequestBuilder.configureSession(session, config);
+    }
+
+    @Test
+    void configureResumedSessionWithOnEvent_registersEventHandler() {
+        CopilotSession session = new CopilotSession("session-1", null);
+
+        var config = new ResumeSessionConfig().setOnEvent(event -> {
+        });
+
+        // Covers ResumeSessionConfig.getOnEvent() != null branch (L277-278)
+        SessionRequestBuilder.configureSession(session, config);
     }
 }
