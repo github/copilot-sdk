@@ -12,8 +12,9 @@ import java.util.concurrent.CompletableFuture;
  * All methods on this interface throw {@link IllegalStateException} if the host
  * does not report elicitation support via
  * {@link com.github.copilot.sdk.CopilotSession#getCapabilities()}. Check
- * {@code session.getCapabilities().getUi()?.getElicitation() == true} before
- * calling.
+ * {@code session.getCapabilities().getUi() != null &&
+ * Boolean.TRUE.equals(session.getCapabilities().getUi().getElicitation())}
+ * before calling.
  *
  * <h2>Example Usage</h2>
  *
