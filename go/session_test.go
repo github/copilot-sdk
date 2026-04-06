@@ -1,6 +1,7 @@
 package copilot
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -526,6 +527,40 @@ func TestSession_ElicitationHandler(t *testing.T) {
 		}
 		if result.Content["color"] != "blue" {
 			t.Errorf("Expected content color 'blue', got %v", result.Content["color"])
+		}
+	})
+}
+
+func TestSession_HookForwardCompatibility(t *testing.T) {
+	t.Run("unknown hook type returns nil without error", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		session.registerHooks(&SessionHooks{
+			OnPostToolUse: func(input PostToolUseHookInput, invocation HookInvocation) (*PostToolUseHookOutput, error) {
+				return nil, nil
+			},
+		})
+
+		output, err := session.handleHooksInvoke("postToolUseFailure", json.RawMessage(`{}`))
+		if err != nil {
+			t.Errorf("Expected no error for unknown hook type, got: %v", err)
+		}
+		if output != nil {
+			t.Errorf("Expected nil output for unknown hook type, got: %v", output)
+		}
+	})
+
+	t.Run("unknown hook type with no hooks registered returns nil without error", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		output, err := session.handleHooksInvoke("futureHookType", json.RawMessage(`{"someField":"value"}`))
+		if err != nil {
+			t.Errorf("Expected no error for unknown hook type with no hooks, got: %v", err)
+		}
+		if output != nil {
+			t.Errorf("Expected nil output for unknown hook type with no hooks, got: %v", output)
 		}
 	})
 }

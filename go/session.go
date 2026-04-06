@@ -451,7 +451,7 @@ func (s *Session) handleHooksInvoke(hookType string, rawInput json.RawMessage) (
 		}
 		return hooks.OnErrorOccurred(input, invocation)
 	default:
-		return nil, fmt.Errorf("unknown hook type: %s", hookType)
+		return nil, nil
 	}
 }
 
