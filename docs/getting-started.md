@@ -1019,6 +1019,7 @@ public class HelloCopilot {
                     .setModel("gpt-4.1")
                     .setStreaming(true)
                     .setTools(List.of(getWeather))
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
             ).get();
 
             session.on(AssistantMessageDeltaEvent.class, delta -> {
