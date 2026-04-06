@@ -44,7 +44,6 @@ class ElicitationTest {
         // Test with null UI
         var emptyCapabilities = new SessionCapabilities();
         assertNull(emptyCapabilities.getUi());
-        assertNull(emptyCapabilities.getUi());
     }
 
     @Test

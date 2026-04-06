@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 package com.github.copilot.sdk.json;
 
 import com.fasterxml.jackson.annotation.JsonInclude;

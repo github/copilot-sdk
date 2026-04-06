@@ -18,8 +18,8 @@ import java.util.concurrent.CompletableFuture;
  * <h2>Example Usage</h2>
  *
  * <pre>{@code
- * if (Boolean.TRUE
- * 		.equals(session.getCapabilities().getUi() != null && session.getCapabilities().getUi().getElicitation())) {
+ * var caps = session.getCapabilities();
+ * if (caps.getUi() != null && Boolean.TRUE.equals(caps.getUi().getElicitation())) {
  * 	boolean confirmed = session.getUi().confirm("Are you sure?").get();
  * }
  * }</pre>
