@@ -165,7 +165,7 @@ session.registerTool(myTool, async (args, invocation) => {
 | Python | `opentelemetry-api` | Install with `pip install copilot-sdk[telemetry]` |
 | Go | `go.opentelemetry.io/otel` | Required dependency |
 | .NET | — | Uses built-in `System.Diagnostics.Activity` |
-| Java | — | Trace context injection is automatic when OpenTelemetry Java agent or SDK is configured |
+| Java | `io.opentelemetry:opentelemetry-api` | Add this dependency for SDK-based setup; trace context injection is automatic when the OpenTelemetry Java agent or SDK is configured |
 
 ## References
 
