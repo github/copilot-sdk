@@ -53,9 +53,11 @@ pip install copilot-sdk agent-framework-github-copilot
 
 ```xml
 <!-- Maven -->
+<!-- Set copilot.sdk.version to the version published in java/README.md / Maven Central -->
 <dependency>
-    <groupId>com.github.copilot</groupId>
-    <artifactId>copilot-sdk</artifactId>
+    <groupId>com.github</groupId>
+    <artifactId>copilot-sdk-java</artifactId>
+    <version>${copilot.sdk.version}</version>
 </dependency>
 ```
 
