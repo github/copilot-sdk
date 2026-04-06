@@ -156,6 +156,47 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
 });
 ```
 
+## Tool Configuration
+
+You can control which tools are available to an MCP server using the `tools` field.
+
+### Allow all tools
+
+Use `"*"` to enable all tools provided by the MCP server:
+
+```typescript
+tools: ["*"]
+```
+
+---
+
+### Allow specific tools
+
+Provide a list of tool names to restrict access:
+
+```typescript
+tools: ["bash", "edit"]
+```
+
+Only the listed tools will be available to the agent.
+
+---
+
+### Disable all tools
+
+Use an empty array to disable all tools:
+
+```typescript
+tools: []
+```
+
+---
+
+### Notes
+
+- The `tools` field defines which tools are allowed.
+- There is no separate `allow` or `disallow` configuration — tool access is controlled directly through this list.
+
 ## Quick Start: Filesystem MCP Server
 
 Here's a complete working example using the official [`@modelcontextprotocol/server-filesystem`](https://www.npmjs.com/package/@modelcontextprotocol/server-filesystem) MCP server:

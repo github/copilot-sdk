@@ -1,12 +1,12 @@
 # Local CLI Setup
 
-Use the Copilot SDK with the CLI already signed in on your machine. This is the simplest configuration — zero auth code, zero infrastructure.
+Use the Copilot SDK with a Copilot CLI instance signed in on your machine. Depending on the SDK, this may be a bundled CLI (included automatically) or a system-installed CLI available in your PATH. This is the simplest configuration — zero auth code, zero infrastructure.
 
 **Best for:** Personal projects, prototyping, local development, learning the SDK.
 
 ## How It Works
 
-When you install the Copilot CLI and sign in, your credentials are stored in the system keychain. The SDK automatically starts the CLI as a child process and uses those stored credentials.
+When a Copilot CLI instance is available (either bundled with the SDK or installed on your system) and signed in, credentials are stored in the system keychain. The SDK automatically starts the CLI as a child process and uses those stored credentials.
 
 ```mermaid
 flowchart LR
@@ -21,7 +21,7 @@ flowchart LR
 ```
 
 **Key characteristics:**
-- CLI is spawned automatically by the SDK (no setup needed)
+- CLI is spawned automatically by the SDK (using a bundled CLI or a system-installed CLI if available)
 - Authentication uses the signed-in user's credentials from the system keychain
 - Communication happens over stdio (stdin/stdout) — no network ports
 - Sessions are local to your machine
@@ -161,7 +161,7 @@ While defaults work great, you can customize the local setup:
 
 ```typescript
 const client = new CopilotClient({
-    // Override CLI location (default: bundled with @github/copilot)
+    // Override CLI location (by default, the SDK uses a bundled CLI or resolves one from your system)
     cliPath: "/usr/local/bin/copilot",
 
     // Set log level for debugging
