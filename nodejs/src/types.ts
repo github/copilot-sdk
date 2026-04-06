@@ -1065,6 +1065,9 @@ export interface SessionConfig {
      */
     reasoningEffort?: ReasoningEffort;
 
+    /** Per-property overrides for model capabilities, deep-merged over runtime defaults. */
+    modelCapabilities?: ModelCapabilitiesOverride;
+
     /**
      * Override the default configuration directory location.
      * When specified, the session will use this directory for storing config and state.
@@ -1464,6 +1467,13 @@ export interface ModelCapabilities {
         };
     };
 }
+
+/** Deep-partial override for model capabilities — every property optional. */
+export type ModelCapabilitiesOverride = {
+    [K in keyof ModelCapabilities]?: {
+        [P in keyof ModelCapabilities[K]]?: ModelCapabilities[K][P];
+    };
+};
 
 /**
  * Model policy state

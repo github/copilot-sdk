@@ -1,0 +1,195 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the view tool to look at the file test.png and describe what you see
+      - role: assistant
+        content: I'll use the view tool to look at the test.png file and describe what I see.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test.png"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the view tool to look at the file test.png and describe what you see
+      - role: assistant
+        content: I'll use the view tool to look at the test.png file and describe what I see.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test.png"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Viewed image file successfully.
+      - role: user
+      - role: assistant
+        content: >-
+          I can see the image file test.png. It appears to be a mostly white or very light-colored image with minimal
+          visible content. The image seems to be either:
+
+
+          1. A blank or nearly blank white image
+
+          2. An image with extremely faint or low-contrast content that's difficult to distinguish
+
+          3. Possibly a placeholder or test image
+
+
+          The image doesn't contain any clearly visible text, graphics, or distinguishable elements from what I can
+          observe. It's essentially showing as a white/very light surface without obvious features.
+
+
+          Is this the expected content, or were you anticipating something different in this test image?
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the view tool to look at the file test.png and describe what you see
+      - role: assistant
+        content: I'll use the view tool to look at the test.png file and describe what I see.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test.png"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Viewed image file successfully.
+      - role: assistant
+        content: >-
+          I can see the image file test.png. It appears to be a mostly white or very light-colored image with minimal
+          visible content. The image seems to be either:
+
+
+          1. A blank or nearly blank white image
+
+          2. An image with extremely faint or low-contrast content that's difficult to distinguish
+
+          3. Possibly a placeholder or test image
+
+
+          The image doesn't contain any clearly visible text, graphics, or distinguishable elements from what I can
+          observe. It's essentially showing as a white/very light surface without obvious features.
+
+
+          Is this the expected content, or were you anticipating something different in this test image?
+      - role: user
+        content: Use the view tool to look at the file test.png and describe what you see
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_3
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test.png"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the view tool to look at the file test.png and describe what you see
+      - role: assistant
+        content: I'll use the view tool to look at the test.png file and describe what I see.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test.png"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Viewed image file successfully.
+      - role: assistant
+        content: >-
+          I can see the image file test.png. It appears to be a mostly white or very light-colored image with minimal
+          visible content. The image seems to be either:
+
+
+          1. A blank or nearly blank white image
+
+          2. An image with extremely faint or low-contrast content that's difficult to distinguish
+
+          3. Possibly a placeholder or test image
+
+
+          The image doesn't contain any clearly visible text, graphics, or distinguishable elements from what I can
+          observe. It's essentially showing as a white/very light surface without obvious features.
+
+
+          Is this the expected content, or were you anticipating something different in this test image?
+      - role: user
+        content: Use the view tool to look at the file test.png and describe what you see
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+          - id: toolcall_3
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test.png"}'
+      - role: tool
+        tool_call_id: toolcall_2
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_3
+        content: Viewed image file successfully.
+      - role: assistant
+        content: >-
+          Looking at test.png again, I can see it's a predominantly white or very light-colored image. The image appears
+          to be blank or contains very minimal content that isn't easily visible against the white background. There are
+          no clearly distinguishable text, shapes, graphics, or other visual elements that I can identify.
+
+
+          The image seems to be a simple test image - possibly intentionally blank or nearly blank for testing purposes.

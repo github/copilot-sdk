@@ -712,6 +712,7 @@ export class CopilotClient {
                 availableTools: config.availableTools,
                 excludedTools: config.excludedTools,
                 provider: config.provider,
+                modelCapabilities: config.modelCapabilities,
                 requestPermission: true,
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,

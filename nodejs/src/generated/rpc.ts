@@ -73,6 +73,23 @@ export interface ModelsListResult {
          * Maximum total context window size in tokens
          */
         max_context_window_tokens: number;
+        /**
+         * Vision-specific limits
+         */
+        vision?: {
+          /**
+           * MIME types the model accepts
+           */
+          supported_media_types: string[];
+          /**
+           * Maximum number of images per prompt
+           */
+          max_prompt_images: number;
+          /**
+           * Maximum image size in bytes
+           */
+          max_prompt_image_size: number;
+        };
       };
     };
     /**
@@ -396,6 +413,43 @@ export interface SessionModelSwitchToParams {
    * Reasoning effort level to use for the model
    */
   reasoningEffort?: string;
+  /**
+   * Override individual model capabilities resolved by the runtime
+   */
+  modelCapabilities?: {
+    /**
+     * Feature flags indicating what the model supports
+     */
+    supports?: {
+      vision?: boolean;
+      reasoningEffort?: boolean;
+    };
+    /**
+     * Token limits for prompts, outputs, and context window
+     */
+    limits?: {
+      max_prompt_tokens?: number;
+      max_output_tokens?: number;
+      /**
+       * Maximum total context window size in tokens
+       */
+      max_context_window_tokens?: number;
+      vision?: {
+        /**
+         * MIME types the model accepts
+         */
+        supported_media_types?: string[];
+        /**
+         * Maximum number of images per prompt
+         */
+        max_prompt_images?: number;
+        /**
+         * Maximum image size in bytes
+         */
+        max_prompt_image_size?: number;
+      };
+    };
+  };
 }
 
 export interface SessionModeGetResult {

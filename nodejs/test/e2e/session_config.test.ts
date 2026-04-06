@@ -5,7 +5,7 @@ import { approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 describe("Session Configuration", async () => {
-    const { copilotClient: client, workDir } = await createSdkTestContext();
+    const { copilotClient: client, workDir, openAiEndpoint } = await createSdkTestContext();
 
     it("should use workingDirectory for tool execution", async () => {
         const subDir = join(workDir, "subproject");
@@ -73,6 +73,80 @@ describe("Session Configuration", async () => {
         });
 
         // Just verify send doesn't throw — attachment support varies by runtime
+        await session.disconnect();
+    });
+
+    const PNG_1X1 = Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        "base64",
+    );
+    const VIEW_IMAGE_PROMPT = "Use the view tool to look at the file test.png and describe what you see";
+
+    function hasImageUrlContent(messages: Array<{ role: string; content: unknown }>): boolean {
+        return messages.some(
+            (m) =>
+                m.role === "user" &&
+                Array.isArray(m.content) &&
+                m.content.some((p: { type: string }) => p.type === "image_url"),
+        );
+    }
+
+    it("vision disabled then enabled via setModel", async () => {
+        await writeFile(join(workDir, "test.png"), PNG_1X1);
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            modelCapabilities: { supports: { vision: false } },
+        });
+
+        // Turn 1: vision off — no image_url expected
+        await session.sendAndWait({ prompt: VIEW_IMAGE_PROMPT });
+        const trafficAfterT1 = await openAiEndpoint.getExchanges();
+        const t1Messages = trafficAfterT1.flatMap((e) => e.request.messages ?? []);
+        expect(hasImageUrlContent(t1Messages)).toBe(false);
+
+        // Switch vision on (re-specify same model with updated capabilities)
+        await session.setModel("claude-sonnet-4.5", {
+            modelCapabilities: { supports: { vision: true } },
+        });
+
+        // Turn 2: vision on — image_url expected
+        await session.sendAndWait({ prompt: VIEW_IMAGE_PROMPT });
+        const trafficAfterT2 = await openAiEndpoint.getExchanges();
+        // Only check exchanges added after turn 1
+        const newExchanges = trafficAfterT2.slice(trafficAfterT1.length);
+        const t2Messages = newExchanges.flatMap((e) => e.request.messages ?? []);
+        expect(hasImageUrlContent(t2Messages)).toBe(true);
+
+        await session.disconnect();
+    });
+
+    it("vision enabled then disabled via setModel", async () => {
+        await writeFile(join(workDir, "test.png"), PNG_1X1);
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            modelCapabilities: { supports: { vision: true } },
+        });
+
+        // Turn 1: vision on — image_url expected
+        await session.sendAndWait({ prompt: VIEW_IMAGE_PROMPT });
+        const trafficAfterT1 = await openAiEndpoint.getExchanges();
+        const t1Messages = trafficAfterT1.flatMap((e) => e.request.messages ?? []);
+        expect(hasImageUrlContent(t1Messages)).toBe(true);
+
+        // Switch vision off
+        await session.setModel("claude-sonnet-4.5", {
+            modelCapabilities: { supports: { vision: false } },
+        });
+
+        // Turn 2: vision off — no image_url expected in new exchanges
+        await session.sendAndWait({ prompt: VIEW_IMAGE_PROMPT });
+        const trafficAfterT2 = await openAiEndpoint.getExchanges();
+        const newExchanges = trafficAfterT2.slice(trafficAfterT1.length);
+        const t2Messages = newExchanges.flatMap((e) => e.request.messages ?? []);
+        expect(hasImageUrlContent(t2Messages)).toBe(false);
+
         await session.disconnect();
     });
 });

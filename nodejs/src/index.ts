@@ -36,6 +36,7 @@ export type {
     MessageOptions,
     ModelBilling,
     ModelCapabilities,
+    ModelCapabilitiesOverride,
     ModelInfo,
     ModelPolicy,
     PermissionHandler,
