@@ -234,15 +234,21 @@ import com.github.copilot.sdk.json.*;
 var client = new CopilotClient(new CopilotClientOptions()
     .setCliUrl("localhost:4321")
 );
-client.start().get();
 
-var session = client.createSession(new SessionConfig()
-    .setSessionId(String.format("user-%s-%d", userId, System.currentTimeMillis() / 1000))
-    .setModel("gpt-4.1")
-).get();
+try {
+    client.start().get();
 
-var response = session.sendAndWait(new MessageOptions()
-    .setPrompt(message)).get();
+    var session = client.createSession(new SessionConfig()
+        .setSessionId(String.format("user-%s-%d", userId, System.currentTimeMillis() / 1000))
+        .setModel("gpt-4.1")
+        .setOnPermissionRequest(request -> request.allow())
+    ).get();
+
+    var response = session.sendAndWait(new MessageOptions()
+        .setPrompt(message)).get();
+} finally {
+    client.stop().get();
+}
 ```
 
 </details>
