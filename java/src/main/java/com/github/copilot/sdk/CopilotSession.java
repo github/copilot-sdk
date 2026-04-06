@@ -724,7 +724,7 @@ public final class CopilotSession implements AutoCloseable {
             executePermissionAndRespondAsync(data.requestId(), data.permissionRequest(), handler);
         } else if (event instanceof CommandExecuteEvent cmdEvent) {
             var data = cmdEvent.getData();
-            if (data == null || data.requestId() == null) {
+            if (data == null || data.requestId() == null || data.commandName() == null) {
                 return;
             }
             executeCommandAndRespondAsync(data.requestId(), data.commandName(), data.command(), data.args());
