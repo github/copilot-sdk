@@ -101,16 +101,16 @@ First, create a new directory and initialize your project.
 
 ```xml
 <dependency>
-    <groupId>com.github.copilot</groupId>
-    <artifactId>copilot-sdk</artifactId>
-    <version>LATEST</version>
+    <groupId>com.github</groupId>
+    <artifactId>copilot-sdk-java</artifactId>
+    <version>${copilot.sdk.version}</version>
 </dependency>
 ```
 
 **Gradle** — add to your `build.gradle`:
 
 ```groovy
-implementation 'com.github.copilot:copilot-sdk:LATEST'
+implementation 'com.github:copilot-sdk-java:${copilotSdkVersion}'
 ```
 
 </details>

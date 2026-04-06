@@ -188,7 +188,7 @@ var session = client.createSession(new SessionConfig()
 
 var response = session.sendAndWait(new MessageOptions()
     .setPrompt("What is 2+2?")).get();
-System.out.println(response.getData().getContent());
+System.out.println(response.getData().content());
 
 client.stop().get();
 ```

@@ -128,7 +128,7 @@ var session = client.createSession(new SessionConfig()
 
 var response = session.sendAndWait(new MessageOptions()
     .setPrompt("Explain how dependency injection works in Spring Boot")).get();
-System.out.println(response.getData().getContent());
+System.out.println(response.getData().content());
 
 client.stop().get();
 ```
@@ -230,33 +230,34 @@ await session.sendAndWait({ prompt: "What's the weather like in Seattle?" });
 import com.github.copilot.sdk.CopilotClient;
 import com.github.copilot.sdk.events.*;
 import com.github.copilot.sdk.json.*;
+import java.util.concurrent.CompletableFuture;
 
-var getWeather = new ToolDefinition()
-    .setName("GetWeather")
-    .setDescription("Get the current weather for a given location.")
-    .setParameters(Map.of(
+var getWeather = ToolDefinition.create(
+    "GetWeather",
+    "Get the current weather for a given location.",
+    Map.of(
         "type", "object",
         "properties", Map.of(
             "location", Map.of("type", "string", "description", "City name")),
-        "required", List.of("location")));
+        "required", List.of("location")),
+    invocation -> {
+        var location = (String) invocation.getArguments().get("location");
+        return CompletableFuture.completedFuture(
+            "The weather in " + location + " is sunny, 25°C.");
+    });
 
-var client = new CopilotClient();
-client.start().get();
+try (var client = new CopilotClient()) {
+    client.start().get();
 
-var session = client.createSession(new SessionConfig()
-    .setModel("gpt-4.1")
-    .setTools(List.of(getWeather))
-    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-).get();
+    var session = client.createSession(new SessionConfig()
+        .setModel("gpt-4.1")
+        .setTools(List.of(getWeather))
+        .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+    ).get();
 
-session.registerToolHandler("GetWeather", (args, invocation) -> {
-    var location = args.get("location").toString();
-    return CompletableFuture.completedFuture(
-        "The weather in " + location + " is sunny, 25°C.");
-});
-
-session.sendAndWait(new MessageOptions()
-    .setPrompt("What's the weather like in Seattle?")).get();
+    session.sendAndWait(new MessageOptions()
+        .setPrompt("What's the weather like in Seattle?")).get();
+}
 ```
 
 </details>
@@ -370,8 +371,8 @@ var documentor = client.createSession(new SessionConfig()
 ).get();
 
 var docs = documentor.sendAndWait(new MessageOptions()
-    .setPrompt("Write documentation for these changes: " + review.getData().getContent())).get();
-System.out.println(docs.getData().getContent());
+    .setPrompt("Write documentation for these changes: " + review.getData().content())).get();
+System.out.println(docs.getData().content());
 
 client.stop().get();
 ```
@@ -447,8 +448,8 @@ var perfFuture = perfSession.sendAndWait(new MessageOptions()
 
 CompletableFuture.allOf(securityFuture, perfFuture).get();
 
-System.out.println("Security: " + securityFuture.get().getData().getContent());
-System.out.println("Performance: " + perfFuture.get().getData().getContent());
+System.out.println("Security: " + securityFuture.get().getData().content());
+System.out.println("Performance: " + perfFuture.get().getData().content());
 
 client.stop().get();
 ```
@@ -546,7 +547,7 @@ var session = client.createSession(new SessionConfig()
 ).get();
 
 session.on(AssistantMessageDeltaEvent.class, event -> {
-    System.out.print(event.deltaContent());
+    System.out.print(event.getData().deltaContent());
 });
 
 session.sendAndWait(new MessageOptions()

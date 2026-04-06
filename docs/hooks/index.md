@@ -164,27 +164,29 @@ import com.github.copilot.sdk.*;
 import com.github.copilot.sdk.json.*;
 import java.util.concurrent.CompletableFuture;
 
-var client = new CopilotClient();
+try (var client = new CopilotClient()) {
+    client.start().get();
 
-var hooks = new SessionHooks()
-    .setOnPreToolUse((input, invocation) -> {
-        System.out.println("Tool called: " + input.getToolName());
-        return CompletableFuture.completedFuture(PreToolUseHookOutput.allow());
-    })
-    .setOnPostToolUse((input, invocation) -> {
-        System.out.println("Tool result: " + input.getToolResult());
-        return CompletableFuture.completedFuture(null);
-    })
-    .setOnSessionStart((input, invocation) -> {
-        return CompletableFuture.completedFuture(
-            new SessionStartHookOutput().setAdditionalContext("User prefers concise answers.")
-        );
-    });
+    var hooks = new SessionHooks()
+        .setOnPreToolUse((input, invocation) -> {
+            System.out.println("Tool called: " + input.getToolName());
+            return CompletableFuture.completedFuture(PreToolUseHookOutput.allow());
+        })
+        .setOnPostToolUse((input, invocation) -> {
+            System.out.println("Tool result: " + input.getToolResult());
+            return CompletableFuture.completedFuture(null);
+        })
+        .setOnSessionStart((input, invocation) -> {
+            return CompletableFuture.completedFuture(
+                new SessionStartHookOutput().setAdditionalContext("User prefers concise answers.")
+            );
+        });
 
-var session = client.createSession(
-    new SessionConfig()
-        .setHooks(hooks)
-).get();
+    var session = client.createSession(
+        new SessionConfig()
+            .setHooks(hooks)
+    ).get();
+}
 ```
 
 </details>

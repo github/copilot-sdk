@@ -200,6 +200,8 @@ var session = await client.CreateSessionAsync(new SessionConfig
 
 ```java
 import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.events.*;
+import com.github.copilot.sdk.json.*;
 
 try (var client = new CopilotClient()) {
     client.start().get();
@@ -413,12 +415,12 @@ var readOnlyTools = Set.of("read_file", "glob", "grep", "view");
 
 var hooks = new SessionHooks()
     .setOnPreToolUse((input, invocation) -> {
-        if (!readOnlyTools.contains(input.toolName())) {
+        if (!readOnlyTools.contains(input.getToolName())) {
             return CompletableFuture.completedFuture(
                 new PreToolUseHookOutput()
                     .setPermissionDecision("deny")
                     .setPermissionDecisionReason(
-                        "Only read-only tools are allowed. \"" + input.toolName() + "\" was blocked.")
+                        "Only read-only tools are allowed. \"" + input.getToolName() + "\" was blocked.")
             );
         }
         return CompletableFuture.completedFuture(PreToolUseHookOutput.allow());
