@@ -3,6 +3,16 @@ name: Collect triage agent corrections
 on:
   repository_dispatch:
     types: [triage_feedback]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Issue number to submit feedback for"
+        required: true
+        type: string
+      feedback:
+        description: "Feedback text describing what the triage agent got wrong"
+        required: true
+        type: string
 
 concurrency:
   group: collect-corrections

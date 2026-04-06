@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 const mod = await import("../collect-corrections.js");
 const {
@@ -303,6 +303,42 @@ describe("appendCorrection", () => {
     expect(rows[0]).not.toContain("\n");
   });
 });
+
+describe("module entrypoint - workflow_dispatch", () => {
+  it("processes feedback from workflow_dispatch inputs", async () => {
+    const github = mockGitHub({
+      listForRepo: vi.fn().mockResolvedValue({
+        data: [{ number: 50, assignees: [], body: trackingBodyForEntrypoint }],
+      }),
+    });
+    const context = {
+      repo: { owner: OWNER, repo: REPO },
+      payload: {
+        // workflow_dispatch has no client_payload; inputs carry the data
+        inputs: { issue_number: "7", feedback: "Should be enhancement" },
+        sender: { login: "dispatcher" },
+      },
+    };
+
+    await mod.default({ github, context });
+
+    // Verify the correction was appended referencing the right issue
+    expect(github.rest.issues.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        issue_number: 50,
+        body: expect.stringContaining("[#7]"),
+      }),
+    );
+  });
+});
+
+const trackingBodyForEntrypoint = [
+  "# Triage Agent Corrections",
+  "",
+  "| Issue | Feedback | Submitted by | Date |",
+  "|-------|----------|--------------|------|",
+  "",
+].join("\n");
 
 describe("maybeAssignCCA", () => {
   it("assigns CCA when threshold is reached", async () => {
