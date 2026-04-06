@@ -7,6 +7,7 @@ package com.github.copilot.sdk;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -817,6 +818,33 @@ public class CopilotSessionTest {
 
             var filteredSessions = client.listSessions(filter).get(30, TimeUnit.SECONDS);
             assertNotNull(filteredSessions);
+
+            session.close();
+        }
+    }
+
+    /**
+     * Verifies that getSessionMetadata returns metadata for a known session ID.
+     *
+     * @see Snapshot: session/should_get_session_metadata_by_id
+     */
+    @Test
+    void testShouldGetSessionMetadataById() throws Exception {
+        ctx.configureForTest("session", "should_get_session_metadata_by_id");
+
+        try (CopilotClient client = ctx.createClient()) {
+            var session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+
+            session.sendAndWait(new MessageOptions().setPrompt("Say hello")).get(60, TimeUnit.SECONDS);
+
+            var metadata = client.getSessionMetadata(session.getSessionId()).get(30, TimeUnit.SECONDS);
+            assertNotNull(metadata, "Metadata should not be null for known session");
+            assertEquals(session.getSessionId(), metadata.getSessionId(), "Metadata session ID should match");
+
+            // A non-existent session should return null
+            var notFound = client.getSessionMetadata("non-existent-session-id").get(30, TimeUnit.SECONDS);
+            assertNull(notFound, "Non-existent session should return null");
 
             session.close();
         }
