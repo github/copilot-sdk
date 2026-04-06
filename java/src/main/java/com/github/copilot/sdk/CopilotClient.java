@@ -24,6 +24,7 @@ import com.github.copilot.sdk.json.CreateSessionResponse;
 import com.github.copilot.sdk.json.DeleteSessionResponse;
 import com.github.copilot.sdk.json.GetAuthStatusResponse;
 import com.github.copilot.sdk.json.GetLastSessionIdResponse;
+import com.github.copilot.sdk.json.GetSessionMetadataResponse;
 import com.github.copilot.sdk.json.GetModelsResponse;
 import com.github.copilot.sdk.json.GetStatusResponse;
 import com.github.copilot.sdk.json.ListSessionsResponse;
@@ -374,6 +375,7 @@ public final class CopilotClient implements AutoCloseable {
 
             return connection.rpc.invoke("session.create", request, CreateSessionResponse.class).thenApply(response -> {
                 session.setWorkspacePath(response.workspacePath());
+                session.setCapabilities(response.capabilities());
                 // If the server returned a different sessionId (e.g. a v2 CLI that ignores
                 // the client-supplied ID), re-key the sessions map.
                 String returnedId = response.sessionId();
@@ -444,6 +446,7 @@ public final class CopilotClient implements AutoCloseable {
 
             return connection.rpc.invoke("session.resume", request, ResumeSessionResponse.class).thenApply(response -> {
                 session.setWorkspacePath(response.workspacePath());
+                session.setCapabilities(response.capabilities());
                 // If the server returned a different sessionId than what was requested, re-key.
                 String returnedId = response.sessionId();
                 if (returnedId != null && !returnedId.equals(sessionId)) {
@@ -655,6 +658,34 @@ public final class CopilotClient implements AutoCloseable {
             return connection.rpc.invoke("session.list", params, ListSessionsResponse.class)
                     .thenApply(ListSessionsResponse::sessions);
         });
+    }
+
+    /**
+     * Gets metadata for a specific session by ID.
+     * <p>
+     * This provides an efficient O(1) lookup of a single session's metadata instead
+     * of listing all sessions.
+     *
+     * <h2>Example Usage</h2>
+     *
+     * <pre>{@code
+     * var metadata = client.getSessionMetadata("session-123").get();
+     * if (metadata != null) {
+     * 	System.out.println("Session started at: " + metadata.getStartTime());
+     * }
+     * }</pre>
+     *
+     * @param sessionId
+     *            the ID of the session to look up
+     * @return a future that resolves with the {@link SessionMetadata}, or
+     *         {@code null} if the session was not found
+     * @see SessionMetadata
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionMetadata> getSessionMetadata(String sessionId) {
+        return ensureConnected().thenCompose(connection -> connection.rpc
+                .invoke("session.getMetadata", Map.of("sessionId", sessionId), GetSessionMetadataResponse.class)
+                .thenApply(GetSessionMetadataResponse::session));
     }
 
     /**

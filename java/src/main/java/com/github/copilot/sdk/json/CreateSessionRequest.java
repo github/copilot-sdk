@@ -91,6 +91,12 @@ public final class CreateSessionRequest {
     @JsonProperty("configDir")
     private String configDir;
 
+    @JsonProperty("commands")
+    private List<CommandWireDefinition> commands;
+
+    @JsonProperty("requestElicitation")
+    private Boolean requestElicitation;
+
     /** Gets the model name. @return the model */
     public String getModel() {
         return model;
@@ -311,5 +317,25 @@ public final class CreateSessionRequest {
     /** Sets config directory. @param configDir the config directory path */
     public void setConfigDir(String configDir) {
         this.configDir = configDir;
+    }
+
+    /** Gets the commands wire definitions. @return the commands */
+    public List<CommandWireDefinition> getCommands() {
+        return commands == null ? null : Collections.unmodifiableList(commands);
+    }
+
+    /** Sets the commands wire definitions. @param commands the commands */
+    public void setCommands(List<CommandWireDefinition> commands) {
+        this.commands = commands;
+    }
+
+    /** Gets the requestElicitation flag. @return the flag */
+    public Boolean getRequestElicitation() {
+        return requestElicitation;
+    }
+
+    /** Sets the requestElicitation flag. @param requestElicitation the flag */
+    public void setRequestElicitation(Boolean requestElicitation) {
+        this.requestElicitation = requestElicitation;
     }
 }

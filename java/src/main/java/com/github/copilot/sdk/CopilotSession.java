@@ -31,14 +31,27 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.sdk.events.AbstractSessionEvent;
 import com.github.copilot.sdk.events.AssistantMessageEvent;
+import com.github.copilot.sdk.events.CapabilitiesChangedEvent;
+import com.github.copilot.sdk.events.CommandExecuteEvent;
+import com.github.copilot.sdk.events.ElicitationRequestedEvent;
 import com.github.copilot.sdk.events.ExternalToolRequestedEvent;
 import com.github.copilot.sdk.events.PermissionRequestedEvent;
 import com.github.copilot.sdk.events.SessionErrorEvent;
 import com.github.copilot.sdk.events.SessionEventParser;
 import com.github.copilot.sdk.events.SessionIdleEvent;
 import com.github.copilot.sdk.json.AgentInfo;
+import com.github.copilot.sdk.json.CommandContext;
+import com.github.copilot.sdk.json.CommandDefinition;
+import com.github.copilot.sdk.json.CommandHandler;
+import com.github.copilot.sdk.json.ElicitationContext;
+import com.github.copilot.sdk.json.ElicitationHandler;
+import com.github.copilot.sdk.json.ElicitationParams;
+import com.github.copilot.sdk.json.ElicitationResult;
+import com.github.copilot.sdk.json.ElicitationResultAction;
+import com.github.copilot.sdk.json.ElicitationSchema;
 import com.github.copilot.sdk.json.GetMessagesResponse;
 import com.github.copilot.sdk.json.HookInvocation;
+import com.github.copilot.sdk.json.InputOptions;
 import com.github.copilot.sdk.json.MessageOptions;
 import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.PermissionInvocation;
@@ -49,9 +62,12 @@ import com.github.copilot.sdk.json.PostToolUseHookInput;
 import com.github.copilot.sdk.json.PreToolUseHookInput;
 import com.github.copilot.sdk.json.SendMessageRequest;
 import com.github.copilot.sdk.json.SendMessageResponse;
+import com.github.copilot.sdk.json.SessionCapabilities;
 import com.github.copilot.sdk.json.SessionEndHookInput;
 import com.github.copilot.sdk.json.SessionHooks;
 import com.github.copilot.sdk.json.SessionStartHookInput;
+import com.github.copilot.sdk.json.SessionUiApi;
+import com.github.copilot.sdk.json.SessionUiCapabilities;
 import com.github.copilot.sdk.json.ToolDefinition;
 import com.github.copilot.sdk.json.ToolResultObject;
 import com.github.copilot.sdk.json.UserInputHandler;
@@ -116,11 +132,15 @@ public final class CopilotSession implements AutoCloseable {
      */
     private volatile String sessionId;
     private volatile String workspacePath;
+    private volatile SessionCapabilities capabilities = new SessionCapabilities();
+    private final SessionUiApi ui;
     private final JsonRpcClient rpc;
     private final Set<Consumer<AbstractSessionEvent>> eventHandlers = ConcurrentHashMap.newKeySet();
     private final Map<String, ToolDefinition> toolHandlers = new ConcurrentHashMap<>();
+    private final Map<String, CommandHandler> commandHandlers = new ConcurrentHashMap<>();
     private final AtomicReference<PermissionHandler> permissionHandler = new AtomicReference<>();
     private final AtomicReference<UserInputHandler> userInputHandler = new AtomicReference<>();
+    private final AtomicReference<ElicitationHandler> elicitationHandler = new AtomicReference<>();
     private final AtomicReference<SessionHooks> hooksHandler = new AtomicReference<>();
     private volatile EventErrorHandler eventErrorHandler;
     private volatile EventErrorPolicy eventErrorPolicy = EventErrorPolicy.PROPAGATE_AND_LOG_ERRORS;
@@ -163,6 +183,7 @@ public final class CopilotSession implements AutoCloseable {
         this.sessionId = sessionId;
         this.rpc = rpc;
         this.workspacePath = workspacePath;
+        this.ui = new SessionUiApiImpl();
         var executor = new ScheduledThreadPoolExecutor(1, r -> {
             var t = new Thread(r, "sendAndWait-timeout");
             t.setDaemon(true);
@@ -223,6 +244,30 @@ public final class CopilotSession implements AutoCloseable {
      */
     void setWorkspacePath(String workspacePath) {
         this.workspacePath = workspacePath;
+    }
+
+    /**
+     * Gets the capabilities reported by the host for this session.
+     * <p>
+     * Capabilities are populated from the session create/resume response and
+     * updated in real time via {@code capabilities.changed} events.
+     *
+     * @return the session capabilities (never {@code null})
+     */
+    public SessionCapabilities getCapabilities() {
+        return capabilities;
+    }
+
+    /**
+     * Gets the UI API for eliciting information from the user during this session.
+     * <p>
+     * All methods on this API throw {@link IllegalStateException} if the host does
+     * not report elicitation support via {@link #getCapabilities()}.
+     *
+     * @return the UI API
+     */
+    public SessionUiApi getUi() {
+        return ui;
     }
 
     /**
@@ -669,11 +714,49 @@ public final class CopilotSession implements AutoCloseable {
             if (data == null || data.requestId() == null || data.permissionRequest() == null) {
                 return;
             }
+            if (Boolean.TRUE.equals(data.resolvedByHook())) {
+                return; // Already resolved by a permissionRequest hook; no client action needed.
+            }
             PermissionHandler handler = permissionHandler.get();
             if (handler == null) {
                 return; // This client doesn't handle permissions; another client will
             }
             executePermissionAndRespondAsync(data.requestId(), data.permissionRequest(), handler);
+        } else if (event instanceof CommandExecuteEvent cmdEvent) {
+            var data = cmdEvent.getData();
+            if (data == null || data.requestId() == null) {
+                return;
+            }
+            executeCommandAndRespondAsync(data.requestId(), data.commandName(), data.command(), data.args());
+        } else if (event instanceof ElicitationRequestedEvent elicitEvent) {
+            var data = elicitEvent.getData();
+            if (data == null || data.requestId() == null) {
+                return;
+            }
+            ElicitationHandler handler = elicitationHandler.get();
+            if (handler != null) {
+                ElicitationSchema schema = null;
+                if (data.requestedSchema() != null) {
+                    schema = new ElicitationSchema().setType(data.requestedSchema().type())
+                            .setProperties(data.requestedSchema().properties())
+                            .setRequired(data.requestedSchema().required());
+                }
+                var context = new ElicitationContext().setSessionId(sessionId).setMessage(data.message())
+                        .setRequestedSchema(schema).setMode(data.mode()).setElicitationSource(data.elicitationSource())
+                        .setUrl(data.url());
+                handleElicitationRequestAsync(context, data.requestId());
+            }
+        } else if (event instanceof CapabilitiesChangedEvent capEvent) {
+            var data = capEvent.getData();
+            if (data != null) {
+                var newCapabilities = new SessionCapabilities();
+                if (data.ui() != null) {
+                    newCapabilities.setUi(new SessionUiCapabilities().setElicitation(data.ui().elicitation()));
+                } else {
+                    newCapabilities.setUi(capabilities.getUi());
+                }
+                capabilities = newCapabilities;
+            }
         }
     }
 
@@ -817,6 +900,250 @@ public final class CopilotSession implements AutoCloseable {
     }
 
     /**
+     * Executes a command handler and sends the result back via
+     * {@code session.commands.handlePendingCommand}.
+     */
+    private void executeCommandAndRespondAsync(String requestId, String commandName, String command, String args) {
+        CommandHandler handler = commandHandlers.get(commandName);
+        Runnable task = () -> {
+            if (handler == null) {
+                try {
+                    rpc.invoke("session.commands.handlePendingCommand", Map.of("sessionId", sessionId, "requestId",
+                            requestId, "error", "Unknown command: " + commandName), Object.class);
+                } catch (Exception e) {
+                    LOG.log(Level.WARNING, "Error sending command error for requestId=" + requestId, e);
+                }
+                return;
+            }
+            try {
+                var ctx = new CommandContext().setSessionId(sessionId).setCommand(command).setCommandName(commandName)
+                        .setArgs(args);
+                handler.handle(ctx).thenRun(() -> {
+                    try {
+                        rpc.invoke("session.commands.handlePendingCommand",
+                                Map.of("sessionId", sessionId, "requestId", requestId), Object.class);
+                    } catch (Exception e) {
+                        LOG.log(Level.WARNING, "Error sending command result for requestId=" + requestId, e);
+                    }
+                }).exceptionally(ex -> {
+                    try {
+                        String msg = ex.getMessage() != null ? ex.getMessage() : ex.toString();
+                        rpc.invoke("session.commands.handlePendingCommand",
+                                Map.of("sessionId", sessionId, "requestId", requestId, "error", msg), Object.class);
+                    } catch (Exception e) {
+                        LOG.log(Level.WARNING, "Error sending command error for requestId=" + requestId, e);
+                    }
+                    return null;
+                });
+            } catch (Exception e) {
+                LOG.log(Level.WARNING, "Error executing command for requestId=" + requestId, e);
+                try {
+                    String msg = e.getMessage() != null ? e.getMessage() : e.toString();
+                    rpc.invoke("session.commands.handlePendingCommand",
+                            Map.of("sessionId", sessionId, "requestId", requestId, "error", msg), Object.class);
+                } catch (Exception sendEx) {
+                    LOG.log(Level.WARNING, "Error sending command error for requestId=" + requestId, sendEx);
+                }
+            }
+        };
+        try {
+            if (executor != null) {
+                CompletableFuture.runAsync(task, executor);
+            } else {
+                CompletableFuture.runAsync(task);
+            }
+        } catch (RejectedExecutionException e) {
+            LOG.log(Level.WARNING, "Executor rejected command task for requestId=" + requestId + "; running inline", e);
+            task.run();
+        }
+    }
+
+    /**
+     * Dispatches an elicitation request to the registered handler and responds via
+     * {@code session.ui.handlePendingElicitation}. Auto-cancels on handler errors.
+     */
+    private void handleElicitationRequestAsync(ElicitationContext context, String requestId) {
+        ElicitationHandler handler = elicitationHandler.get();
+        if (handler == null) {
+            return;
+        }
+        Runnable task = () -> {
+            try {
+                handler.handle(context).thenAccept(result -> {
+                    try {
+                        String actionStr = result.getAction() != null
+                                ? result.getAction().getValue()
+                                : ElicitationResultAction.CANCEL.getValue();
+                        Map<String, Object> resultMap = result.getContent() != null
+                                ? Map.of("action", actionStr, "content", result.getContent())
+                                : Map.of("action", actionStr);
+                        rpc.invoke("session.ui.handlePendingElicitation",
+                                Map.of("sessionId", sessionId, "requestId", requestId, "result", resultMap),
+                                Object.class);
+                    } catch (Exception e) {
+                        LOG.log(Level.WARNING, "Error sending elicitation result for requestId=" + requestId, e);
+                    }
+                }).exceptionally(ex -> {
+                    try {
+                        rpc.invoke("session.ui.handlePendingElicitation", Map.of("sessionId", sessionId, "requestId",
+                                requestId, "result", Map.of("action", ElicitationResultAction.CANCEL.getValue())),
+                                Object.class);
+                    } catch (Exception e) {
+                        LOG.log(Level.WARNING, "Error sending elicitation cancel for requestId=" + requestId, e);
+                    }
+                    return null;
+                });
+            } catch (Exception e) {
+                LOG.log(Level.WARNING, "Error executing elicitation handler for requestId=" + requestId, e);
+                try {
+                    rpc.invoke(
+                            "session.ui.handlePendingElicitation", Map.of("sessionId", sessionId, "requestId",
+                                    requestId, "result", Map.of("action", ElicitationResultAction.CANCEL.getValue())),
+                            Object.class);
+                } catch (Exception sendEx) {
+                    LOG.log(Level.WARNING, "Error sending elicitation cancel for requestId=" + requestId, sendEx);
+                }
+            }
+        };
+        try {
+            if (executor != null) {
+                CompletableFuture.runAsync(task, executor);
+            } else {
+                CompletableFuture.runAsync(task);
+            }
+        } catch (RejectedExecutionException e) {
+            LOG.log(Level.WARNING, "Executor rejected elicitation task for requestId=" + requestId + "; running inline",
+                    e);
+            task.run();
+        }
+    }
+
+    /**
+     * Throws if the host does not support elicitation.
+     */
+    private void assertElicitation() {
+        SessionCapabilities caps = capabilities;
+        if (caps == null || caps.getUi() == null || !Boolean.TRUE.equals(caps.getUi().getElicitation())) {
+            throw new IllegalStateException("Elicitation is not supported by the host. "
+                    + "Check session.getCapabilities().getUi()?.getElicitation() before calling UI methods.");
+        }
+    }
+
+    /**
+     * Implements {@link SessionUiApi} backed by the session's RPC connection.
+     */
+    private final class SessionUiApiImpl implements SessionUiApi {
+
+        @Override
+        public CompletableFuture<ElicitationResult> elicitation(ElicitationParams params) {
+            assertElicitation();
+            var schema = new java.util.HashMap<String, Object>();
+            schema.put("type", params.getRequestedSchema().getType());
+            schema.put("properties", params.getRequestedSchema().getProperties());
+            if (params.getRequestedSchema().getRequired() != null) {
+                schema.put("required", params.getRequestedSchema().getRequired());
+            }
+            return rpc.invoke("session.ui.elicitation",
+                    Map.of("sessionId", sessionId, "message", params.getMessage(), "requestedSchema", schema),
+                    ElicitationRpcResponse.class).thenApply(resp -> {
+                        var result = new ElicitationResult();
+                        if (resp.action() != null) {
+                            for (ElicitationResultAction a : ElicitationResultAction.values()) {
+                                if (a.getValue().equalsIgnoreCase(resp.action())) {
+                                    result.setAction(a);
+                                    break;
+                                }
+                            }
+                        }
+                        if (result.getAction() == null) {
+                            result.setAction(ElicitationResultAction.CANCEL);
+                        }
+                        result.setContent(resp.content());
+                        return result;
+                    });
+        }
+
+        @Override
+        public CompletableFuture<Boolean> confirm(String message) {
+            assertElicitation();
+            var field = Map.of("type", "boolean", "default", (Object) true);
+            var schema = Map.of("type", (Object) "object", "properties", (Object) Map.of("confirmed", (Object) field),
+                    "required", (Object) new String[]{"confirmed"});
+            return rpc.invoke("session.ui.elicitation",
+                    Map.of("sessionId", sessionId, "message", message, "requestedSchema", schema),
+                    ElicitationRpcResponse.class).thenApply(resp -> {
+                        if ("accept".equalsIgnoreCase(resp.action()) && resp.content() != null) {
+                            Object val = resp.content().get("confirmed");
+                            if (val instanceof Boolean b) {
+                                return b;
+                            }
+                            if (val instanceof com.fasterxml.jackson.databind.node.BooleanNode bn) {
+                                return bn.booleanValue();
+                            }
+                            if (val instanceof String s) {
+                                return Boolean.parseBoolean(s);
+                            }
+                        }
+                        return false;
+                    });
+        }
+
+        @Override
+        public CompletableFuture<String> select(String message, String[] options) {
+            assertElicitation();
+            var field = Map.of("type", (Object) "string", "enum", (Object) options);
+            var schema = Map.of("type", (Object) "object", "properties", (Object) Map.of("selection", (Object) field),
+                    "required", (Object) new String[]{"selection"});
+            return rpc.invoke("session.ui.elicitation",
+                    Map.of("sessionId", sessionId, "message", message, "requestedSchema", schema),
+                    ElicitationRpcResponse.class).thenApply(resp -> {
+                        if ("accept".equalsIgnoreCase(resp.action()) && resp.content() != null) {
+                            Object val = resp.content().get("selection");
+                            return val != null ? val.toString() : null;
+                        }
+                        return null;
+                    });
+        }
+
+        @Override
+        public CompletableFuture<String> input(String message, InputOptions options) {
+            assertElicitation();
+            var field = new java.util.LinkedHashMap<String, Object>();
+            field.put("type", "string");
+            if (options != null) {
+                if (options.getTitle() != null)
+                    field.put("title", options.getTitle());
+                if (options.getDescription() != null)
+                    field.put("description", options.getDescription());
+                if (options.getMinLength() != null)
+                    field.put("minLength", options.getMinLength());
+                if (options.getMaxLength() != null)
+                    field.put("maxLength", options.getMaxLength());
+                if (options.getFormat() != null)
+                    field.put("format", options.getFormat());
+                if (options.getDefaultValue() != null)
+                    field.put("default", options.getDefaultValue());
+            }
+            var schema = Map.of("type", (Object) "object", "properties", (Object) Map.of("value", (Object) field),
+                    "required", (Object) new String[]{"value"});
+            return rpc.invoke("session.ui.elicitation",
+                    Map.of("sessionId", sessionId, "message", message, "requestedSchema", schema),
+                    ElicitationRpcResponse.class).thenApply(resp -> {
+                        if ("accept".equalsIgnoreCase(resp.action()) && resp.content() != null) {
+                            Object val = resp.content().get("value");
+                            return val != null ? val.toString() : null;
+                        }
+                        return null;
+                    });
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record ElicitationRpcResponse(@JsonProperty("action") String action,
+            @JsonProperty("content") Map<String, Object> content) {
+    }
+
+    /**
      * Retrieves a registered tool by name.
      *
      * @param name
@@ -886,6 +1213,50 @@ public final class CopilotSession implements AutoCloseable {
      */
     void registerUserInputHandler(UserInputHandler handler) {
         userInputHandler.set(handler);
+    }
+
+    /**
+     * Registers command handlers for this session.
+     * <p>
+     * Called internally when creating or resuming a session with commands.
+     *
+     * @param commands
+     *            the command definitions to register
+     */
+    void registerCommands(java.util.List<CommandDefinition> commands) {
+        commandHandlers.clear();
+        if (commands != null) {
+            for (CommandDefinition cmd : commands) {
+                if (cmd.getName() != null && cmd.getHandler() != null) {
+                    commandHandlers.put(cmd.getName(), cmd.getHandler());
+                }
+            }
+        }
+    }
+
+    /**
+     * Registers an elicitation handler for this session.
+     * <p>
+     * Called internally when creating or resuming a session with an elicitation
+     * handler.
+     *
+     * @param handler
+     *            the handler to invoke when an elicitation request is received
+     */
+    void registerElicitationHandler(ElicitationHandler handler) {
+        elicitationHandler.set(handler);
+    }
+
+    /**
+     * Sets the capabilities reported by the host for this session.
+     * <p>
+     * Called internally after session create/resume response.
+     *
+     * @param sessionCapabilities
+     *            the capabilities to set, or {@code null} for empty capabilities
+     */
+    void setCapabilities(SessionCapabilities sessionCapabilities) {
+        this.capabilities = sessionCapabilities != null ? sessionCapabilities : new SessionCapabilities();
     }
 
     /**
@@ -1366,8 +1737,10 @@ public final class CopilotSession implements AutoCloseable {
 
         eventHandlers.clear();
         toolHandlers.clear();
+        commandHandlers.clear();
         permissionHandler.set(null);
         userInputHandler.set(null);
+        elicitationHandler.set(null);
         hooksHandler.set(null);
     }
 

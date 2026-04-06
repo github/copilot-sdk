@@ -10,6 +10,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 import com.github.copilot.sdk.json.CreateSessionRequest;
+import com.github.copilot.sdk.json.CommandWireDefinition;
 import com.github.copilot.sdk.json.ResumeSessionConfig;
 import com.github.copilot.sdk.json.ResumeSessionRequest;
 import com.github.copilot.sdk.json.SectionOverride;
@@ -122,6 +123,16 @@ final class SessionRequestBuilder {
         request.setDisabledSkills(config.getDisabledSkills());
         request.setConfigDir(config.getConfigDir());
 
+        if (config.getCommands() != null && !config.getCommands().isEmpty()) {
+            var wireCommands = config.getCommands().stream()
+                    .map(c -> new CommandWireDefinition(c.getName(), c.getDescription()))
+                    .collect(java.util.stream.Collectors.toList());
+            request.setCommands(wireCommands);
+        }
+        if (config.getOnElicitationRequest() != null) {
+            request.setRequestElicitation(true);
+        }
+
         return request;
     }
 
@@ -183,6 +194,16 @@ final class SessionRequestBuilder {
         request.setDisabledSkills(config.getDisabledSkills());
         request.setInfiniteSessions(config.getInfiniteSessions());
 
+        if (config.getCommands() != null && !config.getCommands().isEmpty()) {
+            var wireCommands = config.getCommands().stream()
+                    .map(c -> new CommandWireDefinition(c.getName(), c.getDescription()))
+                    .collect(java.util.stream.Collectors.toList());
+            request.setCommands(wireCommands);
+        }
+        if (config.getOnElicitationRequest() != null) {
+            request.setRequestElicitation(true);
+        }
+
         return request;
     }
 
@@ -210,6 +231,12 @@ final class SessionRequestBuilder {
         }
         if (config.getHooks() != null) {
             session.registerHooks(config.getHooks());
+        }
+        if (config.getCommands() != null) {
+            session.registerCommands(config.getCommands());
+        }
+        if (config.getOnElicitationRequest() != null) {
+            session.registerElicitationHandler(config.getOnElicitationRequest());
         }
         if (config.getOnEvent() != null) {
             session.on(config.getOnEvent());
@@ -240,6 +267,12 @@ final class SessionRequestBuilder {
         }
         if (config.getHooks() != null) {
             session.registerHooks(config.getHooks());
+        }
+        if (config.getCommands() != null) {
+            session.registerCommands(config.getCommands());
+        }
+        if (config.getOnElicitationRequest() != null) {
+            session.registerElicitationHandler(config.getOnElicitationRequest());
         }
         if (config.getOnEvent() != null) {
             session.on(config.getOnEvent());

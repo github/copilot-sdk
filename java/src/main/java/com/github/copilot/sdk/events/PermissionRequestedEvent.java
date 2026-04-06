@@ -38,6 +38,7 @@ public final class PermissionRequestedEvent extends AbstractSessionEvent {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record PermissionRequestedData(@JsonProperty("requestId") String requestId,
-            @JsonProperty("permissionRequest") PermissionRequest permissionRequest) {
+            @JsonProperty("permissionRequest") PermissionRequest permissionRequest,
+            @JsonProperty("resolvedByHook") Boolean resolvedByHook) {
     }
 }

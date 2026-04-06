@@ -65,8 +65,8 @@ public abstract sealed class AbstractSessionEvent permits
         ToolExecutionCompleteEvent,
         // Broadcast request/completion events (protocol v3)
         ExternalToolRequestedEvent, ExternalToolCompletedEvent, PermissionRequestedEvent, PermissionCompletedEvent,
-        CommandQueuedEvent, CommandCompletedEvent, ExitPlanModeRequestedEvent, ExitPlanModeCompletedEvent,
-        SystemNotificationEvent,
+        CommandQueuedEvent, CommandCompletedEvent, CommandExecuteEvent, ElicitationRequestedEvent,
+        CapabilitiesChangedEvent, ExitPlanModeRequestedEvent, ExitPlanModeCompletedEvent, SystemNotificationEvent,
         // User events
         UserMessageEvent, PendingMessagesModifiedEvent,
         // Skill events

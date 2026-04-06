@@ -58,6 +58,8 @@ public class ResumeSessionConfig {
     private List<String> disabledSkills;
     private InfiniteSessionConfig infiniteSessions;
     private Consumer<AbstractSessionEvent> onEvent;
+    private List<CommandDefinition> commands;
+    private ElicitationHandler onElicitationRequest;
 
     /**
      * Gets the AI model to use.
@@ -556,6 +558,56 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the slash commands registered for this session.
+     *
+     * @return the list of command definitions, or {@code null}
+     */
+    public List<CommandDefinition> getCommands() {
+        return commands == null ? null : Collections.unmodifiableList(commands);
+    }
+
+    /**
+     * Sets slash commands registered for this session.
+     * <p>
+     * When the CLI has a TUI, each command appears as {@code /name} for the user to
+     * invoke. The handler is called when the user executes the command.
+     *
+     * @param commands
+     *            the list of command definitions
+     * @return this config for method chaining
+     * @see CommandDefinition
+     */
+    public ResumeSessionConfig setCommands(List<CommandDefinition> commands) {
+        this.commands = commands;
+        return this;
+    }
+
+    /**
+     * Gets the elicitation request handler.
+     *
+     * @return the elicitation handler, or {@code null}
+     */
+    public ElicitationHandler getOnElicitationRequest() {
+        return onElicitationRequest;
+    }
+
+    /**
+     * Sets a handler for elicitation requests from the server or MCP tools.
+     * <p>
+     * When provided, the server will route elicitation requests to this handler and
+     * report elicitation as a supported capability.
+     *
+     * @param onElicitationRequest
+     *            the elicitation handler
+     * @return this config for method chaining
+     * @see ElicitationHandler
+     */
+    public ResumeSessionConfig setOnElicitationRequest(ElicitationHandler onElicitationRequest) {
+        this.onElicitationRequest = onElicitationRequest;
+        return this;
+    }
+
+    /**
      * Creates a shallow clone of this {@code ResumeSessionConfig} instance.
      * <p>
      * Mutable collection properties are copied into new collection instances so
@@ -591,6 +643,8 @@ public class ResumeSessionConfig {
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
         copy.infiniteSessions = this.infiniteSessions;
         copy.onEvent = this.onEvent;
+        copy.commands = this.commands != null ? new ArrayList<>(this.commands) : null;
+        copy.onElicitationRequest = this.onElicitationRequest;
         return copy;
     }
 }

@@ -99,6 +99,9 @@ public class SessionEventParser {
         TYPE_MAP.put("permission.completed", PermissionCompletedEvent.class);
         TYPE_MAP.put("command.queued", CommandQueuedEvent.class);
         TYPE_MAP.put("command.completed", CommandCompletedEvent.class);
+        TYPE_MAP.put("command.execute", CommandExecuteEvent.class);
+        TYPE_MAP.put("elicitation.requested", ElicitationRequestedEvent.class);
+        TYPE_MAP.put("capabilities.changed", CapabilitiesChangedEvent.class);
         TYPE_MAP.put("exit_plan_mode.requested", ExitPlanModeRequestedEvent.class);
         TYPE_MAP.put("exit_plan_mode.completed", ExitPlanModeCompletedEvent.class);
         TYPE_MAP.put("system.notification", SystemNotificationEvent.class);

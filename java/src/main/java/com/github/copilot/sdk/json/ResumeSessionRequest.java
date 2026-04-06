@@ -95,6 +95,12 @@ public final class ResumeSessionRequest {
     @JsonProperty("infiniteSessions")
     private InfiniteSessionConfig infiniteSessions;
 
+    @JsonProperty("commands")
+    private List<CommandWireDefinition> commands;
+
+    @JsonProperty("requestElicitation")
+    private Boolean requestElicitation;
+
     /** Gets the session ID. @return the session ID */
     public String getSessionId() {
         return sessionId;
@@ -331,5 +337,25 @@ public final class ResumeSessionRequest {
      */
     public void setInfiniteSessions(InfiniteSessionConfig infiniteSessions) {
         this.infiniteSessions = infiniteSessions;
+    }
+
+    /** Gets the commands wire definitions. @return the commands */
+    public List<CommandWireDefinition> getCommands() {
+        return commands == null ? null : Collections.unmodifiableList(commands);
+    }
+
+    /** Sets the commands wire definitions. @param commands the commands */
+    public void setCommands(List<CommandWireDefinition> commands) {
+        this.commands = commands;
+    }
+
+    /** Gets the requestElicitation flag. @return the flag */
+    public Boolean getRequestElicitation() {
+        return requestElicitation;
+    }
+
+    /** Sets the requestElicitation flag. @param requestElicitation the flag */
+    public void setRequestElicitation(Boolean requestElicitation) {
+        this.requestElicitation = requestElicitation;
     }
 }
