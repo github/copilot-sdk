@@ -1,4 +1,4 @@
-name: Collect triage agent corrections
+name: Submit triage agent feedback
 
 on:
   repository_dispatch:
