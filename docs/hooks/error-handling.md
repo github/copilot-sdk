@@ -99,6 +99,22 @@ public delegate Task<ErrorOccurredHookOutput?> ErrorOccurredHandler(
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+// Note: Java SDK does not have an onErrorOccurred hook.
+// Use EventErrorPolicy and EventErrorHandler instead:
+import com.github.copilot.sdk.*;
+
+session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS_AND_LOG_ERRORS);
+session.setEventErrorHandler((event, ex) -> {
+    System.err.println("Error in " + event.getType() + ": " + ex.getMessage());
+});
+```
+
+</details>
+
 ## Input
 
 | Field | Type | Description |
@@ -246,6 +262,30 @@ var session = await client.CreateSessionAsync(new SessionConfig
             return Task.FromResult<ErrorOccurredHookOutput?>(null);
         },
     },
+});
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.*;
+import com.github.copilot.sdk.json.*;
+
+// Note: Java SDK does not have an onErrorOccurred hook.
+// Use EventErrorPolicy and EventErrorHandler instead:
+
+var session = client.createSession(
+    new SessionConfig()
+        .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+).get();
+
+session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS_AND_LOG_ERRORS);
+session.setEventErrorHandler((event, ex) -> {
+    System.err.println("[" + session.getSessionId() + "] Error: " + ex.getMessage());
+    System.err.println("  Event: " + event.getType());
 });
 ```
 

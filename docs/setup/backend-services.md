@@ -223,6 +223,36 @@ var response = await session.SendAndWaitAsync(
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.events.*;
+import com.github.copilot.sdk.json.*;
+
+var client = new CopilotClient(new CopilotClientOptions()
+    .setCliUrl("localhost:4321")
+);
+
+try {
+    client.start().get();
+
+    var session = client.createSession(new SessionConfig()
+        .setSessionId(String.format("user-%s-%d", userId, System.currentTimeMillis() / 1000))
+        .setModel("gpt-4.1")
+        .setOnPermissionRequest(request -> request.allow())
+    ).get();
+
+    var response = session.sendAndWait(new MessageOptions()
+        .setPrompt(message)).get();
+} finally {
+    client.stop().get();
+}
+```
+
+</details>
+
 ## Authentication for Backend Services
 
 ### Environment Variable Tokens

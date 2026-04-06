@@ -140,6 +140,36 @@ await session.SendAndWaitAsync(new MessageOptions
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.events.*;
+import com.github.copilot.sdk.json.*;
+
+try (var client = new CopilotClient()) {
+    client.start().get();
+
+    var session = client.createSession(
+        new SessionConfig()
+            .setModel("gpt-4.1")
+            .setSkillDirectories(List.of(
+                "./skills/code-review",
+                "./skills/documentation"
+            ))
+            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+    ).get();
+
+    // Copilot now has access to skills in those directories
+    session.sendAndWait(new MessageOptions()
+        .setPrompt("Review this code for security issues")
+    ).get();
+}
+```
+
+</details>
+
 ## Disabling Skills
 
 Disable specific skills while keeping others active:
@@ -239,6 +269,20 @@ var session = await client.CreateSessionAsync(new SessionConfig
     SkillDirectories = new List<string> { "./skills" },
     DisabledSkills = new List<string> { "experimental-feature", "deprecated-tool" },
 });
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+var session = client.createSession(
+    new SessionConfig()
+        .setSkillDirectories(List.of("./skills"))
+        .setDisabledSkills(List.of("experimental-feature", "deprecated-tool"))
+        .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+).get();
 ```
 
 </details>

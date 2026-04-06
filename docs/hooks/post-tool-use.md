@@ -99,6 +99,17 @@ public delegate Task<PostToolUseHookOutput?> PostToolUseHandler(
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.json.*;
+
+PostToolUseHandler postToolUseHandler;
+```
+
+</details>
+
 ## Input
 
 | Field | Type | Description |
@@ -246,6 +257,31 @@ var session = await client.CreateSessionAsync(new SessionConfig
         },
     },
 });
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.*;
+import com.github.copilot.sdk.json.*;
+import java.util.concurrent.CompletableFuture;
+
+var hooks = new SessionHooks()
+    .setOnPostToolUse((input, invocation) -> {
+        System.out.println("[" + invocation.getSessionId() + "] Tool: " + input.getToolName());
+        System.out.println("  Args: " + input.getToolArgs());
+        System.out.println("  Result: " + input.getToolResult());
+        return CompletableFuture.completedFuture(null);
+    });
+
+var session = client.createSession(
+    new SessionConfig()
+        .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+        .setHooks(hooks)
+).get();
 ```
 
 </details>

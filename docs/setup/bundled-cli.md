@@ -170,6 +170,34 @@ Console.WriteLine(response?.Data.Content);
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+> **Note:** The Java SDK does not bundle or embed the Copilot CLI. You must install the CLI separately and configure its path via `cliPath` or the `COPILOT_CLI_PATH` environment variable.
+
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.events.*;
+import com.github.copilot.sdk.json.*;
+
+var client = new CopilotClient(new CopilotClientOptions()
+    // Point to the CLI binary installed on the system
+    .setCliPath("/path/to/vendor/copilot")
+);
+client.start().get();
+
+var session = client.createSession(new SessionConfig()
+    .setModel("gpt-4.1")).get();
+
+var response = session.sendAndWait(new MessageOptions()
+    .setPrompt("Hello!")).get();
+System.out.println(response.getData().content());
+
+client.stop().get();
+```
+
+</details>
+
 ## Authentication Strategies
 
 When bundling, you need to decide how your users will authenticate. Here are the common patterns:

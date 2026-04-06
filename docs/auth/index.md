@@ -85,6 +85,19 @@ await using var client = new CopilotClient();
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.CopilotClient;
+
+// Default: uses logged-in user credentials
+var client = new CopilotClient();
+client.start().get();
+```
+
+</details>
+
 **When to use:**
 - Desktop applications where users interact directly
 - Development and testing environments
@@ -185,6 +198,22 @@ await using var client = new CopilotClient(new CopilotClientOptions
     GithubToken = userAccessToken,     // Token from OAuth flow
     UseLoggedInUser = false,           // Don't use stored CLI credentials
 });
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.json.*;
+
+var client = new CopilotClient(new CopilotClientOptions()
+    .setGitHubToken(userAccessToken)  // Token from OAuth flow
+    .setUseLoggedInUser(false)        // Don't use stored CLI credentials
+);
+client.start().get();
 ```
 
 </details>
@@ -347,6 +376,21 @@ await using var client = new CopilotClient(new CopilotClientOptions
 {
     UseLoggedInUser = false,  // Only use explicit tokens
 });
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.json.*;
+
+var client = new CopilotClient(new CopilotClientOptions()
+    .setUseLoggedInUser(false)  // Only use explicit tokens
+);
+client.start().get();
 ```
 
 </details>

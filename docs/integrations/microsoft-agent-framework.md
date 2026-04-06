@@ -13,7 +13,7 @@ The Microsoft Agent Framework is the unified successor to Semantic Kernel and Au
 | **Orchestrator** | A MAF component that coordinates agents in sequential, concurrent, or handoff workflows |
 | **A2A protocol** | Agent-to-Agent communication standard supported by the framework |
 
-> **Note:** MAF integration packages are available for **.NET** and **Python**. For TypeScript and Go, use the Copilot SDK directly — the standard SDK APIs already provide tool calling, streaming, and custom agents.
+> **Note:** MAF integration packages are available for **.NET** and **Python**. For TypeScript, Go, and Java, use the Copilot SDK directly — the standard SDK APIs already provide tool calling, streaming, and custom agents.
 
 ## Prerequisites
 
@@ -42,6 +42,23 @@ dotnet add package Microsoft.Agents.AI.GitHub.Copilot --prerelease
 
 ```shell
 pip install copilot-sdk agent-framework-github-copilot
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+> **Note:** The Java SDK does not have a dedicated MAF integration package. Use the standard Copilot SDK directly — it provides tool calling, streaming, and custom agents out of the box.
+
+```xml
+<!-- Maven -->
+<!-- Set copilot.sdk.version to the version published in java/README.md / Maven Central -->
+<dependency>
+    <groupId>com.github</groupId>
+    <artifactId>copilot-sdk-java</artifactId>
+    <version>${copilot.sdk.version}</version>
+</dependency>
 ```
 
 </details>
@@ -88,6 +105,32 @@ async def main():
     async with agent:
         result = await agent.run("Explain how dependency injection works in FastAPI")
         print(result)
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+<!-- docs-validate: skip -->
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.events.*;
+import com.github.copilot.sdk.json.*;
+
+var client = new CopilotClient();
+client.start().get();
+
+var session = client.createSession(new SessionConfig()
+    .setModel("gpt-4.1")
+    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+).get();
+
+var response = session.sendAndWait(new MessageOptions()
+    .setPrompt("Explain how dependency injection works in Spring Boot")).get();
+System.out.println(response.getData().content());
+
+client.stop().get();
 ```
 
 </details>
@@ -180,6 +223,45 @@ await session.sendAndWait({ prompt: "What's the weather like in Seattle?" });
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.events.*;
+import com.github.copilot.sdk.json.*;
+import java.util.concurrent.CompletableFuture;
+
+var getWeather = ToolDefinition.create(
+    "GetWeather",
+    "Get the current weather for a given location.",
+    Map.of(
+        "type", "object",
+        "properties", Map.of(
+            "location", Map.of("type", "string", "description", "City name")),
+        "required", List.of("location")),
+    invocation -> {
+        var location = (String) invocation.getArguments().get("location");
+        return CompletableFuture.completedFuture(
+            "The weather in " + location + " is sunny, 25°C.");
+    });
+
+try (var client = new CopilotClient()) {
+    client.start().get();
+
+    var session = client.createSession(new SessionConfig()
+        .setModel("gpt-4.1")
+        .setTools(List.of(getWeather))
+        .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+    ).get();
+
+    session.sendAndWait(new MessageOptions()
+        .setPrompt("What's the weather like in Seattle?")).get();
+}
+```
+
+</details>
+
 ## Multi-Agent Workflows
 
 The primary benefit of MAF integration is composing Copilot alongside other agent providers in orchestrated workflows. Use the framework's built-in orchestrators to create pipelines where different agents handle different steps.
@@ -259,6 +341,44 @@ async def main():
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+<!-- docs-validate: skip -->
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.events.*;
+import com.github.copilot.sdk.json.*;
+
+// Java uses the standard SDK directly — no MAF orchestrator needed
+var client = new CopilotClient();
+client.start().get();
+
+// Step 1: Code review session
+var reviewer = client.createSession(new SessionConfig()
+    .setModel("gpt-4.1")
+    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+).get();
+
+var review = reviewer.sendAndWait(new MessageOptions()
+    .setPrompt("Review this PR for bugs, security issues, and best practices: "
+        + "added retry logic to the HTTP client")).get();
+
+// Step 2: Documentation session using review output
+var documentor = client.createSession(new SessionConfig()
+    .setModel("gpt-4.1")
+    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+).get();
+
+var docs = documentor.sendAndWait(new MessageOptions()
+    .setPrompt("Write documentation for these changes: " + review.getData().content())).get();
+System.out.println(docs.getData().content());
+
+client.stop().get();
+```
+
+</details>
+
 ### Concurrent Workflow
 
 Run multiple agents in parallel and aggregate their results:
@@ -292,6 +412,46 @@ string combinedResult = await concurrent.RunAsync(
     "Analyze this database query module for issues"
 );
 Console.WriteLine(combinedResult);
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+<!-- docs-validate: skip -->
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.events.*;
+import com.github.copilot.sdk.json.*;
+import java.util.concurrent.CompletableFuture;
+
+// Java uses CompletableFuture for concurrent execution
+var client = new CopilotClient();
+client.start().get();
+
+var securitySession = client.createSession(new SessionConfig()
+    .setModel("gpt-4.1")
+    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+).get();
+
+var perfSession = client.createSession(new SessionConfig()
+    .setModel("gpt-4.1")
+    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+).get();
+
+// Run both reviews concurrently
+var securityFuture = securitySession.sendAndWait(new MessageOptions()
+    .setPrompt("Focus on security vulnerabilities in this database query module"));
+var perfFuture = perfSession.sendAndWait(new MessageOptions()
+    .setPrompt("Focus on performance bottlenecks in this database query module"));
+
+CompletableFuture.allOf(securityFuture, perfFuture).get();
+
+System.out.println("Security: " + securityFuture.get().getData().content());
+System.out.println("Performance: " + perfFuture.get().getData().content());
+
+client.stop().get();
 ```
 
 </details>
@@ -365,6 +525,36 @@ session.on("assistant.message_delta", (event) => {
 });
 
 await session.sendAndWait({ prompt: "Write a quicksort implementation in TypeScript" });
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.events.*;
+import com.github.copilot.sdk.json.*;
+
+var client = new CopilotClient();
+client.start().get();
+
+var session = client.createSession(new SessionConfig()
+    .setModel("gpt-4.1")
+    .setStreaming(true)
+    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+).get();
+
+session.on(AssistantMessageDeltaEvent.class, event -> {
+    System.out.print(event.getData().deltaContent());
+});
+
+session.sendAndWait(new MessageOptions()
+    .setPrompt("Write a quicksort implementation in Java")).get();
+System.out.println();
+
+client.stop().get();
 ```
 
 </details>

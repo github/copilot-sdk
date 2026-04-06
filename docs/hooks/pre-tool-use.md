@@ -99,6 +99,17 @@ public delegate Task<PreToolUseHookOutput?> PreToolUseHandler(
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.json.*;
+
+PreToolUseHandler preToolUseHandler;
+```
+
+</details>
+
 ## Input
 
 | Field | Type | Description |
@@ -257,6 +268,30 @@ var session = await client.CreateSessionAsync(new SessionConfig
         },
     },
 });
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.*;
+import com.github.copilot.sdk.json.*;
+import java.util.concurrent.CompletableFuture;
+
+var hooks = new SessionHooks()
+    .setOnPreToolUse((input, invocation) -> {
+        System.out.println("[" + invocation.getSessionId() + "] Calling " + input.getToolName());
+        System.out.println("  Args: " + input.getToolArgs());
+        return CompletableFuture.completedFuture(PreToolUseHookOutput.allow());
+    });
+
+var session = client.createSession(
+    new SessionConfig()
+        .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+        .setHooks(hooks)
+).get();
 ```
 
 </details>

@@ -125,6 +125,30 @@ Console.WriteLine(response?.Data.Content);
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.events.*;
+import com.github.copilot.sdk.json.*;
+
+var client = new CopilotClient();
+client.start().get();
+
+var session = client.createSession(new SessionConfig()
+    .setModel("gpt-4.1")
+    .setOnPermissionRequest(request -> PermissionDecision.allow())).get();
+
+var response = session.sendAndWait(new MessageOptions()
+    .setPrompt("Hello!")).get();
+System.out.println(response.getData().content());
+
+client.stop().get();
+```
+
+</details>
+
 That's it. The SDK handles everything: starting the CLI, authenticating, and managing the session.
 
 ## What's Happening Under the Hood

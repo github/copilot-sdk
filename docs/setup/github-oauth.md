@@ -275,6 +275,37 @@ var response = await session.SendAndWaitAsync(
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.events.*;
+import com.github.copilot.sdk.json.*;
+
+CopilotClient createClientForUser(String userToken) throws Exception {
+    var client = new CopilotClient(new CopilotClientOptions()
+        .setGitHubToken(userToken)
+        .setUseLoggedInUser(false)
+    );
+    client.start().get();
+    return client;
+}
+
+// Usage — use try-with-resources to ensure cleanup
+try (var client = createClientForUser("gho_user_access_token")) {
+    var session = client.createSession(new SessionConfig()
+        .setSessionId(String.format("user-%s-session", userId))
+        .setModel("gpt-4.1")
+    ).get();
+
+    var response = session.sendAndWait(new MessageOptions()
+        .setPrompt("Hello!")).get();
+}
+```
+
+</details>
+
 ## Enterprise & Organization Access
 
 GitHub OAuth naturally supports enterprise scenarios. When users authenticate with GitHub, their org memberships and enterprise associations come along.

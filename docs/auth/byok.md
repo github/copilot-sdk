@@ -164,6 +164,36 @@ Console.WriteLine(response?.Data.Content);
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.events.*;
+import com.github.copilot.sdk.json.*;
+
+var client = new CopilotClient();
+client.start().get();
+
+var session = client.createSession(new SessionConfig()
+    .setModel("gpt-5.2-codex")  // Your deployment name
+    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+    .setProvider(new ProviderConfig()
+        .setType("openai")
+        .setBaseUrl("https://your-resource.openai.azure.com/openai/v1/")
+        .setWireApi("responses")  // Use "completions" for older models
+        .setApiKey(System.getenv("FOUNDRY_API_KEY")))
+).get();
+
+var response = session.sendAndWait(new MessageOptions()
+    .setPrompt("What is 2+2?")).get();
+System.out.println(response.getData().content());
+
+client.stop().get();
+```
+
+</details>
+
 ## Provider Configuration Reference
 
 ### ProviderConfig Fields
@@ -408,6 +438,28 @@ var client = new CopilotClient(new CopilotClientOptions
         }
     })
 });
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.json.*;
+import java.util.concurrent.CompletableFuture;
+
+var client = new CopilotClient(new CopilotClientOptions()
+    .setOnListModels(() -> CompletableFuture.completedFuture(List.of(
+        new ModelInfo()
+            .setId("my-custom-model")
+            .setName("My Custom Model")
+            .setCapabilities(new ModelCapabilities()
+                .setSupports(new ModelSupports().setVision(false).setReasoningEffort(false))
+                .setLimits(new ModelLimits().setMaxContextWindowTokens(128000)))
+    )))
+);
 ```
 
 </details>

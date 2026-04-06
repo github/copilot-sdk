@@ -103,6 +103,17 @@ public delegate Task<SessionStartHookOutput?> SessionStartHandler(
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.json.*;
+
+SessionStartHandler sessionStartHandler;
+```
+
+</details>
+
 ### Input
 
 | Field | Type | Description |
@@ -300,6 +311,17 @@ type SessionEndHandler func(
 public delegate Task<SessionEndHookOutput?> SessionEndHandler(
     SessionEndHookInput input,
     HookInvocation invocation);
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.json.*;
+
+SessionEndHandler sessionEndHandler;
 ```
 
 </details>
