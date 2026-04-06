@@ -137,7 +137,8 @@ var client = new CopilotClient();
 client.start().get();
 
 var session = client.createSession(new SessionConfig()
-    .setModel("gpt-4.1")).get();
+    .setModel("gpt-4.1")
+    .setOnPermissionRequest(request -> PermissionDecision.allow())).get();
 
 var response = session.sendAndWait(new MessageOptions()
     .setPrompt("Hello!")).get();
