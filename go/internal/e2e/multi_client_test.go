@@ -112,7 +112,7 @@ func TestMultiClient(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if response == nil || response.Data.Content == nil || !strings.Contains(*response.Data.Content, "MAGIC_hello_42") {
+		if response == nil || response.Data.Content == nil || !strings.Contains(*response.Data.Content.String, "MAGIC_hello_42") {
 			t.Errorf("Expected response to contain 'MAGIC_hello_42', got %v", response)
 		}
 
@@ -180,7 +180,7 @@ func TestMultiClient(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
-		if response == nil || response.Data.Content == nil || *response.Data.Content == "" {
+		if response == nil || response.Data.Content == nil || *response.Data.Content.String == "" {
 			t.Errorf("Expected non-empty response")
 		}
 
@@ -371,8 +371,8 @@ func TestMultiClient(t *testing.T) {
 		if response1 == nil || response1.Data.Content == nil {
 			t.Fatalf("Expected response with content")
 		}
-		if !strings.Contains(*response1.Data.Content, "CITY_FOR_US") {
-			t.Errorf("Expected response to contain 'CITY_FOR_US', got '%s'", *response1.Data.Content)
+		if !strings.Contains(*response1.Data.Content.String, "CITY_FOR_US") {
+			t.Errorf("Expected response to contain 'CITY_FOR_US', got '%s'", *response1.Data.Content.String)
 		}
 
 		response2, err := session1.SendAndWait(t.Context(), copilot.MessageOptions{
@@ -384,8 +384,8 @@ func TestMultiClient(t *testing.T) {
 		if response2 == nil || response2.Data.Content == nil {
 			t.Fatalf("Expected response with content")
 		}
-		if !strings.Contains(*response2.Data.Content, "CURRENCY_FOR_US") {
-			t.Errorf("Expected response to contain 'CURRENCY_FOR_US', got '%s'", *response2.Data.Content)
+		if !strings.Contains(*response2.Data.Content.String, "CURRENCY_FOR_US") {
+			t.Errorf("Expected response to contain 'CURRENCY_FOR_US', got '%s'", *response2.Data.Content.String)
 		}
 
 		session2.Disconnect()
@@ -436,8 +436,8 @@ func TestMultiClient(t *testing.T) {
 		if stableResponse == nil || stableResponse.Data.Content == nil {
 			t.Fatalf("Expected response with content")
 		}
-		if !strings.Contains(*stableResponse.Data.Content, "STABLE_test1") {
-			t.Errorf("Expected response to contain 'STABLE_test1', got '%s'", *stableResponse.Data.Content)
+		if !strings.Contains(*stableResponse.Data.Content.String, "STABLE_test1") {
+			t.Errorf("Expected response to contain 'STABLE_test1', got '%s'", *stableResponse.Data.Content.String)
 		}
 
 		ephemeralResponse, err := session1.SendAndWait(t.Context(), copilot.MessageOptions{
@@ -449,8 +449,8 @@ func TestMultiClient(t *testing.T) {
 		if ephemeralResponse == nil || ephemeralResponse.Data.Content == nil {
 			t.Fatalf("Expected response with content")
 		}
-		if !strings.Contains(*ephemeralResponse.Data.Content, "EPHEMERAL_test2") {
-			t.Errorf("Expected response to contain 'EPHEMERAL_test2', got '%s'", *ephemeralResponse.Data.Content)
+		if !strings.Contains(*ephemeralResponse.Data.Content.String, "EPHEMERAL_test2") {
+			t.Errorf("Expected response to contain 'EPHEMERAL_test2', got '%s'", *ephemeralResponse.Data.Content.String)
 		}
 
 		// Disconnect client 2 without destroying the shared session
@@ -474,12 +474,12 @@ func TestMultiClient(t *testing.T) {
 		if afterResponse == nil || afterResponse.Data.Content == nil {
 			t.Fatalf("Expected response with content")
 		}
-		if !strings.Contains(*afterResponse.Data.Content, "STABLE_still_here") {
-			t.Errorf("Expected response to contain 'STABLE_still_here', got '%s'", *afterResponse.Data.Content)
+		if !strings.Contains(*afterResponse.Data.Content.String, "STABLE_still_here") {
+			t.Errorf("Expected response to contain 'STABLE_still_here', got '%s'", *afterResponse.Data.Content.String)
 		}
 		// ephemeral_tool should NOT have produced a result
-		if strings.Contains(*afterResponse.Data.Content, "EPHEMERAL_") {
-			t.Errorf("Expected response NOT to contain 'EPHEMERAL_', got '%s'", *afterResponse.Data.Content)
+		if strings.Contains(*afterResponse.Data.Content.String, "EPHEMERAL_") {
+			t.Errorf("Expected response NOT to contain 'EPHEMERAL_', got '%s'", *afterResponse.Data.Content.String)
 		}
 	})
 }

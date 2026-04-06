@@ -1,0 +1,177 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the view tool to look at the file test.png and describe what you see
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test.png"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the view tool to look at the file test.png and describe what you see
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test.png"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Viewed image file successfully.
+      - role: user
+      - role: assistant
+        content: >-
+          I can see the image file test.png. It appears to be a very light, nearly blank image with what looks like a
+          pale beige or cream-colored background. The image seems mostly empty or washed out, with no distinct objects,
+          text, or clear visual elements visible. It could be an intentionally minimal image, a placeholder, or possibly
+          an image that didn't render properly or is extremely overexposed.
+
+
+          If you expected to see something specific in this image, it's possible the file may be corrupted, improperly
+          saved, or the content is extremely faint.
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the view tool to look at the file test.png and describe what you see
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test.png"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Viewed image file successfully.
+      - role: assistant
+        content: >-
+          I can see the image file test.png. It appears to be a very light, nearly blank image with what looks like a
+          pale beige or cream-colored background. The image seems mostly empty or washed out, with no distinct objects,
+          text, or clear visual elements visible. It could be an intentionally minimal image, a placeholder, or possibly
+          an image that didn't render properly or is extremely overexposed.
+
+
+          If you expected to see something specific in this image, it's possible the file may be corrupted, improperly
+          saved, or the content is extremely faint.
+      - role: user
+        content: Use the view tool to look at the file test.png and describe what you see
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_3
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test.png"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the view tool to look at the file test.png and describe what you see
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test.png"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Viewed image file successfully.
+      - role: assistant
+        content: >-
+          I can see the image file test.png. It appears to be a very light, nearly blank image with what looks like a
+          pale beige or cream-colored background. The image seems mostly empty or washed out, with no distinct objects,
+          text, or clear visual elements visible. It could be an intentionally minimal image, a placeholder, or possibly
+          an image that didn't render properly or is extremely overexposed.
+
+
+          If you expected to see something specific in this image, it's possible the file may be corrupted, improperly
+          saved, or the content is extremely faint.
+      - role: user
+        content: Use the view tool to look at the file test.png and describe what you see
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+          - id: toolcall_3
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test.png"}'
+      - role: tool
+        tool_call_id: toolcall_2
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_3
+        content: Viewed image file successfully.
+      - role: assistant
+        content: >-
+          I can see test.png. It shows a very light, almost entirely pale cream or off-white colored image. The image
+          appears to be mostly blank or washed out with no discernible objects, text, or distinct visual elements. The
+          overall appearance is of a nearly empty canvas with a subtle beige/cream tone throughout.
+
+
+          This could be:
+
+          - An intentionally minimal/blank test image
+
+          - A placeholder image
+
+          - An overexposed or improperly saved image
+
+          - A canvas with very faint content that's difficult to perceive
+
+
+          Is there supposed to be specific content in this image that you'd like me to identify?

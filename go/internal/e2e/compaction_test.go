@@ -84,7 +84,7 @@ func TestCompaction(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to send verification message: %v", err)
 		}
-		if answer.Data.Content == nil || !strings.Contains(strings.ToLower(*answer.Data.Content), "dragon") {
+		if answer.Data.Content == nil || !strings.Contains(strings.ToLower(*answer.Data.Content.String), "dragon") {
 			t.Errorf("Expected answer to contain 'dragon', got %v", answer.Data.Content)
 		}
 	})

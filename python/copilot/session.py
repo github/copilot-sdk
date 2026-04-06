@@ -17,7 +17,7 @@ import threading
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Any, Literal, NotRequired, Required, TypedDict, cast
+from typing import TYPE_CHECKING, Any, Literal, NotRequired, Required, TypedDict, cast
 
 from ._jsonrpc import JsonRpcError, ProcessExitedError
 from ._telemetry import get_trace_context, trace_context
@@ -25,6 +25,7 @@ from .generated.rpc import (
     Action,
     Kind,
     Level,
+    ModelCapabilitiesOverride as _RpcModelCapabilitiesOverride,
     Property,
     PropertyType,
     RequestedSchema,
@@ -48,6 +49,9 @@ from .generated.session_events import (
     session_event_from_dict,
 )
 from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
+
+if TYPE_CHECKING:
+    from .client import ModelCapabilitiesOverride
 
 # Re-export SessionEvent under an alias used internally
 SessionEventTypeAlias = SessionEvent
@@ -1882,7 +1886,13 @@ class CopilotSession:
         """
         await self._client.request("session.abort", {"sessionId": self.session_id})
 
-    async def set_model(self, model: str, *, reasoning_effort: str | None = None) -> None:
+    async def set_model(
+        self,
+        model: str,
+        *,
+        reasoning_effort: str | None = None,
+        model_capabilities: ModelCapabilitiesOverride | None = None,
+    ) -> None:
         """
         Change the model for this session.
 
@@ -1893,6 +1903,7 @@ class CopilotSession:
             model: Model ID to switch to (e.g., "gpt-4.1", "claude-sonnet-4").
             reasoning_effort: Optional reasoning effort level for the new model
                 (e.g., "low", "medium", "high", "xhigh").
+            model_capabilities: Override individual model capabilities resolved by the runtime.
 
         Raises:
             Exception: If the session has been destroyed or the connection fails.
@@ -1901,10 +1912,18 @@ class CopilotSession:
             >>> await session.set_model("gpt-4.1")
             >>> await session.set_model("claude-sonnet-4.6", reasoning_effort="high")
         """
+        rpc_caps = None
+        if model_capabilities is not None:
+            from .client import _capabilities_to_dict
+
+            rpc_caps = _RpcModelCapabilitiesOverride.from_dict(
+                _capabilities_to_dict(model_capabilities)
+            )
         await self.rpc.model.switch_to(
             SessionModelSwitchToParams(
                 model_id=model,
                 reasoning_effort=reasoning_effort,
+                model_capabilities=rpc_caps,
             )
         )
 

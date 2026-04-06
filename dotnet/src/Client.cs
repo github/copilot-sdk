@@ -506,7 +506,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Commands: config.Commands?.Select(c => new CommandWireDefinition(c.Name, c.Description)).ToList(),
                 RequestElicitation: config.OnElicitationRequest != null,
                 Traceparent: traceparent,
-                Tracestate: tracestate);
+                Tracestate: tracestate,
+                ModelCapabilities: config.ModelCapabilities);
 
             var response = await InvokeRpcAsync<CreateSessionResponse>(
                 connection.Rpc, "session.create", [request], cancellationToken);
@@ -626,7 +627,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Commands: config.Commands?.Select(c => new CommandWireDefinition(c.Name, c.Description)).ToList(),
                 RequestElicitation: config.OnElicitationRequest != null,
                 Traceparent: traceparent,
-                Tracestate: tracestate);
+                Tracestate: tracestate,
+                ModelCapabilities: config.ModelCapabilities);
 
             var response = await InvokeRpcAsync<ResumeSessionResponse>(
                 connection.Rpc, "session.resume", [request], cancellationToken);
@@ -1605,7 +1607,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         List<CommandWireDefinition>? Commands = null,
         bool? RequestElicitation = null,
         string? Traceparent = null,
-        string? Tracestate = null);
+        string? Tracestate = null,
+        ModelCapabilitiesOverride? ModelCapabilities = null);
 
     internal record ToolDefinition(
         string Name,
@@ -1656,7 +1659,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         List<CommandWireDefinition>? Commands = null,
         bool? RequestElicitation = null,
         string? Traceparent = null,
-        string? Tracestate = null);
+        string? Tracestate = null,
+        ModelCapabilitiesOverride? ModelCapabilities = null);
 
     internal record ResumeSessionResponse(
         string SessionId,
@@ -1797,6 +1801,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(ListSessionsResponse))]
     [JsonSerializable(typeof(GetSessionMetadataRequest))]
     [JsonSerializable(typeof(GetSessionMetadataResponse))]
+    [JsonSerializable(typeof(ModelCapabilitiesOverride))]
     [JsonSerializable(typeof(PermissionRequestResult))]
     [JsonSerializable(typeof(PermissionRequestResponseV2))]
     [JsonSerializable(typeof(ProviderConfig))]

@@ -3,6 +3,8 @@ package copilot
 import (
 	"context"
 	"encoding/json"
+
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 // ConnectionState represents the client connection state
@@ -475,6 +477,9 @@ type SessionConfig struct {
 	Streaming bool
 	// Provider configures a custom model provider (BYOK)
 	Provider *ProviderConfig
+	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
+	// Only non-nil fields are applied over the runtime-resolved capabilities.
+	ModelCapabilities *rpc.ModelCapabilitiesOverride
 	// MCPServers configures MCP servers for the session
 	MCPServers map[string]MCPServerConfig
 	// CustomAgents configures custom agents for the session
@@ -650,6 +655,9 @@ type ResumeSessionConfig struct {
 	ExcludedTools []string
 	// Provider configures a custom model provider
 	Provider *ProviderConfig
+	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
+	// Only non-nil fields are applied over the runtime-resolved capabilities.
+	ModelCapabilities *rpc.ModelCapabilitiesOverride
 	// ReasoningEffort level for models that support it.
 	// Valid values: "low", "medium", "high", "xhigh"
 	ReasoningEffort string
@@ -860,6 +868,7 @@ type createSessionRequest struct {
 	AvailableTools     []string                   `json:"availableTools"`
 	ExcludedTools      []string                   `json:"excludedTools,omitempty"`
 	Provider           *ProviderConfig            `json:"provider,omitempty"`
+	ModelCapabilities  *rpc.ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
 	RequestPermission  *bool                      `json:"requestPermission,omitempty"`
 	RequestUserInput   *bool                      `json:"requestUserInput,omitempty"`
 	Hooks              *bool                      `json:"hooks,omitempty"`
@@ -903,6 +912,7 @@ type resumeSessionRequest struct {
 	AvailableTools     []string                   `json:"availableTools"`
 	ExcludedTools      []string                   `json:"excludedTools,omitempty"`
 	Provider           *ProviderConfig            `json:"provider,omitempty"`
+	ModelCapabilities  *rpc.ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
 	RequestPermission  *bool                      `json:"requestPermission,omitempty"`
 	RequestUserInput   *bool                      `json:"requestUserInput,omitempty"`
 	Hooks              *bool                      `json:"hooks,omitempty"`

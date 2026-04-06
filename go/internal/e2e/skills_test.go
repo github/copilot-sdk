@@ -72,7 +72,7 @@ func TestSkills(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, skillMarker) {
+		if message.Data.Content == nil || !strings.Contains(*message.Data.Content.String, skillMarker) {
 			t.Errorf("Expected message to contain skill marker '%s', got: %v", skillMarker, message.Data.Content)
 		}
 
@@ -101,8 +101,8 @@ func TestSkills(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message.Data.Content != nil && strings.Contains(*message.Data.Content, skillMarker) {
-			t.Errorf("Expected message to NOT contain skill marker '%s' when disabled, got: %v", skillMarker, *message.Data.Content)
+		if message.Data.Content != nil && strings.Contains(*message.Data.Content.String, skillMarker) {
+			t.Errorf("Expected message to NOT contain skill marker '%s' when disabled, got: %v", skillMarker, *message.Data.Content.String)
 		}
 
 		session.Disconnect()
@@ -127,8 +127,8 @@ func TestSkills(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message1.Data.Content != nil && strings.Contains(*message1.Data.Content, skillMarker) {
-			t.Errorf("Expected message to NOT contain skill marker before skill was added, got: %v", *message1.Data.Content)
+		if message1.Data.Content != nil && strings.Contains(*message1.Data.Content.String, skillMarker) {
+			t.Errorf("Expected message to NOT contain skill marker before skill was added, got: %v", *message1.Data.Content.String)
 		}
 
 		// Resume with skillDirectories - skill should now be active
@@ -150,7 +150,7 @@ func TestSkills(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message2.Data.Content == nil || !strings.Contains(*message2.Data.Content, skillMarker) {
+		if message2.Data.Content == nil || !strings.Contains(*message2.Data.Content.String, skillMarker) {
 			t.Errorf("Expected message to contain skill marker '%s' after resume, got: %v", skillMarker, message2.Data.Content)
 		}
 

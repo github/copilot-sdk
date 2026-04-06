@@ -102,8 +102,8 @@ public partial class ToolResultsTests(E2ETestFixture fixture, ITestOutputHelper 
             .ToList();
 
         Assert.Single(toolResults);
-        Assert.DoesNotContain("toolTelemetry", toolResults[0].Content);
-        Assert.DoesNotContain("resultType", toolResults[0].Content);
+        Assert.DoesNotContain("toolTelemetry", toolResults[0].StringContent);
+        Assert.DoesNotContain("resultType", toolResults[0].StringContent);
 
         [Description("Analyzes code for issues")]
         static ToolResultAIContent AnalyzeCode([Description("File to analyze")] string file)
