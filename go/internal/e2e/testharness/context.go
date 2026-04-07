@@ -166,13 +166,13 @@ func (c *TestContext) NewClient(opts ...func(*copilot.ClientOptions)) *copilot.C
 		Env:     c.Env(),
 	}
 
-	// Use fake token in CI to allow cached responses without real auth
-	if os.Getenv("GITHUB_ACTIONS") == "true" {
-		options.GitHubToken = "fake-token-for-e2e-tests"
-	}
-
 	for _, opt := range opts {
 		opt(options)
+	}
+
+	// Use fake token in CI to allow cached responses without real auth for spawned subprocess clients.
+	if os.Getenv("GITHUB_ACTIONS") == "true" && options.GitHubToken == "" && options.CLIUrl == "" {
+		options.GitHubToken = "fake-token-for-e2e-tests"
 	}
 
 	return copilot.NewClient(options)

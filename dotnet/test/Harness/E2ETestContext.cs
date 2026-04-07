@@ -105,7 +105,9 @@ public sealed class E2ETestContext : IAsyncDisposable
             options.CliPath ??= GetCliPath(_repoRoot);
         }
 
-        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")) && string.IsNullOrEmpty(options.GitHubToken))
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"))
+            && string.IsNullOrEmpty(options.GitHubToken)
+            && string.IsNullOrEmpty(options.CliUrl))
         {
             options.GitHubToken = "fake-token-for-e2e-tests";
         }
