@@ -721,6 +721,18 @@ function transformOpenAIRequestMessage(
     content = "${system}";
   } else if (m.role === "user" && typeof m.content === "string") {
     content = normalizeUserMessage(m.content);
+  } else if (m.role === "user" && Array.isArray(m.content)) {
+    // Multimodal user messages have array content with text and image_url parts.
+    // Extract and normalize text parts; represent image_url parts as a stable marker.
+    const parts: string[] = [];
+    for (const part of m.content) {
+      if (typeof part === "object" && part.type === "text" && typeof part.text === "string") {
+        parts.push(normalizeUserMessage(part.text));
+      } else if (typeof part === "object" && part.type === "image_url") {
+        parts.push("[image]");
+      }
+    }
+    content = parts.join("\n") || undefined;
   } else if (m.role === "tool" && typeof m.content === "string") {
     // If it's a JSON tool call result, normalize the whitespace and property ordering.
     // For successful tool results wrapped in {resultType, textResultForLlm}, unwrap to
