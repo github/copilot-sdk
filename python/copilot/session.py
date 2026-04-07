@@ -977,6 +977,8 @@ class CopilotSession:
         self._command_handlers_lock = threading.Lock()
         self._elicitation_handler: ElicitationHandler | None = None
         self._elicitation_handler_lock = threading.Lock()
+        self._session_fs_handler: Any = None
+        self._session_fs_handler_lock = threading.Lock()
         self._capabilities: SessionCapabilities = {}
         self._rpc: SessionRpc | None = None
         self._destroyed = False
@@ -1516,6 +1518,16 @@ class CopilotSession:
         """
         with self._elicitation_handler_lock:
             self._elicitation_handler = handler
+
+    def _register_session_fs_handler(self, handler: Any) -> None:
+        """Register a session filesystem handler for this session."""
+        with self._session_fs_handler_lock:
+            self._session_fs_handler = handler
+
+    def _get_session_fs_handler(self) -> Any:
+        """Return the currently registered session filesystem handler, or None."""
+        with self._session_fs_handler_lock:
+            return self._session_fs_handler
 
     def _set_capabilities(self, capabilities: SessionCapabilities | None) -> None:
         """Set the host capabilities for this session.

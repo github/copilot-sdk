@@ -97,6 +97,7 @@ type Client struct {
 	osProcess                 atomic.Pointer[os.Process]
 	negotiatedProtocolVersion int
 	onListModels              func(ctx context.Context) ([]ModelInfo, error)
+	sessionFsConfig           *SessionFsConfig
 
 	// RPC provides typed server-scoped RPC methods.
 	// This field is nil until the client is connected via Start().
@@ -191,6 +192,9 @@ func NewClient(options *ClientOptions) *Client {
 		}
 		if options.OnListModels != nil {
 			client.onListModels = options.OnListModels
+		}
+		if options.SessionFs != nil {
+			client.sessionFsConfig = options.SessionFs
 		}
 	}
 
@@ -303,6 +307,15 @@ func (c *Client) Start(ctx context.Context) error {
 		killErr := c.killProcess()
 		c.state = StateError
 		return errors.Join(err, killErr)
+	}
+
+	// Register sessionFs provider if configured
+	if c.sessionFsConfig != nil {
+		if err := c.registerSessionFsProvider(ctx); err != nil {
+			killErr := c.killProcess()
+			c.state = StateError
+			return errors.Join(err, killErr)
+		}
 	}
 
 	c.state = StateConnected
@@ -617,6 +630,13 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	if config.OnElicitationRequest != nil {
 		session.registerElicitationHandler(config.OnElicitationRequest)
 	}
+	if c.sessionFsConfig != nil {
+		if config.CreateSessionFsHandler != nil {
+			session.registerSessionFsHandler(config.CreateSessionFsHandler(session))
+		} else {
+			return nil, fmt.Errorf("CreateSessionFsHandler is required in session config when SessionFs is enabled in client options")
+		}
+	}
 
 	c.sessionsMux.Lock()
 	c.sessions[sessionID] = session
@@ -755,6 +775,13 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	}
 	if config.OnElicitationRequest != nil {
 		session.registerElicitationHandler(config.OnElicitationRequest)
+	}
+	if c.sessionFsConfig != nil {
+		if config.CreateSessionFsHandler != nil {
+			session.registerSessionFsHandler(config.CreateSessionFsHandler(session))
+		} else {
+			return nil, fmt.Errorf("CreateSessionFsHandler is required in session config when SessionFs is enabled in client options")
+		}
 	}
 
 	c.sessionsMux.Lock()
@@ -1260,6 +1287,145 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 	return nil
 }
 
+func (c *Client) registerSessionFsProvider(ctx context.Context) error {
+	cfg := c.sessionFsConfig
+	_, err := c.RPC.SessionFs.SetProvider(ctx, &rpc.SessionFSSetProviderParams{
+		InitialCwd:       cfg.InitialCwd,
+		SessionStatePath: cfg.SessionStatePath,
+		Conventions:      rpc.Conventions(cfg.Conventions),
+	})
+	return err
+}
+
+func (c *Client) getSessionFsHandler(sessionID string) (SessionFsHandler, *jsonrpc2.Error) {
+	c.sessionsMux.Lock()
+	session, ok := c.sessions[sessionID]
+	c.sessionsMux.Unlock()
+	if !ok {
+		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", sessionID)}
+	}
+	h := session.getSessionFsHandler()
+	if h == nil {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("no sessionFs handler registered for session: %s", sessionID)}
+	}
+	return h, nil
+}
+
+func (c *Client) handleSessionFsReadFile(req SessionFsReadFileParams) (*SessionFsReadFileResult, *jsonrpc2.Error) {
+	h, rpcErr := c.getSessionFsHandler(req.SessionID)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
+	result, err := h.ReadFile(req)
+	if err != nil {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: err.Error()}
+	}
+	return result, nil
+}
+
+func (c *Client) handleSessionFsWriteFile(req SessionFsWriteFileParams) (*struct{}, *jsonrpc2.Error) {
+	h, rpcErr := c.getSessionFsHandler(req.SessionID)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
+	if err := h.WriteFile(req); err != nil {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: err.Error()}
+	}
+	return &struct{}{}, nil
+}
+
+func (c *Client) handleSessionFsAppendFile(req SessionFsAppendFileParams) (*struct{}, *jsonrpc2.Error) {
+	h, rpcErr := c.getSessionFsHandler(req.SessionID)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
+	if err := h.AppendFile(req); err != nil {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: err.Error()}
+	}
+	return &struct{}{}, nil
+}
+
+func (c *Client) handleSessionFsExists(req SessionFsExistsParams) (*SessionFsExistsResult, *jsonrpc2.Error) {
+	h, rpcErr := c.getSessionFsHandler(req.SessionID)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
+	result, err := h.Exists(req)
+	if err != nil {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: err.Error()}
+	}
+	return result, nil
+}
+
+func (c *Client) handleSessionFsStat(req SessionFsStatParams) (*SessionFsStatResult, *jsonrpc2.Error) {
+	h, rpcErr := c.getSessionFsHandler(req.SessionID)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
+	result, err := h.Stat(req)
+	if err != nil {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: err.Error()}
+	}
+	return result, nil
+}
+
+func (c *Client) handleSessionFsMkdir(req SessionFsMkdirParams) (*struct{}, *jsonrpc2.Error) {
+	h, rpcErr := c.getSessionFsHandler(req.SessionID)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
+	if err := h.Mkdir(req); err != nil {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: err.Error()}
+	}
+	return &struct{}{}, nil
+}
+
+func (c *Client) handleSessionFsReaddir(req SessionFsReaddirParams) (*SessionFsReaddirResult, *jsonrpc2.Error) {
+	h, rpcErr := c.getSessionFsHandler(req.SessionID)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
+	result, err := h.Readdir(req)
+	if err != nil {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: err.Error()}
+	}
+	return result, nil
+}
+
+func (c *Client) handleSessionFsReaddirWithTypes(req SessionFsReaddirWithTypesParams) (*SessionFsReaddirWithTypesResult, *jsonrpc2.Error) {
+	h, rpcErr := c.getSessionFsHandler(req.SessionID)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
+	result, err := h.ReaddirWithTypes(req)
+	if err != nil {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: err.Error()}
+	}
+	return result, nil
+}
+
+func (c *Client) handleSessionFsRm(req SessionFsRmParams) (*struct{}, *jsonrpc2.Error) {
+	h, rpcErr := c.getSessionFsHandler(req.SessionID)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
+	if err := h.Rm(req); err != nil {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: err.Error()}
+	}
+	return &struct{}{}, nil
+}
+
+func (c *Client) handleSessionFsRename(req SessionFsRenameParams) (*struct{}, *jsonrpc2.Error) {
+	h, rpcErr := c.getSessionFsHandler(req.SessionID)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
+	if err := h.Rename(req); err != nil {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: err.Error()}
+	}
+	return &struct{}{}, nil
+}
+
 // startCLIServer starts the CLI server process.
 //
 // This spawns the CLI server as a subprocess using the configured transport
@@ -1524,6 +1690,18 @@ func (c *Client) setupNotificationHandler() {
 	c.client.SetRequestHandler("userInput.request", jsonrpc2.RequestHandlerFor(c.handleUserInputRequest))
 	c.client.SetRequestHandler("hooks.invoke", jsonrpc2.RequestHandlerFor(c.handleHooksInvoke))
 	c.client.SetRequestHandler("systemMessage.transform", jsonrpc2.RequestHandlerFor(c.handleSystemMessageTransform))
+
+	// SessionFs client session API handlers
+	c.client.SetRequestHandler("sessionFs.readFile", jsonrpc2.RequestHandlerFor(c.handleSessionFsReadFile))
+	c.client.SetRequestHandler("sessionFs.writeFile", jsonrpc2.RequestHandlerFor(c.handleSessionFsWriteFile))
+	c.client.SetRequestHandler("sessionFs.appendFile", jsonrpc2.RequestHandlerFor(c.handleSessionFsAppendFile))
+	c.client.SetRequestHandler("sessionFs.exists", jsonrpc2.RequestHandlerFor(c.handleSessionFsExists))
+	c.client.SetRequestHandler("sessionFs.stat", jsonrpc2.RequestHandlerFor(c.handleSessionFsStat))
+	c.client.SetRequestHandler("sessionFs.mkdir", jsonrpc2.RequestHandlerFor(c.handleSessionFsMkdir))
+	c.client.SetRequestHandler("sessionFs.readdir", jsonrpc2.RequestHandlerFor(c.handleSessionFsReaddir))
+	c.client.SetRequestHandler("sessionFs.readdirWithTypes", jsonrpc2.RequestHandlerFor(c.handleSessionFsReaddirWithTypes))
+	c.client.SetRequestHandler("sessionFs.rm", jsonrpc2.RequestHandlerFor(c.handleSessionFsRm))
+	c.client.SetRequestHandler("sessionFs.rename", jsonrpc2.RequestHandlerFor(c.handleSessionFsRename))
 }
 
 func (c *Client) handleSessionEvent(req sessionEventRequest) {

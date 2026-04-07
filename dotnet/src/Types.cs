@@ -64,6 +64,7 @@ public class CopilotClientOptions
         Logger = other.Logger;
         LogLevel = other.LogLevel;
         Port = other.Port;
+        SessionFs = other.SessionFs;
         Telemetry = other.Telemetry;
         UseLoggedInUser = other.UseLoggedInUser;
         UseStdio = other.UseStdio;
@@ -149,6 +150,14 @@ public class CopilotClientOptions
     /// available from your custom provider.
     /// </summary>
     public Func<CancellationToken, Task<List<ModelInfo>>>? OnListModels { get; set; }
+
+    /// <summary>
+    /// Custom session filesystem provider.
+    /// When provided, the client registers as the session filesystem provider
+    /// on connection, routing all session scoped file I/O through callbacks
+    /// instead of the server's default local filesystem storage.
+    /// </summary>
+    public SessionFsConfig? SessionFs { get; set; }
 
     /// <summary>
     /// OpenTelemetry configuration for the CLI server.
@@ -1579,6 +1588,7 @@ public class SessionConfig
             ? new Dictionary<string, object>(other.McpServers, other.McpServers.Comparer)
             : null;
         Model = other.Model;
+        CreateSessionFsHandler = other.CreateSessionFsHandler;
         OnElicitationRequest = other.OnElicitationRequest;
         OnEvent = other.OnEvent;
         OnPermissionRequest = other.OnPermissionRequest;
@@ -1726,10 +1736,16 @@ public class SessionConfig
     /// <remarks>
     /// Equivalent to calling <see cref="CopilotSession.On"/> immediately
     /// after creation, but executes earlier in the lifecycle so no events are missed.
-    /// Using this property rather than <see cref="CopilotSession.On"/> guarantees that early events emitted 
+    /// Using this property rather than <see cref="CopilotSession.On"/> guarantees that early events emitted
     /// by the CLI during session creation (e.g. session.start) are delivered to the handler.
     /// </remarks>
     public SessionEventHandler? OnEvent { get; set; }
+
+    /// <summary>
+    /// Factory that creates a session filesystem handler for this session.
+    /// Required when <see cref="CopilotClientOptions.SessionFs"/> is configured.
+    /// </summary>
+    public Func<CopilotSession, ISessionFsHandler>? CreateSessionFsHandler { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="SessionConfig"/> instance.
@@ -1772,6 +1788,7 @@ public class ResumeSessionConfig
         CustomAgents = other.CustomAgents is not null ? [.. other.CustomAgents] : null;
         Agent = other.Agent;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
+        CreateSessionFsHandler = other.CreateSessionFsHandler;
         DisableResume = other.DisableResume;
         ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
         Hooks = other.Hooks;
@@ -1928,6 +1945,12 @@ public class ResumeSessionConfig
     /// ensuring early events are delivered. See <see cref="SessionConfig.OnEvent"/>.
     /// </summary>
     public SessionEventHandler? OnEvent { get; set; }
+
+    /// <summary>
+    /// Factory that creates a session filesystem handler for this session.
+    /// Required when <see cref="CopilotClientOptions.SessionFs"/> is configured.
+    /// </summary>
+    public Func<CopilotSession, ISessionFsHandler>? CreateSessionFsHandler { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="ResumeSessionConfig"/> instance.
@@ -2423,6 +2446,277 @@ public class SystemMessageTransformRpcResponse
     public Dictionary<string, SystemMessageTransformSection>? Sections { get; set; }
 }
 
+/// <summary>
+/// Connection level configuration for the session filesystem provider.
+/// When set on <see cref="CopilotClientOptions.SessionFs"/>, the client registers
+/// as the session filesystem provider on connection, routing all session scoped
+/// file I/O through <see cref="ISessionFsHandler"/> callbacks instead of the
+/// server's default local filesystem storage.
+/// </summary>
+public class SessionFsConfig
+{
+    /// <summary>
+    /// Initial working directory for sessions (user's project directory).
+    /// </summary>
+    public string InitialCwd { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Path within each session's SessionFs where the runtime stores
+    /// session scoped files (events, workspace, checkpoints, etc.).
+    /// </summary>
+    public string SessionStatePath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Path conventions used by this filesystem provider.
+    /// </summary>
+    public SessionFsConventions Conventions { get; set; }
+}
+
+/// <summary>
+/// Path conventions used by a session filesystem provider.
+/// </summary>
+public enum SessionFsConventions
+{
+    /// <summary>POSIX-style paths (forward slashes).</summary>
+    Posix,
+    /// <summary>Windows-style paths (backslashes).</summary>
+    Windows,
+}
+
+/// <summary>
+/// Handler interface for session filesystem operations.
+/// Implement this interface to provide a custom virtual filesystem for session data.
+/// </summary>
+public interface ISessionFsHandler
+{
+    /// <summary>Reads the contents of a file.</summary>
+    Task<SessionFsReadFileResult> ReadFileAsync(SessionFsReadFileParams request, CancellationToken cancellationToken = default);
+    /// <summary>Writes content to a file, creating it if it does not exist.</summary>
+    Task WriteFileAsync(SessionFsWriteFileParams request, CancellationToken cancellationToken = default);
+    /// <summary>Appends content to a file, creating it if it does not exist.</summary>
+    Task AppendFileAsync(SessionFsAppendFileParams request, CancellationToken cancellationToken = default);
+    /// <summary>Checks whether a path exists.</summary>
+    Task<SessionFsExistsResult> ExistsAsync(SessionFsExistsParams request, CancellationToken cancellationToken = default);
+    /// <summary>Returns metadata about a file or directory.</summary>
+    Task<SessionFsStatResult> StatAsync(SessionFsStatParams request, CancellationToken cancellationToken = default);
+    /// <summary>Creates a directory, optionally creating parent directories.</summary>
+    Task MkdirAsync(SessionFsMkdirParams request, CancellationToken cancellationToken = default);
+    /// <summary>Lists entries in a directory.</summary>
+    Task<SessionFsReaddirResult> ReaddirAsync(SessionFsReaddirParams request, CancellationToken cancellationToken = default);
+    /// <summary>Lists entries in a directory with type information.</summary>
+    Task<SessionFsReaddirWithTypesResult> ReaddirWithTypesAsync(SessionFsReaddirWithTypesParams request, CancellationToken cancellationToken = default);
+    /// <summary>Removes a file or directory.</summary>
+    Task RmAsync(SessionFsRmParams request, CancellationToken cancellationToken = default);
+    /// <summary>Renames (moves) a file or directory.</summary>
+    Task RenameAsync(SessionFsRenameParams request, CancellationToken cancellationToken = default);
+}
+
+/// <summary>Parameters for a sessionFs.readFile request.</summary>
+public class SessionFsReadFileParams
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+    /// <summary>Path using SessionFs conventions.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+}
+
+/// <summary>Result of a sessionFs.readFile request.</summary>
+public class SessionFsReadFileResult
+{
+    /// <summary>File content as UTF-8 string.</summary>
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+}
+
+/// <summary>Parameters for a sessionFs.writeFile request.</summary>
+public class SessionFsWriteFileParams
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+    /// <summary>Path using SessionFs conventions.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+    /// <summary>Content to write.</summary>
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+    /// <summary>Optional POSIX-style mode for newly created files.</summary>
+    [JsonPropertyName("mode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Mode { get; set; }
+}
+
+/// <summary>Parameters for a sessionFs.appendFile request.</summary>
+public class SessionFsAppendFileParams
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+    /// <summary>Path using SessionFs conventions.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+    /// <summary>Content to append.</summary>
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+    /// <summary>Optional POSIX-style mode for newly created files.</summary>
+    [JsonPropertyName("mode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Mode { get; set; }
+}
+
+/// <summary>Parameters for a sessionFs.exists request.</summary>
+public class SessionFsExistsParams
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+    /// <summary>Path using SessionFs conventions.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+}
+
+/// <summary>Result of a sessionFs.exists request.</summary>
+public class SessionFsExistsResult
+{
+    /// <summary>Whether the path exists.</summary>
+    [JsonPropertyName("exists")]
+    public bool Exists { get; set; }
+}
+
+/// <summary>Parameters for a sessionFs.stat request.</summary>
+public class SessionFsStatParams
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+    /// <summary>Path using SessionFs conventions.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+}
+
+/// <summary>Result of a sessionFs.stat request.</summary>
+public class SessionFsStatResult
+{
+    /// <summary>Whether the path is a file.</summary>
+    [JsonPropertyName("isFile")]
+    public bool IsFile { get; set; }
+    /// <summary>Whether the path is a directory.</summary>
+    [JsonPropertyName("isDirectory")]
+    public bool IsDirectory { get; set; }
+    /// <summary>File size in bytes.</summary>
+    [JsonPropertyName("size")]
+    public long Size { get; set; }
+    /// <summary>ISO 8601 timestamp of last modification.</summary>
+    [JsonPropertyName("mtime")]
+    public string Mtime { get; set; } = string.Empty;
+    /// <summary>ISO 8601 timestamp of creation.</summary>
+    [JsonPropertyName("birthtime")]
+    public string Birthtime { get; set; } = string.Empty;
+}
+
+/// <summary>Parameters for a sessionFs.mkdir request.</summary>
+public class SessionFsMkdirParams
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+    /// <summary>Path using SessionFs conventions.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+    /// <summary>Whether to create parent directories.</summary>
+    [JsonPropertyName("recursive")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Recursive { get; set; }
+    /// <summary>Optional POSIX-style mode for the directory.</summary>
+    [JsonPropertyName("mode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Mode { get; set; }
+}
+
+/// <summary>Parameters for a sessionFs.readdir request.</summary>
+public class SessionFsReaddirParams
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+    /// <summary>Path using SessionFs conventions.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+}
+
+/// <summary>Result of a sessionFs.readdir request.</summary>
+public class SessionFsReaddirResult
+{
+    /// <summary>Entry names in the directory.</summary>
+    [JsonPropertyName("entries")]
+    public List<string> Entries { get; set; } = [];
+}
+
+/// <summary>Parameters for a sessionFs.readdirWithTypes request.</summary>
+public class SessionFsReaddirWithTypesParams
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+    /// <summary>Path using SessionFs conventions.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+}
+
+/// <summary>A directory entry with type information.</summary>
+public class SessionFsDirEntry
+{
+    /// <summary>Entry name.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+    /// <summary>Entry type: "file" or "directory".</summary>
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = string.Empty;
+}
+
+/// <summary>Result of a sessionFs.readdirWithTypes request.</summary>
+public class SessionFsReaddirWithTypesResult
+{
+    /// <summary>Entries with type information.</summary>
+    [JsonPropertyName("entries")]
+    public List<SessionFsDirEntry> Entries { get; set; } = [];
+}
+
+/// <summary>Parameters for a sessionFs.rm request.</summary>
+public class SessionFsRmParams
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+    /// <summary>Path using SessionFs conventions.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+    /// <summary>Whether to remove directories recursively.</summary>
+    [JsonPropertyName("recursive")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Recursive { get; set; }
+    /// <summary>Whether to ignore errors if the path does not exist.</summary>
+    [JsonPropertyName("force")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Force { get; set; }
+}
+
+/// <summary>Parameters for a sessionFs.rename request.</summary>
+public class SessionFsRenameParams
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+    /// <summary>Source path.</summary>
+    [JsonPropertyName("src")]
+    public string Src { get; set; } = string.Empty;
+    /// <summary>Destination path.</summary>
+    [JsonPropertyName("dest")]
+    public string Dest { get; set; } = string.Empty;
+}
+
 [JsonSourceGenerationOptions(
     JsonSerializerDefaults.Web,
     AllowOutOfOrderMetadataProperties = true,
@@ -2449,6 +2743,22 @@ public class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(PingResponse))]
 [JsonSerializable(typeof(ProviderConfig))]
 [JsonSerializable(typeof(SessionContext))]
+[JsonSerializable(typeof(SessionFsAppendFileParams))]
+[JsonSerializable(typeof(SessionFsDirEntry))]
+[JsonSerializable(typeof(SessionFsExistsParams))]
+[JsonSerializable(typeof(SessionFsExistsResult))]
+[JsonSerializable(typeof(SessionFsMkdirParams))]
+[JsonSerializable(typeof(SessionFsReadFileParams))]
+[JsonSerializable(typeof(SessionFsReadFileResult))]
+[JsonSerializable(typeof(SessionFsReaddirParams))]
+[JsonSerializable(typeof(SessionFsReaddirResult))]
+[JsonSerializable(typeof(SessionFsReaddirWithTypesParams))]
+[JsonSerializable(typeof(SessionFsReaddirWithTypesResult))]
+[JsonSerializable(typeof(SessionFsRenameParams))]
+[JsonSerializable(typeof(SessionFsRmParams))]
+[JsonSerializable(typeof(SessionFsStatParams))]
+[JsonSerializable(typeof(SessionFsStatResult))]
+[JsonSerializable(typeof(SessionFsWriteFileParams))]
 [JsonSerializable(typeof(SessionLifecycleEvent))]
 [JsonSerializable(typeof(SessionLifecycleEventMetadata))]
 [JsonSerializable(typeof(SessionListFilter))]

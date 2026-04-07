@@ -70,6 +70,8 @@ type Session struct {
 	commandHandlersMu  sync.RWMutex
 	elicitationHandler ElicitationHandler
 	elicitationMu      sync.RWMutex
+	sessionFsHandler   SessionFsHandler
+	sessionFsMu        sync.RWMutex
 	capabilities       SessionCapabilities
 	capabilitiesMu     sync.RWMutex
 
@@ -573,6 +575,20 @@ func (s *Session) getElicitationHandler() ElicitationHandler {
 	s.elicitationMu.RLock()
 	defer s.elicitationMu.RUnlock()
 	return s.elicitationHandler
+}
+
+// registerSessionFsHandler registers a session filesystem handler for this session.
+func (s *Session) registerSessionFsHandler(handler SessionFsHandler) {
+	s.sessionFsMu.Lock()
+	defer s.sessionFsMu.Unlock()
+	s.sessionFsHandler = handler
+}
+
+// getSessionFsHandler returns the currently registered session filesystem handler, or nil.
+func (s *Session) getSessionFsHandler() SessionFsHandler {
+	s.sessionFsMu.RLock()
+	defer s.sessionFsMu.RUnlock()
+	return s.sessionFsHandler
 }
 
 // handleElicitationRequest dispatches an elicitation.requested event to the registered handler

@@ -846,3 +846,51 @@ func TestCreateSessionResponse_Capabilities(t *testing.T) {
 		}
 	})
 }
+
+func TestClient_SessionFsConfig(t *testing.T) {
+	t.Run("stores session fs config from options", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			CLIUrl: "localhost:9999",
+			SessionFs: &SessionFsConfig{
+				InitialCwd:       "/home/user",
+				SessionStatePath: "/session-state",
+				Conventions:      "posix",
+			},
+		})
+
+		if client.sessionFsConfig == nil {
+			t.Fatal("Expected sessionFsConfig to be set")
+		}
+		if client.sessionFsConfig.InitialCwd != "/home/user" {
+			t.Errorf("Expected InitialCwd '/home/user', got '%s'", client.sessionFsConfig.InitialCwd)
+		}
+		if client.sessionFsConfig.Conventions != "posix" {
+			t.Errorf("Expected Conventions 'posix', got '%s'", client.sessionFsConfig.Conventions)
+		}
+	})
+
+	t.Run("returns error when sessionFs enabled but no handler on CreateSession", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			CLIUrl: "localhost:9999",
+			SessionFs: &SessionFsConfig{
+				InitialCwd:       "/",
+				SessionStatePath: "/state",
+				Conventions:      "posix",
+			},
+		})
+		client.state = StateConnected
+		client.client = nil // will fail before RPC
+
+		_, err := client.CreateSession(context.Background(), &SessionConfig{
+			OnPermissionRequest: PermissionHandler.ApproveAll,
+			// CreateSessionFsHandler intentionally omitted
+		})
+
+		if err == nil {
+			t.Fatal("Expected error when CreateSessionFsHandler is missing")
+		}
+		if !regexp.MustCompile(`CreateSessionFsHandler is required`).MatchString(err.Error()) {
+			t.Errorf("Expected error about CreateSessionFsHandler, got: %s", err.Error())
+		}
+	})
+}

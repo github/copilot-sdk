@@ -73,6 +73,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private readonly string? _optionsHost;
     private int? _actualPort;
     private int? _negotiatedProtocolVersion;
+    private readonly SessionFsConfig? _sessionFsConfig;
     private List<ModelInfo>? _modelsCache;
     private readonly SemaphoreSlim _modelsCacheLock = new(1, 1);
     private readonly Func<CancellationToken, Task<List<ModelInfo>>>? _onListModels;
@@ -143,6 +144,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         _logger = _options.Logger ?? NullLogger.Instance;
         _onListModels = _options.OnListModels;
+        _sessionFsConfig = _options.SessionFs;
 
         // Parse CliUrl if provided
         if (!string.IsNullOrEmpty(_options.CliUrl))
@@ -226,6 +228,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
             // Verify protocol version compatibility
             await VerifyProtocolVersionAsync(connection, ct);
+
+            // Register sessionFs provider if configured
+            if (_sessionFsConfig is not null)
+            {
+                await RegisterSessionFsProviderAsync(connection, ct);
+            }
 
             _logger.LogInformation("Copilot client connected");
             return connection;
@@ -462,6 +470,18 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             session.RegisterUserInputHandler(config.OnUserInputRequest);
         }
+        if (_sessionFsConfig is not null)
+        {
+            if (config.CreateSessionFsHandler is not null)
+            {
+                session.RegisterSessionFsHandler(config.CreateSessionFsHandler(session));
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    "CreateSessionFsHandler is required in session config when SessionFs is enabled in client options.");
+            }
+        }
         if (config.Hooks != null)
         {
             session.RegisterHooks(config.Hooks);
@@ -580,6 +600,18 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         if (config.OnUserInputRequest != null)
         {
             session.RegisterUserInputHandler(config.OnUserInputRequest);
+        }
+        if (_sessionFsConfig is not null)
+        {
+            if (config.CreateSessionFsHandler is not null)
+            {
+                session.RegisterSessionFsHandler(config.CreateSessionFsHandler(session));
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    "CreateSessionFsHandler is required in session config when SessionFs is enabled in client options.");
+            }
         }
         if (config.Hooks != null)
         {
@@ -1102,6 +1134,20 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         _negotiatedProtocolVersion = serverVersion;
     }
 
+    private async Task RegisterSessionFsProviderAsync(Connection connection, CancellationToken cancellationToken)
+    {
+        var config = _sessionFsConfig!;
+        await _rpc!.SessionFs.SetProviderAsync(
+            config.InitialCwd,
+            config.SessionStatePath,
+            config.Conventions switch
+            {
+                SessionFsConventions.Windows => SessionFsSetProviderRequestConventions.Windows,
+                _ => SessionFsSetProviderRequestConventions.Posix,
+            },
+            cancellationToken);
+    }
+
     private static async Task<(Process Process, int? DetectedLocalhostTcpPort, StringBuilder StderrBuffer)> StartCliServerAsync(CopilotClientOptions options, ILogger logger, CancellationToken cancellationToken)
     {
         // Use explicit path, COPILOT_CLI_PATH env var (from options.Environment or process env), or bundled CLI - no PATH fallback
@@ -1317,6 +1363,19 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         rpc.AddLocalRpcMethod("userInput.request", handler.OnUserInputRequest);
         rpc.AddLocalRpcMethod("hooks.invoke", handler.OnHooksInvoke);
         rpc.AddLocalRpcMethod("systemMessage.transform", handler.OnSystemMessageTransform);
+
+        // SessionFs client session API handlers
+        rpc.AddLocalRpcMethod("sessionFs.readFile", handler.OnSessionFsReadFile);
+        rpc.AddLocalRpcMethod("sessionFs.writeFile", handler.OnSessionFsWriteFile);
+        rpc.AddLocalRpcMethod("sessionFs.appendFile", handler.OnSessionFsAppendFile);
+        rpc.AddLocalRpcMethod("sessionFs.exists", handler.OnSessionFsExists);
+        rpc.AddLocalRpcMethod("sessionFs.stat", handler.OnSessionFsStat);
+        rpc.AddLocalRpcMethod("sessionFs.mkdir", handler.OnSessionFsMkdir);
+        rpc.AddLocalRpcMethod("sessionFs.readdir", handler.OnSessionFsReaddir);
+        rpc.AddLocalRpcMethod("sessionFs.readdirWithTypes", handler.OnSessionFsReaddirWithTypes);
+        rpc.AddLocalRpcMethod("sessionFs.rm", handler.OnSessionFsRm);
+        rpc.AddLocalRpcMethod("sessionFs.rename", handler.OnSessionFsRename);
+
         rpc.StartListening();
 
         // Transition state to Disconnected if the JSON-RPC connection drops
@@ -1551,6 +1610,67 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     Kind = PermissionRequestResultKind.DeniedCouldNotRequestFromUser
                 });
             }
+        }
+
+        // SessionFs handler methods
+        public async Task<SessionFsReadFileResult> OnSessionFsReadFile(string sessionId, string path)
+        {
+            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
+            return await session.HandleSessionFsReadFileAsync(new SessionFsReadFileParams { SessionId = sessionId, Path = path });
+        }
+
+        public async Task OnSessionFsWriteFile(string sessionId, string path, string content, int? mode = null)
+        {
+            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
+            await session.HandleSessionFsWriteFileAsync(new SessionFsWriteFileParams { SessionId = sessionId, Path = path, Content = content, Mode = mode });
+        }
+
+        public async Task OnSessionFsAppendFile(string sessionId, string path, string content, int? mode = null)
+        {
+            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
+            await session.HandleSessionFsAppendFileAsync(new SessionFsAppendFileParams { SessionId = sessionId, Path = path, Content = content, Mode = mode });
+        }
+
+        public async Task<SessionFsExistsResult> OnSessionFsExists(string sessionId, string path)
+        {
+            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
+            return await session.HandleSessionFsExistsAsync(new SessionFsExistsParams { SessionId = sessionId, Path = path });
+        }
+
+        public async Task<SessionFsStatResult> OnSessionFsStat(string sessionId, string path)
+        {
+            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
+            return await session.HandleSessionFsStatAsync(new SessionFsStatParams { SessionId = sessionId, Path = path });
+        }
+
+        public async Task OnSessionFsMkdir(string sessionId, string path, bool? recursive = null, int? mode = null)
+        {
+            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
+            await session.HandleSessionFsMkdirAsync(new SessionFsMkdirParams { SessionId = sessionId, Path = path, Recursive = recursive, Mode = mode });
+        }
+
+        public async Task<SessionFsReaddirResult> OnSessionFsReaddir(string sessionId, string path)
+        {
+            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
+            return await session.HandleSessionFsReaddirAsync(new SessionFsReaddirParams { SessionId = sessionId, Path = path });
+        }
+
+        public async Task<SessionFsReaddirWithTypesResult> OnSessionFsReaddirWithTypes(string sessionId, string path)
+        {
+            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
+            return await session.HandleSessionFsReaddirWithTypesAsync(new SessionFsReaddirWithTypesParams { SessionId = sessionId, Path = path });
+        }
+
+        public async Task OnSessionFsRm(string sessionId, string path, bool? recursive = null, bool? force = null)
+        {
+            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
+            await session.HandleSessionFsRmAsync(new SessionFsRmParams { SessionId = sessionId, Path = path, Recursive = recursive, Force = force });
+        }
+
+        public async Task OnSessionFsRename(string sessionId, string src, string dest)
+        {
+            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
+            await session.HandleSessionFsRenameAsync(new SessionFsRenameParams { SessionId = sessionId, Src = src, Dest = dest });
         }
     }
 

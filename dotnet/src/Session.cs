@@ -63,6 +63,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private volatile PermissionRequestHandler? _permissionHandler;
     private volatile UserInputHandler? _userInputHandler;
     private volatile ElicitationHandler? _elicitationHandler;
+    private volatile ISessionFsHandler? _sessionFsHandler;
     private ImmutableArray<SessionEventHandler> _eventHandlers = ImmutableArray<SessionEventHandler>.Empty;
 
     private SessionHooks? _hooks;
@@ -663,6 +664,29 @@ public sealed partial class CopilotSession : IAsyncDisposable
     {
         _elicitationHandler = handler;
     }
+
+    /// <summary>
+    /// Registers a session filesystem handler for this session.
+    /// </summary>
+    /// <param name="handler">The handler to invoke for filesystem operations.</param>
+    internal void RegisterSessionFsHandler(ISessionFsHandler handler)
+    {
+        _sessionFsHandler = handler;
+    }
+
+    internal ISessionFsHandler GetSessionFsHandler() =>
+        _sessionFsHandler ?? throw new InvalidOperationException($"No sessionFs handler registered for session: {SessionId}");
+
+    internal Task<SessionFsReadFileResult> HandleSessionFsReadFileAsync(SessionFsReadFileParams request) => GetSessionFsHandler().ReadFileAsync(request);
+    internal Task HandleSessionFsWriteFileAsync(SessionFsWriteFileParams request) => GetSessionFsHandler().WriteFileAsync(request);
+    internal Task HandleSessionFsAppendFileAsync(SessionFsAppendFileParams request) => GetSessionFsHandler().AppendFileAsync(request);
+    internal Task<SessionFsExistsResult> HandleSessionFsExistsAsync(SessionFsExistsParams request) => GetSessionFsHandler().ExistsAsync(request);
+    internal Task<SessionFsStatResult> HandleSessionFsStatAsync(SessionFsStatParams request) => GetSessionFsHandler().StatAsync(request);
+    internal Task HandleSessionFsMkdirAsync(SessionFsMkdirParams request) => GetSessionFsHandler().MkdirAsync(request);
+    internal Task<SessionFsReaddirResult> HandleSessionFsReaddirAsync(SessionFsReaddirParams request) => GetSessionFsHandler().ReaddirAsync(request);
+    internal Task<SessionFsReaddirWithTypesResult> HandleSessionFsReaddirWithTypesAsync(SessionFsReaddirWithTypesParams request) => GetSessionFsHandler().ReaddirWithTypesAsync(request);
+    internal Task HandleSessionFsRmAsync(SessionFsRmParams request) => GetSessionFsHandler().RmAsync(request);
+    internal Task HandleSessionFsRenameAsync(SessionFsRenameParams request) => GetSessionFsHandler().RenameAsync(request);
 
     /// <summary>
     /// Sets the capabilities reported by the host for this session.

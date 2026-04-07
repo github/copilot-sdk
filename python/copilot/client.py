@@ -140,6 +140,93 @@ class ExternalServerConfig:
     """Server URL. Supports ``"host:port"``, ``"http://host:port"``, or just ``"port"``."""
 
 
+@dataclass
+class SessionFsConfig:
+    """Connection level configuration for the session filesystem provider.
+
+    When provided to :class:`CopilotClient`, the client registers as the session
+    filesystem provider on connection, routing all session scoped file I/O through
+    :class:`SessionFsHandler` callbacks instead of the server's default local
+    filesystem storage.
+    """
+
+    initial_cwd: str
+    """Initial working directory for sessions (user's project directory)."""
+
+    session_state_path: str
+    """Path within each session's SessionFs where the runtime stores
+    session scoped files (events, workspace, checkpoints, etc.)."""
+
+    conventions: Literal["posix", "windows"]
+    """Path conventions used by this filesystem provider."""
+
+
+class SessionFsHandler:
+    """Handler interface for session filesystem operations.
+
+    Implement this class to provide a custom virtual filesystem for session data.
+    All methods receive their parameters as keyword arguments.
+    """
+
+    async def read_file(self, *, session_id: str, path: str) -> dict[str, Any]:
+        """Read the contents of a file. Return ``{"content": str}``."""
+        raise NotImplementedError
+
+    async def write_file(
+        self, *, session_id: str, path: str, content: str, mode: int | None = None
+    ) -> None:
+        """Write content to a file."""
+        raise NotImplementedError
+
+    async def append_file(
+        self, *, session_id: str, path: str, content: str, mode: int | None = None
+    ) -> None:
+        """Append content to a file."""
+        raise NotImplementedError
+
+    async def exists(self, *, session_id: str, path: str) -> dict[str, Any]:
+        """Check whether a path exists. Return ``{"exists": bool}``."""
+        raise NotImplementedError
+
+    async def stat(self, *, session_id: str, path: str) -> dict[str, Any]:
+        """Return metadata about a file or directory."""
+        raise NotImplementedError
+
+    async def mkdir(
+        self,
+        *,
+        session_id: str,
+        path: str,
+        recursive: bool | None = None,
+        mode: int | None = None,
+    ) -> None:
+        """Create a directory."""
+        raise NotImplementedError
+
+    async def readdir(self, *, session_id: str, path: str) -> dict[str, Any]:
+        """List entries in a directory. Return ``{"entries": list[str]}``."""
+        raise NotImplementedError
+
+    async def readdir_with_types(self, *, session_id: str, path: str) -> dict[str, Any]:
+        """List entries with type info. Return ``{"entries": list[dict]}``."""
+        raise NotImplementedError
+
+    async def rm(
+        self,
+        *,
+        session_id: str,
+        path: str,
+        recursive: bool | None = None,
+        force: bool | None = None,
+    ) -> None:
+        """Remove a file or directory."""
+        raise NotImplementedError
+
+    async def rename(self, *, session_id: str, src: str, dest: str) -> None:
+        """Rename (move) a file or directory."""
+        raise NotImplementedError
+
+
 # ============================================================================
 # Response Types
 # ============================================================================
@@ -750,6 +837,7 @@ class CopilotClient:
         *,
         auto_start: bool = True,
         on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None,
+        session_fs: SessionFsConfig | None = None,
     ):
         """
         Initialize a new CopilotClient.
@@ -784,6 +872,7 @@ class CopilotClient:
         self._config: SubprocessConfig | ExternalServerConfig = config
         self._auto_start = auto_start
         self._on_list_models = on_list_models
+        self._session_fs_config = session_fs
 
         # Resolve connection-mode-specific state
         self._actual_host: str = "localhost"
@@ -958,6 +1047,10 @@ class CopilotClient:
             # Verify protocol version compatibility
             await self._verify_protocol_version()
 
+            # Register sessionFs provider if configured
+            if self._session_fs_config is not None:
+                await self._register_session_fs_provider()
+
             self._state = "connected"
         except ProcessExitedError as e:
             # Process exited with error - reraise as RuntimeError with stderr
@@ -1118,6 +1211,7 @@ class CopilotClient:
         on_event: Callable[[SessionEvent], None] | None = None,
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
+        create_session_fs_handler: Callable[[CopilotSession], SessionFsHandler] | None = None,
     ) -> CopilotSession:
         """
         Create a new conversation session with the Copilot CLI.
@@ -1309,6 +1403,14 @@ class CopilotClient:
             session._register_user_input_handler(on_user_input_request)
         if on_elicitation_request:
             session._register_elicitation_handler(on_elicitation_request)
+        if self._session_fs_config is not None:
+            if create_session_fs_handler is not None:
+                session._register_session_fs_handler(create_session_fs_handler(session))
+            else:
+                raise ValueError(
+                    "create_session_fs_handler is required in session config "
+                    "when session_fs is enabled in client options."
+                )
         if hooks:
             session._register_hooks(hooks)
         if transform_callbacks:
@@ -1357,6 +1459,7 @@ class CopilotClient:
         on_event: Callable[[SessionEvent], None] | None = None,
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
+        create_session_fs_handler: Callable[[CopilotSession], SessionFsHandler] | None = None,
     ) -> CopilotSession:
         """
         Resume an existing conversation session by its ID.
@@ -1529,6 +1632,14 @@ class CopilotClient:
             session._register_user_input_handler(on_user_input_request)
         if on_elicitation_request:
             session._register_elicitation_handler(on_elicitation_request)
+        if self._session_fs_config is not None:
+            if create_session_fs_handler is not None:
+                session._register_session_fs_handler(create_session_fs_handler(session))
+            else:
+                raise ValueError(
+                    "create_session_fs_handler is required in session config "
+                    "when session_fs is enabled in client options."
+                )
         if hooks:
             session._register_hooks(hooks)
         if transform_callbacks:
@@ -2214,6 +2325,22 @@ class CopilotClient:
             "systemMessage.transform", self._handle_system_message_transform
         )
 
+        # SessionFs client session API handlers
+        self._client.set_request_handler("sessionFs.readFile", self._handle_session_fs_read_file)
+        self._client.set_request_handler("sessionFs.writeFile", self._handle_session_fs_write_file)
+        self._client.set_request_handler(
+            "sessionFs.appendFile", self._handle_session_fs_append_file
+        )
+        self._client.set_request_handler("sessionFs.exists", self._handle_session_fs_exists)
+        self._client.set_request_handler("sessionFs.stat", self._handle_session_fs_stat)
+        self._client.set_request_handler("sessionFs.mkdir", self._handle_session_fs_mkdir)
+        self._client.set_request_handler("sessionFs.readdir", self._handle_session_fs_readdir)
+        self._client.set_request_handler(
+            "sessionFs.readdirWithTypes", self._handle_session_fs_readdir_with_types
+        )
+        self._client.set_request_handler("sessionFs.rm", self._handle_session_fs_rm)
+        self._client.set_request_handler("sessionFs.rename", self._handle_session_fs_rename)
+
         # Start listening for messages
         loop = asyncio.get_running_loop()
         self._client.start(loop)
@@ -2317,6 +2444,22 @@ class CopilotClient:
         self._client.set_request_handler(
             "systemMessage.transform", self._handle_system_message_transform
         )
+
+        # SessionFs client session API handlers
+        self._client.set_request_handler("sessionFs.readFile", self._handle_session_fs_read_file)
+        self._client.set_request_handler("sessionFs.writeFile", self._handle_session_fs_write_file)
+        self._client.set_request_handler(
+            "sessionFs.appendFile", self._handle_session_fs_append_file
+        )
+        self._client.set_request_handler("sessionFs.exists", self._handle_session_fs_exists)
+        self._client.set_request_handler("sessionFs.stat", self._handle_session_fs_stat)
+        self._client.set_request_handler("sessionFs.mkdir", self._handle_session_fs_mkdir)
+        self._client.set_request_handler("sessionFs.readdir", self._handle_session_fs_readdir)
+        self._client.set_request_handler(
+            "sessionFs.readdirWithTypes", self._handle_session_fs_readdir_with_types
+        )
+        self._client.set_request_handler("sessionFs.rm", self._handle_session_fs_rm)
+        self._client.set_request_handler("sessionFs.rename", self._handle_session_fs_rename)
 
         # Start listening for messages
         loop = asyncio.get_running_loop()
@@ -2504,3 +2647,92 @@ class CopilotClient:
                     "kind": "denied-no-approval-rule-and-could-not-request-from-user",
                 }
             }
+
+    async def _register_session_fs_provider(self) -> None:
+        """Register this client as the session filesystem provider."""
+        cfg = self._session_fs_config
+        assert cfg is not None
+        assert self._client is not None
+        await self._client.request(
+            "sessionFs.setProvider",
+            {
+                "initialCwd": cfg.initial_cwd,
+                "sessionStatePath": cfg.session_state_path,
+                "conventions": cfg.conventions,
+            },
+        )
+
+    def _get_session_fs_handler(self, session_id: str) -> SessionFsHandler:
+        with self._sessions_lock:
+            session = self._sessions.get(session_id)
+        if session is None:
+            raise ValueError(f"Unknown session {session_id}")
+        handler = session._get_session_fs_handler()
+        if handler is None:
+            raise ValueError(f"No sessionFs handler registered for session: {session_id}")
+        return handler
+
+    async def _handle_session_fs_read_file(self, params: dict) -> dict:
+        h = self._get_session_fs_handler(params["sessionId"])
+        return await h.read_file(session_id=params["sessionId"], path=params["path"])
+
+    async def _handle_session_fs_write_file(self, params: dict) -> dict:
+        h = self._get_session_fs_handler(params["sessionId"])
+        await h.write_file(
+            session_id=params["sessionId"],
+            path=params["path"],
+            content=params["content"],
+            mode=params.get("mode"),
+        )
+        return {}
+
+    async def _handle_session_fs_append_file(self, params: dict) -> dict:
+        h = self._get_session_fs_handler(params["sessionId"])
+        await h.append_file(
+            session_id=params["sessionId"],
+            path=params["path"],
+            content=params["content"],
+            mode=params.get("mode"),
+        )
+        return {}
+
+    async def _handle_session_fs_exists(self, params: dict) -> dict:
+        h = self._get_session_fs_handler(params["sessionId"])
+        return await h.exists(session_id=params["sessionId"], path=params["path"])
+
+    async def _handle_session_fs_stat(self, params: dict) -> dict:
+        h = self._get_session_fs_handler(params["sessionId"])
+        return await h.stat(session_id=params["sessionId"], path=params["path"])
+
+    async def _handle_session_fs_mkdir(self, params: dict) -> dict:
+        h = self._get_session_fs_handler(params["sessionId"])
+        await h.mkdir(
+            session_id=params["sessionId"],
+            path=params["path"],
+            recursive=params.get("recursive"),
+            mode=params.get("mode"),
+        )
+        return {}
+
+    async def _handle_session_fs_readdir(self, params: dict) -> dict:
+        h = self._get_session_fs_handler(params["sessionId"])
+        return await h.readdir(session_id=params["sessionId"], path=params["path"])
+
+    async def _handle_session_fs_readdir_with_types(self, params: dict) -> dict:
+        h = self._get_session_fs_handler(params["sessionId"])
+        return await h.readdir_with_types(session_id=params["sessionId"], path=params["path"])
+
+    async def _handle_session_fs_rm(self, params: dict) -> dict:
+        h = self._get_session_fs_handler(params["sessionId"])
+        await h.rm(
+            session_id=params["sessionId"],
+            path=params["path"],
+            recursive=params.get("recursive"),
+            force=params.get("force"),
+        )
+        return {}
+
+    async def _handle_session_fs_rename(self, params: dict) -> dict:
+        h = self._get_session_fs_handler(params["sessionId"])
+        await h.rename(session_id=params["sessionId"], src=params["src"], dest=params["dest"])
+        return {}

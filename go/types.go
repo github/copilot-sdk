@@ -65,6 +65,11 @@ type ClientOptions struct {
 	// When non-nil, COPILOT_OTEL_ENABLED=true is set and any populated fields
 	// are mapped to the corresponding environment variables.
 	Telemetry *TelemetryConfig
+	// SessionFs configures the session filesystem provider.
+	// When non-nil, the client registers as the session filesystem provider
+	// on connection, routing all session scoped file I/O through SessionFsHandler
+	// callbacks instead of the server's default local filesystem storage.
+	SessionFs *SessionFsConfig
 }
 
 // TelemetryConfig configures OpenTelemetry integration for the Copilot CLI process.
@@ -503,6 +508,9 @@ type SessionConfig struct {
 	// When provided, the server may call back to this client for form-based UI dialogs
 	// (e.g. from MCP tools). Also enables the elicitation capability on the session.
 	OnElicitationRequest ElicitationHandler
+	// CreateSessionFsHandler creates a session filesystem handler for this session.
+	// Required when ClientOptions.SessionFs is configured.
+	CreateSessionFsHandler func(session *Session) SessionFsHandler
 }
 type Tool struct {
 	Name                 string         `json:"name"`
@@ -694,6 +702,9 @@ type ResumeSessionConfig struct {
 	// OnElicitationRequest is a handler for elicitation requests from the server.
 	// See SessionConfig.OnElicitationRequest.
 	OnElicitationRequest ElicitationHandler
+	// CreateSessionFsHandler creates a session filesystem handler for this session.
+	// Required when ClientOptions.SessionFs is configured.
+	CreateSessionFsHandler func(session *Session) SessionFsHandler
 }
 type ProviderConfig struct {
 	// Type is the provider type: "openai", "azure", or "anthropic". Defaults to "openai".
@@ -1087,4 +1098,134 @@ type userInputRequest struct {
 type userInputResponse struct {
 	Answer      string `json:"answer"`
 	WasFreeform bool   `json:"wasFreeform"`
+}
+
+// SessionFsConfig configures the session filesystem provider at the connection level.
+type SessionFsConfig struct {
+	// InitialCwd is the initial working directory for sessions.
+	InitialCwd string
+	// SessionStatePath is the path within each session's SessionFs where the
+	// runtime stores session scoped files.
+	SessionStatePath string
+	// Conventions is the path convention: "posix" or "windows".
+	Conventions string
+}
+
+// SessionFsHandler handles session filesystem operations.
+// Implement this interface to provide a custom virtual filesystem for session data.
+type SessionFsHandler interface {
+	ReadFile(params SessionFsReadFileParams) (*SessionFsReadFileResult, error)
+	WriteFile(params SessionFsWriteFileParams) error
+	AppendFile(params SessionFsAppendFileParams) error
+	Exists(params SessionFsExistsParams) (*SessionFsExistsResult, error)
+	Stat(params SessionFsStatParams) (*SessionFsStatResult, error)
+	Mkdir(params SessionFsMkdirParams) error
+	Readdir(params SessionFsReaddirParams) (*SessionFsReaddirResult, error)
+	ReaddirWithTypes(params SessionFsReaddirWithTypesParams) (*SessionFsReaddirWithTypesResult, error)
+	Rm(params SessionFsRmParams) error
+	Rename(params SessionFsRenameParams) error
+}
+
+// SessionFsReadFileParams are the params for a sessionFs.readFile request.
+type SessionFsReadFileParams struct {
+	SessionID string `json:"sessionId"`
+	Path      string `json:"path"`
+}
+
+// SessionFsReadFileResult is the result of a sessionFs.readFile request.
+type SessionFsReadFileResult struct {
+	Content string `json:"content"`
+}
+
+// SessionFsWriteFileParams are the params for a sessionFs.writeFile request.
+type SessionFsWriteFileParams struct {
+	SessionID string `json:"sessionId"`
+	Path      string `json:"path"`
+	Content   string `json:"content"`
+	Mode      *int   `json:"mode,omitempty"`
+}
+
+// SessionFsAppendFileParams are the params for a sessionFs.appendFile request.
+type SessionFsAppendFileParams struct {
+	SessionID string `json:"sessionId"`
+	Path      string `json:"path"`
+	Content   string `json:"content"`
+	Mode      *int   `json:"mode,omitempty"`
+}
+
+// SessionFsExistsParams are the params for a sessionFs.exists request.
+type SessionFsExistsParams struct {
+	SessionID string `json:"sessionId"`
+	Path      string `json:"path"`
+}
+
+// SessionFsExistsResult is the result of a sessionFs.exists request.
+type SessionFsExistsResult struct {
+	Exists bool `json:"exists"`
+}
+
+// SessionFsStatParams are the params for a sessionFs.stat request.
+type SessionFsStatParams struct {
+	SessionID string `json:"sessionId"`
+	Path      string `json:"path"`
+}
+
+// SessionFsStatResult is the result of a sessionFs.stat request.
+type SessionFsStatResult struct {
+	IsFile      bool   `json:"isFile"`
+	IsDirectory bool   `json:"isDirectory"`
+	Size        int64  `json:"size"`
+	Mtime       string `json:"mtime"`
+	Birthtime   string `json:"birthtime"`
+}
+
+// SessionFsMkdirParams are the params for a sessionFs.mkdir request.
+type SessionFsMkdirParams struct {
+	SessionID string `json:"sessionId"`
+	Path      string `json:"path"`
+	Recursive *bool  `json:"recursive,omitempty"`
+	Mode      *int   `json:"mode,omitempty"`
+}
+
+// SessionFsReaddirParams are the params for a sessionFs.readdir request.
+type SessionFsReaddirParams struct {
+	SessionID string `json:"sessionId"`
+	Path      string `json:"path"`
+}
+
+// SessionFsReaddirResult is the result of a sessionFs.readdir request.
+type SessionFsReaddirResult struct {
+	Entries []string `json:"entries"`
+}
+
+// SessionFsReaddirWithTypesParams are the params for a sessionFs.readdirWithTypes request.
+type SessionFsReaddirWithTypesParams struct {
+	SessionID string `json:"sessionId"`
+	Path      string `json:"path"`
+}
+
+// SessionFsDirEntry is a directory entry with type information.
+type SessionFsDirEntry struct {
+	Name string `json:"name"`
+	Type string `json:"type"` // "file" or "directory"
+}
+
+// SessionFsReaddirWithTypesResult is the result of a sessionFs.readdirWithTypes request.
+type SessionFsReaddirWithTypesResult struct {
+	Entries []SessionFsDirEntry `json:"entries"`
+}
+
+// SessionFsRmParams are the params for a sessionFs.rm request.
+type SessionFsRmParams struct {
+	SessionID string `json:"sessionId"`
+	Path      string `json:"path"`
+	Recursive *bool  `json:"recursive,omitempty"`
+	Force     *bool  `json:"force,omitempty"`
+}
+
+// SessionFsRenameParams are the params for a sessionFs.rename request.
+type SessionFsRenameParams struct {
+	SessionID string `json:"sessionId"`
+	Src       string `json:"src"`
+	Dest      string `json:"dest"`
 }

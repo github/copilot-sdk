@@ -528,3 +528,38 @@ class TestCopilotSessionContextManager:
         with patch.object(session, "disconnect", new_callable=AsyncMock) as mock_disconnect:
             await session.__aexit__(None, None, None)
             mock_disconnect.assert_awaited_once()
+
+
+class TestSessionFsConfig:
+    def test_session_fs_config_stored_on_client(self):
+        from copilot.client import SessionFsConfig
+
+        config = SessionFsConfig(
+            initial_cwd="/home/user",
+            session_state_path="/session-state",
+            conventions="posix",
+        )
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH), session_fs=config)
+        assert client._session_fs_config is not None
+        assert client._session_fs_config.initial_cwd == "/home/user"
+        assert client._session_fs_config.conventions == "posix"
+
+    @pytest.mark.asyncio
+    async def test_create_session_raises_when_session_fs_enabled_but_no_handler(self):
+        from copilot.client import SessionFsConfig
+
+        config = SessionFsConfig(
+            initial_cwd="/",
+            session_state_path="/session-state",
+            conventions="posix",
+        )
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH), session_fs=config)
+        await client.start()
+        try:
+            with pytest.raises(ValueError, match="create_session_fs_handler is required"):
+                await client.create_session(
+                    on_permission_request=PermissionHandler.approve_all,
+                    # create_session_fs_handler intentionally omitted
+                )
+        finally:
+            await client.stop()

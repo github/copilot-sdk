@@ -4,7 +4,13 @@ Copilot SDK - Python Client for GitHub Copilot CLI
 JSON-RPC based SDK for programmatic control of GitHub Copilot CLI
 """
 
-from .client import CopilotClient, ExternalServerConfig, SubprocessConfig
+from .client import (
+    CopilotClient,
+    ExternalServerConfig,
+    SessionFsConfig,
+    SessionFsHandler,
+    SubprocessConfig,
+)
 from .session import (
     CommandContext,
     CommandDefinition,
@@ -34,6 +40,8 @@ __all__ = [
     "ExternalServerConfig",
     "InputOptions",
     "SessionCapabilities",
+    "SessionFsConfig",
+    "SessionFsHandler",
     "SessionUiApi",
     "SessionUiCapabilities",
     "SubprocessConfig",
