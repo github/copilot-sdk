@@ -36,7 +36,7 @@ func main() {
 	}
 
 	if response != nil && response.Data.Content != nil {
-		fmt.Printf("Response: %s\n", *response.Data.Content.String)
+		fmt.Printf("Response: %s\n", *response.Data.Content)
 	}
 
 	fmt.Println("Default mode test complete")

@@ -57,6 +57,6 @@ func main() {
 	}
 
 	if response != nil && response.Data.Content != nil {
-		fmt.Println(*response.Data.Content.String)
+		fmt.Println(*response.Data.Content)
 	}
 }

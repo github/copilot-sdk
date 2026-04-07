@@ -68,7 +68,7 @@ func main() {
 			log.Fatal(err)
 		}
 		if resp != nil && resp.Data.Content != nil {
-			results[0] = result{label: "Session 1 (pirate)", content: *resp.Data.Content.String}
+			results[0] = result{label: "Session 1 (pirate)", content: *resp.Data.Content}
 		}
 	}()
 	go func() {
@@ -80,7 +80,7 @@ func main() {
 			log.Fatal(err)
 		}
 		if resp != nil && resp.Data.Content != nil {
-			results[1] = result{label: "Session 2 (robot)", content: *resp.Data.Content.String}
+			results[1] = result{label: "Session 2 (robot)", content: *resp.Data.Content}
 		}
 	}()
 	wg.Wait()

@@ -43,6 +43,6 @@ func main() {
 
 	if response != nil && response.Data.Content != nil {
 		fmt.Println("Reasoning effort: low")
-		fmt.Printf("Response: %s\n", *response.Data.Content.String)
+		fmt.Printf("Response: %s\n", *response.Data.Content)
 	}
 }
