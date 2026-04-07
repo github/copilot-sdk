@@ -376,6 +376,68 @@ async function writeCapturesToDisk(
   }
 }
 
+/**
+ * Produces a human-readable explanation of why no stored conversation matched
+ * a given request. For each stored conversation it reports the first reason
+ * matching failed, mirroring the logic in {@link findAssistantIndexAfterPrefix}.
+ */
+function diagnoseMatchFailure(
+  requestMessages: NormalizedMessage[],
+  rawMessages: unknown[],
+  storedData: NormalizedData | undefined,
+): string {
+  const lines: string[] = [];
+  lines.push(`Request has ${requestMessages.length} normalized messages (${rawMessages.length} raw).`);
+
+  if (!storedData || storedData.conversations.length === 0) {
+    lines.push("No stored conversations to match against.");
+    return lines.join("\n");
+  }
+
+  for (let c = 0; c < storedData.conversations.length; c++) {
+    const saved = storedData.conversations[c].messages;
+
+    // Same check as findAssistantIndexAfterPrefix: request must be a strict prefix
+    if (requestMessages.length >= saved.length) {
+      lines.push(
+        `Conversation ${c} (${saved.length} messages): ` +
+        `skipped — request has ${requestMessages.length} messages, need fewer than ${saved.length}.`,
+      );
+      continue;
+    }
+
+    // Find the first message that doesn't match
+    let mismatchIndex = -1;
+    for (let i = 0; i < requestMessages.length; i++) {
+      if (JSON.stringify(requestMessages[i]) !== JSON.stringify(saved[i])) {
+        mismatchIndex = i;
+        break;
+      }
+    }
+
+    if (mismatchIndex >= 0) {
+      const raw = mismatchIndex < rawMessages.length
+        ? JSON.stringify(rawMessages[mismatchIndex]).slice(0, 300)
+        : "(no raw message)";
+      lines.push(
+        `Conversation ${c} (${saved.length} messages): mismatch at message ${mismatchIndex}:`,
+        `  request:    ${JSON.stringify(requestMessages[mismatchIndex]).slice(0, 200)}`,
+        `  saved:      ${JSON.stringify(saved[mismatchIndex]).slice(0, 200)}`,
+        `  raw (pre-normalization): ${raw}`,
+      );
+    } else {
+      // Prefix matched, but the next saved message isn't an assistant turn
+      const nextRole = saved[requestMessages.length]?.role ?? "(end of conversation)";
+      lines.push(
+        `Conversation ${c} (${saved.length} messages): ` +
+        `prefix matched, but next saved message is "${nextRole}" (need "assistant").`,
+      );
+    }
+  }
+
+  return lines.join("\n");
+}
+
 async function exitWithNoMatchingRequestError(
   options: PerformRequestOptions,
   testInfo: { file: string; line?: number } | undefined,
@@ -383,61 +445,31 @@ async function exitWithNoMatchingRequestError(
   toolResultNormalizers: ToolResultNormalizer[],
   storedData?: NormalizedData,
 ) {
-  const parts: string[] = [];
-  if (testInfo?.file) parts.push(`file=${testInfo.file}`);
-  if (typeof testInfo?.line === "number") parts.push(`line=${testInfo.line}`);
-  const header = parts.length ? ` ${parts.join(",")}` : "";
-
-  let diagnostics = "";
+  let diagnostics: string;
   try {
-    const normalized = await parseAndNormalizeRequest(
-      options.body,
-      workDir,
-      toolResultNormalizers,
-    );
+    const normalized = await parseAndNormalizeRequest(options.body, workDir, toolResultNormalizers);
     const requestMessages = normalized.conversations[0]?.messages ?? [];
 
-    // Also parse raw messages to see what normalization drops
     let rawMessages: unknown[] = [];
     try {
-      const parsed = JSON.parse(options.body ?? "{}") as { messages?: unknown[] };
-      rawMessages = parsed.messages ?? [];
-    } catch { /* ignore */ }
+      rawMessages = (JSON.parse(options.body ?? "{}") as { messages?: unknown[] }).messages ?? [];
+    } catch { /* non-JSON body */ }
 
-    diagnostics += `Request has ${requestMessages.length} normalized messages (${rawMessages.length} raw).\n`;
-
-    if (storedData) {
-      for (let c = 0; c < storedData.conversations.length; c++) {
-        const saved = storedData.conversations[c].messages;
-        diagnostics += `Conversation ${c} has ${saved.length} messages. `;
-        if (requestMessages.length >= saved.length) {
-          diagnostics += `Skipped: request (${requestMessages.length}) >= saved (${saved.length}).\n`;
-          continue;
-        }
-        let mismatchAt = -1;
-        for (let i = 0; i < requestMessages.length; i++) {
-          const reqMsg = JSON.stringify(requestMessages[i]);
-          const savedMsg = JSON.stringify(saved[i]);
-          if (reqMsg !== savedMsg) {
-            mismatchAt = i;
-            const rawMsg = i < rawMessages.length ? JSON.stringify(rawMessages[i]).slice(0, 300) : "(no raw)";
-            diagnostics += `Mismatch at message ${i}:\n  normalized: ${reqMsg.slice(0, 200)}\n  saved:      ${savedMsg.slice(0, 200)}\n  raw:        ${rawMsg}\n`;
-            break;
-          }
-        }
-        if (mismatchAt === -1) {
-          const nextRole = saved[requestMessages.length]?.role;
-          diagnostics += `Prefix matched but next message role is "${nextRole}" (need "assistant").\n`;
-        }
-      }
-    }
+    diagnostics = diagnoseMatchFailure(requestMessages, rawMessages, storedData);
   } catch (e) {
-    diagnostics = `(unable to parse request: ${e})`;
+    diagnostics = `(unable to parse request for diagnostics: ${e})`;
   }
 
   const errorMessage =
     `No cached response found for ${options.requestOptions.method} ${options.requestOptions.path}.\n${diagnostics}`;
-  process.stderr.write(`::error${header}::${errorMessage}\n`);
+
+  // Format as GitHub Actions annotation when test location is available
+  const annotation = [
+    testInfo?.file ? `file=${testInfo.file}` : "",
+    typeof testInfo?.line === "number" ? `line=${testInfo.line}` : "",
+  ].filter(Boolean).join(",");
+  process.stderr.write(`::error${annotation ? ` ${annotation}` : ""}::${errorMessage}\n`);
+
   options.onError(new Error(errorMessage));
 }
 
