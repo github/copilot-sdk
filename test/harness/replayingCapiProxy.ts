@@ -397,7 +397,14 @@ async function exitWithNoMatchingRequestError(
     );
     const requestMessages = normalized.conversations[0]?.messages ?? [];
 
-    diagnostics += `Request has ${requestMessages.length} messages.\n`;
+    // Also parse raw messages to see what normalization drops
+    let rawMessages: unknown[] = [];
+    try {
+      const parsed = JSON.parse(options.body ?? "{}") as { messages?: unknown[] };
+      rawMessages = parsed.messages ?? [];
+    } catch { /* ignore */ }
+
+    diagnostics += `Request has ${requestMessages.length} normalized messages (${rawMessages.length} raw).\n`;
 
     if (storedData) {
       for (let c = 0; c < storedData.conversations.length; c++) {
@@ -413,7 +420,8 @@ async function exitWithNoMatchingRequestError(
           const savedMsg = JSON.stringify(saved[i]);
           if (reqMsg !== savedMsg) {
             mismatchAt = i;
-            diagnostics += `Mismatch at message ${i}:\n  request: ${reqMsg.slice(0, 200)}\n  saved:   ${savedMsg.slice(0, 200)}\n`;
+            const rawMsg = i < rawMessages.length ? JSON.stringify(rawMessages[i]).slice(0, 300) : "(no raw)";
+            diagnostics += `Mismatch at message ${i}:\n  normalized: ${reqMsg.slice(0, 200)}\n  saved:      ${savedMsg.slice(0, 200)}\n  raw:        ${rawMsg}\n`;
             break;
           }
         }
