@@ -46,7 +46,7 @@ describe("Session Configuration", async () => {
     it("should accept blob attachments", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
 
-        await session.send({
+        await session.sendAndWait({
             prompt: "Describe this image",
             attachments: [
                 {
@@ -58,7 +58,6 @@ describe("Session Configuration", async () => {
             ],
         });
 
-        // Just verify send doesn't throw — blob attachment support varies by runtime
         await session.disconnect();
     });
 
@@ -67,12 +66,11 @@ describe("Session Configuration", async () => {
 
         const session = await client.createSession({ onPermissionRequest: approveAll });
 
-        await session.send({
+        await session.sendAndWait({
             prompt: "Summarize the attached file",
             attachments: [{ type: "file", path: join(workDir, "attached.txt") }],
         });
 
-        // Just verify send doesn't throw — attachment support varies by runtime
         await session.disconnect();
     });
 

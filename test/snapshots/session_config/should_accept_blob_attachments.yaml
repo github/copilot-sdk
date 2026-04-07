@@ -5,4 +5,100 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: Describe this image
+        content: |-
+          Describe this image
+          test-pixel.png
+          [image]
+      - role: assistant
+        content: I'll view the image for you.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test-pixel.png"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: |-
+          Describe this image
+          test-pixel.png
+          [image]
+      - role: assistant
+        content: I'll view the image for you.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test-pixel.png"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Path ${workdir}/test-pixel.png does not exist. Please provide a valid path.
+      - role: assistant
+        content: Let me check the current directory to locate the image file.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"Get-ChildItem -Recurse -Filter \"test-pixel.png\"","description":"Find test-pixel.png file"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: |-
+          Describe this image
+          test-pixel.png
+          [image]
+      - role: assistant
+        content: I'll view the image for you.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test-pixel.png"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Path ${workdir}/test-pixel.png does not exist. Please provide a valid path.
+      - role: assistant
+        content: Let me check the current directory to locate the image file.
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"Get-ChildItem -Recurse -Filter \"test-pixel.png\"","description":"Find test-pixel.png file"}'
+      - role: tool
+        tool_call_id: toolcall_2
+        content: <exited with exit code 0>
+      - role: assistant
+        content: The file doesn't appear to be in the working directory. Could you please upload or provide the image file
+          again? I'll be happy to describe it once I can access it.
