@@ -125,8 +125,9 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
                 {
                     await client2.ForceStopAsync();
                 }
-                catch (IOException)
+                catch (IOException ex)
                 {
+                    Console.Error.WriteLine($"Ignoring expected teardown IOException from ForceStopAsync: {ex.Message}");
                 }
             }
         }
