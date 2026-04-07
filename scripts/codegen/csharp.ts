@@ -602,7 +602,18 @@ let rpcEnumOutput: string[] = [];
 
 function singularPascal(s: string): string {
     const p = toPascalCase(s);
-    return p.endsWith("s") ? p.slice(0, -1) : p;
+    if (p.endsWith("ies")) return `${p.slice(0, -3)}y`;
+    if (/(xes|zes|ches|shes|sses)$/i.test(p)) return p.slice(0, -2);
+    if (p.endsWith("s") && !/(ss|us|is)$/i.test(p)) return p.slice(0, -1);
+    return p;
+}
+
+function resultTypeName(rpcMethod: string): string {
+    return `${typeToClassName(rpcMethod)}Result`;
+}
+
+function paramsTypeName(rpcMethod: string): string {
+    return `${typeToClassName(rpcMethod)}Params`;
 }
 
 function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassName: string, propName: string, classes: string[]): string {
@@ -653,7 +664,7 @@ function emitRpcClass(className: string, schema: JSONSchema7, visibility: "publi
 
     const requiredSet = new Set(schema.required || []);
     const lines: string[] = [];
-    lines.push(...xmlDocComment(schema.description || `RPC data type for ${className.replace(/Request$/, "").replace(/Result$/, "")} operations.`, ""));
+    lines.push(...xmlDocComment(schema.description || `RPC data type for ${className.replace(/(Request|Result|Params)$/, "")} operations.`, ""));
     if (experimentalRpcTypes.has(className)) {
         lines.push(`[Experimental(Diagnostics.Experimental)]`);
     }
@@ -923,6 +934,131 @@ function emitSessionApiClass(className: string, node: Record<string, unknown>, c
     return lines.join("\n");
 }
 
+function collectClientGroups(node: Record<string, unknown>): Array<{ groupName: string; groupNode: Record<string, unknown>; methods: RpcMethod[] }> {
+    const groups: Array<{ groupName: string; groupNode: Record<string, unknown>; methods: RpcMethod[] }> = [];
+    for (const [groupName, groupNode] of Object.entries(node)) {
+        if (typeof groupNode === "object" && groupNode !== null) {
+            groups.push({
+                groupName,
+                groupNode: groupNode as Record<string, unknown>,
+                methods: collectRpcMethods(groupNode as Record<string, unknown>),
+            });
+        }
+    }
+    return groups;
+}
+
+function clientHandlerInterfaceName(groupName: string): string {
+    return `I${toPascalCase(groupName)}Handler`;
+}
+
+function clientHandlerMethodName(rpcMethod: string): string {
+    const parts = rpcMethod.split(".");
+    return `${toPascalCase(parts[parts.length - 1])}Async`;
+}
+
+function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>, classes: string[]): string[] {
+    const lines: string[] = [];
+    const groups = collectClientGroups(clientSchema);
+
+    for (const { methods } of groups) {
+        for (const method of methods) {
+            if (method.result) {
+                const resultClass = emitRpcClass(resultTypeName(method.rpcMethod), method.result, "public", classes);
+                if (resultClass) classes.push(resultClass);
+            }
+
+            if (method.params?.properties && Object.keys(method.params.properties).length > 0) {
+                const paramsClass = emitRpcClass(paramsTypeName(method.rpcMethod), method.params, "public", classes);
+                if (paramsClass) classes.push(paramsClass);
+            }
+        }
+    }
+
+    for (const { groupName, groupNode, methods } of groups) {
+        const interfaceName = clientHandlerInterfaceName(groupName);
+        const groupExperimental = isNodeFullyExperimental(groupNode);
+        lines.push(`/// <summary>Handles \`${groupName}\` client session API methods.</summary>`);
+        if (groupExperimental) {
+            lines.push(`[Experimental(Diagnostics.Experimental)]`);
+        }
+        lines.push(`public interface ${interfaceName}`);
+        lines.push(`{`);
+        for (const method of methods) {
+            const hasParams = method.params?.properties && Object.keys(method.params.properties).length > 0;
+            const taskType = method.result ? `Task<${resultTypeName(method.rpcMethod)}>` : "Task";
+            lines.push(`    /// <summary>Handles "${method.rpcMethod}".</summary>`);
+            if (method.stability === "experimental" && !groupExperimental) {
+                lines.push(`    [Experimental(Diagnostics.Experimental)]`);
+            }
+            if (hasParams) {
+                lines.push(`    ${taskType} ${clientHandlerMethodName(method.rpcMethod)}(${paramsTypeName(method.rpcMethod)} request, CancellationToken cancellationToken = default);`);
+            } else {
+                lines.push(`    ${taskType} ${clientHandlerMethodName(method.rpcMethod)}(CancellationToken cancellationToken = default);`);
+            }
+        }
+        lines.push(`}`);
+        lines.push("");
+    }
+
+    lines.push(`/// <summary>Provides all client session API handler groups for a session.</summary>`);
+    lines.push(`public class ClientSessionApiHandlers`);
+    lines.push(`{`);
+    for (const { groupName } of groups) {
+        lines.push(`    /// <summary>Optional handler for ${toPascalCase(groupName)} client session API methods.</summary>`);
+        lines.push(`    public ${clientHandlerInterfaceName(groupName)}? ${toPascalCase(groupName)} { get; set; }`);
+        lines.push("");
+    }
+    if (lines[lines.length - 1] === "") lines.pop();
+    lines.push(`}`);
+    lines.push("");
+
+    lines.push(`/// <summary>Registers client session API handlers on a JSON-RPC connection.</summary>`);
+    lines.push(`public static class ClientSessionApiRegistration`);
+    lines.push(`{`);
+    lines.push(`    /// <summary>`);
+    lines.push(`    /// Registers handlers for server-to-client session API calls.`);
+    lines.push(`    /// Each incoming call includes a <c>sessionId</c> in its params object,`);
+    lines.push(`    /// which is used to resolve the session's handler group.`);
+    lines.push(`    /// </summary>`);
+    lines.push(`    public static void RegisterClientSessionApiHandlers(JsonRpc rpc, Func<string, ClientSessionApiHandlers> getHandlers)`);
+    lines.push(`    {`);
+    for (const { groupName, methods } of groups) {
+        for (const method of methods) {
+            const handlerProperty = toPascalCase(groupName);
+            const handlerMethod = clientHandlerMethodName(method.rpcMethod);
+            const hasParams = method.params?.properties && Object.keys(method.params.properties).length > 0;
+            const paramsClass = paramsTypeName(method.rpcMethod);
+            const taskType = method.result ? `Task<${resultTypeName(method.rpcMethod)}>` : "Task";
+            const registrationVar = `register${typeToClassName(method.rpcMethod)}Method`;
+
+            if (hasParams) {
+                lines.push(`        var ${registrationVar} = (Func<${paramsClass}, CancellationToken, ${taskType}>)(async (request, cancellationToken) =>`);
+                lines.push(`        {`);
+                lines.push(`            var handler = getHandlers(request.SessionId).${handlerProperty};`);
+                lines.push(`            if (handler is null) throw new InvalidOperationException($"No ${groupName} handler registered for session: {request.SessionId}");`);
+                if (method.result) {
+                    lines.push(`            return await handler.${handlerMethod}(request, cancellationToken);`);
+                } else {
+                    lines.push(`            await handler.${handlerMethod}(request, cancellationToken);`);
+                }
+                lines.push(`        });`);
+                lines.push(`        rpc.AddLocalRpcMethod(${registrationVar}.Method, ${registrationVar}.Target!, new JsonRpcMethodAttribute("${method.rpcMethod}")`);
+                lines.push(`        {`);
+                lines.push(`            UseSingleObjectParameterDeserialization = true`);
+                lines.push(`        });`);
+            } else {
+                lines.push(`        rpc.AddLocalRpcMethod("${method.rpcMethod}", (Func<CancellationToken, ${taskType}>)(_ =>`);
+                lines.push(`            throw new InvalidOperationException("No params provided for ${method.rpcMethod}")));`);
+            }
+        }
+    }
+    lines.push(`    }`);
+    lines.push(`}`);
+
+    return lines;
+}
+
 function generateRpcCode(schema: ApiSchema): string {
     emittedRpcClasses.clear();
     experimentalRpcTypes.clear();
@@ -936,6 +1072,9 @@ function generateRpcCode(schema: ApiSchema): string {
 
     let sessionRpcParts: string[] = [];
     if (schema.session) sessionRpcParts = emitSessionRpcClasses(schema.session, classes);
+
+    let clientSessionParts: string[] = [];
+    if (schema.clientSession) clientSessionParts = emitClientSessionApiRegistration(schema.clientSession, classes);
 
     const lines: string[] = [];
     lines.push(`${COPYRIGHT}
@@ -962,6 +1101,7 @@ internal static class Diagnostics
     for (const enumCode of rpcEnumOutput) lines.push(enumCode, "");
     for (const part of serverRpcParts) lines.push(part, "");
     for (const part of sessionRpcParts) lines.push(part, "");
+    if (clientSessionParts.length > 0) lines.push(...clientSessionParts, "");
 
     // Add JsonSerializerContext for AOT/trimming support
     const typeNames = [...emittedRpcClasses].sort();

@@ -32,11 +32,16 @@ from typing import Any, Literal, TypedDict, cast, overload
 from ._jsonrpc import JsonRpcClient, ProcessExitedError
 from ._sdk_protocol_version import get_sdk_protocol_version
 from ._telemetry import get_trace_context, trace_context
-from .generated.rpc import ServerRpc
+from .generated.rpc import (
+    ClientSessionApiHandlers,
+    ServerRpc,
+    register_client_session_api_handlers,
+)
 from .generated.session_events import PermissionRequest, SessionEvent, session_event_from_dict
 from .session import (
     CommandDefinition,
     CopilotSession,
+    CreateSessionFsHandler,
     CustomAgentConfig,
     ElicitationHandler,
     InfiniteSessionConfig,
@@ -44,6 +49,7 @@ from .session import (
     ProviderConfig,
     ReasoningEffort,
     SectionTransformFn,
+    SessionFsConfig,
     SessionHooks,
     SystemMessageConfig,
     UserInputHandler,
@@ -126,6 +132,9 @@ class SubprocessConfig:
     telemetry: TelemetryConfig | None = None
     """OpenTelemetry configuration. Providing this enables telemetry — no separate flag needed."""
 
+    session_fs: SessionFsConfig | None = None
+    """Connection-level session filesystem provider configuration."""
+
 
 @dataclass
 class ExternalServerConfig:
@@ -138,6 +147,11 @@ class ExternalServerConfig:
 
     url: str
     """Server URL. Supports ``"host:port"``, ``"http://host:port"``, or just ``"port"``."""
+
+    _: KW_ONLY
+
+    session_fs: SessionFsConfig | None = None
+    """Connection-level session filesystem provider configuration."""
 
 
 # ============================================================================
@@ -889,6 +903,7 @@ class CopilotClient:
         self._lifecycle_handlers_lock = threading.Lock()
         self._rpc: ServerRpc | None = None
         self._negotiated_protocol_version: int | None = None
+        self._session_fs_config = config.session_fs
 
     @property
     def rpc(self) -> ServerRpc:
@@ -1017,6 +1032,9 @@ class CopilotClient:
 
             # Verify protocol version compatibility
             await self._verify_protocol_version()
+
+            if self._session_fs_config:
+                await self._set_session_fs_provider()
 
             self._state = "connected"
         except ProcessExitedError as e:
@@ -1179,6 +1197,7 @@ class CopilotClient:
         on_event: Callable[[SessionEvent], None] | None = None,
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
+        create_session_fs_handler: CreateSessionFsHandler | None = None,
     ) -> CopilotSession:
         """
         Create a new conversation session with the Copilot CLI.
@@ -1368,6 +1387,12 @@ class CopilotClient:
         # Create and register the session before issuing the RPC so that
         # events emitted by the CLI (e.g. session.start) are not dropped.
         session = CopilotSession(actual_session_id, self._client, workspace_path=None)
+        if self._session_fs_config:
+            if create_session_fs_handler is None:
+                raise ValueError(
+                    "create_session_fs_handler is required in session config when session_fs is enabled in client options."
+                )
+            session._client_session_apis.session_fs = create_session_fs_handler(session)
         session._register_tools(tools)
         session._register_commands(commands)
         session._register_permission_handler(on_permission_request)
@@ -1424,6 +1449,7 @@ class CopilotClient:
         on_event: Callable[[SessionEvent], None] | None = None,
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
+        create_session_fs_handler: CreateSessionFsHandler | None = None,
     ) -> CopilotSession:
         """
         Resume an existing conversation session by its ID.
@@ -1592,6 +1618,12 @@ class CopilotClient:
         # Create and register the session before issuing the RPC so that
         # events emitted by the CLI (e.g. session.start) are not dropped.
         session = CopilotSession(session_id, self._client, workspace_path=None)
+        if self._session_fs_config:
+            if create_session_fs_handler is None:
+                raise ValueError(
+                    "create_session_fs_handler is required in session config when session_fs is enabled in client options."
+                )
+            session._client_session_apis.session_fs = create_session_fs_handler(session)
         session._register_tools(tools)
         session._register_commands(commands)
         session._register_permission_handler(on_permission_request)
@@ -2283,6 +2315,7 @@ class CopilotClient:
         self._client.set_request_handler(
             "systemMessage.transform", self._handle_system_message_transform
         )
+        register_client_session_api_handlers(self._client, self._get_client_session_handlers)
 
         # Start listening for messages
         loop = asyncio.get_running_loop()
@@ -2387,10 +2420,31 @@ class CopilotClient:
         self._client.set_request_handler(
             "systemMessage.transform", self._handle_system_message_transform
         )
+        register_client_session_api_handlers(self._client, self._get_client_session_handlers)
 
         # Start listening for messages
         loop = asyncio.get_running_loop()
         self._client.start(loop)
+
+    async def _set_session_fs_provider(self) -> None:
+        if not self._session_fs_config or not self._client:
+            return
+
+        await self._client.request(
+            "sessionFs.setProvider",
+            {
+                "initialCwd": self._session_fs_config["initial_cwd"],
+                "sessionStatePath": self._session_fs_config["session_state_path"],
+                "conventions": self._session_fs_config["conventions"],
+            },
+        )
+
+    def _get_client_session_handlers(self, session_id: str) -> ClientSessionApiHandlers:
+        with self._sessions_lock:
+            session = self._sessions.get(session_id)
+        if session is None:
+            raise ValueError(f"unknown session {session_id}")
+        return session._client_session_apis
 
     async def _handle_user_input_request(self, params: dict) -> dict:
         """

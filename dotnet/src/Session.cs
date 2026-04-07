@@ -124,6 +124,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </remarks>
     public ISessionUiApi Ui { get; }
 
+    internal ClientSessionApiHandlers ClientSessionApis { get; } = new();
+
     /// <summary>
     /// Initializes a new instance of the <see cref="CopilotSession"/> class.
     /// </summary>

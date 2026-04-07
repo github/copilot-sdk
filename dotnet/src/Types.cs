@@ -68,6 +68,7 @@ public class CopilotClientOptions
         UseLoggedInUser = other.UseLoggedInUser;
         UseStdio = other.UseStdio;
         OnListModels = other.OnListModels;
+        SessionFs = other.SessionFs;
     }
 
     /// <summary>
@@ -151,6 +152,14 @@ public class CopilotClientOptions
     public Func<CancellationToken, Task<List<ModelInfo>>>? OnListModels { get; set; }
 
     /// <summary>
+    /// Custom session filesystem provider configuration.
+    /// When set, the client registers as the session filesystem provider on connect,
+    /// routing session-scoped file I/O through per-session handlers created via
+    /// <see cref="SessionConfig.CreateSessionFsHandler"/> or <see cref="ResumeSessionConfig.CreateSessionFsHandler"/>.
+    /// </summary>
+    public SessionFsConfig? SessionFs { get; set; }
+
+    /// <summary>
     /// OpenTelemetry configuration for the CLI server.
     /// When set to a non-<see langword="null"/> instance, the CLI server is started with OpenTelemetry instrumentation enabled.
     /// </summary>
@@ -215,6 +224,32 @@ public sealed class TelemetryConfig
     /// Maps to the <c>OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT</c> environment variable.
     /// </remarks>
     public bool? CaptureContent { get; set; }
+}
+
+/// <summary>
+/// Configuration for a custom session filesystem provider.
+/// </summary>
+public sealed class SessionFsConfig
+{
+    /// <summary>
+    /// Initial working directory for sessions (user's project directory).
+    /// </summary>
+    public string InitialCwd { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Path within each session's SessionFs where the runtime stores
+    /// session-scoped files (events, workspace, checkpoints, and temp files).
+    /// </summary>
+    public string SessionStatePath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Path conventions used by this filesystem provider.
+    /// Defaults to the conventions of the current operating system.
+    /// </summary>
+    public SessionFsSetProviderRequestConventions Conventions { get; set; }
+        = OperatingSystem.IsWindows()
+            ? SessionFsSetProviderRequestConventions.Windows
+            : SessionFsSetProviderRequestConventions.Posix;
 }
 
 /// <summary>
@@ -1586,6 +1621,7 @@ public class SessionConfig
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
         ReasoningEffort = other.ReasoningEffort;
+        CreateSessionFsHandler = other.CreateSessionFsHandler;
         SessionId = other.SessionId;
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
         Streaming = other.Streaming;
@@ -1738,6 +1774,12 @@ public class SessionConfig
     public SessionEventHandler? OnEvent { get; set; }
 
     /// <summary>
+    /// Supplies a handler for session filesystem operations.
+    /// This is used only when <see cref="CopilotClientOptions.SessionFs"/> is configured.
+    /// </summary>
+    public Func<CopilotSession, ISessionFsHandler>? CreateSessionFsHandler { get; set; }
+
+    /// <summary>
     /// Creates a shallow clone of this <see cref="SessionConfig"/> instance.
     /// </summary>
     /// <remarks>
@@ -1793,6 +1835,7 @@ public class ResumeSessionConfig
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
         ReasoningEffort = other.ReasoningEffort;
+        CreateSessionFsHandler = other.CreateSessionFsHandler;
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
         Streaming = other.Streaming;
         SystemMessage = other.SystemMessage;
@@ -1940,6 +1983,12 @@ public class ResumeSessionConfig
     /// ensuring early events are delivered. See <see cref="SessionConfig.OnEvent"/>.
     /// </summary>
     public SessionEventHandler? OnEvent { get; set; }
+
+    /// <summary>
+    /// Supplies a handler for session filesystem operations.
+    /// This is used only when <see cref="CopilotClientOptions.SessionFs"/> is configured.
+    /// </summary>
+    public Func<CopilotSession, ISessionFsHandler>? CreateSessionFsHandler { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="ResumeSessionConfig"/> instance.

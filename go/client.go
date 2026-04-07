@@ -192,6 +192,10 @@ func NewClient(options *ClientOptions) *Client {
 		if options.OnListModels != nil {
 			client.onListModels = options.OnListModels
 		}
+		if options.SessionFs != nil {
+			sessionFs := *options.SessionFs
+			opts.SessionFs = &sessionFs
+		}
 	}
 
 	// Default Env to current environment if not set
@@ -303,6 +307,20 @@ func (c *Client) Start(ctx context.Context) error {
 		killErr := c.killProcess()
 		c.state = StateError
 		return errors.Join(err, killErr)
+	}
+
+	// If a session filesystem provider was configured, register it.
+	if c.options.SessionFs != nil {
+		_, err := c.RPC.SessionFs.SetProvider(ctx, &rpc.SessionFSSetProviderParams{
+			InitialCwd:       c.options.SessionFs.InitialCwd,
+			SessionStatePath: c.options.SessionFs.SessionStatePath,
+			Conventions:      c.options.SessionFs.Conventions,
+		})
+		if err != nil {
+			killErr := c.killProcess()
+			c.state = StateError
+			return errors.Join(err, killErr)
+		}
 	}
 
 	c.state = StateConnected
@@ -623,6 +641,16 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	c.sessions[sessionID] = session
 	c.sessionsMux.Unlock()
 
+	if c.options.SessionFs != nil {
+		if config.CreateSessionFsHandler == nil {
+			c.sessionsMux.Lock()
+			delete(c.sessions, sessionID)
+			c.sessionsMux.Unlock()
+			return nil, fmt.Errorf("CreateSessionFsHandler is required in session config when SessionFs is enabled in client options")
+		}
+		session.clientSessionApis.SessionFs = config.CreateSessionFsHandler(session)
+	}
+
 	result, err := c.client.Request("session.create", req)
 	if err != nil {
 		c.sessionsMux.Lock()
@@ -762,6 +790,16 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	c.sessionsMux.Lock()
 	c.sessions[sessionID] = session
 	c.sessionsMux.Unlock()
+
+	if c.options.SessionFs != nil {
+		if config.CreateSessionFsHandler == nil {
+			c.sessionsMux.Lock()
+			delete(c.sessions, sessionID)
+			c.sessionsMux.Unlock()
+			return nil, fmt.Errorf("CreateSessionFsHandler is required in session config when SessionFs is enabled in client options")
+		}
+		session.clientSessionApis.SessionFs = config.CreateSessionFsHandler(session)
+	}
 
 	result, err := c.client.Request("session.resume", req)
 	if err != nil {
@@ -1526,6 +1564,15 @@ func (c *Client) setupNotificationHandler() {
 	c.client.SetRequestHandler("userInput.request", jsonrpc2.RequestHandlerFor(c.handleUserInputRequest))
 	c.client.SetRequestHandler("hooks.invoke", jsonrpc2.RequestHandlerFor(c.handleHooksInvoke))
 	c.client.SetRequestHandler("systemMessage.transform", jsonrpc2.RequestHandlerFor(c.handleSystemMessageTransform))
+	rpc.RegisterClientSessionApiHandlers(c.client, func(sessionID string) *rpc.ClientSessionApiHandlers {
+		c.sessionsMux.Lock()
+		defer c.sessionsMux.Unlock()
+		session := c.sessions[sessionID]
+		if session == nil {
+			return nil
+		}
+		return session.clientSessionApis
+	})
 }
 
 func (c *Client) handleSessionEvent(req sessionEventRequest) {

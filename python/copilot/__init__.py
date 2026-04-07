@@ -23,6 +23,7 @@ from .session import (
     ElicitationResult,
     InputOptions,
     SessionCapabilities,
+    SessionFsConfig,
     SessionUiApi,
     SessionUiCapabilities,
 )
@@ -46,6 +47,7 @@ __all__ = [
     "ModelSupportsOverride",
     "ModelVisionLimitsOverride",
     "SessionCapabilities",
+    "SessionFsConfig",
     "SessionUiApi",
     "SessionUiCapabilities",
     "SubprocessConfig",

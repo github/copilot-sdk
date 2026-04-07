@@ -1264,6 +1264,230 @@ internal class SessionShellKillRequest
     public SessionShellKillRequestSignal? Signal { get; set; }
 }
 
+/// <summary>RPC data type for SessionFsReadFile operations.</summary>
+public class SessionFsReadFileResult
+{
+    /// <summary>File content as UTF-8 string.</summary>
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionFsReadFile operations.</summary>
+public class SessionFsReadFileParams
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Path using SessionFs conventions.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionFsWriteFile operations.</summary>
+public class SessionFsWriteFileParams
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Path using SessionFs conventions.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>Content to write.</summary>
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>Optional POSIX-style mode for newly created files.</summary>
+    [JsonPropertyName("mode")]
+    public double? Mode { get; set; }
+}
+
+/// <summary>RPC data type for SessionFsAppendFile operations.</summary>
+public class SessionFsAppendFileParams
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Path using SessionFs conventions.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>Content to append.</summary>
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>Optional POSIX-style mode for newly created files.</summary>
+    [JsonPropertyName("mode")]
+    public double? Mode { get; set; }
+}
+
+/// <summary>RPC data type for SessionFsExists operations.</summary>
+public class SessionFsExistsResult
+{
+    /// <summary>Whether the path exists.</summary>
+    [JsonPropertyName("exists")]
+    public bool Exists { get; set; }
+}
+
+/// <summary>RPC data type for SessionFsExists operations.</summary>
+public class SessionFsExistsParams
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Path using SessionFs conventions.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionFsStat operations.</summary>
+public class SessionFsStatResult
+{
+    /// <summary>Whether the path is a file.</summary>
+    [JsonPropertyName("isFile")]
+    public bool IsFile { get; set; }
+
+    /// <summary>Whether the path is a directory.</summary>
+    [JsonPropertyName("isDirectory")]
+    public bool IsDirectory { get; set; }
+
+    /// <summary>File size in bytes.</summary>
+    [JsonPropertyName("size")]
+    public double Size { get; set; }
+
+    /// <summary>ISO 8601 timestamp of last modification.</summary>
+    [JsonPropertyName("mtime")]
+    public string Mtime { get; set; } = string.Empty;
+
+    /// <summary>ISO 8601 timestamp of creation.</summary>
+    [JsonPropertyName("birthtime")]
+    public string Birthtime { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionFsStat operations.</summary>
+public class SessionFsStatParams
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Path using SessionFs conventions.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionFsMkdir operations.</summary>
+public class SessionFsMkdirParams
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Path using SessionFs conventions.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>Create parent directories as needed.</summary>
+    [JsonPropertyName("recursive")]
+    public bool? Recursive { get; set; }
+
+    /// <summary>Optional POSIX-style mode for newly created directories.</summary>
+    [JsonPropertyName("mode")]
+    public double? Mode { get; set; }
+}
+
+/// <summary>RPC data type for SessionFsReaddir operations.</summary>
+public class SessionFsReaddirResult
+{
+    /// <summary>Entry names in the directory.</summary>
+    [JsonPropertyName("entries")]
+    public List<string> Entries { get => field ??= []; set; }
+}
+
+/// <summary>RPC data type for SessionFsReaddir operations.</summary>
+public class SessionFsReaddirParams
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Path using SessionFs conventions.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for Entry operations.</summary>
+public class Entry
+{
+    /// <summary>Entry name.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Entry type.</summary>
+    [JsonPropertyName("type")]
+    public EntryType Type { get; set; }
+}
+
+/// <summary>RPC data type for SessionFsReaddirWithTypes operations.</summary>
+public class SessionFsReaddirWithTypesResult
+{
+    /// <summary>Directory entries with type information.</summary>
+    [JsonPropertyName("entries")]
+    public List<Entry> Entries { get => field ??= []; set; }
+}
+
+/// <summary>RPC data type for SessionFsReaddirWithTypes operations.</summary>
+public class SessionFsReaddirWithTypesParams
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Path using SessionFs conventions.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionFsRm operations.</summary>
+public class SessionFsRmParams
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Path using SessionFs conventions.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>Remove directories and their contents recursively.</summary>
+    [JsonPropertyName("recursive")]
+    public bool? Recursive { get; set; }
+
+    /// <summary>Ignore errors if the path does not exist.</summary>
+    [JsonPropertyName("force")]
+    public bool? Force { get; set; }
+}
+
+/// <summary>RPC data type for SessionFsRename operations.</summary>
+public class SessionFsRenameParams
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Source path using SessionFs conventions.</summary>
+    [JsonPropertyName("src")]
+    public string Src { get; set; } = string.Empty;
+
+    /// <summary>Destination path using SessionFs conventions.</summary>
+    [JsonPropertyName("dest")]
+    public string Dest { get; set; } = string.Empty;
+}
+
 /// <summary>Path conventions used by this filesystem.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<SessionFsSetProviderRequestConventions>))]
 public enum SessionFsSetProviderRequestConventions
@@ -1395,6 +1619,19 @@ public enum SessionShellKillRequestSignal
     /// <summary>The <c>SIGINT</c> variant.</summary>
     [JsonStringEnumMemberName("SIGINT")]
     SIGINT,
+}
+
+
+/// <summary>Entry type.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<EntryType>))]
+public enum EntryType
+{
+    /// <summary>The <c>file</c> variant.</summary>
+    [JsonStringEnumMemberName("file")]
+    File,
+    /// <summary>The <c>directory</c> variant.</summary>
+    [JsonStringEnumMemberName("directory")]
+    Directory,
 }
 
 
@@ -2075,6 +2312,151 @@ public class ShellApi
     }
 }
 
+/// <summary>Handles `sessionFs` client session API methods.</summary>
+public interface ISessionFsHandler
+{
+    /// <summary>Handles "sessionFs.readFile".</summary>
+    Task<SessionFsReadFileResult> ReadFileAsync(SessionFsReadFileParams request, CancellationToken cancellationToken = default);
+    /// <summary>Handles "sessionFs.writeFile".</summary>
+    Task WriteFileAsync(SessionFsWriteFileParams request, CancellationToken cancellationToken = default);
+    /// <summary>Handles "sessionFs.appendFile".</summary>
+    Task AppendFileAsync(SessionFsAppendFileParams request, CancellationToken cancellationToken = default);
+    /// <summary>Handles "sessionFs.exists".</summary>
+    Task<SessionFsExistsResult> ExistsAsync(SessionFsExistsParams request, CancellationToken cancellationToken = default);
+    /// <summary>Handles "sessionFs.stat".</summary>
+    Task<SessionFsStatResult> StatAsync(SessionFsStatParams request, CancellationToken cancellationToken = default);
+    /// <summary>Handles "sessionFs.mkdir".</summary>
+    Task MkdirAsync(SessionFsMkdirParams request, CancellationToken cancellationToken = default);
+    /// <summary>Handles "sessionFs.readdir".</summary>
+    Task<SessionFsReaddirResult> ReaddirAsync(SessionFsReaddirParams request, CancellationToken cancellationToken = default);
+    /// <summary>Handles "sessionFs.readdirWithTypes".</summary>
+    Task<SessionFsReaddirWithTypesResult> ReaddirWithTypesAsync(SessionFsReaddirWithTypesParams request, CancellationToken cancellationToken = default);
+    /// <summary>Handles "sessionFs.rm".</summary>
+    Task RmAsync(SessionFsRmParams request, CancellationToken cancellationToken = default);
+    /// <summary>Handles "sessionFs.rename".</summary>
+    Task RenameAsync(SessionFsRenameParams request, CancellationToken cancellationToken = default);
+}
+
+/// <summary>Provides all client session API handler groups for a session.</summary>
+public class ClientSessionApiHandlers
+{
+    /// <summary>Optional handler for SessionFs client session API methods.</summary>
+    public ISessionFsHandler? SessionFs { get; set; }
+}
+
+/// <summary>Registers client session API handlers on a JSON-RPC connection.</summary>
+public static class ClientSessionApiRegistration
+{
+    /// <summary>
+    /// Registers handlers for server-to-client session API calls.
+    /// Each incoming call includes a <c>sessionId</c> in its params object,
+    /// which is used to resolve the session's handler group.
+    /// </summary>
+    public static void RegisterClientSessionApiHandlers(JsonRpc rpc, Func<string, ClientSessionApiHandlers> getHandlers)
+    {
+        var registerSessionFsReadFileMethod = (Func<SessionFsReadFileParams, CancellationToken, Task<SessionFsReadFileResult>>)(async (request, cancellationToken) =>
+        {
+            var handler = getHandlers(request.SessionId).SessionFs;
+            if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
+            return await handler.ReadFileAsync(request, cancellationToken);
+        });
+        rpc.AddLocalRpcMethod(registerSessionFsReadFileMethod.Method, registerSessionFsReadFileMethod.Target!, new JsonRpcMethodAttribute("sessionFs.readFile")
+        {
+            UseSingleObjectParameterDeserialization = true
+        });
+        var registerSessionFsWriteFileMethod = (Func<SessionFsWriteFileParams, CancellationToken, Task>)(async (request, cancellationToken) =>
+        {
+            var handler = getHandlers(request.SessionId).SessionFs;
+            if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
+            await handler.WriteFileAsync(request, cancellationToken);
+        });
+        rpc.AddLocalRpcMethod(registerSessionFsWriteFileMethod.Method, registerSessionFsWriteFileMethod.Target!, new JsonRpcMethodAttribute("sessionFs.writeFile")
+        {
+            UseSingleObjectParameterDeserialization = true
+        });
+        var registerSessionFsAppendFileMethod = (Func<SessionFsAppendFileParams, CancellationToken, Task>)(async (request, cancellationToken) =>
+        {
+            var handler = getHandlers(request.SessionId).SessionFs;
+            if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
+            await handler.AppendFileAsync(request, cancellationToken);
+        });
+        rpc.AddLocalRpcMethod(registerSessionFsAppendFileMethod.Method, registerSessionFsAppendFileMethod.Target!, new JsonRpcMethodAttribute("sessionFs.appendFile")
+        {
+            UseSingleObjectParameterDeserialization = true
+        });
+        var registerSessionFsExistsMethod = (Func<SessionFsExistsParams, CancellationToken, Task<SessionFsExistsResult>>)(async (request, cancellationToken) =>
+        {
+            var handler = getHandlers(request.SessionId).SessionFs;
+            if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
+            return await handler.ExistsAsync(request, cancellationToken);
+        });
+        rpc.AddLocalRpcMethod(registerSessionFsExistsMethod.Method, registerSessionFsExistsMethod.Target!, new JsonRpcMethodAttribute("sessionFs.exists")
+        {
+            UseSingleObjectParameterDeserialization = true
+        });
+        var registerSessionFsStatMethod = (Func<SessionFsStatParams, CancellationToken, Task<SessionFsStatResult>>)(async (request, cancellationToken) =>
+        {
+            var handler = getHandlers(request.SessionId).SessionFs;
+            if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
+            return await handler.StatAsync(request, cancellationToken);
+        });
+        rpc.AddLocalRpcMethod(registerSessionFsStatMethod.Method, registerSessionFsStatMethod.Target!, new JsonRpcMethodAttribute("sessionFs.stat")
+        {
+            UseSingleObjectParameterDeserialization = true
+        });
+        var registerSessionFsMkdirMethod = (Func<SessionFsMkdirParams, CancellationToken, Task>)(async (request, cancellationToken) =>
+        {
+            var handler = getHandlers(request.SessionId).SessionFs;
+            if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
+            await handler.MkdirAsync(request, cancellationToken);
+        });
+        rpc.AddLocalRpcMethod(registerSessionFsMkdirMethod.Method, registerSessionFsMkdirMethod.Target!, new JsonRpcMethodAttribute("sessionFs.mkdir")
+        {
+            UseSingleObjectParameterDeserialization = true
+        });
+        var registerSessionFsReaddirMethod = (Func<SessionFsReaddirParams, CancellationToken, Task<SessionFsReaddirResult>>)(async (request, cancellationToken) =>
+        {
+            var handler = getHandlers(request.SessionId).SessionFs;
+            if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
+            return await handler.ReaddirAsync(request, cancellationToken);
+        });
+        rpc.AddLocalRpcMethod(registerSessionFsReaddirMethod.Method, registerSessionFsReaddirMethod.Target!, new JsonRpcMethodAttribute("sessionFs.readdir")
+        {
+            UseSingleObjectParameterDeserialization = true
+        });
+        var registerSessionFsReaddirWithTypesMethod = (Func<SessionFsReaddirWithTypesParams, CancellationToken, Task<SessionFsReaddirWithTypesResult>>)(async (request, cancellationToken) =>
+        {
+            var handler = getHandlers(request.SessionId).SessionFs;
+            if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
+            return await handler.ReaddirWithTypesAsync(request, cancellationToken);
+        });
+        rpc.AddLocalRpcMethod(registerSessionFsReaddirWithTypesMethod.Method, registerSessionFsReaddirWithTypesMethod.Target!, new JsonRpcMethodAttribute("sessionFs.readdirWithTypes")
+        {
+            UseSingleObjectParameterDeserialization = true
+        });
+        var registerSessionFsRmMethod = (Func<SessionFsRmParams, CancellationToken, Task>)(async (request, cancellationToken) =>
+        {
+            var handler = getHandlers(request.SessionId).SessionFs;
+            if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
+            await handler.RmAsync(request, cancellationToken);
+        });
+        rpc.AddLocalRpcMethod(registerSessionFsRmMethod.Method, registerSessionFsRmMethod.Target!, new JsonRpcMethodAttribute("sessionFs.rm")
+        {
+            UseSingleObjectParameterDeserialization = true
+        });
+        var registerSessionFsRenameMethod = (Func<SessionFsRenameParams, CancellationToken, Task>)(async (request, cancellationToken) =>
+        {
+            var handler = getHandlers(request.SessionId).SessionFs;
+            if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
+            await handler.RenameAsync(request, cancellationToken);
+        });
+        rpc.AddLocalRpcMethod(registerSessionFsRenameMethod.Method, registerSessionFsRenameMethod.Target!, new JsonRpcMethodAttribute("sessionFs.rename")
+        {
+            UseSingleObjectParameterDeserialization = true
+        });
+    }
+}
+
 [JsonSourceGenerationOptions(
     JsonSerializerDefaults.Web,
     AllowOutOfOrderMetadataProperties = true,
@@ -2082,6 +2464,7 @@ public class ShellApi
 [JsonSerializable(typeof(AccountGetQuotaResult))]
 [JsonSerializable(typeof(AccountGetQuotaResultQuotaSnapshotsValue))]
 [JsonSerializable(typeof(Agent))]
+[JsonSerializable(typeof(Entry))]
 [JsonSerializable(typeof(Extension))]
 [JsonSerializable(typeof(Model))]
 [JsonSerializable(typeof(ModelBilling))]
@@ -2125,8 +2508,23 @@ public class ShellApi
 [JsonSerializable(typeof(SessionExtensionsReloadResult))]
 [JsonSerializable(typeof(SessionFleetStartRequest))]
 [JsonSerializable(typeof(SessionFleetStartResult))]
+[JsonSerializable(typeof(SessionFsAppendFileParams))]
+[JsonSerializable(typeof(SessionFsExistsParams))]
+[JsonSerializable(typeof(SessionFsExistsResult))]
+[JsonSerializable(typeof(SessionFsMkdirParams))]
+[JsonSerializable(typeof(SessionFsReadFileParams))]
+[JsonSerializable(typeof(SessionFsReadFileResult))]
+[JsonSerializable(typeof(SessionFsReaddirParams))]
+[JsonSerializable(typeof(SessionFsReaddirResult))]
+[JsonSerializable(typeof(SessionFsReaddirWithTypesParams))]
+[JsonSerializable(typeof(SessionFsReaddirWithTypesResult))]
+[JsonSerializable(typeof(SessionFsRenameParams))]
+[JsonSerializable(typeof(SessionFsRmParams))]
 [JsonSerializable(typeof(SessionFsSetProviderRequest))]
 [JsonSerializable(typeof(SessionFsSetProviderResult))]
+[JsonSerializable(typeof(SessionFsStatParams))]
+[JsonSerializable(typeof(SessionFsStatResult))]
+[JsonSerializable(typeof(SessionFsWriteFileParams))]
 [JsonSerializable(typeof(SessionLogRequest))]
 [JsonSerializable(typeof(SessionLogResult))]
 [JsonSerializable(typeof(SessionMcpDisableRequest))]

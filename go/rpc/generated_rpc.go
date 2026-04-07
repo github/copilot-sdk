@@ -6,7 +6,8 @@ package rpc
 import (
 	"context"
 	"encoding/json"
-
+	"errors"
+	"fmt"
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
 )
 
@@ -749,6 +750,134 @@ type SessionShellKillParams struct {
 	Signal *Signal `json:"signal,omitempty"`
 }
 
+type SessionFSReadFileResult struct {
+	// File content as UTF-8 string
+	Content string `json:"content"`
+}
+
+type SessionFSReadFileParams struct {
+	// Path using SessionFs conventions
+	Path string `json:"path"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+type SessionFSWriteFileParams struct {
+	// Content to write
+	Content string `json:"content"`
+	// Optional POSIX-style mode for newly created files
+	Mode *float64 `json:"mode,omitempty"`
+	// Path using SessionFs conventions
+	Path string `json:"path"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+type SessionFSAppendFileParams struct {
+	// Content to append
+	Content string `json:"content"`
+	// Optional POSIX-style mode for newly created files
+	Mode *float64 `json:"mode,omitempty"`
+	// Path using SessionFs conventions
+	Path string `json:"path"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+type SessionFSExistsResult struct {
+	// Whether the path exists
+	Exists bool `json:"exists"`
+}
+
+type SessionFSExistsParams struct {
+	// Path using SessionFs conventions
+	Path string `json:"path"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+type SessionFSStatResult struct {
+	// ISO 8601 timestamp of creation
+	Birthtime string `json:"birthtime"`
+	// Whether the path is a directory
+	IsDirectory bool `json:"isDirectory"`
+	// Whether the path is a file
+	IsFile bool `json:"isFile"`
+	// ISO 8601 timestamp of last modification
+	Mtime string `json:"mtime"`
+	// File size in bytes
+	Size float64 `json:"size"`
+}
+
+type SessionFSStatParams struct {
+	// Path using SessionFs conventions
+	Path string `json:"path"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+type SessionFSMkdirParams struct {
+	// Optional POSIX-style mode for newly created directories
+	Mode *float64 `json:"mode,omitempty"`
+	// Path using SessionFs conventions
+	Path string `json:"path"`
+	// Create parent directories as needed
+	Recursive *bool `json:"recursive,omitempty"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+type SessionFSReaddirResult struct {
+	// Entry names in the directory
+	Entries []string `json:"entries"`
+}
+
+type SessionFSReaddirParams struct {
+	// Path using SessionFs conventions
+	Path string `json:"path"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+type SessionFSReaddirWithTypesResult struct {
+	// Directory entries with type information
+	Entries []Entry `json:"entries"`
+}
+
+type Entry struct {
+	// Entry name
+	Name string `json:"name"`
+	// Entry type
+	Type EntryType `json:"type"`
+}
+
+type SessionFSReaddirWithTypesParams struct {
+	// Path using SessionFs conventions
+	Path string `json:"path"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+type SessionFSRmParams struct {
+	// Ignore errors if the path does not exist
+	Force *bool `json:"force,omitempty"`
+	// Path using SessionFs conventions
+	Path string `json:"path"`
+	// Remove directories and their contents recursively
+	Recursive *bool `json:"recursive,omitempty"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+type SessionFSRenameParams struct {
+	// Destination path using SessionFs conventions
+	Dest string `json:"dest"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+	// Source path using SessionFs conventions
+	Src string `json:"src"`
+}
+
 type FilterMappingEnum string
 
 const (
@@ -885,6 +1014,14 @@ const (
 	SignalSIGINT  Signal = "SIGINT"
 	SignalSIGKILL Signal = "SIGKILL"
 	SignalSIGTERM Signal = "SIGTERM"
+)
+
+// Entry type
+type EntryType string
+
+const (
+	EntryTypeDirectory EntryType = "directory"
+	EntryTypeFile      EntryType = "file"
 )
 
 type FilterMappingUnion struct {
@@ -1682,4 +1819,202 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 	r.Permissions = (*PermissionsApi)(&r.common)
 	r.Shell = (*ShellApi)(&r.common)
 	return r
+}
+
+type SessionFsHandler interface {
+	ReadFile(request *SessionFSReadFileParams) (*SessionFSReadFileResult, error)
+	WriteFile(request *SessionFSWriteFileParams) error
+	AppendFile(request *SessionFSAppendFileParams) error
+	Exists(request *SessionFSExistsParams) (*SessionFSExistsResult, error)
+	Stat(request *SessionFSStatParams) (*SessionFSStatResult, error)
+	Mkdir(request *SessionFSMkdirParams) error
+	Readdir(request *SessionFSReaddirParams) (*SessionFSReaddirResult, error)
+	ReaddirWithTypes(request *SessionFSReaddirWithTypesParams) (*SessionFSReaddirWithTypesResult, error)
+	Rm(request *SessionFSRmParams) error
+	Rename(request *SessionFSRenameParams) error
+}
+
+// ClientSessionApiHandlers provides all client session API handler groups for a session.
+type ClientSessionApiHandlers struct {
+	SessionFs SessionFsHandler
+}
+
+func clientSessionHandlerError(err error) *jsonrpc2.Error {
+	if err == nil {
+		return nil
+	}
+	var rpcErr *jsonrpc2.Error
+	if errors.As(err, &rpcErr) {
+		return rpcErr
+	}
+	return &jsonrpc2.Error{Code: -32603, Message: err.Error()}
+}
+
+// RegisterClientSessionApiHandlers registers handlers for server-to-client session API calls.
+func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(sessionID string) *ClientSessionApiHandlers) {
+	client.SetRequestHandler("sessionFs.readFile", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request SessionFSReadFileParams
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.SessionFs == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.SessionFs.ReadFile(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("sessionFs.writeFile", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request SessionFSWriteFileParams
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.SessionFs == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
+		}
+		if err := handlers.SessionFs.WriteFile(&request); err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		return json.RawMessage("null"), nil
+	})
+	client.SetRequestHandler("sessionFs.appendFile", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request SessionFSAppendFileParams
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.SessionFs == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
+		}
+		if err := handlers.SessionFs.AppendFile(&request); err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		return json.RawMessage("null"), nil
+	})
+	client.SetRequestHandler("sessionFs.exists", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request SessionFSExistsParams
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.SessionFs == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.SessionFs.Exists(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("sessionFs.stat", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request SessionFSStatParams
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.SessionFs == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.SessionFs.Stat(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("sessionFs.mkdir", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request SessionFSMkdirParams
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.SessionFs == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
+		}
+		if err := handlers.SessionFs.Mkdir(&request); err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		return json.RawMessage("null"), nil
+	})
+	client.SetRequestHandler("sessionFs.readdir", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request SessionFSReaddirParams
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.SessionFs == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.SessionFs.Readdir(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("sessionFs.readdirWithTypes", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request SessionFSReaddirWithTypesParams
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.SessionFs == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.SessionFs.ReaddirWithTypes(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("sessionFs.rm", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request SessionFSRmParams
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.SessionFs == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
+		}
+		if err := handlers.SessionFs.Rm(&request); err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		return json.RawMessage("null"), nil
+	})
+	client.SetRequestHandler("sessionFs.rename", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request SessionFSRenameParams
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.SessionFs == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
+		}
+		if err := handlers.SessionFs.Rename(&request); err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		return json.RawMessage("null"), nil
+	})
 }

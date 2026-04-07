@@ -208,7 +208,11 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
     const schema = JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema;
 
-    const allMethods = [...collectRpcMethods(schema.server || {}), ...collectRpcMethods(schema.session || {})];
+    const allMethods = [
+        ...collectRpcMethods(schema.server || {}),
+        ...collectRpcMethods(schema.session || {}),
+        ...collectRpcMethods(schema.clientSession || {}),
+    ];
 
     // Build a combined schema for quicktype
     const combinedSchema: JSONSchema7 = {
@@ -302,6 +306,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .._jsonrpc import JsonRpcClient
 
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Protocol
+
 `);
     lines.push(typesCode);
     lines.push(`
@@ -319,6 +327,9 @@ def _timeout_kwargs(timeout: float | None) -> dict:
     }
     if (schema.session) {
         emitRpcWrapper(lines, schema.session, true, resolveType);
+    }
+    if (schema.clientSession) {
+        emitClientSessionApiRegistration(lines, schema.clientSession, resolveType);
     }
 
     const outPath = await writeGeneratedFile("python/copilot/generated/rpc.py", lines.join("\n"));
@@ -427,6 +438,107 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
         }
     }
     lines.push(``);
+}
+
+function emitClientSessionApiRegistration(
+    lines: string[],
+    node: Record<string, unknown>,
+    resolveType: (name: string) => string
+): void {
+    const groups = Object.entries(node).filter(([, value]) => typeof value === "object" && value !== null && !isRpcMethod(value));
+
+    for (const [groupName, groupNode] of groups) {
+        const handlerName = `${toPascalCase(groupName)}Handler`;
+        const groupExperimental = isNodeFullyExperimental(groupNode as Record<string, unknown>);
+        if (groupExperimental) {
+            lines.push(`# Experimental: this API group is experimental and may change or be removed.`);
+        }
+        lines.push(`class ${handlerName}(Protocol):`);
+        for (const [methodName, value] of Object.entries(groupNode as Record<string, unknown>)) {
+            if (!isRpcMethod(value)) continue;
+            emitClientSessionHandlerMethod(lines, methodName, value, resolveType, groupExperimental);
+        }
+        lines.push(``);
+    }
+
+    lines.push(`@dataclass`);
+    lines.push(`class ClientSessionApiHandlers:`);
+    if (groups.length === 0) {
+        lines.push(`    pass`);
+    } else {
+        for (const [groupName] of groups) {
+            lines.push(`    ${toSnakeCase(groupName)}: ${toPascalCase(groupName)}Handler | None = None`);
+        }
+    }
+    lines.push(``);
+
+    lines.push(`def register_client_session_api_handlers(`);
+    lines.push(`    client: "JsonRpcClient",`);
+    lines.push(`    get_handlers: Callable[[str], ClientSessionApiHandlers],`);
+    lines.push(`) -> None:`);
+    lines.push(`    """Register client-session request handlers on a JSON-RPC connection."""`);
+    if (groups.length === 0) {
+        lines.push(`    return`);
+    } else {
+        for (const [groupName, groupNode] of groups) {
+            for (const [methodName, value] of Object.entries(groupNode as Record<string, unknown>)) {
+                if (!isRpcMethod(value)) continue;
+                emitClientSessionRegistrationMethod(
+                    lines,
+                    groupName,
+                    methodName,
+                    value,
+                    resolveType
+                );
+            }
+        }
+    }
+    lines.push(``);
+}
+
+function emitClientSessionHandlerMethod(
+    lines: string[],
+    name: string,
+    method: RpcMethod,
+    resolveType: (name: string) => string,
+    groupExperimental = false
+): void {
+    const paramsType = resolveType(toPascalCase(method.rpcMethod) + "Params");
+    const resultType = method.result ? resolveType(toPascalCase(method.rpcMethod) + "Result") : "None";
+    lines.push(`    async def ${toSnakeCase(name)}(self, params: ${paramsType}) -> ${resultType}:`);
+    if (method.stability === "experimental" && !groupExperimental) {
+        lines.push(`        """.. warning:: This API is experimental and may change or be removed in future versions."""`);
+    }
+    lines.push(`        ...`);
+}
+
+function emitClientSessionRegistrationMethod(
+    lines: string[],
+    groupName: string,
+    methodName: string,
+    method: RpcMethod,
+    resolveType: (name: string) => string
+): void {
+    const handlerVariableName = `handle_${toSnakeCase(groupName)}_${toSnakeCase(methodName)}`;
+    const paramsType = resolveType(toPascalCase(method.rpcMethod) + "Params");
+    const resultType = method.result ? resolveType(toPascalCase(method.rpcMethod) + "Result") : null;
+    const handlerField = toSnakeCase(groupName);
+    const handlerMethod = toSnakeCase(methodName);
+
+    lines.push(`    async def ${handlerVariableName}(params: dict) -> dict | None:`);
+    lines.push(`        request = ${paramsType}.from_dict(params)`);
+    lines.push(`        handler = get_handlers(request.session_id).${handlerField}`);
+    lines.push(
+        `        if handler is None: raise RuntimeError(f"No ${handlerField} handler registered for session: {request.session_id}")`
+    );
+    if (resultType) {
+        lines.push(`        result = await handler.${handlerMethod}(request)`);
+        lines.push(`        return result.to_dict()`);
+    } else {
+        lines.push(`        await handler.${handlerMethod}(request)`);
+        lines.push(`        return None`);
+    }
+    lines.push(`    client.set_request_handler("${method.rpcMethod}", ${handlerVariableName})`);
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────

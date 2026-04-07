@@ -92,16 +92,25 @@ public sealed class E2ETestContext : IAsyncDisposable
         return env!;
     }
 
-    public CopilotClient CreateClient(bool useStdio = true)
+    public CopilotClient CreateClient(bool useStdio = true, CopilotClientOptions? options = null)
     {
-        return new(new CopilotClientOptions
+        options ??= new CopilotClientOptions();
+
+        options.Cwd ??= WorkDir;
+        options.Environment ??= GetEnvironment();
+        options.UseStdio = useStdio;
+
+        if (string.IsNullOrEmpty(options.CliUrl))
         {
-            Cwd = WorkDir,
-            CliPath = GetCliPath(_repoRoot),
-            Environment = GetEnvironment(),
-            UseStdio = useStdio,
-            GitHubToken = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")) ? "fake-token-for-e2e-tests" : null,
-        });
+            options.CliPath ??= GetCliPath(_repoRoot);
+        }
+
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")) && string.IsNullOrEmpty(options.GitHubToken))
+        {
+            options.GitHubToken = "fake-token-for-e2e-tests";
+        }
+
+        return new(options);
     }
 
     public async ValueTask DisposeAsync()
