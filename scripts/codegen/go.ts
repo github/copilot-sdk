@@ -46,15 +46,6 @@ function toGoFieldName(jsonName: string): string {
         .join("");
 }
 
-/** Format a Go doc comment: "{TypeName} {description}." with trailing period. */
-function goDocComment(typeName: string, description: string | undefined, fallback: string): string[] {
-    const text = description ? description.split(/\r?\n/)[0] : fallback;
-    const trimmed = text.replace(/\.\s*$/, "");
-    // Lowercase the first character of the description to flow after the type name.
-    const lower = trimmed.charAt(0).toLowerCase() + trimmed.slice(1);
-    return [`// ${typeName} ${lower}.`];
-}
-
 /**
  * Post-process Go enum constants so every constant follows the canonical
  * Go `TypeNameValue` convention.  quicktype disambiguates collisions with
@@ -227,7 +218,11 @@ function getOrCreateGoEnum(
     if (existing) return existing;
 
     const lines: string[] = [];
-    lines.push(...goDocComment(enumName, description, `defines the allowed values`));
+    if (description) {
+        for (const line of description.split(/\r?\n/)) {
+            lines.push(`// ${line}`);
+        }
+    }
     lines.push(`type ${enumName} string`);
     lines.push(``);
     lines.push(`const (`);
@@ -394,7 +389,11 @@ function emitGoStruct(
     const required = new Set(schema.required || []);
     const lines: string[] = [];
     const desc = description || schema.description;
-    lines.push(...goDocComment(typeName, desc, `is a nested data type`));
+    if (desc) {
+        for (const line of desc.split(/\r?\n/)) {
+            lines.push(`// ${line}`);
+        }
+    }
     lines.push(`type ${typeName} struct {`);
 
     for (const [propName, propSchema] of Object.entries(schema.properties || {})) {
@@ -478,7 +477,11 @@ function emitGoFlatDiscriminatedUnion(
     );
 
     const lines: string[] = [];
-    lines.push(...goDocComment(typeName, description, `is a discriminated union type`));
+    if (description) {
+        for (const line of description.split(/\r?\n/)) {
+            lines.push(`// ${line}`);
+        }
+    }
     lines.push(`type ${typeName} struct {`);
 
     // Emit discriminator field first
@@ -519,8 +522,13 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
         const required = new Set(variant.dataSchema.required || []);
         const lines: string[] = [];
 
-        lines.push(...goDocComment(variant.dataClassName, variant.dataDescription,
-            `holds the payload for ${variant.typeName} events`));
+        if (variant.dataDescription) {
+            for (const line of variant.dataDescription.split(/\r?\n/)) {
+                lines.push(`// ${line}`);
+            }
+        } else {
+            lines.push(`// ${variant.dataClassName} holds the payload for ${variant.typeName} events.`);
+        }
         lines.push(`type ${variant.dataClassName} struct {`);
 
         for (const [propName, propSchema] of Object.entries(variant.dataSchema.properties || {})) {
