@@ -270,44 +270,9 @@ export type SessionEvent =
       ephemeral: true;
       type: "session.idle";
       /**
-       * Payload indicating the agent is idle; includes any background tasks still in flight
+       * Payload indicating the session is fully idle with no background tasks in flight
        */
       data: {
-        /**
-         * Background tasks still running when the agent became idle
-         */
-        backgroundTasks?: {
-          /**
-           * Currently running background agents
-           */
-          agents: {
-            /**
-             * Unique identifier of the background agent
-             */
-            agentId: string;
-            /**
-             * Type of the background agent
-             */
-            agentType: string;
-            /**
-             * Human-readable description of the agent task
-             */
-            description?: string;
-          }[];
-          /**
-           * Currently running background shell commands
-           */
-          shells: {
-            /**
-             * Unique identifier of the background shell
-             */
-            shellId: string;
-            /**
-             * Human-readable description of the shell command
-             */
-            description?: string;
-          }[];
-        };
         /**
          * True when the preceding agentic loop was cancelled via abort signal
          */
@@ -2979,13 +2944,21 @@ export type SessionEvent =
       ephemeral: true;
       type: "user_input.completed";
       /**
-       * User input request completion notification signaling UI dismissal
+       * User input request completion with the user's response
        */
       data: {
         /**
          * Request ID of the resolved user input request; clients should dismiss any UI for this request
          */
         requestId: string;
+        /**
+         * The user's answer to the input request
+         */
+        answer?: string;
+        /**
+         * Whether the answer was typed as free-form text rather than selected from choices
+         */
+        wasFreeform?: boolean;
       };
     }
   | {
@@ -3069,13 +3042,23 @@ export type SessionEvent =
       ephemeral: true;
       type: "elicitation.completed";
       /**
-       * Elicitation request completion notification signaling UI dismissal
+       * Elicitation request completion with the user's response
        */
       data: {
         /**
          * Request ID of the resolved elicitation request; clients should dismiss any UI for this request
          */
         requestId: string;
+        /**
+         * The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
+         */
+        action?: "accept" | "decline" | "cancel";
+        /**
+         * The submitted form data when action is 'accept'; keys match the requested schema fields
+         */
+        content?: {
+          [k: string]: string | number | boolean | string[];
+        };
       };
     }
   | {
@@ -3490,13 +3473,29 @@ export type SessionEvent =
       ephemeral: true;
       type: "exit_plan_mode.completed";
       /**
-       * Plan mode exit completion notification signaling UI dismissal
+       * Plan mode exit completion with the user's approval decision and optional feedback
        */
       data: {
         /**
          * Request ID of the resolved exit plan mode request; clients should dismiss any UI for this request
          */
         requestId: string;
+        /**
+         * Whether the plan was approved by the user
+         */
+        approved?: boolean;
+        /**
+         * Which action the user selected (e.g. 'autopilot', 'interactive', 'exit_only')
+         */
+        selectedAction?: string;
+        /**
+         * Whether edits should be auto-approved without confirmation
+         */
+        autoApproveEdits?: boolean;
+        /**
+         * Free-form feedback from the user if they requested changes to the plan
+         */
+        feedback?: string;
       };
     }
   | {

@@ -24,6 +24,7 @@ import type {
     PermissionRequest,
     PermissionRequestResult,
     ReasoningEffort,
+    ModelCapabilitiesOverride,
     SectionTransformFn,
     SessionCapabilities,
     SessionEvent,
@@ -1029,7 +1030,13 @@ export class CopilotSession {
      * await session.setModel("claude-sonnet-4.6", { reasoningEffort: "high" });
      * ```
      */
-    async setModel(model: string, options?: { reasoningEffort?: ReasoningEffort }): Promise<void> {
+    async setModel(
+        model: string,
+        options?: {
+            reasoningEffort?: ReasoningEffort;
+            modelCapabilities?: ModelCapabilitiesOverride;
+        }
+    ): Promise<void> {
         await this.rpc.model.switchTo({ modelId: model, ...options });
     }
 

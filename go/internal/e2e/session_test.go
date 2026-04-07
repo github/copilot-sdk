@@ -1,6 +1,9 @@
 package e2e
 
 import (
+	"encoding/base64"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -20,7 +23,7 @@ func TestSession(t *testing.T) {
 	t.Run("should create and disconnect sessions", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{OnPermissionRequest: copilot.PermissionHandler.ApproveAll, Model: "fake-test-model"})
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{OnPermissionRequest: copilot.PermissionHandler.ApproveAll, Model: "claude-sonnet-4.5"})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
@@ -43,8 +46,8 @@ func TestSession(t *testing.T) {
 			t.Errorf("Expected session.start sessionId to match")
 		}
 
-		if messages[0].Data.SelectedModel == nil || *messages[0].Data.SelectedModel != "fake-test-model" {
-			t.Errorf("Expected selectedModel to be 'fake-test-model', got %v", messages[0].Data.SelectedModel)
+		if messages[0].Data.SelectedModel == nil || *messages[0].Data.SelectedModel != "claude-sonnet-4.5" {
+			t.Errorf("Expected selectedModel to be 'claude-sonnet-4.5', got %v", messages[0].Data.SelectedModel)
 		}
 
 		if err := session.Disconnect(); err != nil {
@@ -1052,6 +1055,13 @@ func TestSessionBlobAttachment(t *testing.T) {
 	t.Run("should accept blob attachments", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
+		// Write the image to disk so the model can view it
+		data := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+		pngBytes, _ := base64.StdEncoding.DecodeString(data)
+		if err := os.WriteFile(filepath.Join(ctx.WorkDir, "test-pixel.png"), pngBytes, 0644); err != nil {
+			t.Fatalf("Failed to write test image: %v", err)
+		}
+
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 		})
@@ -1059,10 +1069,9 @@ func TestSessionBlobAttachment(t *testing.T) {
 			t.Fatalf("Failed to create session: %v", err)
 		}
 
-		data := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 		mimeType := "image/png"
 		displayName := "test-pixel.png"
-		_, err = session.Send(t.Context(), copilot.MessageOptions{
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Describe this image",
 			Attachments: []copilot.Attachment{
 				{
@@ -1077,7 +1086,6 @@ func TestSessionBlobAttachment(t *testing.T) {
 			t.Fatalf("Send with blob attachment failed: %v", err)
 		}
 
-		// Just verify send doesn't error — blob attachment support varies by runtime
 		session.Disconnect()
 	})
 }

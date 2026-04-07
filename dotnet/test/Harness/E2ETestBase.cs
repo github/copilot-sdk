@@ -69,7 +69,7 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
 
     protected static string GetSystemMessage(ParsedHttpExchange exchange)
     {
-        return exchange.Request.Messages.FirstOrDefault(m => m.Role == "system")?.Content ?? string.Empty;
+        return exchange.Request.Messages.FirstOrDefault(m => m.Role == "system")?.StringContent ?? string.Empty;
     }
 
     protected static List<string> GetToolNames(ParsedHttpExchange exchange)

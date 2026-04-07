@@ -57,14 +57,36 @@ function replaceBalancedBrackets(code: string, prefix: string, replacer: (inner:
     return result;
 }
 
+/** Split a string by commas, but only at the top bracket depth (ignores commas inside [...]) */
+function splitTopLevelCommas(s: string): string[] {
+    const parts: string[] = [];
+    let depth = 0;
+    let start = 0;
+    for (let i = 0; i < s.length; i++) {
+        if (s[i] === "[") depth++;
+        else if (s[i] === "]") depth--;
+        else if (s[i] === "," && depth === 0) {
+            parts.push(s.slice(start, i));
+            start = i + 1;
+        }
+    }
+    parts.push(s.slice(start));
+    return parts;
+}
+
 function modernizePython(code: string): string {
     // Replace Optional[X] with X | None (handles arbitrarily nested brackets)
     code = replaceBalancedBrackets(code, "Optional", (inner) => `${inner} | None`);
 
-    // Replace Union[X, Y] with X | Y
-    code = replaceBalancedBrackets(code, "Union", (inner) => {
-        return inner.split(",").map((s: string) => s.trim()).join(" | ");
-    });
+    // Replace Union[X, Y] with X | Y (split only at top-level commas, not inside brackets)
+    // Run iteratively to handle nested Union inside Dict/List
+    let prev = "";
+    while (prev !== code) {
+        prev = code;
+        code = replaceBalancedBrackets(code, "Union", (inner) => {
+            return splitTopLevelCommas(inner).map((s: string) => s.trim()).join(" | ");
+        });
+    }
 
     // Replace List[X] with list[X]
     code = code.replace(/\bList\[/g, "list[");

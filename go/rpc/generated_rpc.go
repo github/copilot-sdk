@@ -33,7 +33,7 @@ type Model struct {
 	// Billing information
 	Billing *Billing `json:"billing,omitempty"`
 	// Model capabilities and limits
-	Capabilities Capabilities `json:"capabilities"`
+	Capabilities ModelCapabilities `json:"capabilities"`
 	// Default reasoning effort level (only present if model supports reasoning effort)
 	DefaultReasoningEffort *string `json:"defaultReasoningEffort,omitempty"`
 	// Model identifier (e.g., "claude-sonnet-4.5")
@@ -53,25 +53,37 @@ type Billing struct {
 }
 
 // Model capabilities and limits
-type Capabilities struct {
+type ModelCapabilities struct {
 	// Token limits for prompts, outputs, and context window
-	Limits Limits `json:"limits"`
+	Limits ModelCapabilitiesLimits `json:"limits"`
 	// Feature flags indicating what the model supports
-	Supports Supports `json:"supports"`
+	Supports ModelCapabilitiesSupports `json:"supports"`
 }
 
 // Token limits for prompts, outputs, and context window
-type Limits struct {
+type ModelCapabilitiesLimits struct {
 	// Maximum total context window size in tokens
 	MaxContextWindowTokens float64 `json:"max_context_window_tokens"`
 	// Maximum number of output/completion tokens
 	MaxOutputTokens *float64 `json:"max_output_tokens,omitempty"`
 	// Maximum number of prompt/input tokens
 	MaxPromptTokens *float64 `json:"max_prompt_tokens,omitempty"`
+	// Vision-specific limits
+	Vision *ModelCapabilitiesLimitsVision `json:"vision,omitempty"`
+}
+
+// Vision-specific limits
+type ModelCapabilitiesLimitsVision struct {
+	// Maximum image size in bytes
+	MaxPromptImageSize float64 `json:"max_prompt_image_size"`
+	// Maximum number of images per prompt
+	MaxPromptImages float64 `json:"max_prompt_images"`
+	// MIME types the model accepts
+	SupportedMediaTypes []string `json:"supported_media_types"`
 }
 
 // Feature flags indicating what the model supports
-type Supports struct {
+type ModelCapabilitiesSupports struct {
 	// Whether this model supports reasoning effort configuration
 	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
 	// Whether this model supports vision/image input
@@ -234,10 +246,44 @@ type SessionModelSwitchToResult struct {
 }
 
 type SessionModelSwitchToParams struct {
+	// Override individual model capabilities resolved by the runtime
+	ModelCapabilities *ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
 	// Model identifier to switch to
 	ModelID string `json:"modelId"`
 	// Reasoning effort level to use for the model
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
+}
+
+// Override individual model capabilities resolved by the runtime
+type ModelCapabilitiesOverride struct {
+	// Token limits for prompts, outputs, and context window
+	Limits *ModelCapabilitiesOverrideLimits `json:"limits,omitempty"`
+	// Feature flags indicating what the model supports
+	Supports *ModelCapabilitiesOverrideSupports `json:"supports,omitempty"`
+}
+
+// Token limits for prompts, outputs, and context window
+type ModelCapabilitiesOverrideLimits struct {
+	// Maximum total context window size in tokens
+	MaxContextWindowTokens *float64                               `json:"max_context_window_tokens,omitempty"`
+	MaxOutputTokens        *float64                               `json:"max_output_tokens,omitempty"`
+	MaxPromptTokens        *float64                               `json:"max_prompt_tokens,omitempty"`
+	Vision                 *ModelCapabilitiesOverrideLimitsVision `json:"vision,omitempty"`
+}
+
+type ModelCapabilitiesOverrideLimitsVision struct {
+	// Maximum image size in bytes
+	MaxPromptImageSize *float64 `json:"max_prompt_image_size,omitempty"`
+	// Maximum number of images per prompt
+	MaxPromptImages *float64 `json:"max_prompt_images,omitempty"`
+	// MIME types the model accepts
+	SupportedMediaTypes []string `json:"supported_media_types,omitempty"`
+}
+
+// Feature flags indicating what the model supports
+type ModelCapabilitiesOverrideSupports struct {
+	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
+	Vision          *bool `json:"vision,omitempty"`
 }
 
 type SessionModeGetResult struct {
@@ -980,6 +1026,9 @@ func (a *ModelApi) SwitchTo(ctx context.Context, params *SessionModelSwitchToPar
 		req["modelId"] = params.ModelID
 		if params.ReasoningEffort != nil {
 			req["reasoningEffort"] = *params.ReasoningEffort
+		}
+		if params.ModelCapabilities != nil {
+			req["modelCapabilities"] = *params.ModelCapabilities
 		}
 	}
 	raw, err := a.client.Request("session.model.switchTo", req)

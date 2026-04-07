@@ -16,7 +16,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     [Fact]
     public async Task ShouldCreateAndDisconnectSessions()
     {
-        var session = await CreateSessionAsync(new SessionConfig { Model = "fake-test-model" });
+        var session = await CreateSessionAsync(new SessionConfig { Model = "claude-sonnet-4.5" });
 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
 
@@ -594,23 +594,25 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     [Fact]
     public async Task Should_Accept_Blob_Attachments()
     {
+        var pngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+        await File.WriteAllBytesAsync(Path.Join(Ctx.WorkDir, "test-pixel.png"), Convert.FromBase64String(pngBase64));
+
         var session = await CreateSessionAsync();
 
-        await session.SendAsync(new MessageOptions
+        await session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Describe this image",
             Attachments =
             [
                 new UserMessageDataAttachmentsItemBlob
                 {
-                    Data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                    Data = pngBase64,
                     MimeType = "image/png",
                     DisplayName = "test-pixel.png",
                 },
             ],
         });
 
-        // Just verify send doesn't throw — blob attachment support varies by runtime
         await session.DisposeAsync();
     }
 

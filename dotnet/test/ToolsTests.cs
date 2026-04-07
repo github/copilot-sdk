@@ -97,7 +97,7 @@ public partial class ToolsTests(E2ETestFixture fixture, ITestOutputHelper output
         Assert.Single(toolResults);
         var toolResult = toolResults[0];
         Assert.Equal(toolCall.Id, toolResult.ToolCallId);
-        Assert.DoesNotContain("Melbourne", toolResult.Content);
+        Assert.DoesNotContain("Melbourne", toolResult.StringContent);
 
         // Importantly, we're checking that the assistant does not see the
         // exception information as if it was the tool's output.

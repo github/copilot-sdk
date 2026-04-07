@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@github/copilot": "^1.0.17",
+    "@github/copilot": "^1.0.20-1",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@types/node": "^25.3.3",
     "openai": "^6.17.0",

@@ -5,4 +5,72 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: Describe this image
+        content: |-
+          Describe this image
+          test-pixel.png
+          [image]
+      - role: assistant
+        content: I'll view the image file to describe it for you.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test-pixel.png"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: |-
+          Describe this image
+          test-pixel.png
+          [image]
+      - role: assistant
+        content: I'll view the image file to describe it for you.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test-pixel.png"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Viewed image file successfully.
+      - role: user
+        content: |-
+          Image file at path ${workdir}/test-pixel.png
+          [image]
+      - role: assistant
+        content: >-
+          This is an extremely small image - it appears to be essentially a **single white pixel** or a very tiny white
+          square on a transparent background. The image is minimal in size and content, likely just a few pixels in
+          dimension. It's the kind of test image that might be used for:
+
+
+          - Testing image loading/rendering functionality
+
+          - Placeholder purposes
+
+          - Minimal file size requirements
+
+          - Image processing pipeline validation
+
+
+          The file name "test-pixel.png" confirms this is indeed a test image consisting of just a single pixel or very
+          small pixel cluster.

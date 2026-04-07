@@ -40,41 +40,7 @@ export interface ModelsListResult {
      * Display name
      */
     name: string;
-    /**
-     * Model capabilities and limits
-     */
-    capabilities: {
-      /**
-       * Feature flags indicating what the model supports
-       */
-      supports: {
-        /**
-         * Whether this model supports vision/image input
-         */
-        vision?: boolean;
-        /**
-         * Whether this model supports reasoning effort configuration
-         */
-        reasoningEffort?: boolean;
-      };
-      /**
-       * Token limits for prompts, outputs, and context window
-       */
-      limits: {
-        /**
-         * Maximum number of prompt/input tokens
-         */
-        max_prompt_tokens?: number;
-        /**
-         * Maximum number of output/completion tokens
-         */
-        max_output_tokens?: number;
-        /**
-         * Maximum total context window size in tokens
-         */
-        max_context_window_tokens: number;
-      };
-    };
+    capabilities: ModelCapabilities;
     /**
      * Policy state (if applicable)
      */
@@ -106,6 +72,61 @@ export interface ModelsListResult {
      */
     defaultReasoningEffort?: string;
   }[];
+}
+/**
+ * Model capabilities and limits
+ */
+export interface ModelCapabilities {
+  supports: ModelCapabilitiesSupports;
+  limits: ModelCapabilitiesLimits;
+}
+/**
+ * Feature flags indicating what the model supports
+ */
+export interface ModelCapabilitiesSupports {
+  /**
+   * Whether this model supports vision/image input
+   */
+  vision?: boolean;
+  /**
+   * Whether this model supports reasoning effort configuration
+   */
+  reasoningEffort?: boolean;
+}
+/**
+ * Token limits for prompts, outputs, and context window
+ */
+export interface ModelCapabilitiesLimits {
+  /**
+   * Maximum number of prompt/input tokens
+   */
+  max_prompt_tokens?: number;
+  /**
+   * Maximum number of output/completion tokens
+   */
+  max_output_tokens?: number;
+  /**
+   * Maximum total context window size in tokens
+   */
+  max_context_window_tokens: number;
+  vision?: ModelCapabilitiesLimitsVision;
+}
+/**
+ * Vision-specific limits
+ */
+export interface ModelCapabilitiesLimitsVision {
+  /**
+   * MIME types the model accepts
+   */
+  supported_media_types: string[];
+  /**
+   * Maximum number of images per prompt
+   */
+  max_prompt_images: number;
+  /**
+   * Maximum image size in bytes
+   */
+  max_prompt_image_size: number;
 }
 
 export interface ToolsListResult {
@@ -396,6 +417,47 @@ export interface SessionModelSwitchToParams {
    * Reasoning effort level to use for the model
    */
   reasoningEffort?: string;
+  modelCapabilities?: ModelCapabilitiesOverride;
+}
+/**
+ * Override individual model capabilities resolved by the runtime
+ */
+export interface ModelCapabilitiesOverride {
+  supports?: ModelCapabilitiesOverrideSupports;
+  limits?: ModelCapabilitiesOverrideLimits;
+}
+/**
+ * Feature flags indicating what the model supports
+ */
+export interface ModelCapabilitiesOverrideSupports {
+  vision?: boolean;
+  reasoningEffort?: boolean;
+}
+/**
+ * Token limits for prompts, outputs, and context window
+ */
+export interface ModelCapabilitiesOverrideLimits {
+  max_prompt_tokens?: number;
+  max_output_tokens?: number;
+  /**
+   * Maximum total context window size in tokens
+   */
+  max_context_window_tokens?: number;
+  vision?: ModelCapabilitiesOverrideLimitsVision;
+}
+export interface ModelCapabilitiesOverrideLimitsVision {
+  /**
+   * MIME types the model accepts
+   */
+  supported_media_types?: string[];
+  /**
+   * Maximum number of images per prompt
+   */
+  max_prompt_images?: number;
+  /**
+   * Maximum image size in bytes
+   */
+  max_prompt_image_size?: number;
 }
 
 export interface SessionModeGetResult {

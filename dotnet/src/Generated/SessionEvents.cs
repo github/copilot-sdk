@@ -181,7 +181,7 @@ public partial class SessionErrorEvent : SessionEvent
     public required SessionErrorData Data { get; set; }
 }
 
-/// <summary>Payload indicating the agent is idle; includes any background tasks still in flight.</summary>
+/// <summary>Payload indicating the session is fully idle with no background tasks in flight.</summary>
 /// <remarks>Represents the <c>session.idle</c> event.</remarks>
 public partial class SessionIdleEvent : SessionEvent
 {
@@ -791,7 +791,7 @@ public partial class UserInputRequestedEvent : SessionEvent
     public required UserInputRequestedData Data { get; set; }
 }
 
-/// <summary>User input request completion notification signaling UI dismissal.</summary>
+/// <summary>User input request completion with the user's response.</summary>
 /// <remarks>Represents the <c>user_input.completed</c> event.</remarks>
 public partial class UserInputCompletedEvent : SessionEvent
 {
@@ -817,7 +817,7 @@ public partial class ElicitationRequestedEvent : SessionEvent
     public required ElicitationRequestedData Data { get; set; }
 }
 
-/// <summary>Elicitation request completion notification signaling UI dismissal.</summary>
+/// <summary>Elicitation request completion with the user's response.</summary>
 /// <remarks>Represents the <c>elicitation.completed</c> event.</remarks>
 public partial class ElicitationCompletedEvent : SessionEvent
 {
@@ -986,7 +986,7 @@ public partial class ExitPlanModeRequestedEvent : SessionEvent
     public required ExitPlanModeRequestedData Data { get; set; }
 }
 
-/// <summary>Plan mode exit completion notification signaling UI dismissal.</summary>
+/// <summary>Plan mode exit completion with the user's approval decision and optional feedback.</summary>
 /// <remarks>Represents the <c>exit_plan_mode.completed</c> event.</remarks>
 public partial class ExitPlanModeCompletedEvent : SessionEvent
 {
@@ -1209,14 +1209,9 @@ public partial class SessionErrorData
     public string? Url { get; set; }
 }
 
-/// <summary>Payload indicating the agent is idle; includes any background tasks still in flight.</summary>
+/// <summary>Payload indicating the session is fully idle with no background tasks in flight.</summary>
 public partial class SessionIdleData
 {
-    /// <summary>Background tasks still running when the agent became idle.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("backgroundTasks")]
-    public SessionIdleDataBackgroundTasks? BackgroundTasks { get; set; }
-
     /// <summary>True when the preceding agentic loop was cancelled via abort signal.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("aborted")]
@@ -2313,12 +2308,22 @@ public partial class UserInputRequestedData
     public string? ToolCallId { get; set; }
 }
 
-/// <summary>User input request completion notification signaling UI dismissal.</summary>
+/// <summary>User input request completion with the user's response.</summary>
 public partial class UserInputCompletedData
 {
     /// <summary>Request ID of the resolved user input request; clients should dismiss any UI for this request.</summary>
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
+
+    /// <summary>The user's answer to the input request.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("answer")]
+    public string? Answer { get; set; }
+
+    /// <summary>Whether the answer was typed as free-form text rather than selected from choices.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("wasFreeform")]
+    public bool? WasFreeform { get; set; }
 }
 
 /// <summary>Elicitation request; may be form-based (structured input) or URL-based (browser redirect).</summary>
@@ -2358,12 +2363,22 @@ public partial class ElicitationRequestedData
     public string? Url { get; set; }
 }
 
-/// <summary>Elicitation request completion notification signaling UI dismissal.</summary>
+/// <summary>Elicitation request completion with the user's response.</summary>
 public partial class ElicitationCompletedData
 {
     /// <summary>Request ID of the resolved elicitation request; clients should dismiss any UI for this request.</summary>
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
+
+    /// <summary>The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("action")]
+    public ElicitationCompletedDataAction? Action { get; set; }
+
+    /// <summary>The submitted form data when action is 'accept'; keys match the requested schema fields.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("content")]
+    public Dictionary<string, object>? Content { get; set; }
 }
 
 /// <summary>Sampling request from an MCP server; contains the server name and a requestId for correlation.</summary>
@@ -2543,12 +2558,32 @@ public partial class ExitPlanModeRequestedData
     public required string RecommendedAction { get; set; }
 }
 
-/// <summary>Plan mode exit completion notification signaling UI dismissal.</summary>
+/// <summary>Plan mode exit completion with the user's approval decision and optional feedback.</summary>
 public partial class ExitPlanModeCompletedData
 {
     /// <summary>Request ID of the resolved exit plan mode request; clients should dismiss any UI for this request.</summary>
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
+
+    /// <summary>Whether the plan was approved by the user.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("approved")]
+    public bool? Approved { get; set; }
+
+    /// <summary>Which action the user selected (e.g. 'autopilot', 'interactive', 'exit_only').</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("selectedAction")]
+    public string? SelectedAction { get; set; }
+
+    /// <summary>Whether edits should be auto-approved without confirmation.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("autoApproveEdits")]
+    public bool? AutoApproveEdits { get; set; }
+
+    /// <summary>Free-form feedback from the user if they requested changes to the plan.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("feedback")]
+    public string? Feedback { get; set; }
 }
 
 /// <summary>Event payload for <see cref="SessionToolsUpdatedEvent"/>.</summary>
@@ -2692,51 +2727,6 @@ public partial class SessionResumeDataContext
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("baseCommit")]
     public string? BaseCommit { get; set; }
-}
-
-/// <summary>A background agent task.</summary>
-/// <remarks>Nested data type for <c>SessionIdleDataBackgroundTasksAgentsItem</c>.</remarks>
-public partial class SessionIdleDataBackgroundTasksAgentsItem
-{
-    /// <summary>Unique identifier of the background agent.</summary>
-    [JsonPropertyName("agentId")]
-    public required string AgentId { get; set; }
-
-    /// <summary>Type of the background agent.</summary>
-    [JsonPropertyName("agentType")]
-    public required string AgentType { get; set; }
-
-    /// <summary>Human-readable description of the agent task.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("description")]
-    public string? Description { get; set; }
-}
-
-/// <summary>A background shell command.</summary>
-/// <remarks>Nested data type for <c>SessionIdleDataBackgroundTasksShellsItem</c>.</remarks>
-public partial class SessionIdleDataBackgroundTasksShellsItem
-{
-    /// <summary>Unique identifier of the background shell.</summary>
-    [JsonPropertyName("shellId")]
-    public required string ShellId { get; set; }
-
-    /// <summary>Human-readable description of the shell command.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("description")]
-    public string? Description { get; set; }
-}
-
-/// <summary>Background tasks still running when the agent became idle.</summary>
-/// <remarks>Nested data type for <c>SessionIdleDataBackgroundTasks</c>.</remarks>
-public partial class SessionIdleDataBackgroundTasks
-{
-    /// <summary>Currently running background agents.</summary>
-    [JsonPropertyName("agents")]
-    public required SessionIdleDataBackgroundTasksAgentsItem[] Agents { get; set; }
-
-    /// <summary>Currently running background shell commands.</summary>
-    [JsonPropertyName("shells")]
-    public required SessionIdleDataBackgroundTasksShellsItem[] Shells { get; set; }
 }
 
 /// <summary>Repository context for the handed-off session.</summary>
@@ -4016,6 +4006,21 @@ public enum ElicitationRequestedDataMode
     Url,
 }
 
+/// <summary>The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed).</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ElicitationCompletedDataAction>))]
+public enum ElicitationCompletedDataAction
+{
+    /// <summary>The <c>accept</c> variant.</summary>
+    [JsonStringEnumMemberName("accept")]
+    Accept,
+    /// <summary>The <c>decline</c> variant.</summary>
+    [JsonStringEnumMemberName("decline")]
+    Decline,
+    /// <summary>The <c>cancel</c> variant.</summary>
+    [JsonStringEnumMemberName("cancel")]
+    Cancel,
+}
+
 /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<SessionMcpServersLoadedDataServersItemStatus>))]
 public enum SessionMcpServersLoadedDataServersItemStatus
@@ -4177,9 +4182,6 @@ public enum SessionExtensionsLoadedDataExtensionsItemStatus
 [JsonSerializable(typeof(SessionHandoffDataRepository))]
 [JsonSerializable(typeof(SessionHandoffEvent))]
 [JsonSerializable(typeof(SessionIdleData))]
-[JsonSerializable(typeof(SessionIdleDataBackgroundTasks))]
-[JsonSerializable(typeof(SessionIdleDataBackgroundTasksAgentsItem))]
-[JsonSerializable(typeof(SessionIdleDataBackgroundTasksShellsItem))]
 [JsonSerializable(typeof(SessionIdleEvent))]
 [JsonSerializable(typeof(SessionInfoData))]
 [JsonSerializable(typeof(SessionInfoEvent))]

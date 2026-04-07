@@ -5,4 +5,23 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: Describe this image
+        content: |-
+          What color is this pixel? Reply in one word.
+          pixel.png
+          [image]
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/pixel.png"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Viewed image file successfully.
+      - role: user
+        content: |-
+          Image file at path ${workdir}/pixel.png
+          [image]
+      - role: assistant
+        content: Red

@@ -13,3 +13,53 @@ conversations:
           <tagged_files>
           * ${workdir}/attached.txt (1 lines)
           </tagged_files>
+      - role: assistant
+        content: I'll read the attached file and summarize it for you.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Reading attached file"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/attached.txt"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: |-
+          Summarize the attached file
+
+
+
+          <tagged_files>
+          * ${workdir}/attached.txt (1 lines)
+          </tagged_files>
+      - role: assistant
+        content: I'll read the attached file and summarize it for you.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Reading attached file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/attached.txt"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: 1. This file is attached
+      - role: assistant
+        content: The attached file contains a single line of text that simply states "This file is attached" - it's a minimal
+          test file confirming its attachment status.

@@ -58,8 +58,8 @@ func main() {
     done := make(chan bool)
     session.On(func(event copilot.SessionEvent) {
         if event.Type == "assistant.message" {
-            if event.Data.Content != nil {
-                fmt.Println(*event.Data.Content)
+            if event.Data.Content != nil && event.Data.Content.String != nil {
+                fmt.Println(*event.Data.Content.String)
             }
         }
         if event.Type == "session.idle" {
@@ -417,14 +417,14 @@ func main() {
         } else if event.Type == "assistant.message" {
             // Final message - complete content
             fmt.Println("\n--- Final message ---")
-            if event.Data.Content != nil {
-                fmt.Println(*event.Data.Content)
+            if event.Data.Content != nil && event.Data.Content.String != nil {
+                fmt.Println(*event.Data.Content.String)
             }
         } else if event.Type == "assistant.reasoning" {
             // Final reasoning content (if model supports reasoning)
             fmt.Println("--- Reasoning ---")
-            if event.Data.Content != nil {
-                fmt.Println(*event.Data.Content)
+            if event.Data.Content != nil && event.Data.Content.String != nil {
+                fmt.Println(*event.Data.Content.String)
             }
         }
         if event.Type == "session.idle" {

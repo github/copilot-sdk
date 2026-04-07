@@ -47,6 +47,11 @@ jobs:
 
       - name: Check for uncommitted changes
         run: |
+          # TODO: Remove this when https://github.com/github/copilot-sdk/issues/1031 is fixed
+          # Exclude go/generated_session_events.go from the check — it was intentionally
+          # reverted to avoid a breaking DataContent change (see #1031) and will be
+          # regenerated once that issue is resolved.
+          git checkout -- go/generated_session_events.go 2>/dev/null || true
           if [ -n "$(git status --porcelain)" ]; then
             echo "::error::Generated files are out of date. Run 'cd scripts/codegen && npm run generate' and commit the changes."
             git diff --stat

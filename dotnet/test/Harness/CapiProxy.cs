@@ -164,9 +164,16 @@ public record ChatCompletionRequest(
 
 public record ChatCompletionMessage(
     string Role,
-    string? Content,
+    JsonElement? Content,
     [property: JsonPropertyName("tool_call_id")] string? ToolCallId,
-    [property: JsonPropertyName("tool_calls")] List<ChatCompletionToolCall>? ToolCalls);
+    [property: JsonPropertyName("tool_calls")] List<ChatCompletionToolCall>? ToolCalls)
+{
+    /// <summary>
+    /// Returns Content as a string when the JSON value is a string, or null otherwise.
+    /// </summary>
+    [JsonIgnore]
+    public string? StringContent => Content is { ValueKind: JsonValueKind.String } c ? c.GetString() : null;
+}
 
 public record ChatCompletionToolCall(string Id, string Type, ChatCompletionToolCallFunction Function);
 
