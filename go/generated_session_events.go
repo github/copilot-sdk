@@ -620,7 +620,7 @@ const (
 	SessionEventTypeSessionExtensionsLoaded       SessionEventType = "session.extensions_loaded"
 )
 
-// Session initialization metadata including context and configuration
+// SessionStartData session initialization metadata including context and configuration.
 type SessionStartData struct {
 	// Unique identifier for the session
 	SessionID string `json:"sessionId"`
@@ -646,7 +646,7 @@ type SessionStartData struct {
 
 func (*SessionStartData) sessionEventData() {}
 
-// Session resume metadata including current context and event count
+// SessionResumeData session resume metadata including current context and event count.
 type SessionResumeData struct {
 	// ISO 8601 timestamp when the session was resumed
 	ResumeTime time.Time `json:"resumeTime"`
@@ -666,7 +666,7 @@ type SessionResumeData struct {
 
 func (*SessionResumeData) sessionEventData() {}
 
-// Notifies Mission Control that the session's remote steering capability has changed
+// SessionRemoteSteerableChangedData notifies Mission Control that the session's remote steering capability has changed.
 type SessionRemoteSteerableChangedData struct {
 	// Whether this session now supports remote steering via Mission Control
 	RemoteSteerable bool `json:"remoteSteerable"`
@@ -674,7 +674,7 @@ type SessionRemoteSteerableChangedData struct {
 
 func (*SessionRemoteSteerableChangedData) sessionEventData() {}
 
-// Error details for timeline display including message and optional diagnostic information
+// SessionErrorData error details for timeline display including message and optional diagnostic information.
 type SessionErrorData struct {
 	// Category of error (e.g., "authentication", "authorization", "quota", "rate_limit", "context_limit", "query")
 	ErrorType string `json:"errorType"`
@@ -692,7 +692,7 @@ type SessionErrorData struct {
 
 func (*SessionErrorData) sessionEventData() {}
 
-// Payload indicating the session is fully idle with no background tasks in flight
+// SessionIdleData payload indicating the session is fully idle with no background tasks in flight.
 type SessionIdleData struct {
 	// True when the preceding agentic loop was cancelled via abort signal
 	Aborted *bool `json:"aborted,omitempty"`
@@ -700,7 +700,7 @@ type SessionIdleData struct {
 
 func (*SessionIdleData) sessionEventData() {}
 
-// Session title change payload containing the new display title
+// SessionTitleChangedData session title change payload containing the new display title.
 type SessionTitleChangedData struct {
 	// The new display title for the session
 	Title string `json:"title"`
@@ -708,7 +708,7 @@ type SessionTitleChangedData struct {
 
 func (*SessionTitleChangedData) sessionEventData() {}
 
-// Informational message for timeline display with categorization
+// SessionInfoData informational message for timeline display with categorization.
 type SessionInfoData struct {
 	// Category of informational message (e.g., "notification", "timing", "context_window", "mcp", "snapshot", "configuration", "authentication", "model")
 	InfoType string `json:"infoType"`
@@ -720,7 +720,7 @@ type SessionInfoData struct {
 
 func (*SessionInfoData) sessionEventData() {}
 
-// Warning message for timeline display with categorization
+// SessionWarningData warning message for timeline display with categorization.
 type SessionWarningData struct {
 	// Category of warning (e.g., "subscription", "policy", "mcp")
 	WarningType string `json:"warningType"`
@@ -732,7 +732,7 @@ type SessionWarningData struct {
 
 func (*SessionWarningData) sessionEventData() {}
 
-// Model change details including previous and new model identifiers
+// SessionModelChangeData model change details including previous and new model identifiers.
 type SessionModelChangeData struct {
 	// Model that was previously selected, if any
 	PreviousModel *string `json:"previousModel,omitempty"`
@@ -746,7 +746,7 @@ type SessionModelChangeData struct {
 
 func (*SessionModelChangeData) sessionEventData() {}
 
-// Agent mode change details including previous and new modes
+// SessionModeChangedData agent mode change details including previous and new modes.
 type SessionModeChangedData struct {
 	// Agent mode before the change (e.g., "interactive", "plan", "autopilot")
 	PreviousMode string `json:"previousMode"`
@@ -756,7 +756,7 @@ type SessionModeChangedData struct {
 
 func (*SessionModeChangedData) sessionEventData() {}
 
-// Plan file operation details indicating what changed
+// SessionPlanChangedData plan file operation details indicating what changed.
 type SessionPlanChangedData struct {
 	// The type of operation performed on the plan file
 	Operation SessionPlanChangedDataOperation `json:"operation"`
@@ -764,7 +764,7 @@ type SessionPlanChangedData struct {
 
 func (*SessionPlanChangedData) sessionEventData() {}
 
-// Workspace file change details including path and operation type
+// SessionWorkspaceFileChangedData workspace file change details including path and operation type.
 type SessionWorkspaceFileChangedData struct {
 	// Relative path within the session workspace files directory
 	Path string `json:"path"`
@@ -774,7 +774,7 @@ type SessionWorkspaceFileChangedData struct {
 
 func (*SessionWorkspaceFileChangedData) sessionEventData() {}
 
-// Session handoff metadata including source, context, and repository information
+// SessionHandoffData session handoff metadata including source, context, and repository information.
 type SessionHandoffData struct {
 	// ISO 8601 timestamp when the handoff occurred
 	HandoffTime time.Time `json:"handoffTime"`
@@ -794,7 +794,7 @@ type SessionHandoffData struct {
 
 func (*SessionHandoffData) sessionEventData() {}
 
-// Conversation truncation statistics including token counts and removed content metrics
+// SessionTruncationData conversation truncation statistics including token counts and removed content metrics.
 type SessionTruncationData struct {
 	// Maximum token count for the model's context window
 	TokenLimit float64 `json:"tokenLimit"`
@@ -816,7 +816,7 @@ type SessionTruncationData struct {
 
 func (*SessionTruncationData) sessionEventData() {}
 
-// Session rewind details including target event and count of removed events
+// SessionSnapshotRewindData session rewind details including target event and count of removed events.
 type SessionSnapshotRewindData struct {
 	// Event ID that was rewound to; all events after this one were removed
 	UpToEventID string `json:"upToEventId"`
@@ -826,7 +826,7 @@ type SessionSnapshotRewindData struct {
 
 func (*SessionSnapshotRewindData) sessionEventData() {}
 
-// Session termination metrics including usage statistics, code changes, and shutdown reason
+// SessionShutdownData session termination metrics including usage statistics, code changes, and shutdown reason.
 type SessionShutdownData struct {
 	// Whether the session ended normally ("routine") or due to a crash/fatal error ("error")
 	ShutdownType SessionShutdownDataShutdownType `json:"shutdownType"`
@@ -856,7 +856,7 @@ type SessionShutdownData struct {
 
 func (*SessionShutdownData) sessionEventData() {}
 
-// Updated working directory and git context after the change
+// SessionContextChangedData updated working directory and git context after the change.
 type SessionContextChangedData struct {
 	// Current working directory path
 	Cwd string `json:"cwd"`
@@ -876,7 +876,7 @@ type SessionContextChangedData struct {
 
 func (*SessionContextChangedData) sessionEventData() {}
 
-// Current context window usage statistics including token and message counts
+// SessionUsageInfoData current context window usage statistics including token and message counts.
 type SessionUsageInfoData struct {
 	// Maximum token count for the model's context window
 	TokenLimit float64 `json:"tokenLimit"`
@@ -896,7 +896,7 @@ type SessionUsageInfoData struct {
 
 func (*SessionUsageInfoData) sessionEventData() {}
 
-// Context window breakdown at the start of LLM-powered conversation compaction
+// SessionCompactionStartData context window breakdown at the start of LLM-powered conversation compaction.
 type SessionCompactionStartData struct {
 	// Token count from system message(s) at compaction start
 	SystemTokens *float64 `json:"systemTokens,omitempty"`
@@ -908,7 +908,7 @@ type SessionCompactionStartData struct {
 
 func (*SessionCompactionStartData) sessionEventData() {}
 
-// Conversation compaction results including success status, metrics, and optional error details
+// SessionCompactionCompleteData conversation compaction results including success status, metrics, and optional error details.
 type SessionCompactionCompleteData struct {
 	// Whether compaction completed successfully
 	Success bool `json:"success"`
@@ -944,7 +944,7 @@ type SessionCompactionCompleteData struct {
 
 func (*SessionCompactionCompleteData) sessionEventData() {}
 
-// Task completion notification with summary from the agent
+// SessionTaskCompleteData task completion notification with summary from the agent.
 type SessionTaskCompleteData struct {
 	// Summary of the completed task, provided by the agent
 	Summary *string `json:"summary,omitempty"`
@@ -972,13 +972,13 @@ type UserMessageData struct {
 
 func (*UserMessageData) sessionEventData() {}
 
-// Empty payload; the event signals that the pending message queue has changed
+// PendingMessagesModifiedData empty payload; the event signals that the pending message queue has changed.
 type PendingMessagesModifiedData struct {
 }
 
 func (*PendingMessagesModifiedData) sessionEventData() {}
 
-// Turn initialization metadata including identifier and interaction tracking
+// AssistantTurnStartData turn initialization metadata including identifier and interaction tracking.
 type AssistantTurnStartData struct {
 	// Identifier for this turn within the agentic loop, typically a stringified turn number
 	TurnID string `json:"turnId"`
@@ -988,7 +988,7 @@ type AssistantTurnStartData struct {
 
 func (*AssistantTurnStartData) sessionEventData() {}
 
-// Agent intent description for current activity or plan
+// AssistantIntentData agent intent description for current activity or plan.
 type AssistantIntentData struct {
 	// Short description of what the agent is currently doing or planning to do
 	Intent string `json:"intent"`
@@ -996,7 +996,7 @@ type AssistantIntentData struct {
 
 func (*AssistantIntentData) sessionEventData() {}
 
-// Assistant reasoning content for timeline display with complete thinking text
+// AssistantReasoningData assistant reasoning content for timeline display with complete thinking text.
 type AssistantReasoningData struct {
 	// Unique identifier for this reasoning block
 	ReasoningID string `json:"reasoningId"`
@@ -1006,7 +1006,7 @@ type AssistantReasoningData struct {
 
 func (*AssistantReasoningData) sessionEventData() {}
 
-// Streaming reasoning delta for incremental extended thinking updates
+// AssistantReasoningDeltaData streaming reasoning delta for incremental extended thinking updates.
 type AssistantReasoningDeltaData struct {
 	// Reasoning block ID this delta belongs to, matching the corresponding assistant.reasoning event
 	ReasoningID string `json:"reasoningId"`
@@ -1016,7 +1016,7 @@ type AssistantReasoningDeltaData struct {
 
 func (*AssistantReasoningDeltaData) sessionEventData() {}
 
-// Streaming response progress with cumulative byte count
+// AssistantStreamingDeltaData streaming response progress with cumulative byte count.
 type AssistantStreamingDeltaData struct {
 	// Cumulative total bytes received from the streaming response so far
 	TotalResponseSizeBytes float64 `json:"totalResponseSizeBytes"`
@@ -1024,7 +1024,7 @@ type AssistantStreamingDeltaData struct {
 
 func (*AssistantStreamingDeltaData) sessionEventData() {}
 
-// Assistant response containing text content, optional tool requests, and interaction metadata
+// AssistantMessageData assistant response containing text content, optional tool requests, and interaction metadata.
 type AssistantMessageData struct {
 	// Unique identifier for this assistant message
 	MessageID string `json:"messageId"`
@@ -1050,7 +1050,7 @@ type AssistantMessageData struct {
 
 func (*AssistantMessageData) sessionEventData() {}
 
-// Streaming assistant message delta for incremental response updates
+// AssistantMessageDeltaData streaming assistant message delta for incremental response updates.
 type AssistantMessageDeltaData struct {
 	// Message ID this delta belongs to, matching the corresponding assistant.message event
 	MessageID string `json:"messageId"`
@@ -1062,7 +1062,7 @@ type AssistantMessageDeltaData struct {
 
 func (*AssistantMessageDeltaData) sessionEventData() {}
 
-// Turn completion metadata including the turn identifier
+// AssistantTurnEndData turn completion metadata including the turn identifier.
 type AssistantTurnEndData struct {
 	// Identifier of the turn that has ended, matching the corresponding assistant.turn_start event
 	TurnID string `json:"turnId"`
@@ -1070,7 +1070,7 @@ type AssistantTurnEndData struct {
 
 func (*AssistantTurnEndData) sessionEventData() {}
 
-// LLM API call usage metrics including tokens, costs, quotas, and billing information
+// AssistantUsageData lLM API call usage metrics including tokens, costs, quotas, and billing information.
 type AssistantUsageData struct {
 	// Model identifier used for this API call
 	Model string `json:"model"`
@@ -1108,7 +1108,7 @@ type AssistantUsageData struct {
 
 func (*AssistantUsageData) sessionEventData() {}
 
-// Turn abort information including the reason for termination
+// AbortData turn abort information including the reason for termination.
 type AbortData struct {
 	// Reason the current turn was aborted (e.g., "user initiated")
 	Reason string `json:"reason"`
@@ -1116,7 +1116,7 @@ type AbortData struct {
 
 func (*AbortData) sessionEventData() {}
 
-// User-initiated tool invocation request with tool name and arguments
+// ToolUserRequestedData user-initiated tool invocation request with tool name and arguments.
 type ToolUserRequestedData struct {
 	// Unique identifier for this tool call
 	ToolCallID string `json:"toolCallId"`
@@ -1128,7 +1128,7 @@ type ToolUserRequestedData struct {
 
 func (*ToolUserRequestedData) sessionEventData() {}
 
-// Tool execution startup details including MCP server information when applicable
+// ToolExecutionStartData tool execution startup details including MCP server information when applicable.
 type ToolExecutionStartData struct {
 	// Unique identifier for this tool call
 	ToolCallID string `json:"toolCallId"`
@@ -1146,7 +1146,7 @@ type ToolExecutionStartData struct {
 
 func (*ToolExecutionStartData) sessionEventData() {}
 
-// Streaming tool execution output for incremental result display
+// ToolExecutionPartialResultData streaming tool execution output for incremental result display.
 type ToolExecutionPartialResultData struct {
 	// Tool call ID this partial result belongs to
 	ToolCallID string `json:"toolCallId"`
@@ -1156,7 +1156,7 @@ type ToolExecutionPartialResultData struct {
 
 func (*ToolExecutionPartialResultData) sessionEventData() {}
 
-// Tool execution progress notification with status message
+// ToolExecutionProgressData tool execution progress notification with status message.
 type ToolExecutionProgressData struct {
 	// Tool call ID this progress notification belongs to
 	ToolCallID string `json:"toolCallId"`
@@ -1166,7 +1166,7 @@ type ToolExecutionProgressData struct {
 
 func (*ToolExecutionProgressData) sessionEventData() {}
 
-// Tool execution completion results including success status, detailed output, and error information
+// ToolExecutionCompleteData tool execution completion results including success status, detailed output, and error information.
 type ToolExecutionCompleteData struct {
 	// Unique identifier for the completed tool call
 	ToolCallID string `json:"toolCallId"`
@@ -1190,7 +1190,7 @@ type ToolExecutionCompleteData struct {
 
 func (*ToolExecutionCompleteData) sessionEventData() {}
 
-// Skill invocation details including content, allowed tools, and plugin metadata
+// SkillInvokedData skill invocation details including content, allowed tools, and plugin metadata.
 type SkillInvokedData struct {
 	// Name of the invoked skill
 	Name string `json:"name"`
@@ -1210,7 +1210,7 @@ type SkillInvokedData struct {
 
 func (*SkillInvokedData) sessionEventData() {}
 
-// Sub-agent startup details including parent tool call and agent information
+// SubagentStartedData sub-agent startup details including parent tool call and agent information.
 type SubagentStartedData struct {
 	// Tool call ID of the parent tool invocation that spawned this sub-agent
 	ToolCallID string `json:"toolCallId"`
@@ -1224,7 +1224,7 @@ type SubagentStartedData struct {
 
 func (*SubagentStartedData) sessionEventData() {}
 
-// Sub-agent completion details for successful execution
+// SubagentCompletedData sub-agent completion details for successful execution.
 type SubagentCompletedData struct {
 	// Tool call ID of the parent tool invocation that spawned this sub-agent
 	ToolCallID string `json:"toolCallId"`
@@ -1244,7 +1244,7 @@ type SubagentCompletedData struct {
 
 func (*SubagentCompletedData) sessionEventData() {}
 
-// Sub-agent failure details including error message and agent information
+// SubagentFailedData sub-agent failure details including error message and agent information.
 type SubagentFailedData struct {
 	// Tool call ID of the parent tool invocation that spawned this sub-agent
 	ToolCallID string `json:"toolCallId"`
@@ -1266,7 +1266,7 @@ type SubagentFailedData struct {
 
 func (*SubagentFailedData) sessionEventData() {}
 
-// Custom agent selection details including name and available tools
+// SubagentSelectedData custom agent selection details including name and available tools.
 type SubagentSelectedData struct {
 	// Internal name of the selected custom agent
 	AgentName string `json:"agentName"`
@@ -1278,13 +1278,13 @@ type SubagentSelectedData struct {
 
 func (*SubagentSelectedData) sessionEventData() {}
 
-// Empty payload; the event signals that the custom agent was deselected, returning to the default agent
+// SubagentDeselectedData empty payload; the event signals that the custom agent was deselected, returning to the default agent.
 type SubagentDeselectedData struct {
 }
 
 func (*SubagentDeselectedData) sessionEventData() {}
 
-// Hook invocation start details including type and input data
+// HookStartData hook invocation start details including type and input data.
 type HookStartData struct {
 	// Unique identifier for this hook invocation
 	HookInvocationID string `json:"hookInvocationId"`
@@ -1296,7 +1296,7 @@ type HookStartData struct {
 
 func (*HookStartData) sessionEventData() {}
 
-// Hook invocation completion details including output, success status, and error information
+// HookEndData hook invocation completion details including output, success status, and error information.
 type HookEndData struct {
 	// Identifier matching the corresponding hook.start event
 	HookInvocationID string `json:"hookInvocationId"`
@@ -1312,7 +1312,7 @@ type HookEndData struct {
 
 func (*HookEndData) sessionEventData() {}
 
-// System or developer message content with role and optional template metadata
+// SystemMessageData system or developer message content with role and optional template metadata.
 type SystemMessageData struct {
 	// The system or developer prompt text
 	Content string `json:"content"`
@@ -1326,7 +1326,7 @@ type SystemMessageData struct {
 
 func (*SystemMessageData) sessionEventData() {}
 
-// System-generated notification for runtime events like background task completion
+// SystemNotificationData system-generated notification for runtime events like background task completion.
 type SystemNotificationData struct {
 	// The notification text, typically wrapped in <system_notification> XML tags
 	Content string `json:"content"`
@@ -1336,7 +1336,7 @@ type SystemNotificationData struct {
 
 func (*SystemNotificationData) sessionEventData() {}
 
-// Permission request notification requiring client approval with request details
+// PermissionRequestedData permission request notification requiring client approval with request details.
 type PermissionRequestedData struct {
 	// Unique identifier for this permission request; used to respond via session.respondToPermission()
 	RequestID string `json:"requestId"`
@@ -1348,7 +1348,7 @@ type PermissionRequestedData struct {
 
 func (*PermissionRequestedData) sessionEventData() {}
 
-// Permission request completion notification signaling UI dismissal
+// PermissionCompletedData permission request completion notification signaling UI dismissal.
 type PermissionCompletedData struct {
 	// Request ID of the resolved permission request; clients should dismiss any UI for this request
 	RequestID string `json:"requestId"`
@@ -1358,7 +1358,7 @@ type PermissionCompletedData struct {
 
 func (*PermissionCompletedData) sessionEventData() {}
 
-// User input request notification with question and optional predefined choices
+// UserInputRequestedData user input request notification with question and optional predefined choices.
 type UserInputRequestedData struct {
 	// Unique identifier for this input request; used to respond via session.respondToUserInput()
 	RequestID string `json:"requestId"`
@@ -1374,7 +1374,7 @@ type UserInputRequestedData struct {
 
 func (*UserInputRequestedData) sessionEventData() {}
 
-// User input request completion with the user's response
+// UserInputCompletedData user input request completion with the user's response.
 type UserInputCompletedData struct {
 	// Request ID of the resolved user input request; clients should dismiss any UI for this request
 	RequestID string `json:"requestId"`
@@ -1386,7 +1386,7 @@ type UserInputCompletedData struct {
 
 func (*UserInputCompletedData) sessionEventData() {}
 
-// Elicitation request; may be form-based (structured input) or URL-based (browser redirect)
+// ElicitationRequestedData elicitation request; may be form-based (structured input) or URL-based (browser redirect).
 type ElicitationRequestedData struct {
 	// Unique identifier for this elicitation request; used to respond via session.respondToElicitation()
 	RequestID string `json:"requestId"`
@@ -1406,7 +1406,7 @@ type ElicitationRequestedData struct {
 
 func (*ElicitationRequestedData) sessionEventData() {}
 
-// Elicitation request completion with the user's response
+// ElicitationCompletedData elicitation request completion with the user's response.
 type ElicitationCompletedData struct {
 	// Request ID of the resolved elicitation request; clients should dismiss any UI for this request
 	RequestID string `json:"requestId"`
@@ -1418,7 +1418,7 @@ type ElicitationCompletedData struct {
 
 func (*ElicitationCompletedData) sessionEventData() {}
 
-// Sampling request from an MCP server; contains the server name and a requestId for correlation
+// SamplingRequestedData sampling request from an MCP server; contains the server name and a requestId for correlation.
 type SamplingRequestedData struct {
 	// Unique identifier for this sampling request; used to respond via session.respondToSampling()
 	RequestID string `json:"requestId"`
@@ -1430,7 +1430,7 @@ type SamplingRequestedData struct {
 
 func (*SamplingRequestedData) sessionEventData() {}
 
-// Sampling request completion notification signaling UI dismissal
+// SamplingCompletedData sampling request completion notification signaling UI dismissal.
 type SamplingCompletedData struct {
 	// Request ID of the resolved sampling request; clients should dismiss any UI for this request
 	RequestID string `json:"requestId"`
@@ -1438,7 +1438,7 @@ type SamplingCompletedData struct {
 
 func (*SamplingCompletedData) sessionEventData() {}
 
-// OAuth authentication request for an MCP server
+// McpOauthRequiredData oAuth authentication request for an MCP server.
 type McpOauthRequiredData struct {
 	// Unique identifier for this OAuth request; used to respond via session.respondToMcpOAuth()
 	RequestID string `json:"requestId"`
@@ -1452,7 +1452,7 @@ type McpOauthRequiredData struct {
 
 func (*McpOauthRequiredData) sessionEventData() {}
 
-// MCP OAuth request completion notification
+// McpOauthCompletedData mCP OAuth request completion notification.
 type McpOauthCompletedData struct {
 	// Request ID of the resolved OAuth request
 	RequestID string `json:"requestId"`
@@ -1460,7 +1460,7 @@ type McpOauthCompletedData struct {
 
 func (*McpOauthCompletedData) sessionEventData() {}
 
-// External tool invocation request for client-side tool execution
+// ExternalToolRequestedData external tool invocation request for client-side tool execution.
 type ExternalToolRequestedData struct {
 	// Unique identifier for this request; used to respond via session.respondToExternalTool()
 	RequestID string `json:"requestId"`
@@ -1480,7 +1480,7 @@ type ExternalToolRequestedData struct {
 
 func (*ExternalToolRequestedData) sessionEventData() {}
 
-// External tool completion notification signaling UI dismissal
+// ExternalToolCompletedData external tool completion notification signaling UI dismissal.
 type ExternalToolCompletedData struct {
 	// Request ID of the resolved external tool request; clients should dismiss any UI for this request
 	RequestID string `json:"requestId"`
@@ -1488,7 +1488,7 @@ type ExternalToolCompletedData struct {
 
 func (*ExternalToolCompletedData) sessionEventData() {}
 
-// Queued slash command dispatch request for client execution
+// CommandQueuedData queued slash command dispatch request for client execution.
 type CommandQueuedData struct {
 	// Unique identifier for this request; used to respond via session.respondToQueuedCommand()
 	RequestID string `json:"requestId"`
@@ -1498,7 +1498,7 @@ type CommandQueuedData struct {
 
 func (*CommandQueuedData) sessionEventData() {}
 
-// Registered command dispatch request routed to the owning client
+// CommandExecuteData registered command dispatch request routed to the owning client.
 type CommandExecuteData struct {
 	// Unique identifier; used to respond via session.commands.handlePendingCommand()
 	RequestID string `json:"requestId"`
@@ -1512,7 +1512,7 @@ type CommandExecuteData struct {
 
 func (*CommandExecuteData) sessionEventData() {}
 
-// Queued command completion notification signaling UI dismissal
+// CommandCompletedData queued command completion notification signaling UI dismissal.
 type CommandCompletedData struct {
 	// Request ID of the resolved command request; clients should dismiss any UI for this request
 	RequestID string `json:"requestId"`
@@ -1520,7 +1520,7 @@ type CommandCompletedData struct {
 
 func (*CommandCompletedData) sessionEventData() {}
 
-// SDK command registration change notification
+// CommandsChangedData sDK command registration change notification.
 type CommandsChangedData struct {
 	// Current list of registered SDK commands
 	Commands []CommandsChangedDataCommandsItem `json:"commands"`
@@ -1528,7 +1528,7 @@ type CommandsChangedData struct {
 
 func (*CommandsChangedData) sessionEventData() {}
 
-// Session capability change notification
+// CapabilitiesChangedData session capability change notification.
 type CapabilitiesChangedData struct {
 	// UI capability changes
 	UI *CapabilitiesChangedDataUI `json:"ui,omitempty"`
@@ -1536,7 +1536,7 @@ type CapabilitiesChangedData struct {
 
 func (*CapabilitiesChangedData) sessionEventData() {}
 
-// Plan approval request with plan content and available user actions
+// ExitPlanModeRequestedData plan approval request with plan content and available user actions.
 type ExitPlanModeRequestedData struct {
 	// Unique identifier for this request; used to respond via session.respondToExitPlanMode()
 	RequestID string `json:"requestId"`
@@ -1552,7 +1552,7 @@ type ExitPlanModeRequestedData struct {
 
 func (*ExitPlanModeRequestedData) sessionEventData() {}
 
-// Plan mode exit completion with the user's approval decision and optional feedback
+// ExitPlanModeCompletedData plan mode exit completion with the user's approval decision and optional feedback.
 type ExitPlanModeCompletedData struct {
 	// Request ID of the resolved exit plan mode request; clients should dismiss any UI for this request
 	RequestID string `json:"requestId"`
@@ -1627,7 +1627,7 @@ type SessionExtensionsLoadedData struct {
 
 func (*SessionExtensionsLoadedData) sessionEventData() {}
 
-// Working directory and git context at session start
+// SessionStartDataContext working directory and git context at session start.
 type SessionStartDataContext struct {
 	// Current working directory path
 	Cwd string `json:"cwd"`
@@ -1645,7 +1645,7 @@ type SessionStartDataContext struct {
 	BaseCommit *string `json:"baseCommit,omitempty"`
 }
 
-// Updated working directory and git context at resume time
+// SessionResumeDataContext updated working directory and git context at resume time.
 type SessionResumeDataContext struct {
 	// Current working directory path
 	Cwd string `json:"cwd"`
@@ -1663,7 +1663,7 @@ type SessionResumeDataContext struct {
 	BaseCommit *string `json:"baseCommit,omitempty"`
 }
 
-// Repository context for the handed-off session
+// SessionHandoffDataRepository repository context for the handed-off session.
 type SessionHandoffDataRepository struct {
 	// Repository owner (user or organization)
 	Owner string `json:"owner"`
@@ -1673,7 +1673,7 @@ type SessionHandoffDataRepository struct {
 	Branch *string `json:"branch,omitempty"`
 }
 
-// Aggregate code change metrics for the session
+// SessionShutdownDataCodeChanges aggregate code change metrics for the session.
 type SessionShutdownDataCodeChanges struct {
 	// Total number of lines added during the session
 	LinesAdded float64 `json:"linesAdded"`
@@ -1683,7 +1683,7 @@ type SessionShutdownDataCodeChanges struct {
 	FilesModified []string `json:"filesModified"`
 }
 
-// Request count and cost metrics
+// SessionShutdownDataModelMetricsValueRequests request count and cost metrics.
 type SessionShutdownDataModelMetricsValueRequests struct {
 	// Total number of API requests made to this model
 	Count float64 `json:"count"`
@@ -1691,7 +1691,7 @@ type SessionShutdownDataModelMetricsValueRequests struct {
 	Cost float64 `json:"cost"`
 }
 
-// Token usage breakdown
+// SessionShutdownDataModelMetricsValueUsage token usage breakdown.
 type SessionShutdownDataModelMetricsValueUsage struct {
 	// Total input tokens consumed across all requests to this model
 	InputTokens float64 `json:"inputTokens"`
@@ -1703,6 +1703,7 @@ type SessionShutdownDataModelMetricsValueUsage struct {
 	CacheWriteTokens float64 `json:"cacheWriteTokens"`
 }
 
+// SessionShutdownDataModelMetricsValue is a nested data type.
 type SessionShutdownDataModelMetricsValue struct {
 	// Request count and cost metrics
 	Requests SessionShutdownDataModelMetricsValueRequests `json:"requests"`
@@ -1710,7 +1711,7 @@ type SessionShutdownDataModelMetricsValue struct {
 	Usage SessionShutdownDataModelMetricsValueUsage `json:"usage"`
 }
 
-// Token usage breakdown for the compaction LLM call
+// SessionCompactionCompleteDataCompactionTokensUsed token usage breakdown for the compaction LLM call.
 type SessionCompactionCompleteDataCompactionTokensUsed struct {
 	// Input tokens consumed by the compaction LLM call
 	Input float64 `json:"input"`
@@ -1720,7 +1721,7 @@ type SessionCompactionCompleteDataCompactionTokensUsed struct {
 	CachedInput float64 `json:"cachedInput"`
 }
 
-// Optional line range to scope the attachment to a specific section of the file
+// UserMessageDataAttachmentsItemLineRange optional line range to scope the attachment to a specific section of the file.
 type UserMessageDataAttachmentsItemLineRange struct {
 	// Start line number (1-based)
 	Start float64 `json:"start"`
@@ -1728,7 +1729,7 @@ type UserMessageDataAttachmentsItemLineRange struct {
 	End float64 `json:"end"`
 }
 
-// Start position of the selection
+// UserMessageDataAttachmentsItemSelectionStart start position of the selection.
 type UserMessageDataAttachmentsItemSelectionStart struct {
 	// Start line number (0-based)
 	Line float64 `json:"line"`
@@ -1736,7 +1737,7 @@ type UserMessageDataAttachmentsItemSelectionStart struct {
 	Character float64 `json:"character"`
 }
 
-// End position of the selection
+// UserMessageDataAttachmentsItemSelectionEnd end position of the selection.
 type UserMessageDataAttachmentsItemSelectionEnd struct {
 	// End line number (0-based)
 	Line float64 `json:"line"`
@@ -1744,7 +1745,7 @@ type UserMessageDataAttachmentsItemSelectionEnd struct {
 	Character float64 `json:"character"`
 }
 
-// Position range of the selection within the file
+// UserMessageDataAttachmentsItemSelection position range of the selection within the file.
 type UserMessageDataAttachmentsItemSelection struct {
 	// Start position of the selection
 	Start UserMessageDataAttachmentsItemSelectionStart `json:"start"`
@@ -1752,7 +1753,7 @@ type UserMessageDataAttachmentsItemSelection struct {
 	End UserMessageDataAttachmentsItemSelectionEnd `json:"end"`
 }
 
-// A user message attachment — a file, directory, code selection, blob, or GitHub reference
+// UserMessageDataAttachmentsItem a user message attachment — a file, directory, code selection, blob, or GitHub reference.
 type UserMessageDataAttachmentsItem struct {
 	// Type discriminator
 	Type UserMessageDataAttachmentsItemType `json:"type"`
@@ -1784,7 +1785,7 @@ type UserMessageDataAttachmentsItem struct {
 	MIMEType *string `json:"mimeType,omitempty"`
 }
 
-// A tool invocation request from the assistant
+// AssistantMessageDataToolRequestsItem a tool invocation request from the assistant.
 type AssistantMessageDataToolRequestsItem struct {
 	// Unique identifier for this tool call
 	ToolCallID string `json:"toolCallId"`
@@ -1802,6 +1803,7 @@ type AssistantMessageDataToolRequestsItem struct {
 	IntentionSummary *string `json:"intentionSummary,omitempty"`
 }
 
+// AssistantUsageDataQuotaSnapshotsValue is a nested data type.
 type AssistantUsageDataQuotaSnapshotsValue struct {
 	// Whether the user has an unlimited usage entitlement
 	IsUnlimitedEntitlement bool `json:"isUnlimitedEntitlement"`
@@ -1821,7 +1823,7 @@ type AssistantUsageDataQuotaSnapshotsValue struct {
 	ResetDate *time.Time `json:"resetDate,omitempty"`
 }
 
-// Token usage detail for a single billing category
+// AssistantUsageDataCopilotUsageTokenDetailsItem token usage detail for a single billing category.
 type AssistantUsageDataCopilotUsageTokenDetailsItem struct {
 	// Number of tokens in this billing batch
 	BatchSize float64 `json:"batchSize"`
@@ -1833,7 +1835,7 @@ type AssistantUsageDataCopilotUsageTokenDetailsItem struct {
 	TokenType string `json:"tokenType"`
 }
 
-// Per-request cost and usage data from the CAPI copilot_usage response field
+// AssistantUsageDataCopilotUsage per-request cost and usage data from the CAPI copilot_usage response field.
 type AssistantUsageDataCopilotUsage struct {
 	// Itemized token usage breakdown
 	TokenDetails []AssistantUsageDataCopilotUsageTokenDetailsItem `json:"tokenDetails"`
@@ -1841,7 +1843,7 @@ type AssistantUsageDataCopilotUsage struct {
 	TotalNanoAiu float64 `json:"totalNanoAiu"`
 }
 
-// Icon image for a resource
+// ToolExecutionCompleteDataResultContentsItemIconsItem icon image for a resource.
 type ToolExecutionCompleteDataResultContentsItemIconsItem struct {
 	// URL or path to the icon image
 	Src string `json:"src"`
@@ -1853,7 +1855,7 @@ type ToolExecutionCompleteDataResultContentsItemIconsItem struct {
 	Theme *ToolExecutionCompleteDataResultContentsItemIconsItemTheme `json:"theme,omitempty"`
 }
 
-// A content block within a tool result, which may be text, terminal output, image, audio, or a resource
+// ToolExecutionCompleteDataResultContentsItem a content block within a tool result, which may be text, terminal output, image, audio, or a resource.
 type ToolExecutionCompleteDataResultContentsItem struct {
 	// Type discriminator
 	Type ToolExecutionCompleteDataResultContentsItemType `json:"type"`
@@ -1883,7 +1885,7 @@ type ToolExecutionCompleteDataResultContentsItem struct {
 	Resource any `json:"resource,omitempty"`
 }
 
-// Tool execution result on success
+// ToolExecutionCompleteDataResult tool execution result on success.
 type ToolExecutionCompleteDataResult struct {
 	// Concise tool result text sent to the LLM for chat completion, potentially truncated for token efficiency
 	Content string `json:"content"`
@@ -1893,7 +1895,7 @@ type ToolExecutionCompleteDataResult struct {
 	Contents []ToolExecutionCompleteDataResultContentsItem `json:"contents,omitempty"`
 }
 
-// Error details when the tool execution failed
+// ToolExecutionCompleteDataError error details when the tool execution failed.
 type ToolExecutionCompleteDataError struct {
 	// Human-readable error message
 	Message string `json:"message"`
@@ -1901,7 +1903,7 @@ type ToolExecutionCompleteDataError struct {
 	Code *string `json:"code,omitempty"`
 }
 
-// Error details when the hook failed
+// HookEndDataError error details when the hook failed.
 type HookEndDataError struct {
 	// Human-readable error message
 	Message string `json:"message"`
@@ -1909,7 +1911,7 @@ type HookEndDataError struct {
 	Stack *string `json:"stack,omitempty"`
 }
 
-// Metadata about the prompt template and its construction
+// SystemMessageDataMetadata metadata about the prompt template and its construction.
 type SystemMessageDataMetadata struct {
 	// Version identifier of the prompt template used
 	PromptVersion *string `json:"promptVersion,omitempty"`
@@ -1917,7 +1919,7 @@ type SystemMessageDataMetadata struct {
 	Variables map[string]any `json:"variables,omitempty"`
 }
 
-// Structured metadata identifying what triggered this notification
+// SystemNotificationDataKind structured metadata identifying what triggered this notification.
 type SystemNotificationDataKind struct {
 	// Type discriminator
 	Type SystemNotificationDataKindType `json:"type"`
@@ -1937,6 +1939,7 @@ type SystemNotificationDataKind struct {
 	ExitCode *float64 `json:"exitCode,omitempty"`
 }
 
+// PermissionRequestedDataPermissionRequestCommandsItem is a nested data type.
 type PermissionRequestedDataPermissionRequestCommandsItem struct {
 	// Command identifier (e.g., executable name)
 	Identifier string `json:"identifier"`
@@ -1944,12 +1947,13 @@ type PermissionRequestedDataPermissionRequestCommandsItem struct {
 	ReadOnly bool `json:"readOnly"`
 }
 
+// PermissionRequestedDataPermissionRequestPossibleUrlsItem is a nested data type.
 type PermissionRequestedDataPermissionRequestPossibleUrlsItem struct {
 	// URL that may be accessed by the command
 	URL string `json:"url"`
 }
 
-// Details of the permission being requested
+// PermissionRequestedDataPermissionRequest details of the permission being requested.
 type PermissionRequestedDataPermissionRequest struct {
 	// Kind discriminator
 	Kind PermissionRequestedDataPermissionRequestKind `json:"kind"`
@@ -2005,13 +2009,13 @@ type PermissionRequestedDataPermissionRequest struct {
 	HookMessage *string `json:"hookMessage,omitempty"`
 }
 
-// The result of the permission request
+// PermissionCompletedDataResult the result of the permission request.
 type PermissionCompletedDataResult struct {
 	// The outcome of the permission request
 	Kind PermissionCompletedDataResultKind `json:"kind"`
 }
 
-// JSON Schema describing the form fields to present to the user (form mode only)
+// ElicitationRequestedDataRequestedSchema jSON Schema describing the form fields to present to the user (form mode only).
 type ElicitationRequestedDataRequestedSchema struct {
 	// Schema type indicator (always 'object')
 	Type string `json:"type"`
@@ -2021,7 +2025,7 @@ type ElicitationRequestedDataRequestedSchema struct {
 	Required []string `json:"required,omitempty"`
 }
 
-// Static OAuth client configuration, if the server specifies one
+// McpOauthRequiredDataStaticClientConfig static OAuth client configuration, if the server specifies one.
 type McpOauthRequiredDataStaticClientConfig struct {
 	// OAuth client ID for the server
 	ClientID string `json:"clientId"`
@@ -2029,17 +2033,19 @@ type McpOauthRequiredDataStaticClientConfig struct {
 	PublicClient *bool `json:"publicClient,omitempty"`
 }
 
+// CommandsChangedDataCommandsItem is a nested data type.
 type CommandsChangedDataCommandsItem struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description,omitempty"`
 }
 
-// UI capability changes
+// CapabilitiesChangedDataUI uI capability changes.
 type CapabilitiesChangedDataUI struct {
 	// Whether elicitation is now supported
 	Elicitation *bool `json:"elicitation,omitempty"`
 }
 
+// SessionSkillsLoadedDataSkillsItem is a nested data type.
 type SessionSkillsLoadedDataSkillsItem struct {
 	// Unique identifier for the skill
 	Name string `json:"name"`
@@ -2055,6 +2061,7 @@ type SessionSkillsLoadedDataSkillsItem struct {
 	Path *string `json:"path,omitempty"`
 }
 
+// SessionCustomAgentsUpdatedDataAgentsItem is a nested data type.
 type SessionCustomAgentsUpdatedDataAgentsItem struct {
 	// Unique identifier for the agent
 	ID string `json:"id"`
@@ -2074,6 +2081,7 @@ type SessionCustomAgentsUpdatedDataAgentsItem struct {
 	Model *string `json:"model,omitempty"`
 }
 
+// SessionMcpServersLoadedDataServersItem is a nested data type.
 type SessionMcpServersLoadedDataServersItem struct {
 	// Server name (config key)
 	Name string `json:"name"`
@@ -2085,6 +2093,7 @@ type SessionMcpServersLoadedDataServersItem struct {
 	Error *string `json:"error,omitempty"`
 }
 
+// SessionExtensionsLoadedDataExtensionsItem is a nested data type.
 type SessionExtensionsLoadedDataExtensionsItem struct {
 	// Source-qualified extension ID (e.g., 'project:my-ext', 'user:auth-helper')
 	ID string `json:"id"`
@@ -2096,7 +2105,7 @@ type SessionExtensionsLoadedDataExtensionsItem struct {
 	Status SessionExtensionsLoadedDataExtensionsItemStatus `json:"status"`
 }
 
-// Hosting platform type of the repository (github or ado)
+// SessionStartDataContextHostType hosting platform type of the repository (github or ado).
 type SessionStartDataContextHostType string
 
 const (
@@ -2104,7 +2113,7 @@ const (
 	SessionStartDataContextHostTypeAdo    SessionStartDataContextHostType = "ado"
 )
 
-// The type of operation performed on the plan file
+// SessionPlanChangedDataOperation the type of operation performed on the plan file.
 type SessionPlanChangedDataOperation string
 
 const (
@@ -2113,7 +2122,7 @@ const (
 	SessionPlanChangedDataOperationDelete SessionPlanChangedDataOperation = "delete"
 )
 
-// Whether the file was newly created or updated
+// SessionWorkspaceFileChangedDataOperation whether the file was newly created or updated.
 type SessionWorkspaceFileChangedDataOperation string
 
 const (
@@ -2121,7 +2130,7 @@ const (
 	SessionWorkspaceFileChangedDataOperationUpdate SessionWorkspaceFileChangedDataOperation = "update"
 )
 
-// Origin type of the session being handed off
+// SessionHandoffDataSourceType origin type of the session being handed off.
 type SessionHandoffDataSourceType string
 
 const (
@@ -2129,7 +2138,7 @@ const (
 	SessionHandoffDataSourceTypeLocal  SessionHandoffDataSourceType = "local"
 )
 
-// Whether the session ended normally ("routine") or due to a crash/fatal error ("error")
+// SessionShutdownDataShutdownType whether the session ended normally ("routine") or due to a crash/fatal error ("error").
 type SessionShutdownDataShutdownType string
 
 const (
@@ -2137,7 +2146,7 @@ const (
 	SessionShutdownDataShutdownTypeError   SessionShutdownDataShutdownType = "error"
 )
 
-// Type discriminator for UserMessageDataAttachmentsItem.
+// UserMessageDataAttachmentsItemType type discriminator for UserMessageDataAttachmentsItem.
 type UserMessageDataAttachmentsItemType string
 
 const (
@@ -2148,7 +2157,7 @@ const (
 	UserMessageDataAttachmentsItemTypeBlob            UserMessageDataAttachmentsItemType = "blob"
 )
 
-// Type of GitHub reference
+// UserMessageDataAttachmentsItemReferenceType type of GitHub reference.
 type UserMessageDataAttachmentsItemReferenceType string
 
 const (
@@ -2157,7 +2166,7 @@ const (
 	UserMessageDataAttachmentsItemReferenceTypeDiscussion UserMessageDataAttachmentsItemReferenceType = "discussion"
 )
 
-// The agent mode that was active when this message was sent
+// UserMessageDataAgentMode the agent mode that was active when this message was sent.
 type UserMessageDataAgentMode string
 
 const (
@@ -2167,7 +2176,7 @@ const (
 	UserMessageDataAgentModeShell       UserMessageDataAgentMode = "shell"
 )
 
-// Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
+// AssistantMessageDataToolRequestsItemType tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
 type AssistantMessageDataToolRequestsItemType string
 
 const (
@@ -2175,7 +2184,7 @@ const (
 	AssistantMessageDataToolRequestsItemTypeCustom   AssistantMessageDataToolRequestsItemType = "custom"
 )
 
-// Type discriminator for ToolExecutionCompleteDataResultContentsItem.
+// ToolExecutionCompleteDataResultContentsItemType type discriminator for ToolExecutionCompleteDataResultContentsItem.
 type ToolExecutionCompleteDataResultContentsItemType string
 
 const (
@@ -2187,7 +2196,7 @@ const (
 	ToolExecutionCompleteDataResultContentsItemTypeResource     ToolExecutionCompleteDataResultContentsItemType = "resource"
 )
 
-// Theme variant this icon is intended for
+// ToolExecutionCompleteDataResultContentsItemIconsItemTheme theme variant this icon is intended for.
 type ToolExecutionCompleteDataResultContentsItemIconsItemTheme string
 
 const (
@@ -2195,7 +2204,7 @@ const (
 	ToolExecutionCompleteDataResultContentsItemIconsItemThemeDark  ToolExecutionCompleteDataResultContentsItemIconsItemTheme = "dark"
 )
 
-// Message role: "system" for system prompts, "developer" for developer-injected instructions
+// SystemMessageDataRole message role: "system" for system prompts, "developer" for developer-injected instructions.
 type SystemMessageDataRole string
 
 const (
@@ -2203,7 +2212,7 @@ const (
 	SystemMessageDataRoleDeveloper SystemMessageDataRole = "developer"
 )
 
-// Type discriminator for SystemNotificationDataKind.
+// SystemNotificationDataKindType type discriminator for SystemNotificationDataKind.
 type SystemNotificationDataKindType string
 
 const (
@@ -2213,7 +2222,7 @@ const (
 	SystemNotificationDataKindTypeShellDetachedCompleted SystemNotificationDataKindType = "shell_detached_completed"
 )
 
-// Whether the agent completed successfully or failed
+// SystemNotificationDataKindStatus whether the agent completed successfully or failed.
 type SystemNotificationDataKindStatus string
 
 const (
@@ -2221,7 +2230,7 @@ const (
 	SystemNotificationDataKindStatusFailed    SystemNotificationDataKindStatus = "failed"
 )
 
-// Kind discriminator for PermissionRequestedDataPermissionRequest.
+// PermissionRequestedDataPermissionRequestKind kind discriminator for PermissionRequestedDataPermissionRequest.
 type PermissionRequestedDataPermissionRequestKind string
 
 const (
@@ -2235,7 +2244,7 @@ const (
 	PermissionRequestedDataPermissionRequestKindHook       PermissionRequestedDataPermissionRequestKind = "hook"
 )
 
-// The outcome of the permission request
+// PermissionCompletedDataResultKind the outcome of the permission request.
 type PermissionCompletedDataResultKind string
 
 const (
@@ -2247,7 +2256,7 @@ const (
 	PermissionCompletedDataResultKindDeniedByPermissionRequestHook                  PermissionCompletedDataResultKind = "denied-by-permission-request-hook"
 )
 
-// Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.
+// ElicitationRequestedDataMode elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.
 type ElicitationRequestedDataMode string
 
 const (
@@ -2255,7 +2264,7 @@ const (
 	ElicitationRequestedDataModeURL  ElicitationRequestedDataMode = "url"
 )
 
-// The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
+// ElicitationCompletedDataAction the user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed).
 type ElicitationCompletedDataAction string
 
 const (
@@ -2264,7 +2273,7 @@ const (
 	ElicitationCompletedDataActionCancel  ElicitationCompletedDataAction = "cancel"
 )
 
-// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+// SessionMcpServersLoadedDataServersItemStatus connection status: connected, failed, needs-auth, pending, disabled, or not_configured.
 type SessionMcpServersLoadedDataServersItemStatus string
 
 const (
@@ -2276,7 +2285,7 @@ const (
 	SessionMcpServersLoadedDataServersItemStatusNotConfigured SessionMcpServersLoadedDataServersItemStatus = "not_configured"
 )
 
-// Discovery source
+// SessionExtensionsLoadedDataExtensionsItemSource discovery source.
 type SessionExtensionsLoadedDataExtensionsItemSource string
 
 const (
@@ -2284,7 +2293,7 @@ const (
 	SessionExtensionsLoadedDataExtensionsItemSourceUser    SessionExtensionsLoadedDataExtensionsItemSource = "user"
 )
 
-// Current status: running, disabled, failed, or starting
+// SessionExtensionsLoadedDataExtensionsItemStatus current status: running, disabled, failed, or starting.
 type SessionExtensionsLoadedDataExtensionsItemStatus string
 
 const (
