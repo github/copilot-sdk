@@ -55,6 +55,22 @@ public class ModelCapabilitiesSupports
     public bool? ReasoningEffort { get; set; }
 }
 
+/// <summary>Vision-specific limits.</summary>
+public class ModelCapabilitiesLimitsVision
+{
+    /// <summary>MIME types the model accepts.</summary>
+    [JsonPropertyName("supported_media_types")]
+    public List<string> SupportedMediaTypes { get => field ??= []; set; }
+
+    /// <summary>Maximum number of images per prompt.</summary>
+    [JsonPropertyName("max_prompt_images")]
+    public double MaxPromptImages { get; set; }
+
+    /// <summary>Maximum image size in bytes.</summary>
+    [JsonPropertyName("max_prompt_image_size")]
+    public double MaxPromptImageSize { get; set; }
+}
+
 /// <summary>Token limits for prompts, outputs, and context window.</summary>
 public class ModelCapabilitiesLimits
 {
@@ -69,6 +85,10 @@ public class ModelCapabilitiesLimits
     /// <summary>Maximum total context window size in tokens.</summary>
     [JsonPropertyName("max_context_window_tokens")]
     public double MaxContextWindowTokens { get; set; }
+
+    /// <summary>Vision-specific limits.</summary>
+    [JsonPropertyName("vision")]
+    public ModelCapabilitiesLimitsVision? Vision { get; set; }
 }
 
 /// <summary>Model capabilities and limits.</summary>
@@ -243,6 +263,28 @@ internal class SessionFsSetProviderRequest
     public SessionFsSetProviderRequestConventions Conventions { get; set; }
 }
 
+/// <summary>RPC data type for SessionsFork operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class SessionsForkResult
+{
+    /// <summary>The new forked session's ID.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionsFork operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal class SessionsForkRequest
+{
+    /// <summary>Source session ID to fork from.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Optional event ID boundary. When provided, the fork includes only events before this ID (exclusive). When omitted, all events are included.</summary>
+    [JsonPropertyName("toEventId")]
+    public string? ToEventId { get; set; }
+}
+
 /// <summary>RPC data type for SessionLog operations.</summary>
 public class SessionLogResult
 {
@@ -299,6 +341,66 @@ public class SessionModelSwitchToResult
     public string? ModelId { get; set; }
 }
 
+/// <summary>Feature flags indicating what the model supports.</summary>
+public class SessionModelSwitchToRequestModelCapabilitiesSupports
+{
+    /// <summary>Gets or sets the <c>vision</c> value.</summary>
+    [JsonPropertyName("vision")]
+    public bool? Vision { get; set; }
+
+    /// <summary>Gets or sets the <c>reasoningEffort</c> value.</summary>
+    [JsonPropertyName("reasoningEffort")]
+    public bool? ReasoningEffort { get; set; }
+}
+
+/// <summary>RPC data type for SessionModelSwitchToRequestModelCapabilitiesLimitsVision operations.</summary>
+public class SessionModelSwitchToRequestModelCapabilitiesLimitsVision
+{
+    /// <summary>MIME types the model accepts.</summary>
+    [JsonPropertyName("supported_media_types")]
+    public List<string>? SupportedMediaTypes { get; set; }
+
+    /// <summary>Maximum number of images per prompt.</summary>
+    [JsonPropertyName("max_prompt_images")]
+    public double? MaxPromptImages { get; set; }
+
+    /// <summary>Maximum image size in bytes.</summary>
+    [JsonPropertyName("max_prompt_image_size")]
+    public double? MaxPromptImageSize { get; set; }
+}
+
+/// <summary>Token limits for prompts, outputs, and context window.</summary>
+public class SessionModelSwitchToRequestModelCapabilitiesLimits
+{
+    /// <summary>Gets or sets the <c>max_prompt_tokens</c> value.</summary>
+    [JsonPropertyName("max_prompt_tokens")]
+    public double? MaxPromptTokens { get; set; }
+
+    /// <summary>Gets or sets the <c>max_output_tokens</c> value.</summary>
+    [JsonPropertyName("max_output_tokens")]
+    public double? MaxOutputTokens { get; set; }
+
+    /// <summary>Maximum total context window size in tokens.</summary>
+    [JsonPropertyName("max_context_window_tokens")]
+    public double? MaxContextWindowTokens { get; set; }
+
+    /// <summary>Gets or sets the <c>vision</c> value.</summary>
+    [JsonPropertyName("vision")]
+    public SessionModelSwitchToRequestModelCapabilitiesLimitsVision? Vision { get; set; }
+}
+
+/// <summary>Override individual model capabilities resolved by the runtime.</summary>
+public class SessionModelSwitchToRequestModelCapabilities
+{
+    /// <summary>Feature flags indicating what the model supports.</summary>
+    [JsonPropertyName("supports")]
+    public SessionModelSwitchToRequestModelCapabilitiesSupports? Supports { get; set; }
+
+    /// <summary>Token limits for prompts, outputs, and context window.</summary>
+    [JsonPropertyName("limits")]
+    public SessionModelSwitchToRequestModelCapabilitiesLimits? Limits { get; set; }
+}
+
 /// <summary>RPC data type for SessionModelSwitchTo operations.</summary>
 internal class SessionModelSwitchToRequest
 {
@@ -313,6 +415,10 @@ internal class SessionModelSwitchToRequest
     /// <summary>Reasoning effort level to use for the model.</summary>
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
+
+    /// <summary>Override individual model capabilities resolved by the runtime.</summary>
+    [JsonPropertyName("modelCapabilities")]
+    public SessionModelSwitchToRequestModelCapabilities? ModelCapabilities { get; set; }
 }
 
 /// <summary>RPC data type for SessionModeGet operations.</summary>
@@ -1180,6 +1286,28 @@ internal class SessionShellKillRequest
     public SessionShellKillRequestSignal? Signal { get; set; }
 }
 
+/// <summary>RPC data type for SessionHistoryTruncate operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class SessionHistoryTruncateResult
+{
+    /// <summary>Number of events that were removed.</summary>
+    [JsonPropertyName("eventsRemoved")]
+    public double EventsRemoved { get; set; }
+}
+
+/// <summary>RPC data type for SessionHistoryTruncate operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal class SessionHistoryTruncateRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Event ID to truncate to. This event and all events after it are removed from the session.</summary>
+    [JsonPropertyName("eventId")]
+    public string EventId { get; set; } = string.Empty;
+}
+
 /// <summary>Path conventions used by this filesystem.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<SessionFsSetProviderRequestConventions>))]
 public enum SessionFsSetProviderRequestConventions
@@ -1327,6 +1455,7 @@ public class ServerRpc
         Account = new ServerAccountApi(rpc);
         Mcp = new ServerMcpApi(rpc);
         SessionFs = new ServerSessionFsApi(rpc);
+        Sessions = new ServerSessionsApi(rpc);
     }
 
     /// <summary>Calls "ping".</summary>
@@ -1350,6 +1479,9 @@ public class ServerRpc
 
     /// <summary>SessionFs APIs.</summary>
     public ServerSessionFsApi SessionFs { get; }
+
+    /// <summary>Sessions APIs.</summary>
+    public ServerSessionsApi Sessions { get; }
 }
 
 /// <summary>Provides server-scoped Models APIs.</summary>
@@ -1433,6 +1565,25 @@ public class ServerSessionFsApi
     }
 }
 
+/// <summary>Provides server-scoped Sessions APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class ServerSessionsApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerSessionsApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Calls "sessions.fork".</summary>
+    public async Task<SessionsForkResult> ForkAsync(string sessionId, string? toEventId = null, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionsForkRequest { SessionId = sessionId, ToEventId = toEventId };
+        return await CopilotClient.InvokeRpcAsync<SessionsForkResult>(_rpc, "sessions.fork", [request], cancellationToken);
+    }
+}
+
 /// <summary>Provides typed session-scoped RPC methods.</summary>
 public class SessionRpc
 {
@@ -1459,6 +1610,7 @@ public class SessionRpc
         Ui = new UiApi(rpc, sessionId);
         Permissions = new PermissionsApi(rpc, sessionId);
         Shell = new ShellApi(rpc, sessionId);
+        History = new HistoryApi(rpc, sessionId);
     }
 
     /// <summary>Model APIs.</summary>
@@ -1509,6 +1661,9 @@ public class SessionRpc
     /// <summary>Shell APIs.</summary>
     public ShellApi Shell { get; }
 
+    /// <summary>History APIs.</summary>
+    public HistoryApi History { get; }
+
     /// <summary>Calls "session.log".</summary>
     public async Task<SessionLogResult> LogAsync(string message, SessionLogRequestLevel? level = null, bool? ephemeral = null, string? url = null, CancellationToken cancellationToken = default)
     {
@@ -1537,9 +1692,9 @@ public class ModelApi
     }
 
     /// <summary>Calls "session.model.switchTo".</summary>
-    public async Task<SessionModelSwitchToResult> SwitchToAsync(string modelId, string? reasoningEffort = null, CancellationToken cancellationToken = default)
+    public async Task<SessionModelSwitchToResult> SwitchToAsync(string modelId, string? reasoningEffort = null, SessionModelSwitchToRequestModelCapabilities? modelCapabilities = null, CancellationToken cancellationToken = default)
     {
-        var request = new SessionModelSwitchToRequest { SessionId = _sessionId, ModelId = modelId, ReasoningEffort = reasoningEffort };
+        var request = new SessionModelSwitchToRequest { SessionId = _sessionId, ModelId = modelId, ReasoningEffort = reasoningEffort, ModelCapabilities = modelCapabilities };
         return await CopilotClient.InvokeRpcAsync<SessionModelSwitchToResult>(_rpc, "session.model.switchTo", [request], cancellationToken);
     }
 }
@@ -1991,6 +2146,27 @@ public class ShellApi
     }
 }
 
+/// <summary>Provides session-scoped History APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class HistoryApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal HistoryApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.history.truncate".</summary>
+    public async Task<SessionHistoryTruncateResult> TruncateAsync(string eventId, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionHistoryTruncateRequest { SessionId = _sessionId, EventId = eventId };
+        return await CopilotClient.InvokeRpcAsync<SessionHistoryTruncateResult>(_rpc, "session.history.truncate", [request], cancellationToken);
+    }
+}
+
 [JsonSourceGenerationOptions(
     JsonSerializerDefaults.Web,
     AllowOutOfOrderMetadataProperties = true,
@@ -2003,6 +2179,7 @@ public class ShellApi
 [JsonSerializable(typeof(ModelBilling))]
 [JsonSerializable(typeof(ModelCapabilities))]
 [JsonSerializable(typeof(ModelCapabilitiesLimits))]
+[JsonSerializable(typeof(ModelCapabilitiesLimitsVision))]
 [JsonSerializable(typeof(ModelCapabilitiesSupports))]
 [JsonSerializable(typeof(ModelPolicy))]
 [JsonSerializable(typeof(ModelsListResult))]
@@ -2038,6 +2215,8 @@ public class ShellApi
 [JsonSerializable(typeof(SessionFleetStartResult))]
 [JsonSerializable(typeof(SessionFsSetProviderRequest))]
 [JsonSerializable(typeof(SessionFsSetProviderResult))]
+[JsonSerializable(typeof(SessionHistoryTruncateRequest))]
+[JsonSerializable(typeof(SessionHistoryTruncateResult))]
 [JsonSerializable(typeof(SessionLogRequest))]
 [JsonSerializable(typeof(SessionLogResult))]
 [JsonSerializable(typeof(SessionMcpDisableRequest))]
@@ -2055,6 +2234,10 @@ public class ShellApi
 [JsonSerializable(typeof(SessionModelGetCurrentRequest))]
 [JsonSerializable(typeof(SessionModelGetCurrentResult))]
 [JsonSerializable(typeof(SessionModelSwitchToRequest))]
+[JsonSerializable(typeof(SessionModelSwitchToRequestModelCapabilities))]
+[JsonSerializable(typeof(SessionModelSwitchToRequestModelCapabilitiesLimits))]
+[JsonSerializable(typeof(SessionModelSwitchToRequestModelCapabilitiesLimitsVision))]
+[JsonSerializable(typeof(SessionModelSwitchToRequestModelCapabilitiesSupports))]
 [JsonSerializable(typeof(SessionModelSwitchToResult))]
 [JsonSerializable(typeof(SessionPermissionsHandlePendingPermissionRequestRequest))]
 [JsonSerializable(typeof(SessionPermissionsHandlePendingPermissionRequestResult))]
@@ -2092,6 +2275,8 @@ public class ShellApi
 [JsonSerializable(typeof(SessionWorkspaceListFilesResult))]
 [JsonSerializable(typeof(SessionWorkspaceReadFileRequest))]
 [JsonSerializable(typeof(SessionWorkspaceReadFileResult))]
+[JsonSerializable(typeof(SessionsForkRequest))]
+[JsonSerializable(typeof(SessionsForkResult))]
 [JsonSerializable(typeof(Skill))]
 [JsonSerializable(typeof(Tool))]
 [JsonSerializable(typeof(ToolsListRequest))]

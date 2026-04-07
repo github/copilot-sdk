@@ -33,7 +33,7 @@ type Model struct {
 	// Billing information
 	Billing *Billing `json:"billing,omitempty"`
 	// Model capabilities and limits
-	Capabilities Capabilities `json:"capabilities"`
+	Capabilities ModelCapabilities `json:"capabilities"`
 	// Default reasoning effort level (only present if model supports reasoning effort)
 	DefaultReasoningEffort *string `json:"defaultReasoningEffort,omitempty"`
 	// Model identifier (e.g., "claude-sonnet-4.5")
@@ -53,25 +53,37 @@ type Billing struct {
 }
 
 // Model capabilities and limits
-type Capabilities struct {
+type ModelCapabilities struct {
 	// Token limits for prompts, outputs, and context window
-	Limits Limits `json:"limits"`
+	Limits ModelCapabilitiesLimits `json:"limits"`
 	// Feature flags indicating what the model supports
-	Supports Supports `json:"supports"`
+	Supports ModelCapabilitiesSupports `json:"supports"`
 }
 
 // Token limits for prompts, outputs, and context window
-type Limits struct {
+type ModelCapabilitiesLimits struct {
 	// Maximum total context window size in tokens
 	MaxContextWindowTokens float64 `json:"max_context_window_tokens"`
 	// Maximum number of output/completion tokens
 	MaxOutputTokens *float64 `json:"max_output_tokens,omitempty"`
 	// Maximum number of prompt/input tokens
 	MaxPromptTokens *float64 `json:"max_prompt_tokens,omitempty"`
+	// Vision-specific limits
+	Vision *ModelCapabilitiesLimitsVision `json:"vision,omitempty"`
+}
+
+// Vision-specific limits
+type ModelCapabilitiesLimitsVision struct {
+	// Maximum image size in bytes
+	MaxPromptImageSize float64 `json:"max_prompt_image_size"`
+	// Maximum number of images per prompt
+	MaxPromptImages float64 `json:"max_prompt_images"`
+	// MIME types the model accepts
+	SupportedMediaTypes []string `json:"supported_media_types"`
 }
 
 // Feature flags indicating what the model supports
-type Supports struct {
+type ModelCapabilitiesSupports struct {
 	// Whether this model supports reasoning effort configuration
 	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
 	// Whether this model supports vision/image input
@@ -223,6 +235,21 @@ type SessionFSSetProviderParams struct {
 	SessionStatePath string `json:"sessionStatePath"`
 }
 
+// Experimental: SessionsForkResult is part of an experimental API and may change or be removed.
+type SessionsForkResult struct {
+	// The new forked session's ID
+	SessionID string `json:"sessionId"`
+}
+
+// Experimental: SessionsForkParams is part of an experimental API and may change or be removed.
+type SessionsForkParams struct {
+	// Source session ID to fork from
+	SessionID string `json:"sessionId"`
+	// Optional event ID boundary. When provided, the fork includes only events before this ID
+	// (exclusive). When omitted, all events are included.
+	ToEventID *string `json:"toEventId,omitempty"`
+}
+
 type SessionModelGetCurrentResult struct {
 	// Currently active model identifier
 	ModelID *string `json:"modelId,omitempty"`
@@ -234,10 +261,44 @@ type SessionModelSwitchToResult struct {
 }
 
 type SessionModelSwitchToParams struct {
+	// Override individual model capabilities resolved by the runtime
+	ModelCapabilities *ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
 	// Model identifier to switch to
 	ModelID string `json:"modelId"`
 	// Reasoning effort level to use for the model
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
+}
+
+// Override individual model capabilities resolved by the runtime
+type ModelCapabilitiesOverride struct {
+	// Token limits for prompts, outputs, and context window
+	Limits *ModelCapabilitiesOverrideLimits `json:"limits,omitempty"`
+	// Feature flags indicating what the model supports
+	Supports *ModelCapabilitiesOverrideSupports `json:"supports,omitempty"`
+}
+
+// Token limits for prompts, outputs, and context window
+type ModelCapabilitiesOverrideLimits struct {
+	// Maximum total context window size in tokens
+	MaxContextWindowTokens *float64                               `json:"max_context_window_tokens,omitempty"`
+	MaxOutputTokens        *float64                               `json:"max_output_tokens,omitempty"`
+	MaxPromptTokens        *float64                               `json:"max_prompt_tokens,omitempty"`
+	Vision                 *ModelCapabilitiesOverrideLimitsVision `json:"vision,omitempty"`
+}
+
+type ModelCapabilitiesOverrideLimitsVision struct {
+	// Maximum image size in bytes
+	MaxPromptImageSize *float64 `json:"max_prompt_image_size,omitempty"`
+	// Maximum number of images per prompt
+	MaxPromptImages *float64 `json:"max_prompt_images,omitempty"`
+	// MIME types the model accepts
+	SupportedMediaTypes []string `json:"supported_media_types,omitempty"`
+}
+
+// Feature flags indicating what the model supports
+type ModelCapabilitiesOverrideSupports struct {
+	ReasoningEffort *bool `json:"reasoningEffort,omitempty"`
+	Vision          *bool `json:"vision,omitempty"`
 }
 
 type SessionModeGetResult struct {
@@ -703,6 +764,18 @@ type SessionShellKillParams struct {
 	Signal *Signal `json:"signal,omitempty"`
 }
 
+// Experimental: SessionHistoryTruncateResult is part of an experimental API and may change or be removed.
+type SessionHistoryTruncateResult struct {
+	// Number of events that were removed
+	EventsRemoved float64 `json:"eventsRemoved"`
+}
+
+// Experimental: SessionHistoryTruncateParams is part of an experimental API and may change or be removed.
+type SessionHistoryTruncateParams struct {
+	// Event ID to truncate to. This event and all events after it are removed from the session.
+	EventID string `json:"eventId"`
+}
+
 type FilterMappingEnum string
 
 const (
@@ -920,6 +993,21 @@ func (a *ServerSessionFsApi) SetProvider(ctx context.Context, params *SessionFSS
 	return &result, nil
 }
 
+// Experimental: ServerSessionsApi contains experimental APIs that may change or be removed.
+type ServerSessionsApi serverApi
+
+func (a *ServerSessionsApi) Fork(ctx context.Context, params *SessionsForkParams) (*SessionsForkResult, error) {
+	raw, err := a.client.Request("sessions.fork", params)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionsForkResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // ServerRpc provides typed server-scoped RPC methods.
 type ServerRpc struct {
 	common serverApi // Reuse a single struct instead of allocating one for each service on the heap.
@@ -929,6 +1017,7 @@ type ServerRpc struct {
 	Account   *ServerAccountApi
 	Mcp       *ServerMcpApi
 	SessionFs *ServerSessionFsApi
+	Sessions  *ServerSessionsApi
 }
 
 func (a *ServerRpc) Ping(ctx context.Context, params *PingParams) (*PingResult, error) {
@@ -951,6 +1040,7 @@ func NewServerRpc(client *jsonrpc2.Client) *ServerRpc {
 	r.Account = (*ServerAccountApi)(&r.common)
 	r.Mcp = (*ServerMcpApi)(&r.common)
 	r.SessionFs = (*ServerSessionFsApi)(&r.common)
+	r.Sessions = (*ServerSessionsApi)(&r.common)
 	return r
 }
 
@@ -980,6 +1070,9 @@ func (a *ModelApi) SwitchTo(ctx context.Context, params *SessionModelSwitchToPar
 		req["modelId"] = params.ModelID
 		if params.ReasoningEffort != nil {
 			req["reasoningEffort"] = *params.ReasoningEffort
+		}
+		if params.ModelCapabilities != nil {
+			req["modelCapabilities"] = *params.ModelCapabilities
 		}
 	}
 	raw, err := a.client.Request("session.model.switchTo", req)
@@ -1566,6 +1659,25 @@ func (a *ShellApi) Kill(ctx context.Context, params *SessionShellKillParams) (*S
 	return &result, nil
 }
 
+// Experimental: HistoryApi contains experimental APIs that may change or be removed.
+type HistoryApi sessionApi
+
+func (a *HistoryApi) Truncate(ctx context.Context, params *SessionHistoryTruncateParams) (*SessionHistoryTruncateResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["eventId"] = params.EventID
+	}
+	raw, err := a.client.Request("session.history.truncate", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionHistoryTruncateResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // SessionRpc provides typed session-scoped RPC methods.
 type SessionRpc struct {
 	common sessionApi // Reuse a single struct instead of allocating one for each service on the heap.
@@ -1586,6 +1698,7 @@ type SessionRpc struct {
 	Ui          *UiApi
 	Permissions *PermissionsApi
 	Shell       *ShellApi
+	History     *HistoryApi
 }
 
 func (a *SessionRpc) Log(ctx context.Context, params *SessionLogParams) (*SessionLogResult, error) {
@@ -1632,5 +1745,6 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 	r.Ui = (*UiApi)(&r.common)
 	r.Permissions = (*PermissionsApi)(&r.common)
 	r.Shell = (*ShellApi)(&r.common)
+	r.History = (*HistoryApi)(&r.common)
 	return r
 }

@@ -40,41 +40,7 @@ export interface ModelsListResult {
      * Display name
      */
     name: string;
-    /**
-     * Model capabilities and limits
-     */
-    capabilities: {
-      /**
-       * Feature flags indicating what the model supports
-       */
-      supports: {
-        /**
-         * Whether this model supports vision/image input
-         */
-        vision?: boolean;
-        /**
-         * Whether this model supports reasoning effort configuration
-         */
-        reasoningEffort?: boolean;
-      };
-      /**
-       * Token limits for prompts, outputs, and context window
-       */
-      limits: {
-        /**
-         * Maximum number of prompt/input tokens
-         */
-        max_prompt_tokens?: number;
-        /**
-         * Maximum number of output/completion tokens
-         */
-        max_output_tokens?: number;
-        /**
-         * Maximum total context window size in tokens
-         */
-        max_context_window_tokens: number;
-      };
-    };
+    capabilities: ModelCapabilities;
     /**
      * Policy state (if applicable)
      */
@@ -106,6 +72,61 @@ export interface ModelsListResult {
      */
     defaultReasoningEffort?: string;
   }[];
+}
+/**
+ * Model capabilities and limits
+ */
+export interface ModelCapabilities {
+  supports: ModelCapabilitiesSupports;
+  limits: ModelCapabilitiesLimits;
+}
+/**
+ * Feature flags indicating what the model supports
+ */
+export interface ModelCapabilitiesSupports {
+  /**
+   * Whether this model supports vision/image input
+   */
+  vision?: boolean;
+  /**
+   * Whether this model supports reasoning effort configuration
+   */
+  reasoningEffort?: boolean;
+}
+/**
+ * Token limits for prompts, outputs, and context window
+ */
+export interface ModelCapabilitiesLimits {
+  /**
+   * Maximum number of prompt/input tokens
+   */
+  max_prompt_tokens?: number;
+  /**
+   * Maximum number of output/completion tokens
+   */
+  max_output_tokens?: number;
+  /**
+   * Maximum total context window size in tokens
+   */
+  max_context_window_tokens: number;
+  vision?: ModelCapabilitiesLimitsVision;
+}
+/**
+ * Vision-specific limits
+ */
+export interface ModelCapabilitiesLimitsVision {
+  /**
+   * MIME types the model accepts
+   */
+  supported_media_types: string[];
+  /**
+   * Maximum number of images per prompt
+   */
+  max_prompt_images: number;
+  /**
+   * Maximum image size in bytes
+   */
+  max_prompt_image_size: number;
 }
 
 export interface ToolsListResult {
@@ -362,6 +383,26 @@ export interface SessionFsSetProviderParams {
   conventions: "windows" | "posix";
 }
 
+/** @experimental */
+export interface SessionsForkResult {
+  /**
+   * The new forked session's ID
+   */
+  sessionId: string;
+}
+
+/** @experimental */
+export interface SessionsForkParams {
+  /**
+   * Source session ID to fork from
+   */
+  sessionId: string;
+  /**
+   * Optional event ID boundary. When provided, the fork includes only events before this ID (exclusive). When omitted, all events are included.
+   */
+  toEventId?: string;
+}
+
 export interface SessionModelGetCurrentResult {
   /**
    * Currently active model identifier
@@ -396,6 +437,47 @@ export interface SessionModelSwitchToParams {
    * Reasoning effort level to use for the model
    */
   reasoningEffort?: string;
+  modelCapabilities?: ModelCapabilitiesOverride;
+}
+/**
+ * Override individual model capabilities resolved by the runtime
+ */
+export interface ModelCapabilitiesOverride {
+  supports?: ModelCapabilitiesOverrideSupports;
+  limits?: ModelCapabilitiesOverrideLimits;
+}
+/**
+ * Feature flags indicating what the model supports
+ */
+export interface ModelCapabilitiesOverrideSupports {
+  vision?: boolean;
+  reasoningEffort?: boolean;
+}
+/**
+ * Token limits for prompts, outputs, and context window
+ */
+export interface ModelCapabilitiesOverrideLimits {
+  max_prompt_tokens?: number;
+  max_output_tokens?: number;
+  /**
+   * Maximum total context window size in tokens
+   */
+  max_context_window_tokens?: number;
+  vision?: ModelCapabilitiesOverrideLimitsVision;
+}
+export interface ModelCapabilitiesOverrideLimitsVision {
+  /**
+   * MIME types the model accepts
+   */
+  supported_media_types?: string[];
+  /**
+   * Maximum number of images per prompt
+   */
+  max_prompt_images?: number;
+  /**
+   * Maximum image size in bytes
+   */
+  max_prompt_image_size?: number;
 }
 
 export interface SessionModeGetResult {
@@ -1271,6 +1353,26 @@ export interface SessionShellKillParams {
   signal?: "SIGTERM" | "SIGKILL" | "SIGINT";
 }
 
+/** @experimental */
+export interface SessionHistoryTruncateResult {
+  /**
+   * Number of events that were removed
+   */
+  eventsRemoved: number;
+}
+
+/** @experimental */
+export interface SessionHistoryTruncateParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Event ID to truncate to. This event and all events after it are removed from the session.
+   */
+  eventId: string;
+}
+
 export interface SessionFsReadFileResult {
   /**
    * File content as UTF-8 string
@@ -1510,6 +1612,11 @@ export function createServerRpc(connection: MessageConnection) {
             setProvider: async (params: SessionFsSetProviderParams): Promise<SessionFsSetProviderResult> =>
                 connection.sendRequest("sessionFs.setProvider", params),
         },
+        /** @experimental */
+        sessions: {
+            fork: async (params: SessionsForkParams): Promise<SessionsForkResult> =>
+                connection.sendRequest("sessions.fork", params),
+        },
     };
 }
 
@@ -1630,6 +1737,11 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.shell.exec", { sessionId, ...params }),
             kill: async (params: Omit<SessionShellKillParams, "sessionId">): Promise<SessionShellKillResult> =>
                 connection.sendRequest("session.shell.kill", { sessionId, ...params }),
+        },
+        /** @experimental */
+        history: {
+            truncate: async (params: Omit<SessionHistoryTruncateParams, "sessionId">): Promise<SessionHistoryTruncateResult> =>
+                connection.sendRequest("session.history.truncate", { sessionId, ...params }),
         },
     };
 }

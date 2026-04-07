@@ -10,8 +10,7 @@ if TYPE_CHECKING:
 
 
 from dataclasses import dataclass
-from typing import Any, TypeVar, cast
-from collections.abc import Callable
+from typing import Any, TypeVar, Callable, cast
 from enum import Enum
 from uuid import UUID
 
@@ -49,9 +48,9 @@ def from_union(fs, x):
     assert False
 
 
-def from_bool(x: Any) -> bool:
-    assert isinstance(x, bool)
-    return x
+def from_list(f: Callable[[Any], T], x: Any) -> list[T]:
+    assert isinstance(x, list)
+    return [f(y) for y in x]
 
 
 def to_class(c: type[T], x: Any) -> dict:
@@ -59,9 +58,9 @@ def to_class(c: type[T], x: Any) -> dict:
     return cast(Any, x).to_dict()
 
 
-def from_list(f: Callable[[Any], T], x: Any) -> list[T]:
-    assert isinstance(x, list)
-    return [f(y) for y in x]
+def from_bool(x: Any) -> bool:
+    assert isinstance(x, bool)
+    return x
 
 
 def from_dict(f: Callable[[Any], T], x: Any) -> dict[str, T]:
@@ -144,7 +143,36 @@ class Billing:
 
 
 @dataclass
-class Limits:
+class ModelCapabilitiesLimitsVision:
+    """Vision-specific limits"""
+
+    max_prompt_image_size: float
+    """Maximum image size in bytes"""
+
+    max_prompt_images: float
+    """Maximum number of images per prompt"""
+
+    supported_media_types: list[str]
+    """MIME types the model accepts"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ModelCapabilitiesLimitsVision':
+        assert isinstance(obj, dict)
+        max_prompt_image_size = from_float(obj.get("max_prompt_image_size"))
+        max_prompt_images = from_float(obj.get("max_prompt_images"))
+        supported_media_types = from_list(from_str, obj.get("supported_media_types"))
+        return ModelCapabilitiesLimitsVision(max_prompt_image_size, max_prompt_images, supported_media_types)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["max_prompt_image_size"] = to_float(self.max_prompt_image_size)
+        result["max_prompt_images"] = to_float(self.max_prompt_images)
+        result["supported_media_types"] = from_list(from_str, self.supported_media_types)
+        return result
+
+
+@dataclass
+class ModelCapabilitiesLimits:
     """Token limits for prompts, outputs, and context window"""
 
     max_context_window_tokens: float
@@ -156,13 +184,17 @@ class Limits:
     max_prompt_tokens: float | None = None
     """Maximum number of prompt/input tokens"""
 
+    vision: ModelCapabilitiesLimitsVision | None = None
+    """Vision-specific limits"""
+
     @staticmethod
-    def from_dict(obj: Any) -> 'Limits':
+    def from_dict(obj: Any) -> 'ModelCapabilitiesLimits':
         assert isinstance(obj, dict)
         max_context_window_tokens = from_float(obj.get("max_context_window_tokens"))
         max_output_tokens = from_union([from_float, from_none], obj.get("max_output_tokens"))
         max_prompt_tokens = from_union([from_float, from_none], obj.get("max_prompt_tokens"))
-        return Limits(max_context_window_tokens, max_output_tokens, max_prompt_tokens)
+        vision = from_union([ModelCapabilitiesLimitsVision.from_dict, from_none], obj.get("vision"))
+        return ModelCapabilitiesLimits(max_context_window_tokens, max_output_tokens, max_prompt_tokens, vision)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -171,11 +203,13 @@ class Limits:
             result["max_output_tokens"] = from_union([to_float, from_none], self.max_output_tokens)
         if self.max_prompt_tokens is not None:
             result["max_prompt_tokens"] = from_union([to_float, from_none], self.max_prompt_tokens)
+        if self.vision is not None:
+            result["vision"] = from_union([lambda x: to_class(ModelCapabilitiesLimitsVision, x), from_none], self.vision)
         return result
 
 
 @dataclass
-class Supports:
+class ModelCapabilitiesSupports:
     """Feature flags indicating what the model supports"""
 
     reasoning_effort: bool | None = None
@@ -185,11 +219,11 @@ class Supports:
     """Whether this model supports vision/image input"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'Supports':
+    def from_dict(obj: Any) -> 'ModelCapabilitiesSupports':
         assert isinstance(obj, dict)
         reasoning_effort = from_union([from_bool, from_none], obj.get("reasoningEffort"))
         vision = from_union([from_bool, from_none], obj.get("vision"))
-        return Supports(reasoning_effort, vision)
+        return ModelCapabilitiesSupports(reasoning_effort, vision)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -201,26 +235,26 @@ class Supports:
 
 
 @dataclass
-class Capabilities:
+class ModelCapabilities:
     """Model capabilities and limits"""
 
-    limits: Limits
+    limits: ModelCapabilitiesLimits
     """Token limits for prompts, outputs, and context window"""
 
-    supports: Supports
+    supports: ModelCapabilitiesSupports
     """Feature flags indicating what the model supports"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'Capabilities':
+    def from_dict(obj: Any) -> 'ModelCapabilities':
         assert isinstance(obj, dict)
-        limits = Limits.from_dict(obj.get("limits"))
-        supports = Supports.from_dict(obj.get("supports"))
-        return Capabilities(limits, supports)
+        limits = ModelCapabilitiesLimits.from_dict(obj.get("limits"))
+        supports = ModelCapabilitiesSupports.from_dict(obj.get("supports"))
+        return ModelCapabilities(limits, supports)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["limits"] = to_class(Limits, self.limits)
-        result["supports"] = to_class(Supports, self.supports)
+        result["limits"] = to_class(ModelCapabilitiesLimits, self.limits)
+        result["supports"] = to_class(ModelCapabilitiesSupports, self.supports)
         return result
 
 
@@ -250,7 +284,7 @@ class Policy:
 
 @dataclass
 class Model:
-    capabilities: Capabilities
+    capabilities: ModelCapabilities
     """Model capabilities and limits"""
 
     id: str
@@ -274,7 +308,7 @@ class Model:
     @staticmethod
     def from_dict(obj: Any) -> 'Model':
         assert isinstance(obj, dict)
-        capabilities = Capabilities.from_dict(obj.get("capabilities"))
+        capabilities = ModelCapabilities.from_dict(obj.get("capabilities"))
         id = from_str(obj.get("id"))
         name = from_str(obj.get("name"))
         billing = from_union([Billing.from_dict, from_none], obj.get("billing"))
@@ -285,7 +319,7 @@ class Model:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["capabilities"] = to_class(Capabilities, self.capabilities)
+        result["capabilities"] = to_class(ModelCapabilities, self.capabilities)
         result["id"] = from_str(self.id)
         result["name"] = from_str(self.name)
         if self.billing is not None:
@@ -803,6 +837,50 @@ class SessionFSSetProviderParams:
         return result
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionsForkResult:
+    session_id: str
+    """The new forked session's ID"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionsForkResult':
+        assert isinstance(obj, dict)
+        session_id = from_str(obj.get("sessionId"))
+        return SessionsForkResult(session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["sessionId"] = from_str(self.session_id)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionsForkParams:
+    session_id: str
+    """Source session ID to fork from"""
+
+    to_event_id: str | None = None
+    """Optional event ID boundary. When provided, the fork includes only events before this ID
+    (exclusive). When omitted, all events are included.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionsForkParams':
+        assert isinstance(obj, dict)
+        session_id = from_str(obj.get("sessionId"))
+        to_event_id = from_union([from_str, from_none], obj.get("toEventId"))
+        return SessionsForkParams(session_id, to_event_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["sessionId"] = from_str(self.session_id)
+        if self.to_event_id is not None:
+            result["toEventId"] = from_union([from_str, from_none], self.to_event_id)
+        return result
+
+
 @dataclass
 class SessionModelGetCurrentResult:
     model_id: str | None = None
@@ -840,9 +918,124 @@ class SessionModelSwitchToResult:
 
 
 @dataclass
+class ModelCapabilitiesOverrideLimitsVision:
+    max_prompt_image_size: float | None = None
+    """Maximum image size in bytes"""
+
+    max_prompt_images: float | None = None
+    """Maximum number of images per prompt"""
+
+    supported_media_types: list[str] | None = None
+    """MIME types the model accepts"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ModelCapabilitiesOverrideLimitsVision':
+        assert isinstance(obj, dict)
+        max_prompt_image_size = from_union([from_float, from_none], obj.get("max_prompt_image_size"))
+        max_prompt_images = from_union([from_float, from_none], obj.get("max_prompt_images"))
+        supported_media_types = from_union([lambda x: from_list(from_str, x), from_none], obj.get("supported_media_types"))
+        return ModelCapabilitiesOverrideLimitsVision(max_prompt_image_size, max_prompt_images, supported_media_types)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.max_prompt_image_size is not None:
+            result["max_prompt_image_size"] = from_union([to_float, from_none], self.max_prompt_image_size)
+        if self.max_prompt_images is not None:
+            result["max_prompt_images"] = from_union([to_float, from_none], self.max_prompt_images)
+        if self.supported_media_types is not None:
+            result["supported_media_types"] = from_union([lambda x: from_list(from_str, x), from_none], self.supported_media_types)
+        return result
+
+
+@dataclass
+class ModelCapabilitiesOverrideLimits:
+    """Token limits for prompts, outputs, and context window"""
+
+    max_context_window_tokens: float | None = None
+    """Maximum total context window size in tokens"""
+
+    max_output_tokens: float | None = None
+    max_prompt_tokens: float | None = None
+    vision: ModelCapabilitiesOverrideLimitsVision | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ModelCapabilitiesOverrideLimits':
+        assert isinstance(obj, dict)
+        max_context_window_tokens = from_union([from_float, from_none], obj.get("max_context_window_tokens"))
+        max_output_tokens = from_union([from_float, from_none], obj.get("max_output_tokens"))
+        max_prompt_tokens = from_union([from_float, from_none], obj.get("max_prompt_tokens"))
+        vision = from_union([ModelCapabilitiesOverrideLimitsVision.from_dict, from_none], obj.get("vision"))
+        return ModelCapabilitiesOverrideLimits(max_context_window_tokens, max_output_tokens, max_prompt_tokens, vision)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.max_context_window_tokens is not None:
+            result["max_context_window_tokens"] = from_union([to_float, from_none], self.max_context_window_tokens)
+        if self.max_output_tokens is not None:
+            result["max_output_tokens"] = from_union([to_float, from_none], self.max_output_tokens)
+        if self.max_prompt_tokens is not None:
+            result["max_prompt_tokens"] = from_union([to_float, from_none], self.max_prompt_tokens)
+        if self.vision is not None:
+            result["vision"] = from_union([lambda x: to_class(ModelCapabilitiesOverrideLimitsVision, x), from_none], self.vision)
+        return result
+
+
+@dataclass
+class ModelCapabilitiesOverrideSupports:
+    """Feature flags indicating what the model supports"""
+
+    reasoning_effort: bool | None = None
+    vision: bool | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ModelCapabilitiesOverrideSupports':
+        assert isinstance(obj, dict)
+        reasoning_effort = from_union([from_bool, from_none], obj.get("reasoningEffort"))
+        vision = from_union([from_bool, from_none], obj.get("vision"))
+        return ModelCapabilitiesOverrideSupports(reasoning_effort, vision)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.reasoning_effort is not None:
+            result["reasoningEffort"] = from_union([from_bool, from_none], self.reasoning_effort)
+        if self.vision is not None:
+            result["vision"] = from_union([from_bool, from_none], self.vision)
+        return result
+
+
+@dataclass
+class ModelCapabilitiesOverride:
+    """Override individual model capabilities resolved by the runtime"""
+
+    limits: ModelCapabilitiesOverrideLimits | None = None
+    """Token limits for prompts, outputs, and context window"""
+
+    supports: ModelCapabilitiesOverrideSupports | None = None
+    """Feature flags indicating what the model supports"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ModelCapabilitiesOverride':
+        assert isinstance(obj, dict)
+        limits = from_union([ModelCapabilitiesOverrideLimits.from_dict, from_none], obj.get("limits"))
+        supports = from_union([ModelCapabilitiesOverrideSupports.from_dict, from_none], obj.get("supports"))
+        return ModelCapabilitiesOverride(limits, supports)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.limits is not None:
+            result["limits"] = from_union([lambda x: to_class(ModelCapabilitiesOverrideLimits, x), from_none], self.limits)
+        if self.supports is not None:
+            result["supports"] = from_union([lambda x: to_class(ModelCapabilitiesOverrideSupports, x), from_none], self.supports)
+        return result
+
+
+@dataclass
 class SessionModelSwitchToParams:
     model_id: str
     """Model identifier to switch to"""
+
+    model_capabilities: ModelCapabilitiesOverride | None = None
+    """Override individual model capabilities resolved by the runtime"""
 
     reasoning_effort: str | None = None
     """Reasoning effort level to use for the model"""
@@ -851,12 +1044,15 @@ class SessionModelSwitchToParams:
     def from_dict(obj: Any) -> 'SessionModelSwitchToParams':
         assert isinstance(obj, dict)
         model_id = from_str(obj.get("modelId"))
+        model_capabilities = from_union([ModelCapabilitiesOverride.from_dict, from_none], obj.get("modelCapabilities"))
         reasoning_effort = from_union([from_str, from_none], obj.get("reasoningEffort"))
-        return SessionModelSwitchToParams(model_id, reasoning_effort)
+        return SessionModelSwitchToParams(model_id, model_capabilities, reasoning_effort)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["modelId"] = from_str(self.model_id)
+        if self.model_capabilities is not None:
+            result["modelCapabilities"] = from_union([lambda x: to_class(ModelCapabilitiesOverride, x), from_none], self.model_capabilities)
         if self.reasoning_effort is not None:
             result["reasoningEffort"] = from_union([from_str, from_none], self.reasoning_effort)
         return result
@@ -2474,6 +2670,42 @@ class SessionShellKillParams:
         return result
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionHistoryTruncateResult:
+    events_removed: float
+    """Number of events that were removed"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionHistoryTruncateResult':
+        assert isinstance(obj, dict)
+        events_removed = from_float(obj.get("eventsRemoved"))
+        return SessionHistoryTruncateResult(events_removed)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["eventsRemoved"] = to_float(self.events_removed)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionHistoryTruncateParams:
+    event_id: str
+    """Event ID to truncate to. This event and all events after it are removed from the session."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionHistoryTruncateParams':
+        assert isinstance(obj, dict)
+        event_id = from_str(obj.get("eventId"))
+        return SessionHistoryTruncateParams(event_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["eventId"] = from_str(self.event_id)
+        return result
+
+
 def ping_result_from_dict(s: Any) -> PingResult:
     return PingResult.from_dict(s)
 
@@ -2568,6 +2800,22 @@ def session_fs_set_provider_params_from_dict(s: Any) -> SessionFSSetProviderPara
 
 def session_fs_set_provider_params_to_dict(x: SessionFSSetProviderParams) -> Any:
     return to_class(SessionFSSetProviderParams, x)
+
+
+def sessions_fork_result_from_dict(s: Any) -> SessionsForkResult:
+    return SessionsForkResult.from_dict(s)
+
+
+def sessions_fork_result_to_dict(x: SessionsForkResult) -> Any:
+    return to_class(SessionsForkResult, x)
+
+
+def sessions_fork_params_from_dict(s: Any) -> SessionsForkParams:
+    return SessionsForkParams.from_dict(s)
+
+
+def sessions_fork_params_to_dict(x: SessionsForkParams) -> Any:
+    return to_class(SessionsForkParams, x)
 
 
 def session_model_get_current_result_from_dict(s: Any) -> SessionModelGetCurrentResult:
@@ -3042,6 +3290,22 @@ def session_shell_kill_params_to_dict(x: SessionShellKillParams) -> Any:
     return to_class(SessionShellKillParams, x)
 
 
+def session_history_truncate_result_from_dict(s: Any) -> SessionHistoryTruncateResult:
+    return SessionHistoryTruncateResult.from_dict(s)
+
+
+def session_history_truncate_result_to_dict(x: SessionHistoryTruncateResult) -> Any:
+    return to_class(SessionHistoryTruncateResult, x)
+
+
+def session_history_truncate_params_from_dict(s: Any) -> SessionHistoryTruncateParams:
+    return SessionHistoryTruncateParams.from_dict(s)
+
+
+def session_history_truncate_params_to_dict(x: SessionHistoryTruncateParams) -> Any:
+    return to_class(SessionHistoryTruncateParams, x)
+
+
 def _timeout_kwargs(timeout: float | None) -> dict:
     """Build keyword arguments for optional timeout forwarding."""
     if timeout is not None:
@@ -3088,6 +3352,16 @@ class ServerSessionFsApi:
         return SessionFSSetProviderResult.from_dict(await self._client.request("sessionFs.setProvider", params_dict, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
+class ServerSessionsApi:
+    def __init__(self, client: "JsonRpcClient"):
+        self._client = client
+
+    async def fork(self, params: SessionsForkParams, *, timeout: float | None = None) -> SessionsForkResult:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return SessionsForkResult.from_dict(await self._client.request("sessions.fork", params_dict, **_timeout_kwargs(timeout)))
+
+
 class ServerRpc:
     """Typed server-scoped RPC methods."""
     def __init__(self, client: "JsonRpcClient"):
@@ -3097,6 +3371,7 @@ class ServerRpc:
         self.account = ServerAccountApi(client)
         self.mcp = ServerMcpApi(client)
         self.session_fs = ServerSessionFsApi(client)
+        self.sessions = ServerSessionsApi(client)
 
     async def ping(self, params: PingParams, *, timeout: float | None = None) -> PingResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -3357,6 +3632,18 @@ class ShellApi:
         return SessionShellKillResult.from_dict(await self._client.request("session.shell.kill", params_dict, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
+class HistoryApi:
+    def __init__(self, client: "JsonRpcClient", session_id: str):
+        self._client = client
+        self._session_id = session_id
+
+    async def truncate(self, params: SessionHistoryTruncateParams, *, timeout: float | None = None) -> SessionHistoryTruncateResult:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return SessionHistoryTruncateResult.from_dict(await self._client.request("session.history.truncate", params_dict, **_timeout_kwargs(timeout)))
+
+
 class SessionRpc:
     """Typed session-scoped RPC methods."""
     def __init__(self, client: "JsonRpcClient", session_id: str):
@@ -3378,6 +3665,7 @@ class SessionRpc:
         self.ui = UiApi(client, session_id)
         self.permissions = PermissionsApi(client, session_id)
         self.shell = ShellApi(client, session_id)
+        self.history = HistoryApi(client, session_id)
 
     async def log(self, params: SessionLogParams, *, timeout: float | None = None) -> SessionLogResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
