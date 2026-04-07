@@ -509,7 +509,7 @@ function emitClientSessionHandlerMethod(
     if (method.stability === "experimental" && !groupExperimental) {
         lines.push(`        """.. warning:: This API is experimental and may change or be removed in future versions."""`);
     }
-    lines.push(`        ...`);
+    lines.push(`        pass`);
 }
 
 function emitClientSessionRegistrationMethod(

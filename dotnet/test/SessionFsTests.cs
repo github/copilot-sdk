@@ -121,13 +121,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
             }
             finally
             {
-                try
-                {
-                    await client2.ForceStopAsync();
-                }
-                catch
-                {
-                }
+                await client2.ForceStopAsync();
             }
         }
         finally
@@ -255,15 +249,18 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
     }
 
     private static string CreateProviderRoot()
-        => Path.Combine(Path.GetTempPath(), $"copilot-sessionfs-{Guid.NewGuid():N}");
+        => Path.Join(Path.GetTempPath(), $"copilot-sessionfs-{Guid.NewGuid():N}");
 
     private static string GetStoredPath(string providerRoot, string sessionId, string sessionPath)
     {
+        var safeSessionId = NormalizeRelativePathSegment(sessionId, nameof(sessionId));
         var relativeSegments = sessionPath
             .TrimStart('/', '\\')
-            .Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries);
+            .Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(segment => NormalizeRelativePathSegment(segment, nameof(sessionPath)))
+            .ToArray();
 
-        return Path.Combine([providerRoot, sessionId, .. relativeSegments]);
+        return Path.Join([providerRoot, safeSessionId, .. relativeSegments]);
     }
 
     private static async Task WaitForConditionAsync(Func<bool> condition, TimeSpan? timeout = null)
@@ -274,6 +271,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
     private static async Task WaitForConditionAsync(Func<Task<bool>> condition, TimeSpan? timeout = null)
     {
         var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(30));
+        Exception? lastException = null;
         while (DateTime.UtcNow < deadline)
         {
             try
@@ -283,17 +281,19 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
                     return;
                 }
             }
-            catch (IOException)
+            catch (IOException ex)
             {
+                lastException = ex;
             }
-            catch (UnauthorizedAccessException)
+            catch (UnauthorizedAccessException ex)
             {
+                lastException = ex;
             }
 
             await Task.Delay(100);
         }
 
-        throw new TimeoutException("Timed out waiting for condition.");
+        throw new TimeoutException("Timed out waiting for condition.", lastException);
     }
 
     private static async Task<string> ReadAllTextSharedAsync(string path, CancellationToken cancellationToken = default)
@@ -305,16 +305,26 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
 
     private static void TryDeleteDirectory(string path)
     {
-        try
+        if (Directory.Exists(path))
         {
-            if (Directory.Exists(path))
-            {
-                Directory.Delete(path, recursive: true);
-            }
+            Directory.Delete(path, recursive: true);
         }
-        catch
+    }
+
+    private static string NormalizeRelativePathSegment(string segment, string paramName)
+    {
+        if (string.IsNullOrWhiteSpace(segment))
         {
+            throw new InvalidOperationException($"{paramName} must not be empty.");
         }
+
+        var normalized = segment.TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (Path.IsPathRooted(normalized) || normalized.Contains(Path.VolumeSeparatorChar))
+        {
+            throw new InvalidOperationException($"{paramName} must be a relative path segment: {segment}");
+        }
+
+        return normalized;
     }
 
     private sealed class TestSessionFsHandler(string sessionId, string rootDir) : ISessionFsHandler
@@ -456,12 +466,15 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
 
         private string ResolvePath(string sessionPath)
         {
-            var sessionRoot = Path.GetFullPath(Path.Combine(rootDir, sessionId));
+            var normalizedSessionId = NormalizeRelativePathSegment(sessionId, nameof(sessionId));
+            var sessionRoot = Path.GetFullPath(Path.Join(rootDir, normalizedSessionId));
             var relativeSegments = sessionPath
                 .TrimStart('/', '\\')
-                .Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries);
+                .Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries)
+                .Select(segment => NormalizeRelativePathSegment(segment, nameof(sessionPath)))
+                .ToArray();
 
-            var fullPath = Path.GetFullPath(Path.Combine([sessionRoot, .. relativeSegments]));
+            var fullPath = Path.GetFullPath(Path.Join([sessionRoot, .. relativeSegments]));
             if (!fullPath.StartsWith(sessionRoot, StringComparison.Ordinal))
             {
                 throw new InvalidOperationException($"Path escapes session root: {sessionPath}");

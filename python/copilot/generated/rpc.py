@@ -4068,25 +4068,25 @@ class SessionRpc:
 
 class SessionFsHandler(Protocol):
     async def read_file(self, params: SessionFSReadFileParams) -> SessionFSReadFileResult:
-        ...
+        pass
     async def write_file(self, params: SessionFSWriteFileParams) -> None:
-        ...
+        pass
     async def append_file(self, params: SessionFSAppendFileParams) -> None:
-        ...
+        pass
     async def exists(self, params: SessionFSExistsParams) -> SessionFSExistsResult:
-        ...
+        pass
     async def stat(self, params: SessionFSStatParams) -> SessionFSStatResult:
-        ...
+        pass
     async def mkdir(self, params: SessionFSMkdirParams) -> None:
-        ...
+        pass
     async def readdir(self, params: SessionFSReaddirParams) -> SessionFSReaddirResult:
-        ...
+        pass
     async def readdir_with_types(self, params: SessionFSReaddirWithTypesParams) -> SessionFSReaddirWithTypesResult:
-        ...
+        pass
     async def rm(self, params: SessionFSRmParams) -> None:
-        ...
+        pass
     async def rename(self, params: SessionFSRenameParams) -> None:
-        ...
+        pass
 
 @dataclass
 class ClientSessionApiHandlers:
