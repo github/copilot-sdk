@@ -284,7 +284,14 @@ internal class InMemoryFileSystem
         }
     }
 
-    private static string NormalizePath(string path) => path.TrimEnd('/');
+    private static string NormalizePath(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return "/";
+
+        var normalized = path.TrimEnd('/');
+        return normalized.Length == 0 ? "/" : normalized;
+    }
 
     private void EnsureParentDirs(string path)
     {

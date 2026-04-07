@@ -47,7 +47,7 @@ class InMemoryFS:
         self._files[path] = self._files.get(path, "") + content
 
     def exists(self, path: str) -> bool:
-        p = path.rstrip("/")
+        p = path.rstrip("/") or "/"
         return p in self._files or p in self._dirs
 
     def mkdir(self, path: str, recursive: bool = False) -> None:
@@ -66,7 +66,7 @@ class InMemoryFS:
         return sorted(entries)
 
     def remove(self, path: str) -> None:
-        p = path.rstrip("/")
+        p = path.rstrip("/") or "/"
         self._files.pop(p, None)
         self._dirs.discard(p)
 
