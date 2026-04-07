@@ -185,6 +185,7 @@ try (var client = new CopilotClient()) {
     var session = client.createSession(
         new SessionConfig()
             .setHooks(hooks)
+            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
     ).get();
 }
 ```

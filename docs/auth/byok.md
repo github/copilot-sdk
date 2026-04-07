@@ -448,6 +448,7 @@ var client = new CopilotClient(new CopilotClientOptions
 ```java
 import com.github.copilot.sdk.CopilotClient;
 import com.github.copilot.sdk.json.*;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 var client = new CopilotClient(new CopilotClientOptions()

@@ -147,6 +147,7 @@ await session.SendAndWaitAsync(new MessageOptions
 import com.github.copilot.sdk.CopilotClient;
 import com.github.copilot.sdk.events.*;
 import com.github.copilot.sdk.json.*;
+import java.util.List;
 
 try (var client = new CopilotClient()) {
     client.start().get();
@@ -277,6 +278,9 @@ var session = await client.CreateSessionAsync(new SessionConfig
 <summary><strong>Java</strong></summary>
 
 ```java
+import com.github.copilot.sdk.json.*;
+import java.util.List;
+
 var session = client.createSession(
     new SessionConfig()
         .setSkillDirectories(List.of("./skills"))

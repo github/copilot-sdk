@@ -226,6 +226,7 @@ await session.SendAsync(new MessageOptions
 import com.github.copilot.sdk.CopilotClient;
 import com.github.copilot.sdk.events.*;
 import com.github.copilot.sdk.json.*;
+import java.util.List;
 
 try (var client = new CopilotClient()) {
     client.start().get();
@@ -435,6 +436,7 @@ await session.SendAsync(new MessageOptions
 import com.github.copilot.sdk.CopilotClient;
 import com.github.copilot.sdk.events.*;
 import com.github.copilot.sdk.json.*;
+import java.util.List;
 
 try (var client = new CopilotClient()) {
     client.start().get();

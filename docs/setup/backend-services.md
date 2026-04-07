@@ -231,6 +231,9 @@ import com.github.copilot.sdk.CopilotClient;
 import com.github.copilot.sdk.events.*;
 import com.github.copilot.sdk.json.*;
 
+var userId = "user1";
+var message = "Hello!";
+
 var client = new CopilotClient(new CopilotClientOptions()
     .setCliUrl("localhost:4321")
 );
@@ -241,7 +244,7 @@ try {
     var session = client.createSession(new SessionConfig()
         .setSessionId(String.format("user-%s-%d", userId, System.currentTimeMillis() / 1000))
         .setModel("gpt-4.1")
-        .setOnPermissionRequest(request -> request.allow())
+        .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
     ).get();
 
     var response = session.sendAndWait(new MessageOptions()

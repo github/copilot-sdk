@@ -267,7 +267,9 @@ public class HelloCopilot {
             client.start().get();
 
             var session = client.createSession(
-                new SessionConfig().setModel("gpt-4.1")
+                new SessionConfig()
+                    .setModel("gpt-4.1")
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
             ).get();
 
             var response = session.sendAndWait(
@@ -475,6 +477,7 @@ public class HelloCopilot {
                 new SessionConfig()
                     .setModel("gpt-4.1")
                     .setStreaming(true)
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
             ).get();
 
             // Listen for response chunks

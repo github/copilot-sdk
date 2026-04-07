@@ -293,10 +293,12 @@ CopilotClient createClientForUser(String userToken) throws Exception {
 }
 
 // Usage — use try-with-resources to ensure cleanup
+var userId = "user1";
 try (var client = createClientForUser("gho_user_access_token")) {
     var session = client.createSession(new SessionConfig()
         .setSessionId(String.format("user-%s-session", userId))
         .setModel("gpt-4.1")
+        .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
     ).get();
 
     var response = session.sendAndWait(new MessageOptions()

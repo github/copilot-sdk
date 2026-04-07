@@ -230,6 +230,8 @@ await session.sendAndWait({ prompt: "What's the weather like in Seattle?" });
 import com.github.copilot.sdk.CopilotClient;
 import com.github.copilot.sdk.events.*;
 import com.github.copilot.sdk.json.*;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 var getWeather = ToolDefinition.create(

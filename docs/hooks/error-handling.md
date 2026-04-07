@@ -105,12 +105,13 @@ public delegate Task<ErrorOccurredHookOutput?> ErrorOccurredHandler(
 ```java
 // Note: Java SDK does not have an onErrorOccurred hook.
 // Use EventErrorPolicy and EventErrorHandler instead:
-import com.github.copilot.sdk.*;
-
-session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS_AND_LOG_ERRORS);
-session.setEventErrorHandler((event, ex) -> {
-    System.err.println("Error in " + event.getType() + ": " + ex.getMessage());
-});
+//
+// session.setEventErrorPolicy(EventErrorPolicy.SUPPRESS_AND_LOG_ERRORS);
+// session.setEventErrorHandler((event, ex) -> {
+//     System.err.println("Error in " + event.getType() + ": " + ex.getMessage());
+// });
+//
+// See the "Basic Error Logging" example below for a complete snippet.
 ```
 
 </details>
