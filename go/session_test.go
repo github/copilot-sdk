@@ -1,6 +1,7 @@
 package copilot
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -526,6 +527,45 @@ func TestSession_ElicitationHandler(t *testing.T) {
 		}
 		if result.Content["color"] != "blue" {
 			t.Errorf("Expected content color 'blue', got %v", result.Content["color"])
+		}
+	})
+}
+
+func TestSession_HookForwardCompatibility(t *testing.T) {
+	t.Run("unknown hook type returns nil without error when known hooks are registered", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		// Register known hook handlers to simulate a real session configuration.
+		// The handler itself does nothing; it only exists to confirm that even
+		// when other hooks are active, an unknown hook type is still ignored.
+		session.registerHooks(&SessionHooks{
+			OnPostToolUse: func(input PostToolUseHookInput, invocation HookInvocation) (*PostToolUseHookOutput, error) {
+				return nil, nil
+			},
+		})
+
+		// "postToolUseFailure" is an example of a hook type introduced by a newer
+		// CLI version that the SDK does not yet know about.
+		output, err := session.handleHooksInvoke("postToolUseFailure", json.RawMessage(`{}`))
+		if err != nil {
+			t.Errorf("Expected no error for unknown hook type, got: %v", err)
+		}
+		if output != nil {
+			t.Errorf("Expected nil output for unknown hook type, got: %v", output)
+		}
+	})
+
+	t.Run("unknown hook type with no hooks registered returns nil without error", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		output, err := session.handleHooksInvoke("futureHookType", json.RawMessage(`{"someField":"value"}`))
+		if err != nil {
+			t.Errorf("Expected no error for unknown hook type with no hooks, got: %v", err)
+		}
+		if output != nil {
+			t.Errorf("Expected nil output for unknown hook type with no hooks, got: %v", output)
 		}
 	})
 }

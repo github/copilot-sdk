@@ -967,7 +967,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                     JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.ErrorOccurredHookInput)!,
                     invocation)
                 : null,
-            _ => throw new ArgumentException($"Unknown hook type: {hookType}")
+            _ => null
         };
     }
 
