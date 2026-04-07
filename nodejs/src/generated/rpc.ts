@@ -383,6 +383,26 @@ export interface SessionFsSetProviderParams {
   conventions: "windows" | "posix";
 }
 
+/** @experimental */
+export interface SessionsForkResult {
+  /**
+   * The new forked session's ID
+   */
+  sessionId: string;
+}
+
+/** @experimental */
+export interface SessionsForkParams {
+  /**
+   * Source session ID to fork from
+   */
+  sessionId: string;
+  /**
+   * Optional event ID boundary. When provided, the fork includes only events before this ID (exclusive). When omitted, all events are included.
+   */
+  toEventId?: string;
+}
+
 export interface SessionModelGetCurrentResult {
   /**
    * Currently active model identifier
@@ -1003,30 +1023,6 @@ export interface SessionExtensionsReloadParams {
   sessionId: string;
 }
 
-/** @experimental */
-export interface SessionCompactionCompactResult {
-  /**
-   * Whether compaction completed successfully
-   */
-  success: boolean;
-  /**
-   * Number of tokens freed by compaction
-   */
-  tokensRemoved: number;
-  /**
-   * Number of messages removed during compaction
-   */
-  messagesRemoved: number;
-}
-
-/** @experimental */
-export interface SessionCompactionCompactParams {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-}
-
 export interface SessionToolsHandlePendingToolCallResult {
   /**
    * Whether the tool call result was handled successfully
@@ -1333,6 +1329,50 @@ export interface SessionShellKillParams {
   signal?: "SIGTERM" | "SIGKILL" | "SIGINT";
 }
 
+/** @experimental */
+export interface SessionHistoryCompactResult {
+  /**
+   * Whether compaction completed successfully
+   */
+  success: boolean;
+  /**
+   * Number of tokens freed by compaction
+   */
+  tokensRemoved: number;
+  /**
+   * Number of messages removed during compaction
+   */
+  messagesRemoved: number;
+}
+
+/** @experimental */
+export interface SessionHistoryCompactParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
+
+/** @experimental */
+export interface SessionHistoryTruncateResult {
+  /**
+   * Number of events that were removed
+   */
+  eventsRemoved: number;
+}
+
+/** @experimental */
+export interface SessionHistoryTruncateParams {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Event ID to truncate to. This event and all events after it are removed from the session.
+   */
+  eventId: string;
+}
+
 export interface SessionFsReadFileResult {
   /**
    * File content as UTF-8 string
@@ -1572,6 +1612,11 @@ export function createServerRpc(connection: MessageConnection) {
             setProvider: async (params: SessionFsSetProviderParams): Promise<SessionFsSetProviderResult> =>
                 connection.sendRequest("sessionFs.setProvider", params),
         },
+        /** @experimental */
+        sessions: {
+            fork: async (params: SessionsForkParams): Promise<SessionsForkResult> =>
+                connection.sendRequest("sessions.fork", params),
+        },
     };
 }
 
@@ -1662,11 +1707,6 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             reload: async (): Promise<SessionExtensionsReloadResult> =>
                 connection.sendRequest("session.extensions.reload", { sessionId }),
         },
-        /** @experimental */
-        compaction: {
-            compact: async (): Promise<SessionCompactionCompactResult> =>
-                connection.sendRequest("session.compaction.compact", { sessionId }),
-        },
         tools: {
             handlePendingToolCall: async (params: Omit<SessionToolsHandlePendingToolCallParams, "sessionId">): Promise<SessionToolsHandlePendingToolCallResult> =>
                 connection.sendRequest("session.tools.handlePendingToolCall", { sessionId, ...params }),
@@ -1692,6 +1732,13 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.shell.exec", { sessionId, ...params }),
             kill: async (params: Omit<SessionShellKillParams, "sessionId">): Promise<SessionShellKillResult> =>
                 connection.sendRequest("session.shell.kill", { sessionId, ...params }),
+        },
+        /** @experimental */
+        history: {
+            compact: async (): Promise<SessionHistoryCompactResult> =>
+                connection.sendRequest("session.history.compact", { sessionId }),
+            truncate: async (params: Omit<SessionHistoryTruncateParams, "sessionId">): Promise<SessionHistoryTruncateResult> =>
+                connection.sendRequest("session.history.truncate", { sessionId, ...params }),
         },
     };
 }

@@ -181,7 +181,7 @@ public partial class SessionErrorEvent : SessionEvent
     public required SessionErrorData Data { get; set; }
 }
 
-/// <summary>Payload indicating the session is fully idle with no background tasks in flight.</summary>
+/// <summary>Payload indicating the session is idle with no background agents in flight.</summary>
 /// <remarks>Represents the <c>session.idle</c> event.</remarks>
 public partial class SessionIdleEvent : SessionEvent
 {
@@ -1209,7 +1209,7 @@ public partial class SessionErrorData
     public string? Url { get; set; }
 }
 
-/// <summary>Payload indicating the session is fully idle with no background tasks in flight.</summary>
+/// <summary>Payload indicating the session is idle with no background agents in flight.</summary>
 public partial class SessionIdleData
 {
     /// <summary>True when the preceding agentic loop was cancelled via abort signal.</summary>
@@ -1391,7 +1391,7 @@ public partial class SessionTruncationData
 /// <summary>Session rewind details including target event and count of removed events.</summary>
 public partial class SessionSnapshotRewindData
 {
-    /// <summary>Event ID that was rewound to; all events after this one were removed.</summary>
+    /// <summary>Event ID that was rewound to; this event and all after it were removed.</summary>
     [JsonPropertyName("upToEventId")]
     public required string UpToEventId { get; set; }
 
@@ -1779,6 +1779,11 @@ public partial class AssistantMessageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("interactionId")]
     public string? InteractionId { get; set; }
+
+    /// <summary>GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("requestId")]
+    public string? RequestId { get; set; }
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

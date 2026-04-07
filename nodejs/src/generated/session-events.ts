@@ -270,7 +270,7 @@ export type SessionEvent =
       ephemeral: true;
       type: "session.idle";
       /**
-       * Payload indicating the session is fully idle with no background tasks in flight
+       * Payload indicating the session is idle with no background agents in flight
        */
       data: {
         /**
@@ -649,7 +649,7 @@ export type SessionEvent =
        */
       data: {
         /**
-         * Event ID that was rewound to; all events after this one were removed
+         * Event ID that was rewound to; this event and all after it were removed
          */
         upToEventId: string;
         /**
@@ -1478,6 +1478,10 @@ export type SessionEvent =
          * CAPI interaction ID for correlating this message with upstream telemetry
          */
         interactionId?: string;
+        /**
+         * GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
+         */
+        requestId?: string;
         /**
          * Tool call ID of the parent tool invocation when this event originates from a sub-agent
          */
