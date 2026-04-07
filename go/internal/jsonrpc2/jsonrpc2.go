@@ -454,6 +454,12 @@ func decodeMessage(data []byte) (any, error) {
 		}, nil
 	}
 	if len(msg.ID) > 0 {
+		if msg.Error != nil && len(msg.Result) > 0 {
+			return nil, fmt.Errorf("response must not contain both result and error: %w", ErrInvalidRequest)
+		}
+		if msg.Error == nil && len(msg.Result) == 0 {
+			return nil, fmt.Errorf("response must contain either result or error: %w", ErrInvalidRequest)
+		}
 		return &Response{
 			JSONRPC: msg.JSONRPC,
 			ID:      msg.ID,
