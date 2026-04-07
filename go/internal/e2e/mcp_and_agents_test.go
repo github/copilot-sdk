@@ -51,7 +51,7 @@ func TestMCPServers(t *testing.T) {
 			t.Fatalf("Failed to get final message: %v", err)
 		}
 
-		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "4") {
+		if message.Data.Content == nil || !strings.Contains(*message.Data.Content.String, "4") {
 			t.Errorf("Expected message to contain '4', got: %v", message.Data.Content)
 		}
 
@@ -100,7 +100,7 @@ func TestMCPServers(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "6") {
+		if message.Data.Content == nil || !strings.Contains(*message.Data.Content.String, "6") {
 			t.Errorf("Expected message to contain '6', got: %v", message.Data.Content)
 		}
 
@@ -146,7 +146,7 @@ func TestMCPServers(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "hunter2") {
+		if message.Data.Content == nil || !strings.Contains(*message.Data.Content.String, "hunter2") {
 			t.Errorf("Expected message to contain 'hunter2', got: %v", message.Data.Content)
 		}
 
@@ -231,7 +231,7 @@ func TestCustomAgents(t *testing.T) {
 			t.Fatalf("Failed to get final message: %v", err)
 		}
 
-		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "10") {
+		if message.Data.Content == nil || !strings.Contains(*message.Data.Content.String, "10") {
 			t.Errorf("Expected message to contain '10', got: %v", message.Data.Content)
 		}
 
@@ -280,7 +280,7 @@ func TestCustomAgents(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "12") {
+		if message.Data.Content == nil || !strings.Contains(*message.Data.Content.String, "12") {
 			t.Errorf("Expected message to contain '12', got: %v", message.Data.Content)
 		}
 
@@ -441,7 +441,7 @@ func TestCombinedConfiguration(t *testing.T) {
 			t.Fatalf("Failed to get final message: %v", err)
 		}
 
-		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "14") {
+		if message.Data.Content == nil || !strings.Contains(*message.Data.Content.String, "14") {
 			t.Errorf("Expected message to contain '14', got: %v", message.Data.Content)
 		}
 

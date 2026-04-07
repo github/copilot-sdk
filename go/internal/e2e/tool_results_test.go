@@ -48,7 +48,7 @@ func TestToolResults(t *testing.T) {
 
 		content := ""
 		if answer.Data.Content != nil {
-			content = *answer.Data.Content
+			content = *answer.Data.Content.String
 		}
 		if !strings.Contains(strings.ToLower(content), "sunny") && !strings.Contains(content, "72") {
 			t.Errorf("Expected answer to mention sunny or 72, got %q", content)
@@ -96,7 +96,7 @@ func TestToolResults(t *testing.T) {
 
 		content := ""
 		if answer.Data.Content != nil {
-			content = *answer.Data.Content
+			content = *answer.Data.Content.String
 		}
 		if !strings.Contains(strings.ToLower(content), "service is down") {
 			t.Errorf("Expected 'service is down', got %q", content)
@@ -146,7 +146,7 @@ func TestToolResults(t *testing.T) {
 
 		content := ""
 		if answer.Data.Content != nil {
-			content = *answer.Data.Content
+			content = *answer.Data.Content.String
 		}
 		if !strings.Contains(strings.ToLower(content), "no issues") {
 			t.Errorf("Expected 'no issues', got %q", content)

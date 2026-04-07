@@ -34,7 +34,7 @@ type SessionEvent struct {
 	//
 	// Error details for timeline display including message and optional diagnostic information
 	//
-	// Payload indicating the agent is idle; includes any background tasks still in flight
+	// Payload indicating the session is fully idle with no background tasks in flight
 	//
 	// Session title change payload containing the new display title
 	//
@@ -132,12 +132,12 @@ type SessionEvent struct {
 	//
 	// User input request notification with question and optional predefined choices
 	//
-	// User input request completion notification signaling UI dismissal
+	// User input request completion with the user's response
 	//
 	// Elicitation request; may be form-based (structured input) or URL-based (browser
 	// redirect)
 	//
-	// Elicitation request completion notification signaling UI dismissal
+	// Elicitation request completion with the user's response
 	//
 	// Sampling request from an MCP server; contains the server name and a requestId for
 	// correlation
@@ -164,7 +164,7 @@ type SessionEvent struct {
 	//
 	// Plan approval request with plan content and available user actions
 	//
-	// Plan mode exit completion notification signaling UI dismissal
+	// Plan mode exit completion with the user's approval decision and optional feedback
 	Data Data `json:"data"`
 	// When true, the event is transient and not persisted to the session event log on disk
 	Ephemeral *bool `json:"ephemeral,omitempty"`
@@ -186,7 +186,7 @@ type SessionEvent struct {
 //
 // # Error details for timeline display including message and optional diagnostic information
 //
-// Payload indicating the agent is idle; includes any background tasks still in flight
+// # Payload indicating the session is fully idle with no background tasks in flight
 //
 // # Session title change payload containing the new display title
 //
@@ -284,12 +284,12 @@ type SessionEvent struct {
 //
 // # User input request notification with question and optional predefined choices
 //
-// # User input request completion notification signaling UI dismissal
+// # User input request completion with the user's response
 //
 // Elicitation request; may be form-based (structured input) or URL-based (browser
 // redirect)
 //
-// # Elicitation request completion notification signaling UI dismissal
+// # Elicitation request completion with the user's response
 //
 // Sampling request from an MCP server; contains the server name and a requestId for
 // correlation
@@ -316,7 +316,7 @@ type SessionEvent struct {
 //
 // # Plan approval request with plan content and available user actions
 //
-// Plan mode exit completion notification signaling UI dismissal
+// Plan mode exit completion with the user's approval decision and optional feedback
 type Data struct {
 	// Whether the session was already in use by another client at start time
 	//
@@ -387,8 +387,6 @@ type Data struct {
 	URL *string `json:"url,omitempty"`
 	// True when the preceding agentic loop was cancelled via abort signal
 	Aborted *bool `json:"aborted,omitempty"`
-	// Background tasks still running when the agent became idle
-	BackgroundTasks *BackgroundTasks `json:"backgroundTasks,omitempty"`
 	// The new display title for the session
 	Title *string `json:"title,omitempty"`
 	// Category of informational message (e.g., "notification", "timing", "context_window",
@@ -611,7 +609,9 @@ type Data struct {
 	// The system or developer prompt text
 	//
 	// The notification text, typically wrapped in <system_notification> XML tags
-	Content *string `json:"content,omitempty"`
+	//
+	// The submitted form data when action is 'accept'; keys match the requested schema fields
+	Content *DataContent `json:"content"`
 	// CAPI interaction ID for correlating this user message with its turn
 	//
 	// CAPI interaction ID for correlating this turn with upstream telemetry
@@ -810,6 +810,10 @@ type Data struct {
 	Choices []string `json:"choices,omitempty"`
 	// The question or prompt to present to the user
 	Question *string `json:"question,omitempty"`
+	// The user's answer to the input request
+	Answer *string `json:"answer,omitempty"`
+	// Whether the answer was typed as free-form text rather than selected from choices
+	WasFreeform *bool `json:"wasFreeform,omitempty"`
 	// The source that initiated the request (MCP server name, or absent for agent-initiated)
 	ElicitationSource *string `json:"elicitationSource,omitempty"`
 	// Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to
@@ -817,6 +821,9 @@ type Data struct {
 	Mode *Mode `json:"mode,omitempty"`
 	// JSON Schema describing the form fields to present to the user (form mode only)
 	RequestedSchema *RequestedSchema `json:"requestedSchema,omitempty"`
+	// The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel"
+	// (dismissed)
+	Action *Action `json:"action,omitempty"`
 	// The JSON-RPC request ID from the MCP protocol
 	MCPRequestID *MCPRequestID `json:"mcpRequestId"`
 	// Name of the MCP server that initiated the sampling request
@@ -851,10 +858,18 @@ type Data struct {
 	PlanContent *string `json:"planContent,omitempty"`
 	// The recommended action for the user to take
 	RecommendedAction *string `json:"recommendedAction,omitempty"`
+	// Whether the plan was approved by the user
+	Approved *bool `json:"approved,omitempty"`
+	// Whether edits should be auto-approved without confirmation
+	AutoApproveEdits *bool `json:"autoApproveEdits,omitempty"`
+	// Free-form feedback from the user if they requested changes to the plan
+	Feedback *string `json:"feedback,omitempty"`
+	// Which action the user selected (e.g. 'autopilot', 'interactive', 'exit_only')
+	SelectedAction *string `json:"selectedAction,omitempty"`
 	// Array of resolved skill metadata
 	Skills []Skill `json:"skills,omitempty"`
 	// Array of loaded custom agent metadata
-	Agents []DataAgent `json:"agents,omitempty"`
+	Agents []Agent `json:"agents,omitempty"`
 	// Fatal errors from agent loading
 	Errors []string `json:"errors,omitempty"`
 	// Non-fatal warnings from agent loading
@@ -867,7 +882,7 @@ type Data struct {
 	Extensions []Extension `json:"extensions,omitempty"`
 }
 
-type DataAgent struct {
+type Agent struct {
 	// Description of what the agent does
 	Description string `json:"description"`
 	// Human-readable display name
@@ -962,32 +977,6 @@ type Start struct {
 	Character float64 `json:"character"`
 	// Start line number (0-based)
 	Line float64 `json:"line"`
-}
-
-// Background tasks still running when the agent became idle
-type BackgroundTasks struct {
-	// Currently running background agents
-	Agents []BackgroundTasksAgent `json:"agents"`
-	// Currently running background shell commands
-	Shells []Shell `json:"shells"`
-}
-
-// A background agent task
-type BackgroundTasksAgent struct {
-	// Unique identifier of the background agent
-	AgentID string `json:"agentId"`
-	// Type of the background agent
-	AgentType string `json:"agentType"`
-	// Human-readable description of the agent task
-	Description *string `json:"description,omitempty"`
-}
-
-// A background shell command
-type Shell struct {
-	// Human-readable description of the shell command
-	Description *string `json:"description,omitempty"`
-	// Unique identifier of the background shell
-	ShellID string `json:"shellId"`
 }
 
 // Aggregate code change metrics for the session
@@ -1281,7 +1270,7 @@ type Result struct {
 	Content *string `json:"content,omitempty"`
 	// Structured content blocks (text, images, audio, resources) returned by the tool in their
 	// native format
-	Contents []Content `json:"contents,omitempty"`
+	Contents []ContentElement `json:"contents,omitempty"`
 	// Full detailed tool result for UI/timeline display, preserving complete content such as
 	// diffs. Falls back to content when absent.
 	DetailedContent *string `json:"detailedContent,omitempty"`
@@ -1303,7 +1292,7 @@ type Result struct {
 // # Resource link content block referencing an external resource
 //
 // Embedded resource content block with inline text or binary data
-type Content struct {
+type ContentElement struct {
 	// The text content
 	//
 	// Terminal/shell output text
@@ -1424,6 +1413,16 @@ type UI struct {
 	// Whether elicitation is now supported
 	Elicitation *bool `json:"elicitation,omitempty"`
 }
+
+// The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel"
+// (dismissed)
+type Action string
+
+const (
+	ActionAccept  Action = "accept"
+	ActionCancel  Action = "cancel"
+	ActionDecline Action = "decline"
+)
 
 // The agent mode that was active when this message was sent
 type AgentMode string
@@ -1692,6 +1691,48 @@ const (
 	SessionEventTypeUserInputRequested            SessionEventType = "user_input.requested"
 	SessionEventTypeUserMessage                   SessionEventType = "user.message"
 )
+
+type DataContent struct {
+	String   *string
+	UnionMap map[string]*ContentValue
+}
+
+func (x *DataContent) UnmarshalJSON(data []byte) error {
+	x.UnionMap = nil
+	object, err := unmarshalUnion(data, nil, nil, nil, &x.String, false, nil, false, nil, true, &x.UnionMap, false, nil, false)
+	if err != nil {
+		return err
+	}
+	if object {
+	}
+	return nil
+}
+
+func (x *DataContent) MarshalJSON() ([]byte, error) {
+	return marshalUnion(nil, nil, nil, x.String, false, nil, false, nil, x.UnionMap != nil, x.UnionMap, false, nil, false)
+}
+
+type ContentValue struct {
+	Bool        *bool
+	Double      *float64
+	String      *string
+	StringArray []string
+}
+
+func (x *ContentValue) UnmarshalJSON(data []byte) error {
+	x.StringArray = nil
+	object, err := unmarshalUnion(data, nil, &x.Double, &x.Bool, &x.String, true, &x.StringArray, false, nil, false, nil, false, nil, false)
+	if err != nil {
+		return err
+	}
+	if object {
+	}
+	return nil
+}
+
+func (x *ContentValue) MarshalJSON() ([]byte, error) {
+	return marshalUnion(nil, x.Double, x.Bool, x.String, x.StringArray != nil, x.StringArray, false, nil, false, nil, false, nil, false)
+}
 
 type ContextUnion struct {
 	ContextClass *ContextClass

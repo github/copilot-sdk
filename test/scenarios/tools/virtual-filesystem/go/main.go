@@ -111,7 +111,7 @@ func main() {
 	}
 
 	if response != nil && response.Data.Content != nil {
-		fmt.Println(*response.Data.Content)
+		fmt.Println(*response.Data.Content.String)
 	}
 
 	// Dump the virtual filesystem to prove nothing touched disk

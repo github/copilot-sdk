@@ -56,7 +56,7 @@ func main() {
 		}
 		if response != nil && response.Data.Content != nil {
 			fmt.Printf("Q: %s\n", prompt)
-			fmt.Printf("A: %s\n\n", *response.Data.Content)
+			fmt.Printf("A: %s\n\n", *response.Data.Content.String)
 		}
 	}
 

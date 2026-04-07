@@ -38,7 +38,7 @@ func main() {
 	}
 
 	if response1 != nil && response1.Data.Content != nil {
-		fmt.Println(*response1.Data.Content)
+		fmt.Println(*response1.Data.Content.String)
 	} else {
 		log.Fatal("No response content received for session 1")
 	}
@@ -64,7 +64,7 @@ func main() {
 	}
 
 	if response2 != nil && response2.Data.Content != nil {
-		fmt.Println(*response2.Data.Content)
+		fmt.Println(*response2.Data.Content.String)
 	} else {
 		log.Fatal("No response content received for session 2")
 	}

@@ -81,7 +81,7 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if response != nil && response.Data.Content != nil {
-		writeJSON(w, http.StatusOK, chatResponse{Response: *response.Data.Content})
+		writeJSON(w, http.StatusOK, chatResponse{Response: *response.Data.Content.String})
 	} else {
 		writeJSON(w, http.StatusBadGateway, chatResponse{Error: "No response content from Copilot CLI"})
 	}

@@ -43,7 +43,7 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
-		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "ELIZA") {
+		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content.String, "ELIZA") {
 			t.Errorf("Expected answer to contain 'ELIZA', got %v", answer.Data.Content)
 		}
 	})
@@ -78,7 +78,7 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
-		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "HELLO") {
+		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content.String, "HELLO") {
 			t.Errorf("Expected answer to contain 'HELLO', got %v", answer.Data.Content)
 		}
 	})
@@ -162,10 +162,10 @@ func TestTools(t *testing.T) {
 		}
 
 		// The assistant should not see the exception information
-		if answer.Data.Content != nil && strings.Contains(*answer.Data.Content, "Melbourne") {
-			t.Errorf("Assistant should not see error details 'Melbourne', got '%s'", *answer.Data.Content)
+		if answer.Data.Content != nil && strings.Contains(*answer.Data.Content.String, "Melbourne") {
+			t.Errorf("Assistant should not see error details 'Melbourne', got '%s'", *answer.Data.Content.String)
 		}
-		if answer.Data.Content == nil || !strings.Contains(strings.ToLower(*answer.Data.Content), "unknown") {
+		if answer.Data.Content == nil || !strings.Contains(strings.ToLower(*answer.Data.Content.String), "unknown") {
 			t.Errorf("Expected answer to contain 'unknown', got %v", answer.Data.Content)
 		}
 	})
@@ -236,7 +236,7 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Expected assistant message with content")
 		}
 
-		responseContent := *answer.Data.Content
+		responseContent := *answer.Data.Content.String
 		if responseContent == "" {
 			t.Errorf("Expected non-empty response")
 		}
@@ -301,7 +301,7 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
-		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "RESULT: test123") {
+		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content.String, "RESULT: test123") {
 			t.Errorf("Expected answer to contain 'RESULT: test123', got %v", answer.Data.Content)
 		}
 
@@ -343,7 +343,7 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
-		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "CUSTOM_GREP_RESULT") {
+		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content.String, "CUSTOM_GREP_RESULT") {
 			t.Errorf("Expected answer to contain 'CUSTOM_GREP_RESULT', got %v", answer.Data.Content)
 		}
 	})
@@ -386,7 +386,7 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
-		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "HELLO") {
+		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content.String, "HELLO") {
 			t.Errorf("Expected answer to contain 'HELLO', got %v", answer.Data.Content)
 		}
 

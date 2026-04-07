@@ -161,7 +161,7 @@ func TestStreamingFidelity(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to send follow-up message: %v", err)
 		}
-		if answer == nil || answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "18") {
+		if answer == nil || answer.Data.Content == nil || !strings.Contains(*answer.Data.Content.String, "18") {
 			t.Errorf("Expected answer to contain '18', got %v", answer)
 		}
 
