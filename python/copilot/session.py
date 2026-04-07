@@ -25,7 +25,6 @@ from .generated.rpc import (
     Action,
     Kind,
     Level,
-    ModelCapabilitiesOverride as _RpcModelCapabilitiesOverride,
     Property,
     PropertyType,
     RequestedSchema,
@@ -41,6 +40,9 @@ from .generated.rpc import (
     SessionUIElicitationParams,
     SessionUIHandlePendingElicitationParams,
     SessionUIHandlePendingElicitationParamsResult,
+)
+from .generated.rpc import (
+    ModelCapabilitiesOverride as _RpcModelCapabilitiesOverride,
 )
 from .generated.session_events import (
     PermissionRequest,

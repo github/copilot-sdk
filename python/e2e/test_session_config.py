@@ -60,7 +60,7 @@ class TestSessionConfig:
         # Turn 2: vision on — image_url expected in new exchanges
         await session.send_and_wait(VIEW_IMAGE_PROMPT)
         traffic_after_t2 = await ctx.get_exchanges()
-        new_exchanges = traffic_after_t2[len(traffic_after_t1):]
+        new_exchanges = traffic_after_t2[len(traffic_after_t1) :]
         assert has_image_url_content(new_exchanges)
 
         await session.disconnect()
@@ -93,7 +93,7 @@ class TestSessionConfig:
         # Turn 2: vision off — no image_url expected in new exchanges
         await session.send_and_wait(VIEW_IMAGE_PROMPT)
         traffic_after_t2 = await ctx.get_exchanges()
-        new_exchanges = traffic_after_t2[len(traffic_after_t1):]
+        new_exchanges = traffic_after_t2[len(traffic_after_t1) :]
         assert not has_image_url_content(new_exchanges)
 
         await session.disconnect()

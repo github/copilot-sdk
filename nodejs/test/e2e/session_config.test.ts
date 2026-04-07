@@ -78,16 +78,17 @@ describe("Session Configuration", async () => {
 
     const PNG_1X1 = Buffer.from(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-        "base64",
+        "base64"
     );
-    const VIEW_IMAGE_PROMPT = "Use the view tool to look at the file test.png and describe what you see";
+    const VIEW_IMAGE_PROMPT =
+        "Use the view tool to look at the file test.png and describe what you see";
 
     function hasImageUrlContent(messages: Array<{ role: string; content: unknown }>): boolean {
         return messages.some(
             (m) =>
                 m.role === "user" &&
                 Array.isArray(m.content) &&
-                m.content.some((p: { type: string }) => p.type === "image_url"),
+                m.content.some((p: { type: string }) => p.type === "image_url")
         );
     }
 

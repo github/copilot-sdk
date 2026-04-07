@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using System.Linq;
 using System.Text.Json;
 using GitHub.Copilot.SDK.Rpc;
 using GitHub.Copilot.SDK.Test.Harness;
@@ -104,25 +105,11 @@ public class SessionConfigTests(E2ETestFixture fixture, ITestOutputHelper output
     /// </summary>
     private static bool HasImageUrlContent(List<ChatCompletionMessage> messages)
     {
-        foreach (var message in messages)
-        {
-            if (message.Role != "user" || message.Content is not { } content)
-                continue;
-
-            if (content.ValueKind != JsonValueKind.Array)
-                continue;
-
-            foreach (var part in content.EnumerateArray())
-            {
-                if (part.TryGetProperty("type", out var typeProp) &&
-                    typeProp.ValueKind == JsonValueKind.String &&
-                    typeProp.GetString() == "image_url")
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return messages
+            .Where(m => m.Role == "user" && m.Content is { ValueKind: JsonValueKind.Array })
+            .Any(m => m.Content!.Value.EnumerateArray().Any(part =>
+                part.TryGetProperty("type", out var typeProp) &&
+                typeProp.ValueKind == JsonValueKind.String &&
+                typeProp.GetString() == "image_url"));
     }
 }

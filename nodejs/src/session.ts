@@ -1032,7 +1032,10 @@ export class CopilotSession {
      */
     async setModel(
         model: string,
-        options?: { reasoningEffort?: ReasoningEffort; modelCapabilities?: ModelCapabilitiesOverride },
+        options?: {
+            reasoningEffort?: ReasoningEffort;
+            modelCapabilities?: ModelCapabilitiesOverride;
+        }
     ): Promise<void> {
         await this.rpc.model.switchTo({ modelId: model, ...options });
     }
