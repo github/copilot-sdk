@@ -16,7 +16,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     [Fact]
     public async Task ShouldCreateAndDisconnectSessions()
     {
-        var session = await CreateSessionAsync(new SessionConfig { Model = "fake-test-model" });
+        var session = await CreateSessionAsync(new SessionConfig { Model = "claude-sonnet-4.5" });
 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
 
