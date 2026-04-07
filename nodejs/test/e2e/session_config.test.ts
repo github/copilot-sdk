@@ -44,16 +44,21 @@ describe("Session Configuration", async () => {
     });
 
     it("should accept blob attachments", async () => {
+        // Write the image to disk so the model can view it if it tries
+        const pngBase64 =
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+        await writeFile(join(workDir, "pixel.png"), Buffer.from(pngBase64, "base64"));
+
         const session = await client.createSession({ onPermissionRequest: approveAll });
 
         await session.sendAndWait({
-            prompt: "Describe this image",
+            prompt: "What color is this pixel? Reply in one word.",
             attachments: [
                 {
                     type: "blob",
-                    data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                    data: pngBase64,
                     mimeType: "image/png",
-                    displayName: "test-pixel.png",
+                    displayName: "pixel.png",
                 },
             ],
         });
