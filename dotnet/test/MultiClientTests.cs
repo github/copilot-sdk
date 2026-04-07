@@ -170,6 +170,9 @@ public class MultiClientTests : IClassFixture<MultiClientTestFixture>, IAsyncLif
         var client1Events = new ConcurrentBag<SessionEvent>();
         var client2Events = new ConcurrentBag<SessionEvent>();
 
+        // Wait for PermissionCompletedEvent on client2 which may arrive slightly after session1 goes idle
+        var client2PermissionCompleted = TestHelper.GetNextEventOfTypeAsync<PermissionCompletedEvent>(session2);
+
         using var sub1 = session1.On(evt => client1Events.Add(evt));
         using var sub2 = session2.On(evt => client2Events.Add(evt));
 
@@ -180,6 +183,8 @@ public class MultiClientTests : IClassFixture<MultiClientTestFixture>, IAsyncLif
 
         Assert.NotNull(response);
         Assert.NotEmpty(client1PermissionRequests);
+
+        await client2PermissionCompleted;
 
         Assert.Contains(client1Events, e => e is PermissionRequestedEvent);
         Assert.Contains(client2Events, e => e is PermissionRequestedEvent);
