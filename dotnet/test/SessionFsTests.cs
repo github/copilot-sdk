@@ -45,7 +45,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
         }
         finally
         {
-            TryDeleteDirectory(providerRoot);
+            await TryDeleteDirectoryAsync(providerRoot);
         }
     }
 
@@ -84,7 +84,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
         }
         finally
         {
-            TryDeleteDirectory(providerRoot);
+            await TryDeleteDirectoryAsync(providerRoot);
         }
     }
 
@@ -133,7 +133,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
         }
         finally
         {
-            TryDeleteDirectory(providerRoot);
+            await TryDeleteDirectoryAsync(providerRoot);
         }
     }
 
@@ -174,10 +174,11 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
 
             var fileContent = await ReadAllTextSharedAsync(GetStoredPath(providerRoot, session.SessionId, match.Groups[1].Value));
             Assert.Equal(suppliedFileContent, fileContent);
+            await session.DisposeAsync();
         }
         finally
         {
-            TryDeleteDirectory(providerRoot);
+            await TryDeleteDirectoryAsync(providerRoot);
         }
     }
 
@@ -222,7 +223,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
         }
         finally
         {
-            TryDeleteDirectory(providerRoot);
+            await TryDeleteDirectoryAsync(providerRoot);
         }
     }
 
@@ -310,11 +311,43 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
         return await reader.ReadToEndAsync(cancellationToken);
     }
 
-    private static void TryDeleteDirectory(string path)
+    private static async Task TryDeleteDirectoryAsync(string path)
     {
-        if (Directory.Exists(path))
+        if (!Directory.Exists(path))
         {
-            Directory.Delete(path, recursive: true);
+            return;
+        }
+
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        Exception? lastException = null;
+
+        while (DateTime.UtcNow < deadline)
+        {
+            try
+            {
+                if (!Directory.Exists(path))
+                {
+                    return;
+                }
+
+                Directory.Delete(path, recursive: true);
+                return;
+            }
+            catch (IOException ex)
+            {
+                lastException = ex;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                lastException = ex;
+            }
+
+            await Task.Delay(100);
+        }
+
+        if (lastException is not null)
+        {
+            throw lastException;
         }
     }
 
