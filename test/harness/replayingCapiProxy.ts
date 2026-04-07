@@ -341,6 +341,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
             state.testInfo,
             state.workDir,
             state.toolResultNormalizers,
+            state.storedData,
           );
           return;
         }
@@ -380,30 +381,54 @@ async function exitWithNoMatchingRequestError(
   testInfo: { file: string; line?: number } | undefined,
   workDir: string,
   toolResultNormalizers: ToolResultNormalizer[],
+  storedData?: NormalizedData,
 ) {
   const parts: string[] = [];
   if (testInfo?.file) parts.push(`file=${testInfo.file}`);
   if (typeof testInfo?.line === "number") parts.push(`line=${testInfo.line}`);
   const header = parts.length ? ` ${parts.join(",")}` : "";
 
-  let finalMessageInfo: string;
+  let diagnostics = "";
   try {
     const normalized = await parseAndNormalizeRequest(
       options.body,
       workDir,
       toolResultNormalizers,
     );
-    const normalizedMessages = normalized.conversations[0]?.messages ?? [];
-    finalMessageInfo = JSON.stringify(
-      normalizedMessages[normalizedMessages.length - 1],
-    );
-  } catch {
-    finalMessageInfo = `(unable to parse request body: ${options.body?.slice(0, 200) ?? "empty"})`;
+    const requestMessages = normalized.conversations[0]?.messages ?? [];
+
+    diagnostics += `Request has ${requestMessages.length} messages.\n`;
+
+    if (storedData) {
+      for (let c = 0; c < storedData.conversations.length; c++) {
+        const saved = storedData.conversations[c].messages;
+        diagnostics += `Conversation ${c} has ${saved.length} messages. `;
+        if (requestMessages.length >= saved.length) {
+          diagnostics += `Skipped: request (${requestMessages.length}) >= saved (${saved.length}).\n`;
+          continue;
+        }
+        let mismatchAt = -1;
+        for (let i = 0; i < requestMessages.length; i++) {
+          const reqMsg = JSON.stringify(requestMessages[i]);
+          const savedMsg = JSON.stringify(saved[i]);
+          if (reqMsg !== savedMsg) {
+            mismatchAt = i;
+            diagnostics += `Mismatch at message ${i}:\n  request: ${reqMsg.slice(0, 200)}\n  saved:   ${savedMsg.slice(0, 200)}\n`;
+            break;
+          }
+        }
+        if (mismatchAt === -1) {
+          const nextRole = saved[requestMessages.length]?.role;
+          diagnostics += `Prefix matched but next message role is "${nextRole}" (need "assistant").\n`;
+        }
+      }
+    }
+  } catch (e) {
+    diagnostics = `(unable to parse request: ${e})`;
   }
 
   const errorMessage =
-    `No cached response found for ${options.requestOptions.method} ${options.requestOptions.path}. ` +
-    `Final message: ${finalMessageInfo}`;
+    `No cached response found for ${options.requestOptions.method} ${options.requestOptions.path}.\n${diagnostics}`;
   process.stderr.write(`::error${header}::${errorMessage}\n`);
   options.onError(new Error(errorMessage));
 }
