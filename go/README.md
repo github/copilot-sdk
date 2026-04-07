@@ -369,6 +369,62 @@ safeLookup := copilot.DefineTool("safe_lookup", "A read-only lookup that needs n
 safeLookup.SkipPermission = true
 ```
 
+### Custom Tools with Subagents
+
+When a session is configured with both custom tools and custom agents (subagents), the
+subagents can invoke the parent session's custom tools. The SDK automatically routes
+tool calls from child sessions back to the parent session's tool handlers.
+
+#### Tool Access Control
+
+The `Tools` field on `CustomAgentConfig` controls which custom tools each subagent can access:
+
+| `Tools` value | Behavior |
+|---------------|----------|
+| `nil` (default) | Subagent can access **all** custom tools registered on the parent session |
+| `[]string{}` (empty) | Subagent cannot access **any** custom tools |
+| `[]string{"tool_a", "tool_b"}` | Subagent can only access the listed tools |
+
+#### Example
+
+```go
+session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+    Tools: []copilot.Tool{
+        copilot.DefineTool("save_output", "Saves output to storage",
+            func(params SaveParams, inv copilot.ToolInvocation) (string, error) {
+                // Handle tool call — works for both direct and subagent invocations
+                return saveToStorage(params.Content)
+            }),
+        copilot.DefineTool("get_data", "Retrieves data from storage",
+            func(params GetParams, inv copilot.ToolInvocation) (string, error) {
+                return getData(params.Key)
+            }),
+    },
+    CustomAgents: []copilot.CustomAgentConfig{
+        {
+            Name:        "researcher",
+            Description: "Researches topics and saves findings",
+            Tools:       []string{"save_output"}, // Can only use save_output, not get_data
+            Prompt:      "You are a research assistant. Save your findings using save_output.",
+        },
+        {
+            Name:        "analyst",
+            Description: "Analyzes data from storage",
+            Tools:       nil, // Can access ALL custom tools
+            Prompt:      "You are a data analyst.",
+        },
+    },
+})
+```
+
+When `researcher` is invoked as a subagent, it can call `save_output` but not `get_data`.
+When `analyst` is invoked, it can call both tools. If a subagent attempts to use a tool
+not in its allowlist, the SDK returns a `"Tool '{name}' is not supported by this client instance."` response to the LLM.
+
+> **Tool advertisement:** When custom agents reference tools via the `Tools` allowlist, the SDK automatically includes full tool definitions (`ToolDefinitions`) in the agent configuration sent to the CLI. This enables the CLI to propagate custom tool metadata to child sessions.
+>
+> **Protocol v3 enforcement:** Protocol v3 broadcast tool events from child sessions are subject to the same allowlist enforcement as Protocol v2 RPC tool calls.
+
 ## Streaming
 
 Enable streaming to receive assistant response chunks as they're generated:

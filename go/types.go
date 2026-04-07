@@ -410,6 +410,10 @@ type CustomAgentConfig struct {
 	Description string `json:"description,omitempty"`
 	// Tools is the list of tool names the agent can use (nil for all tools)
 	Tools []string `json:"tools,omitempty"`
+	// ToolDefinitions holds full tool definitions for tools listed in Tools.
+	// Auto-populated by the SDK when creating/resuming sessions.
+	// The CLI can use these definitions to set up custom tools on child sessions.
+	ToolDefinitions []Tool `json:"toolDefinitions,omitempty"`
 	// Prompt is the prompt content for the agent
 	Prompt string `json:"prompt"`
 	// MCPServers are MCP servers specific to this agent
