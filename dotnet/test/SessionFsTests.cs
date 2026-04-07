@@ -121,7 +121,13 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
             }
             finally
             {
-                await client2.ForceStopAsync();
+                try
+                {
+                    await client2.ForceStopAsync();
+                }
+                catch (IOException)
+                {
+                }
             }
         }
         finally
