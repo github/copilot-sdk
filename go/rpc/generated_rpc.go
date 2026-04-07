@@ -961,7 +961,7 @@ const (
 	FormatDate     Format = "date"
 	FormatDateTime Format = "date-time"
 	FormatEmail    Format = "email"
-	FormatUri      Format = "uri"
+	FormatURI      Format = "uri"
 )
 
 type ItemsType string
@@ -1654,9 +1654,9 @@ func (a *CommandsApi) HandlePendingCommand(ctx context.Context, params *SessionC
 	return &result, nil
 }
 
-type UiApi sessionApi
+type UIApi sessionApi
 
-func (a *UiApi) Elicitation(ctx context.Context, params *SessionUIElicitationParams) (*SessionUIElicitationResult, error) {
+func (a *UIApi) Elicitation(ctx context.Context, params *SessionUIElicitationParams) (*SessionUIElicitationResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["message"] = params.Message
@@ -1673,7 +1673,7 @@ func (a *UiApi) Elicitation(ctx context.Context, params *SessionUIElicitationPar
 	return &result, nil
 }
 
-func (a *UiApi) HandlePendingElicitation(ctx context.Context, params *SessionUIHandlePendingElicitationParams) (*SessionUIHandlePendingElicitationResult, error) {
+func (a *UIApi) HandlePendingElicitation(ctx context.Context, params *SessionUIHandlePendingElicitationParams) (*SessionUIHandlePendingElicitationResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["requestId"] = params.RequestID
@@ -1769,7 +1769,7 @@ type SessionRpc struct {
 	Compaction  *CompactionApi
 	Tools       *ToolsApi
 	Commands    *CommandsApi
-	Ui          *UiApi
+	UI          *UIApi
 	Permissions *PermissionsApi
 	Shell       *ShellApi
 }
@@ -1815,7 +1815,7 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 	r.Compaction = (*CompactionApi)(&r.common)
 	r.Tools = (*ToolsApi)(&r.common)
 	r.Commands = (*CommandsApi)(&r.common)
-	r.Ui = (*UiApi)(&r.common)
+	r.UI = (*UIApi)(&r.common)
 	r.Permissions = (*PermissionsApi)(&r.common)
 	r.Shell = (*ShellApi)(&r.common)
 	return r

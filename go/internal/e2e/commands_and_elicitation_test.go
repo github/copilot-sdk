@@ -77,11 +77,12 @@ func TestCommands(t *testing.T) {
 
 		select {
 		case event := <-commandsChangedCh:
-			if len(event.Data.Commands) == 0 {
+			d, ok := event.Data.(*copilot.CommandsChangedData)
+			if !ok || len(d.Commands) == 0 {
 				t.Errorf("Expected commands in commands.changed event")
 			} else {
 				found := false
-				for _, cmd := range event.Data.Commands {
+				for _, cmd := range d.Commands {
 					if cmd.Name == "deploy" {
 						found = true
 						if cmd.Description == nil || *cmd.Description != "Deploy the app" {
@@ -91,7 +92,7 @@ func TestCommands(t *testing.T) {
 					}
 				}
 				if !found {
-					t.Errorf("Expected 'deploy' command in commands.changed event, got %+v", event.Data.Commands)
+					t.Errorf("Expected 'deploy' command in commands.changed event, got %+v", d.Commands)
 				}
 			}
 		case <-time.After(30 * time.Second):
@@ -234,7 +235,7 @@ func TestUIElicitationMultiClient(t *testing.T) {
 		capEnabledCh := make(chan copilot.SessionEvent, 1)
 		unsubscribe := session1.On(func(event copilot.SessionEvent) {
 			if event.Type == copilot.SessionEventTypeCapabilitiesChanged {
-				if event.Data.UI != nil && event.Data.UI.Elicitation != nil && *event.Data.UI.Elicitation {
+				if d, ok := event.Data.(*copilot.CapabilitiesChangedData); ok && d.UI != nil && d.UI.Elicitation != nil && *d.UI.Elicitation {
 					select {
 					case capEnabledCh <- event:
 					default:
@@ -262,8 +263,9 @@ func TestUIElicitationMultiClient(t *testing.T) {
 		// Wait for the elicitation-enabled capabilities.changed event
 		select {
 		case capEvent := <-capEnabledCh:
-			if capEvent.Data.UI == nil || capEvent.Data.UI.Elicitation == nil || !*capEvent.Data.UI.Elicitation {
-				t.Errorf("Expected capabilities.changed with ui.elicitation=true, got %+v", capEvent.Data.UI)
+			capData, capOk := capEvent.Data.(*copilot.CapabilitiesChangedData)
+			if !capOk || capData.UI == nil || capData.UI.Elicitation == nil || !*capData.UI.Elicitation {
+				t.Errorf("Expected capabilities.changed with ui.elicitation=true, got %+v", capEvent.Data)
 			}
 		case <-time.After(30 * time.Second):
 			t.Fatal("Timed out waiting for capabilities.changed event (elicitation enabled)")
@@ -295,7 +297,7 @@ func TestUIElicitationMultiClient(t *testing.T) {
 		capEnabledCh := make(chan struct{}, 1)
 		unsubEnabled := session1.On(func(event copilot.SessionEvent) {
 			if event.Type == copilot.SessionEventTypeCapabilitiesChanged {
-				if event.Data.UI != nil && event.Data.UI.Elicitation != nil && *event.Data.UI.Elicitation {
+				if d, ok := event.Data.(*copilot.CapabilitiesChangedData); ok && d.UI != nil && d.UI.Elicitation != nil && *d.UI.Elicitation {
 					select {
 					case capEnabledCh <- struct{}{}:
 					default:
@@ -334,7 +336,7 @@ func TestUIElicitationMultiClient(t *testing.T) {
 		capDisabledCh := make(chan struct{}, 1)
 		unsubDisabled := session1.On(func(event copilot.SessionEvent) {
 			if event.Type == copilot.SessionEventTypeCapabilitiesChanged {
-				if event.Data.UI != nil && event.Data.UI.Elicitation != nil && !*event.Data.UI.Elicitation {
+				if d, ok := event.Data.(*copilot.CapabilitiesChangedData); ok && d.UI != nil && d.UI.Elicitation != nil && !*d.UI.Elicitation {
 					select {
 					case capDisabledCh <- struct{}{}:
 					default:

@@ -402,8 +402,8 @@ func TestSession_Capabilities(t *testing.T) {
 		elicitTrue := true
 		session.dispatchEvent(SessionEvent{
 			Type: SessionEventTypeCapabilitiesChanged,
-			Data: Data{
-				UI: &UI{Elicitation: &elicitTrue},
+			Data: &CapabilitiesChangedData{
+				UI: &CapabilitiesChangedDataUI{Elicitation: &elicitTrue},
 			},
 		})
 
@@ -419,8 +419,8 @@ func TestSession_Capabilities(t *testing.T) {
 		elicitFalse := false
 		session.dispatchEvent(SessionEvent{
 			Type: SessionEventTypeCapabilitiesChanged,
-			Data: Data{
-				UI: &UI{Elicitation: &elicitFalse},
+			Data: &CapabilitiesChangedData{
+				UI: &CapabilitiesChangedDataUI{Elicitation: &elicitFalse},
 			},
 		})
 

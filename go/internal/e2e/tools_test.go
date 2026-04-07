@@ -43,8 +43,8 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
-		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "ELIZA") {
-			t.Errorf("Expected answer to contain 'ELIZA', got %v", answer.Data.Content)
+		if md, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, "ELIZA") {
+			t.Errorf("Expected answer to contain 'ELIZA', got %v", answer.Data)
 		}
 	})
 
@@ -78,8 +78,8 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
-		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "HELLO") {
-			t.Errorf("Expected answer to contain 'HELLO', got %v", answer.Data.Content)
+		if md, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, "HELLO") {
+			t.Errorf("Expected answer to contain 'HELLO', got %v", answer.Data)
 		}
 	})
 
@@ -162,11 +162,11 @@ func TestTools(t *testing.T) {
 		}
 
 		// The assistant should not see the exception information
-		if answer.Data.Content != nil && strings.Contains(*answer.Data.Content, "Melbourne") {
-			t.Errorf("Assistant should not see error details 'Melbourne', got '%s'", *answer.Data.Content)
+		if md, ok := answer.Data.(*copilot.AssistantMessageData); ok && strings.Contains(md.Content, "Melbourne") {
+			t.Errorf("Assistant should not see error details 'Melbourne', got '%s'", md.Content)
 		}
-		if answer.Data.Content == nil || !strings.Contains(strings.ToLower(*answer.Data.Content), "unknown") {
-			t.Errorf("Expected answer to contain 'unknown', got %v", answer.Data.Content)
+		if md, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(strings.ToLower(md.Content), "unknown") {
+			t.Errorf("Expected answer to contain 'unknown', got %v", answer.Data)
 		}
 	})
 
@@ -232,11 +232,12 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
-		if answer == nil || answer.Data.Content == nil {
+		ad, ok := answer.Data.(*copilot.AssistantMessageData)
+		if answer == nil || !ok {
 			t.Fatalf("Expected assistant message with content")
 		}
 
-		responseContent := *answer.Data.Content
+		responseContent := ad.Content
 		if responseContent == "" {
 			t.Errorf("Expected non-empty response")
 		}
@@ -301,8 +302,8 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
-		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "RESULT: test123") {
-			t.Errorf("Expected answer to contain 'RESULT: test123', got %v", answer.Data.Content)
+		if md, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, "RESULT: test123") {
+			t.Errorf("Expected answer to contain 'RESULT: test123', got %v", answer.Data)
 		}
 
 		if didRunPermissionRequest {
@@ -343,8 +344,8 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
-		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "CUSTOM_GREP_RESULT") {
-			t.Errorf("Expected answer to contain 'CUSTOM_GREP_RESULT', got %v", answer.Data.Content)
+		if md, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, "CUSTOM_GREP_RESULT") {
+			t.Errorf("Expected answer to contain 'CUSTOM_GREP_RESULT', got %v", answer.Data)
 		}
 	})
 
@@ -386,8 +387,8 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
-		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "HELLO") {
-			t.Errorf("Expected answer to contain 'HELLO', got %v", answer.Data.Content)
+		if md, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, "HELLO") {
+			t.Errorf("Expected answer to contain 'HELLO', got %v", answer.Data)
 		}
 
 		// Should have received a custom-tool permission request

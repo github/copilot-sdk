@@ -12,6 +12,7 @@ import type { JSONSchema7 } from "json-schema";
 import { FetchingJSONSchemaStore, InputData, JSONSchemaInput, quicktype } from "quicktype-core";
 import { promisify } from "util";
 import {
+    EXCLUDED_EVENT_TYPES,
     getApiSchemaPath,
     getSessionEventsSchemaPath,
     isNodeFullyExperimental,
@@ -27,7 +28,7 @@ const execFileAsync = promisify(execFile);
 // ── Utilities ───────────────────────────────────────────────────────────────
 
 // Go initialisms that should be all-caps
-const goInitialisms = new Set(["id", "url", "api", "http", "https", "json", "xml", "html", "css", "sql", "ssh", "tcp", "udp", "ip", "rpc"]);
+const goInitialisms = new Set(["id", "ui", "uri", "url", "api", "http", "https", "json", "xml", "html", "css", "sql", "ssh", "tcp", "udp", "ip", "rpc", "mime"]);
 
 function toPascalCase(s: string): string {
     return s
@@ -137,34 +138,651 @@ function collectRpcMethods(node: Record<string, unknown>): RpcMethod[] {
     return results;
 }
 
-// ── Session Events ──────────────────────────────────────────────────────────
+// ── Session Events (custom codegen — per-event-type data structs) ───────────
+
+interface GoEventVariant {
+    typeName: string;
+    dataClassName: string;
+    dataSchema: JSONSchema7;
+    dataDescription?: string;
+}
+
+interface GoCodegenCtx {
+    structs: string[];
+    enums: string[];
+    enumsByValues: Map<string, string>; // sorted-values-key → enumName
+    generatedNames: Set<string>;
+}
+
+function extractGoEventVariants(schema: JSONSchema7): GoEventVariant[] {
+    const sessionEvent = schema.definitions?.SessionEvent as JSONSchema7;
+    if (!sessionEvent?.anyOf) throw new Error("Schema must have SessionEvent definition with anyOf");
+
+    return (sessionEvent.anyOf as JSONSchema7[])
+        .map((variant) => {
+            if (typeof variant !== "object" || !variant.properties) throw new Error("Invalid variant");
+            const typeSchema = variant.properties.type as JSONSchema7;
+            const typeName = typeSchema?.const as string;
+            if (!typeName) throw new Error("Variant must have type.const");
+            const dataSchema = (variant.properties.data as JSONSchema7) || {};
+            return {
+                typeName,
+                dataClassName: `${toPascalCase(typeName)}Data`,
+                dataSchema,
+                dataDescription: dataSchema.description,
+            };
+        })
+        .filter((v) => !EXCLUDED_EVENT_TYPES.has(v.typeName));
+}
+
+/**
+ * Find a const-valued discriminator property shared by all anyOf variants.
+ */
+function findGoDiscriminator(
+    variants: JSONSchema7[]
+): { property: string; mapping: Map<string, JSONSchema7> } | null {
+    if (variants.length === 0) return null;
+    const firstVariant = variants[0];
+    if (!firstVariant.properties) return null;
+
+    for (const [propName, propSchema] of Object.entries(firstVariant.properties)) {
+        if (typeof propSchema !== "object") continue;
+        if ((propSchema as JSONSchema7).const === undefined) continue;
+
+        const mapping = new Map<string, JSONSchema7>();
+        let valid = true;
+        for (const variant of variants) {
+            if (!variant.properties) { valid = false; break; }
+            const vp = variant.properties[propName];
+            if (typeof vp !== "object" || (vp as JSONSchema7).const === undefined) { valid = false; break; }
+            mapping.set(String((vp as JSONSchema7).const), variant);
+        }
+        if (valid && mapping.size === variants.length) {
+            return { property: propName, mapping };
+        }
+    }
+    return null;
+}
+
+/**
+ * Get or create a Go enum type, deduplicating by value set.
+ */
+function getOrCreateGoEnum(
+    enumName: string,
+    values: string[],
+    ctx: GoCodegenCtx,
+    description?: string
+): string {
+    const valuesKey = [...values].sort().join("|");
+    const existing = ctx.enumsByValues.get(valuesKey);
+    if (existing) return existing;
+
+    const lines: string[] = [];
+    if (description) {
+        for (const line of description.split(/\r?\n/)) {
+            lines.push(`// ${line}`);
+        }
+    }
+    lines.push(`type ${enumName} string`);
+    lines.push(``);
+    lines.push(`const (`);
+    for (const value of values) {
+        const constSuffix = value
+            .split(/[-_.]/)
+            .map((w) =>
+                goInitialisms.has(w.toLowerCase())
+                    ? w.toUpperCase()
+                    : w.charAt(0).toUpperCase() + w.slice(1)
+            )
+            .join("");
+        lines.push(`\t${enumName}${constSuffix} ${enumName} = "${value}"`);
+    }
+    lines.push(`)`);
+
+    ctx.enumsByValues.set(valuesKey, enumName);
+    ctx.enums.push(lines.join("\n"));
+    return enumName;
+}
+
+/**
+ * Resolve a JSON Schema property to a Go type string.
+ * Emits nested struct/enum definitions into ctx as a side effect.
+ */
+function resolveGoPropertyType(
+    propSchema: JSONSchema7,
+    parentTypeName: string,
+    jsonPropName: string,
+    isRequired: boolean,
+    ctx: GoCodegenCtx
+): string {
+    const nestedName = parentTypeName + toGoFieldName(jsonPropName);
+
+    // Handle anyOf
+    if (propSchema.anyOf) {
+        const nonNull = (propSchema.anyOf as JSONSchema7[]).filter((s) => s.type !== "null");
+        const hasNull = (propSchema.anyOf as JSONSchema7[]).some((s) => s.type === "null");
+
+        if (nonNull.length === 1) {
+            // anyOf [T, null] → nullable T
+            const innerType = resolveGoPropertyType(nonNull[0], parentTypeName, jsonPropName, true, ctx);
+            if (isRequired && !hasNull) return innerType;
+            // Pointer-wrap if not already a pointer, slice, or map
+            if (innerType.startsWith("*") || innerType.startsWith("[]") || innerType.startsWith("map[")) {
+                return innerType;
+            }
+            return `*${innerType}`;
+        }
+
+        if (nonNull.length > 1) {
+            // Check for discriminated union
+            const disc = findGoDiscriminator(nonNull);
+            if (disc) {
+                emitGoFlatDiscriminatedUnion(nestedName, disc.property, disc.mapping, ctx, propSchema.description);
+                return isRequired && !hasNull ? nestedName : `*${nestedName}`;
+            }
+            // Non-discriminated multi-type union → any
+            return "any";
+        }
+    }
+
+    // Handle enum
+    if (propSchema.enum && Array.isArray(propSchema.enum)) {
+        const enumType = getOrCreateGoEnum(nestedName, propSchema.enum as string[], ctx, propSchema.description);
+        return isRequired ? enumType : `*${enumType}`;
+    }
+
+    // Handle const (discriminator markers) — just use string
+    if (propSchema.const !== undefined) {
+        return isRequired ? "string" : "*string";
+    }
+
+    const type = propSchema.type;
+    const format = propSchema.format;
+
+    // Handle type arrays like ["string", "null"]
+    if (Array.isArray(type)) {
+        const nonNullTypes = (type as string[]).filter((t) => t !== "null");
+        if (nonNullTypes.length === 1) {
+            const inner = resolveGoPropertyType(
+                { ...propSchema, type: nonNullTypes[0] as JSONSchema7["type"] },
+                parentTypeName,
+                jsonPropName,
+                true,
+                ctx
+            );
+            if (inner.startsWith("*") || inner.startsWith("[]") || inner.startsWith("map[")) return inner;
+            return `*${inner}`;
+        }
+    }
+
+    // Simple types
+    if (type === "string") {
+        if (format === "date-time") {
+            return isRequired ? "time.Time" : "*time.Time";
+        }
+        return isRequired ? "string" : "*string";
+    }
+    if (type === "number") return isRequired ? "float64" : "*float64";
+    if (type === "integer") return isRequired ? "int64" : "*int64";
+    if (type === "boolean") return isRequired ? "bool" : "*bool";
+
+    // Array type
+    if (type === "array") {
+        const items = propSchema.items as JSONSchema7 | undefined;
+        if (items) {
+            // Discriminated union items
+            if (items.anyOf) {
+                const itemVariants = (items.anyOf as JSONSchema7[]).filter((v) => v.type !== "null");
+                const disc = findGoDiscriminator(itemVariants);
+                if (disc) {
+                    const itemTypeName = nestedName + "Item";
+                    emitGoFlatDiscriminatedUnion(itemTypeName, disc.property, disc.mapping, ctx, items.description);
+                    return `[]${itemTypeName}`;
+                }
+            }
+            const itemType = resolveGoPropertyType(items, parentTypeName, jsonPropName + "Item", true, ctx);
+            return `[]${itemType}`;
+        }
+        return "[]any";
+    }
+
+    // Object type
+    if (type === "object" || (propSchema.properties && !type)) {
+        if (propSchema.properties && Object.keys(propSchema.properties).length > 0) {
+            emitGoStruct(nestedName, propSchema, ctx);
+            return isRequired ? nestedName : `*${nestedName}`;
+        }
+        if (propSchema.additionalProperties) {
+            if (
+                typeof propSchema.additionalProperties === "object" &&
+                Object.keys(propSchema.additionalProperties as Record<string, unknown>).length > 0
+            ) {
+                const ap = propSchema.additionalProperties as JSONSchema7;
+                if (ap.type === "object" && ap.properties) {
+                    emitGoStruct(nestedName + "Value", ap, ctx);
+                    return `map[string]${nestedName}Value`;
+                }
+                const valueType = resolveGoPropertyType(ap, parentTypeName, jsonPropName + "Value", true, ctx);
+                return `map[string]${valueType}`;
+            }
+            return "map[string]any";
+        }
+        // Empty object or untyped
+        return "any";
+    }
+
+    return "any";
+}
+
+/**
+ * Emit a Go struct definition from an object schema.
+ */
+function emitGoStruct(
+    typeName: string,
+    schema: JSONSchema7,
+    ctx: GoCodegenCtx,
+    description?: string
+): void {
+    if (ctx.generatedNames.has(typeName)) return;
+    ctx.generatedNames.add(typeName);
+
+    const required = new Set(schema.required || []);
+    const lines: string[] = [];
+    const desc = description || schema.description;
+    if (desc) {
+        for (const line of desc.split(/\r?\n/)) {
+            lines.push(`// ${line}`);
+        }
+    }
+    lines.push(`type ${typeName} struct {`);
+
+    for (const [propName, propSchema] of Object.entries(schema.properties || {})) {
+        if (typeof propSchema !== "object") continue;
+        const prop = propSchema as JSONSchema7;
+        const isReq = required.has(propName);
+        const goName = toGoFieldName(propName);
+        const goType = resolveGoPropertyType(prop, typeName, propName, isReq, ctx);
+        const omit = isReq ? "" : ",omitempty";
+
+        if (prop.description) {
+            lines.push(`\t// ${prop.description}`);
+        }
+        lines.push(`\t${goName} ${goType} \`json:"${propName}${omit}"\``);
+    }
+
+    lines.push(`}`);
+    ctx.structs.push(lines.join("\n"));
+}
+
+/**
+ * Emit a flat Go struct for a discriminated union (anyOf with const discriminator).
+ * Merges all variant properties into a single struct.
+ */
+function emitGoFlatDiscriminatedUnion(
+    typeName: string,
+    discriminatorProp: string,
+    mapping: Map<string, JSONSchema7>,
+    ctx: GoCodegenCtx,
+    description?: string
+): void {
+    if (ctx.generatedNames.has(typeName)) return;
+    ctx.generatedNames.add(typeName);
+
+    // Collect all properties across variants, determining which are required in all
+    const allProps = new Map<
+        string,
+        { schema: JSONSchema7; requiredInAll: boolean }
+    >();
+
+    for (const [, variant] of mapping) {
+        const required = new Set(variant.required || []);
+        for (const [propName, propSchema] of Object.entries(variant.properties || {})) {
+            if (typeof propSchema !== "object") continue;
+            if (!allProps.has(propName)) {
+                allProps.set(propName, {
+                    schema: propSchema as JSONSchema7,
+                    requiredInAll: required.has(propName),
+                });
+            } else {
+                const existing = allProps.get(propName)!;
+                if (!required.has(propName)) {
+                    existing.requiredInAll = false;
+                }
+            }
+        }
+    }
+
+    // Properties not present in all variants must be optional
+    const variantCount = mapping.size;
+    for (const [propName, info] of allProps) {
+        let presentCount = 0;
+        for (const [, variant] of mapping) {
+            if (variant.properties && propName in variant.properties) {
+                presentCount++;
+            }
+        }
+        if (presentCount < variantCount) {
+            info.requiredInAll = false;
+        }
+    }
+
+    // Discriminator field: generate an enum from the const values
+    const discGoName = toGoFieldName(discriminatorProp);
+    const discValues = [...mapping.keys()];
+    const discEnumName = getOrCreateGoEnum(
+        typeName + discGoName,
+        discValues,
+        ctx,
+        `${discGoName} discriminator for ${typeName}.`
+    );
+
+    const lines: string[] = [];
+    if (description) {
+        for (const line of description.split(/\r?\n/)) {
+            lines.push(`// ${line}`);
+        }
+    }
+    lines.push(`type ${typeName} struct {`);
+
+    // Emit discriminator field first
+    lines.push(`\t// ${discGoName} discriminator`);
+    lines.push(`\t${discGoName} ${discEnumName} \`json:"${discriminatorProp}"\``);
+
+    // Emit remaining fields
+    for (const [propName, info] of allProps) {
+        if (propName === discriminatorProp) continue;
+        const goName = toGoFieldName(propName);
+        const goType = resolveGoPropertyType(info.schema, typeName, propName, info.requiredInAll, ctx);
+        const omit = info.requiredInAll ? "" : ",omitempty";
+        if (info.schema.description) {
+            lines.push(`\t// ${info.schema.description}`);
+        }
+        lines.push(`\t${goName} ${goType} \`json:"${propName}${omit}"\``);
+    }
+
+    lines.push(`}`);
+    ctx.structs.push(lines.join("\n"));
+}
+
+/**
+ * Generate the complete Go session-events file content.
+ */
+function generateGoSessionEventsCode(schema: JSONSchema7): string {
+    const variants = extractGoEventVariants(schema);
+    const ctx: GoCodegenCtx = {
+        structs: [],
+        enums: [],
+        enumsByValues: new Map(),
+        generatedNames: new Set(),
+    };
+
+    // Generate per-event data structs
+    const dataStructs: string[] = [];
+    for (const variant of variants) {
+        const required = new Set(variant.dataSchema.required || []);
+        const lines: string[] = [];
+
+        if (variant.dataDescription) {
+            for (const line of variant.dataDescription.split(/\r?\n/)) {
+                lines.push(`// ${line}`);
+            }
+        } else {
+            lines.push(`// ${variant.dataClassName} holds the payload for ${variant.typeName} events.`);
+        }
+        lines.push(`type ${variant.dataClassName} struct {`);
+
+        for (const [propName, propSchema] of Object.entries(variant.dataSchema.properties || {})) {
+            if (typeof propSchema !== "object") continue;
+            const prop = propSchema as JSONSchema7;
+            const isReq = required.has(propName);
+            const goName = toGoFieldName(propName);
+            const goType = resolveGoPropertyType(prop, variant.dataClassName, propName, isReq, ctx);
+            const omit = isReq ? "" : ",omitempty";
+
+            if (prop.description) {
+                lines.push(`\t// ${prop.description}`);
+            }
+            lines.push(`\t${goName} ${goType} \`json:"${propName}${omit}"\``);
+        }
+
+        lines.push(`}`);
+        lines.push(``);
+        lines.push(`func (*${variant.dataClassName}) sessionEventData() {}`);
+
+        dataStructs.push(lines.join("\n"));
+    }
+
+    // Generate SessionEventType enum
+    const eventTypeEnum: string[] = [];
+    eventTypeEnum.push(`// SessionEventType identifies the kind of session event.`);
+    eventTypeEnum.push(`type SessionEventType string`);
+    eventTypeEnum.push(``);
+    eventTypeEnum.push(`const (`);
+    for (const variant of variants) {
+        const constName =
+            "SessionEventType" +
+            variant.typeName
+                .split(/[._]/)
+                .map((w) =>
+                    goInitialisms.has(w.toLowerCase())
+                        ? w.toUpperCase()
+                        : w.charAt(0).toUpperCase() + w.slice(1)
+                )
+                .join("");
+        eventTypeEnum.push(`\t${constName} SessionEventType = "${variant.typeName}"`);
+    }
+    eventTypeEnum.push(`)`);
+
+    // Assemble file
+    const out: string[] = [];
+    out.push(`// AUTO-GENERATED FILE - DO NOT EDIT`);
+    out.push(`// Generated from: session-events.schema.json`);
+    out.push(``);
+    out.push(`package copilot`);
+    out.push(``);
+
+    // Imports — time is always needed for SessionEvent.Timestamp
+    out.push(`import (`);
+    out.push(`\t"encoding/json"`);
+    out.push(`\t"time"`);
+    out.push(`)`);
+    out.push(``);
+
+    // SessionEventData interface
+    out.push(`// SessionEventData is the interface implemented by all per-event data types.`);
+    out.push(`type SessionEventData interface {`);
+    out.push(`\tsessionEventData()`);
+    out.push(`}`);
+    out.push(``);
+
+    // RawSessionEventData for unknown event types
+    out.push(`// RawSessionEventData holds unparsed JSON data for unrecognized event types.`);
+    out.push(`type RawSessionEventData struct {`);
+    out.push(`\tRaw json.RawMessage`);
+    out.push(`}`);
+    out.push(``);
+    out.push(`func (RawSessionEventData) sessionEventData() {}`);
+    out.push(``);
+    out.push(`// MarshalJSON returns the original raw JSON so round-tripping preserves the payload.`);
+    out.push(`func (r RawSessionEventData) MarshalJSON() ([]byte, error) { return r.Raw, nil }`);
+    out.push(``);
+
+    // SessionEvent struct
+    out.push(`// SessionEvent represents a single session event with a typed data payload.`);
+    out.push(`type SessionEvent struct {`);
+    out.push(`\t// Unique event identifier (UUID v4), generated when the event is emitted.`);
+    out.push(`\tID string \`json:"id"\``);
+    out.push(`\t// ISO 8601 timestamp when the event was created.`);
+    out.push(`\tTimestamp time.Time \`json:"timestamp"\``);
+    // parentId: string or null
+    out.push(`\t// ID of the preceding event in the session. Null for the first event.`);
+    out.push(`\tParentID *string \`json:"parentId"\``);
+    out.push(`\t// When true, the event is transient and not persisted.`);
+    out.push(`\tEphemeral *bool \`json:"ephemeral,omitempty"\``);
+    out.push(`\t// The event type discriminator.`);
+    out.push(`\tType SessionEventType \`json:"type"\``);
+    out.push(`\t// Typed event payload. Use a type switch to access per-event fields.`);
+    out.push(`\tData SessionEventData \`json:"-"\``);
+    out.push(`}`);
+    out.push(``);
+
+    // UnmarshalSessionEvent
+    out.push(`// UnmarshalSessionEvent parses JSON bytes into a SessionEvent.`);
+    out.push(`func UnmarshalSessionEvent(data []byte) (SessionEvent, error) {`);
+    out.push(`\tvar r SessionEvent`);
+    out.push(`\terr := json.Unmarshal(data, &r)`);
+    out.push(`\treturn r, err`);
+    out.push(`}`);
+    out.push(``);
+
+    // Marshal
+    out.push(`// Marshal serializes the SessionEvent to JSON.`);
+    out.push(`func (r *SessionEvent) Marshal() ([]byte, error) {`);
+    out.push(`\treturn json.Marshal(r)`);
+    out.push(`}`);
+    out.push(``);
+
+    // Custom UnmarshalJSON
+    out.push(`func (e *SessionEvent) UnmarshalJSON(data []byte) error {`);
+    out.push(`\ttype rawEvent struct {`);
+    out.push(`\t\tID        string           \`json:"id"\``);
+    out.push(`\t\tTimestamp time.Time        \`json:"timestamp"\``);
+    out.push(`\t\tParentID  *string          \`json:"parentId"\``);
+    out.push(`\t\tEphemeral *bool            \`json:"ephemeral,omitempty"\``);
+    out.push(`\t\tType      SessionEventType \`json:"type"\``);
+    out.push(`\t\tData      json.RawMessage  \`json:"data"\``);
+    out.push(`\t}`);
+    out.push(`\tvar raw rawEvent`);
+    out.push(`\tif err := json.Unmarshal(data, &raw); err != nil {`);
+    out.push(`\t\treturn err`);
+    out.push(`\t}`);
+    out.push(`\te.ID = raw.ID`);
+    out.push(`\te.Timestamp = raw.Timestamp`);
+    out.push(`\te.ParentID = raw.ParentID`);
+    out.push(`\te.Ephemeral = raw.Ephemeral`);
+    out.push(`\te.Type = raw.Type`);
+    out.push(``);
+    out.push(`\tswitch raw.Type {`);
+    for (const variant of variants) {
+        const constName =
+            "SessionEventType" +
+            variant.typeName
+                .split(/[._]/)
+                .map((w) =>
+                    goInitialisms.has(w.toLowerCase())
+                        ? w.toUpperCase()
+                        : w.charAt(0).toUpperCase() + w.slice(1)
+                )
+                .join("");
+        out.push(`\tcase ${constName}:`);
+        out.push(`\t\tvar d ${variant.dataClassName}`);
+        out.push(`\t\tif err := json.Unmarshal(raw.Data, &d); err != nil {`);
+        out.push(`\t\t\treturn err`);
+        out.push(`\t\t}`);
+        out.push(`\t\te.Data = &d`);
+    }
+    out.push(`\tdefault:`);
+    out.push(`\t\te.Data = &RawSessionEventData{Raw: raw.Data}`);
+    out.push(`\t}`);
+    out.push(`\treturn nil`);
+    out.push(`}`);
+    out.push(``);
+
+    // Custom MarshalJSON
+    out.push(`func (e SessionEvent) MarshalJSON() ([]byte, error) {`);
+    out.push(`\ttype rawEvent struct {`);
+    out.push(`\t\tID        string           \`json:"id"\``);
+    out.push(`\t\tTimestamp time.Time        \`json:"timestamp"\``);
+    out.push(`\t\tParentID  *string          \`json:"parentId"\``);
+    out.push(`\t\tEphemeral *bool            \`json:"ephemeral,omitempty"\``);
+    out.push(`\t\tType      SessionEventType \`json:"type"\``);
+    out.push(`\t\tData      any              \`json:"data"\``);
+    out.push(`\t}`);
+    out.push(`\treturn json.Marshal(rawEvent{`);
+    out.push(`\t\tID:        e.ID,`);
+    out.push(`\t\tTimestamp: e.Timestamp,`);
+    out.push(`\t\tParentID:  e.ParentID,`);
+    out.push(`\t\tEphemeral: e.Ephemeral,`);
+    out.push(`\t\tType:      e.Type,`);
+    out.push(`\t\tData:      e.Data,`);
+    out.push(`\t})`);
+    out.push(`}`);
+    out.push(``);
+
+    // Event type enum
+    out.push(eventTypeEnum.join("\n"));
+    out.push(``);
+
+    // Per-event data structs
+    for (const ds of dataStructs) {
+        out.push(ds);
+        out.push(``);
+    }
+
+    // Nested structs
+    for (const s of ctx.structs) {
+        out.push(s);
+        out.push(``);
+    }
+
+    // Enums
+    for (const e of ctx.enums) {
+        out.push(e);
+        out.push(``);
+    }
+
+    // Type aliases for types referenced by non-generated SDK code under their short names.
+    const TYPE_ALIASES: Record<string, string> = {
+        PermissionRequest: "PermissionRequestedDataPermissionRequest",
+        PermissionRequestKind: "PermissionRequestedDataPermissionRequestKind",
+        PermissionRequestCommand: "PermissionRequestedDataPermissionRequestCommandsItem",
+        PossibleURL: "PermissionRequestedDataPermissionRequestPossibleUrlsItem",
+        Attachment: "UserMessageDataAttachmentsItem",
+        AttachmentType: "UserMessageDataAttachmentsItemType",
+    };
+    const CONST_ALIASES: Record<string, string> = {
+        AttachmentTypeFile: "UserMessageDataAttachmentsItemTypeFile",
+        AttachmentTypeDirectory: "UserMessageDataAttachmentsItemTypeDirectory",
+        AttachmentTypeSelection: "UserMessageDataAttachmentsItemTypeSelection",
+        AttachmentTypeGithubReference: "UserMessageDataAttachmentsItemTypeGithubReference",
+        AttachmentTypeBlob: "UserMessageDataAttachmentsItemTypeBlob",
+        PermissionRequestKindShell: "PermissionRequestedDataPermissionRequestKindShell",
+        PermissionRequestKindWrite: "PermissionRequestedDataPermissionRequestKindWrite",
+        PermissionRequestKindRead: "PermissionRequestedDataPermissionRequestKindRead",
+        PermissionRequestKindMcp: "PermissionRequestedDataPermissionRequestKindMcp",
+        PermissionRequestKindURL: "PermissionRequestedDataPermissionRequestKindURL",
+        PermissionRequestKindMemory: "PermissionRequestedDataPermissionRequestKindMemory",
+        PermissionRequestKindCustomTool: "PermissionRequestedDataPermissionRequestKindCustomTool",
+        PermissionRequestKindHook: "PermissionRequestedDataPermissionRequestKindHook",
+    };
+    out.push(`// Type aliases for convenience.`);
+    out.push(`type (`);
+    for (const [alias, target] of Object.entries(TYPE_ALIASES)) {
+        out.push(`\t${alias} = ${target}`);
+    }
+    out.push(`)`);
+    out.push(``);
+    out.push(`// Constant aliases for convenience.`);
+    out.push(`const (`);
+    for (const [alias, target] of Object.entries(CONST_ALIASES)) {
+        out.push(`\t${alias} = ${target}`);
+    }
+    out.push(`)`);
+    out.push(``);
+
+    return out.join("\n");
+}
 
 async function generateSessionEvents(schemaPath?: string): Promise<void> {
     console.log("Go: generating session-events...");
 
     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
     const schema = JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7;
-    const resolvedSchema = (schema.definitions?.SessionEvent as JSONSchema7) || schema;
-    const processed = postProcessSchema(resolvedSchema);
+    const processed = postProcessSchema(schema);
 
-    const schemaInput = new JSONSchemaInput(new FetchingJSONSchemaStore());
-    await schemaInput.addSource({ name: "SessionEvent", schema: JSON.stringify(processed) });
+    const code = generateGoSessionEventsCode(processed);
 
-    const inputData = new InputData();
-    inputData.addInput(schemaInput);
-
-    const result = await quicktype({
-        inputData,
-        lang: "go",
-        rendererOptions: { package: "copilot" },
-    });
-
-    const banner = `// AUTO-GENERATED FILE - DO NOT EDIT
-// Generated from: session-events.schema.json
-
-`;
-
-    const outPath = await writeGeneratedFile("go/generated_session_events.go", banner + postProcessEnumConstants(result.lines.join("\n")));
+    const outPath = await writeGeneratedFile("go/generated_session_events.go", code);
     console.log(`  ✓ ${outPath}`);
 
     await formatGoFile(outPath);

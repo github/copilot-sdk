@@ -57,12 +57,10 @@ func main() {
     // Set up event handler
     done := make(chan bool)
     session.On(func(event copilot.SessionEvent) {
-        if event.Type == "assistant.message" {
-            if event.Data.Content != nil && event.Data.Content.String != nil {
-                fmt.Println(*event.Data.Content.String)
-            }
-        }
-        if event.Type == "session.idle" {
+        switch d := event.Data.(type) {
+        case *copilot.AssistantMessageData:
+            fmt.Println(d.Content)
+        case *copilot.SessionIdleData:
             close(done)
         }
     })
@@ -404,30 +402,22 @@ func main() {
     done := make(chan bool)
 
     session.On(func(event copilot.SessionEvent) {
-        if event.Type == "assistant.message_delta" {
+        switch d := event.Data.(type) {
+        case *copilot.AssistantMessageDeltaData:
             // Streaming message chunk - print incrementally
-            if event.Data.DeltaContent != nil {
-                fmt.Print(*event.Data.DeltaContent)
-            }
-        } else if event.Type == "assistant.reasoning_delta" {
+            fmt.Print(d.DeltaContent)
+        case *copilot.AssistantReasoningDeltaData:
             // Streaming reasoning chunk (if model supports reasoning)
-            if event.Data.DeltaContent != nil {
-                fmt.Print(*event.Data.DeltaContent)
-            }
-        } else if event.Type == "assistant.message" {
+            fmt.Print(d.DeltaContent)
+        case *copilot.AssistantMessageData:
             // Final message - complete content
             fmt.Println("\n--- Final message ---")
-            if event.Data.Content != nil && event.Data.Content.String != nil {
-                fmt.Println(*event.Data.Content.String)
-            }
-        } else if event.Type == "assistant.reasoning" {
+            fmt.Println(d.Content)
+        case *copilot.AssistantReasoningData:
             // Final reasoning content (if model supports reasoning)
             fmt.Println("--- Reasoning ---")
-            if event.Data.Content != nil && event.Data.Content.String != nil {
-                fmt.Println(*event.Data.Content.String)
-            }
-        }
-        if event.Type == "session.idle" {
+            fmt.Println(d.Content)
+        case *copilot.SessionIdleData:
             close(done)
         }
     })
