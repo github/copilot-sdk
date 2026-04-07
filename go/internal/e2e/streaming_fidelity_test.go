@@ -47,7 +47,7 @@ func TestStreamingFidelity(t *testing.T) {
 
 		// Deltas should have content
 		for _, delta := range deltaEvents {
-			if delta.Data.DeltaContent == nil {
+			if dd, ok := delta.Data.(*copilot.AssistantMessageDeltaData); !ok || dd.DeltaContent == "" {
 				t.Error("Expected delta to have content")
 			}
 		}
@@ -161,7 +161,9 @@ func TestStreamingFidelity(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to send follow-up message: %v", err)
 		}
-		if answer == nil || answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "18") {
+		if answer == nil {
+			t.Errorf("Expected answer to contain '18', got nil")
+		} else if ad, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "18") {
 			t.Errorf("Expected answer to contain '18', got %v", answer)
 		}
 
@@ -178,7 +180,7 @@ func TestStreamingFidelity(t *testing.T) {
 
 		// Deltas should have content
 		for _, delta := range deltaEvents {
-			if delta.Data.DeltaContent == nil {
+			if dd, ok := delta.Data.(*copilot.AssistantMessageDeltaData); !ok || dd.DeltaContent == "" {
 				t.Error("Expected delta to have content")
 			}
 		}

@@ -18,19 +18,15 @@ func GetFinalAssistantMessage(ctx context.Context, session *copilot.Session, alr
 	// Subscribe to future events
 	var finalAssistantMessage *copilot.SessionEvent
 	unsubscribe := session.On(func(event copilot.SessionEvent) {
-		switch event.Type {
-		case "assistant.message":
+		switch d := event.Data.(type) {
+		case *copilot.AssistantMessageData:
 			finalAssistantMessage = &event
-		case "session.idle":
+		case *copilot.SessionIdleData:
 			if finalAssistantMessage != nil {
 				result <- finalAssistantMessage
 			}
-		case "session.error":
-			msg := "session error"
-			if event.Data.Message != nil {
-				msg = *event.Data.Message
-			}
-			errCh <- errors.New(msg)
+		case *copilot.SessionErrorData:
+			errCh <- errors.New(d.Message)
 		}
 	})
 	defer unsubscribe()
@@ -72,8 +68,8 @@ func GetNextEventOfType(session *copilot.Session, eventType copilot.SessionEvent
 			}
 		case copilot.SessionEventTypeSessionError:
 			msg := "session error"
-			if event.Data.Message != nil {
-				msg = *event.Data.Message
+			if d, ok := event.Data.(*copilot.SessionErrorData); ok {
+				msg = d.Message
 			}
 			select {
 			case errCh <- errors.New(msg):
@@ -119,8 +115,8 @@ func getExistingFinalResponse(ctx context.Context, session *copilot.Session, alr
 	for _, msg := range currentTurnMessages {
 		if msg.Type == "session.error" {
 			errMsg := "session error"
-			if msg.Data.Message != nil {
-				errMsg = *msg.Data.Message
+			if d, ok := msg.Data.(*copilot.SessionErrorData); ok {
+				errMsg = d.Message
 			}
 			return nil, errors.New(errMsg)
 		}

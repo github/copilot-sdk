@@ -72,8 +72,8 @@ func TestSkills(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, skillMarker) {
-			t.Errorf("Expected message to contain skill marker '%s', got: %v", skillMarker, message.Data.Content)
+		if md, ok := message.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, skillMarker) {
+			t.Errorf("Expected message to contain skill marker '%s', got: %v", skillMarker, message.Data)
 		}
 
 		session.Disconnect()
@@ -101,8 +101,8 @@ func TestSkills(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message.Data.Content != nil && strings.Contains(*message.Data.Content, skillMarker) {
-			t.Errorf("Expected message to NOT contain skill marker '%s' when disabled, got: %v", skillMarker, *message.Data.Content)
+		if md, ok := message.Data.(*copilot.AssistantMessageData); ok && strings.Contains(md.Content, skillMarker) {
+			t.Errorf("Expected message to NOT contain skill marker '%s' when disabled, got: %v", skillMarker, md.Content)
 		}
 
 		session.Disconnect()
@@ -127,8 +127,8 @@ func TestSkills(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message1.Data.Content != nil && strings.Contains(*message1.Data.Content, skillMarker) {
-			t.Errorf("Expected message to NOT contain skill marker before skill was added, got: %v", *message1.Data.Content)
+		if md, ok := message1.Data.(*copilot.AssistantMessageData); ok && strings.Contains(md.Content, skillMarker) {
+			t.Errorf("Expected message to NOT contain skill marker before skill was added, got: %v", md.Content)
 		}
 
 		// Resume with skillDirectories - skill should now be active
@@ -150,8 +150,8 @@ func TestSkills(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message2.Data.Content == nil || !strings.Contains(*message2.Data.Content, skillMarker) {
-			t.Errorf("Expected message to contain skill marker '%s' after resume, got: %v", skillMarker, message2.Data.Content)
+		if md, ok := message2.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, skillMarker) {
+			t.Errorf("Expected message to contain skill marker '%s' after resume, got: %v", skillMarker, message2.Data)
 		}
 
 		session2.Disconnect()

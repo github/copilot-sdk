@@ -71,11 +71,12 @@ func TestCompaction(t *testing.T) {
 		// Compaction should have succeeded
 		if len(compactionCompleteEvents) > 0 {
 			lastComplete := compactionCompleteEvents[len(compactionCompleteEvents)-1]
-			if lastComplete.Data.Success == nil || !*lastComplete.Data.Success {
+			d, ok := lastComplete.Data.(*copilot.SessionCompactionCompleteData)
+			if !ok || !d.Success {
 				t.Errorf("Expected compaction to succeed")
 			}
-			if lastComplete.Data.TokensRemoved != nil && *lastComplete.Data.TokensRemoved <= 0 {
-				t.Errorf("Expected tokensRemoved > 0, got %v", *lastComplete.Data.TokensRemoved)
+			if ok && d.TokensRemoved != nil && *d.TokensRemoved <= 0 {
+				t.Errorf("Expected tokensRemoved > 0, got %v", *d.TokensRemoved)
 			}
 		}
 
@@ -84,8 +85,8 @@ func TestCompaction(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to send verification message: %v", err)
 		}
-		if answer.Data.Content == nil || !strings.Contains(strings.ToLower(*answer.Data.Content), "dragon") {
-			t.Errorf("Expected answer to contain 'dragon', got %v", answer.Data.Content)
+		if ad, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(strings.ToLower(ad.Content), "dragon") {
+			t.Errorf("Expected answer to contain 'dragon', got %v", answer.Data)
 		}
 	})
 

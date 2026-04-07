@@ -54,9 +54,11 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		if response != nil && response.Data.Content != nil {
-			fmt.Printf("Q: %s\n", prompt)
-			fmt.Printf("A: %s\n\n", *response.Data.Content)
+		if response != nil {
+			if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
+				fmt.Printf("Q: %s\n", prompt)
+				fmt.Printf("A: %s\n\n", d.Content)
+			}
 		}
 	}
 

@@ -51,8 +51,8 @@ func TestMCPServers(t *testing.T) {
 			t.Fatalf("Failed to get final message: %v", err)
 		}
 
-		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "4") {
-			t.Errorf("Expected message to contain '4', got: %v", message.Data.Content)
+		if md, ok := message.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, "4") {
+			t.Errorf("Expected message to contain '4', got: %v", message.Data)
 		}
 
 		session.Disconnect()
@@ -100,8 +100,8 @@ func TestMCPServers(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "6") {
-			t.Errorf("Expected message to contain '6', got: %v", message.Data.Content)
+		if md, ok := message.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, "6") {
+			t.Errorf("Expected message to contain '6', got: %v", message.Data)
 		}
 
 		session2.Disconnect()
@@ -146,8 +146,8 @@ func TestMCPServers(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "hunter2") {
-			t.Errorf("Expected message to contain 'hunter2', got: %v", message.Data.Content)
+		if md, ok := message.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, "hunter2") {
+			t.Errorf("Expected message to contain 'hunter2', got: %v", message.Data)
 		}
 
 		session.Disconnect()
@@ -231,8 +231,8 @@ func TestCustomAgents(t *testing.T) {
 			t.Fatalf("Failed to get final message: %v", err)
 		}
 
-		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "10") {
-			t.Errorf("Expected message to contain '10', got: %v", message.Data.Content)
+		if md, ok := message.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, "10") {
+			t.Errorf("Expected message to contain '10', got: %v", message.Data)
 		}
 
 		session.Disconnect()
@@ -280,8 +280,8 @@ func TestCustomAgents(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "12") {
-			t.Errorf("Expected message to contain '12', got: %v", message.Data.Content)
+		if md, ok := message.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, "12") {
+			t.Errorf("Expected message to contain '12', got: %v", message.Data)
 		}
 
 		session2.Disconnect()
@@ -441,8 +441,8 @@ func TestCombinedConfiguration(t *testing.T) {
 			t.Fatalf("Failed to get final message: %v", err)
 		}
 
-		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, "14") {
-			t.Errorf("Expected message to contain '14', got: %v", message.Data.Content)
+		if md, ok := message.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, "14") {
+			t.Errorf("Expected message to contain '14', got: %v", message.Data)
 		}
 
 		session.Disconnect()

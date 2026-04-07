@@ -20,8 +20,8 @@
 //	}
 //
 //	session.On(func(event copilot.SessionEvent) {
-//	    if event.Type == "assistant.message" {
-//	        fmt.Println(event.Data.Content)
+//	    if d, ok := event.Data.(*copilot.AssistantMessageData); ok {
+//	        fmt.Println(d.Content)
 //	    }
 //	})
 //

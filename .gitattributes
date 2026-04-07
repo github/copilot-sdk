@@ -1,1 +1,8 @@
 .github/workflows/*.lock.yml linguist-generated=true merge=ours
+
+# Generated files — keep LF line endings so codegen output is deterministic across platforms.
+nodejs/src/generated/* eol=lf linguist-generated=true
+dotnet/src/Generated/* eol=lf linguist-generated=true
+python/copilot/generated/* eol=lf linguist-generated=true
+go/generated_session_events.go eol=lf linguist-generated=true
+go/rpc/generated_rpc.go eol=lf linguist-generated=true

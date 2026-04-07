@@ -38,8 +38,8 @@ type sessionHandler struct {
 //
 //	// Subscribe to events
 //	unsubscribe := session.On(func(event copilot.SessionEvent) {
-//	    if event.Type == "assistant.message" {
-//	        fmt.Println("Assistant:", event.Data.Content)
+//	    if d, ok := event.Data.(*copilot.AssistantMessageData); ok {
+//	        fmt.Println("Assistant:", d.Content)
 //	    }
 //	})
 //	defer unsubscribe()
@@ -177,7 +177,9 @@ func (s *Session) Send(ctx context.Context, options MessageOptions) (string, err
 //	    log.Printf("Failed: %v", err)
 //	}
 //	if response != nil {
-//	    fmt.Println(*response.Data.Content)
+//	    if d, ok := response.Data.(*AssistantMessageData); ok {
+//	        fmt.Println(d.Content)
+//	    }
 //	}
 func (s *Session) SendAndWait(ctx context.Context, options MessageOptions) (*SessionEvent, error) {
 	if _, ok := ctx.Deadline(); !ok {
@@ -192,24 +194,20 @@ func (s *Session) SendAndWait(ctx context.Context, options MessageOptions) (*Ses
 	var mu sync.Mutex
 
 	unsubscribe := s.On(func(event SessionEvent) {
-		switch event.Type {
-		case SessionEventTypeAssistantMessage:
+		switch d := event.Data.(type) {
+		case *AssistantMessageData:
 			mu.Lock()
 			eventCopy := event
 			lastAssistantMessage = &eventCopy
 			mu.Unlock()
-		case SessionEventTypeSessionIdle:
+		case *SessionIdleData:
 			select {
 			case idleCh <- struct{}{}:
 			default:
 			}
-		case SessionEventTypeSessionError:
-			errMsg := "session error"
-			if event.Data.Message != nil {
-				errMsg = *event.Data.Message
-			}
+		case *SessionErrorData:
 			select {
-			case errCh <- fmt.Errorf("session error: %s", errMsg):
+			case errCh <- fmt.Errorf("session error: %s", d.Message):
 			default:
 			}
 		}
@@ -246,11 +244,11 @@ func (s *Session) SendAndWait(ctx context.Context, options MessageOptions) (*Ses
 // Example:
 //
 //	unsubscribe := session.On(func(event copilot.SessionEvent) {
-//	    switch event.Type {
-//	    case "assistant.message":
-//	        fmt.Println("Assistant:", event.Data.Content)
-//	    case "session.error":
-//	        fmt.Println("Error:", event.Data.Message)
+//	    switch d := event.Data.(type) {
+//	    case *copilot.AssistantMessageData:
+//	        fmt.Println("Assistant:", d.Content)
+//	    case *copilot.SessionErrorData:
+//	        fmt.Println("Error:", d.Message)
 //	    }
 //	})
 //
@@ -590,7 +588,7 @@ func (s *Session) handleElicitationRequest(elicitCtx ElicitationContext, request
 	result, err := handler(elicitCtx)
 	if err != nil {
 		// Handler failed — attempt to cancel so the request doesn't hang.
-		s.RPC.Ui.HandlePendingElicitation(ctx, &rpc.SessionUIHandlePendingElicitationParams{
+		s.RPC.UI.HandlePendingElicitation(ctx, &rpc.SessionUIHandlePendingElicitationParams{
 			RequestID: requestID,
 			Result: rpc.SessionUIHandlePendingElicitationParamsResult{
 				Action: rpc.ActionCancel,
@@ -604,7 +602,7 @@ func (s *Session) handleElicitationRequest(elicitCtx ElicitationContext, request
 		rpcContent[k] = toRPCContent(v)
 	}
 
-	s.RPC.Ui.HandlePendingElicitation(ctx, &rpc.SessionUIHandlePendingElicitationParams{
+	s.RPC.UI.HandlePendingElicitation(ctx, &rpc.SessionUIHandlePendingElicitationParams{
 		RequestID: requestID,
 		Result: rpc.SessionUIHandlePendingElicitationParamsResult{
 			Action:  rpc.Action(result.Action),
@@ -685,7 +683,7 @@ func (ui *SessionUI) Elicitation(ctx context.Context, message string, requestedS
 	if err := ui.session.assertElicitation(); err != nil {
 		return nil, err
 	}
-	rpcResult, err := ui.session.RPC.Ui.Elicitation(ctx, &rpc.SessionUIElicitationParams{
+	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.SessionUIElicitationParams{
 		Message:         message,
 		RequestedSchema: requestedSchema,
 	})
@@ -702,7 +700,7 @@ func (ui *SessionUI) Confirm(ctx context.Context, message string) (bool, error) 
 		return false, err
 	}
 	defaultTrue := &rpc.Content{Bool: Bool(true)}
-	rpcResult, err := ui.session.RPC.Ui.Elicitation(ctx, &rpc.SessionUIElicitationParams{
+	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.SessionUIElicitationParams{
 		Message: message,
 		RequestedSchema: rpc.RequestedSchema{
 			Type: rpc.RequestedSchemaTypeObject,
@@ -732,7 +730,7 @@ func (ui *SessionUI) Select(ctx context.Context, message string, options []strin
 	if err := ui.session.assertElicitation(); err != nil {
 		return "", false, err
 	}
-	rpcResult, err := ui.session.RPC.Ui.Elicitation(ctx, &rpc.SessionUIElicitationParams{
+	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.SessionUIElicitationParams{
 		Message: message,
 		RequestedSchema: rpc.RequestedSchema{
 			Type: rpc.RequestedSchemaTypeObject,
@@ -786,7 +784,7 @@ func (ui *SessionUI) Input(ctx context.Context, message string, opts *InputOptio
 			prop.Default = &rpc.Content{String: &opts.Default}
 		}
 	}
-	rpcResult, err := ui.session.RPC.Ui.Elicitation(ctx, &rpc.SessionUIElicitationParams{
+	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.SessionUIElicitationParams{
 		Message: message,
 		RequestedSchema: rpc.RequestedSchema{
 			Type: rpc.RequestedSchemaTypeObject,
@@ -888,111 +886,74 @@ func (s *Session) processEvents() {
 // event consumer loop) so that a stalled handler does not block event delivery or
 // cause RPC deadlocks.
 func (s *Session) handleBroadcastEvent(event SessionEvent) {
-	switch event.Type {
-	case SessionEventTypeExternalToolRequested:
-		requestID := event.Data.RequestID
-		toolName := event.Data.ToolName
-		if requestID == nil || toolName == nil {
-			return
-		}
-		handler, ok := s.getToolHandler(*toolName)
+	switch d := event.Data.(type) {
+	case *ExternalToolRequestedData:
+		handler, ok := s.getToolHandler(d.ToolName)
 		if !ok {
 			return
 		}
-		toolCallID := ""
-		if event.Data.ToolCallID != nil {
-			toolCallID = *event.Data.ToolCallID
-		}
 		var tp, ts string
-		if event.Data.Traceparent != nil {
-			tp = *event.Data.Traceparent
+		if d.Traceparent != nil {
+			tp = *d.Traceparent
 		}
-		if event.Data.Tracestate != nil {
-			ts = *event.Data.Tracestate
+		if d.Tracestate != nil {
+			ts = *d.Tracestate
 		}
-		s.executeToolAndRespond(*requestID, *toolName, toolCallID, event.Data.Arguments, handler, tp, ts)
+		s.executeToolAndRespond(d.RequestID, d.ToolName, d.ToolCallID, d.Arguments, handler, tp, ts)
 
-	case SessionEventTypePermissionRequested:
-		requestID := event.Data.RequestID
-		if requestID == nil || event.Data.PermissionRequest == nil {
-			return
-		}
-		if event.Data.ResolvedByHook != nil && *event.Data.ResolvedByHook {
+	case *PermissionRequestedData:
+		if d.ResolvedByHook != nil && *d.ResolvedByHook {
 			return // Already resolved by a permissionRequest hook; no client action needed.
 		}
 		handler := s.getPermissionHandler()
 		if handler == nil {
 			return
 		}
-		s.executePermissionAndRespond(*requestID, *event.Data.PermissionRequest, handler)
+		s.executePermissionAndRespond(d.RequestID, d.PermissionRequest, handler)
 
-	case SessionEventTypeCommandExecute:
-		requestID := event.Data.RequestID
-		if requestID == nil {
-			return
-		}
-		commandName := ""
-		if event.Data.CommandName != nil {
-			commandName = *event.Data.CommandName
-		}
-		command := ""
-		if event.Data.Command != nil {
-			command = *event.Data.Command
-		}
-		args := ""
-		if event.Data.Args != nil {
-			args = *event.Data.Args
-		}
-		s.executeCommandAndRespond(*requestID, commandName, command, args)
+	case *CommandExecuteData:
+		s.executeCommandAndRespond(d.RequestID, d.CommandName, d.Command, d.Args)
 
-	case SessionEventTypeElicitationRequested:
-		requestID := event.Data.RequestID
-		if requestID == nil {
-			return
-		}
+	case *ElicitationRequestedData:
 		handler := s.getElicitationHandler()
 		if handler == nil {
 			return
 		}
-		message := ""
-		if event.Data.Message != nil {
-			message = *event.Data.Message
-		}
 		var requestedSchema map[string]any
-		if event.Data.RequestedSchema != nil {
+		if d.RequestedSchema != nil {
 			requestedSchema = map[string]any{
-				"type":       string(event.Data.RequestedSchema.Type),
-				"properties": event.Data.RequestedSchema.Properties,
+				"type":       string(d.RequestedSchema.Type),
+				"properties": d.RequestedSchema.Properties,
 			}
-			if len(event.Data.RequestedSchema.Required) > 0 {
-				requestedSchema["required"] = event.Data.RequestedSchema.Required
+			if len(d.RequestedSchema.Required) > 0 {
+				requestedSchema["required"] = d.RequestedSchema.Required
 			}
 		}
 		mode := ""
-		if event.Data.Mode != nil {
-			mode = string(*event.Data.Mode)
+		if d.Mode != nil {
+			mode = string(*d.Mode)
 		}
 		elicitationSource := ""
-		if event.Data.ElicitationSource != nil {
-			elicitationSource = *event.Data.ElicitationSource
+		if d.ElicitationSource != nil {
+			elicitationSource = *d.ElicitationSource
 		}
 		url := ""
-		if event.Data.URL != nil {
-			url = *event.Data.URL
+		if d.URL != nil {
+			url = *d.URL
 		}
 		s.handleElicitationRequest(ElicitationContext{
 			SessionID:         s.SessionID,
-			Message:           message,
+			Message:           d.Message,
 			RequestedSchema:   requestedSchema,
 			Mode:              mode,
 			ElicitationSource: elicitationSource,
 			URL:               url,
-		}, *requestID)
+		}, d.RequestID)
 
-	case SessionEventTypeCapabilitiesChanged:
-		if event.Data.UI != nil && event.Data.UI.Elicitation != nil {
+	case *CapabilitiesChangedData:
+		if d.UI != nil && d.UI.Elicitation != nil {
 			s.setCapabilities(&SessionCapabilities{
-				UI: &UICapabilities{Elicitation: *event.Data.UI.Elicitation},
+				UI: &UICapabilities{Elicitation: *d.UI.Elicitation},
 			})
 		}
 	}
@@ -1117,8 +1078,8 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 //	    return
 //	}
 //	for _, event := range events {
-//	    if event.Type == "assistant.message" {
-//	        fmt.Println("Assistant:", event.Data.Content)
+//	    if d, ok := event.Data.(*copilot.AssistantMessageData); ok {
+//	        fmt.Println("Assistant:", d.Content)
 //	    }
 //	}
 func (s *Session) GetMessages(ctx context.Context) ([]SessionEvent, error) {

@@ -42,12 +42,13 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Expected first message to be session.start, got %v", messages)
 		}
 
-		if messages[0].Data.SessionID == nil || *messages[0].Data.SessionID != session.SessionID {
+		startData, startOk := messages[0].Data.(*copilot.SessionStartData)
+		if !startOk || startData.SessionID != session.SessionID {
 			t.Errorf("Expected session.start sessionId to match")
 		}
 
-		if messages[0].Data.SelectedModel == nil || *messages[0].Data.SelectedModel != "claude-sonnet-4.5" {
-			t.Errorf("Expected selectedModel to be 'claude-sonnet-4.5', got %v", messages[0].Data.SelectedModel)
+		if !startOk || startData.SelectedModel == nil || *startData.SelectedModel != "claude-sonnet-4.5" {
+			t.Errorf("Expected selectedModel to be 'claude-sonnet-4.5', got %v", startData)
 		}
 
 		if err := session.Disconnect(); err != nil {
@@ -73,8 +74,8 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if assistantMessage.Data.Content == nil || !strings.Contains(*assistantMessage.Data.Content, "2") {
-			t.Errorf("Expected assistant message to contain '2', got %v", assistantMessage.Data.Content)
+		if ad, ok := assistantMessage.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "2") {
+			t.Errorf("Expected assistant message to contain '2', got %v", assistantMessage.Data)
 		}
 
 		secondMessage, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Now if you double that, what do you get?"})
@@ -82,8 +83,8 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to send second message: %v", err)
 		}
 
-		if secondMessage.Data.Content == nil || !strings.Contains(*secondMessage.Data.Content, "4") {
-			t.Errorf("Expected second message to contain '4', got %v", secondMessage.Data.Content)
+		if ad, ok := secondMessage.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "4") {
+			t.Errorf("Expected second message to contain '4', got %v", secondMessage.Data)
 		}
 	})
 
@@ -108,8 +109,10 @@ func TestSession(t *testing.T) {
 		}
 
 		content := ""
-		if assistantMessage != nil && assistantMessage.Data.Content != nil {
-			content = *assistantMessage.Data.Content
+		if assistantMessage != nil {
+			if ad, ok := assistantMessage.Data.(*copilot.AssistantMessageData); ok {
+				content = ad.Content
+			}
 		}
 
 		if !strings.Contains(content, "GitHub") {
@@ -162,8 +165,8 @@ func TestSession(t *testing.T) {
 		}
 
 		content := ""
-		if assistantMessage.Data.Content != nil {
-			content = *assistantMessage.Data.Content
+		if ad, ok := assistantMessage.Data.(*copilot.AssistantMessageData); ok {
+			content = ad.Content
 		}
 
 		if strings.Contains(content, "GitHub") {
@@ -361,8 +364,8 @@ func TestSession(t *testing.T) {
 		}
 
 		content := ""
-		if assistantMessage.Data.Content != nil {
-			content = *assistantMessage.Data.Content
+		if ad, ok := assistantMessage.Data.(*copilot.AssistantMessageData); ok {
+			content = ad.Content
 		}
 
 		if !strings.Contains(content, "54321") {
@@ -394,8 +397,8 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
-		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "2") {
-			t.Errorf("Expected answer to contain '2', got %v", answer.Data.Content)
+		if ad, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "2") {
+			t.Errorf("Expected answer to contain '2', got %v", answer.Data)
 		}
 
 		// Resume using the same client
@@ -415,8 +418,8 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to get assistant message from resumed session: %v", err)
 		}
 
-		if answer2.Data.Content == nil || !strings.Contains(*answer2.Data.Content, "2") {
-			t.Errorf("Expected resumed session answer to contain '2', got %v", answer2.Data.Content)
+		if ad, ok := answer2.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "2") {
+			t.Errorf("Expected resumed session answer to contain '2', got %v", answer2.Data)
 		}
 
 		// Can continue the conversation statefully
@@ -424,7 +427,9 @@ func TestSession(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to send follow-up message: %v", err)
 		}
-		if answer3 == nil || answer3.Data.Content == nil || !strings.Contains(*answer3.Data.Content, "4") {
+		if answer3 == nil {
+			t.Errorf("Expected follow-up answer to contain '4', got nil")
+		} else if ad, ok := answer3.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "4") {
 			t.Errorf("Expected follow-up answer to contain '4', got %v", answer3)
 		}
 	})
@@ -449,8 +454,8 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
-		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "2") {
-			t.Errorf("Expected answer to contain '2', got %v", answer.Data.Content)
+		if ad, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "2") {
+			t.Errorf("Expected answer to contain '2', got %v", answer.Data)
 		}
 
 		// Resume using a new client
@@ -497,7 +502,9 @@ func TestSession(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to send follow-up message: %v", err)
 		}
-		if answer3 == nil || answer3.Data.Content == nil || !strings.Contains(*answer3.Data.Content, "4") {
+		if answer3 == nil {
+			t.Errorf("Expected follow-up answer to contain '4', got nil")
+		} else if ad, ok := answer3.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "4") {
 			t.Errorf("Expected follow-up answer to contain '4', got %v", answer3)
 		}
 	})
@@ -628,8 +635,8 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to send message after abort: %v", err)
 		}
 
-		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "4") {
-			t.Errorf("Expected answer to contain '4', got %v", answer.Data.Content)
+		if ad, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "4") {
+			t.Errorf("Expected answer to contain '4', got %v", answer.Data)
 		}
 	})
 
@@ -723,8 +730,8 @@ func TestSession(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
-		if assistantMessage.Data.Content == nil || !strings.Contains(*assistantMessage.Data.Content, "300") {
-			t.Errorf("Expected assistant message to contain '300', got %v", assistantMessage.Data.Content)
+		if ad, ok := assistantMessage.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "300") {
+			t.Errorf("Expected assistant message to contain '300', got %v", assistantMessage.Data)
 		}
 	})
 
@@ -756,8 +763,8 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
-		if assistantMessage.Data.Content == nil || !strings.Contains(*assistantMessage.Data.Content, "2") {
-			t.Errorf("Expected assistant message to contain '2', got %v", assistantMessage.Data.Content)
+		if ad, ok := assistantMessage.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "2") {
+			t.Errorf("Expected assistant message to contain '2', got %v", assistantMessage.Data)
 		}
 	})
 
@@ -1032,11 +1039,12 @@ func TestSetModelWithReasoningEffort(t *testing.T) {
 
 	select {
 	case evt := <-modelChanged:
-		if evt.Data.NewModel == nil || *evt.Data.NewModel != "gpt-4.1" {
-			t.Errorf("Expected newModel 'gpt-4.1', got %v", evt.Data.NewModel)
+		md, mdOk := evt.Data.(*copilot.SessionModelChangeData)
+		if !mdOk || md.NewModel != "gpt-4.1" {
+			t.Errorf("Expected newModel 'gpt-4.1', got %v", evt.Data)
 		}
-		if evt.Data.ReasoningEffort == nil || *evt.Data.ReasoningEffort != "high" {
-			t.Errorf("Expected reasoningEffort 'high', got %v", evt.Data.ReasoningEffort)
+		if !mdOk || md.ReasoningEffort == nil || *md.ReasoningEffort != "high" {
+			t.Errorf("Expected reasoningEffort 'high', got %v", evt.Data)
 		}
 	case <-time.After(30 * time.Second):
 		t.Fatal("Timed out waiting for session.model_change event")
@@ -1139,11 +1147,12 @@ func TestSessionLog(t *testing.T) {
 		}
 
 		evt := waitForEvent(t, &mu, &events, copilot.SessionEventTypeSessionInfo, "Info message", 5*time.Second)
-		if evt.Data.InfoType == nil || *evt.Data.InfoType != "notification" {
-			t.Errorf("Expected infoType 'notification', got %v", evt.Data.InfoType)
+		id, idOk := evt.Data.(*copilot.SessionInfoData)
+		if !idOk || id.InfoType != "notification" {
+			t.Errorf("Expected infoType 'notification', got %v", evt.Data)
 		}
-		if evt.Data.Message == nil || *evt.Data.Message != "Info message" {
-			t.Errorf("Expected message 'Info message', got %v", evt.Data.Message)
+		if !idOk || id.Message != "Info message" {
+			t.Errorf("Expected message 'Info message', got %v", evt.Data)
 		}
 	})
 
@@ -1153,11 +1162,12 @@ func TestSessionLog(t *testing.T) {
 		}
 
 		evt := waitForEvent(t, &mu, &events, copilot.SessionEventTypeSessionWarning, "Warning message", 5*time.Second)
-		if evt.Data.WarningType == nil || *evt.Data.WarningType != "notification" {
-			t.Errorf("Expected warningType 'notification', got %v", evt.Data.WarningType)
+		wd, wdOk := evt.Data.(*copilot.SessionWarningData)
+		if !wdOk || wd.WarningType != "notification" {
+			t.Errorf("Expected warningType 'notification', got %v", evt.Data)
 		}
-		if evt.Data.Message == nil || *evt.Data.Message != "Warning message" {
-			t.Errorf("Expected message 'Warning message', got %v", evt.Data.Message)
+		if !wdOk || wd.Message != "Warning message" {
+			t.Errorf("Expected message 'Warning message', got %v", evt.Data)
 		}
 	})
 
@@ -1167,11 +1177,12 @@ func TestSessionLog(t *testing.T) {
 		}
 
 		evt := waitForEvent(t, &mu, &events, copilot.SessionEventTypeSessionError, "Error message", 5*time.Second)
-		if evt.Data.ErrorType == nil || *evt.Data.ErrorType != "notification" {
-			t.Errorf("Expected errorType 'notification', got %v", evt.Data.ErrorType)
+		ed, edOk := evt.Data.(*copilot.SessionErrorData)
+		if !edOk || ed.ErrorType != "notification" {
+			t.Errorf("Expected errorType 'notification', got %v", evt.Data)
 		}
-		if evt.Data.Message == nil || *evt.Data.Message != "Error message" {
-			t.Errorf("Expected message 'Error message', got %v", evt.Data.Message)
+		if !edOk || ed.Message != "Error message" {
+			t.Errorf("Expected message 'Error message', got %v", evt.Data)
 		}
 	})
 
@@ -1181,11 +1192,12 @@ func TestSessionLog(t *testing.T) {
 		}
 
 		evt := waitForEvent(t, &mu, &events, copilot.SessionEventTypeSessionInfo, "Ephemeral message", 5*time.Second)
-		if evt.Data.InfoType == nil || *evt.Data.InfoType != "notification" {
-			t.Errorf("Expected infoType 'notification', got %v", evt.Data.InfoType)
+		id2, id2Ok := evt.Data.(*copilot.SessionInfoData)
+		if !id2Ok || id2.InfoType != "notification" {
+			t.Errorf("Expected infoType 'notification', got %v", evt.Data)
 		}
-		if evt.Data.Message == nil || *evt.Data.Message != "Ephemeral message" {
-			t.Errorf("Expected message 'Ephemeral message', got %v", evt.Data.Message)
+		if !id2Ok || id2.Message != "Ephemeral message" {
+			t.Errorf("Expected message 'Ephemeral message', got %v", evt.Data)
 		}
 	})
 }
@@ -1197,7 +1209,7 @@ func waitForEvent(t *testing.T, mu *sync.Mutex, events *[]copilot.SessionEvent, 
 	for time.Now().Before(deadline) {
 		mu.Lock()
 		for _, evt := range *events {
-			if evt.Type == eventType && evt.Data.Message != nil && *evt.Data.Message == message {
+			if evt.Type == eventType && getEventMessage(evt) == message {
 				mu.Unlock()
 				return evt
 			}
@@ -1207,4 +1219,18 @@ func waitForEvent(t *testing.T, mu *sync.Mutex, events *[]copilot.SessionEvent, 
 	}
 	t.Fatalf("Timed out waiting for %s event with message %q", eventType, message)
 	return copilot.SessionEvent{} // unreachable
+}
+
+// getEventMessage extracts the Message field from session info/warning/error event data.
+func getEventMessage(evt copilot.SessionEvent) string {
+	switch d := evt.Data.(type) {
+	case *copilot.SessionInfoData:
+		return d.Message
+	case *copilot.SessionWarningData:
+		return d.Message
+	case *copilot.SessionErrorData:
+		return d.Message
+	default:
+		return ""
+	}
 }

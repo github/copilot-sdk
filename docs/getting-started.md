@@ -211,7 +211,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	fmt.Println(*response.Data.Content)
+	if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
+		fmt.Println(d.Content)
+	}
 	os.Exit(0)
 }
 ```
@@ -406,10 +408,11 @@ func main() {
 
 	// Listen for response chunks
 	session.On(func(event copilot.SessionEvent) {
-		if event.Type == "assistant.message_delta" {
-			fmt.Print(*event.Data.DeltaContent)
-		}
-		if event.Type == "session.idle" {
+		switch d := event.Data.(type) {
+		case *copilot.AssistantMessageDeltaData:
+			fmt.Print(d.DeltaContent)
+		case *copilot.SessionIdleData:
+			_ = d
 			fmt.Println()
 		}
 	})
@@ -604,10 +607,12 @@ func main() {
 
 	// Filter by event type in your handler
 	session.On(func(event copilot.SessionEvent) {
-		if event.Type == "session.idle" {
+		switch d := event.Data.(type) {
+		case *copilot.SessionIdleData:
+			_ = d
 			fmt.Println("Session is idle")
-		} else if event.Type == "assistant.message" {
-			fmt.Println("Message:", *event.Data.Content)
+		case *copilot.AssistantMessageData:
+			fmt.Println("Message:", d.Content)
 		}
 	})
 
@@ -625,10 +630,12 @@ unsubscribe := session.On(func(event copilot.SessionEvent) {
 
 // Filter by event type in your handler
 session.On(func(event copilot.SessionEvent) {
-    if event.Type == "session.idle" {
+    switch d := event.Data.(type) {
+    case *copilot.SessionIdleData:
+        _ = d
         fmt.Println("Session is idle")
-    } else if event.Type == "assistant.message" {
-        fmt.Println("Message:", *event.Data.Content)
+    case *copilot.AssistantMessageData:
+        fmt.Println("Message:", d.Content)
     }
 })
 
@@ -897,10 +904,11 @@ func main() {
 	}
 
 	session.On(func(event copilot.SessionEvent) {
-		if event.Type == "assistant.message_delta" {
-			fmt.Print(*event.Data.DeltaContent)
-		}
-		if event.Type == "session.idle" {
+		switch d := event.Data.(type) {
+		case *copilot.AssistantMessageDeltaData:
+			fmt.Print(d.DeltaContent)
+		case *copilot.SessionIdleData:
+			_ = d
 			fmt.Println()
 		}
 	})
@@ -1251,12 +1259,11 @@ func main() {
 	}
 
 	session.On(func(event copilot.SessionEvent) {
-		if event.Type == "assistant.message_delta" {
-			if event.Data.DeltaContent != nil {
-				fmt.Print(*event.Data.DeltaContent)
-			}
-		}
-		if event.Type == "session.idle" {
+		switch d := event.Data.(type) {
+		case *copilot.AssistantMessageDeltaData:
+			fmt.Print(d.DeltaContent)
+		case *copilot.SessionIdleData:
+			_ = d
 			fmt.Println()
 		}
 	})

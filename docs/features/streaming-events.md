@@ -137,8 +137,8 @@ func main() {
 	})
 
 	session.On(func(event copilot.SessionEvent) {
-		if event.Type == "assistant.message_delta" {
-			fmt.Print(*event.Data.DeltaContent)
+		if d, ok := event.Data.(*copilot.AssistantMessageDeltaData); ok {
+			fmt.Print(d.DeltaContent)
 		}
 	})
 	_ = session
@@ -148,8 +148,8 @@ func main() {
 
 ```go
 session.On(func(event copilot.SessionEvent) {
-    if event.Type == "assistant.message_delta" {
-        fmt.Print(*event.Data.DeltaContent)
+    if d, ok := event.Data.(*copilot.AssistantMessageDeltaData); ok {
+        fmt.Print(d.DeltaContent)
     }
 })
 ```

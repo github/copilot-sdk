@@ -506,17 +506,17 @@ func main() {
 	})
 
 	session.On(func(event copilot.SessionEvent) {
-		switch event.Type {
-		case "subagent.started":
-			fmt.Printf("▶ Sub-agent started: %s\n", *event.Data.AgentDisplayName)
-			fmt.Printf("  Description: %s\n", *event.Data.AgentDescription)
-			fmt.Printf("  Tool call ID: %s\n", *event.Data.ToolCallID)
-		case "subagent.completed":
-			fmt.Printf("✅ Sub-agent completed: %s\n", *event.Data.AgentDisplayName)
-		case "subagent.failed":
-			fmt.Printf("❌ Sub-agent failed: %s — %v\n", *event.Data.AgentDisplayName, event.Data.Error)
-		case "subagent.selected":
-			fmt.Printf("🎯 Agent selected: %s\n", *event.Data.AgentDisplayName)
+		switch d := event.Data.(type) {
+		case *copilot.SubagentStartedData:
+			fmt.Printf("▶ Sub-agent started: %s\n", d.AgentDisplayName)
+			fmt.Printf("  Description: %s\n", d.AgentDescription)
+			fmt.Printf("  Tool call ID: %s\n", d.ToolCallID)
+		case *copilot.SubagentCompletedData:
+			fmt.Printf("✅ Sub-agent completed: %s\n", d.AgentDisplayName)
+		case *copilot.SubagentFailedData:
+			fmt.Printf("❌ Sub-agent failed: %s — %v\n", d.AgentDisplayName, d.Error)
+		case *copilot.SubagentSelectedData:
+			fmt.Printf("🎯 Agent selected: %s\n", d.AgentDisplayName)
 		}
 	})
 
@@ -530,17 +530,17 @@ func main() {
 
 ```go
 session.On(func(event copilot.SessionEvent) {
-    switch event.Type {
-    case "subagent.started":
-        fmt.Printf("▶ Sub-agent started: %s\n", *event.Data.AgentDisplayName)
-        fmt.Printf("  Description: %s\n", *event.Data.AgentDescription)
-        fmt.Printf("  Tool call ID: %s\n", *event.Data.ToolCallID)
-    case "subagent.completed":
-        fmt.Printf("✅ Sub-agent completed: %s\n", *event.Data.AgentDisplayName)
-    case "subagent.failed":
-        fmt.Printf("❌ Sub-agent failed: %s — %v\n", *event.Data.AgentDisplayName, event.Data.Error)
-    case "subagent.selected":
-        fmt.Printf("🎯 Agent selected: %s\n", *event.Data.AgentDisplayName)
+    switch d := event.Data.(type) {
+    case *copilot.SubagentStartedData:
+        fmt.Printf("▶ Sub-agent started: %s\n", d.AgentDisplayName)
+        fmt.Printf("  Description: %s\n", d.AgentDescription)
+        fmt.Printf("  Tool call ID: %s\n", d.ToolCallID)
+    case *copilot.SubagentCompletedData:
+        fmt.Printf("✅ Sub-agent completed: %s\n", d.AgentDisplayName)
+    case *copilot.SubagentFailedData:
+        fmt.Printf("❌ Sub-agent failed: %s — %v\n", d.AgentDisplayName, d.Error)
+    case *copilot.SubagentSelectedData:
+        fmt.Printf("🎯 Agent selected: %s\n", d.AgentDisplayName)
     }
 })
 
