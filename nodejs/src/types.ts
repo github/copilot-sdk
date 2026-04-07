@@ -1469,8 +1469,12 @@ export interface ModelCapabilities {
     };
 }
 
-/** Recursively makes all properties optional. */
-type DeepPartial<T> = T extends object ? { [K in keyof T]?: DeepPartial<T[K]> } : T;
+/** Recursively makes all properties optional, preserving arrays as-is. */
+type DeepPartial<T> = T extends readonly (infer U)[]
+    ? DeepPartial<U>[]
+    : T extends object
+      ? { [K in keyof T]?: DeepPartial<T[K]> }
+      : T;
 
 /** Deep-partial override for model capabilities — every property at any depth is optional. */
 export type ModelCapabilitiesOverride = DeepPartial<ModelCapabilities>;
