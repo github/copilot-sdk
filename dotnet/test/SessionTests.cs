@@ -432,11 +432,18 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     {
         var session = await CreateSessionAsync();
 
+        var sessionIdleTask = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session);
+
         // Use a slow command to ensure timeout triggers before completion
         var ex = await Assert.ThrowsAsync<TimeoutException>(() =>
             session.SendAndWaitAsync(new MessageOptions { Prompt = "Run 'sleep 2 && echo done'" }, TimeSpan.FromMilliseconds(100)));
 
         Assert.Contains("timed out", ex.Message);
+
+        // The timeout only cancels the client-side wait; abort the agent and wait for idle
+        // so leftover requests don't leak into subsequent tests.
+        await session.AbortAsync();
+        await sessionIdleTask;
     }
 
     [Fact]
@@ -446,6 +453,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
 
         // Set up wait for tool execution to start BEFORE sending
         var toolStartTask = TestHelper.GetNextEventOfTypeAsync<ToolExecutionStartEvent>(session);
+        var sessionIdleTask = TestHelper.GetNextEventOfTypeAsync<SessionIdleEvent>(session);
 
         using var cts = new CancellationTokenSource();
 
@@ -461,6 +469,12 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         cts.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => sendTask);
+
+        // Cancelling the token only cancels the client-side wait, not the server-side agent loop.
+        // Explicitly abort so the agent stops, then wait for idle to ensure we're not still
+        // running this agent's operations in the context of a subsequent test.
+        await session.AbortAsync();
+        await sessionIdleTask;
     }
 
     [Fact]
