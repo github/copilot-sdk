@@ -156,6 +156,42 @@ var session = await client.CreateSessionAsync(new SessionConfig
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.*;
+import com.github.copilot.sdk.json.*;
+import java.util.concurrent.CompletableFuture;
+
+try (var client = new CopilotClient()) {
+    client.start().get();
+
+    var hooks = new SessionHooks()
+        .setOnPreToolUse((input, invocation) -> {
+            System.out.println("Tool called: " + input.getToolName());
+            return CompletableFuture.completedFuture(PreToolUseHookOutput.allow());
+        })
+        .setOnPostToolUse((input, invocation) -> {
+            System.out.println("Tool result: " + input.getToolResult());
+            return CompletableFuture.completedFuture(null);
+        })
+        .setOnSessionStart((input, invocation) -> {
+            return CompletableFuture.completedFuture(
+                new SessionStartHookOutput("User prefers concise answers.", null)
+            );
+        });
+
+    var session = client.createSession(
+        new SessionConfig()
+            .setHooks(hooks)
+            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+    ).get();
+}
+```
+
+</details>
+
 ## Hook Invocation Context
 
 Every hook receives an `invocation` parameter with context about the current session:

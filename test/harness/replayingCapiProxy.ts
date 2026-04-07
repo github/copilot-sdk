@@ -341,6 +341,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
             state.testInfo,
             state.workDir,
             state.toolResultNormalizers,
+            state.storedData,
           );
           return;
         }
@@ -375,36 +376,100 @@ async function writeCapturesToDisk(
   }
 }
 
+/**
+ * Produces a human-readable explanation of why no stored conversation matched
+ * a given request. For each stored conversation it reports the first reason
+ * matching failed, mirroring the logic in {@link findAssistantIndexAfterPrefix}.
+ */
+function diagnoseMatchFailure(
+  requestMessages: NormalizedMessage[],
+  rawMessages: unknown[],
+  storedData: NormalizedData | undefined,
+): string {
+  const lines: string[] = [];
+  lines.push(`Request has ${requestMessages.length} normalized messages (${rawMessages.length} raw).`);
+
+  if (!storedData || storedData.conversations.length === 0) {
+    lines.push("No stored conversations to match against.");
+    return lines.join("\n");
+  }
+
+  for (let c = 0; c < storedData.conversations.length; c++) {
+    const saved = storedData.conversations[c].messages;
+
+    // Same check as findAssistantIndexAfterPrefix: request must be a strict prefix
+    if (requestMessages.length >= saved.length) {
+      lines.push(
+        `Conversation ${c} (${saved.length} messages): ` +
+        `skipped — request has ${requestMessages.length} messages, need fewer than ${saved.length}.`,
+      );
+      continue;
+    }
+
+    // Find the first message that doesn't match
+    let mismatchIndex = -1;
+    for (let i = 0; i < requestMessages.length; i++) {
+      if (JSON.stringify(requestMessages[i]) !== JSON.stringify(saved[i])) {
+        mismatchIndex = i;
+        break;
+      }
+    }
+
+    if (mismatchIndex >= 0) {
+      const raw = mismatchIndex < rawMessages.length
+        ? JSON.stringify(rawMessages[mismatchIndex]).slice(0, 300)
+        : "(no raw message)";
+      lines.push(
+        `Conversation ${c} (${saved.length} messages): mismatch at message ${mismatchIndex}:`,
+        `  request:    ${JSON.stringify(requestMessages[mismatchIndex]).slice(0, 200)}`,
+        `  saved:      ${JSON.stringify(saved[mismatchIndex]).slice(0, 200)}`,
+        `  raw (pre-normalization): ${raw}`,
+      );
+    } else {
+      // Prefix matched, but the next saved message isn't an assistant turn
+      const nextRole = saved[requestMessages.length]?.role ?? "(end of conversation)";
+      lines.push(
+        `Conversation ${c} (${saved.length} messages): ` +
+        `prefix matched, but next saved message is "${nextRole}" (need "assistant").`,
+      );
+    }
+  }
+
+  return lines.join("\n");
+}
+
 async function exitWithNoMatchingRequestError(
   options: PerformRequestOptions,
   testInfo: { file: string; line?: number } | undefined,
   workDir: string,
   toolResultNormalizers: ToolResultNormalizer[],
+  storedData?: NormalizedData,
 ) {
-  const parts: string[] = [];
-  if (testInfo?.file) parts.push(`file=${testInfo.file}`);
-  if (typeof testInfo?.line === "number") parts.push(`line=${testInfo.line}`);
-  const header = parts.length ? ` ${parts.join(",")}` : "";
-
-  let finalMessageInfo: string;
+  let diagnostics: string;
   try {
-    const normalized = await parseAndNormalizeRequest(
-      options.body,
-      workDir,
-      toolResultNormalizers,
-    );
-    const normalizedMessages = normalized.conversations[0]?.messages ?? [];
-    finalMessageInfo = JSON.stringify(
-      normalizedMessages[normalizedMessages.length - 1],
-    );
-  } catch {
-    finalMessageInfo = `(unable to parse request body: ${options.body?.slice(0, 200) ?? "empty"})`;
+    const normalized = await parseAndNormalizeRequest(options.body, workDir, toolResultNormalizers);
+    const requestMessages = normalized.conversations[0]?.messages ?? [];
+
+    let rawMessages: unknown[] = [];
+    try {
+      rawMessages = (JSON.parse(options.body ?? "{}") as { messages?: unknown[] }).messages ?? [];
+    } catch { /* non-JSON body */ }
+
+    diagnostics = diagnoseMatchFailure(requestMessages, rawMessages, storedData);
+  } catch (e) {
+    diagnostics = `(unable to parse request for diagnostics: ${e})`;
   }
 
   const errorMessage =
-    `No cached response found for ${options.requestOptions.method} ${options.requestOptions.path}. ` +
-    `Final message: ${finalMessageInfo}`;
-  process.stderr.write(`::error${header}::${errorMessage}\n`);
+    `No cached response found for ${options.requestOptions.method} ${options.requestOptions.path}.\n${diagnostics}`;
+
+  // Format as GitHub Actions annotation when test location is available
+  const annotation = [
+    testInfo?.file ? `file=${testInfo.file}` : "",
+    typeof testInfo?.line === "number" ? `line=${testInfo.line}` : "",
+  ].filter(Boolean).join(",");
+  process.stderr.write(`::error${annotation ? ` ${annotation}` : ""}::${errorMessage}\n`);
+
   options.onError(new Error(errorMessage));
 }
 
@@ -688,6 +753,18 @@ function transformOpenAIRequestMessage(
     content = "${system}";
   } else if (m.role === "user" && typeof m.content === "string") {
     content = normalizeUserMessage(m.content);
+  } else if (m.role === "user" && Array.isArray(m.content)) {
+    // Multimodal user messages have array content with text and image_url parts.
+    // Extract and normalize text parts; represent image_url parts as a stable marker.
+    const parts: string[] = [];
+    for (const part of m.content) {
+      if (typeof part === "object" && part.type === "text" && typeof part.text === "string") {
+        parts.push(normalizeUserMessage(part.text));
+      } else if (typeof part === "object" && part.type === "image_url") {
+        parts.push("[image]");
+      }
+    }
+    content = parts.join("\n") || undefined;
   } else if (m.role === "tool" && typeof m.content === "string") {
     // If it's a JSON tool call result, normalize the whitespace and property ordering.
     // For successful tool results wrapped in {resultType, textResultForLlm}, unwrap to

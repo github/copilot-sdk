@@ -99,6 +99,17 @@ public delegate Task<UserPromptSubmittedHookOutput?> UserPromptSubmittedHandler(
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.json.*;
+
+UserPromptSubmittedHandler userPromptSubmittedHandler;
+```
+
+</details>
+
 ## Input
 
 | Field | Type | Description |
@@ -232,6 +243,29 @@ var session = await client.CreateSessionAsync(new SessionConfig
         },
     },
 });
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.*;
+import com.github.copilot.sdk.json.*;
+import java.util.concurrent.CompletableFuture;
+
+var hooks = new SessionHooks()
+    .setOnUserPromptSubmitted((input, invocation) -> {
+        System.out.println("[" + invocation.getSessionId() + "] User: " + input.prompt());
+        return CompletableFuture.completedFuture(null);
+    });
+
+var session = client.createSession(
+    new SessionConfig()
+        .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+        .setHooks(hooks)
+).get();
 ```
 
 </details>

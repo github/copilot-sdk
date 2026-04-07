@@ -55,6 +55,22 @@ public class ModelCapabilitiesSupports
     public bool? ReasoningEffort { get; set; }
 }
 
+/// <summary>Vision-specific limits.</summary>
+public class ModelCapabilitiesLimitsVision
+{
+    /// <summary>MIME types the model accepts.</summary>
+    [JsonPropertyName("supported_media_types")]
+    public List<string> SupportedMediaTypes { get => field ??= []; set; }
+
+    /// <summary>Maximum number of images per prompt.</summary>
+    [JsonPropertyName("max_prompt_images")]
+    public double MaxPromptImages { get; set; }
+
+    /// <summary>Maximum image size in bytes.</summary>
+    [JsonPropertyName("max_prompt_image_size")]
+    public double MaxPromptImageSize { get; set; }
+}
+
 /// <summary>Token limits for prompts, outputs, and context window.</summary>
 public class ModelCapabilitiesLimits
 {
@@ -69,6 +85,10 @@ public class ModelCapabilitiesLimits
     /// <summary>Maximum total context window size in tokens.</summary>
     [JsonPropertyName("max_context_window_tokens")]
     public double MaxContextWindowTokens { get; set; }
+
+    /// <summary>Vision-specific limits.</summary>
+    [JsonPropertyName("vision")]
+    public ModelCapabilitiesLimitsVision? Vision { get; set; }
 }
 
 /// <summary>Model capabilities and limits.</summary>
@@ -299,6 +319,66 @@ public class SessionModelSwitchToResult
     public string? ModelId { get; set; }
 }
 
+/// <summary>Feature flags indicating what the model supports.</summary>
+public class ModelCapabilitiesOverrideSupports
+{
+    /// <summary>Gets or sets the <c>vision</c> value.</summary>
+    [JsonPropertyName("vision")]
+    public bool? Vision { get; set; }
+
+    /// <summary>Gets or sets the <c>reasoningEffort</c> value.</summary>
+    [JsonPropertyName("reasoningEffort")]
+    public bool? ReasoningEffort { get; set; }
+}
+
+/// <summary>RPC data type for ModelCapabilitiesOverrideLimitsVision operations.</summary>
+public class ModelCapabilitiesOverrideLimitsVision
+{
+    /// <summary>MIME types the model accepts.</summary>
+    [JsonPropertyName("supported_media_types")]
+    public List<string>? SupportedMediaTypes { get; set; }
+
+    /// <summary>Maximum number of images per prompt.</summary>
+    [JsonPropertyName("max_prompt_images")]
+    public double? MaxPromptImages { get; set; }
+
+    /// <summary>Maximum image size in bytes.</summary>
+    [JsonPropertyName("max_prompt_image_size")]
+    public double? MaxPromptImageSize { get; set; }
+}
+
+/// <summary>Token limits for prompts, outputs, and context window.</summary>
+public class ModelCapabilitiesOverrideLimits
+{
+    /// <summary>Gets or sets the <c>max_prompt_tokens</c> value.</summary>
+    [JsonPropertyName("max_prompt_tokens")]
+    public double? MaxPromptTokens { get; set; }
+
+    /// <summary>Gets or sets the <c>max_output_tokens</c> value.</summary>
+    [JsonPropertyName("max_output_tokens")]
+    public double? MaxOutputTokens { get; set; }
+
+    /// <summary>Maximum total context window size in tokens.</summary>
+    [JsonPropertyName("max_context_window_tokens")]
+    public double? MaxContextWindowTokens { get; set; }
+
+    /// <summary>Gets or sets the <c>vision</c> value.</summary>
+    [JsonPropertyName("vision")]
+    public ModelCapabilitiesOverrideLimitsVision? Vision { get; set; }
+}
+
+/// <summary>Override individual model capabilities resolved by the runtime.</summary>
+public class ModelCapabilitiesOverride
+{
+    /// <summary>Feature flags indicating what the model supports.</summary>
+    [JsonPropertyName("supports")]
+    public ModelCapabilitiesOverrideSupports? Supports { get; set; }
+
+    /// <summary>Token limits for prompts, outputs, and context window.</summary>
+    [JsonPropertyName("limits")]
+    public ModelCapabilitiesOverrideLimits? Limits { get; set; }
+}
+
 /// <summary>RPC data type for SessionModelSwitchTo operations.</summary>
 internal class SessionModelSwitchToRequest
 {
@@ -313,6 +393,10 @@ internal class SessionModelSwitchToRequest
     /// <summary>Reasoning effort level to use for the model.</summary>
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
+
+    /// <summary>Override individual model capabilities resolved by the runtime.</summary>
+    [JsonPropertyName("modelCapabilities")]
+    public ModelCapabilitiesOverride? ModelCapabilities { get; set; }
 }
 
 /// <summary>RPC data type for SessionModeGet operations.</summary>
@@ -1537,9 +1621,9 @@ public class ModelApi
     }
 
     /// <summary>Calls "session.model.switchTo".</summary>
-    public async Task<SessionModelSwitchToResult> SwitchToAsync(string modelId, string? reasoningEffort = null, CancellationToken cancellationToken = default)
+    public async Task<SessionModelSwitchToResult> SwitchToAsync(string modelId, string? reasoningEffort = null, ModelCapabilitiesOverride? modelCapabilities = null, CancellationToken cancellationToken = default)
     {
-        var request = new SessionModelSwitchToRequest { SessionId = _sessionId, ModelId = modelId, ReasoningEffort = reasoningEffort };
+        var request = new SessionModelSwitchToRequest { SessionId = _sessionId, ModelId = modelId, ReasoningEffort = reasoningEffort, ModelCapabilities = modelCapabilities };
         return await CopilotClient.InvokeRpcAsync<SessionModelSwitchToResult>(_rpc, "session.model.switchTo", [request], cancellationToken);
     }
 }
@@ -2003,6 +2087,11 @@ public class ShellApi
 [JsonSerializable(typeof(ModelBilling))]
 [JsonSerializable(typeof(ModelCapabilities))]
 [JsonSerializable(typeof(ModelCapabilitiesLimits))]
+[JsonSerializable(typeof(ModelCapabilitiesLimitsVision))]
+[JsonSerializable(typeof(ModelCapabilitiesOverride))]
+[JsonSerializable(typeof(ModelCapabilitiesOverrideLimits))]
+[JsonSerializable(typeof(ModelCapabilitiesOverrideLimitsVision))]
+[JsonSerializable(typeof(ModelCapabilitiesOverrideSupports))]
 [JsonSerializable(typeof(ModelCapabilitiesSupports))]
 [JsonSerializable(typeof(ModelPolicy))]
 [JsonSerializable(typeof(ModelsListResult))]

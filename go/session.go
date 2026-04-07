@@ -453,7 +453,7 @@ func (s *Session) handleHooksInvoke(hookType string, rawInput json.RawMessage) (
 		}
 		return hooks.OnErrorOccurred(input, invocation)
 	default:
-		return nil, fmt.Errorf("unknown hook type: %s", hookType)
+		return nil, nil
 	}
 }
 
@@ -1245,6 +1245,9 @@ func (s *Session) Abort(ctx context.Context) error {
 type SetModelOptions struct {
 	// ReasoningEffort sets the reasoning effort level for the new model (e.g., "low", "medium", "high", "xhigh").
 	ReasoningEffort *string
+	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
+	// Only non-nil fields are applied over the runtime-resolved capabilities.
+	ModelCapabilities *rpc.ModelCapabilitiesOverride
 }
 
 // SetModel changes the model for this session.
@@ -1262,6 +1265,7 @@ func (s *Session) SetModel(ctx context.Context, model string, opts *SetModelOpti
 	params := &rpc.SessionModelSwitchToParams{ModelID: model}
 	if opts != nil {
 		params.ReasoningEffort = opts.ReasoningEffort
+		params.ModelCapabilities = opts.ModelCapabilities
 	}
 	_, err := s.RPC.Model.SwitchTo(ctx, params)
 	if err != nil {

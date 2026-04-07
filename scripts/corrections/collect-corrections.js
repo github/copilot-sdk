@@ -82,7 +82,12 @@ function resolveContext(payload, sender) {
     throw new Error("Missing feedback in payload");
   }
 
-  return { issueNumber: Number(issueNumber), feedback, sender };
+  const parsed = Number(issueNumber);
+  if (!Number.isFinite(parsed) || parsed < 1 || !Number.isInteger(parsed)) {
+    throw new Error(`Invalid issue_number: ${issueNumber}`);
+  }
+
+  return { issueNumber: parsed, feedback, sender };
 }
 
 /**
@@ -203,7 +208,7 @@ async function maybeAssignCCA(github, owner, repo, trackingIssue, correctionCoun
  */
 module.exports = async ({ github, context }) => {
   const { owner, repo } = context.repo;
-  const payload = context.payload.client_payload ?? {};
+  const payload = context.payload.client_payload ?? context.payload.inputs ?? {};
   const sender = context.payload.sender?.login ?? "unknown";
 
   const correction = resolveContext(payload, sender);

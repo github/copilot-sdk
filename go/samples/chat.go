@@ -37,7 +37,7 @@ func main() {
 		switch event.Type {
 		case copilot.SessionEventTypeAssistantReasoning:
 			if event.Data.Content != nil {
-				output = fmt.Sprintf("[reasoning: %s]", *event.Data.Content)
+				output = fmt.Sprintf("[reasoning: %s]", *event.Data.Content.String)
 			}
 		case copilot.SessionEventTypeToolExecutionStart:
 			if event.Data.ToolName != nil {
@@ -66,7 +66,7 @@ func main() {
 		reply, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: input})
 		content := ""
 		if reply != nil && reply.Data.Content != nil {
-			content = *reply.Data.Content
+			content = *reply.Data.Content.String
 		}
 		fmt.Printf("\nAssistant: %s\n\n", content)
 	}

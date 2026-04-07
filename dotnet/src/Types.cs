@@ -1589,6 +1589,7 @@ public class SessionConfig
             : null;
         Model = other.Model;
         CreateSessionFsHandler = other.CreateSessionFsHandler;
+        ModelCapabilities = other.ModelCapabilities;
         OnElicitationRequest = other.OnElicitationRequest;
         OnEvent = other.OnEvent;
         OnPermissionRequest = other.OnPermissionRequest;
@@ -1625,6 +1626,11 @@ public class SessionConfig
     /// Only applies to models where capabilities.supports.reasoningEffort is true.
     /// </summary>
     public string? ReasoningEffort { get; set; }
+
+    /// <summary>
+    /// Per-property overrides for model capabilities, deep-merged over runtime defaults.
+    /// </summary>
+    public ModelCapabilitiesOverride? ModelCapabilities { get; set; }
 
     /// <summary>
     /// Override the default configuration directory location.
@@ -1797,6 +1803,7 @@ public class ResumeSessionConfig
             ? new Dictionary<string, object>(other.McpServers, other.McpServers.Comparer)
             : null;
         Model = other.Model;
+        ModelCapabilities = other.ModelCapabilities;
         OnElicitationRequest = other.OnElicitationRequest;
         OnEvent = other.OnEvent;
         OnPermissionRequest = other.OnPermissionRequest;
@@ -1853,6 +1860,11 @@ public class ResumeSessionConfig
     /// Valid values: "low", "medium", "high", "xhigh".
     /// </summary>
     public string? ReasoningEffort { get; set; }
+
+    /// <summary>
+    /// Per-property overrides for model capabilities, deep-merged over runtime defaults.
+    /// </summary>
+    public ModelCapabilitiesOverride? ModelCapabilities { get; set; }
 
     /// <summary>
     /// Handler for permission requests from the server.
@@ -2733,6 +2745,7 @@ public class SessionFsRenameParams
 [JsonSerializable(typeof(MessageOptions))]
 [JsonSerializable(typeof(ModelBilling))]
 [JsonSerializable(typeof(ModelCapabilities))]
+[JsonSerializable(typeof(ModelCapabilitiesOverride))]
 [JsonSerializable(typeof(ModelInfo))]
 [JsonSerializable(typeof(ModelLimits))]
 [JsonSerializable(typeof(ModelPolicy))]

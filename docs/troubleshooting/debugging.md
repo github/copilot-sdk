@@ -94,6 +94,20 @@ var client = new CopilotClient(new CopilotClientOptions
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.json.*;
+
+var client = new CopilotClient(new CopilotClientOptions()
+    .setLogLevel("debug")
+);
+```
+
+</details>
+
 ### Log Directory
 
 The CLI writes logs to a directory. You can specify a custom location:
@@ -157,6 +171,17 @@ var client = new CopilotClient(new CopilotClientOptions
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+// The Java SDK does not currently support passing extra CLI arguments.
+// For custom log directories, run the CLI manually with --log-dir
+// and connect via cliUrl.
+```
+
+</details>
+
 ---
 
 ## Common Issues
@@ -215,6 +240,16 @@ var client = new CopilotClient(new CopilotClientOptions
    ```
    </details>
 
+   <details>
+   <summary><strong>Java</strong></summary>
+
+   ```java
+   var client = new CopilotClient(new CopilotClientOptions()
+       .setCliPath("/usr/local/bin/copilot")
+   );
+   ```
+   </details>
+
 ### "Not authenticated"
 
 **Cause:** The CLI is not authenticated with GitHub.
@@ -265,6 +300,16 @@ var client = new CopilotClient(new CopilotClientOptions
    {
        GithubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN")
    });
+   ```
+   </details>
+
+   <details>
+   <summary><strong>Java</strong></summary>
+
+   ```java
+   var client = new CopilotClient(new CopilotClientOptions()
+       .setGitHubToken(System.getenv("GITHUB_TOKEN"))
+   );
    ```
    </details>
 

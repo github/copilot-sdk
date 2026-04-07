@@ -219,6 +219,35 @@ await session.SendAsync(new MessageOptions
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.events.*;
+import com.github.copilot.sdk.json.*;
+import java.util.List;
+
+try (var client = new CopilotClient()) {
+    client.start().get();
+
+    var session = client.createSession(
+        new SessionConfig()
+            .setModel("gpt-4.1")
+            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+    ).get();
+
+    session.send(new MessageOptions()
+        .setPrompt("Describe what you see in this image")
+        .setAttachments(List.of(
+            new Attachment("file", "/absolute/path/to/screenshot.png", "screenshot.png")
+        ))
+    ).get();
+}
+```
+
+</details>
+
 ## Quick Start — Blob Attachment
 
 When you already have image data in memory (e.g., a screenshot captured by your app, or an image fetched from an API), use a blob attachment to send it directly without writing to disk.
@@ -396,6 +425,39 @@ await session.SendAsync(new MessageOptions
         },
     },
 });
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.events.*;
+import com.github.copilot.sdk.json.*;
+import java.util.List;
+
+try (var client = new CopilotClient()) {
+    client.start().get();
+
+    var session = client.createSession(
+        new SessionConfig()
+            .setModel("gpt-4.1")
+            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+    ).get();
+
+    var base64ImageData = "..."; // your base64-encoded image
+    session.send(new MessageOptions()
+        .setPrompt("Describe what you see in this image")
+        .setAttachments(List.of(
+            new BlobAttachment()
+                .setData(base64ImageData)
+                .setMimeType("image/png")
+                .setDisplayName("screenshot.png")
+        ))
+    ).get();
+}
 ```
 
 </details>

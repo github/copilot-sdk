@@ -68,15 +68,31 @@ var client = new CopilotClient(new CopilotClientOptions
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+<!-- docs-validate: skip -->
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.json.*;
+
+var client = new CopilotClient(new CopilotClientOptions()
+    .setTelemetry(new TelemetryConfig()
+        .setOtlpEndpoint("http://localhost:4318"))
+);
+```
+
+</details>
+
 ### TelemetryConfig Options
 
-| Option | Node.js | Python | Go | .NET | Description |
-|---|---|---|---|---|---|
-| OTLP endpoint | `otlpEndpoint` | `otlp_endpoint` | `OTLPEndpoint` | `OtlpEndpoint` | OTLP HTTP endpoint URL |
-| File path | `filePath` | `file_path` | `FilePath` | `FilePath` | File path for JSON-lines trace output |
-| Exporter type | `exporterType` | `exporter_type` | `ExporterType` | `ExporterType` | `"otlp-http"` or `"file"` |
-| Source name | `sourceName` | `source_name` | `SourceName` | `SourceName` | Instrumentation scope name |
-| Capture content | `captureContent` | `capture_content` | `CaptureContent` | `CaptureContent` | Whether to capture message content |
+| Option | Node.js | Python | Go | .NET | Java | Description |
+|---|---|---|---|---|---|---|
+| OTLP endpoint | `otlpEndpoint` | `otlp_endpoint` | `OTLPEndpoint` | `OtlpEndpoint` | `otlpEndpoint` | OTLP HTTP endpoint URL |
+| File path | `filePath` | `file_path` | `FilePath` | `FilePath` | `filePath` | File path for JSON-lines trace output |
+| Exporter type | `exporterType` | `exporter_type` | `ExporterType` | `ExporterType` | `exporterType` | `"otlp-http"` or `"file"` |
+| Source name | `sourceName` | `source_name` | `SourceName` | `SourceName` | `sourceName` | Instrumentation scope name |
+| Capture content | `captureContent` | `capture_content` | `CaptureContent` | `CaptureContent` | `captureContent` | Whether to capture message content |
 
 ### Trace Context Propagation
 
@@ -149,6 +165,7 @@ session.registerTool(myTool, async (args, invocation) => {
 | Python | `opentelemetry-api` | Install with `pip install copilot-sdk[telemetry]` |
 | Go | `go.opentelemetry.io/otel` | Required dependency |
 | .NET | — | Uses built-in `System.Diagnostics.Activity` |
+| Java | `io.opentelemetry:opentelemetry-api` | Add this dependency for SDK-based setup; trace context injection is automatic when the OpenTelemetry Java agent or SDK is configured |
 
 ## References
 

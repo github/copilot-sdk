@@ -178,6 +178,38 @@ await session.SendAsync(new MessageOptions
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.events.*;
+import com.github.copilot.sdk.json.*;
+
+try (var client = new CopilotClient()) {
+    client.start().get();
+
+    var session = client.createSession(
+        new SessionConfig()
+            .setModel("gpt-4.1")
+            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+    ).get();
+
+    // Start a long-running task
+    session.send(new MessageOptions()
+        .setPrompt("Refactor the authentication module to use sessions")
+    ).get();
+
+    // While the agent is working, steer it
+    session.send(new MessageOptions()
+        .setPrompt("Actually, use JWT tokens instead of sessions")
+        .setMode("immediate")
+    ).get();
+}
+```
+
+</details>
+
 ### How Steering Works Internally
 
 1. The message is added to the runtime's `ImmediatePromptProcessor` queue
@@ -384,6 +416,43 @@ await session.SendAsync(new MessageOptions
 });
 
 // Messages are processed in FIFO order after each turn completes
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.events.*;
+import com.github.copilot.sdk.json.*;
+
+try (var client = new CopilotClient()) {
+    client.start().get();
+
+    var session = client.createSession(
+        new SessionConfig()
+            .setModel("gpt-4.1")
+            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+    ).get();
+
+    // Send an initial task
+    session.send(new MessageOptions().setPrompt("Set up the project structure")).get();
+
+    // Queue follow-up tasks while the agent is busy
+    session.send(new MessageOptions()
+        .setPrompt("Add unit tests for the auth module")
+        .setMode("enqueue")
+    ).get();
+
+    session.send(new MessageOptions()
+        .setPrompt("Update the README with setup instructions")
+        .setMode("enqueue")
+    ).get();
+
+    // Messages are processed in FIFO order after each turn completes
+}
 ```
 
 </details>

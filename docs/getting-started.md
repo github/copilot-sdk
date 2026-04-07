@@ -20,7 +20,7 @@ Before you begin, make sure you have:
 
 - **GitHub Copilot CLI** installed and authenticated ([Installation guide](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli))
 - Your preferred language runtime:
-  - **Node.js** 18+ or **Python** 3.8+ or **Go** 1.21+ or **.NET** 8.0+
+  - **Node.js** 18+ or **Python** 3.11+ or **Go** 1.21+ or **Java** 17+ or **.NET** 8.0+
 
 Verify the CLI is working:
 
@@ -88,6 +88,29 @@ Then add the SDK:
 
 ```bash
 dotnet add package GitHub.Copilot.SDK
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+First, create a new directory and initialize your project.
+
+**Maven** — add to your `pom.xml`:
+
+```xml
+<dependency>
+    <groupId>com.github</groupId>
+    <artifactId>copilot-sdk-java</artifactId>
+    <version>${copilot.sdk.version}</version>
+</dependency>
+```
+
+**Gradle** — add to your `build.gradle`:
+
+```groovy
+implementation 'com.github:copilot-sdk-java:${copilotSdkVersion}'
 ```
 
 </details>
@@ -224,6 +247,47 @@ Run it:
 
 ```bash
 dotnet run
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+Create `HelloCopilot.java`:
+
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.events.*;
+import com.github.copilot.sdk.json.*;
+
+public class HelloCopilot {
+    public static void main(String[] args) throws Exception {
+        try (var client = new CopilotClient()) {
+            client.start().get();
+
+            var session = client.createSession(
+                new SessionConfig()
+                    .setModel("gpt-4.1")
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+            ).get();
+
+            var response = session.sendAndWait(
+                new MessageOptions().setPrompt("What is 2 + 2?")
+            ).get();
+
+            System.out.println(response.getData().content());
+
+            client.stop().get();
+        }
+    }
+}
+```
+
+Run it:
+
+```bash
+javac -cp copilot-sdk.jar HelloCopilot.java && java -cp .:copilot-sdk.jar HelloCopilot
 ```
 
 </details>
@@ -390,6 +454,48 @@ session.On(ev =>
 });
 
 await session.SendAndWaitAsync(new MessageOptions { Prompt = "Tell me a short joke" });
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+Update `HelloCopilot.java`:
+
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.events.*;
+import com.github.copilot.sdk.json.*;
+
+public class HelloCopilot {
+    public static void main(String[] args) throws Exception {
+        try (var client = new CopilotClient()) {
+            client.start().get();
+
+            var session = client.createSession(
+                new SessionConfig()
+                    .setModel("gpt-4.1")
+                    .setStreaming(true)
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+            ).get();
+
+            // Listen for response chunks
+            session.on(AssistantMessageDeltaEvent.class, delta -> {
+                System.out.print(delta.getData().deltaContent());
+            });
+            session.on(SessionIdleEvent.class, idle -> {
+                System.out.println(); // New line when done
+            });
+
+            session.sendAndWait(
+                new MessageOptions().setPrompt("Tell me a short joke")
+            ).get();
+
+            client.stop().get();
+        }
+    }
+}
 ```
 
 </details>
@@ -587,6 +693,30 @@ session.On(ev =>
 
 // Later, to unsubscribe:
 unsubscribe.Dispose();
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+// Subscribe to all events
+var unsubscribe = session.on(event -> {
+    System.out.println("Event: " + event.getType());
+});
+
+// Subscribe to a specific event type
+session.on(AssistantMessageEvent.class, msg -> {
+    System.out.println("Message: " + msg.getData().content());
+});
+
+session.on(SessionIdleEvent.class, idle -> {
+    System.out.println("Session is idle");
+});
+
+// Later, to unsubscribe:
+unsubscribe.close();
 ```
 
 </details>
@@ -837,6 +967,79 @@ await session.SendAndWaitAsync(new MessageOptions
 {
     Prompt = "What's the weather like in Seattle and Tokyo?",
 });
+```
+
+</details>
+
+<details>
+<summary><strong>Java</strong></summary>
+
+Update `HelloCopilot.java`:
+
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.events.*;
+import com.github.copilot.sdk.json.*;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.CompletableFuture;
+
+public class HelloCopilot {
+    public static void main(String[] args) throws Exception {
+        var random = new Random();
+        var conditions = List.of("sunny", "cloudy", "rainy", "partly cloudy");
+
+        // Define a tool that Copilot can call
+        var getWeather = ToolDefinition.create(
+            "get_weather",
+            "Get the current weather for a city",
+            Map.of(
+                "type", "object",
+                "properties", Map.of(
+                    "city", Map.of("type", "string", "description", "The city name")
+                ),
+                "required", List.of("city")
+            ),
+            invocation -> {
+                var city = (String) invocation.getArguments().get("city");
+                var temp = random.nextInt(30) + 50;
+                var condition = conditions.get(random.nextInt(conditions.size()));
+                return CompletableFuture.completedFuture(Map.of(
+                    "city", city,
+                    "temperature", temp + "°F",
+                    "condition", condition
+                ));
+            }
+        );
+
+        try (var client = new CopilotClient()) {
+            client.start().get();
+
+            var session = client.createSession(
+                new SessionConfig()
+                    .setModel("gpt-4.1")
+                    .setStreaming(true)
+                    .setTools(List.of(getWeather))
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+            ).get();
+
+            session.on(AssistantMessageDeltaEvent.class, delta -> {
+                System.out.print(delta.getData().deltaContent());
+            });
+            session.on(SessionIdleEvent.class, idle -> {
+                System.out.println();
+            });
+
+            session.sendAndWait(
+                new MessageOptions().setPrompt("What's the weather like in Seattle and Tokyo?")
+            ).get();
+
+            client.stop().get();
+        }
+    }
+}
 ```
 
 </details>
@@ -1165,6 +1368,100 @@ dotnet run
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+Create `WeatherAssistant.java`:
+
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.events.*;
+import com.github.copilot.sdk.json.*;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Scanner;
+import java.util.concurrent.CompletableFuture;
+
+public class WeatherAssistant {
+    public static void main(String[] args) throws Exception {
+        var random = new Random();
+        var conditions = List.of("sunny", "cloudy", "rainy", "partly cloudy");
+
+        var getWeather = ToolDefinition.create(
+            "get_weather",
+            "Get the current weather for a city",
+            Map.of(
+                "type", "object",
+                "properties", Map.of(
+                    "city", Map.of("type", "string", "description", "The city name")
+                ),
+                "required", List.of("city")
+            ),
+            invocation -> {
+                var city = (String) invocation.getArguments().get("city");
+                var temp = random.nextInt(30) + 50;
+                var condition = conditions.get(random.nextInt(conditions.size()));
+                return CompletableFuture.completedFuture(Map.of(
+                    "city", city,
+                    "temperature", temp + "°F",
+                    "condition", condition
+                ));
+            }
+        );
+
+        try (var client = new CopilotClient()) {
+            client.start().get();
+
+            var session = client.createSession(
+                new SessionConfig()
+                    .setModel("gpt-4.1")
+                    .setStreaming(true)
+                    .setOnPermissionRequest(request ->
+                        CompletableFuture.completedFuture(PermissionDecision.allow())
+                    )
+                    .setTools(List.of(getWeather))
+            ).get();
+
+            session.on(AssistantMessageDeltaEvent.class, delta -> {
+                System.out.print(delta.getData().deltaContent());
+            });
+            session.on(SessionIdleEvent.class, idle -> {
+                System.out.println();
+            });
+
+            System.out.println("🌤️  Weather Assistant (type 'exit' to quit)");
+            System.out.println("   Try: 'What's the weather in Paris?' or 'Compare weather in NYC and LA'\n");
+
+            var scanner = new Scanner(System.in);
+            while (true) {
+                System.out.print("You: ");
+                if (!scanner.hasNextLine()) break;
+                var input = scanner.nextLine();
+                if (input.equalsIgnoreCase("exit")) break;
+
+                System.out.print("Assistant: ");
+                session.sendAndWait(
+                    new MessageOptions().setPrompt(input)
+                ).get();
+                System.out.println("\n");
+            }
+
+            client.stop().get();
+        }
+    }
+}
+```
+
+Run with:
+
+```bash
+javac -cp copilot-sdk.jar WeatherAssistant.java && java -cp .:copilot-sdk.jar WeatherAssistant
+```
+
+</details>
+
 
 **Example session:**
 
@@ -1273,7 +1570,7 @@ Available section IDs: `identity`, `tone`, `tool_efficiency`, `environment_conte
 
 Each override supports four actions: `replace`, `remove`, `append`, and `prepend`. Unknown section IDs are handled gracefully — content is appended to additional instructions and a warning is emitted; `remove` on unknown sections is silently ignored.
 
-See the language-specific SDK READMEs for examples in [TypeScript](../nodejs/README.md), [Python](../python/README.md), [Go](../go/README.md), and [C#](../dotnet/README.md).
+See the language-specific SDK READMEs for examples in [TypeScript](../nodejs/README.md), [Python](../python/README.md), [Go](../go/README.md), [Java](../java/README.md), and [C#](../dotnet/README.md).
 
 ---
 
@@ -1412,6 +1709,27 @@ await using var session = await client.CreateSessionAsync(new()
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.json.*;
+
+var client = new CopilotClient(
+    new CopilotClientOptions().setCliUrl("localhost:4321")
+);
+client.start().get();
+
+// Use the client normally
+var session = client.createSession(
+    new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+).get();
+// ...
+```
+
+</details>
+
 **Note:** When `cli_url` / `cliUrl` / `CLIUrl` is provided, the SDK will not spawn or manage a CLI process - it will only connect to the existing server at the specified URL.
 
 ---
@@ -1494,15 +1812,32 @@ No extra dependencies — uses built-in `System.Diagnostics.Activity`.
 
 </details>
 
+<details>
+<summary><strong>Java</strong></summary>
+
+<!-- docs-validate: skip -->
+```java
+import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.sdk.json.*;
+
+var client = new CopilotClient(new CopilotClientOptions()
+    .setTelemetry(new TelemetryConfig()
+        .setOtlpEndpoint("http://localhost:4318")));
+```
+
+Dependency: `io.opentelemetry:opentelemetry-api`
+
+</details>
+
 ### TelemetryConfig Options
 
-| Option | Node.js | Python | Go | .NET | Description |
-|---|---|---|---|---|---|
-| OTLP endpoint | `otlpEndpoint` | `otlp_endpoint` | `OTLPEndpoint` | `OtlpEndpoint` | OTLP HTTP endpoint URL |
-| File path | `filePath` | `file_path` | `FilePath` | `FilePath` | File path for JSON-lines trace output |
-| Exporter type | `exporterType` | `exporter_type` | `ExporterType` | `ExporterType` | `"otlp-http"` or `"file"` |
-| Source name | `sourceName` | `source_name` | `SourceName` | `SourceName` | Instrumentation scope name |
-| Capture content | `captureContent` | `capture_content` | `CaptureContent` | `CaptureContent` | Whether to capture message content |
+| Option | Node.js | Python | Go | Java | .NET | Description |
+|---|---|---|---|---|---|---|
+| OTLP endpoint | `otlpEndpoint` | `otlp_endpoint` | `OTLPEndpoint` | `otlpEndpoint` | `OtlpEndpoint` | OTLP HTTP endpoint URL |
+| File path | `filePath` | `file_path` | `FilePath` | `filePath` | `FilePath` | File path for JSON-lines trace output |
+| Exporter type | `exporterType` | `exporter_type` | `ExporterType` | `exporterType` | `ExporterType` | `"otlp-http"` or `"file"` |
+| Source name | `sourceName` | `source_name` | `SourceName` | `sourceName` | `SourceName` | Instrumentation scope name |
+| Capture content | `captureContent` | `capture_content` | `CaptureContent` | `captureContent` | `CaptureContent` | Whether to capture message content |
 
 ### File Export
 
@@ -1537,6 +1872,7 @@ Trace context is propagated automatically — no manual instrumentation is neede
 - [Python SDK Reference](../python/README.md)
 - [Go SDK Reference](../go/README.md)
 - [.NET SDK Reference](../dotnet/README.md)
+- [Java SDK Reference](../java/README.md)
 - [Using MCP Servers](./features/mcp.md) - Integrate external tools via Model Context Protocol
 - [GitHub MCP Server Documentation](https://github.com/github/github-mcp-server)
 - [MCP Servers Directory](https://github.com/modelcontextprotocol/servers) - Explore more MCP servers

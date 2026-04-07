@@ -991,7 +991,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                     JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.ErrorOccurredHookInput)!,
                     invocation)
                 : null,
-            _ => throw new ArgumentException($"Unknown hook type: {hookType}")
+            _ => null
         };
     }
 
@@ -1129,6 +1129,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </summary>
     /// <param name="model">Model ID to switch to (e.g., "gpt-4.1").</param>
     /// <param name="reasoningEffort">Reasoning effort level (e.g., "low", "medium", "high", "xhigh").</param>
+    /// <param name="modelCapabilities">Per-property overrides for model capabilities, deep-merged over runtime defaults.</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <example>
     /// <code>
@@ -1136,9 +1137,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// await session.SetModelAsync("claude-sonnet-4.6", "high");
     /// </code>
     /// </example>
-    public async Task SetModelAsync(string model, string? reasoningEffort, CancellationToken cancellationToken = default)
+    public async Task SetModelAsync(string model, string? reasoningEffort, ModelCapabilitiesOverride? modelCapabilities = null, CancellationToken cancellationToken = default)
     {
-        await Rpc.Model.SwitchToAsync(model, reasoningEffort, cancellationToken);
+        await Rpc.Model.SwitchToAsync(model, reasoningEffort, modelCapabilities, cancellationToken);
     }
 
     /// <summary>
@@ -1146,7 +1147,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </summary>
     public Task SetModelAsync(string model, CancellationToken cancellationToken = default)
     {
-        return SetModelAsync(model, reasoningEffort: null, cancellationToken);
+        return SetModelAsync(model, reasoningEffort: null, modelCapabilities: null, cancellationToken);
     }
 
     /// <summary>

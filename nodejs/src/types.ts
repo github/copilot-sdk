@@ -1065,6 +1065,9 @@ export interface SessionConfig {
      */
     reasoningEffort?: ReasoningEffort;
 
+    /** Per-property overrides for model capabilities, deep-merged over runtime defaults. */
+    modelCapabilities?: ModelCapabilitiesOverride;
+
     /**
      * Override the default configuration directory location.
      * When specified, the session will use this directory for storing config and state.
@@ -1214,6 +1217,7 @@ export type ResumeSessionConfig = Pick<
     | "availableTools"
     | "excludedTools"
     | "provider"
+    | "modelCapabilities"
     | "streaming"
     | "reasoningEffort"
     | "onPermissionRequest"
@@ -1464,6 +1468,16 @@ export interface ModelCapabilities {
         };
     };
 }
+
+/** Recursively makes all properties optional, preserving arrays as-is. */
+type DeepPartial<T> = T extends readonly (infer U)[]
+    ? DeepPartial<U>[]
+    : T extends object
+      ? { [K in keyof T]?: DeepPartial<T[K]> }
+      : T;
+
+/** Deep-partial override for model capabilities — every property at any depth is optional. */
+export type ModelCapabilitiesOverride = DeepPartial<ModelCapabilities>;
 
 /**
  * Model policy state

@@ -620,7 +620,7 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
         return isRequired ? enumName : `${enumName}?`;
     }
     if (schema.type === "object" && schema.properties) {
-        const className = `${parentClassName}${propName}`;
+        const className = (schema.title as string) ?? `${parentClassName}${propName}`;
         classes.push(emitRpcClass(className, schema, "public", classes));
         return isRequired ? className : `${className}?`;
     }

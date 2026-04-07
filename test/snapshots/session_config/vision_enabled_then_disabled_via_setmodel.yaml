@@ -1,0 +1,167 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the view tool to look at the file test.png and describe what you see
+      - role: assistant
+        content: I'll use the view tool to examine the test.png file.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test.png"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the view tool to look at the file test.png and describe what you see
+      - role: assistant
+        content: I'll use the view tool to examine the test.png file.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test.png"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Viewed image file successfully.
+      - role: user
+        content: |-
+          Image file at path ${workdir}/test.png
+          [image]
+      - role: assistant
+        content: >-
+          Looking at the test.png image, I can see what appears to be a solid beige or tan colored square. It's a very
+          simple image - just a single uniform color with no visible patterns, text, or other elements. The color is a
+          light peachy-tan shade, similar to a skin tone or sand color.
+
+
+          This looks like it could be a test image or placeholder, possibly just a single pixel or small solid color
+          block that's been created for testing purposes.
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the view tool to look at the file test.png and describe what you see
+      - role: assistant
+        content: I'll use the view tool to examine the test.png file.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test.png"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Viewed image file successfully.
+      - role: assistant
+        content: >-
+          Looking at the test.png image, I can see what appears to be a solid beige or tan colored square. It's a very
+          simple image - just a single uniform color with no visible patterns, text, or other elements. The color is a
+          light peachy-tan shade, similar to a skin tone or sand color.
+
+
+          This looks like it could be a test image or placeholder, possibly just a single pixel or small solid color
+          block that's been created for testing purposes.
+      - role: user
+        content: Use the view tool to look at the file test.png and describe what you see
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_3
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test.png"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Use the view tool to look at the file test.png and describe what you see
+      - role: assistant
+        content: I'll use the view tool to examine the test.png file.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test.png"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Viewed image file successfully.
+      - role: assistant
+        content: >-
+          Looking at the test.png image, I can see what appears to be a solid beige or tan colored square. It's a very
+          simple image - just a single uniform color with no visible patterns, text, or other elements. The color is a
+          light peachy-tan shade, similar to a skin tone or sand color.
+
+
+          This looks like it could be a test image or placeholder, possibly just a single pixel or small solid color
+          block that's been created for testing purposes.
+      - role: user
+        content: Use the view tool to look at the file test.png and describe what you see
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+          - id: toolcall_3
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test.png"}'
+      - role: tool
+        tool_call_id: toolcall_2
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_3
+        content: Viewed image file successfully.
+      - role: assistant
+        content: I can see the test.png image again. It shows a solid, uniform beige or tan colored square - a simple test image
+          with just one flat color throughout. The color is a light peachy-tan or sand-like shade. There's no text,
+          patterns, gradients, or other visual elements - just a single solid color filling the entire image.
