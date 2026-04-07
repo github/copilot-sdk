@@ -211,7 +211,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
             var contentBefore = await ReadAllTextSharedAsync(eventsPath);
             Assert.DoesNotContain("checkpointNumber", contentBefore);
 
-            await session.Rpc.Compaction.CompactAsync();
+            await session.Rpc.History.CompactAsync();
             await WaitForConditionAsync(() => compactionEvent is not null, TimeSpan.FromSeconds(30));
             Assert.True(compactionEvent!.Data.Success);
 

@@ -206,7 +206,7 @@ class TestSessionFs:
         await wait_for_path(events_path)
         assert "checkpointNumber" not in events_path.read_text(encoding="utf-8")
 
-        result = await session.rpc.compaction.compact()
+        result = await session.rpc.history.compact()
         await asyncio.wait_for(compaction_event.wait(), timeout=5.0)
         assert result.success is True
         assert compaction_success is True

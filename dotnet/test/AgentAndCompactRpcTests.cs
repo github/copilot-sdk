@@ -135,7 +135,7 @@ public class AgentAndCompactRpcTests(E2ETestFixture fixture, ITestOutputHelper o
         await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" });
 
         // Compact the session
-        var result = await session.Rpc.Compaction.CompactAsync();
+        var result = await session.Rpc.History.CompactAsync();
         Assert.NotNull(result);
     }
 }

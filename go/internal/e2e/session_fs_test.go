@@ -233,7 +233,7 @@ func TestSessionFs(t *testing.T) {
 			t.Fatalf("Expected events file to not contain checkpointNumber before compaction")
 		}
 
-		compactionResult, err := session.RPC.Compaction.Compact(t.Context())
+		compactionResult, err := session.RPC.History.Compact(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to compact session: %v", err)
 		}

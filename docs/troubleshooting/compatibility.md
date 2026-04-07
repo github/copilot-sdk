@@ -86,7 +86,7 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | **Experimental** | | |
 | Agent management | `session.rpc.agent.*` | List, select, deselect, get current agent |
 | Fleet mode | `session.rpc.fleet.start()` | Parallel sub-agent execution |
-| Manual compaction | `session.rpc.compaction.compact()` | Trigger compaction on demand |
+| Manual compaction | `session.rpc.history.compact()` | Trigger compaction on demand |
 
 ### ❌ Not Available in SDK (CLI-Only)
 
@@ -222,7 +222,7 @@ const session = await client.createSession({
 });
 
 // Manual compaction (experimental)
-const result = await session.rpc.compaction.compact();
+const result = await session.rpc.history.compact();
 console.log(`Removed ${result.tokensRemoved} tokens, ${result.messagesRemoved} messages`);
 ```
 
