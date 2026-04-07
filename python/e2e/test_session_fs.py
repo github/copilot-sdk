@@ -37,7 +37,9 @@ SESSION_FS_CONFIG: SessionFsConfig = {
 
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
 async def session_fs_client(ctx: E2ETestContext):
-    github_token = "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
+    github_token = (
+        "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
+    )
     client = CopilotClient(
         SubprocessConfig(
             cli_path=ctx.cli_path,
@@ -70,7 +72,9 @@ class TestSessionFs:
         assert "300" in msg.data.content
         await session.disconnect()
 
-        events_path = provider_path(provider_root, session.session_id, "/session-state/events.jsonl")
+        events_path = provider_path(
+            provider_root, session.session_id, "/session-state/events.jsonl"
+        )
         assert "300" in events_path.read_text(encoding="utf-8")
 
     async def test_should_load_session_data_from_fs_provider_on_resume(
@@ -106,7 +110,9 @@ class TestSessionFs:
         await session2.disconnect()
 
     async def test_should_reject_setprovider_when_sessions_already_exist(self, ctx: E2ETestContext):
-        github_token = "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
+        github_token = (
+            "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
+        )
         client1 = CopilotClient(
             SubprocessConfig(
                 cli_path=ctx.cli_path,
@@ -158,7 +164,9 @@ class TestSessionFs:
             tools=[get_big_string],
         )
 
-        await session.send_and_wait("Call the get_big_string tool and reply with the word DONE only.")
+        await session.send_and_wait(
+            "Call the get_big_string tool and reply with the word DONE only."
+        )
 
         messages = await session.get_messages()
         tool_result = find_tool_call_result(messages, "get_big_string")
@@ -192,7 +200,9 @@ class TestSessionFs:
 
         await session.send_and_wait("What is 2+2?")
 
-        events_path = provider_path(provider_root, session.session_id, "/session-state/events.jsonl")
+        events_path = provider_path(
+            provider_root, session.session_id, "/session-state/events.jsonl"
+        )
         await wait_for_path(events_path)
         assert "checkpointNumber" not in events_path.read_text(encoding="utf-8")
 
@@ -297,7 +307,10 @@ def provider_path(provider_root: Path, session_id: str, path: str) -> Path:
 
 def find_tool_call_result(messages: list[SessionEvent], tool_name: str) -> str | None:
     for message in messages:
-        if message.type.value == "tool.execution_complete" and message.data.tool_call_id is not None:
+        if (
+            message.type.value == "tool.execution_complete"
+            and message.data.tool_call_id is not None
+        ):
             if find_tool_name(messages, message.data.tool_call_id) == tool_name:
                 return message.data.result.content if message.data.result is not None else None
     return None

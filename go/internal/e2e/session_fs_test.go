@@ -36,7 +36,7 @@ func TestSessionFs(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest:   copilot.PermissionHandler.ApproveAll,
+			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
 			CreateSessionFsHandler: createSessionFsHandler,
 		})
 		if err != nil {
@@ -71,7 +71,7 @@ func TestSessionFs(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		session1, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest:   copilot.PermissionHandler.ApproveAll,
+			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
 			CreateSessionFsHandler: createSessionFsHandler,
 		})
 		if err != nil {
@@ -99,7 +99,7 @@ func TestSessionFs(t *testing.T) {
 		}
 
 		session2, err := client.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
-			OnPermissionRequest:   copilot.PermissionHandler.ApproveAll,
+			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
 			CreateSessionFsHandler: createSessionFsHandler,
 		})
 		if err != nil {
@@ -159,7 +159,7 @@ func TestSessionFs(t *testing.T) {
 
 		suppliedFileContent := strings.Repeat("x", 100_000)
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest:   copilot.PermissionHandler.ApproveAll,
+			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
 			CreateSessionFsHandler: createSessionFsHandler,
 			Tools: []copilot.Tool{
 				copilot.DefineTool("get_big_string", "Returns a large string",
@@ -204,7 +204,7 @@ func TestSessionFs(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest:   copilot.PermissionHandler.ApproveAll,
+			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
 			CreateSessionFsHandler: createSessionFsHandler,
 		})
 		if err != nil {

@@ -73,6 +73,7 @@ class SessionFsConfig(TypedDict):
     session_state_path: str
     conventions: SessionFsConventions
 
+
 # ============================================================================
 # Attachment Types
 # ============================================================================
