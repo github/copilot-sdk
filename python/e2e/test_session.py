@@ -622,7 +622,7 @@ class TestSessions:
             "GAWjR9awAAAABJRU5ErkJggg=="
         )
 
-        await session.send(
+        await session.send_and_wait(
             "Describe this image",
             attachments=[
                 {

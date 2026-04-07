@@ -5,4 +5,110 @@ conversations:
       - role: system
         content: ${system}
       - role: user
-        content: Describe this image
+        content: |-
+          Describe this image
+          test-pixel.png
+          [image]
+      - role: assistant
+        content: I'll view the image for you.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+      - role: assistant
+        tool_calls:
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test-pixel.png"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: |-
+          Describe this image
+          test-pixel.png
+          [image]
+      - role: assistant
+        content: I'll view the image for you.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test-pixel.png"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Path ${workdir}/test-pixel.png does not exist. Please provide a valid path.
+      - role: assistant
+        content: "Let me check what files are in the current directory:"
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"Get-ChildItem","description":"List current directory contents"}'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: |-
+          Describe this image
+          test-pixel.png
+          [image]
+      - role: assistant
+        content: I'll view the image for you.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Viewing image file"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/test-pixel.png"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Path ${workdir}/test-pixel.png does not exist. Please provide a valid path.
+      - role: assistant
+        content: "Let me check what files are in the current directory:"
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: ${shell}
+              arguments: '{"command":"Get-ChildItem","description":"List current directory contents"}'
+      - role: tool
+        tool_call_id: toolcall_2
+        content: <exited with exit code 0>
+      - role: assistant
+        content: >-
+          The directory appears to be empty. The image "test-pixel.png" you mentioned doesn't exist in the current
+          working directory yet. 
+
+
+          Could you please provide the image file or let me know where it's located? You can:
+
+          1. Upload/attach the image file
+
+          2. Specify the correct path to the image
+
+          3. Move the image to the current directory

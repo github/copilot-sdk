@@ -596,7 +596,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
     {
         var session = await CreateSessionAsync();
 
-        await session.SendAsync(new MessageOptions
+        await session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Describe this image",
             Attachments =

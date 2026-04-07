@@ -1062,7 +1062,7 @@ func TestSessionBlobAttachment(t *testing.T) {
 		data := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 		mimeType := "image/png"
 		displayName := "test-pixel.png"
-		_, err = session.Send(t.Context(), copilot.MessageOptions{
+		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Describe this image",
 			Attachments: []copilot.Attachment{
 				{
