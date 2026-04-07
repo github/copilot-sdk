@@ -44,7 +44,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if response != nil && response.Data.Content != nil {
-		fmt.Println(*response.Data.Content)
-	}
+	if response != nil {
+if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
+fmt.Println(d.Content)
+}
+}
 }

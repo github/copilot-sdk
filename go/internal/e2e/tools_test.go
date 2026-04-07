@@ -232,8 +232,11 @@ func TestTools(t *testing.T) {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
+		if answer == nil {
+			t.Fatalf("Expected assistant message with content")
+		}
 		ad, ok := answer.Data.(*copilot.AssistantMessageData)
-		if answer == nil || !ok {
+		if !ok {
 			t.Fatalf("Expected assistant message with content")
 		}
 

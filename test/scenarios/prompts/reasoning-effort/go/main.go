@@ -41,8 +41,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if response != nil && response.Data.Content != nil {
-		fmt.Println("Reasoning effort: low")
-		fmt.Printf("Response: %s\n", *response.Data.Content)
+	if response != nil {
+		if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
+			fmt.Println("Reasoning effort: low")
+			fmt.Printf("Response: %s\n", d.Content)
+		}
 	}
 }

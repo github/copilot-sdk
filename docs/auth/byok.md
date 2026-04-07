@@ -130,7 +130,9 @@ func main() {
         panic(err)
     }
 
-    fmt.Println(*response.Data.Content)
+    if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
+        fmt.Println(d.Content)
+    }
 }
 ```
 

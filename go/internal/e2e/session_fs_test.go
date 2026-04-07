@@ -48,8 +48,10 @@ func TestSessionFs(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 		content := ""
-		if msg != nil && msg.Data.Content != nil {
-			content = *msg.Data.Content
+		if msg != nil {
+			if d, ok := msg.Data.(*copilot.AssistantMessageData); ok {
+				content = d.Content
+			}
 		}
 		if !strings.Contains(content, "300") {
 			t.Fatalf("Expected response to contain 300, got %q", content)
@@ -84,8 +86,10 @@ func TestSessionFs(t *testing.T) {
 			t.Fatalf("Failed to send first message: %v", err)
 		}
 		content := ""
-		if msg != nil && msg.Data.Content != nil {
-			content = *msg.Data.Content
+		if msg != nil {
+			if d, ok := msg.Data.(*copilot.AssistantMessageData); ok {
+				content = d.Content
+			}
 		}
 		if !strings.Contains(content, "100") {
 			t.Fatalf("Expected response to contain 100, got %q", content)
@@ -111,8 +115,10 @@ func TestSessionFs(t *testing.T) {
 			t.Fatalf("Failed to send second message: %v", err)
 		}
 		content2 := ""
-		if msg2 != nil && msg2.Data.Content != nil {
-			content2 = *msg2.Data.Content
+		if msg2 != nil {
+			if d, ok := msg2.Data.(*copilot.AssistantMessageData); ok {
+				content2 = d.Content
+			}
 		}
 		if !strings.Contains(content2, "300") {
 			t.Fatalf("Expected response to contain 300, got %q", content2)
@@ -396,12 +402,10 @@ func providerPath(root string, sessionID string, path string) string {
 
 func findToolCallResult(messages []copilot.SessionEvent, toolName string) string {
 	for _, message := range messages {
-		if message.Type == "tool.execution_complete" &&
-			message.Data.Result != nil &&
-			message.Data.Result.Content != nil &&
-			message.Data.ToolCallID != nil &&
-			findToolName(messages, *message.Data.ToolCallID) == toolName {
-			return *message.Data.Result.Content
+		if d, ok := message.Data.(*copilot.ToolExecutionCompleteData); ok &&
+			d.Result != nil &&
+			findToolName(messages, d.ToolCallID) == toolName {
+			return d.Result.Content
 		}
 	}
 	return ""
@@ -409,11 +413,9 @@ func findToolCallResult(messages []copilot.SessionEvent, toolName string) string
 
 func findToolName(messages []copilot.SessionEvent, toolCallID string) string {
 	for _, message := range messages {
-		if message.Type == "tool.execution_start" &&
-			message.Data.ToolCallID != nil &&
-			*message.Data.ToolCallID == toolCallID &&
-			message.Data.ToolName != nil {
-			return *message.Data.ToolName
+		if d, ok := message.Data.(*copilot.ToolExecutionStartData); ok &&
+			d.ToolCallID == toolCallID {
+			return d.ToolName
 		}
 	}
 	return ""

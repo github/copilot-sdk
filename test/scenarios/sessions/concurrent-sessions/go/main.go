@@ -67,8 +67,10 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		if resp != nil && resp.Data.Content != nil {
-			results[0] = result{label: "Session 1 (pirate)", content: *resp.Data.Content}
+		if resp != nil {
+			if d, ok := resp.Data.(*copilot.AssistantMessageData); ok {
+				results[0] = result{label: "Session 1 (pirate)", content: d.Content}
+			}
 		}
 	}()
 	go func() {
@@ -79,8 +81,10 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		if resp != nil && resp.Data.Content != nil {
-			results[1] = result{label: "Session 2 (robot)", content: *resp.Data.Content}
+		if resp != nil {
+			if d, ok := resp.Data.(*copilot.AssistantMessageData); ok {
+				results[1] = result{label: "Session 2 (robot)", content: d.Content}
+			}
 		}
 	}()
 	wg.Wait()
