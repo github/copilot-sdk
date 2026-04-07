@@ -9,7 +9,6 @@ import (
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
-	"github.com/github/copilot-sdk/go/rpc"
 )
 
 // hasImageURLContent returns true if any user message in the given exchanges
@@ -59,8 +58,8 @@ func TestSessionConfig(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			ModelCapabilities: &rpc.ModelCapabilitiesOverride{
-				Supports: &rpc.ModelCapabilitiesOverrideSupports{
+			ModelCapabilities: &copilot.ModelCapabilitiesOverride{
+				Supports: &copilot.ModelCapabilitiesOverrideSupports{
 					Vision: copilot.Bool(false),
 				},
 			},
@@ -84,8 +83,8 @@ func TestSessionConfig(t *testing.T) {
 
 		// Switch vision on
 		if err := session.SetModel(t.Context(), "claude-sonnet-4.5", &copilot.SetModelOptions{
-			ModelCapabilities: &rpc.ModelCapabilitiesOverride{
-				Supports: &rpc.ModelCapabilitiesOverrideSupports{
+			ModelCapabilities: &copilot.ModelCapabilitiesOverride{
+				Supports: &copilot.ModelCapabilitiesOverrideSupports{
 					Vision: copilot.Bool(true),
 				},
 			},
@@ -113,8 +112,8 @@ func TestSessionConfig(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			ModelCapabilities: &rpc.ModelCapabilitiesOverride{
-				Supports: &rpc.ModelCapabilitiesOverrideSupports{
+			ModelCapabilities: &copilot.ModelCapabilitiesOverride{
+				Supports: &copilot.ModelCapabilitiesOverrideSupports{
 					Vision: copilot.Bool(true),
 				},
 			},
@@ -138,8 +137,8 @@ func TestSessionConfig(t *testing.T) {
 
 		// Switch vision off
 		if err := session.SetModel(t.Context(), "claude-sonnet-4.5", &copilot.SetModelOptions{
-			ModelCapabilities: &rpc.ModelCapabilitiesOverride{
-				Supports: &rpc.ModelCapabilitiesOverrideSupports{
+			ModelCapabilities: &copilot.ModelCapabilitiesOverride{
+				Supports: &copilot.ModelCapabilitiesOverrideSupports{
 					Vision: copilot.Bool(false),
 				},
 			},

@@ -773,6 +773,15 @@ type ModelCapabilities struct {
 	Limits   ModelLimits   `json:"limits"`
 }
 
+// Type aliases for model capabilities overrides, re-exported from the rpc
+// package for ergonomic use without requiring a separate rpc import.
+type (
+	ModelCapabilitiesOverride             = rpc.ModelCapabilitiesOverride
+	ModelCapabilitiesOverrideSupports     = rpc.ModelCapabilitiesOverrideSupports
+	ModelCapabilitiesOverrideLimits       = rpc.ModelCapabilitiesOverrideLimits
+	ModelCapabilitiesOverrideLimitsVision = rpc.ModelCapabilitiesOverrideLimitsVision
+)
+
 // ModelPolicy contains model policy state
 type ModelPolicy struct {
 	State string `json:"state"`

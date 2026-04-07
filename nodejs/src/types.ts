@@ -1469,12 +1469,11 @@ export interface ModelCapabilities {
     };
 }
 
-/** Deep-partial override for model capabilities — every property optional. */
-export type ModelCapabilitiesOverride = {
-    [K in keyof ModelCapabilities]?: {
-        [P in keyof ModelCapabilities[K]]?: ModelCapabilities[K][P];
-    };
-};
+/** Recursively makes all properties optional. */
+type DeepPartial<T> = T extends object ? { [K in keyof T]?: DeepPartial<T[K]> } : T;
+
+/** Deep-partial override for model capabilities — every property at any depth is optional. */
+export type ModelCapabilitiesOverride = DeepPartial<ModelCapabilities>;
 
 /**
  * Model policy state
