@@ -1,5 +1,6 @@
 """E2E Session Tests"""
 
+import base64
 import os
 
 import pytest
@@ -611,15 +612,18 @@ class TestSessions:
         assert event.data.reasoning_effort == "high"
 
     async def test_should_accept_blob_attachments(self, ctx: E2ETestContext):
-        session = await ctx.client.create_session(
-            on_permission_request=PermissionHandler.approve_all
-        )
-
-        # 1x1 transparent PNG pixel, base64-encoded
+        # Write the image to disk so the model can view it
         pixel_png = (
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAY"
             "AAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhg"
             "GAWjR9awAAAABJRU5ErkJggg=="
+        )
+        png_path = os.path.join(ctx.work_dir, "test-pixel.png")
+        with open(png_path, "wb") as f:
+            f.write(base64.b64decode(pixel_png))
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all
         )
 
         await session.send_and_wait(
@@ -634,7 +638,6 @@ class TestSessions:
             ],
         )
 
-        # Just verify send doesn't throw — blob attachment support varies by runtime
         await session.disconnect()
 
 
