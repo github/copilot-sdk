@@ -73,7 +73,7 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if assistantMessage.Data.Content == nil || !strings.Contains(*assistantMessage.Data.Content.String, "2") {
+		if assistantMessage.Data.Content == nil || !strings.Contains(*assistantMessage.Data.Content, "2") {
 			t.Errorf("Expected assistant message to contain '2', got %v", assistantMessage.Data.Content)
 		}
 
@@ -82,7 +82,7 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to send second message: %v", err)
 		}
 
-		if secondMessage.Data.Content == nil || !strings.Contains(*secondMessage.Data.Content.String, "4") {
+		if secondMessage.Data.Content == nil || !strings.Contains(*secondMessage.Data.Content, "4") {
 			t.Errorf("Expected second message to contain '4', got %v", secondMessage.Data.Content)
 		}
 	})
@@ -109,7 +109,7 @@ func TestSession(t *testing.T) {
 
 		content := ""
 		if assistantMessage != nil && assistantMessage.Data.Content != nil {
-			content = *assistantMessage.Data.Content.String
+			content = *assistantMessage.Data.Content
 		}
 
 		if !strings.Contains(content, "GitHub") {
@@ -163,7 +163,7 @@ func TestSession(t *testing.T) {
 
 		content := ""
 		if assistantMessage.Data.Content != nil {
-			content = *assistantMessage.Data.Content.String
+			content = *assistantMessage.Data.Content
 		}
 
 		if strings.Contains(content, "GitHub") {
@@ -362,7 +362,7 @@ func TestSession(t *testing.T) {
 
 		content := ""
 		if assistantMessage.Data.Content != nil {
-			content = *assistantMessage.Data.Content.String
+			content = *assistantMessage.Data.Content
 		}
 
 		if !strings.Contains(content, "54321") {
@@ -394,7 +394,7 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
-		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content.String, "2") {
+		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "2") {
 			t.Errorf("Expected answer to contain '2', got %v", answer.Data.Content)
 		}
 
@@ -415,7 +415,7 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to get assistant message from resumed session: %v", err)
 		}
 
-		if answer2.Data.Content == nil || !strings.Contains(*answer2.Data.Content.String, "2") {
+		if answer2.Data.Content == nil || !strings.Contains(*answer2.Data.Content, "2") {
 			t.Errorf("Expected resumed session answer to contain '2', got %v", answer2.Data.Content)
 		}
 
@@ -424,7 +424,7 @@ func TestSession(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to send follow-up message: %v", err)
 		}
-		if answer3 == nil || answer3.Data.Content == nil || !strings.Contains(*answer3.Data.Content.String, "4") {
+		if answer3 == nil || answer3.Data.Content == nil || !strings.Contains(*answer3.Data.Content, "4") {
 			t.Errorf("Expected follow-up answer to contain '4', got %v", answer3)
 		}
 	})
@@ -449,7 +449,7 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
-		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content.String, "2") {
+		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "2") {
 			t.Errorf("Expected answer to contain '2', got %v", answer.Data.Content)
 		}
 
@@ -497,7 +497,7 @@ func TestSession(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to send follow-up message: %v", err)
 		}
-		if answer3 == nil || answer3.Data.Content == nil || !strings.Contains(*answer3.Data.Content.String, "4") {
+		if answer3 == nil || answer3.Data.Content == nil || !strings.Contains(*answer3.Data.Content, "4") {
 			t.Errorf("Expected follow-up answer to contain '4', got %v", answer3)
 		}
 	})
@@ -628,7 +628,7 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to send message after abort: %v", err)
 		}
 
-		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content.String, "4") {
+		if answer.Data.Content == nil || !strings.Contains(*answer.Data.Content, "4") {
 			t.Errorf("Expected answer to contain '4', got %v", answer.Data.Content)
 		}
 	})
@@ -723,7 +723,7 @@ func TestSession(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
-		if assistantMessage.Data.Content == nil || !strings.Contains(*assistantMessage.Data.Content.String, "300") {
+		if assistantMessage.Data.Content == nil || !strings.Contains(*assistantMessage.Data.Content, "300") {
 			t.Errorf("Expected assistant message to contain '300', got %v", assistantMessage.Data.Content)
 		}
 	})
@@ -756,7 +756,7 @@ func TestSession(t *testing.T) {
 			t.Fatalf("Failed to get assistant message: %v", err)
 		}
 
-		if assistantMessage.Data.Content == nil || !strings.Contains(*assistantMessage.Data.Content.String, "2") {
+		if assistantMessage.Data.Content == nil || !strings.Contains(*assistantMessage.Data.Content, "2") {
 			t.Errorf("Expected assistant message to contain '2', got %v", assistantMessage.Data.Content)
 		}
 	})
