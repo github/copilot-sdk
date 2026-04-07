@@ -122,6 +122,36 @@ class TestURLParsing:
         assert client._is_external_server
 
 
+class TestSessionFsConfig:
+    def test_missing_initial_cwd(self):
+        with pytest.raises(ValueError, match="session_fs.initial_cwd is required"):
+            CopilotClient(
+                SubprocessConfig(
+                    cli_path=CLI_PATH,
+                    log_level="error",
+                    session_fs={
+                        "initial_cwd": "",
+                        "session_state_path": "/session-state",
+                        "conventions": "posix",
+                    },
+                )
+            )
+
+    def test_missing_session_state_path(self):
+        with pytest.raises(ValueError, match="session_fs.session_state_path is required"):
+            CopilotClient(
+                SubprocessConfig(
+                    cli_path=CLI_PATH,
+                    log_level="error",
+                    session_fs={
+                        "initial_cwd": "/",
+                        "session_state_path": "",
+                        "conventions": "posix",
+                    },
+                )
+            )
+
+
 class TestAuthOptions:
     def test_accepts_github_token(self):
         client = CopilotClient(

@@ -53,6 +53,22 @@ import (
 
 const noResultPermissionV2Error = "permission handlers cannot return 'no-result' when connected to a protocol v2 server"
 
+func validateSessionFsConfig(config *SessionFsConfig) error {
+	if config == nil {
+		return nil
+	}
+	if config.InitialCwd == "" {
+		return errors.New("SessionFs.InitialCwd is required")
+	}
+	if config.SessionStatePath == "" {
+		return errors.New("SessionFs.SessionStatePath is required")
+	}
+	if config.Conventions != rpc.ConventionsPosix && config.Conventions != rpc.ConventionsWindows {
+		return errors.New("SessionFs.Conventions must be either 'posix' or 'windows'")
+	}
+	return nil
+}
+
 // Client manages the connection to the Copilot CLI server and provides session management.
 //
 // The Client can either spawn a CLI server process or connect to an existing server.
@@ -193,6 +209,9 @@ func NewClient(options *ClientOptions) *Client {
 			client.onListModels = options.OnListModels
 		}
 		if options.SessionFs != nil {
+			if err := validateSessionFsConfig(options.SessionFs); err != nil {
+				panic(err.Error())
+			}
 			sessionFs := *options.SessionFs
 			opts.SessionFs = &sessionFs
 		}

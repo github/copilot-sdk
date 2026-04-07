@@ -234,22 +234,18 @@ public sealed class SessionFsConfig
     /// <summary>
     /// Initial working directory for sessions (user's project directory).
     /// </summary>
-    public string InitialCwd { get; set; } = string.Empty;
+    public required string InitialCwd { get; init; }
 
     /// <summary>
     /// Path within each session's SessionFs where the runtime stores
     /// session-scoped files (events, workspace, checkpoints, and temp files).
     /// </summary>
-    public string SessionStatePath { get; set; } = string.Empty;
+    public required string SessionStatePath { get; init; }
 
     /// <summary>
     /// Path conventions used by this filesystem provider.
-    /// Defaults to the conventions of the current operating system.
     /// </summary>
-    public SessionFsSetProviderRequestConventions Conventions { get; set; }
-        = OperatingSystem.IsWindows()
-            ? SessionFsSetProviderRequestConventions.Windows
-            : SessionFsSetProviderRequestConventions.Posix;
+    public required SessionFsSetProviderRequestConventions Conventions { get; init; }
 }
 
 /// <summary>

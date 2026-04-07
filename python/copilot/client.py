@@ -66,6 +66,15 @@ ConnectionState = Literal["disconnected", "connecting", "connected", "error"]
 LogLevel = Literal["none", "error", "warning", "info", "debug", "all"]
 
 
+def _validate_session_fs_config(config: SessionFsConfig) -> None:
+    if not config.get("initial_cwd"):
+        raise ValueError("session_fs.initial_cwd is required")
+    if not config.get("session_state_path"):
+        raise ValueError("session_fs.session_state_path is required")
+    if config.get("conventions") not in ("posix", "windows"):
+        raise ValueError("session_fs.conventions must be either 'posix' or 'windows'")
+
+
 class TelemetryConfig(TypedDict, total=False):
     """Configuration for OpenTelemetry integration with the Copilot CLI."""
 
@@ -903,6 +912,8 @@ class CopilotClient:
         self._lifecycle_handlers_lock = threading.Lock()
         self._rpc: ServerRpc | None = None
         self._negotiated_protocol_version: int | None = None
+        if config.session_fs is not None:
+            _validate_session_fs_config(config.session_fs)
         self._session_fs_config = config.session_fs
 
     @property
