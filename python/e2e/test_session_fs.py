@@ -15,9 +15,9 @@ from copilot import CopilotClient, SessionFsConfig, define_tool
 from copilot.client import ExternalServerConfig, SubprocessConfig
 from copilot.generated.rpc import (
     SessionFSExistsResult,
-    SessionFSReadFileResult,
     SessionFSReaddirResult,
     SessionFSReaddirWithTypesResult,
+    SessionFSReadFileResult,
     SessionFSStatResult,
 )
 from copilot.generated.session_events import SessionEvent
@@ -243,7 +243,7 @@ class _SessionFsHandler:
     async def stat(self, params) -> SessionFSStatResult:
         path = provider_path(self._provider_root, self._session_id, params.path)
         info = path.stat()
-        timestamp = dt.datetime.fromtimestamp(info.st_mtime, tz=dt.timezone.utc).isoformat()
+        timestamp = dt.datetime.fromtimestamp(info.st_mtime, tz=dt.UTC).isoformat()
         if timestamp.endswith("+00:00"):
             timestamp = f"{timestamp[:-6]}Z"
         return SessionFSStatResult.from_dict(

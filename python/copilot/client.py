@@ -1401,7 +1401,8 @@ class CopilotClient:
         if self._session_fs_config:
             if create_session_fs_handler is None:
                 raise ValueError(
-                    "create_session_fs_handler is required in session config when session_fs is enabled in client options."
+                    "create_session_fs_handler is required in session config when "
+                    "session_fs is enabled in client options."
                 )
             session._client_session_apis.session_fs = create_session_fs_handler(session)
         session._register_tools(tools)
@@ -1632,7 +1633,8 @@ class CopilotClient:
         if self._session_fs_config:
             if create_session_fs_handler is None:
                 raise ValueError(
-                    "create_session_fs_handler is required in session config when session_fs is enabled in client options."
+                    "create_session_fs_handler is required in session config when "
+                    "session_fs is enabled in client options."
                 )
             session._client_session_apis.session_fs = create_session_fs_handler(session)
         session._register_tools(tools)
