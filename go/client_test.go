@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"sync"
 	"testing"
+
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.go instead
@@ -220,6 +222,48 @@ func TestClient_URLParsing(t *testing.T) {
 		if !client.isExternalServer {
 			t.Error("Expected isExternalServer to be true when CLIUrl is provided")
 		}
+	})
+}
+
+func TestClient_SessionFsConfig(t *testing.T) {
+	t.Run("should throw error when InitialCwd is missing", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic for missing SessionFs.InitialCwd")
+			} else {
+				matched, _ := regexp.MatchString("SessionFs.InitialCwd is required", r.(string))
+				if !matched {
+					t.Errorf("Expected panic message to contain 'SessionFs.InitialCwd is required', got: %v", r)
+				}
+			}
+		}()
+
+		NewClient(&ClientOptions{
+			SessionFs: &SessionFsConfig{
+				SessionStatePath: "/session-state",
+				Conventions:      rpc.ConventionsPosix,
+			},
+		})
+	})
+
+	t.Run("should throw error when SessionStatePath is missing", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic for missing SessionFs.SessionStatePath")
+			} else {
+				matched, _ := regexp.MatchString("SessionFs.SessionStatePath is required", r.(string))
+				if !matched {
+					t.Errorf("Expected panic message to contain 'SessionFs.SessionStatePath is required', got: %v", r)
+				}
+			}
+		}()
+
+		NewClient(&ClientOptions{
+			SessionFs: &SessionFsConfig{
+				InitialCwd:  "/",
+				Conventions: rpc.ConventionsPosix,
+			},
+		})
 	})
 }
 

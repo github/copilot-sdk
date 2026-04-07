@@ -23,6 +23,7 @@ from ._jsonrpc import JsonRpcError, ProcessExitedError
 from ._telemetry import get_trace_context, trace_context
 from .generated.rpc import (
     Action,
+    ClientSessionApiHandlers,
     Kind,
     Level,
     Property,
@@ -31,6 +32,7 @@ from .generated.rpc import (
     RequestedSchemaType,
     ResultResult,
     SessionCommandsHandlePendingCommandParams,
+    SessionFsHandler,
     SessionLogParams,
     SessionModelSwitchToParams,
     SessionPermissionsHandlePendingPermissionRequestParams,
@@ -63,6 +65,14 @@ SessionEventTypeAlias = SessionEvent
 # ============================================================================
 
 ReasoningEffort = Literal["low", "medium", "high", "xhigh"]
+SessionFsConventions = Literal["posix", "windows"]
+
+
+class SessionFsConfig(TypedDict):
+    initial_cwd: str
+    session_state_path: str
+    conventions: SessionFsConventions
+
 
 # ============================================================================
 # Attachment Types
@@ -394,6 +404,8 @@ ElicitationHandler = Callable[
     ElicitationResult | Awaitable[ElicitationResult],
 ]
 """Handler invoked when the server dispatches an elicitation request to this client."""
+
+CreateSessionFsHandler = Callable[["CopilotSession"], SessionFsHandler]
 
 
 # ============================================================================
@@ -862,6 +874,8 @@ class SessionConfig(TypedDict, total=False):
     # Handler for elicitation requests from the server.
     # When provided, the server calls back to this client for form-based UI dialogs.
     on_elicitation_request: ElicitationHandler
+    # Handler factory for session-scoped sessionFs operations.
+    create_session_fs_handler: CreateSessionFsHandler
 
 
 class ResumeSessionConfig(TypedDict, total=False):
@@ -915,6 +929,8 @@ class ResumeSessionConfig(TypedDict, total=False):
     commands: list[CommandDefinition]
     # Handler for elicitation requests from the server.
     on_elicitation_request: ElicitationHandler
+    # Handler factory for session-scoped sessionFs operations.
+    create_session_fs_handler: CreateSessionFsHandler
 
 
 SessionEventHandler = Callable[[SessionEvent], None]
@@ -984,6 +1000,7 @@ class CopilotSession:
         self._elicitation_handler: ElicitationHandler | None = None
         self._elicitation_handler_lock = threading.Lock()
         self._capabilities: SessionCapabilities = {}
+        self._client_session_apis = ClientSessionApiHandlers()
         self._rpc: SessionRpc | None = None
         self._destroyed = False
 

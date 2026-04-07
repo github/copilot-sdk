@@ -178,7 +178,11 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
     const schema = JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema;
 
-    const allMethods = [...collectRpcMethods(schema.server || {}), ...collectRpcMethods(schema.session || {})];
+    const allMethods = [
+        ...collectRpcMethods(schema.server || {}),
+        ...collectRpcMethods(schema.session || {}),
+        ...collectRpcMethods(schema.clientSession || {}),
+    ];
 
     // Build a combined schema for quicktype - prefix types to avoid conflicts
     const combinedSchema: JSONSchema7 = {
@@ -271,11 +275,16 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     lines.push(``);
     lines.push(`package rpc`);
     lines.push(``);
+    const imports = [`"context"`, `"encoding/json"`];
+    if (schema.clientSession) {
+        imports.push(`"errors"`, `"fmt"`);
+    }
+    imports.push(`"github.com/github/copilot-sdk/go/internal/jsonrpc2"`);
+
     lines.push(`import (`);
-    lines.push(`\t"context"`);
-    lines.push(`\t"encoding/json"`);
-    lines.push(``);
-    lines.push(`\t"github.com/github/copilot-sdk/go/internal/jsonrpc2"`);
+    for (const imp of imports) {
+        lines.push(`\t${imp}`);
+    }
     lines.push(`)`);
     lines.push(``);
 
@@ -290,6 +299,10 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     // Emit SessionRpc
     if (schema.session) {
         emitRpcWrapper(lines, schema.session, true, resolveType, fieldNames);
+    }
+
+    if (schema.clientSession) {
+        emitClientSessionApiRegistration(lines, schema.clientSession, resolveType);
     }
 
     const outPath = await writeGeneratedFile("go/rpc/generated_rpc.go", lines.join("\n"));
@@ -426,6 +439,118 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
     lines.push(`\t\treturn nil, err`);
     lines.push(`\t}`);
     lines.push(`\treturn &result, nil`);
+    lines.push(`}`);
+    lines.push(``);
+}
+
+interface ClientGroup {
+    groupName: string;
+    groupNode: Record<string, unknown>;
+    methods: RpcMethod[];
+}
+
+function collectClientGroups(node: Record<string, unknown>): ClientGroup[] {
+    const groups: ClientGroup[] = [];
+    for (const [groupName, groupNode] of Object.entries(node)) {
+        if (typeof groupNode === "object" && groupNode !== null) {
+            groups.push({
+                groupName,
+                groupNode: groupNode as Record<string, unknown>,
+                methods: collectRpcMethods(groupNode as Record<string, unknown>),
+            });
+        }
+    }
+    return groups;
+}
+
+function clientHandlerInterfaceName(groupName: string): string {
+    return `${toPascalCase(groupName)}Handler`;
+}
+
+function clientHandlerMethodName(rpcMethod: string): string {
+    return toPascalCase(rpcMethod.split(".").at(-1)!);
+}
+
+function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<string, unknown>, resolveType: (name: string) => string): void {
+    const groups = collectClientGroups(clientSchema);
+
+    for (const { groupName, groupNode, methods } of groups) {
+        const interfaceName = clientHandlerInterfaceName(groupName);
+        const groupExperimental = isNodeFullyExperimental(groupNode);
+        if (groupExperimental) {
+            lines.push(`// Experimental: ${interfaceName} contains experimental APIs that may change or be removed.`);
+        }
+        lines.push(`type ${interfaceName} interface {`);
+        for (const method of methods) {
+            if (method.stability === "experimental" && !groupExperimental) {
+                lines.push(`\t// Experimental: ${clientHandlerMethodName(method.rpcMethod)} is an experimental API and may change or be removed in future versions.`);
+            }
+            const paramsType = resolveType(toPascalCase(method.rpcMethod) + "Params");
+            if (method.result) {
+                const resultType = resolveType(toPascalCase(method.rpcMethod) + "Result");
+                lines.push(`\t${clientHandlerMethodName(method.rpcMethod)}(request *${paramsType}) (*${resultType}, error)`);
+            } else {
+                lines.push(`\t${clientHandlerMethodName(method.rpcMethod)}(request *${paramsType}) error`);
+            }
+        }
+        lines.push(`}`);
+        lines.push(``);
+    }
+
+    lines.push(`// ClientSessionApiHandlers provides all client session API handler groups for a session.`);
+    lines.push(`type ClientSessionApiHandlers struct {`);
+    for (const { groupName } of groups) {
+        lines.push(`\t${toPascalCase(groupName)} ${clientHandlerInterfaceName(groupName)}`);
+    }
+    lines.push(`}`);
+    lines.push(``);
+
+    lines.push(`func clientSessionHandlerError(err error) *jsonrpc2.Error {`);
+    lines.push(`\tif err == nil {`);
+    lines.push(`\t\treturn nil`);
+    lines.push(`\t}`);
+    lines.push(`\tvar rpcErr *jsonrpc2.Error`);
+    lines.push(`\tif errors.As(err, &rpcErr) {`);
+    lines.push(`\t\treturn rpcErr`);
+    lines.push(`\t}`);
+    lines.push(`\treturn &jsonrpc2.Error{Code: -32603, Message: err.Error()}`);
+    lines.push(`}`);
+    lines.push(``);
+
+    lines.push(`// RegisterClientSessionApiHandlers registers handlers for server-to-client session API calls.`);
+    lines.push(`func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(sessionID string) *ClientSessionApiHandlers) {`);
+    for (const { groupName, methods } of groups) {
+        const handlerField = toPascalCase(groupName);
+        for (const method of methods) {
+            const paramsType = resolveType(toPascalCase(method.rpcMethod) + "Params");
+            lines.push(`\tclient.SetRequestHandler("${method.rpcMethod}", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {`);
+            lines.push(`\t\tvar request ${paramsType}`);
+            lines.push(`\t\tif err := json.Unmarshal(params, &request); err != nil {`);
+            lines.push(`\t\t\treturn nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}`);
+            lines.push(`\t\t}`);
+            lines.push(`\t\thandlers := getHandlers(request.SessionID)`);
+            lines.push(`\t\tif handlers == nil || handlers.${handlerField} == nil {`);
+            lines.push(`\t\t\treturn nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No ${groupName} handler registered for session: %s", request.SessionID)}`);
+            lines.push(`\t\t}`);
+            if (method.result) {
+                lines.push(`\t\tresult, err := handlers.${handlerField}.${clientHandlerMethodName(method.rpcMethod)}(&request)`);
+                lines.push(`\t\tif err != nil {`);
+                lines.push(`\t\t\treturn nil, clientSessionHandlerError(err)`);
+                lines.push(`\t\t}`);
+                lines.push(`\t\traw, err := json.Marshal(result)`);
+                lines.push(`\t\tif err != nil {`);
+                lines.push(`\t\t\treturn nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}`);
+                lines.push(`\t\t}`);
+                lines.push(`\t\treturn raw, nil`);
+            } else {
+                lines.push(`\t\tif err := handlers.${handlerField}.${clientHandlerMethodName(method.rpcMethod)}(&request); err != nil {`);
+                lines.push(`\t\t\treturn nil, clientSessionHandlerError(err)`);
+                lines.push(`\t\t}`);
+                lines.push(`\t\treturn json.RawMessage("null"), nil`);
+            }
+            lines.push(`\t})`);
+        }
+    }
     lines.push(`}`);
     lines.push(``);
 }

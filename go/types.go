@@ -63,6 +63,10 @@ type ClientOptions struct {
 	// querying the CLI server. Useful in BYOK mode to return models
 	// available from your custom provider.
 	OnListModels func(ctx context.Context) ([]ModelInfo, error)
+	// SessionFs configures a custom session filesystem provider.
+	// When provided, the client registers as the session filesystem provider
+	// on connection, routing session-scoped file I/O through per-session handlers.
+	SessionFs *SessionFsConfig
 	// Telemetry configures OpenTelemetry integration for the Copilot CLI process.
 	// When non-nil, COPILOT_OTEL_ENABLED=true is set and any populated fields
 	// are mapped to the corresponding environment variables.
@@ -434,6 +438,17 @@ type InfiniteSessionConfig struct {
 	BufferExhaustionThreshold *float64 `json:"bufferExhaustionThreshold,omitempty"`
 }
 
+// SessionFsConfig configures a custom session filesystem provider.
+type SessionFsConfig struct {
+	// InitialCwd is the initial working directory for sessions.
+	InitialCwd string
+	// SessionStatePath is the path within each session's filesystem where the runtime stores
+	// session-scoped files such as events, checkpoints, and temp files.
+	SessionStatePath string
+	// Conventions identifies the path conventions used by this filesystem provider.
+	Conventions rpc.Conventions
+}
+
 // SessionConfig configures a new session
 type SessionConfig struct {
 	// SessionID is an optional custom session ID
@@ -500,6 +515,9 @@ type SessionConfig struct {
 	// handler. Equivalent to calling session.On(handler) immediately after creation,
 	// but executes earlier in the lifecycle so no events are missed.
 	OnEvent SessionEventHandler
+	// CreateSessionFsHandler supplies a handler for session filesystem operations.
+	// This takes effect only when ClientOptions.SessionFs is configured.
+	CreateSessionFsHandler func(session *Session) rpc.SessionFsHandler
 	// Commands registers slash-commands for this session. Each command appears as
 	// /name in the CLI TUI for the user to invoke. The Handler is called when the
 	// command is executed.
@@ -697,6 +715,9 @@ type ResumeSessionConfig struct {
 	// OnEvent is an optional event handler registered before the session.resume RPC
 	// is issued, ensuring early events are delivered. See SessionConfig.OnEvent.
 	OnEvent SessionEventHandler
+	// CreateSessionFsHandler supplies a handler for session filesystem operations.
+	// This takes effect only when ClientOptions.SessionFs is configured.
+	CreateSessionFsHandler func(session *Session) rpc.SessionFsHandler
 	// Commands registers slash-commands for this session. See SessionConfig.Commands.
 	Commands []CommandDefinition
 	// OnElicitationRequest is a handler for elicitation requests from the server.

@@ -1,0 +1,443 @@
+package e2e
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"testing"
+	"time"
+
+	copilot "github.com/github/copilot-sdk/go"
+	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
+	"github.com/github/copilot-sdk/go/rpc"
+)
+
+func TestSessionFs(t *testing.T) {
+	ctx := testharness.NewTestContext(t)
+	providerRoot := t.TempDir()
+	createSessionFsHandler := func(session *copilot.Session) rpc.SessionFsHandler {
+		return &testSessionFsHandler{
+			root:      providerRoot,
+			sessionID: session.SessionID,
+		}
+	}
+	p := func(sessionID string, path string) string {
+		return providerPath(providerRoot, sessionID, path)
+	}
+
+	client := ctx.NewClient(func(opts *copilot.ClientOptions) {
+		opts.SessionFs = sessionFsConfig
+	})
+	t.Cleanup(func() { client.ForceStop() })
+
+	t.Run("should route file operations through the session fs provider", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
+			CreateSessionFsHandler: createSessionFsHandler,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		msg, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 100 + 200?"})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+		content := ""
+		if msg != nil && msg.Data.Content != nil {
+			content = *msg.Data.Content
+		}
+		if !strings.Contains(content, "300") {
+			t.Fatalf("Expected response to contain 300, got %q", content)
+		}
+		if err := session.Disconnect(); err != nil {
+			t.Fatalf("Failed to disconnect session: %v", err)
+		}
+
+		events, err := os.ReadFile(p(session.SessionID, "/session-state/events.jsonl"))
+		if err != nil {
+			t.Fatalf("Failed to read events file: %v", err)
+		}
+		if !strings.Contains(string(events), "300") {
+			t.Fatalf("Expected events file to contain 300")
+		}
+	})
+
+	t.Run("should load session data from fs provider on resume", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		session1, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
+			CreateSessionFsHandler: createSessionFsHandler,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+		sessionID := session1.SessionID
+
+		msg, err := session1.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 50 + 50?"})
+		if err != nil {
+			t.Fatalf("Failed to send first message: %v", err)
+		}
+		content := ""
+		if msg != nil && msg.Data.Content != nil {
+			content = *msg.Data.Content
+		}
+		if !strings.Contains(content, "100") {
+			t.Fatalf("Expected response to contain 100, got %q", content)
+		}
+		if err := session1.Disconnect(); err != nil {
+			t.Fatalf("Failed to disconnect first session: %v", err)
+		}
+
+		if _, err := os.Stat(p(sessionID, "/session-state/events.jsonl")); err != nil {
+			t.Fatalf("Expected events file to exist before resume: %v", err)
+		}
+
+		session2, err := client.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
+			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
+			CreateSessionFsHandler: createSessionFsHandler,
+		})
+		if err != nil {
+			t.Fatalf("Failed to resume session: %v", err)
+		}
+
+		msg2, err := session2.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is that times 3?"})
+		if err != nil {
+			t.Fatalf("Failed to send second message: %v", err)
+		}
+		content2 := ""
+		if msg2 != nil && msg2.Data.Content != nil {
+			content2 = *msg2.Data.Content
+		}
+		if !strings.Contains(content2, "300") {
+			t.Fatalf("Expected response to contain 300, got %q", content2)
+		}
+		if err := session2.Disconnect(); err != nil {
+			t.Fatalf("Failed to disconnect resumed session: %v", err)
+		}
+	})
+
+	t.Run("should reject setProvider when sessions already exist", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {
+			opts.UseStdio = copilot.Bool(false)
+		})
+		t.Cleanup(func() { client1.ForceStop() })
+
+		if _, err := client1.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		}); err != nil {
+			t.Fatalf("Failed to create initial session: %v", err)
+		}
+
+		actualPort := client1.ActualPort()
+		if actualPort == 0 {
+			t.Fatalf("Expected non-zero port from TCP mode client")
+		}
+
+		client2 := copilot.NewClient(&copilot.ClientOptions{
+			CLIUrl:    fmt.Sprintf("localhost:%d", actualPort),
+			LogLevel:  "error",
+			Env:       ctx.Env(),
+			SessionFs: sessionFsConfig,
+		})
+		t.Cleanup(func() { client2.ForceStop() })
+
+		if err := client2.Start(t.Context()); err == nil {
+			t.Fatal("Expected Start to fail when sessionFs provider is set after sessions already exist")
+		}
+	})
+
+	t.Run("should map large output handling into sessionFs", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		suppliedFileContent := strings.Repeat("x", 100_000)
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
+			CreateSessionFsHandler: createSessionFsHandler,
+			Tools: []copilot.Tool{
+				copilot.DefineTool("get_big_string", "Returns a large string",
+					func(_ struct{}, inv copilot.ToolInvocation) (string, error) {
+						return suppliedFileContent, nil
+					}),
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		if _, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt: "Call the get_big_string tool and reply with the word DONE only.",
+		}); err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		messages, err := session.GetMessages(t.Context())
+		if err != nil {
+			t.Fatalf("Failed to get messages: %v", err)
+		}
+		toolResult := findToolCallResult(messages, "get_big_string")
+		if !strings.Contains(toolResult, "/session-state/temp/") {
+			t.Fatalf("Expected tool result to reference /session-state/temp/, got %q", toolResult)
+		}
+		match := regexp.MustCompile(`(/session-state/temp/[^\s]+)`).FindStringSubmatch(toolResult)
+		if len(match) < 2 {
+			t.Fatalf("Expected temp file path in tool result, got %q", toolResult)
+		}
+
+		fileContent, err := os.ReadFile(p(session.SessionID, match[1]))
+		if err != nil {
+			t.Fatalf("Failed to read temp file: %v", err)
+		}
+		if string(fileContent) != suppliedFileContent {
+			t.Fatalf("Expected temp file content to match supplied content")
+		}
+	})
+
+	t.Run("should succeed with compaction while using sessionFs", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
+			CreateSessionFsHandler: createSessionFsHandler,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		if _, err := session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 2+2?"}); err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		eventsPath := p(session.SessionID, "/session-state/events.jsonl")
+		if err := waitForFile(eventsPath, 5*time.Second); err != nil {
+			t.Fatalf("Timed out waiting for events file: %v", err)
+		}
+		contentBefore, err := os.ReadFile(eventsPath)
+		if err != nil {
+			t.Fatalf("Failed to read events file before compaction: %v", err)
+		}
+		if strings.Contains(string(contentBefore), "checkpointNumber") {
+			t.Fatalf("Expected events file to not contain checkpointNumber before compaction")
+		}
+
+		compactionResult, err := session.RPC.Compaction.Compact(t.Context())
+		if err != nil {
+			t.Fatalf("Failed to compact session: %v", err)
+		}
+		if compactionResult == nil || !compactionResult.Success {
+			t.Fatalf("Expected compaction to succeed, got %+v", compactionResult)
+		}
+
+		if err := waitForFileContent(eventsPath, "checkpointNumber", 5*time.Second); err != nil {
+			t.Fatalf("Timed out waiting for checkpoint rewrite: %v", err)
+		}
+	})
+}
+
+var sessionFsConfig = &copilot.SessionFsConfig{
+	InitialCwd:       "/",
+	SessionStatePath: "/session-state",
+	Conventions:      rpc.ConventionsPosix,
+}
+
+type testSessionFsHandler struct {
+	root      string
+	sessionID string
+}
+
+func (h *testSessionFsHandler) ReadFile(request *rpc.SessionFSReadFileParams) (*rpc.SessionFSReadFileResult, error) {
+	content, err := os.ReadFile(providerPath(h.root, h.sessionID, request.Path))
+	if err != nil {
+		return nil, err
+	}
+	return &rpc.SessionFSReadFileResult{Content: string(content)}, nil
+}
+
+func (h *testSessionFsHandler) WriteFile(request *rpc.SessionFSWriteFileParams) error {
+	path := providerPath(h.root, h.sessionID, request.Path)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	mode := os.FileMode(0o666)
+	if request.Mode != nil {
+		mode = os.FileMode(uint32(*request.Mode))
+	}
+	return os.WriteFile(path, []byte(request.Content), mode)
+}
+
+func (h *testSessionFsHandler) AppendFile(request *rpc.SessionFSAppendFileParams) error {
+	path := providerPath(h.root, h.sessionID, request.Path)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	mode := os.FileMode(0o666)
+	if request.Mode != nil {
+		mode = os.FileMode(uint32(*request.Mode))
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, mode)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.WriteString(request.Content)
+	return err
+}
+
+func (h *testSessionFsHandler) Exists(request *rpc.SessionFSExistsParams) (*rpc.SessionFSExistsResult, error) {
+	_, err := os.Stat(providerPath(h.root, h.sessionID, request.Path))
+	if err == nil {
+		return &rpc.SessionFSExistsResult{Exists: true}, nil
+	}
+	if os.IsNotExist(err) {
+		return &rpc.SessionFSExistsResult{Exists: false}, nil
+	}
+	return nil, err
+}
+
+func (h *testSessionFsHandler) Stat(request *rpc.SessionFSStatParams) (*rpc.SessionFSStatResult, error) {
+	info, err := os.Stat(providerPath(h.root, h.sessionID, request.Path))
+	if err != nil {
+		return nil, err
+	}
+	ts := info.ModTime().UTC().Format(time.RFC3339)
+	return &rpc.SessionFSStatResult{
+		IsFile:      !info.IsDir(),
+		IsDirectory: info.IsDir(),
+		Size:        float64(info.Size()),
+		Mtime:       ts,
+		Birthtime:   ts,
+	}, nil
+}
+
+func (h *testSessionFsHandler) Mkdir(request *rpc.SessionFSMkdirParams) error {
+	path := providerPath(h.root, h.sessionID, request.Path)
+	mode := os.FileMode(0o777)
+	if request.Mode != nil {
+		mode = os.FileMode(uint32(*request.Mode))
+	}
+	if request.Recursive != nil && *request.Recursive {
+		return os.MkdirAll(path, mode)
+	}
+	return os.Mkdir(path, mode)
+}
+
+func (h *testSessionFsHandler) Readdir(request *rpc.SessionFSReaddirParams) (*rpc.SessionFSReaddirResult, error) {
+	entries, err := os.ReadDir(providerPath(h.root, h.sessionID, request.Path))
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	return &rpc.SessionFSReaddirResult{Entries: names}, nil
+}
+
+func (h *testSessionFsHandler) ReaddirWithTypes(request *rpc.SessionFSReaddirWithTypesParams) (*rpc.SessionFSReaddirWithTypesResult, error) {
+	entries, err := os.ReadDir(providerPath(h.root, h.sessionID, request.Path))
+	if err != nil {
+		return nil, err
+	}
+	result := make([]rpc.Entry, 0, len(entries))
+	for _, entry := range entries {
+		entryType := rpc.EntryTypeFile
+		if entry.IsDir() {
+			entryType = rpc.EntryTypeDirectory
+		}
+		result = append(result, rpc.Entry{
+			Name: entry.Name(),
+			Type: entryType,
+		})
+	}
+	return &rpc.SessionFSReaddirWithTypesResult{Entries: result}, nil
+}
+
+func (h *testSessionFsHandler) Rm(request *rpc.SessionFSRmParams) error {
+	path := providerPath(h.root, h.sessionID, request.Path)
+	if request.Recursive != nil && *request.Recursive {
+		err := os.RemoveAll(path)
+		if err != nil && request.Force != nil && *request.Force && os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	err := os.Remove(path)
+	if err != nil && request.Force != nil && *request.Force && os.IsNotExist(err) {
+		return nil
+	}
+	return err
+}
+
+func (h *testSessionFsHandler) Rename(request *rpc.SessionFSRenameParams) error {
+	dest := providerPath(h.root, h.sessionID, request.Dest)
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return err
+	}
+	return os.Rename(
+		providerPath(h.root, h.sessionID, request.Src),
+		dest,
+	)
+}
+
+func providerPath(root string, sessionID string, path string) string {
+	trimmed := strings.TrimPrefix(path, "/")
+	if trimmed == "" {
+		return filepath.Join(root, sessionID)
+	}
+	return filepath.Join(root, sessionID, filepath.FromSlash(trimmed))
+}
+
+func findToolCallResult(messages []copilot.SessionEvent, toolName string) string {
+	for _, message := range messages {
+		if message.Type == "tool.execution_complete" &&
+			message.Data.Result != nil &&
+			message.Data.Result.Content != nil &&
+			message.Data.ToolCallID != nil &&
+			findToolName(messages, *message.Data.ToolCallID) == toolName {
+			return *message.Data.Result.Content
+		}
+	}
+	return ""
+}
+
+func findToolName(messages []copilot.SessionEvent, toolCallID string) string {
+	for _, message := range messages {
+		if message.Type == "tool.execution_start" &&
+			message.Data.ToolCallID != nil &&
+			*message.Data.ToolCallID == toolCallID &&
+			message.Data.ToolName != nil {
+			return *message.Data.ToolName
+		}
+	}
+	return ""
+}
+
+func waitForFile(path string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(path); err == nil {
+			return nil
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return fmt.Errorf("file did not appear: %s", path)
+}
+
+func waitForFileContent(path string, needle string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		content, err := os.ReadFile(path)
+		if err == nil && strings.Contains(string(content), needle) {
+			return nil
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return fmt.Errorf("file %s did not contain %q", path, needle)
+}

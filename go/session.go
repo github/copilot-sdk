@@ -53,6 +53,7 @@ type Session struct {
 	SessionID          string
 	workspacePath      string
 	client             *jsonrpc2.Client
+	clientSessionApis  *rpc.ClientSessionApiHandlers
 	handlers           []sessionHandler
 	nextHandlerID      uint64
 	handlerMutex       sync.RWMutex
@@ -92,14 +93,15 @@ func (s *Session) WorkspacePath() string {
 // newSession creates a new session wrapper with the given session ID and client.
 func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string) *Session {
 	s := &Session{
-		SessionID:       sessionID,
-		workspacePath:   workspacePath,
-		client:          client,
-		handlers:        make([]sessionHandler, 0),
-		toolHandlers:    make(map[string]ToolHandler),
-		commandHandlers: make(map[string]CommandHandler),
-		eventCh:         make(chan SessionEvent, 128),
-		RPC:             rpc.NewSessionRpc(client, sessionID),
+		SessionID:         sessionID,
+		workspacePath:     workspacePath,
+		client:            client,
+		clientSessionApis: &rpc.ClientSessionApiHandlers{},
+		handlers:          make([]sessionHandler, 0),
+		toolHandlers:      make(map[string]ToolHandler),
+		commandHandlers:   make(map[string]CommandHandler),
+		eventCh:           make(chan SessionEvent, 128),
+		RPC:               rpc.NewSessionRpc(client, sessionID),
 	}
 	go s.processEvents()
 	return s

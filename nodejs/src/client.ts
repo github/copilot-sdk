@@ -297,6 +297,10 @@ export class CopilotClient {
             );
         }
 
+        if (options.sessionFs) {
+            this.validateSessionFsConfig(options.sessionFs);
+        }
+
         // Parse cliUrl if provided
         if (options.cliUrl) {
             const { host, port } = this.parseCliUrl(options.cliUrl);
@@ -365,6 +369,20 @@ export class CopilotClient {
         }
 
         return { host, port };
+    }
+
+    private validateSessionFsConfig(config: SessionFsConfig): void {
+        if (!config.initialCwd) {
+            throw new Error("sessionFs.initialCwd is required");
+        }
+
+        if (!config.sessionStatePath) {
+            throw new Error("sessionFs.sessionStatePath is required");
+        }
+
+        if (config.conventions !== "windows" && config.conventions !== "posix") {
+            throw new Error("sessionFs.conventions must be either 'windows' or 'posix'");
+        }
     }
 
     /**

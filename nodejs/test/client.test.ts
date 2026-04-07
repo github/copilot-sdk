@@ -278,6 +278,34 @@ describe("CopilotClient", () => {
         });
     });
 
+    describe("SessionFs config", () => {
+        it("throws when initialCwd is missing", () => {
+            expect(() => {
+                new CopilotClient({
+                    sessionFs: {
+                        initialCwd: "",
+                        sessionStatePath: "/session-state",
+                        conventions: "posix",
+                    },
+                    logLevel: "error",
+                });
+            }).toThrow(/sessionFs\.initialCwd is required/);
+        });
+
+        it("throws when sessionStatePath is missing", () => {
+            expect(() => {
+                new CopilotClient({
+                    sessionFs: {
+                        initialCwd: "/",
+                        sessionStatePath: "",
+                        conventions: "posix",
+                    },
+                    logLevel: "error",
+                });
+            }).toThrow(/sessionFs\.sessionStatePath is required/);
+        });
+    });
+
     describe("Auth options", () => {
         it("should accept githubToken option", () => {
             const client = new CopilotClient({

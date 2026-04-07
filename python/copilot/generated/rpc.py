@@ -8,6 +8,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .._jsonrpc import JsonRpcClient
 
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Protocol
+
 
 from dataclasses import dataclass
 from typing import Any, TypeVar, Callable, cast
@@ -2626,6 +2630,411 @@ class SessionShellKillParams:
         return result
 
 
+@dataclass
+class SessionFSReadFileResult:
+    content: str
+    """File content as UTF-8 string"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSReadFileResult':
+        assert isinstance(obj, dict)
+        content = from_str(obj.get("content"))
+        return SessionFSReadFileResult(content)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["content"] = from_str(self.content)
+        return result
+
+
+@dataclass
+class SessionFSReadFileParams:
+    path: str
+    """Path using SessionFs conventions"""
+
+    session_id: str
+    """Target session identifier"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSReadFileParams':
+        assert isinstance(obj, dict)
+        path = from_str(obj.get("path"))
+        session_id = from_str(obj.get("sessionId"))
+        return SessionFSReadFileParams(path, session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["path"] = from_str(self.path)
+        result["sessionId"] = from_str(self.session_id)
+        return result
+
+
+@dataclass
+class SessionFSWriteFileParams:
+    content: str
+    """Content to write"""
+
+    path: str
+    """Path using SessionFs conventions"""
+
+    session_id: str
+    """Target session identifier"""
+
+    mode: float | None = None
+    """Optional POSIX-style mode for newly created files"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSWriteFileParams':
+        assert isinstance(obj, dict)
+        content = from_str(obj.get("content"))
+        path = from_str(obj.get("path"))
+        session_id = from_str(obj.get("sessionId"))
+        mode = from_union([from_float, from_none], obj.get("mode"))
+        return SessionFSWriteFileParams(content, path, session_id, mode)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["content"] = from_str(self.content)
+        result["path"] = from_str(self.path)
+        result["sessionId"] = from_str(self.session_id)
+        if self.mode is not None:
+            result["mode"] = from_union([to_float, from_none], self.mode)
+        return result
+
+
+@dataclass
+class SessionFSAppendFileParams:
+    content: str
+    """Content to append"""
+
+    path: str
+    """Path using SessionFs conventions"""
+
+    session_id: str
+    """Target session identifier"""
+
+    mode: float | None = None
+    """Optional POSIX-style mode for newly created files"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSAppendFileParams':
+        assert isinstance(obj, dict)
+        content = from_str(obj.get("content"))
+        path = from_str(obj.get("path"))
+        session_id = from_str(obj.get("sessionId"))
+        mode = from_union([from_float, from_none], obj.get("mode"))
+        return SessionFSAppendFileParams(content, path, session_id, mode)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["content"] = from_str(self.content)
+        result["path"] = from_str(self.path)
+        result["sessionId"] = from_str(self.session_id)
+        if self.mode is not None:
+            result["mode"] = from_union([to_float, from_none], self.mode)
+        return result
+
+
+@dataclass
+class SessionFSExistsResult:
+    exists: bool
+    """Whether the path exists"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSExistsResult':
+        assert isinstance(obj, dict)
+        exists = from_bool(obj.get("exists"))
+        return SessionFSExistsResult(exists)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["exists"] = from_bool(self.exists)
+        return result
+
+
+@dataclass
+class SessionFSExistsParams:
+    path: str
+    """Path using SessionFs conventions"""
+
+    session_id: str
+    """Target session identifier"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSExistsParams':
+        assert isinstance(obj, dict)
+        path = from_str(obj.get("path"))
+        session_id = from_str(obj.get("sessionId"))
+        return SessionFSExistsParams(path, session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["path"] = from_str(self.path)
+        result["sessionId"] = from_str(self.session_id)
+        return result
+
+
+@dataclass
+class SessionFSStatResult:
+    birthtime: str
+    """ISO 8601 timestamp of creation"""
+
+    is_directory: bool
+    """Whether the path is a directory"""
+
+    is_file: bool
+    """Whether the path is a file"""
+
+    mtime: str
+    """ISO 8601 timestamp of last modification"""
+
+    size: float
+    """File size in bytes"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSStatResult':
+        assert isinstance(obj, dict)
+        birthtime = from_str(obj.get("birthtime"))
+        is_directory = from_bool(obj.get("isDirectory"))
+        is_file = from_bool(obj.get("isFile"))
+        mtime = from_str(obj.get("mtime"))
+        size = from_float(obj.get("size"))
+        return SessionFSStatResult(birthtime, is_directory, is_file, mtime, size)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["birthtime"] = from_str(self.birthtime)
+        result["isDirectory"] = from_bool(self.is_directory)
+        result["isFile"] = from_bool(self.is_file)
+        result["mtime"] = from_str(self.mtime)
+        result["size"] = to_float(self.size)
+        return result
+
+
+@dataclass
+class SessionFSStatParams:
+    path: str
+    """Path using SessionFs conventions"""
+
+    session_id: str
+    """Target session identifier"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSStatParams':
+        assert isinstance(obj, dict)
+        path = from_str(obj.get("path"))
+        session_id = from_str(obj.get("sessionId"))
+        return SessionFSStatParams(path, session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["path"] = from_str(self.path)
+        result["sessionId"] = from_str(self.session_id)
+        return result
+
+
+@dataclass
+class SessionFSMkdirParams:
+    path: str
+    """Path using SessionFs conventions"""
+
+    session_id: str
+    """Target session identifier"""
+
+    mode: float | None = None
+    """Optional POSIX-style mode for newly created directories"""
+
+    recursive: bool | None = None
+    """Create parent directories as needed"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSMkdirParams':
+        assert isinstance(obj, dict)
+        path = from_str(obj.get("path"))
+        session_id = from_str(obj.get("sessionId"))
+        mode = from_union([from_float, from_none], obj.get("mode"))
+        recursive = from_union([from_bool, from_none], obj.get("recursive"))
+        return SessionFSMkdirParams(path, session_id, mode, recursive)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["path"] = from_str(self.path)
+        result["sessionId"] = from_str(self.session_id)
+        if self.mode is not None:
+            result["mode"] = from_union([to_float, from_none], self.mode)
+        if self.recursive is not None:
+            result["recursive"] = from_union([from_bool, from_none], self.recursive)
+        return result
+
+
+@dataclass
+class SessionFSReaddirResult:
+    entries: list[str]
+    """Entry names in the directory"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSReaddirResult':
+        assert isinstance(obj, dict)
+        entries = from_list(from_str, obj.get("entries"))
+        return SessionFSReaddirResult(entries)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["entries"] = from_list(from_str, self.entries)
+        return result
+
+
+@dataclass
+class SessionFSReaddirParams:
+    path: str
+    """Path using SessionFs conventions"""
+
+    session_id: str
+    """Target session identifier"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSReaddirParams':
+        assert isinstance(obj, dict)
+        path = from_str(obj.get("path"))
+        session_id = from_str(obj.get("sessionId"))
+        return SessionFSReaddirParams(path, session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["path"] = from_str(self.path)
+        result["sessionId"] = from_str(self.session_id)
+        return result
+
+
+class EntryType(Enum):
+    """Entry type"""
+
+    DIRECTORY = "directory"
+    FILE = "file"
+
+
+@dataclass
+class Entry:
+    name: str
+    """Entry name"""
+
+    type: EntryType
+    """Entry type"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'Entry':
+        assert isinstance(obj, dict)
+        name = from_str(obj.get("name"))
+        type = EntryType(obj.get("type"))
+        return Entry(name, type)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["name"] = from_str(self.name)
+        result["type"] = to_enum(EntryType, self.type)
+        return result
+
+
+@dataclass
+class SessionFSReaddirWithTypesResult:
+    entries: list[Entry]
+    """Directory entries with type information"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSReaddirWithTypesResult':
+        assert isinstance(obj, dict)
+        entries = from_list(Entry.from_dict, obj.get("entries"))
+        return SessionFSReaddirWithTypesResult(entries)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["entries"] = from_list(lambda x: to_class(Entry, x), self.entries)
+        return result
+
+
+@dataclass
+class SessionFSReaddirWithTypesParams:
+    path: str
+    """Path using SessionFs conventions"""
+
+    session_id: str
+    """Target session identifier"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSReaddirWithTypesParams':
+        assert isinstance(obj, dict)
+        path = from_str(obj.get("path"))
+        session_id = from_str(obj.get("sessionId"))
+        return SessionFSReaddirWithTypesParams(path, session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["path"] = from_str(self.path)
+        result["sessionId"] = from_str(self.session_id)
+        return result
+
+
+@dataclass
+class SessionFSRmParams:
+    path: str
+    """Path using SessionFs conventions"""
+
+    session_id: str
+    """Target session identifier"""
+
+    force: bool | None = None
+    """Ignore errors if the path does not exist"""
+
+    recursive: bool | None = None
+    """Remove directories and their contents recursively"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSRmParams':
+        assert isinstance(obj, dict)
+        path = from_str(obj.get("path"))
+        session_id = from_str(obj.get("sessionId"))
+        force = from_union([from_bool, from_none], obj.get("force"))
+        recursive = from_union([from_bool, from_none], obj.get("recursive"))
+        return SessionFSRmParams(path, session_id, force, recursive)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["path"] = from_str(self.path)
+        result["sessionId"] = from_str(self.session_id)
+        if self.force is not None:
+            result["force"] = from_union([from_bool, from_none], self.force)
+        if self.recursive is not None:
+            result["recursive"] = from_union([from_bool, from_none], self.recursive)
+        return result
+
+
+@dataclass
+class SessionFSRenameParams:
+    dest: str
+    """Destination path using SessionFs conventions"""
+
+    session_id: str
+    """Target session identifier"""
+
+    src: str
+    """Source path using SessionFs conventions"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionFSRenameParams':
+        assert isinstance(obj, dict)
+        dest = from_str(obj.get("dest"))
+        session_id = from_str(obj.get("sessionId"))
+        src = from_str(obj.get("src"))
+        return SessionFSRenameParams(dest, session_id, src)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["dest"] = from_str(self.dest)
+        result["sessionId"] = from_str(self.session_id)
+        result["src"] = from_str(self.src)
+        return result
+
+
 def ping_result_from_dict(s: Any) -> PingResult:
     return PingResult.from_dict(s)
 
@@ -3194,6 +3603,126 @@ def session_shell_kill_params_to_dict(x: SessionShellKillParams) -> Any:
     return to_class(SessionShellKillParams, x)
 
 
+def session_fs_read_file_result_from_dict(s: Any) -> SessionFSReadFileResult:
+    return SessionFSReadFileResult.from_dict(s)
+
+
+def session_fs_read_file_result_to_dict(x: SessionFSReadFileResult) -> Any:
+    return to_class(SessionFSReadFileResult, x)
+
+
+def session_fs_read_file_params_from_dict(s: Any) -> SessionFSReadFileParams:
+    return SessionFSReadFileParams.from_dict(s)
+
+
+def session_fs_read_file_params_to_dict(x: SessionFSReadFileParams) -> Any:
+    return to_class(SessionFSReadFileParams, x)
+
+
+def session_fs_write_file_params_from_dict(s: Any) -> SessionFSWriteFileParams:
+    return SessionFSWriteFileParams.from_dict(s)
+
+
+def session_fs_write_file_params_to_dict(x: SessionFSWriteFileParams) -> Any:
+    return to_class(SessionFSWriteFileParams, x)
+
+
+def session_fs_append_file_params_from_dict(s: Any) -> SessionFSAppendFileParams:
+    return SessionFSAppendFileParams.from_dict(s)
+
+
+def session_fs_append_file_params_to_dict(x: SessionFSAppendFileParams) -> Any:
+    return to_class(SessionFSAppendFileParams, x)
+
+
+def session_fs_exists_result_from_dict(s: Any) -> SessionFSExistsResult:
+    return SessionFSExistsResult.from_dict(s)
+
+
+def session_fs_exists_result_to_dict(x: SessionFSExistsResult) -> Any:
+    return to_class(SessionFSExistsResult, x)
+
+
+def session_fs_exists_params_from_dict(s: Any) -> SessionFSExistsParams:
+    return SessionFSExistsParams.from_dict(s)
+
+
+def session_fs_exists_params_to_dict(x: SessionFSExistsParams) -> Any:
+    return to_class(SessionFSExistsParams, x)
+
+
+def session_fs_stat_result_from_dict(s: Any) -> SessionFSStatResult:
+    return SessionFSStatResult.from_dict(s)
+
+
+def session_fs_stat_result_to_dict(x: SessionFSStatResult) -> Any:
+    return to_class(SessionFSStatResult, x)
+
+
+def session_fs_stat_params_from_dict(s: Any) -> SessionFSStatParams:
+    return SessionFSStatParams.from_dict(s)
+
+
+def session_fs_stat_params_to_dict(x: SessionFSStatParams) -> Any:
+    return to_class(SessionFSStatParams, x)
+
+
+def session_fs_mkdir_params_from_dict(s: Any) -> SessionFSMkdirParams:
+    return SessionFSMkdirParams.from_dict(s)
+
+
+def session_fs_mkdir_params_to_dict(x: SessionFSMkdirParams) -> Any:
+    return to_class(SessionFSMkdirParams, x)
+
+
+def session_fs_readdir_result_from_dict(s: Any) -> SessionFSReaddirResult:
+    return SessionFSReaddirResult.from_dict(s)
+
+
+def session_fs_readdir_result_to_dict(x: SessionFSReaddirResult) -> Any:
+    return to_class(SessionFSReaddirResult, x)
+
+
+def session_fs_readdir_params_from_dict(s: Any) -> SessionFSReaddirParams:
+    return SessionFSReaddirParams.from_dict(s)
+
+
+def session_fs_readdir_params_to_dict(x: SessionFSReaddirParams) -> Any:
+    return to_class(SessionFSReaddirParams, x)
+
+
+def session_fs_readdir_with_types_result_from_dict(s: Any) -> SessionFSReaddirWithTypesResult:
+    return SessionFSReaddirWithTypesResult.from_dict(s)
+
+
+def session_fs_readdir_with_types_result_to_dict(x: SessionFSReaddirWithTypesResult) -> Any:
+    return to_class(SessionFSReaddirWithTypesResult, x)
+
+
+def session_fs_readdir_with_types_params_from_dict(s: Any) -> SessionFSReaddirWithTypesParams:
+    return SessionFSReaddirWithTypesParams.from_dict(s)
+
+
+def session_fs_readdir_with_types_params_to_dict(x: SessionFSReaddirWithTypesParams) -> Any:
+    return to_class(SessionFSReaddirWithTypesParams, x)
+
+
+def session_fs_rm_params_from_dict(s: Any) -> SessionFSRmParams:
+    return SessionFSRmParams.from_dict(s)
+
+
+def session_fs_rm_params_to_dict(x: SessionFSRmParams) -> Any:
+    return to_class(SessionFSRmParams, x)
+
+
+def session_fs_rename_params_from_dict(s: Any) -> SessionFSRenameParams:
+    return SessionFSRenameParams.from_dict(s)
+
+
+def session_fs_rename_params_to_dict(x: SessionFSRenameParams) -> Any:
+    return to_class(SessionFSRenameParams, x)
+
+
 def _timeout_kwargs(timeout: float | None) -> dict:
     """Build keyword arguments for optional timeout forwarding."""
     if timeout is not None:
@@ -3536,3 +4065,105 @@ class SessionRpc:
         params_dict["sessionId"] = self._session_id
         return SessionLogResult.from_dict(await self._client.request("session.log", params_dict, **_timeout_kwargs(timeout)))
 
+
+class SessionFsHandler(Protocol):
+    async def read_file(self, params: SessionFSReadFileParams) -> SessionFSReadFileResult:
+        pass
+    async def write_file(self, params: SessionFSWriteFileParams) -> None:
+        pass
+    async def append_file(self, params: SessionFSAppendFileParams) -> None:
+        pass
+    async def exists(self, params: SessionFSExistsParams) -> SessionFSExistsResult:
+        pass
+    async def stat(self, params: SessionFSStatParams) -> SessionFSStatResult:
+        pass
+    async def mkdir(self, params: SessionFSMkdirParams) -> None:
+        pass
+    async def readdir(self, params: SessionFSReaddirParams) -> SessionFSReaddirResult:
+        pass
+    async def readdir_with_types(self, params: SessionFSReaddirWithTypesParams) -> SessionFSReaddirWithTypesResult:
+        pass
+    async def rm(self, params: SessionFSRmParams) -> None:
+        pass
+    async def rename(self, params: SessionFSRenameParams) -> None:
+        pass
+
+@dataclass
+class ClientSessionApiHandlers:
+    session_fs: SessionFsHandler | None = None
+
+def register_client_session_api_handlers(
+    client: "JsonRpcClient",
+    get_handlers: Callable[[str], ClientSessionApiHandlers],
+) -> None:
+    """Register client-session request handlers on a JSON-RPC connection."""
+    async def handle_session_fs_read_file(params: dict) -> dict | None:
+        request = SessionFSReadFileParams.from_dict(params)
+        handler = get_handlers(request.session_id).session_fs
+        if handler is None: raise RuntimeError(f"No session_fs handler registered for session: {request.session_id}")
+        result = await handler.read_file(request)
+        return result.to_dict()
+    client.set_request_handler("sessionFs.readFile", handle_session_fs_read_file)
+    async def handle_session_fs_write_file(params: dict) -> dict | None:
+        request = SessionFSWriteFileParams.from_dict(params)
+        handler = get_handlers(request.session_id).session_fs
+        if handler is None: raise RuntimeError(f"No session_fs handler registered for session: {request.session_id}")
+        await handler.write_file(request)
+        return None
+    client.set_request_handler("sessionFs.writeFile", handle_session_fs_write_file)
+    async def handle_session_fs_append_file(params: dict) -> dict | None:
+        request = SessionFSAppendFileParams.from_dict(params)
+        handler = get_handlers(request.session_id).session_fs
+        if handler is None: raise RuntimeError(f"No session_fs handler registered for session: {request.session_id}")
+        await handler.append_file(request)
+        return None
+    client.set_request_handler("sessionFs.appendFile", handle_session_fs_append_file)
+    async def handle_session_fs_exists(params: dict) -> dict | None:
+        request = SessionFSExistsParams.from_dict(params)
+        handler = get_handlers(request.session_id).session_fs
+        if handler is None: raise RuntimeError(f"No session_fs handler registered for session: {request.session_id}")
+        result = await handler.exists(request)
+        return result.to_dict()
+    client.set_request_handler("sessionFs.exists", handle_session_fs_exists)
+    async def handle_session_fs_stat(params: dict) -> dict | None:
+        request = SessionFSStatParams.from_dict(params)
+        handler = get_handlers(request.session_id).session_fs
+        if handler is None: raise RuntimeError(f"No session_fs handler registered for session: {request.session_id}")
+        result = await handler.stat(request)
+        return result.to_dict()
+    client.set_request_handler("sessionFs.stat", handle_session_fs_stat)
+    async def handle_session_fs_mkdir(params: dict) -> dict | None:
+        request = SessionFSMkdirParams.from_dict(params)
+        handler = get_handlers(request.session_id).session_fs
+        if handler is None: raise RuntimeError(f"No session_fs handler registered for session: {request.session_id}")
+        await handler.mkdir(request)
+        return None
+    client.set_request_handler("sessionFs.mkdir", handle_session_fs_mkdir)
+    async def handle_session_fs_readdir(params: dict) -> dict | None:
+        request = SessionFSReaddirParams.from_dict(params)
+        handler = get_handlers(request.session_id).session_fs
+        if handler is None: raise RuntimeError(f"No session_fs handler registered for session: {request.session_id}")
+        result = await handler.readdir(request)
+        return result.to_dict()
+    client.set_request_handler("sessionFs.readdir", handle_session_fs_readdir)
+    async def handle_session_fs_readdir_with_types(params: dict) -> dict | None:
+        request = SessionFSReaddirWithTypesParams.from_dict(params)
+        handler = get_handlers(request.session_id).session_fs
+        if handler is None: raise RuntimeError(f"No session_fs handler registered for session: {request.session_id}")
+        result = await handler.readdir_with_types(request)
+        return result.to_dict()
+    client.set_request_handler("sessionFs.readdirWithTypes", handle_session_fs_readdir_with_types)
+    async def handle_session_fs_rm(params: dict) -> dict | None:
+        request = SessionFSRmParams.from_dict(params)
+        handler = get_handlers(request.session_id).session_fs
+        if handler is None: raise RuntimeError(f"No session_fs handler registered for session: {request.session_id}")
+        await handler.rm(request)
+        return None
+    client.set_request_handler("sessionFs.rm", handle_session_fs_rm)
+    async def handle_session_fs_rename(params: dict) -> dict | None:
+        request = SessionFSRenameParams.from_dict(params)
+        handler = get_handlers(request.session_id).session_fs
+        if handler is None: raise RuntimeError(f"No session_fs handler registered for session: {request.session_id}")
+        await handler.rename(request)
+        return None
+    client.set_request_handler("sessionFs.rename", handle_session_fs_rename)

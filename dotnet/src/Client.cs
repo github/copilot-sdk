@@ -226,6 +226,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
             // Verify protocol version compatibility
             await VerifyProtocolVersionAsync(connection, ct);
+            await ConfigureSessionFsAsync(ct);
 
             _logger.LogInformation("Copilot client connected");
             return connection;
@@ -474,6 +475,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             session.On(config.OnEvent);
         }
+        ConfigureSessionFsHandlers(session, config.CreateSessionFsHandler);
         _sessions[sessionId] = session;
 
         try
@@ -594,6 +596,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             session.On(config.OnEvent);
         }
+        ConfigureSessionFsHandlers(session, config.CreateSessionFsHandler);
         _sessions[sessionId] = session;
 
         try
@@ -1078,6 +1081,37 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         return (Task<Connection>)StartAsync(cancellationToken);
     }
 
+    private async Task ConfigureSessionFsAsync(CancellationToken cancellationToken)
+    {
+        if (_options.SessionFs is null)
+        {
+            return;
+        }
+
+        await Rpc.SessionFs.SetProviderAsync(
+            _options.SessionFs.InitialCwd,
+            _options.SessionFs.SessionStatePath,
+            _options.SessionFs.Conventions,
+            cancellationToken);
+    }
+
+    private void ConfigureSessionFsHandlers(CopilotSession session, Func<CopilotSession, ISessionFsHandler>? createSessionFsHandler)
+    {
+        if (_options.SessionFs is null)
+        {
+            return;
+        }
+
+        if (createSessionFsHandler is null)
+        {
+            throw new InvalidOperationException(
+                "CreateSessionFsHandler is required in the session config when CopilotClientOptions.SessionFs is configured.");
+        }
+
+        session.ClientSessionApis.SessionFs = createSessionFsHandler(session)
+            ?? throw new InvalidOperationException("CreateSessionFsHandler returned null.");
+    }
+
     private async Task VerifyProtocolVersionAsync(Connection connection, CancellationToken cancellationToken)
     {
         var maxVersion = SdkProtocolVersion.GetVersion();
@@ -1319,6 +1353,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         rpc.AddLocalRpcMethod("userInput.request", handler.OnUserInputRequest);
         rpc.AddLocalRpcMethod("hooks.invoke", handler.OnHooksInvoke);
         rpc.AddLocalRpcMethod("systemMessage.transform", handler.OnSystemMessageTransform);
+        ClientSessionApiRegistration.RegisterClientSessionApiHandlers(rpc, sessionId =>
+        {
+            var session = GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
+            return session.ClientSessionApis;
+        });
         rpc.StartListening();
 
         // Transition state to Disconnected if the JSON-RPC connection drops
