@@ -263,6 +263,28 @@ internal class SessionFsSetProviderRequest
     public SessionFsSetProviderRequestConventions Conventions { get; set; }
 }
 
+/// <summary>RPC data type for SessionsFork operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class SessionsForkResult
+{
+    /// <summary>The new forked session's ID.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionsFork operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal class SessionsForkRequest
+{
+    /// <summary>Source session ID to fork from.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Optional event ID boundary. When provided, the fork includes only events before this ID (exclusive). When omitted, all events are included.</summary>
+    [JsonPropertyName("toEventId")]
+    public string? ToEventId { get; set; }
+}
+
 /// <summary>RPC data type for SessionLog operations.</summary>
 public class SessionLogResult
 {
@@ -1030,32 +1052,6 @@ internal class SessionExtensionsReloadRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for SessionCompactionCompact operations.</summary>
-[Experimental(Diagnostics.Experimental)]
-public class SessionCompactionCompactResult
-{
-    /// <summary>Whether compaction completed successfully.</summary>
-    [JsonPropertyName("success")]
-    public bool Success { get; set; }
-
-    /// <summary>Number of tokens freed by compaction.</summary>
-    [JsonPropertyName("tokensRemoved")]
-    public double TokensRemoved { get; set; }
-
-    /// <summary>Number of messages removed during compaction.</summary>
-    [JsonPropertyName("messagesRemoved")]
-    public double MessagesRemoved { get; set; }
-}
-
-/// <summary>RPC data type for SessionCompactionCompact operations.</summary>
-[Experimental(Diagnostics.Experimental)]
-internal class SessionCompactionCompactRequest
-{
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
 /// <summary>RPC data type for SessionToolsHandlePendingToolCall operations.</summary>
 public class SessionToolsHandlePendingToolCallResult
 {
@@ -1262,6 +1258,54 @@ internal class SessionShellKillRequest
     /// <summary>Signal to send (default: SIGTERM).</summary>
     [JsonPropertyName("signal")]
     public SessionShellKillRequestSignal? Signal { get; set; }
+}
+
+/// <summary>RPC data type for SessionHistoryCompact operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class SessionHistoryCompactResult
+{
+    /// <summary>Whether compaction completed successfully.</summary>
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+
+    /// <summary>Number of tokens freed by compaction.</summary>
+    [JsonPropertyName("tokensRemoved")]
+    public double TokensRemoved { get; set; }
+
+    /// <summary>Number of messages removed during compaction.</summary>
+    [JsonPropertyName("messagesRemoved")]
+    public double MessagesRemoved { get; set; }
+}
+
+/// <summary>RPC data type for SessionHistoryCompact operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal class SessionHistoryCompactRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for SessionHistoryTruncate operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class SessionHistoryTruncateResult
+{
+    /// <summary>Number of events that were removed.</summary>
+    [JsonPropertyName("eventsRemoved")]
+    public double EventsRemoved { get; set; }
+}
+
+/// <summary>RPC data type for SessionHistoryTruncate operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal class SessionHistoryTruncateRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Event ID to truncate to. This event and all events after it are removed from the session.</summary>
+    [JsonPropertyName("eventId")]
+    public string EventId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for SessionFsReadFile operations.</summary>
@@ -1648,6 +1692,7 @@ public class ServerRpc
         Account = new ServerAccountApi(rpc);
         Mcp = new ServerMcpApi(rpc);
         SessionFs = new ServerSessionFsApi(rpc);
+        Sessions = new ServerSessionsApi(rpc);
     }
 
     /// <summary>Calls "ping".</summary>
@@ -1671,6 +1716,9 @@ public class ServerRpc
 
     /// <summary>SessionFs APIs.</summary>
     public ServerSessionFsApi SessionFs { get; }
+
+    /// <summary>Sessions APIs.</summary>
+    public ServerSessionsApi Sessions { get; }
 }
 
 /// <summary>Provides server-scoped Models APIs.</summary>
@@ -1754,6 +1802,25 @@ public class ServerSessionFsApi
     }
 }
 
+/// <summary>Provides server-scoped Sessions APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class ServerSessionsApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerSessionsApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Calls "sessions.fork".</summary>
+    public async Task<SessionsForkResult> ForkAsync(string sessionId, string? toEventId = null, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionsForkRequest { SessionId = sessionId, ToEventId = toEventId };
+        return await CopilotClient.InvokeRpcAsync<SessionsForkResult>(_rpc, "sessions.fork", [request], cancellationToken);
+    }
+}
+
 /// <summary>Provides typed session-scoped RPC methods.</summary>
 public class SessionRpc
 {
@@ -1774,12 +1841,12 @@ public class SessionRpc
         Mcp = new McpApi(rpc, sessionId);
         Plugins = new PluginsApi(rpc, sessionId);
         Extensions = new ExtensionsApi(rpc, sessionId);
-        Compaction = new CompactionApi(rpc, sessionId);
         Tools = new ToolsApi(rpc, sessionId);
         Commands = new CommandsApi(rpc, sessionId);
         Ui = new UiApi(rpc, sessionId);
         Permissions = new PermissionsApi(rpc, sessionId);
         Shell = new ShellApi(rpc, sessionId);
+        History = new HistoryApi(rpc, sessionId);
     }
 
     /// <summary>Model APIs.</summary>
@@ -1812,9 +1879,6 @@ public class SessionRpc
     /// <summary>Extensions APIs.</summary>
     public ExtensionsApi Extensions { get; }
 
-    /// <summary>Compaction APIs.</summary>
-    public CompactionApi Compaction { get; }
-
     /// <summary>Tools APIs.</summary>
     public ToolsApi Tools { get; }
 
@@ -1829,6 +1893,9 @@ public class SessionRpc
 
     /// <summary>Shell APIs.</summary>
     public ShellApi Shell { get; }
+
+    /// <summary>History APIs.</summary>
+    public HistoryApi History { get; }
 
     /// <summary>Calls "session.log".</summary>
     public async Task<SessionLogResult> LogAsync(string message, SessionLogRequestLevel? level = null, bool? ephemeral = null, string? url = null, CancellationToken cancellationToken = default)
@@ -2177,27 +2244,6 @@ public class ExtensionsApi
     }
 }
 
-/// <summary>Provides session-scoped Compaction APIs.</summary>
-[Experimental(Diagnostics.Experimental)]
-public class CompactionApi
-{
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
-
-    internal CompactionApi(JsonRpc rpc, string sessionId)
-    {
-        _rpc = rpc;
-        _sessionId = sessionId;
-    }
-
-    /// <summary>Calls "session.compaction.compact".</summary>
-    public async Task<SessionCompactionCompactResult> CompactAsync(CancellationToken cancellationToken = default)
-    {
-        var request = new SessionCompactionCompactRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<SessionCompactionCompactResult>(_rpc, "session.compaction.compact", [request], cancellationToken);
-    }
-}
-
 /// <summary>Provides session-scoped Tools APIs.</summary>
 public class ToolsApi
 {
@@ -2309,6 +2355,34 @@ public class ShellApi
     {
         var request = new SessionShellKillRequest { SessionId = _sessionId, ProcessId = processId, Signal = signal };
         return await CopilotClient.InvokeRpcAsync<SessionShellKillResult>(_rpc, "session.shell.kill", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped History APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class HistoryApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal HistoryApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.history.compact".</summary>
+    public async Task<SessionHistoryCompactResult> CompactAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new SessionHistoryCompactRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionHistoryCompactResult>(_rpc, "session.history.compact", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.history.truncate".</summary>
+    public async Task<SessionHistoryTruncateResult> TruncateAsync(string eventId, CancellationToken cancellationToken = default)
+    {
+        var request = new SessionHistoryTruncateRequest { SessionId = _sessionId, EventId = eventId };
+        return await CopilotClient.InvokeRpcAsync<SessionHistoryTruncateResult>(_rpc, "session.history.truncate", [request], cancellationToken);
     }
 }
 
@@ -2496,8 +2570,6 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionAgentSelectResultAgent))]
 [JsonSerializable(typeof(SessionCommandsHandlePendingCommandRequest))]
 [JsonSerializable(typeof(SessionCommandsHandlePendingCommandResult))]
-[JsonSerializable(typeof(SessionCompactionCompactRequest))]
-[JsonSerializable(typeof(SessionCompactionCompactResult))]
 [JsonSerializable(typeof(SessionExtensionsDisableRequest))]
 [JsonSerializable(typeof(SessionExtensionsDisableResult))]
 [JsonSerializable(typeof(SessionExtensionsEnableRequest))]
@@ -2525,6 +2597,10 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionFsStatParams))]
 [JsonSerializable(typeof(SessionFsStatResult))]
 [JsonSerializable(typeof(SessionFsWriteFileParams))]
+[JsonSerializable(typeof(SessionHistoryCompactRequest))]
+[JsonSerializable(typeof(SessionHistoryCompactResult))]
+[JsonSerializable(typeof(SessionHistoryTruncateRequest))]
+[JsonSerializable(typeof(SessionHistoryTruncateResult))]
 [JsonSerializable(typeof(SessionLogRequest))]
 [JsonSerializable(typeof(SessionLogResult))]
 [JsonSerializable(typeof(SessionMcpDisableRequest))]
@@ -2579,6 +2655,8 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionWorkspaceListFilesResult))]
 [JsonSerializable(typeof(SessionWorkspaceReadFileRequest))]
 [JsonSerializable(typeof(SessionWorkspaceReadFileResult))]
+[JsonSerializable(typeof(SessionsForkRequest))]
+[JsonSerializable(typeof(SessionsForkResult))]
 [JsonSerializable(typeof(Skill))]
 [JsonSerializable(typeof(Tool))]
 [JsonSerializable(typeof(ToolsListRequest))]

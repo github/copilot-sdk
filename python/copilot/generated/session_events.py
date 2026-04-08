@@ -1709,7 +1709,7 @@ class Data:
     
     Error details for timeline display including message and optional diagnostic information
     
-    Payload indicating the session is fully idle with no background tasks in flight
+    Payload indicating the session is idle with no background agents in flight
     
     Session title change payload containing the new display title
     
@@ -2018,7 +2018,7 @@ class Data:
     """Number of events that were removed by the rewind"""
 
     up_to_event_id: str | None = None
-    """Event ID that was rewound to; all events after this one were removed"""
+    """Event ID that was rewound to; this event and all after it were removed"""
 
     code_changes: CodeChanges | None = None
     """Aggregate code change metrics for the session"""
@@ -2132,6 +2132,9 @@ class Data:
 
     request_id: str | None = None
     """GitHub request tracing ID (x-github-request-id header) for the compaction LLM call
+    
+    GitHub request tracing ID (x-github-request-id header) for correlating with server-side
+    logs
     
     Unique identifier for this permission request; used to respond via
     session.respondToPermission()
@@ -3205,7 +3208,7 @@ class SessionEvent:
     
     Error details for timeline display including message and optional diagnostic information
     
-    Payload indicating the session is fully idle with no background tasks in flight
+    Payload indicating the session is idle with no background agents in flight
     
     Session title change payload containing the new display title
     

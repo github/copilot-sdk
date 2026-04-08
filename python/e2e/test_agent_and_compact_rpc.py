@@ -185,7 +185,7 @@ class TestSessionCompactionRpc:
         await session.send_and_wait("What is 2+2?")
 
         # Compact the session
-        result = await session.rpc.compaction.compact()
+        result = await session.rpc.history.compact()
         assert isinstance(result.success, bool)
         assert isinstance(result.tokens_removed, (int, float))
         assert isinstance(result.messages_removed, (int, float))

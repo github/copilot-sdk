@@ -692,7 +692,7 @@ type SessionErrorData struct {
 
 func (*SessionErrorData) sessionEventData() {}
 
-// Payload indicating the session is fully idle with no background tasks in flight
+// Payload indicating the session is idle with no background agents in flight
 type SessionIdleData struct {
 	// True when the preceding agentic loop was cancelled via abort signal
 	Aborted *bool `json:"aborted,omitempty"`
@@ -818,7 +818,7 @@ func (*SessionTruncationData) sessionEventData() {}
 
 // Session rewind details including target event and count of removed events
 type SessionSnapshotRewindData struct {
-	// Event ID that was rewound to; all events after this one were removed
+	// Event ID that was rewound to; this event and all after it were removed
 	UpToEventID string `json:"upToEventId"`
 	// Number of events that were removed by the rewind
 	EventsRemoved float64 `json:"eventsRemoved"`
@@ -1044,6 +1044,8 @@ type AssistantMessageData struct {
 	OutputTokens *float64 `json:"outputTokens,omitempty"`
 	// CAPI interaction ID for correlating this message with upstream telemetry
 	InteractionID *string `json:"interactionId,omitempty"`
+	// GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
+	RequestID *string `json:"requestId,omitempty"`
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
 }

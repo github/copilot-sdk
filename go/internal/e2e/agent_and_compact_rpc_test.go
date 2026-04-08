@@ -281,7 +281,7 @@ func TestSessionCompactionRpc(t *testing.T) {
 		}
 
 		// Compact the session
-		result, err := session.RPC.Compaction.Compact(t.Context())
+		result, err := session.RPC.History.Compact(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to compact session: %v", err)
 		}

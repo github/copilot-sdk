@@ -139,7 +139,7 @@ describe("Session Compact RPC", async () => {
         await session.sendAndWait({ prompt: "What is 2+2?" });
 
         // Compact the session
-        const result = await session.rpc.compaction.compact();
+        const result = await session.rpc.history.compact();
         expect(typeof result.success).toBe("boolean");
         expect(typeof result.tokensRemoved).toBe("number");
         expect(typeof result.messagesRemoved).toBe("number");

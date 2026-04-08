@@ -236,6 +236,21 @@ type SessionFSSetProviderParams struct {
 	SessionStatePath string `json:"sessionStatePath"`
 }
 
+// Experimental: SessionsForkResult is part of an experimental API and may change or be removed.
+type SessionsForkResult struct {
+	// The new forked session's ID
+	SessionID string `json:"sessionId"`
+}
+
+// Experimental: SessionsForkParams is part of an experimental API and may change or be removed.
+type SessionsForkParams struct {
+	// Source session ID to fork from
+	SessionID string `json:"sessionId"`
+	// Optional event ID boundary. When provided, the fork includes only events before this ID
+	// (exclusive). When omitted, all events are included.
+	ToEventID *string `json:"toEventId,omitempty"`
+}
+
 type SessionModelGetCurrentResult struct {
 	// Currently active model identifier
 	ModelID *string `json:"modelId,omitempty"`
@@ -570,16 +585,6 @@ type SessionExtensionsDisableParams struct {
 type SessionExtensionsReloadResult struct {
 }
 
-// Experimental: SessionCompactionCompactResult is part of an experimental API and may change or be removed.
-type SessionCompactionCompactResult struct {
-	// Number of messages removed during compaction
-	MessagesRemoved float64 `json:"messagesRemoved"`
-	// Whether compaction completed successfully
-	Success bool `json:"success"`
-	// Number of tokens freed by compaction
-	TokensRemoved float64 `json:"tokensRemoved"`
-}
-
 type SessionToolsHandlePendingToolCallResult struct {
 	// Whether the tool call result was handled successfully
 	Success bool `json:"success"`
@@ -748,6 +753,28 @@ type SessionShellKillParams struct {
 	ProcessID string `json:"processId"`
 	// Signal to send (default: SIGTERM)
 	Signal *Signal `json:"signal,omitempty"`
+}
+
+// Experimental: SessionHistoryCompactResult is part of an experimental API and may change or be removed.
+type SessionHistoryCompactResult struct {
+	// Number of messages removed during compaction
+	MessagesRemoved float64 `json:"messagesRemoved"`
+	// Whether compaction completed successfully
+	Success bool `json:"success"`
+	// Number of tokens freed by compaction
+	TokensRemoved float64 `json:"tokensRemoved"`
+}
+
+// Experimental: SessionHistoryTruncateResult is part of an experimental API and may change or be removed.
+type SessionHistoryTruncateResult struct {
+	// Number of events that were removed
+	EventsRemoved float64 `json:"eventsRemoved"`
+}
+
+// Experimental: SessionHistoryTruncateParams is part of an experimental API and may change or be removed.
+type SessionHistoryTruncateParams struct {
+	// Event ID to truncate to. This event and all events after it are removed from the session.
+	EventID string `json:"eventId"`
 }
 
 type SessionFSReadFileResult struct {
@@ -1103,6 +1130,21 @@ func (a *ServerSessionFsApi) SetProvider(ctx context.Context, params *SessionFSS
 	return &result, nil
 }
 
+// Experimental: ServerSessionsApi contains experimental APIs that may change or be removed.
+type ServerSessionsApi serverApi
+
+func (a *ServerSessionsApi) Fork(ctx context.Context, params *SessionsForkParams) (*SessionsForkResult, error) {
+	raw, err := a.client.Request("sessions.fork", params)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionsForkResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // ServerRpc provides typed server-scoped RPC methods.
 type ServerRpc struct {
 	common serverApi // Reuse a single struct instead of allocating one for each service on the heap.
@@ -1112,6 +1154,7 @@ type ServerRpc struct {
 	Account   *ServerAccountApi
 	Mcp       *ServerMcpApi
 	SessionFs *ServerSessionFsApi
+	Sessions  *ServerSessionsApi
 }
 
 func (a *ServerRpc) Ping(ctx context.Context, params *PingParams) (*PingResult, error) {
@@ -1134,6 +1177,7 @@ func NewServerRpc(client *jsonrpc2.Client) *ServerRpc {
 	r.Account = (*ServerAccountApi)(&r.common)
 	r.Mcp = (*ServerMcpApi)(&r.common)
 	r.SessionFs = (*ServerSessionFsApi)(&r.common)
+	r.Sessions = (*ServerSessionsApi)(&r.common)
 	return r
 }
 
@@ -1593,22 +1637,6 @@ func (a *ExtensionsApi) Reload(ctx context.Context) (*SessionExtensionsReloadRes
 	return &result, nil
 }
 
-// Experimental: CompactionApi contains experimental APIs that may change or be removed.
-type CompactionApi sessionApi
-
-func (a *CompactionApi) Compact(ctx context.Context) (*SessionCompactionCompactResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.compaction.compact", req)
-	if err != nil {
-		return nil, err
-	}
-	var result SessionCompactionCompactResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
 type ToolsApi sessionApi
 
 func (a *ToolsApi) HandlePendingToolCall(ctx context.Context, params *SessionToolsHandlePendingToolCallParams) (*SessionToolsHandlePendingToolCallResult, error) {
@@ -1752,6 +1780,38 @@ func (a *ShellApi) Kill(ctx context.Context, params *SessionShellKillParams) (*S
 	return &result, nil
 }
 
+// Experimental: HistoryApi contains experimental APIs that may change or be removed.
+type HistoryApi sessionApi
+
+func (a *HistoryApi) Compact(ctx context.Context) (*SessionHistoryCompactResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.history.compact", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionHistoryCompactResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *HistoryApi) Truncate(ctx context.Context, params *SessionHistoryTruncateParams) (*SessionHistoryTruncateResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["eventId"] = params.EventID
+	}
+	raw, err := a.client.Request("session.history.truncate", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionHistoryTruncateResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // SessionRpc provides typed session-scoped RPC methods.
 type SessionRpc struct {
 	common sessionApi // Reuse a single struct instead of allocating one for each service on the heap.
@@ -1766,12 +1826,12 @@ type SessionRpc struct {
 	Mcp         *McpApi
 	Plugins     *PluginsApi
 	Extensions  *ExtensionsApi
-	Compaction  *CompactionApi
 	Tools       *ToolsApi
 	Commands    *CommandsApi
 	UI          *UIApi
 	Permissions *PermissionsApi
 	Shell       *ShellApi
+	History     *HistoryApi
 }
 
 func (a *SessionRpc) Log(ctx context.Context, params *SessionLogParams) (*SessionLogResult, error) {
@@ -1812,12 +1872,12 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 	r.Mcp = (*McpApi)(&r.common)
 	r.Plugins = (*PluginsApi)(&r.common)
 	r.Extensions = (*ExtensionsApi)(&r.common)
-	r.Compaction = (*CompactionApi)(&r.common)
 	r.Tools = (*ToolsApi)(&r.common)
 	r.Commands = (*CommandsApi)(&r.common)
 	r.UI = (*UIApi)(&r.common)
 	r.Permissions = (*PermissionsApi)(&r.common)
 	r.Shell = (*ShellApi)(&r.common)
+	r.History = (*HistoryApi)(&r.common)
 	return r
 }
 

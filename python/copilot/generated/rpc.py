@@ -841,6 +841,50 @@ class SessionFSSetProviderParams:
         return result
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionsForkResult:
+    session_id: str
+    """The new forked session's ID"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionsForkResult':
+        assert isinstance(obj, dict)
+        session_id = from_str(obj.get("sessionId"))
+        return SessionsForkResult(session_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["sessionId"] = from_str(self.session_id)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionsForkParams:
+    session_id: str
+    """Source session ID to fork from"""
+
+    to_event_id: str | None = None
+    """Optional event ID boundary. When provided, the fork includes only events before this ID
+    (exclusive). When omitted, all events are included.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionsForkParams':
+        assert isinstance(obj, dict)
+        session_id = from_str(obj.get("sessionId"))
+        to_event_id = from_union([from_str, from_none], obj.get("toEventId"))
+        return SessionsForkParams(session_id, to_event_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["sessionId"] = from_str(self.session_id)
+        if self.to_event_id is not None:
+            result["toEventId"] = from_union([from_str, from_none], self.to_event_id)
+        return result
+
+
 @dataclass
 class SessionModelGetCurrentResult:
     model_id: str | None = None
@@ -1950,34 +1994,6 @@ class SessionExtensionsReloadResult:
         return result
 
 
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class SessionCompactionCompactResult:
-    messages_removed: float
-    """Number of messages removed during compaction"""
-
-    success: bool
-    """Whether compaction completed successfully"""
-
-    tokens_removed: float
-    """Number of tokens freed by compaction"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'SessionCompactionCompactResult':
-        assert isinstance(obj, dict)
-        messages_removed = from_float(obj.get("messagesRemoved"))
-        success = from_bool(obj.get("success"))
-        tokens_removed = from_float(obj.get("tokensRemoved"))
-        return SessionCompactionCompactResult(messages_removed, success, tokens_removed)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["messagesRemoved"] = to_float(self.messages_removed)
-        result["success"] = from_bool(self.success)
-        result["tokensRemoved"] = to_float(self.tokens_removed)
-        return result
-
-
 @dataclass
 class SessionToolsHandlePendingToolCallResult:
     success: bool
@@ -2630,6 +2646,70 @@ class SessionShellKillParams:
         return result
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionHistoryCompactResult:
+    messages_removed: float
+    """Number of messages removed during compaction"""
+
+    success: bool
+    """Whether compaction completed successfully"""
+
+    tokens_removed: float
+    """Number of tokens freed by compaction"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionHistoryCompactResult':
+        assert isinstance(obj, dict)
+        messages_removed = from_float(obj.get("messagesRemoved"))
+        success = from_bool(obj.get("success"))
+        tokens_removed = from_float(obj.get("tokensRemoved"))
+        return SessionHistoryCompactResult(messages_removed, success, tokens_removed)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["messagesRemoved"] = to_float(self.messages_removed)
+        result["success"] = from_bool(self.success)
+        result["tokensRemoved"] = to_float(self.tokens_removed)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionHistoryTruncateResult:
+    events_removed: float
+    """Number of events that were removed"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionHistoryTruncateResult':
+        assert isinstance(obj, dict)
+        events_removed = from_float(obj.get("eventsRemoved"))
+        return SessionHistoryTruncateResult(events_removed)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["eventsRemoved"] = to_float(self.events_removed)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionHistoryTruncateParams:
+    event_id: str
+    """Event ID to truncate to. This event and all events after it are removed from the session."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionHistoryTruncateParams':
+        assert isinstance(obj, dict)
+        event_id = from_str(obj.get("eventId"))
+        return SessionHistoryTruncateParams(event_id)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["eventId"] = from_str(self.event_id)
+        return result
+
+
 @dataclass
 class SessionFSReadFileResult:
     content: str
@@ -3131,6 +3211,22 @@ def session_fs_set_provider_params_to_dict(x: SessionFSSetProviderParams) -> Any
     return to_class(SessionFSSetProviderParams, x)
 
 
+def sessions_fork_result_from_dict(s: Any) -> SessionsForkResult:
+    return SessionsForkResult.from_dict(s)
+
+
+def sessions_fork_result_to_dict(x: SessionsForkResult) -> Any:
+    return to_class(SessionsForkResult, x)
+
+
+def sessions_fork_params_from_dict(s: Any) -> SessionsForkParams:
+    return SessionsForkParams.from_dict(s)
+
+
+def sessions_fork_params_to_dict(x: SessionsForkParams) -> Any:
+    return to_class(SessionsForkParams, x)
+
+
 def session_model_get_current_result_from_dict(s: Any) -> SessionModelGetCurrentResult:
     return SessionModelGetCurrentResult.from_dict(s)
 
@@ -3467,14 +3563,6 @@ def session_extensions_reload_result_to_dict(x: SessionExtensionsReloadResult) -
     return to_class(SessionExtensionsReloadResult, x)
 
 
-def session_compaction_compact_result_from_dict(s: Any) -> SessionCompactionCompactResult:
-    return SessionCompactionCompactResult.from_dict(s)
-
-
-def session_compaction_compact_result_to_dict(x: SessionCompactionCompactResult) -> Any:
-    return to_class(SessionCompactionCompactResult, x)
-
-
 def session_tools_handle_pending_tool_call_result_from_dict(s: Any) -> SessionToolsHandlePendingToolCallResult:
     return SessionToolsHandlePendingToolCallResult.from_dict(s)
 
@@ -3601,6 +3689,30 @@ def session_shell_kill_params_from_dict(s: Any) -> SessionShellKillParams:
 
 def session_shell_kill_params_to_dict(x: SessionShellKillParams) -> Any:
     return to_class(SessionShellKillParams, x)
+
+
+def session_history_compact_result_from_dict(s: Any) -> SessionHistoryCompactResult:
+    return SessionHistoryCompactResult.from_dict(s)
+
+
+def session_history_compact_result_to_dict(x: SessionHistoryCompactResult) -> Any:
+    return to_class(SessionHistoryCompactResult, x)
+
+
+def session_history_truncate_result_from_dict(s: Any) -> SessionHistoryTruncateResult:
+    return SessionHistoryTruncateResult.from_dict(s)
+
+
+def session_history_truncate_result_to_dict(x: SessionHistoryTruncateResult) -> Any:
+    return to_class(SessionHistoryTruncateResult, x)
+
+
+def session_history_truncate_params_from_dict(s: Any) -> SessionHistoryTruncateParams:
+    return SessionHistoryTruncateParams.from_dict(s)
+
+
+def session_history_truncate_params_to_dict(x: SessionHistoryTruncateParams) -> Any:
+    return to_class(SessionHistoryTruncateParams, x)
 
 
 def session_fs_read_file_result_from_dict(s: Any) -> SessionFSReadFileResult:
@@ -3769,6 +3881,16 @@ class ServerSessionFsApi:
         return SessionFSSetProviderResult.from_dict(await self._client.request("sessionFs.setProvider", params_dict, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
+class ServerSessionsApi:
+    def __init__(self, client: "JsonRpcClient"):
+        self._client = client
+
+    async def fork(self, params: SessionsForkParams, *, timeout: float | None = None) -> SessionsForkResult:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return SessionsForkResult.from_dict(await self._client.request("sessions.fork", params_dict, **_timeout_kwargs(timeout)))
+
+
 class ServerRpc:
     """Typed server-scoped RPC methods."""
     def __init__(self, client: "JsonRpcClient"):
@@ -3778,6 +3900,7 @@ class ServerRpc:
         self.account = ServerAccountApi(client)
         self.mcp = ServerMcpApi(client)
         self.session_fs = ServerSessionFsApi(client)
+        self.sessions = ServerSessionsApi(client)
 
     async def ping(self, params: PingParams, *, timeout: float | None = None) -> PingResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -3963,16 +4086,6 @@ class ExtensionsApi:
         return SessionExtensionsReloadResult.from_dict(await self._client.request("session.extensions.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
-# Experimental: this API group is experimental and may change or be removed.
-class CompactionApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
-        self._client = client
-        self._session_id = session_id
-
-    async def compact(self, *, timeout: float | None = None) -> SessionCompactionCompactResult:
-        return SessionCompactionCompactResult.from_dict(await self._client.request("session.compaction.compact", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
-
-
 class ToolsApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
@@ -4038,6 +4151,21 @@ class ShellApi:
         return SessionShellKillResult.from_dict(await self._client.request("session.shell.kill", params_dict, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
+class HistoryApi:
+    def __init__(self, client: "JsonRpcClient", session_id: str):
+        self._client = client
+        self._session_id = session_id
+
+    async def compact(self, *, timeout: float | None = None) -> SessionHistoryCompactResult:
+        return SessionHistoryCompactResult.from_dict(await self._client.request("session.history.compact", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+
+    async def truncate(self, params: SessionHistoryTruncateParams, *, timeout: float | None = None) -> SessionHistoryTruncateResult:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return SessionHistoryTruncateResult.from_dict(await self._client.request("session.history.truncate", params_dict, **_timeout_kwargs(timeout)))
+
+
 class SessionRpc:
     """Typed session-scoped RPC methods."""
     def __init__(self, client: "JsonRpcClient", session_id: str):
@@ -4053,12 +4181,12 @@ class SessionRpc:
         self.mcp = McpApi(client, session_id)
         self.plugins = PluginsApi(client, session_id)
         self.extensions = ExtensionsApi(client, session_id)
-        self.compaction = CompactionApi(client, session_id)
         self.tools = ToolsApi(client, session_id)
         self.commands = CommandsApi(client, session_id)
         self.ui = UiApi(client, session_id)
         self.permissions = PermissionsApi(client, session_id)
         self.shell = ShellApi(client, session_id)
+        self.history = HistoryApi(client, session_id)
 
     async def log(self, params: SessionLogParams, *, timeout: float | None = None) -> SessionLogResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}

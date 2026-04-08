@@ -139,7 +139,7 @@ describe("Session Fs", async () => {
         const contentBefore = await provider.readFile(eventsPath, "utf8");
         expect(contentBefore).not.toContain("checkpointNumber");
 
-        await session.rpc.compaction.compact();
+        await session.rpc.history.compact();
         await expect.poll(() => compactionEvent).toBeDefined();
         expect(compactionEvent!.data.success).toBe(true);
 
