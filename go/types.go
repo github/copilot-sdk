@@ -465,6 +465,13 @@ type SessionConfig struct {
 	// ConfigDir overrides the default configuration directory location.
 	// When specified, the session will use this directory for storing config and state.
 	ConfigDir string
+	// EnableConfigDiscovery, when true, automatically discovers MCP server configurations
+	// (e.g. .mcp.json, .vscode/mcp.json) and skill directories from the working directory
+	// and merges them with any explicitly provided MCPServers and SkillDirectories, with
+	// explicit values taking precedence on name collision.
+	// Custom instruction files (.github/copilot-instructions.md, AGENTS.md, etc.) are
+	// always loaded from the working directory regardless of this setting.
+	EnableConfigDiscovery bool
 	// Tools exposes caller-implemented tools to the CLI
 	Tools []Tool
 	// SystemMessage configures system message customization
@@ -692,6 +699,13 @@ type ResumeSessionConfig struct {
 	WorkingDirectory string
 	// ConfigDir overrides the default configuration directory location.
 	ConfigDir string
+	// EnableConfigDiscovery, when true, automatically discovers MCP server configurations
+	// (e.g. .mcp.json, .vscode/mcp.json) and skill directories from the working directory
+	// and merges them with any explicitly provided MCPServers and SkillDirectories, with
+	// explicit values taking precedence on name collision.
+	// Custom instruction files (.github/copilot-instructions.md, AGENTS.md, etc.) are
+	// always loaded from the working directory regardless of this setting.
+	EnableConfigDiscovery bool
 	// Streaming enables streaming of assistant message and reasoning chunks.
 	// When true, assistant.message_delta and assistant.reasoning_delta events
 	// with deltaContent are sent as the response is generated.
@@ -889,33 +903,34 @@ type SessionLifecycleHandler func(event SessionLifecycleEvent)
 
 // createSessionRequest is the request for session.create
 type createSessionRequest struct {
-	Model              string                         `json:"model,omitempty"`
-	SessionID          string                         `json:"sessionId,omitempty"`
-	ClientName         string                         `json:"clientName,omitempty"`
-	ReasoningEffort    string                         `json:"reasoningEffort,omitempty"`
-	Tools              []Tool                         `json:"tools,omitempty"`
-	SystemMessage      *SystemMessageConfig           `json:"systemMessage,omitempty"`
-	AvailableTools     []string                       `json:"availableTools"`
-	ExcludedTools      []string                       `json:"excludedTools,omitempty"`
-	Provider           *ProviderConfig                `json:"provider,omitempty"`
-	ModelCapabilities  *rpc.ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
-	RequestPermission  *bool                          `json:"requestPermission,omitempty"`
-	RequestUserInput   *bool                          `json:"requestUserInput,omitempty"`
-	Hooks              *bool                          `json:"hooks,omitempty"`
-	WorkingDirectory   string                         `json:"workingDirectory,omitempty"`
-	Streaming          *bool                          `json:"streaming,omitempty"`
-	MCPServers         map[string]MCPServerConfig     `json:"mcpServers,omitempty"`
-	EnvValueMode       string                         `json:"envValueMode,omitempty"`
-	CustomAgents       []CustomAgentConfig            `json:"customAgents,omitempty"`
-	Agent              string                         `json:"agent,omitempty"`
-	ConfigDir          string                         `json:"configDir,omitempty"`
-	SkillDirectories   []string                       `json:"skillDirectories,omitempty"`
-	DisabledSkills     []string                       `json:"disabledSkills,omitempty"`
-	InfiniteSessions   *InfiniteSessionConfig         `json:"infiniteSessions,omitempty"`
-	Commands           []wireCommand                  `json:"commands,omitempty"`
-	RequestElicitation *bool                          `json:"requestElicitation,omitempty"`
-	Traceparent        string                         `json:"traceparent,omitempty"`
-	Tracestate         string                         `json:"tracestate,omitempty"`
+	Model                 string                         `json:"model,omitempty"`
+	SessionID             string                         `json:"sessionId,omitempty"`
+	ClientName            string                         `json:"clientName,omitempty"`
+	ReasoningEffort       string                         `json:"reasoningEffort,omitempty"`
+	Tools                 []Tool                         `json:"tools,omitempty"`
+	SystemMessage         *SystemMessageConfig           `json:"systemMessage,omitempty"`
+	AvailableTools        []string                       `json:"availableTools"`
+	ExcludedTools         []string                       `json:"excludedTools,omitempty"`
+	Provider              *ProviderConfig                `json:"provider,omitempty"`
+	ModelCapabilities     *rpc.ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
+	RequestPermission     *bool                          `json:"requestPermission,omitempty"`
+	RequestUserInput      *bool                          `json:"requestUserInput,omitempty"`
+	Hooks                 *bool                          `json:"hooks,omitempty"`
+	WorkingDirectory      string                         `json:"workingDirectory,omitempty"`
+	Streaming             *bool                          `json:"streaming,omitempty"`
+	MCPServers            map[string]MCPServerConfig     `json:"mcpServers,omitempty"`
+	EnvValueMode          string                         `json:"envValueMode,omitempty"`
+	CustomAgents          []CustomAgentConfig            `json:"customAgents,omitempty"`
+	Agent                 string                         `json:"agent,omitempty"`
+	ConfigDir             string                         `json:"configDir,omitempty"`
+	EnableConfigDiscovery *bool                          `json:"enableConfigDiscovery,omitempty"`
+	SkillDirectories      []string                       `json:"skillDirectories,omitempty"`
+	DisabledSkills        []string                       `json:"disabledSkills,omitempty"`
+	InfiniteSessions      *InfiniteSessionConfig         `json:"infiniteSessions,omitempty"`
+	Commands              []wireCommand                  `json:"commands,omitempty"`
+	RequestElicitation    *bool                          `json:"requestElicitation,omitempty"`
+	Traceparent           string                         `json:"traceparent,omitempty"`
+	Tracestate            string                         `json:"tracestate,omitempty"`
 }
 
 // wireCommand is the wire representation of a command (name + description only, no handler).
@@ -933,34 +948,35 @@ type createSessionResponse struct {
 
 // resumeSessionRequest is the request for session.resume
 type resumeSessionRequest struct {
-	SessionID          string                         `json:"sessionId"`
-	ClientName         string                         `json:"clientName,omitempty"`
-	Model              string                         `json:"model,omitempty"`
-	ReasoningEffort    string                         `json:"reasoningEffort,omitempty"`
-	Tools              []Tool                         `json:"tools,omitempty"`
-	SystemMessage      *SystemMessageConfig           `json:"systemMessage,omitempty"`
-	AvailableTools     []string                       `json:"availableTools"`
-	ExcludedTools      []string                       `json:"excludedTools,omitempty"`
-	Provider           *ProviderConfig                `json:"provider,omitempty"`
-	ModelCapabilities  *rpc.ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
-	RequestPermission  *bool                          `json:"requestPermission,omitempty"`
-	RequestUserInput   *bool                          `json:"requestUserInput,omitempty"`
-	Hooks              *bool                          `json:"hooks,omitempty"`
-	WorkingDirectory   string                         `json:"workingDirectory,omitempty"`
-	ConfigDir          string                         `json:"configDir,omitempty"`
-	DisableResume      *bool                          `json:"disableResume,omitempty"`
-	Streaming          *bool                          `json:"streaming,omitempty"`
-	MCPServers         map[string]MCPServerConfig     `json:"mcpServers,omitempty"`
-	EnvValueMode       string                         `json:"envValueMode,omitempty"`
-	CustomAgents       []CustomAgentConfig            `json:"customAgents,omitempty"`
-	Agent              string                         `json:"agent,omitempty"`
-	SkillDirectories   []string                       `json:"skillDirectories,omitempty"`
-	DisabledSkills     []string                       `json:"disabledSkills,omitempty"`
-	InfiniteSessions   *InfiniteSessionConfig         `json:"infiniteSessions,omitempty"`
-	Commands           []wireCommand                  `json:"commands,omitempty"`
-	RequestElicitation *bool                          `json:"requestElicitation,omitempty"`
-	Traceparent        string                         `json:"traceparent,omitempty"`
-	Tracestate         string                         `json:"tracestate,omitempty"`
+	SessionID             string                         `json:"sessionId"`
+	ClientName            string                         `json:"clientName,omitempty"`
+	Model                 string                         `json:"model,omitempty"`
+	ReasoningEffort       string                         `json:"reasoningEffort,omitempty"`
+	Tools                 []Tool                         `json:"tools,omitempty"`
+	SystemMessage         *SystemMessageConfig           `json:"systemMessage,omitempty"`
+	AvailableTools        []string                       `json:"availableTools"`
+	ExcludedTools         []string                       `json:"excludedTools,omitempty"`
+	Provider              *ProviderConfig                `json:"provider,omitempty"`
+	ModelCapabilities     *rpc.ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
+	RequestPermission     *bool                          `json:"requestPermission,omitempty"`
+	RequestUserInput      *bool                          `json:"requestUserInput,omitempty"`
+	Hooks                 *bool                          `json:"hooks,omitempty"`
+	WorkingDirectory      string                         `json:"workingDirectory,omitempty"`
+	ConfigDir             string                         `json:"configDir,omitempty"`
+	EnableConfigDiscovery *bool                          `json:"enableConfigDiscovery,omitempty"`
+	DisableResume         *bool                          `json:"disableResume,omitempty"`
+	Streaming             *bool                          `json:"streaming,omitempty"`
+	MCPServers            map[string]MCPServerConfig     `json:"mcpServers,omitempty"`
+	EnvValueMode          string                         `json:"envValueMode,omitempty"`
+	CustomAgents          []CustomAgentConfig            `json:"customAgents,omitempty"`
+	Agent                 string                         `json:"agent,omitempty"`
+	SkillDirectories      []string                       `json:"skillDirectories,omitempty"`
+	DisabledSkills        []string                       `json:"disabledSkills,omitempty"`
+	InfiniteSessions      *InfiniteSessionConfig         `json:"infiniteSessions,omitempty"`
+	Commands              []wireCommand                  `json:"commands,omitempty"`
+	RequestElicitation    *bool                          `json:"requestElicitation,omitempty"`
+	Traceparent           string                         `json:"traceparent,omitempty"`
+	Tracestate            string                         `json:"tracestate,omitempty"`
 }
 
 // resumeSessionResponse is the response from session.resume

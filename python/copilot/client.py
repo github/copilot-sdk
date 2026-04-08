@@ -1202,6 +1202,7 @@ class CopilotClient:
         custom_agents: list[CustomAgentConfig] | None = None,
         agent: str | None = None,
         config_dir: str | None = None,
+        enable_config_discovery: bool | None = None,
         skill_directories: list[str] | None = None,
         disabled_skills: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
@@ -1238,6 +1239,13 @@ class CopilotClient:
             custom_agents: Custom agent configurations.
             agent: Agent to use for the session.
             config_dir: Override for the configuration directory.
+            enable_config_discovery: When True, automatically discovers MCP server
+                configurations (e.g. ``.mcp.json``, ``.vscode/mcp.json``) and skill
+                directories from the working directory and merges them with any
+                explicitly provided ``mcp_servers`` and ``skill_directories``, with
+                explicit values taking precedence on name collision. Custom instruction
+                files (``.github/copilot-instructions.md``, ``AGENTS.md``, etc.) are
+                always loaded regardless of this setting.
             skill_directories: Directories to search for skills.
             disabled_skills: Skills to disable.
             infinite_sessions: Infinite session configuration.
@@ -1362,6 +1370,10 @@ class CopilotClient:
         if config_dir:
             payload["configDir"] = config_dir
 
+        # Add config discovery flag if provided
+        if enable_config_discovery is not None:
+            payload["enableConfigDiscovery"] = enable_config_discovery
+
         # Add skill directories configuration if provided
         if skill_directories:
             payload["skillDirectories"] = skill_directories
@@ -1455,6 +1467,7 @@ class CopilotClient:
         custom_agents: list[CustomAgentConfig] | None = None,
         agent: str | None = None,
         config_dir: str | None = None,
+        enable_config_discovery: bool | None = None,
         skill_directories: list[str] | None = None,
         disabled_skills: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
@@ -1491,6 +1504,13 @@ class CopilotClient:
             custom_agents: Custom agent configurations.
             agent: Agent to use for the session.
             config_dir: Override for the configuration directory.
+            enable_config_discovery: When True, automatically discovers MCP server
+                configurations (e.g. ``.mcp.json``, ``.vscode/mcp.json``) and skill
+                directories from the working directory and merges them with any
+                explicitly provided ``mcp_servers`` and ``skill_directories``, with
+                explicit values taking precedence on name collision. Custom instruction
+                files (``.github/copilot-instructions.md``, ``AGENTS.md``, etc.) are
+                always loaded regardless of this setting.
             skill_directories: Directories to search for skills.
             disabled_skills: Skills to disable.
             infinite_sessions: Infinite session configuration.
@@ -1588,6 +1608,8 @@ class CopilotClient:
             payload["workingDirectory"] = working_directory
         if config_dir:
             payload["configDir"] = config_dir
+        if enable_config_discovery is not None:
+            payload["enableConfigDiscovery"] = enable_config_discovery
 
         # TODO: disable_resume is not a keyword arg yet; keeping for future use
         if mcp_servers:
