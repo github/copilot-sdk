@@ -465,6 +465,13 @@ type SessionConfig struct {
 	// ConfigDir overrides the default configuration directory location.
 	// When specified, the session will use this directory for storing config and state.
 	ConfigDir string
+	// EnableConfigDiscovery, when true, automatically discovers MCP server configurations
+	// (e.g. .mcp.json, .vscode/mcp.json) and skill directories from the working directory
+	// and merges them with any explicitly provided MCPServers and SkillDirectories, with
+	// explicit values taking precedence on name collision.
+	// Custom instruction files (.github/copilot-instructions.md, AGENTS.md, etc.) are
+	// always loaded from the working directory regardless of this setting.
+	EnableConfigDiscovery bool
 	// Tools exposes caller-implemented tools to the CLI
 	Tools []Tool
 	// SystemMessage configures system message customization
@@ -692,6 +699,13 @@ type ResumeSessionConfig struct {
 	WorkingDirectory string
 	// ConfigDir overrides the default configuration directory location.
 	ConfigDir string
+	// EnableConfigDiscovery, when true, automatically discovers MCP server configurations
+	// (e.g. .mcp.json, .vscode/mcp.json) and skill directories from the working directory
+	// and merges them with any explicitly provided MCPServers and SkillDirectories, with
+	// explicit values taking precedence on name collision.
+	// Custom instruction files (.github/copilot-instructions.md, AGENTS.md, etc.) are
+	// always loaded from the working directory regardless of this setting.
+	EnableConfigDiscovery bool
 	// Streaming enables streaming of assistant message and reasoning chunks.
 	// When true, assistant.message_delta and assistant.reasoning_delta events
 	// with deltaContent are sent as the response is generated.
@@ -909,6 +923,7 @@ type createSessionRequest struct {
 	CustomAgents       []CustomAgentConfig            `json:"customAgents,omitempty"`
 	Agent              string                         `json:"agent,omitempty"`
 	ConfigDir          string                         `json:"configDir,omitempty"`
+	EnableConfigDiscovery *bool                       `json:"enableConfigDiscovery,omitempty"`
 	SkillDirectories   []string                       `json:"skillDirectories,omitempty"`
 	DisabledSkills     []string                       `json:"disabledSkills,omitempty"`
 	InfiniteSessions   *InfiniteSessionConfig         `json:"infiniteSessions,omitempty"`
@@ -948,6 +963,7 @@ type resumeSessionRequest struct {
 	Hooks              *bool                          `json:"hooks,omitempty"`
 	WorkingDirectory   string                         `json:"workingDirectory,omitempty"`
 	ConfigDir          string                         `json:"configDir,omitempty"`
+	EnableConfigDiscovery *bool                       `json:"enableConfigDiscovery,omitempty"`
 	DisableResume      *bool                          `json:"disableResume,omitempty"`
 	Streaming          *bool                          `json:"streaming,omitempty"`
 	MCPServers         map[string]MCPServerConfig     `json:"mcpServers,omitempty"`

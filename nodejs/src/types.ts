@@ -1075,6 +1075,19 @@ export interface SessionConfig {
     configDir?: string;
 
     /**
+     * When true, automatically discovers MCP server configurations (e.g. `.mcp.json`,
+     * `.vscode/mcp.json`) and skill directories from the working directory and merges
+     * them with any explicitly provided `mcpServers` and `skillDirectories`, with
+     * explicit values taking precedence on name collision.
+     *
+     * Note: custom instruction files (`.github/copilot-instructions.md`, `AGENTS.md`, etc.)
+     * are always loaded from the working directory regardless of this setting.
+     *
+     * @default false
+     */
+    enableConfigDiscovery?: boolean;
+
+    /**
      * Tools exposed to the CLI server
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1226,6 +1239,7 @@ export type ResumeSessionConfig = Pick<
     | "hooks"
     | "workingDirectory"
     | "configDir"
+    | "enableConfigDiscovery"
     | "mcpServers"
     | "customAgents"
     | "agent"
