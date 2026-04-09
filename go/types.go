@@ -382,8 +382,8 @@ type SessionHooks struct {
 	OnErrorOccurred       ErrorOccurredHandler
 }
 
-// MCPLocalServerConfig configures a local/stdio MCP server
-type MCPLocalServerConfig struct {
+// MCPStdioServerConfig configures a local/stdio MCP server
+type MCPStdioServerConfig struct {
 	Tools   []string          `json:"tools"`
 	Type    string            `json:"type,omitempty"` // "local" or "stdio"
 	Timeout int               `json:"timeout,omitempty"`
@@ -393,8 +393,8 @@ type MCPLocalServerConfig struct {
 	Cwd     string            `json:"cwd,omitempty"`
 }
 
-// MCPRemoteServerConfig configures a remote MCP server (HTTP or SSE)
-type MCPRemoteServerConfig struct {
+// MCPHTTPServerConfig configures a remote MCP server (HTTP or SSE)
+type MCPHTTPServerConfig struct {
 	Tools   []string          `json:"tools"`
 	Type    string            `json:"type"` // "http" or "sse"
 	Timeout int               `json:"timeout,omitempty"`
@@ -402,7 +402,7 @@ type MCPRemoteServerConfig struct {
 	Headers map[string]string `json:"headers,omitempty"`
 }
 
-// MCPServerConfig can be either MCPLocalServerConfig or MCPRemoteServerConfig
+// MCPServerConfig can be either MCPStdioServerConfig or MCPHTTPServerConfig
 // Use a map[string]any for flexibility, or create separate configs
 type MCPServerConfig map[string]any
 

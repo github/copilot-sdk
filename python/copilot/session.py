@@ -725,7 +725,7 @@ class SessionHooks(TypedDict, total=False):
 # ============================================================================
 
 
-class MCPLocalServerConfig(TypedDict, total=False):
+class MCPStdioServerConfig(TypedDict, total=False):
     """Configuration for a local/stdio MCP server."""
 
     tools: list[str]  # List of tools to include. [] means none. "*" means all.
@@ -737,7 +737,7 @@ class MCPLocalServerConfig(TypedDict, total=False):
     cwd: NotRequired[str]  # Working directory
 
 
-class MCPRemoteServerConfig(TypedDict, total=False):
+class MCPHttpServerConfig(TypedDict, total=False):
     """Configuration for a remote MCP server (HTTP or SSE)."""
 
     tools: list[str]  # List of tools to include. [] means none. "*" means all.
@@ -747,7 +747,7 @@ class MCPRemoteServerConfig(TypedDict, total=False):
     headers: NotRequired[dict[str, str]]  # HTTP headers
 
 
-MCPServerConfig = MCPLocalServerConfig | MCPRemoteServerConfig
+MCPServerConfig = MCPStdioServerConfig | MCPHttpServerConfig
 
 # ============================================================================
 # Custom Agent Configuration Types

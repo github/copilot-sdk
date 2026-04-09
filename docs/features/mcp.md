@@ -143,11 +143,10 @@ await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
     Model = "gpt-5",
-    McpServers = new Dictionary<string, object>
+    McpServers = new Dictionary<string, McpServerConfig>
     {
-        ["my-local-server"] = new McpLocalServerConfig
+        ["my-local-server"] = new McpStdioServerConfig
         {
-            Type = "local",
             Command = "node",
             Args = new List<string> { "./mcp-server.js" },
             Tools = new List<string> { "*" },
