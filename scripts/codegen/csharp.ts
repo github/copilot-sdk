@@ -702,6 +702,7 @@ export async function generateSessionEvents(schemaPath?: string): Promise<void> 
 // ══════════════════════════════════════════════════════════════════════════════
 
 let emittedRpcClasses = new Set<string>();
+let emittedRpcClassSchemas = new Map<string, string>();
 let experimentalRpcTypes = new Set<string>();
 let rpcKnownTypes = new Map<string, string>();
 let rpcEnumOutput: string[] = [];
@@ -720,6 +721,31 @@ function resultTypeName(rpcMethod: string): string {
 
 function paramsTypeName(rpcMethod: string): string {
     return `${typeToClassName(rpcMethod)}Params`;
+}
+
+function stableStringify(value: unknown): string {
+    if (Array.isArray(value)) {
+        return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+    }
+    if (value && typeof value === "object") {
+        const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b));
+        return `{${entries.map(([key, entryValue]) => `${JSON.stringify(key)}:${stableStringify(entryValue)}`).join(",")}}`;
+    }
+    return JSON.stringify(value);
+}
+
+function chooseRpcClassName(preferredName: string, fallbackName: string, schema: JSONSchema7): string {
+    const schemaKey = stableStringify(schema);
+    const existingPreferred = emittedRpcClassSchemas.get(preferredName);
+    if (!existingPreferred || existingPreferred === schemaKey) return preferredName;
+
+    let candidate = fallbackName;
+    let suffix = 2;
+    while (true) {
+        const existing = emittedRpcClassSchemas.get(candidate);
+        if (!existing || existing === schemaKey) return candidate;
+        candidate = `${fallbackName}${suffix++}`;
+    }
 }
 
 function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassName: string, propName: string, classes: string[]): string {
@@ -744,7 +770,9 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
     if (schema.type === "array" && schema.items) {
         const items = schema.items as JSONSchema7;
         if (items.type === "object" && items.properties) {
-            const itemClass = singularPascal(propName);
+            const defaultName = (items.title as string) ?? singularPascal(propName);
+            const contextualName = `${parentClassName}${defaultName}`;
+            const itemClass = chooseRpcClassName(defaultName, contextualName, items);
             if (!emittedRpcClasses.has(itemClass)) classes.push(emitRpcClass(itemClass, items, "public", classes));
             return isRequired ? `IList<${itemClass}>` : `IList<${itemClass}>?`;
         }
@@ -767,6 +795,7 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
 function emitRpcClass(className: string, schema: JSONSchema7, visibility: "public" | "internal", extraClasses: string[]): string {
     if (emittedRpcClasses.has(className)) return "";
     emittedRpcClasses.add(className);
+    emittedRpcClassSchemas.set(className, stableStringify(schema));
 
     const requiredSet = new Set(schema.required || []);
     const lines: string[] = [];
@@ -1172,6 +1201,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
 
 function generateRpcCode(schema: ApiSchema): string {
     emittedRpcClasses.clear();
+    emittedRpcClassSchemas.clear();
     experimentalRpcTypes.clear();
     rpcKnownTypes.clear();
     rpcEnumOutput = [];

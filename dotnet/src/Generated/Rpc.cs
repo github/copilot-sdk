@@ -240,8 +240,8 @@ public class AccountGetQuotaResult
     public IDictionary<string, AccountGetQuotaResultQuotaSnapshotsValue> QuotaSnapshots { get => field ??= new Dictionary<string, AccountGetQuotaResultQuotaSnapshotsValue>(); set; }
 }
 
-/// <summary>RPC data type for Server operations.</summary>
-public class Server
+/// <summary>RPC data type for DiscoveredMcpServer operations.</summary>
+public class DiscoveredMcpServer
 {
     /// <summary>Server name (config key).</summary>
     [JsonPropertyName("name")]
@@ -253,7 +253,7 @@ public class Server
 
     /// <summary>Configuration source.</summary>
     [JsonPropertyName("source")]
-    public ServerSource Source { get; set; }
+    public DiscoveredMcpServerSource Source { get; set; }
 
     /// <summary>Whether the server is enabled (not in the disabled list).</summary>
     [JsonPropertyName("enabled")]
@@ -265,7 +265,7 @@ public class McpDiscoverResult
 {
     /// <summary>MCP servers discovered from all sources.</summary>
     [JsonPropertyName("servers")]
-    public List<Server> Servers { get => field ??= []; set; }
+    public List<DiscoveredMcpServer> Servers { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for McpDiscover operations.</summary>
@@ -865,6 +865,26 @@ internal class SessionSkillsReloadRequest
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for Server operations.</summary>
+public class Server
+{
+    /// <summary>Server name (config key).</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
+    [JsonPropertyName("status")]
+    public ServerStatus Status { get; set; }
+
+    /// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
+    [JsonPropertyName("source")]
+    public string? Source { get; set; }
+
+    /// <summary>Error message if the server failed to connect.</summary>
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
 }
 
 /// <summary>RPC data type for SessionMcpList operations.</summary>
@@ -1694,8 +1714,8 @@ public class SessionFsRenameParams
 }
 
 /// <summary>Configuration source.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<ServerSource>))]
-public enum ServerSource
+[JsonConverter(typeof(JsonStringEnumConverter<DiscoveredMcpServerSource>))]
+public enum DiscoveredMcpServerSource
 {
     /// <summary>The <c>user</c> variant.</summary>
     [JsonStringEnumMemberName("user")]
@@ -1754,6 +1774,31 @@ public enum SessionModeGetResultMode
     /// <summary>The <c>autopilot</c> variant.</summary>
     [JsonStringEnumMemberName("autopilot")]
     Autopilot,
+}
+
+
+/// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ServerStatus>))]
+public enum ServerStatus
+{
+    /// <summary>The <c>connected</c> variant.</summary>
+    [JsonStringEnumMemberName("connected")]
+    Connected,
+    /// <summary>The <c>failed</c> variant.</summary>
+    [JsonStringEnumMemberName("failed")]
+    Failed,
+    /// <summary>The <c>needs-auth</c> variant.</summary>
+    [JsonStringEnumMemberName("needs-auth")]
+    NeedsAuth,
+    /// <summary>The <c>pending</c> variant.</summary>
+    [JsonStringEnumMemberName("pending")]
+    Pending,
+    /// <summary>The <c>disabled</c> variant.</summary>
+    [JsonStringEnumMemberName("disabled")]
+    Disabled,
+    /// <summary>The <c>not_configured</c> variant.</summary>
+    [JsonStringEnumMemberName("not_configured")]
+    NotConfigured,
 }
 
 
@@ -2725,6 +2770,7 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(AccountGetQuotaResult))]
 [JsonSerializable(typeof(AccountGetQuotaResultQuotaSnapshotsValue))]
 [JsonSerializable(typeof(Agent))]
+[JsonSerializable(typeof(DiscoveredMcpServer))]
 [JsonSerializable(typeof(Entry))]
 [JsonSerializable(typeof(Extension))]
 [JsonSerializable(typeof(McpDiscoverRequest))]
