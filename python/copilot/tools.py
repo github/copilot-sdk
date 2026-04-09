@@ -299,31 +299,44 @@ def _convert_call_tool_result(call_result: dict[str, Any]) -> ToolResult:
     for block in call_result["content"]:
         block_type = block.get("type")
         if block_type == "text":
-            text_parts.append(block.get("text", ""))
+            text = block.get("text", "")
+            if isinstance(text, str):
+                text_parts.append(text)
         elif block_type == "image":
-            binary_results.append(
-                ToolBinaryResult(
-                    data=block.get("data", ""),
-                    mime_type=block.get("mimeType", ""),
-                    type="image",
-                )
-            )
-        elif block_type == "resource":
-            resource = block.get("resource", {})
-            if resource.get("text"):
-                text_parts.append(resource["text"])
-            if resource.get("blob"):
+            data = block.get("data", "")
+            mime_type = block.get("mimeType", "")
+            if isinstance(data, str) and isinstance(mime_type, str):
                 binary_results.append(
                     ToolBinaryResult(
-                        data=resource["blob"],
-                        mime_type=resource.get("mimeType", "application/octet-stream"),
+                        data=data,
+                        mime_type=mime_type,
+                        type="image",
+                    )
+                )
+        elif block_type == "resource":
+            resource = block.get("resource", {})
+            if not isinstance(resource, dict):
+                continue
+            text = resource.get("text")
+            if isinstance(text, str) and text:
+                text_parts.append(text)
+            blob = resource.get("blob")
+            if isinstance(blob, str) and blob:
+                mime_type = resource.get("mimeType", "application/octet-stream")
+                uri = resource.get("uri", "")
+                binary_results.append(
+                    ToolBinaryResult(
+                        data=blob,
+                        mime_type=mime_type
+                        if isinstance(mime_type, str)
+                        else "application/octet-stream",
                         type="resource",
-                        description=resource.get("uri", ""),
+                        description=uri if isinstance(uri, str) else "",
                     )
                 )
 
     return ToolResult(
         text_result_for_llm="\n".join(text_parts),
-        result_type="failure" if call_result.get("isError") else "success",
+        result_type="failure" if call_result.get("isError") is True else "success",
         binary_results_for_llm=binary_results if binary_results else None,
     )

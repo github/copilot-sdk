@@ -200,7 +200,7 @@ func convertCallToolResult(value any) (ToolResult, bool) {
 	return tr, true
 }
 
-// generateSchemaForTypegenerates a JSON schema map from a Go type using reflection.
+// generateSchemaForType generates a JSON schema map from a Go type using reflection.
 // Panics if schema generation fails, as this indicates a programming error.
 func generateSchemaForType(t reflect.Type) map[string]any {
 	if t == nil {
