@@ -382,10 +382,15 @@ type SessionHooks struct {
 	OnErrorOccurred       ErrorOccurredHandler
 }
 
-// MCPStdioServerConfig configures a local/stdio MCP server
+// MCPServerConfig is implemented by MCP server configuration types.
+// Only MCPStdioServerConfig and MCPHTTPServerConfig implement this interface.
+type MCPServerConfig interface {
+	mcpServerConfig()
+}
+
+// MCPStdioServerConfig configures a local/stdio MCP server.
 type MCPStdioServerConfig struct {
 	Tools   []string          `json:"tools"`
-	Type    string            `json:"type,omitempty"` // "local" or "stdio"
 	Timeout int               `json:"timeout,omitempty"`
 	Command string            `json:"command"`
 	Args    []string          `json:"args"`
@@ -393,18 +398,41 @@ type MCPStdioServerConfig struct {
 	Cwd     string            `json:"cwd,omitempty"`
 }
 
-// MCPHTTPServerConfig configures a remote MCP server (HTTP or SSE)
+func (MCPStdioServerConfig) mcpServerConfig() {}
+
+// MarshalJSON implements json.Marshaler, injecting the "type" discriminator.
+func (c MCPStdioServerConfig) MarshalJSON() ([]byte, error) {
+	type alias MCPStdioServerConfig
+	return json.Marshal(struct {
+		Type string `json:"type"`
+		alias
+	}{
+		Type:  "stdio",
+		alias: alias(c),
+	})
+}
+
+// MCPHTTPServerConfig configures a remote MCP server (HTTP or SSE).
 type MCPHTTPServerConfig struct {
 	Tools   []string          `json:"tools"`
-	Type    string            `json:"type"` // "http" or "sse"
 	Timeout int               `json:"timeout,omitempty"`
 	URL     string            `json:"url"`
 	Headers map[string]string `json:"headers,omitempty"`
 }
 
-// MCPServerConfig can be either MCPStdioServerConfig or MCPHTTPServerConfig
-// Use a map[string]any for flexibility, or create separate configs
-type MCPServerConfig map[string]any
+func (MCPHTTPServerConfig) mcpServerConfig() {}
+
+// MarshalJSON implements json.Marshaler, injecting the "type" discriminator.
+func (c MCPHTTPServerConfig) MarshalJSON() ([]byte, error) {
+	type alias MCPHTTPServerConfig
+	return json.Marshal(struct {
+		Type string `json:"type"`
+		alias
+	}{
+		Type:  "http",
+		alias: alias(c),
+	})
+}
 
 // CustomAgentConfig configures a custom agent
 type CustomAgentConfig struct {

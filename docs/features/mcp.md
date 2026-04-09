@@ -113,15 +113,13 @@ func main() {
     }
     defer client.Stop()
 
-    // MCPServerConfig is map[string]any for flexibility
     session, err := client.CreateSession(ctx, &copilot.SessionConfig{
         Model: "gpt-5",
         MCPServers: map[string]copilot.MCPServerConfig{
-            "my-local-server": {
-                "type":    "local",
-                "command": "node",
-                "args":    []string{"./mcp-server.js"},
-                "tools":   []string{"*"},
+            "my-local-server": copilot.MCPStdioServerConfig{
+                Command: "node",
+                Args:    []string{"./mcp-server.js"},
+                Tools:   []string{"*"},
             },
         },
     })
