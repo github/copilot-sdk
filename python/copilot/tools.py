@@ -240,7 +240,6 @@ def _normalize_result(result: Any) -> ToolResult:
     - None returns empty success
     - Strings pass through directly
     - ToolResult passes through
-    - MCP CallToolResult dicts are converted automatically
     - Everything else gets JSON-serialized (with Pydantic support)
     """
     if result is None:
@@ -260,10 +259,6 @@ def _normalize_result(result: Any) -> ToolResult:
             result_type="success",
         )
 
-    # MCP CallToolResult shape: { content: [...], isError?: bool }
-    if _is_call_tool_result(result):
-        return _convert_call_tool_result(result)
-
     # Everything else gets JSON-serialized (with Pydantic model support)
     def default(obj: Any) -> Any:
         if isinstance(obj, BaseModel):
@@ -281,17 +276,7 @@ def _normalize_result(result: Any) -> ToolResult:
     )
 
 
-def _is_call_tool_result(value: Any) -> bool:
-    """Check whether a value is shaped like an MCP CallToolResult."""
-    if not isinstance(value, dict):
-        return False
-    content = value.get("content")
-    if not isinstance(content, list):
-        return False
-    return all(isinstance(item, dict) and isinstance(item.get("type"), str) for item in content)
-
-
-def _convert_call_tool_result(call_result: dict[str, Any]) -> ToolResult:
+def convert_mcp_call_tool_result(call_result: dict[str, Any]) -> ToolResult:
     """Convert an MCP CallToolResult dict into a ToolResult."""
     text_parts: list[str] = []
     binary_results: list[ToolBinaryResult] = []
@@ -305,7 +290,7 @@ def _convert_call_tool_result(call_result: dict[str, Any]) -> ToolResult:
         elif block_type == "image":
             data = block.get("data", "")
             mime_type = block.get("mimeType", "")
-            if isinstance(data, str) and isinstance(mime_type, str):
+            if isinstance(data, str) and data and isinstance(mime_type, str):
                 binary_results.append(
                     ToolBinaryResult(
                         data=data,

@@ -10,7 +10,12 @@
 
 export { CopilotClient } from "./client.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
-export { defineTool, approveAll, SYSTEM_PROMPT_SECTIONS } from "./types.js";
+export {
+    defineTool,
+    approveAll,
+    convertMcpCallToolResult,
+    SYSTEM_PROMPT_SECTIONS,
+} from "./types.js";
 export type {
     CommandContext,
     CommandDefinition,
@@ -73,7 +78,6 @@ export type {
     ToolHandler,
     ToolInvocation,
     ToolResultObject,
-    CallToolResult,
     TypedSessionEventHandler,
     TypedSessionLifecycleHandler,
     ZodSchema,

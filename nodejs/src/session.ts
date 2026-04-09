@@ -43,7 +43,6 @@ import type {
     UserInputRequest,
     UserInputResponse,
 } from "./types.js";
-import { isCallToolResult, convertCallToolResult } from "./types.js";
 
 export const NO_RESULT_PERMISSION_V2_ERROR =
     "Permission handlers cannot return 'no-result' when connected to a protocol v2 server.";
@@ -479,8 +478,6 @@ export class CopilotSession {
                 result = rawResult;
             } else if (isToolResultObject(rawResult)) {
                 result = rawResult;
-            } else if (isCallToolResult(rawResult)) {
-                result = convertCallToolResult(rawResult);
             } else {
                 result = JSON.stringify(rawResult);
             }

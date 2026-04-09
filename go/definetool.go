@@ -66,8 +66,8 @@ func createTypedHandler[T any, U any](handler func(T, ToolInvocation) (U, error)
 }
 
 // normalizeResult converts any value to a ToolResult.
-// Strings pass through directly, ToolResult passes through, CallToolResult is
-// converted, and other types are JSON-serialized.
+// Strings pass through directly, ToolResult passes through, and other types
+// are JSON-serialized.
 func normalizeResult(result any) (ToolResult, error) {
 	if result == nil {
 		return ToolResult{
@@ -89,11 +89,6 @@ func normalizeResult(result any) (ToolResult, error) {
 		}, nil
 	}
 
-	// MCP CallToolResult shape: { content: [...], isError?: bool }
-	if tr, ok := convertCallToolResult(result); ok {
-		return tr, nil
-	}
-
 	// Everything else gets JSON-serialized
 	jsonBytes, err := json.Marshal(result)
 	if err != nil {
@@ -106,10 +101,11 @@ func normalizeResult(result any) (ToolResult, error) {
 	}, nil
 }
 
-// convertCallToolResult attempts to interpret value as an MCP CallToolResult
-// (map with "content" array and optional "isError" bool). Returns the converted
-// ToolResult and true if it matched, or a zero ToolResult and false otherwise.
-func convertCallToolResult(value any) (ToolResult, bool) {
+// ConvertMCPCallToolResult converts an MCP CallToolResult value (a map or struct
+// with a "content" array and optional "isError" bool) into a ToolResult.
+// Returns the converted ToolResult and true if the value matched the expected
+// shape, or a zero ToolResult and false otherwise.
+func ConvertMCPCallToolResult(value any) (ToolResult, bool) {
 	m, ok := value.(map[string]any)
 	if !ok {
 		jsonBytes, err := json.Marshal(value)
@@ -158,6 +154,9 @@ func convertCallToolResult(value any) (ToolResult, bool) {
 		case "image":
 			data, _ := block["data"].(string)
 			mimeType, _ := block["mimeType"].(string)
+			if data == "" {
+				continue
+			}
 			binaryResults = append(binaryResults, ToolBinaryResult{
 				Data:     data,
 				MimeType: mimeType,

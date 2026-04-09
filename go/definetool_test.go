@@ -253,7 +253,7 @@ func TestNormalizeResult(t *testing.T) {
 	})
 }
 
-func TestConvertCallToolResult(t *testing.T) {
+func TestConvertMCPCallToolResult(t *testing.T) {
 	t.Run("typed CallToolResult struct is converted", func(t *testing.T) {
 		type Resource struct {
 			URI  string `json:"uri"`
@@ -276,9 +276,9 @@ func TestConvertCallToolResult(t *testing.T) {
 			},
 		}
 
-		result, err := normalizeResult(input)
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err)
+		result, ok := ConvertMCPCallToolResult(input)
+		if !ok {
+			t.Fatal("Expected ConvertMCPCallToolResult to succeed")
 		}
 		if result.TextResultForLLM != "details" {
 			t.Errorf("Expected 'details', got %q", result.TextResultForLLM)
@@ -295,9 +295,9 @@ func TestConvertCallToolResult(t *testing.T) {
 			},
 		}
 
-		result, err := normalizeResult(input)
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err)
+		result, ok := ConvertMCPCallToolResult(input)
+		if !ok {
+			t.Fatal("Expected ConvertMCPCallToolResult to succeed")
 		}
 		if result.TextResultForLLM != "hello" {
 			t.Errorf("Expected 'hello', got %q", result.TextResultForLLM)
@@ -315,9 +315,9 @@ func TestConvertCallToolResult(t *testing.T) {
 			},
 		}
 
-		result, err := normalizeResult(input)
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err)
+		result, ok := ConvertMCPCallToolResult(input)
+		if !ok {
+			t.Fatal("Expected ConvertMCPCallToolResult to succeed")
 		}
 		if result.TextResultForLLM != "line 1\nline 2" {
 			t.Errorf("Expected 'line 1\\nline 2', got %q", result.TextResultForLLM)
@@ -332,9 +332,9 @@ func TestConvertCallToolResult(t *testing.T) {
 			"isError": true,
 		}
 
-		result, err := normalizeResult(input)
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err)
+		result, ok := ConvertMCPCallToolResult(input)
+		if !ok {
+			t.Fatal("Expected ConvertMCPCallToolResult to succeed")
 		}
 		if result.ResultType != "failure" {
 			t.Errorf("Expected 'failure', got %q", result.ResultType)
@@ -348,9 +348,9 @@ func TestConvertCallToolResult(t *testing.T) {
 			},
 		}
 
-		result, err := normalizeResult(input)
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err)
+		result, ok := ConvertMCPCallToolResult(input)
+		if !ok {
+			t.Fatal("Expected ConvertMCPCallToolResult to succeed")
 		}
 		if len(result.BinaryResultsForLLM) != 1 {
 			t.Fatalf("Expected 1 binary result, got %d", len(result.BinaryResultsForLLM))
@@ -373,9 +373,9 @@ func TestConvertCallToolResult(t *testing.T) {
 			},
 		}
 
-		result, err := normalizeResult(input)
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err)
+		result, ok := ConvertMCPCallToolResult(input)
+		if !ok {
+			t.Fatal("Expected ConvertMCPCallToolResult to succeed")
 		}
 		if result.TextResultForLLM != "file contents" {
 			t.Errorf("Expected 'file contents', got %q", result.TextResultForLLM)
@@ -392,9 +392,9 @@ func TestConvertCallToolResult(t *testing.T) {
 			},
 		}
 
-		result, err := normalizeResult(input)
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err)
+		result, ok := ConvertMCPCallToolResult(input)
+		if !ok {
+			t.Fatal("Expected ConvertMCPCallToolResult to succeed")
 		}
 		if len(result.BinaryResultsForLLM) != 1 {
 			t.Fatalf("Expected 1 binary result, got %d", len(result.BinaryResultsForLLM))
@@ -404,18 +404,14 @@ func TestConvertCallToolResult(t *testing.T) {
 		}
 	})
 
-	t.Run("non-CallToolResult map is JSON serialized", func(t *testing.T) {
+	t.Run("non-CallToolResult map returns false", func(t *testing.T) {
 		input := map[string]any{
 			"key": "value",
 		}
 
-		result, err := normalizeResult(input)
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err)
-		}
-		expected := `{"key":"value"}`
-		if result.TextResultForLLM != expected {
-			t.Errorf("Expected %q, got %q", expected, result.TextResultForLLM)
+		_, ok := ConvertMCPCallToolResult(input)
+		if ok {
+			t.Error("Expected ConvertMCPCallToolResult to return false for non-CallToolResult map")
 		}
 	})
 
@@ -424,9 +420,9 @@ func TestConvertCallToolResult(t *testing.T) {
 			"content": []any{},
 		}
 
-		result, err := normalizeResult(input)
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err)
+		result, ok := ConvertMCPCallToolResult(input)
+		if !ok {
+			t.Fatal("Expected ConvertMCPCallToolResult to succeed")
 		}
 		if result.TextResultForLLM != "" {
 			t.Errorf("Expected empty text, got %q", result.TextResultForLLM)

@@ -29,7 +29,7 @@ from .session import (
     SessionUiApi,
     SessionUiCapabilities,
 )
-from .tools import define_tool
+from .tools import convert_mcp_call_tool_result, define_tool
 
 __version__ = "0.1.0"
 
@@ -55,5 +55,6 @@ __all__ = [
     "SessionUiApi",
     "SessionUiCapabilities",
     "SubprocessConfig",
+    "convert_mcp_call_tool_result",
     "define_tool",
 ]

@@ -214,18 +214,18 @@ export type ToolResult = string | ToolResultObject;
 /**
  * Content block types within an MCP CallToolResult.
  */
-type CallToolResultTextContent = {
+type McpCallToolResultTextContent = {
     type: "text";
     text: string;
 };
 
-type CallToolResultImageContent = {
+type McpCallToolResultImageContent = {
     type: "image";
     data: string;
     mimeType: string;
 };
 
-type CallToolResultResourceContent = {
+type McpCallToolResultResourceContent = {
     type: "resource";
     resource: {
         uri: string;
@@ -235,48 +235,24 @@ type CallToolResultResourceContent = {
     };
 };
 
-type CallToolResultContent =
-    | CallToolResultTextContent
-    | CallToolResultImageContent
-    | CallToolResultResourceContent;
+type McpCallToolResultContent =
+    | McpCallToolResultTextContent
+    | McpCallToolResultImageContent
+    | McpCallToolResultResourceContent;
 
 /**
- * MCP-compatible CallToolResult type. When a tool handler returns this shape,
- * the SDK automatically converts it to a {@link ToolResultObject} before
- * sending it over RPC.
+ * MCP-compatible CallToolResult type. Can be passed to
+ * {@link convertMcpCallToolResult} to produce a {@link ToolResultObject}.
  */
-export type CallToolResult = {
-    content: CallToolResultContent[];
+type McpCallToolResult = {
+    content: McpCallToolResultContent[];
     isError?: boolean;
 };
 
 /**
- * Type guard that checks whether a value is shaped like an MCP CallToolResult.
- */
-export function isCallToolResult(value: unknown): value is CallToolResult {
-    if (typeof value !== "object" || value === null) {
-        return false;
-    }
-
-    const obj = value as Record<string, unknown>;
-    if (!Array.isArray(obj.content)) {
-        return false;
-    }
-
-    // Verify every element in content has a valid "type" field
-    return obj.content.every(
-        (item: unknown) =>
-            typeof item === "object" &&
-            item !== null &&
-            "type" in item &&
-            typeof (item as Record<string, unknown>).type === "string"
-    );
-}
-
-/**
  * Converts an MCP CallToolResult into the SDK's ToolResultObject format.
  */
-export function convertCallToolResult(callResult: CallToolResult): ToolResultObject {
+export function convertMcpCallToolResult(callResult: McpCallToolResult): ToolResultObject {
     const textParts: string[] = [];
     const binaryResults: ToolBinaryResult[] = [];
 
@@ -289,11 +265,13 @@ export function convertCallToolResult(callResult: CallToolResult): ToolResultObj
                 }
                 break;
             case "image":
-                binaryResults.push({
-                    data: block.data,
-                    mimeType: block.mimeType,
-                    type: "image",
-                });
+                if (typeof block.data === "string" && block.data && typeof block.mimeType === "string") {
+                    binaryResults.push({
+                        data: block.data,
+                        mimeType: block.mimeType,
+                        type: "image",
+                    });
+                }
                 break;
             case "resource": {
                 // Use optional chaining: resource field may be absent in malformed input

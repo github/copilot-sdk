@@ -9,7 +9,7 @@ from copilot import define_tool
 from copilot.tools import (
     ToolInvocation,
     ToolResult,
-    _is_call_tool_result,
+    convert_mcp_call_tool_result,
     _normalize_result,
 )
 
@@ -291,9 +291,9 @@ class TestNormalizeResult:
             _normalize_result(lambda x: x)
 
 
-class TestCallToolResult:
+class TestConvertMcpCallToolResult:
     def test_text_only_call_tool_result(self):
-        result = _normalize_result(
+        result = convert_mcp_call_tool_result(
             {
                 "content": [{"type": "text", "text": "hello"}],
             }
@@ -302,7 +302,7 @@ class TestCallToolResult:
         assert result.result_type == "success"
 
     def test_multiple_text_blocks(self):
-        result = _normalize_result(
+        result = convert_mcp_call_tool_result(
             {
                 "content": [
                     {"type": "text", "text": "line 1"},
@@ -313,7 +313,7 @@ class TestCallToolResult:
         assert result.text_result_for_llm == "line 1\nline 2"
 
     def test_is_error_maps_to_failure(self):
-        result = _normalize_result(
+        result = convert_mcp_call_tool_result(
             {
                 "content": [{"type": "text", "text": "oops"}],
                 "isError": True,
@@ -322,7 +322,7 @@ class TestCallToolResult:
         assert result.result_type == "failure"
 
     def test_is_error_false_maps_to_success(self):
-        result = _normalize_result(
+        result = convert_mcp_call_tool_result(
             {
                 "content": [{"type": "text", "text": "ok"}],
                 "isError": False,
@@ -331,7 +331,7 @@ class TestCallToolResult:
         assert result.result_type == "success"
 
     def test_image_content_to_binary(self):
-        result = _normalize_result(
+        result = convert_mcp_call_tool_result(
             {
                 "content": [{"type": "image", "data": "base64data", "mimeType": "image/png"}],
             }
@@ -343,7 +343,7 @@ class TestCallToolResult:
         assert result.binary_results_for_llm[0].type == "image"
 
     def test_resource_text_to_text_result(self):
-        result = _normalize_result(
+        result = convert_mcp_call_tool_result(
             {
                 "content": [
                     {
@@ -356,7 +356,7 @@ class TestCallToolResult:
         assert result.text_result_for_llm == "file contents"
 
     def test_resource_blob_to_binary(self):
-        result = _normalize_result(
+        result = convert_mcp_call_tool_result(
             {
                 "content": [
                     {
@@ -376,25 +376,12 @@ class TestCallToolResult:
         assert result.binary_results_for_llm[0].description == "file:///img.png"
 
     def test_empty_content_array(self):
-        result = _normalize_result({"content": []})
+        result = convert_mcp_call_tool_result({"content": []})
         assert result.text_result_for_llm == ""
         assert result.result_type == "success"
 
-    def test_non_call_tool_result_dict_is_json_serialized(self):
-        result = _normalize_result({"key": "value"})
+    def test_call_tool_result_dict_is_json_serialized_by_normalize(self):
+        """_normalize_result does NOT auto-detect MCP results; it JSON-serializes them."""
+        result = _normalize_result({"content": [{"type": "text", "text": "hello"}]})
         parsed = json.loads(result.text_result_for_llm)
-        assert parsed == {"key": "value"}
-
-    def test_is_call_tool_result_false_for_non_dict(self):
-        assert _is_call_tool_result("hello") is False
-        assert _is_call_tool_result(None) is False
-        assert _is_call_tool_result(42) is False
-
-    def test_is_call_tool_result_false_without_content(self):
-        assert _is_call_tool_result({"key": "value"}) is False
-
-    def test_is_call_tool_result_false_when_content_not_list(self):
-        assert _is_call_tool_result({"content": "text"}) is False
-
-    def test_is_call_tool_result_false_when_items_lack_type(self):
-        assert _is_call_tool_result({"content": [{"text": "no type"}]}) is False
+        assert parsed == {"content": [{"type": "text", "text": "hello"}]}
