@@ -105,7 +105,8 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
         var session = await CreateSessionAsync(new SessionConfig
         {
             SkillDirectories = [skillsDir],
-            CustomAgents = customAgents
+            CustomAgents = customAgents,
+            Agent = "skill-agent"
         });
 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
@@ -135,7 +136,8 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
         var session = await CreateSessionAsync(new SessionConfig
         {
             SkillDirectories = [skillsDir],
-            CustomAgents = customAgents
+            CustomAgents = customAgents,
+            Agent = "no-skill-agent"
         });
 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);

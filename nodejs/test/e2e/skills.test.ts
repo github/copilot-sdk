@@ -108,6 +108,7 @@ IMPORTANT: You MUST include the exact text "${SKILL_MARKER}" somewhere in EVERY 
                 onPermissionRequest: approveAll,
                 skillDirectories: [skillsDir],
                 customAgents,
+                agent: "skill-agent",
             });
 
             expect(session.sessionId).toBeDefined();
@@ -136,6 +137,7 @@ IMPORTANT: You MUST include the exact text "${SKILL_MARKER}" somewhere in EVERY 
                 onPermissionRequest: approveAll,
                 skillDirectories: [skillsDir],
                 customAgents,
+                agent: "no-skill-agent",
             });
 
             expect(session.sessionId).toBeDefined();

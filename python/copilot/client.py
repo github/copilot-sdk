@@ -2158,6 +2158,8 @@ class CopilotClient:
             wire_agent["mcpServers"] = agent["mcp_servers"]
         if "infer" in agent:
             wire_agent["infer"] = agent["infer"]
+        if "skills" in agent:
+            wire_agent["skills"] = agent["skills"]
         return wire_agent
 
     async def _start_cli_server(self) -> None:

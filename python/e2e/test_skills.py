@@ -104,6 +104,7 @@ class TestSkillBehavior:
             on_permission_request=PermissionHandler.approve_all,
             skill_directories=[skills_dir],
             custom_agents=custom_agents,
+            agent="skill-agent",
         )
 
         assert session.session_id is not None
@@ -132,6 +133,7 @@ class TestSkillBehavior:
             on_permission_request=PermissionHandler.approve_all,
             skill_directories=[skills_dir],
             custom_agents=custom_agents,
+            agent="no-skill-agent",
         )
 
         assert session.session_id is not None

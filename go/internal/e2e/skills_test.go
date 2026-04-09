@@ -126,6 +126,7 @@ func TestSkills(t *testing.T) {
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			SkillDirectories:    []string{skillsDir},
 			CustomAgents:        customAgents,
+			Agent:               "skill-agent",
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -163,6 +164,7 @@ func TestSkills(t *testing.T) {
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			SkillDirectories:    []string{skillsDir},
 			CustomAgents:        customAgents,
+			Agent:               "no-skill-agent",
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
