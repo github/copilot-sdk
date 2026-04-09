@@ -140,8 +140,8 @@ func TestSkills(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message.Data.Content == nil || !strings.Contains(*message.Data.Content, skillMarker) {
-			t.Errorf("Expected message to contain skill marker '%s', got: %v", skillMarker, message.Data.Content)
+		if md, ok := message.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, skillMarker) {
+			t.Errorf("Expected message to contain skill marker '%s', got: %v", skillMarker, message.Data)
 		}
 
 		session.Disconnect()
@@ -178,8 +178,8 @@ func TestSkills(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		if message.Data.Content != nil && strings.Contains(*message.Data.Content, skillMarker) {
-			t.Errorf("Expected message to NOT contain skill marker '%s' when agent has no skills, got: %v", skillMarker, *message.Data.Content)
+		if md, ok := message.Data.(*copilot.AssistantMessageData); ok && strings.Contains(md.Content, skillMarker) {
+			t.Errorf("Expected message to NOT contain skill marker '%s' when agent has no skills, got: %v", skillMarker, md.Content)
 		}
 
 		session.Disconnect()
