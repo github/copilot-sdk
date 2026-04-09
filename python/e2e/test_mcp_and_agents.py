@@ -25,7 +25,6 @@ class TestMCPServers:
         """Test that MCP server configuration is accepted on session create"""
         mcp_servers: dict[str, MCPServerConfig] = {
             "test-server": {
-                "type": "local",
                 "command": "echo",
                 "args": ["hello"],
                 "tools": ["*"],
@@ -59,7 +58,6 @@ class TestMCPServers:
         # Resume with MCP servers
         mcp_servers: dict[str, MCPServerConfig] = {
             "test-server": {
-                "type": "local",
                 "command": "echo",
                 "args": ["hello"],
                 "tools": ["*"],
@@ -86,7 +84,6 @@ class TestMCPServers:
         """Test that env values are passed as literals to MCP server subprocess"""
         mcp_servers: dict[str, MCPServerConfig] = {
             "env-echo": {
-                "type": "local",
                 "command": "node",
                 "args": [TEST_MCP_SERVER],
                 "tools": ["*"],
@@ -180,7 +177,6 @@ class TestCombinedConfiguration:
         """Test that both MCP servers and custom agents can be configured together"""
         mcp_servers: dict[str, MCPServerConfig] = {
             "shared-server": {
-                "type": "local",
                 "command": "echo",
                 "args": ["shared"],
                 "tools": ["*"],

@@ -924,8 +924,8 @@ interface MCPServerConfigBase {
      */
     tools: string[];
     /**
-     * Indicates "remote" or "local" server type.
-     * If not specified, defaults to "local".
+     * Indicates the server type: "stdio" for local/subprocess servers, "http"/"sse" for remote servers.
+     * If not specified, defaults to "stdio".
      */
     type?: string;
     /**
