@@ -951,7 +951,7 @@ export interface MCPStdioServerConfig extends MCPServerConfigBase {
 /**
  * Configuration for a remote MCP server (HTTP or SSE).
  */
-export interface MCPHttpServerConfig extends MCPServerConfigBase {
+export interface MCPHTTPServerConfig extends MCPServerConfigBase {
     type: "http" | "sse";
     /**
      * URL of the remote server.
@@ -966,7 +966,7 @@ export interface MCPHttpServerConfig extends MCPServerConfigBase {
 /**
  * Union type for MCP server configurations.
  */
-export type MCPServerConfig = MCPStdioServerConfig | MCPHttpServerConfig;
+export type MCPServerConfig = MCPStdioServerConfig | MCPHTTPServerConfig;
 
 // ============================================================================
 // Custom Agent Configuration Types

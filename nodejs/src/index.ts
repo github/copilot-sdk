@@ -31,7 +31,7 @@ export type {
     InfiniteSessionConfig,
     InputOptions,
     MCPStdioServerConfig,
-    MCPHttpServerConfig,
+    MCPHTTPServerConfig,
     MCPServerConfig,
     MessageOptions,
     ModelBilling,

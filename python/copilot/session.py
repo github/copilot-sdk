@@ -737,7 +737,7 @@ class MCPStdioServerConfig(TypedDict, total=False):
     cwd: NotRequired[str]  # Working directory
 
 
-class MCPHttpServerConfig(TypedDict, total=False):
+class MCPHTTPServerConfig(TypedDict, total=False):
     """Configuration for a remote MCP server (HTTP or SSE)."""
 
     tools: list[str]  # List of tools to include. [] means none. "*" means all.
@@ -747,7 +747,7 @@ class MCPHttpServerConfig(TypedDict, total=False):
     headers: NotRequired[dict[str, str]]  # HTTP headers
 
 
-MCPServerConfig = MCPStdioServerConfig | MCPHttpServerConfig
+MCPServerConfig = MCPStdioServerConfig | MCPHTTPServerConfig
 
 # ============================================================================
 # Custom Agent Configuration Types
