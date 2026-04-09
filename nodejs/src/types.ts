@@ -265,7 +265,11 @@ export function convertMcpCallToolResult(callResult: McpCallToolResult): ToolRes
                 }
                 break;
             case "image":
-                if (typeof block.data === "string" && block.data && typeof block.mimeType === "string") {
+                if (
+                    typeof block.data === "string" &&
+                    block.data &&
+                    typeof block.mimeType === "string"
+                ) {
                     binaryResults.push({
                         data: block.data,
                         mimeType: block.mimeType,
