@@ -78,7 +78,7 @@ def from_int(x: Any) -> int:
     return x
 
 
-class Action(Enum):
+class DataAction(Enum):
     """The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel"
     (dismissed)
     """
@@ -857,6 +857,13 @@ class Operation(Enum):
     UPDATE = "update"
 
 
+class PermissionRequestAction(Enum):
+    """Whether this is a store or vote memory operation"""
+
+    STORE = "store"
+    VOTE = "vote"
+
+
 @dataclass
 class PermissionRequestCommand:
     identifier: str
@@ -877,6 +884,13 @@ class PermissionRequestCommand:
         result["identifier"] = from_str(self.identifier)
         result["readOnly"] = from_bool(self.read_only)
         return result
+
+
+class Direction(Enum):
+    """Vote direction (vote only)"""
+
+    DOWNVOTE = "downvote"
+    UPVOTE = "upvote"
 
 
 class PermissionRequestKind(Enum):
@@ -921,7 +935,7 @@ class PermissionRequest:
     
     URL access permission request
     
-    Memory storage permission request
+    Memory operation permission request
     
     Custom tool invocation permission request
     
@@ -999,14 +1013,23 @@ class PermissionRequest:
     url: str | None = None
     """URL to be fetched"""
 
+    action: PermissionRequestAction | None = None
+    """Whether this is a store or vote memory operation"""
+
     citations: str | None = None
-    """Source references for the stored fact"""
+    """Source references for the stored fact (store only)"""
+
+    direction: Direction | None = None
+    """Vote direction (vote only)"""
 
     fact: str | None = None
-    """The fact or convention being stored"""
+    """The fact being stored or voted on"""
+
+    reason: str | None = None
+    """Reason for the vote (vote only)"""
 
     subject: str | None = None
-    """Topic or subject of the memory being stored"""
+    """Topic or subject of the memory (store only)"""
 
     tool_description: str | None = None
     """Description of what the custom tool does"""
@@ -1040,13 +1063,16 @@ class PermissionRequest:
         tool_name = from_union([from_str, from_none], obj.get("toolName"))
         tool_title = from_union([from_str, from_none], obj.get("toolTitle"))
         url = from_union([from_str, from_none], obj.get("url"))
+        action = from_union([PermissionRequestAction, from_none], obj.get("action"))
         citations = from_union([from_str, from_none], obj.get("citations"))
+        direction = from_union([Direction, from_none], obj.get("direction"))
         fact = from_union([from_str, from_none], obj.get("fact"))
+        reason = from_union([from_str, from_none], obj.get("reason"))
         subject = from_union([from_str, from_none], obj.get("subject"))
         tool_description = from_union([from_str, from_none], obj.get("toolDescription"))
         hook_message = from_union([from_str, from_none], obj.get("hookMessage"))
         tool_args = obj.get("toolArgs")
-        return PermissionRequest(kind, can_offer_session_approval, commands, full_command_text, has_write_file_redirection, intention, possible_paths, possible_urls, tool_call_id, warning, diff, file_name, new_file_contents, path, args, read_only, server_name, tool_name, tool_title, url, citations, fact, subject, tool_description, hook_message, tool_args)
+        return PermissionRequest(kind, can_offer_session_approval, commands, full_command_text, has_write_file_redirection, intention, possible_paths, possible_urls, tool_call_id, warning, diff, file_name, new_file_contents, path, args, read_only, server_name, tool_name, tool_title, url, action, citations, direction, fact, reason, subject, tool_description, hook_message, tool_args)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -1089,10 +1115,16 @@ class PermissionRequest:
             result["toolTitle"] = from_union([from_str, from_none], self.tool_title)
         if self.url is not None:
             result["url"] = from_union([from_str, from_none], self.url)
+        if self.action is not None:
+            result["action"] = from_union([lambda x: to_enum(PermissionRequestAction, x), from_none], self.action)
         if self.citations is not None:
             result["citations"] = from_union([from_str, from_none], self.citations)
+        if self.direction is not None:
+            result["direction"] = from_union([lambda x: to_enum(Direction, x), from_none], self.direction)
         if self.fact is not None:
             result["fact"] = from_union([from_str, from_none], self.fact)
+        if self.reason is not None:
+            result["reason"] = from_union([from_str, from_none], self.reason)
         if self.subject is not None:
             result["subject"] = from_union([from_str, from_none], self.subject)
         if self.tool_description is not None:
@@ -2495,7 +2527,7 @@ class Data:
     requested_schema: RequestedSchema | None = None
     """JSON Schema describing the form fields to present to the user (form mode only)"""
 
-    action: Action | None = None
+    action: DataAction | None = None
     """The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel"
     (dismissed)
     """
@@ -2731,7 +2763,7 @@ class Data:
         elicitation_source = from_union([from_str, from_none], obj.get("elicitationSource"))
         mode = from_union([Mode, from_none], obj.get("mode"))
         requested_schema = from_union([RequestedSchema.from_dict, from_none], obj.get("requestedSchema"))
-        action = from_union([Action, from_none], obj.get("action"))
+        action = from_union([DataAction, from_none], obj.get("action"))
         mcp_request_id = from_union([from_float, from_str, from_none], obj.get("mcpRequestId"))
         server_name = from_union([from_str, from_none], obj.get("serverName"))
         server_url = from_union([from_str, from_none], obj.get("serverUrl"))
@@ -3058,7 +3090,7 @@ class Data:
         if self.requested_schema is not None:
             result["requestedSchema"] = from_union([lambda x: to_class(RequestedSchema, x), from_none], self.requested_schema)
         if self.action is not None:
-            result["action"] = from_union([lambda x: to_enum(Action, x), from_none], self.action)
+            result["action"] = from_union([lambda x: to_enum(DataAction, x), from_none], self.action)
         if self.mcp_request_id is not None:
             result["mcpRequestId"] = from_union([to_float, from_str, from_none], self.mcp_request_id)
         if self.server_name is not None:

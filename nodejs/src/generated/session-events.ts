@@ -2785,17 +2785,29 @@ export type SessionEvent =
                */
               toolCallId?: string;
               /**
-               * Topic or subject of the memory being stored
+               * Whether this is a store or vote memory operation
                */
-              subject: string;
+              action?: "store" | "vote";
               /**
-               * The fact or convention being stored
+               * Topic or subject of the memory (store only)
+               */
+              subject?: string;
+              /**
+               * The fact being stored or voted on
                */
               fact: string;
               /**
-               * Source references for the stored fact
+               * Source references for the stored fact (store only)
                */
-              citations: string;
+              citations?: string;
+              /**
+               * Vote direction (vote only)
+               */
+              direction?: "upvote" | "downvote";
+              /**
+               * Reason for the vote (vote only)
+               */
+              reason?: string;
             }
           | {
               /**

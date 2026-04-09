@@ -3565,7 +3565,7 @@ public partial class PermissionRequestUrl : PermissionRequest
     public required string Url { get; set; }
 }
 
-/// <summary>Memory storage permission request.</summary>
+/// <summary>Memory operation permission request.</summary>
 /// <remarks>The <c>memory</c> variant of <see cref="PermissionRequest"/>.</remarks>
 public partial class PermissionRequestMemory : PermissionRequest
 {
@@ -3578,17 +3578,34 @@ public partial class PermissionRequestMemory : PermissionRequest
     [JsonPropertyName("toolCallId")]
     public string? ToolCallId { get; set; }
 
-    /// <summary>Topic or subject of the memory being stored.</summary>
-    [JsonPropertyName("subject")]
-    public required string Subject { get; set; }
+    /// <summary>Whether this is a store or vote memory operation.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("action")]
+    public PermissionRequestMemoryAction? Action { get; set; }
 
-    /// <summary>The fact or convention being stored.</summary>
+    /// <summary>Topic or subject of the memory (store only).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("subject")]
+    public string? Subject { get; set; }
+
+    /// <summary>The fact being stored or voted on.</summary>
     [JsonPropertyName("fact")]
     public required string Fact { get; set; }
 
-    /// <summary>Source references for the stored fact.</summary>
+    /// <summary>Source references for the stored fact (store only).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("citations")]
-    public required string Citations { get; set; }
+    public string? Citations { get; set; }
+
+    /// <summary>Vote direction (vote only).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("direction")]
+    public PermissionRequestMemoryDirection? Direction { get; set; }
+
+    /// <summary>Reason for the vote (vote only).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
 }
 
 /// <summary>Custom tool invocation permission request.</summary>
@@ -3981,6 +3998,30 @@ public enum SystemNotificationDataKindAgentCompletedStatus
     /// <summary>The <c>failed</c> variant.</summary>
     [JsonStringEnumMemberName("failed")]
     Failed,
+}
+
+/// <summary>Whether this is a store or vote memory operation.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<PermissionRequestMemoryAction>))]
+public enum PermissionRequestMemoryAction
+{
+    /// <summary>The <c>store</c> variant.</summary>
+    [JsonStringEnumMemberName("store")]
+    Store,
+    /// <summary>The <c>vote</c> variant.</summary>
+    [JsonStringEnumMemberName("vote")]
+    Vote,
+}
+
+/// <summary>Vote direction (vote only).</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<PermissionRequestMemoryDirection>))]
+public enum PermissionRequestMemoryDirection
+{
+    /// <summary>The <c>upvote</c> variant.</summary>
+    [JsonStringEnumMemberName("upvote")]
+    Upvote,
+    /// <summary>The <c>downvote</c> variant.</summary>
+    [JsonStringEnumMemberName("downvote")]
+    Downvote,
 }
 
 /// <summary>The outcome of the permission request.</summary>
