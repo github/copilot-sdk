@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { approveAll, CopilotClient, type ModelInfo } from "../src/index.js";
+import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.ts instead
 
@@ -93,6 +94,60 @@ describe("CopilotClient", () => {
         expect(spy).toHaveBeenCalledWith(
             "session.resume",
             expect.objectContaining({ clientName: "my-app", sessionId: session.sessionId })
+        );
+        spy.mockRestore();
+    });
+
+    it("does not request permissions on session.resume when using the default joinSession handler", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: defaultJoinSessionPermissionHandler,
+        });
+
+        expect(spy).toHaveBeenCalledWith(
+            "session.resume",
+            expect.objectContaining({
+                sessionId: session.sessionId,
+                requestPermission: false,
+            })
+        );
+        spy.mockRestore();
+    });
+
+    it("requests permissions on session.resume when using an explicit handler", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+        });
+
+        expect(spy).toHaveBeenCalledWith(
+            "session.resume",
+            expect.objectContaining({
+                sessionId: session.sessionId,
+                requestPermission: true,
+            })
         );
         spy.mockRestore();
     });

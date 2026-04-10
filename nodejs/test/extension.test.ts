@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CopilotClient } from "../src/client.js";
 import { approveAll } from "../src/index.js";
 import { joinSession } from "../src/extension.js";
+import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 
 describe("joinSession", () => {
     const originalSessionId = process.env.SESSION_ID;
@@ -25,6 +26,7 @@ describe("joinSession", () => {
 
         const [, config] = resumeSession.mock.calls[0]!;
         expect(config.onPermissionRequest).toBeDefined();
+        expect(config.onPermissionRequest).toBe(defaultJoinSessionPermissionHandler);
         const result = await Promise.resolve(
             config.onPermissionRequest!({ kind: "write" }, { sessionId: "session-123" })
         );
