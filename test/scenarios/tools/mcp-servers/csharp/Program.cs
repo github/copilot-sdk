@@ -10,16 +10,16 @@ await client.StartAsync();
 
 try
 {
-    var mcpServers = new Dictionary<string, object>();
+    var mcpServers = new Dictionary<string, McpServerConfig>();
     var mcpServerCmd = Environment.GetEnvironmentVariable("MCP_SERVER_CMD");
     if (!string.IsNullOrEmpty(mcpServerCmd))
     {
         var mcpArgs = Environment.GetEnvironmentVariable("MCP_SERVER_ARGS");
-        mcpServers["example"] = new Dictionary<string, object>
+        mcpServers["example"] = new McpStdioServerConfig
         {
-            { "type", "stdio" },
-            { "command", mcpServerCmd },
-            { "args", string.IsNullOrEmpty(mcpArgs) ? Array.Empty<string>() : mcpArgs.Split(' ') },
+            Command = mcpServerCmd,
+            Args = string.IsNullOrEmpty(mcpArgs) ? [] : [.. mcpArgs.Split(' ')],
+            Tools = ["*"],
         };
     }
 

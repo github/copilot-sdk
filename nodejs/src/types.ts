@@ -1019,8 +1019,8 @@ interface MCPServerConfigBase {
      */
     tools: string[];
     /**
-     * Indicates "remote" or "local" server type.
-     * If not specified, defaults to "local".
+     * Indicates the server type: "stdio" for local/subprocess servers, "http"/"sse" for remote servers.
+     * If not specified, defaults to "stdio".
      */
     type?: string;
     /**
@@ -1032,7 +1032,7 @@ interface MCPServerConfigBase {
 /**
  * Configuration for a local/stdio MCP server.
  */
-export interface MCPLocalServerConfig extends MCPServerConfigBase {
+export interface MCPStdioServerConfig extends MCPServerConfigBase {
     type?: "local" | "stdio";
     command: string;
     args: string[];
@@ -1046,7 +1046,7 @@ export interface MCPLocalServerConfig extends MCPServerConfigBase {
 /**
  * Configuration for a remote MCP server (HTTP or SSE).
  */
-export interface MCPRemoteServerConfig extends MCPServerConfigBase {
+export interface MCPHTTPServerConfig extends MCPServerConfigBase {
     type: "http" | "sse";
     /**
      * URL of the remote server.
@@ -1061,7 +1061,7 @@ export interface MCPRemoteServerConfig extends MCPServerConfigBase {
 /**
  * Union type for MCP server configurations.
  */
-export type MCPServerConfig = MCPLocalServerConfig | MCPRemoteServerConfig;
+export type MCPServerConfig = MCPStdioServerConfig | MCPHTTPServerConfig;
 
 // ============================================================================
 // Custom Agent Configuration Types

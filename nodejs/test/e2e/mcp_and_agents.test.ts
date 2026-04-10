@@ -5,7 +5,7 @@
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { describe, expect, it } from "vitest";
-import type { CustomAgentConfig, MCPLocalServerConfig, MCPServerConfig } from "../../src/index.js";
+import type { CustomAgentConfig, MCPStdioServerConfig, MCPServerConfig } from "../../src/index.js";
 import { approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
@@ -24,7 +24,7 @@ describe("MCP Servers and Custom Agents", async () => {
                     command: "echo",
                     args: ["hello"],
                     tools: ["*"],
-                } as MCPLocalServerConfig,
+                } as MCPStdioServerConfig,
             };
 
             const session = await client.createSession({
@@ -56,7 +56,7 @@ describe("MCP Servers and Custom Agents", async () => {
                     command: "echo",
                     args: ["hello"],
                     tools: ["*"],
-                } as MCPLocalServerConfig,
+                } as MCPStdioServerConfig,
             };
 
             const session2 = await client.resumeSession(sessionId, {
@@ -81,13 +81,13 @@ describe("MCP Servers and Custom Agents", async () => {
                     command: "echo",
                     args: ["server1"],
                     tools: ["*"],
-                } as MCPLocalServerConfig,
+                } as MCPStdioServerConfig,
                 server2: {
                     type: "local",
                     command: "echo",
                     args: ["server2"],
                     tools: ["*"],
-                } as MCPLocalServerConfig,
+                } as MCPStdioServerConfig,
             };
 
             const session = await client.createSession({
@@ -107,7 +107,7 @@ describe("MCP Servers and Custom Agents", async () => {
                     args: [TEST_MCP_SERVER],
                     tools: ["*"],
                     env: { TEST_SECRET: "hunter2" },
-                } as MCPLocalServerConfig,
+                } as MCPStdioServerConfig,
             };
 
             const session = await client.createSession({
@@ -219,7 +219,7 @@ describe("MCP Servers and Custom Agents", async () => {
                             command: "echo",
                             args: ["agent-mcp"],
                             tools: ["*"],
-                        } as MCPLocalServerConfig,
+                        } as MCPStdioServerConfig,
                     },
                 },
             ];
@@ -268,7 +268,7 @@ describe("MCP Servers and Custom Agents", async () => {
                     command: "echo",
                     args: ["shared"],
                     tools: ["*"],
-                } as MCPLocalServerConfig,
+                } as MCPStdioServerConfig,
             };
 
             const customAgents: CustomAgentConfig[] = [

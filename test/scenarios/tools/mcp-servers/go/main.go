@@ -30,10 +30,10 @@ func main() {
 		if argsStr := os.Getenv("MCP_SERVER_ARGS"); argsStr != "" {
 			args = strings.Split(argsStr, " ")
 		}
-		mcpServers["example"] = copilot.MCPServerConfig{
-			"type":    "stdio",
-			"command": cmd,
-			"args":    args,
+		mcpServers["example"] = copilot.MCPStdioServerConfig{
+			Command: cmd,
+			Args:    args,
+			Tools:   []string{"*"},
 		}
 	}
 

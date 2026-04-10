@@ -18,11 +18,10 @@ func TestMCPServers(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		mcpServers := map[string]copilot.MCPServerConfig{
-			"test-server": {
-				"type":    "local",
-				"command": "echo",
-				"args":    []string{"hello"},
-				"tools":   []string{"*"},
+			"test-server": copilot.MCPStdioServerConfig{
+				Command: "echo",
+				Args:    []string{"hello"},
+				Tools:   []string{"*"},
 			},
 		}
 
@@ -75,11 +74,10 @@ func TestMCPServers(t *testing.T) {
 
 		// Resume with MCP servers
 		mcpServers := map[string]copilot.MCPServerConfig{
-			"test-server": {
-				"type":    "local",
-				"command": "echo",
-				"args":    []string{"hello"},
-				"tools":   []string{"*"},
+			"test-server": copilot.MCPStdioServerConfig{
+				Command: "echo",
+				Args:    []string{"hello"},
+				Tools:   []string{"*"},
 			},
 		}
 
@@ -117,13 +115,12 @@ func TestMCPServers(t *testing.T) {
 		mcpServerDir := filepath.Dir(mcpServerPath)
 
 		mcpServers := map[string]copilot.MCPServerConfig{
-			"env-echo": {
-				"type":    "local",
-				"command": "node",
-				"args":    []string{mcpServerPath},
-				"tools":   []string{"*"},
-				"env":     map[string]string{"TEST_SECRET": "hunter2"},
-				"cwd":     mcpServerDir,
+			"env-echo": copilot.MCPStdioServerConfig{
+				Command: "node",
+				Args:    []string{mcpServerPath},
+				Tools:   []string{"*"},
+				Env:     map[string]string{"TEST_SECRET": "hunter2"},
+				Cwd:     mcpServerDir,
 			},
 		}
 
@@ -157,17 +154,15 @@ func TestMCPServers(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		mcpServers := map[string]copilot.MCPServerConfig{
-			"server1": {
-				"type":    "local",
-				"command": "echo",
-				"args":    []string{"server1"},
-				"tools":   []string{"*"},
+			"server1": copilot.MCPStdioServerConfig{
+				Command: "echo",
+				Args:    []string{"server1"},
+				Tools:   []string{"*"},
 			},
-			"server2": {
-				"type":    "local",
-				"command": "echo",
-				"args":    []string{"server2"},
-				"tools":   []string{"*"},
+			"server2": copilot.MCPStdioServerConfig{
+				Command: "echo",
+				Args:    []string{"server2"},
+				Tools:   []string{"*"},
 			},
 		}
 
@@ -327,11 +322,10 @@ func TestCustomAgents(t *testing.T) {
 				Description: "An agent with its own MCP servers",
 				Prompt:      "You are an agent with MCP servers.",
 				MCPServers: map[string]copilot.MCPServerConfig{
-					"agent-server": {
-						"type":    "local",
-						"command": "echo",
-						"args":    []string{"agent-mcp"},
-						"tools":   []string{"*"},
+					"agent-server": copilot.MCPStdioServerConfig{
+						Command: "echo",
+						Args:    []string{"agent-mcp"},
+						Tools:   []string{"*"},
 					},
 				},
 			},
@@ -399,11 +393,10 @@ func TestCombinedConfiguration(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		mcpServers := map[string]copilot.MCPServerConfig{
-			"shared-server": {
-				"type":    "local",
-				"command": "echo",
-				"args":    []string{"shared"},
-				"tools":   []string{"*"},
+			"shared-server": copilot.MCPStdioServerConfig{
+				Command: "echo",
+				Args:    []string{"shared"},
+				Tools:   []string{"*"},
 			},
 		}
 

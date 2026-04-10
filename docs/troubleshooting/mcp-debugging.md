@@ -250,19 +250,17 @@ public static class McpDotnetConfigExample
 {
     public static void Main()
     {
-        var servers = new Dictionary<string, McpLocalServerConfig>
+        var servers = new Dictionary<string, McpServerConfig>
         {
-            ["my-dotnet-server"] = new McpLocalServerConfig
+            ["my-dotnet-server"] = new McpStdioServerConfig
             {
-                Type = "local",
                 Command = @"C:\Tools\MyServer\MyServer.exe",
                 Args = new List<string>(),
                 Cwd = @"C:\Tools\MyServer",
                 Tools = new List<string> { "*" },
             },
-            ["my-dotnet-tool"] = new McpLocalServerConfig
+            ["my-dotnet-tool"] = new McpStdioServerConfig
             {
-                Type = "local",
                 Command = "dotnet",
                 Args = new List<string> { @"C:\Tools\MyTool\MyTool.dll" },
                 Cwd = @"C:\Tools\MyTool",
@@ -275,9 +273,8 @@ public static class McpDotnetConfigExample
 <!-- /docs-validate: hidden -->
 ```csharp
 // Correct configuration for .NET exe
-["my-dotnet-server"] = new McpLocalServerConfig
+["my-dotnet-server"] = new McpStdioServerConfig
 {
-    Type = "local",
     Command = @"C:\Tools\MyServer\MyServer.exe",  // Full path with .exe
     Args = new List<string>(),
     Cwd = @"C:\Tools\MyServer",  // Set working directory
@@ -285,9 +282,8 @@ public static class McpDotnetConfigExample
 }
 
 // For dotnet tool (DLL)
-["my-dotnet-tool"] = new McpLocalServerConfig
+["my-dotnet-tool"] = new McpStdioServerConfig
 {
-    Type = "local", 
     Command = "dotnet",
     Args = new List<string> { @"C:\Tools\MyTool\MyTool.dll" },
     Cwd = @"C:\Tools\MyTool",
@@ -305,11 +301,10 @@ public static class McpNpxConfigExample
 {
     public static void Main()
     {
-        var servers = new Dictionary<string, McpLocalServerConfig>
+        var servers = new Dictionary<string, McpServerConfig>
         {
-            ["filesystem"] = new McpLocalServerConfig
+            ["filesystem"] = new McpStdioServerConfig
             {
-                Type = "local",
                 Command = "cmd",
                 Args = new List<string> { "/c", "npx", "-y", "@modelcontextprotocol/server-filesystem", "C:\\allowed\\path" },
                 Tools = new List<string> { "*" },
@@ -321,9 +316,8 @@ public static class McpNpxConfigExample
 <!-- /docs-validate: hidden -->
 ```csharp
 // Windows needs cmd /c for npx
-["filesystem"] = new McpLocalServerConfig
+["filesystem"] = new McpStdioServerConfig
 {
-    Type = "local",
     Command = "cmd",
     Args = new List<string> { "/c", "npx", "-y", "@modelcontextprotocol/server-filesystem", "C:\\allowed\\path" },
     Tools = new List<string> { "*" },
@@ -357,9 +351,9 @@ xattr -d com.apple.quarantine /path/to/mcp-server
 
 <!-- docs-validate: hidden -->
 ```typescript
-import { MCPLocalServerConfig } from "@github/copilot-sdk";
+import { MCPStdioServerConfig } from "@github/copilot-sdk";
 
-const mcpServers: Record<string, MCPLocalServerConfig> = {
+const mcpServers: Record<string, MCPStdioServerConfig> = {
   "my-server": {
     command: "/opt/homebrew/bin/node",
     args: ["/path/to/server.js"],

@@ -1502,10 +1502,17 @@ public class AzureOptions
 // ============================================================================
 
 /// <summary>
-/// Configuration for a local/stdio MCP server.
+/// Abstract base class for MCP server configurations.
 /// </summary>
-public class McpLocalServerConfig
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "type",
+    IgnoreUnrecognizedTypeDiscriminators = true)]
+[JsonDerivedType(typeof(McpStdioServerConfig), "stdio")]
+[JsonDerivedType(typeof(McpHttpServerConfig), "http")]
+public abstract class McpServerConfig
 {
+    private protected McpServerConfig() { }
+
     /// <summary>
     /// List of tools to include from this server. Empty list means none. Use "*" for all.
     /// </summary>
@@ -1513,16 +1520,26 @@ public class McpLocalServerConfig
     public List<string> Tools { get; set; } = [];
 
     /// <summary>
-    /// Server type. Defaults to "local".
+    /// The server type discriminator.
     /// </summary>
-    [JsonPropertyName("type")]
-    public string? Type { get; set; }
+    [JsonIgnore]
+    public virtual string Type => "unknown";
 
     /// <summary>
     /// Optional timeout in milliseconds for tool calls to this server.
     /// </summary>
     [JsonPropertyName("timeout")]
     public int? Timeout { get; set; }
+}
+
+/// <summary>
+/// Configuration for a local/stdio MCP server.
+/// </summary>
+public sealed class McpStdioServerConfig : McpServerConfig
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "stdio";
 
     /// <summary>
     /// Command to run the MCP server.
@@ -1552,25 +1569,11 @@ public class McpLocalServerConfig
 /// <summary>
 /// Configuration for a remote MCP server (HTTP or SSE).
 /// </summary>
-public class McpRemoteServerConfig
+public sealed class McpHttpServerConfig : McpServerConfig
 {
-    /// <summary>
-    /// List of tools to include from this server. Empty list means none. Use "*" for all.
-    /// </summary>
-    [JsonPropertyName("tools")]
-    public List<string> Tools { get; set; } = [];
-
-    /// <summary>
-    /// Server type. Must be "http" or "sse".
-    /// </summary>
-    [JsonPropertyName("type")]
-    public string Type { get; set; } = "http";
-
-    /// <summary>
-    /// Optional timeout in milliseconds for tool calls to this server.
-    /// </summary>
-    [JsonPropertyName("timeout")]
-    public int? Timeout { get; set; }
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "http";
 
     /// <summary>
     /// URL of the remote server.
@@ -1628,7 +1631,7 @@ public class CustomAgentConfig
     /// MCP servers specific to this agent.
     /// </summary>
     [JsonPropertyName("mcpServers")]
-    public Dictionary<string, object>? McpServers { get; set; }
+    public Dictionary<string, McpServerConfig>? McpServers { get; set; }
 
     /// <summary>
     /// Whether the agent should be available for model inference.
@@ -1697,7 +1700,7 @@ public class SessionConfig
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
         McpServers = other.McpServers is not null
-            ? new Dictionary<string, object>(other.McpServers, other.McpServers.Comparer)
+            ? new Dictionary<string, McpServerConfig>(other.McpServers, other.McpServers.Comparer)
             : null;
         Model = other.Model;
         ModelCapabilities = other.ModelCapabilities;
@@ -1829,9 +1832,9 @@ public class SessionConfig
 
     /// <summary>
     /// MCP server configurations for the session.
-    /// Keys are server names, values are server configurations (McpLocalServerConfig or McpRemoteServerConfig).
+    /// Keys are server names, values are server configurations (<see cref="McpStdioServerConfig"/> or <see cref="McpHttpServerConfig"/>).
     /// </summary>
-    public Dictionary<string, object>? McpServers { get; set; }
+    public Dictionary<string, McpServerConfig>? McpServers { get; set; }
 
     /// <summary>
     /// Custom agent configurations for the session.
@@ -1925,7 +1928,7 @@ public class ResumeSessionConfig
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
         McpServers = other.McpServers is not null
-            ? new Dictionary<string, object>(other.McpServers, other.McpServers.Comparer)
+            ? new Dictionary<string, McpServerConfig>(other.McpServers, other.McpServers.Comparer)
             : null;
         Model = other.Model;
         ModelCapabilities = other.ModelCapabilities;
@@ -2061,9 +2064,9 @@ public class ResumeSessionConfig
 
     /// <summary>
     /// MCP server configurations for the session.
-    /// Keys are server names, values are server configurations (McpLocalServerConfig or McpRemoteServerConfig).
+    /// Keys are server names, values are server configurations (<see cref="McpStdioServerConfig"/> or <see cref="McpHttpServerConfig"/>).
     /// </summary>
-    public Dictionary<string, object>? McpServers { get; set; }
+    public Dictionary<string, McpServerConfig>? McpServers { get; set; }
 
     /// <summary>
     /// Custom agent configurations for the session.
@@ -2608,8 +2611,7 @@ public class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(GetForegroundSessionResponse))]
 [JsonSerializable(typeof(GetModelsResponse))]
 [JsonSerializable(typeof(GetStatusResponse))]
-[JsonSerializable(typeof(McpLocalServerConfig))]
-[JsonSerializable(typeof(McpRemoteServerConfig))]
+[JsonSerializable(typeof(McpServerConfig))]
 [JsonSerializable(typeof(MessageOptions))]
 [JsonSerializable(typeof(ModelBilling))]
 [JsonSerializable(typeof(ModelCapabilities))]

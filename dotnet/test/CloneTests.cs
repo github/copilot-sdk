@@ -86,7 +86,7 @@ public class CloneTests
             ExcludedTools = ["tool3"],
             WorkingDirectory = "/workspace",
             Streaming = true,
-            McpServers = new Dictionary<string, object> { ["server1"] = new object() },
+            McpServers = new Dictionary<string, McpServerConfig> { ["server1"] = new McpStdioServerConfig { Command = "echo" } },
             CustomAgents = [new CustomAgentConfig { Name = "agent1" }],
             Agent = "agent1",
             SkillDirectories = ["/skills"],
@@ -118,7 +118,7 @@ public class CloneTests
         {
             AvailableTools = ["tool1"],
             ExcludedTools = ["tool2"],
-            McpServers = new Dictionary<string, object> { ["s1"] = new object() },
+            McpServers = new Dictionary<string, McpServerConfig> { ["s1"] = new McpStdioServerConfig { Command = "echo" } },
             CustomAgents = [new CustomAgentConfig { Name = "a1" }],
             SkillDirectories = ["/skills"],
             DisabledSkills = ["skill1"],
@@ -129,7 +129,7 @@ public class CloneTests
         // Mutate clone collections
         clone.AvailableTools!.Add("tool99");
         clone.ExcludedTools!.Add("tool99");
-        clone.McpServers!["s2"] = new object();
+        clone.McpServers!["s2"] = new McpStdioServerConfig { Command = "echo" };
         clone.CustomAgents!.Add(new CustomAgentConfig { Name = "a2" });
         clone.SkillDirectories!.Add("/more");
         clone.DisabledSkills!.Add("skill99");
@@ -146,7 +146,7 @@ public class CloneTests
     [Fact]
     public void SessionConfig_Clone_PreservesMcpServersComparer()
     {
-        var servers = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase) { ["server"] = new object() };
+        var servers = new Dictionary<string, McpServerConfig>(StringComparer.OrdinalIgnoreCase) { ["server"] = new McpStdioServerConfig { Command = "echo" } };
         var original = new SessionConfig { McpServers = servers };
 
         var clone = original.Clone();
@@ -161,7 +161,7 @@ public class CloneTests
         {
             AvailableTools = ["tool1"],
             ExcludedTools = ["tool2"],
-            McpServers = new Dictionary<string, object> { ["s1"] = new object() },
+            McpServers = new Dictionary<string, McpServerConfig> { ["s1"] = new McpStdioServerConfig { Command = "echo" } },
             CustomAgents = [new CustomAgentConfig { Name = "a1" }],
             SkillDirectories = ["/skills"],
             DisabledSkills = ["skill1"],
@@ -172,7 +172,7 @@ public class CloneTests
         // Mutate clone collections
         clone.AvailableTools!.Add("tool99");
         clone.ExcludedTools!.Add("tool99");
-        clone.McpServers!["s2"] = new object();
+        clone.McpServers!["s2"] = new McpStdioServerConfig { Command = "echo" };
         clone.CustomAgents!.Add(new CustomAgentConfig { Name = "a2" });
         clone.SkillDirectories!.Add("/more");
         clone.DisabledSkills!.Add("skill99");
@@ -189,7 +189,7 @@ public class CloneTests
     [Fact]
     public void ResumeSessionConfig_Clone_PreservesMcpServersComparer()
     {
-        var servers = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase) { ["server"] = new object() };
+        var servers = new Dictionary<string, McpServerConfig>(StringComparer.OrdinalIgnoreCase) { ["server"] = new McpStdioServerConfig { Command = "echo" } };
         var original = new ResumeSessionConfig { McpServers = servers };
 
         var clone = original.Clone();

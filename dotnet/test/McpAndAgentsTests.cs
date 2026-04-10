@@ -13,11 +13,10 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
     [Fact]
     public async Task Should_Accept_MCP_Server_Configuration_On_Session_Create()
     {
-        var mcpServers = new Dictionary<string, object>
+        var mcpServers = new Dictionary<string, McpServerConfig>
         {
-            ["test-server"] = new McpLocalServerConfig
+            ["test-server"] = new McpStdioServerConfig
             {
-                Type = "local",
                 Command = "echo",
                 Args = ["hello"],
                 Tools = ["*"]
@@ -50,11 +49,10 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
         await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
 
         // Resume with MCP servers
-        var mcpServers = new Dictionary<string, object>
+        var mcpServers = new Dictionary<string, McpServerConfig>
         {
-            ["test-server"] = new McpLocalServerConfig
+            ["test-server"] = new McpStdioServerConfig
             {
-                Type = "local",
                 Command = "echo",
                 Args = ["hello"],
                 Tools = ["*"]
@@ -78,18 +76,16 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
     [Fact]
     public async Task Should_Handle_Multiple_MCP_Servers()
     {
-        var mcpServers = new Dictionary<string, object>
+        var mcpServers = new Dictionary<string, McpServerConfig>
         {
-            ["server1"] = new McpLocalServerConfig
+            ["server1"] = new McpStdioServerConfig
             {
-                Type = "local",
                 Command = "echo",
                 Args = ["server1"],
                 Tools = ["*"]
             },
-            ["server2"] = new McpLocalServerConfig
+            ["server2"] = new McpStdioServerConfig
             {
-                Type = "local",
                 Command = "echo",
                 Args = ["server2"],
                 Tools = ["*"]
@@ -207,11 +203,10 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
                 DisplayName = "MCP Agent",
                 Description = "An agent with its own MCP servers",
                 Prompt = "You are an agent with MCP servers.",
-                McpServers = new Dictionary<string, object>
+                McpServers = new Dictionary<string, McpServerConfig>
                 {
-                    ["agent-server"] = new McpLocalServerConfig
+                    ["agent-server"] = new McpStdioServerConfig
                     {
-                        Type = "local",
                         Command = "echo",
                         Args = ["agent-mcp"],
                         Tools = ["*"]
@@ -264,11 +259,10 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
     public async Task Should_Pass_Literal_Env_Values_To_Mcp_Server_Subprocess()
     {
         var testHarnessDir = FindTestHarnessDir();
-        var mcpServers = new Dictionary<string, object>
+        var mcpServers = new Dictionary<string, McpServerConfig>
         {
-            ["env-echo"] = new McpLocalServerConfig
+            ["env-echo"] = new McpStdioServerConfig
             {
-                Type = "local",
                 Command = "node",
                 Args = [Path.Combine(testHarnessDir, "test-mcp-server.mjs")],
                 Env = new Dictionary<string, string> { ["TEST_SECRET"] = "hunter2" },
@@ -299,11 +293,10 @@ public class McpAndAgentsTests(E2ETestFixture fixture, ITestOutputHelper output)
     [Fact]
     public async Task Should_Accept_Both_MCP_Servers_And_Custom_Agents()
     {
-        var mcpServers = new Dictionary<string, object>
+        var mcpServers = new Dictionary<string, McpServerConfig>
         {
-            ["shared-server"] = new McpLocalServerConfig
+            ["shared-server"] = new McpStdioServerConfig
             {
-                Type = "local",
                 Command = "echo",
                 Args = ["shared"],
                 Tools = ["*"]
