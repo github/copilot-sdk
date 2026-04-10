@@ -33,7 +33,7 @@ Quick steps:
 1. **(Optional) Install the Copilot CLI**
 
 For Node.js, Python, and .NET SDKs, the Copilot CLI is bundled automatically and no separate installation is required.
-For the Go SDK, install the CLI manually or ensure `copilot` is available in your PATH.
+For the Go SDK, [install the CLI manually](https://github.com/features/copilot/cli) or ensure `copilot` is available in your PATH.
 
 2. **Install your preferred SDK** using the commands above.
 

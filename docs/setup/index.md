@@ -38,8 +38,8 @@ The setup guides below help you configure each layer for your scenario.
 You're building a personal assistant, side project, or experimental app. You want the simplest path to getting Copilot in your code.
 
 **Start with:**
-1. **[Local CLI](./local-cli.md)** — Use the CLI already signed in on your machine
-2. **[Bundled CLI](./bundled-cli.md)** — Package everything into a standalone app
+1. **[Default Setup](./bundled-cli.md)** — The SDK includes the CLI automatically — just install and go
+2. **[Local CLI](./local-cli.md)** — Use your own CLI binary or running instance (advanced)
 
 ### 🏢 Internal App Developer
 
@@ -82,8 +82,8 @@ Use this table to find the right guides based on what you need to do:
 
 | What you need | Guide |
 |---------------|-------|
-| Simplest possible setup | [Local CLI](./local-cli.md) |
-| Ship a standalone app with Copilot | [Bundled CLI](./bundled-cli.md) |
+| Getting started quickly | [Default Setup (Bundled CLI)](./bundled-cli.md) |
+| Use your own CLI binary or server | [Local CLI](./local-cli.md) |
 | Users sign in with GitHub | [GitHub OAuth](./github-oauth.md) |
 | Use your own model keys (OpenAI, Azure, etc.) | [BYOK](../auth/byok.md) |
 | Azure BYOK with Managed Identity (no API keys) | [Azure Managed Identity](./azure-managed-identity.md) |
@@ -129,11 +129,10 @@ flowchart LR
 
 All guides assume you have:
 
-- **Copilot CLI** installed ([Installation guide](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli))
-- **One of the SDKs** installed:
+- **One of the SDKs** installed (Node.js, Python, and .NET SDKs include the CLI automatically):
   - Node.js: `npm install @github/copilot-sdk`
   - Python: `pip install github-copilot-sdk`
-  - Go: `go get github.com/github/copilot-sdk/go`
+  - Go: `go get github.com/github/copilot-sdk/go` (requires separate CLI installation)
   - .NET: `dotnet add package GitHub.Copilot.SDK`
 
 If you're brand new, start with the **[Getting Started tutorial](../getting-started.md)** first, then come back here for production configuration.
