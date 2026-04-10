@@ -10,18 +10,21 @@ import { execFile } from "child_process";
 import fs from "fs/promises";
 import path from "path";
 import { promisify } from "util";
-import type { JSONSchema7 } from "json-schema";
+import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import {
     cloneSchemaForCodegen,
     getApiSchemaPath,
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
+    writeGeneratedFile,
+    collectDefinitions,
+    resolveRef,
+    refTypeName,
+    isRpcMethod,
     isNodeFullyExperimental,
     isObjectSchema,
     isVoidSchema,
-    isRpcMethod,
     REPO_ROOT,
-    writeGeneratedFile,
     type ApiSchema,
     type RpcMethod,
 } from "./utils.js";
@@ -305,6 +308,8 @@ function getOrCreateEnum(parentClassName: string, propName: string, values: stri
     const enumName = explicitName ?? `${parentClassName}${propName}`;
     const existing = generatedEnums.get(enumName);
     if (existing) return existing.enumName;
+/** Schema definitions available during session event generation (for $ref resolution). */
+let sessionDefinitions: Record<string, JSONSchema7Definition> = {};
     generatedEnums.set(enumName, { enumName, values });
 
     const lines: string[] = [];
@@ -505,6 +510,21 @@ function resolveSessionPropertyType(
     nestedClasses: Map<string, string>,
     enumOutput: string[]
 ): string {
+    // Handle $ref by resolving against schema definitions
+    if (propSchema.$ref) {
+        const typeName = refTypeName(propSchema.$ref);
+        const className = typeToClassName(typeName);
+        if (!nestedClasses.has(className)) {
+            const refSchema = resolveRef(propSchema.$ref, sessionDefinitions);
+            if (refSchema) {
+                if (refSchema.enum && Array.isArray(refSchema.enum)) {
+                    return getOrCreateEnum(className, "", refSchema.enum as string[], enumOutput);
+                }
+                nestedClasses.set(className, generateNestedClass(className, refSchema, knownTypes, nestedClasses, enumOutput));
+            }
+        }
+        return isRequired ? className : `${className}?`;
+    }
     if (propSchema.anyOf) {
         const hasNull = propSchema.anyOf.some((s) => typeof s === "object" && (s as JSONSchema7).type === "null");
         const nonNull = propSchema.anyOf.filter((s) => typeof s === "object" && (s as JSONSchema7).type !== "null");
@@ -536,6 +556,18 @@ function resolveSessionPropertyType(
     }
     if (propSchema.type === "array" && propSchema.items) {
         const items = propSchema.items as JSONSchema7;
+        // Handle $ref in array items
+        if (items.$ref) {
+            const typeName = refTypeName(items.$ref);
+            const className = typeToClassName(typeName);
+            if (!nestedClasses.has(className)) {
+                const refSchema = resolveRef(items.$ref, sessionDefinitions);
+                if (refSchema) {
+                    nestedClasses.set(className, generateNestedClass(className, refSchema, knownTypes, nestedClasses, enumOutput));
+                }
+            }
+            return isRequired ? `${className}[]` : `${className}[]?`;
+        }
         // Array of discriminated union (anyOf with shared discriminator)
         if (items.anyOf && Array.isArray(items.anyOf)) {
             const variants = items.anyOf.filter((v): v is JSONSchema7 => typeof v === "object");
@@ -596,6 +628,7 @@ function generateDataClass(variant: EventVariant, knownTypes: Map<string, string
 
 function generateSessionEventsCode(schema: JSONSchema7): string {
     generatedEnums.clear();
+    sessionDefinitions = schema.definitions as Record<string, JSONSchema7Definition> || {};
     const variants = extractEventVariants(schema);
     const knownTypes = new Map<string, string>();
     const nestedClasses = new Map<string, string>();
@@ -708,6 +741,9 @@ let experimentalRpcTypes = new Set<string>();
 let rpcKnownTypes = new Map<string, string>();
 let rpcEnumOutput: string[] = [];
 
+/** Schema definitions available during RPC generation (for $ref resolution). */
+let rpcDefinitions: Record<string, JSONSchema7Definition> = {};
+
 function singularPascal(s: string): string {
     const p = toPascalCase(s);
     if (p.endsWith("ies")) return `${p.slice(0, -3)}y`;
@@ -736,6 +772,16 @@ function stableStringify(value: unknown): string {
 }
 
 function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassName: string, propName: string, classes: string[]): string {
+    // Handle $ref by resolving against schema definitions and generating the referenced class
+    if (schema.$ref) {
+        const typeName = refTypeName(schema.$ref);
+        const refSchema = resolveRef(schema.$ref, rpcDefinitions);
+        if (refSchema && !emittedRpcClasses.has(typeName)) {
+            const cls = emitRpcClass(typeName, refSchema, "public", classes);
+            if (cls) classes.push(cls);
+        }
+        return isRequired ? typeName : `${typeName}?`;
+    }
     // Handle anyOf: [T, null] → T? (nullable typed property)
     if (schema.anyOf) {
         const hasNull = schema.anyOf.some((s) => typeof s === "object" && (s as JSONSchema7).type === "null");
@@ -763,6 +809,16 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
     }
     if (schema.type === "array" && schema.items) {
         const items = schema.items as JSONSchema7;
+        // Handle $ref in array items
+        if (items.$ref) {
+            const typeName = refTypeName(items.$ref);
+            const refSchema = resolveRef(items.$ref, rpcDefinitions);
+            if (refSchema && !emittedRpcClasses.has(typeName)) {
+                const cls = emitRpcClass(typeName, refSchema, "public", classes);
+                if (cls) classes.push(cls);
+            }
+            return isRequired ? `List<${typeName}>` : `List<${typeName}>?`;
+        }
         if (items.type === "object" && items.properties) {
             const itemClass = (items.title as string) ?? singularPascal(propName);
             classes.push(emitRpcClass(itemClass, items, "public", classes));
@@ -1259,6 +1315,7 @@ function generateRpcCode(schema: ApiSchema): string {
     rpcKnownTypes.clear();
     rpcEnumOutput = [];
     generatedEnums.clear(); // Clear shared enum deduplication map
+    rpcDefinitions = collectDefinitions(schema as Record<string, unknown>);
     const classes: string[] = [];
 
     let serverRpcParts: string[] = [];

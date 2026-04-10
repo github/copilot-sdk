@@ -1273,10 +1273,11 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         ...collectRpcMethods(schema.clientSession || {}),
     ];
 
-    // Build a combined schema for quicktype
+    // Build a combined schema for quicktype, including shared definitions from the API schema
+    const sharedDefs = collectDefinitions(schema as Record<string, unknown>);
     const combinedSchema: JSONSchema7 = {
         $schema: "http://json-schema.org/draft-07/schema#",
-        definitions: {},
+        definitions: { ...sharedDefs },
     };
 
     for (const method of allMethods) {
@@ -1302,6 +1303,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     }
 
     const { rootDefinitions, sharedDefinitions } = hoistTitledSchemas(combinedSchema.definitions! as Record<string, JSONSchema7>);
+    const allDefinitions = { ...rootDefinitions, ...sharedDefinitions };
 
     // Generate types via quicktype
     const schemaInput = new JSONSchemaInput(new FetchingJSONSchemaStore());
@@ -1310,7 +1312,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
             name,
             schema: JSON.stringify({
                 ...def,
-                definitions: sharedDefinitions,
+                definitions: allDefinitions,
             }),
         });
     }
