@@ -1549,13 +1549,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
                 var result = await tool.InvokeAsync(aiFunctionArgs);
 
-                var toolResultObject = result is ToolResultAIContent trac ? trac.Result : new ToolResultObject
-                {
-                    ResultType = "success",
-                    TextResultForLlm = result is JsonElement { ValueKind: JsonValueKind.String } je
-                        ? je.GetString()!
-                        : JsonSerializer.Serialize(result, tool.JsonSerializerOptions.GetTypeInfo(typeof(object))),
-                };
+                var toolResultObject = ToolResultObject.ConvertFromInvocationResult(result, tool.JsonSerializerOptions);
                 return new ToolCallResponseV2(toolResultObject);
             }
             catch (Exception ex)

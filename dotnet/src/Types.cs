@@ -324,6 +324,95 @@ public class ToolResultObject
     /// </summary>
     [JsonPropertyName("toolTelemetry")]
     public Dictionary<string, object>? ToolTelemetry { get; set; }
+
+    /// <summary>
+    /// Converts the result of an <see cref="AIFunction"/> invocation into a
+    /// <see cref="ToolResultObject"/>. Handles <see cref="ToolResultAIContent"/>,
+    /// <see cref="AIContent"/>, and falls back to JSON serialization.
+    /// </summary>
+    internal static ToolResultObject ConvertFromInvocationResult(object? result, JsonSerializerOptions jsonOptions)
+    {
+        if (result is ToolResultAIContent trac)
+        {
+            return trac.Result;
+        }
+
+        if (TryConvertFromAIContent(result) is { } aiConverted)
+        {
+            return aiConverted;
+        }
+
+        return new ToolResultObject
+        {
+            ResultType = "success",
+            TextResultForLlm = result is JsonElement { ValueKind: JsonValueKind.String } je
+                ? je.GetString()!
+                : JsonSerializer.Serialize(result, jsonOptions.GetTypeInfo(typeof(object))),
+        };
+    }
+
+    /// <summary>
+    /// Attempts to convert a result from an <see cref="AIFunction"/> invocation into a
+    /// <see cref="ToolResultObject"/>. Handles <see cref="TextContent"/>,
+    /// <see cref="DataContent"/>, and collections of <see cref="AIContent"/>.
+    /// Returns <see langword="null"/> if the value is not a recognized <see cref="AIContent"/> type.
+    /// </summary>
+    internal static ToolResultObject? TryConvertFromAIContent(object? result)
+    {
+        if (result is AIContent singleContent)
+        {
+            return ConvertAIContents([singleContent]);
+        }
+
+        if (result is IEnumerable<AIContent> contentList)
+        {
+            return ConvertAIContents(contentList);
+        }
+
+        return null;
+    }
+
+    private static ToolResultObject ConvertAIContents(IEnumerable<AIContent> contents)
+    {
+        List<string>? textParts = null;
+        List<ToolBinaryResult>? binaryResults = null;
+
+        foreach (var content in contents)
+        {
+            switch (content)
+            {
+                case TextContent textContent:
+                    if (textContent.Text is { } text)
+                    {
+                        (textParts ??= []).Add(text);
+                    }
+                    break;
+
+                case DataContent dataContent:
+                    (binaryResults ??= []).Add(new ToolBinaryResult
+                    {
+                        Data = dataContent.Base64Data.ToString(),
+                        MimeType = dataContent.MediaType ?? "application/octet-stream",
+                        Type = dataContent.HasTopLevelMediaType("image") ? "image" : "resource",
+                    });
+                    break;
+
+                default:
+                    (textParts ??= []).Add(SerializeAIContent(content));
+                    break;
+            }
+        }
+
+        return new ToolResultObject
+        {
+            TextResultForLlm = textParts is not null ? string.Join("\n", textParts) : "",
+            ResultType = "success",
+            BinaryResultsForLlm = binaryResults,
+        };
+    }
+
+    private static string SerializeAIContent(AIContent content) =>
+        JsonSerializer.Serialize(content, AIJsonUtilities.DefaultOptions.GetTypeInfo(typeof(AIContent)));
 }
 
 /// <summary>

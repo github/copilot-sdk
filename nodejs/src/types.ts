@@ -207,6 +207,101 @@ export type ToolResultObject = {
 
 export type ToolResult = string | ToolResultObject;
 
+// ============================================================================
+// MCP CallToolResult support
+// ============================================================================
+
+/**
+ * Content block types within an MCP CallToolResult.
+ */
+type McpCallToolResultTextContent = {
+    type: "text";
+    text: string;
+};
+
+type McpCallToolResultImageContent = {
+    type: "image";
+    data: string;
+    mimeType: string;
+};
+
+type McpCallToolResultResourceContent = {
+    type: "resource";
+    resource: {
+        uri: string;
+        mimeType?: string;
+        text?: string;
+        blob?: string;
+    };
+};
+
+type McpCallToolResultContent =
+    | McpCallToolResultTextContent
+    | McpCallToolResultImageContent
+    | McpCallToolResultResourceContent;
+
+/**
+ * MCP-compatible CallToolResult type. Can be passed to
+ * {@link convertMcpCallToolResult} to produce a {@link ToolResultObject}.
+ */
+type McpCallToolResult = {
+    content: McpCallToolResultContent[];
+    isError?: boolean;
+};
+
+/**
+ * Converts an MCP CallToolResult into the SDK's ToolResultObject format.
+ */
+export function convertMcpCallToolResult(callResult: McpCallToolResult): ToolResultObject {
+    const textParts: string[] = [];
+    const binaryResults: ToolBinaryResult[] = [];
+
+    for (const block of callResult.content) {
+        switch (block.type) {
+            case "text":
+                // Guard against malformed input where text field is missing at runtime
+                if (typeof block.text === "string") {
+                    textParts.push(block.text);
+                }
+                break;
+            case "image":
+                if (
+                    typeof block.data === "string" &&
+                    block.data &&
+                    typeof block.mimeType === "string"
+                ) {
+                    binaryResults.push({
+                        data: block.data,
+                        mimeType: block.mimeType,
+                        type: "image",
+                    });
+                }
+                break;
+            case "resource": {
+                // Use optional chaining: resource field may be absent in malformed input
+                if (block.resource?.text) {
+                    textParts.push(block.resource.text);
+                }
+                if (block.resource?.blob) {
+                    binaryResults.push({
+                        data: block.resource.blob,
+                        mimeType: block.resource.mimeType ?? "application/octet-stream",
+                        type: "resource",
+                        description: block.resource.uri,
+                    });
+                }
+                break;
+            }
+        }
+    }
+
+    return {
+        textResultForLlm: textParts.join("\n"),
+        resultType: callResult.isError ? "failure" : "success",
+        ...(binaryResults.length > 0 ? { binaryResultsForLlm: binaryResults } : {}),
+    };
+}
+
 export interface ToolInvocation {
     sessionId: string;
     toolCallId: string;

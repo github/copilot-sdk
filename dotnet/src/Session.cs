@@ -568,13 +568,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
             var result = await tool.InvokeAsync(aiFunctionArgs);
 
-            var toolResultObject = result is ToolResultAIContent trac ? trac.Result : new ToolResultObject
-            {
-                ResultType = "success",
-                TextResultForLlm = result is JsonElement { ValueKind: JsonValueKind.String } je
-                    ? je.GetString()!
-                    : JsonSerializer.Serialize(result, tool.JsonSerializerOptions.GetTypeInfo(typeof(object))),
-            };
+            var toolResultObject = ToolResultObject.ConvertFromInvocationResult(result, tool.JsonSerializerOptions);
 
             await Rpc.Tools.HandlePendingToolCallAsync(requestId, toolResultObject, error: null);
         }
