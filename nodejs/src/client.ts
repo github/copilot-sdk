@@ -200,6 +200,7 @@ function getBundledCliPath(): string {
  * ```
  */
 export class CopilotClient {
+    private cliStartTimeout: ReturnType<typeof setTimeout> | null = null;
     private cliProcess: ChildProcess | null = null;
     private connection: MessageConnection | null = null;
     private socket: Socket | null = null;
@@ -541,6 +542,10 @@ export class CopilotClient {
             }
             this.cliProcess = null;
         }
+        if (this.cliStartTimeout) {
+            clearTimeout(this.cliStartTimeout);
+            this.cliStartTimeout = null;
+        }
 
         this.state = "disconnected";
         this.actualPort = null;
@@ -612,6 +617,11 @@ export class CopilotClient {
                 // Ignore errors
             }
             this.cliProcess = null;
+        }
+
+        if (this.cliStartTimeout) {
+            clearTimeout(this.cliStartTimeout);
+            this.cliStartTimeout = null;
         }
 
         this.state = "disconnected";
@@ -1526,7 +1536,7 @@ export class CopilotClient {
             });
 
             // Timeout after 10 seconds
-            setTimeout(() => {
+            this.cliStartTimeout = setTimeout(() => {
                 if (!resolved) {
                     resolved = true;
                     reject(new Error("Timeout waiting for CLI server to start"));
