@@ -47,6 +47,7 @@ export type {
     PermissionHandler,
     PermissionRequest,
     PermissionRequestResult,
+    ProviderConfig,
     ResumeSessionConfig,
     SectionOverride,
     SectionOverrideAction,
