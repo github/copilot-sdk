@@ -869,7 +869,8 @@ export class CopilotClient {
                 })),
                 provider: config.provider,
                 modelCapabilities: config.modelCapabilities,
-                requestPermission: config.onPermissionRequest !== defaultJoinSessionPermissionHandler,
+                requestPermission:
+                    config.onPermissionRequest !== defaultJoinSessionPermissionHandler,
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
