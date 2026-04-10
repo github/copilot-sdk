@@ -46,12 +46,18 @@ Use the GitHub API to fetch the release corresponding to `${{ github.event.input
 
 ### Step 1: Identify the version range
 
-1. The **new version** is the release tag: `${{ github.event.inputs.tag }}`
-2. Fetch the release metadata to determine if this is a **stable** or **prerelease** release.
-3. Determine the **previous version** to diff against:
+1. **Before any `git log`, `git show`, tag lookup, or commit-range query, first convert the workflow checkout into a full clone by running:**
+   ```bash
+   git fetch --prune --tags --unshallow origin || git fetch --prune --tags origin
+   ```
+   This is **mandatory**. The workflow checkout may be shallow, which can make tag ranges and commit counts incomplete or outright wrong. Do not trust local git history until this command succeeds.
+2. The **new version** is the release tag: `${{ github.event.inputs.tag }}`
+3. Fetch the release metadata to determine if this is a **stable** or **prerelease** release.
+4. Determine the **previous version** to diff against:
    - **For stable releases**: find the previous **stable** release (skip prereleases). Check `CHANGELOG.md` for the most recent version heading (`## [vX.Y.Z](...)`), or fall back to listing releases via the API. This means stable changelogs include ALL changes since the last stable release, even if some were already mentioned in prerelease notes.
    - **For prerelease releases**: find the most recent release of **any kind** (stable or prerelease) that precedes this one. This way prerelease notes only cover what's new since the last release.
-4. If no previous release exists at all, use the first commit in the repo as the starting point.
+5. If no previous release exists at all, use the first commit in the repo as the starting point.
+6. After identifying the range, verify it by listing the commits in `PREVIOUS_TAG..NEW_TAG`. If the local result still looks suspiciously small or inconsistent, do **not** proceed based on local git alone — use the GitHub tools as the source of truth for the commits and PRs in the release.
 
 ### Step 2: Gather changes
 
