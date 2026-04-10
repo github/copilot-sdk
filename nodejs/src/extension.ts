@@ -4,11 +4,7 @@
 
 import { CopilotClient } from "./client.js";
 import type { CopilotSession } from "./session.js";
-import type { PermissionHandler, PermissionRequestResult, ResumeSessionConfig } from "./types.js";
-
-const defaultJoinSessionPermissionHandler: PermissionHandler = (): PermissionRequestResult => ({
-    kind: "no-result",
-});
+import { defaultJoinSessionPermissionHandler, type PermissionHandler, type PermissionRequestResult, type ResumeSessionConfig } from "./types.js";
 
 export type JoinSessionConfig = Omit<ResumeSessionConfig, "onPermissionRequest"> & {
     onPermissionRequest?: PermissionHandler;

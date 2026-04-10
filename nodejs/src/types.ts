@@ -662,6 +662,10 @@ export type PermissionHandler = (
 
 export const approveAll: PermissionHandler = () => ({ kind: "approved" });
 
+export const defaultJoinSessionPermissionHandler: PermissionHandler = (): PermissionRequestResult => ({
+    kind: "no-result",
+});
+
 // ============================================================================
 // User Input Request Types
 // ============================================================================

@@ -55,6 +55,7 @@ import type {
     TraceContextProvider,
     TypedSessionLifecycleHandler,
 } from "./types.js";
+import { defaultJoinSessionPermissionHandler } from "./types.js";
 
 /**
  * Minimum protocol version this SDK can communicate with.
@@ -868,7 +869,7 @@ export class CopilotClient {
                 })),
                 provider: config.provider,
                 modelCapabilities: config.modelCapabilities,
-                requestPermission: true,
+                requestPermission: config.onPermissionRequest !== defaultJoinSessionPermissionHandler,
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
