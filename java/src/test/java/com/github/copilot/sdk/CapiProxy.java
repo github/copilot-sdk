@@ -89,7 +89,11 @@ public class CapiProxy implements AutoCloseable {
         }
 
         // Start the harness server using npx tsx
-        var pb = new ProcessBuilder("npx", "tsx", "server.ts");
+        // On Windows, npx is installed as npx.cmd which requires cmd /c to launch
+        boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
+        var pb = isWindows
+                ? new ProcessBuilder("cmd", "/c", "npx", "tsx", "server.ts")
+                : new ProcessBuilder("npx", "tsx", "server.ts");
         pb.directory(harnessDir.toFile());
         pb.redirectErrorStream(false);
 
