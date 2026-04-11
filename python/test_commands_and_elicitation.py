@@ -136,13 +136,13 @@ class TestCommands:
 
             # Simulate a command.execute broadcast event
             from copilot.generated.session_events import (
-                Data,
+                CommandExecuteData,
                 SessionEvent,
                 SessionEventType,
             )
 
             event = SessionEvent(
-                data=Data(
+                data=CommandExecuteData(
                     request_id="req-1",
                     command="/deploy production",
                     command_name="deploy",
@@ -203,13 +203,13 @@ class TestCommands:
             client._client.request = mock_request
 
             from copilot.generated.session_events import (
-                Data,
+                CommandExecuteData,
                 SessionEvent,
                 SessionEventType,
             )
 
             event = SessionEvent(
-                data=Data(
+                data=CommandExecuteData(
                     request_id="req-2",
                     command="/fail",
                     command_name="fail",
@@ -257,13 +257,13 @@ class TestCommands:
             client._client.request = mock_request
 
             from copilot.generated.session_events import (
-                Data,
+                CommandExecuteData,
                 SessionEvent,
                 SessionEventType,
             )
 
             event = SessionEvent(
-                data=Data(
+                data=CommandExecuteData(
                     request_id="req-3",
                     command="/unknown",
                     command_name="unknown",
@@ -519,13 +519,13 @@ class TestOnElicitationContext:
             client._client.request = mock_request
 
             from copilot.generated.session_events import (
-                Data,
+                ElicitationRequestedData,
                 SessionEvent,
                 SessionEventType,
             )
 
             event = SessionEvent(
-                data=Data(
+                data=ElicitationRequestedData(
                     request_id="req-elicit-1",
                     message="Pick a color",
                 ),
@@ -578,19 +578,18 @@ class TestOnElicitationContext:
             client._client.request = mock_request
 
             from copilot.generated.session_events import (
-                Data,
-                ElicitationRequestedSchema,
-                RequestedSchemaType,
+                ElicitationRequestedData,
+                RequestedSchema,
                 SessionEvent,
                 SessionEventType,
             )
 
             event = SessionEvent(
-                data=Data(
+                data=ElicitationRequestedData(
                     request_id="req-schema-1",
                     message="Fill in your details",
-                    requested_schema=ElicitationRequestedSchema(
-                        type=RequestedSchemaType.OBJECT,
+                    requested_schema=RequestedSchema(
+                        type="object",
                         properties={
                             "name": {"type": "string"},
                             "age": {"type": "number"},
@@ -638,14 +637,14 @@ class TestCapabilitiesChanged:
             session._set_capabilities({})
 
             from copilot.generated.session_events import (
-                CapabilitiesChangedUI,
-                Data,
+                UI,
+                CapabilitiesChangedData,
                 SessionEvent,
                 SessionEventType,
             )
 
             event = SessionEvent(
-                data=Data(ui=CapabilitiesChangedUI(elicitation=True)),
+                data=CapabilitiesChangedData(ui=UI(elicitation=True)),
                 id="evt-cap-1",
                 timestamp="2025-01-01T00:00:00Z",
                 type=SessionEventType.CAPABILITIES_CHANGED,

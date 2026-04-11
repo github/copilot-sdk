@@ -18,9 +18,9 @@ import {
     isObjectSchema,
     isVoidSchema,
     isRpcMethod,
+    isNodeFullyExperimental,
     postProcessSchema,
     writeGeneratedFile,
-    isNodeFullyExperimental,
     type ApiSchema,
     type RpcMethod,
 } from "./utils.js";
@@ -210,66 +210,1144 @@ function pythonParamsTypeName(method: RpcMethod): string {
 }
 
 // ── Session Events ──────────────────────────────────────────────────────────
+// ── Session Events (custom codegen — dedicated per-event payload types) ─────
+
+interface PyEventVariant {
+    typeName: string;
+    dataClassName: string;
+    dataSchema: JSONSchema7;
+    dataDescription?: string;
+}
+
+interface PyResolvedType {
+    annotation: string;
+    fromExpr: (expr: string) => string;
+    toExpr: (expr: string) => string;
+}
+
+interface PyCodegenCtx {
+    classes: string[];
+    enums: string[];
+    enumsByValues: Map<string, string>;
+    generatedNames: Set<string>;
+}
+
+function toEnumMemberName(value: string): string {
+    const cleaned = value
+        .replace(/([a-z])([A-Z])/g, "$1_$2")
+        .replace(/[^A-Za-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .toUpperCase();
+    if (!cleaned) {
+        return "VALUE";
+    }
+    return /^[0-9]/.test(cleaned) ? `VALUE_${cleaned}` : cleaned;
+}
+
+function wrapParser(resolved: PyResolvedType, arg = "x"): string {
+    return `lambda ${arg}: ${resolved.fromExpr(arg)}`;
+}
+
+function wrapSerializer(resolved: PyResolvedType, arg = "x"): string {
+    return `lambda ${arg}: ${resolved.toExpr(arg)}`;
+}
+
+function pyPrimitiveResolvedType(annotation: string, fromFn: string, toFn = fromFn): PyResolvedType {
+    return {
+        annotation,
+        fromExpr: (expr) => `${fromFn}(${expr})`,
+        toExpr: (expr) => `${toFn}(${expr})`,
+    };
+}
+
+function pyOptionalResolvedType(inner: PyResolvedType): PyResolvedType {
+    return {
+        annotation: `${inner.annotation} | None`,
+        fromExpr: (expr) => `from_union([from_none, ${wrapParser(inner)}], ${expr})`,
+        toExpr: (expr) => `from_union([from_none, ${wrapSerializer(inner)}], ${expr})`,
+    };
+}
+
+function pyAnyResolvedType(): PyResolvedType {
+    return {
+        annotation: "Any",
+        fromExpr: (expr) => expr,
+        toExpr: (expr) => expr,
+    };
+}
+
+function extractPyEventVariants(schema: JSONSchema7): PyEventVariant[] {
+    const sessionEvent = schema.definitions?.SessionEvent as JSONSchema7;
+    if (!sessionEvent?.anyOf) {
+        throw new Error("Schema must have SessionEvent definition with anyOf");
+    }
+
+    return (sessionEvent.anyOf as JSONSchema7[])
+        .map((variant) => {
+            if (typeof variant !== "object" || !variant.properties) {
+                throw new Error("Invalid event variant");
+            }
+
+            const typeSchema = variant.properties.type as JSONSchema7;
+            const typeName = typeSchema?.const as string;
+            if (!typeName) {
+                throw new Error("Event variant must define type.const");
+            }
+
+            const dataSchema = (variant.properties.data as JSONSchema7) || {};
+            return {
+                typeName,
+                dataClassName: `${toPascalCase(typeName)}Data`,
+                dataSchema,
+                dataDescription: dataSchema.description,
+            };
+        });
+}
+
+function findPyDiscriminator(
+    variants: JSONSchema7[]
+): { property: string; mapping: Map<string, JSONSchema7> } | null {
+    if (variants.length === 0) {
+        return null;
+    }
+
+    const firstVariant = variants[0];
+    if (!firstVariant.properties) {
+        return null;
+    }
+
+    for (const [propName, propSchema] of Object.entries(firstVariant.properties)) {
+        if (typeof propSchema !== "object") {
+            continue;
+        }
+        if ((propSchema as JSONSchema7).const === undefined) {
+            continue;
+        }
+
+        const mapping = new Map<string, JSONSchema7>();
+        let valid = true;
+        for (const variant of variants) {
+            if (!variant.properties) {
+                valid = false;
+                break;
+            }
+
+            const variantProp = variant.properties[propName];
+            if (typeof variantProp !== "object" || (variantProp as JSONSchema7).const === undefined) {
+                valid = false;
+                break;
+            }
+
+            mapping.set(String((variantProp as JSONSchema7).const), variant);
+        }
+
+        if (valid && mapping.size === variants.length) {
+            return { property: propName, mapping };
+        }
+    }
+
+    return null;
+}
+
+function getOrCreatePyEnum(
+    enumName: string,
+    values: string[],
+    ctx: PyCodegenCtx,
+    description?: string
+): string {
+    const valuesKey = [...values].sort().join("|");
+    const existing = ctx.enumsByValues.get(valuesKey);
+    if (existing) {
+        return existing;
+    }
+
+    const lines: string[] = [];
+    if (description) {
+        lines.push(`class ${enumName}(Enum):`);
+        lines.push(`    """${description.replace(/"/g, '\\"')}"""`);
+    } else {
+        lines.push(`class ${enumName}(Enum):`);
+    }
+    for (const value of values) {
+        lines.push(`    ${toEnumMemberName(value)} = ${JSON.stringify(value)}`);
+    }
+    ctx.enumsByValues.set(valuesKey, enumName);
+    ctx.enums.push(lines.join("\n"));
+    return enumName;
+}
+
+function resolvePyPropertyType(
+    propSchema: JSONSchema7,
+    parentTypeName: string,
+    jsonPropName: string,
+    isRequired: boolean,
+    ctx: PyCodegenCtx
+): PyResolvedType {
+    const nestedName = parentTypeName + toPascalCase(jsonPropName);
+
+    if (propSchema.allOf && propSchema.allOf.length === 1 && typeof propSchema.allOf[0] === "object") {
+        return resolvePyPropertyType(
+            propSchema.allOf[0] as JSONSchema7,
+            parentTypeName,
+            jsonPropName,
+            isRequired,
+            ctx
+        );
+    }
+
+    if (propSchema.anyOf) {
+        const variants = (propSchema.anyOf as JSONSchema7[]).filter((item) => typeof item === "object");
+        const nonNull = variants.filter((item) => item.type !== "null");
+        const hasNull = variants.length !== nonNull.length;
+
+        if (nonNull.length === 1) {
+            const inner = resolvePyPropertyType(nonNull[0], parentTypeName, jsonPropName, true, ctx);
+            return hasNull || !isRequired ? pyOptionalResolvedType(inner) : inner;
+        }
+
+        if (nonNull.length > 1) {
+            const discriminator = findPyDiscriminator(nonNull);
+            if (discriminator) {
+                emitPyFlatDiscriminatedUnion(
+                    nestedName,
+                    discriminator.property,
+                    discriminator.mapping,
+                    ctx,
+                    propSchema.description
+                );
+                const resolved: PyResolvedType = {
+                    annotation: nestedName,
+                    fromExpr: (expr) => `${nestedName}.from_dict(${expr})`,
+                    toExpr: (expr) => `to_class(${nestedName}, ${expr})`,
+                };
+                return hasNull || !isRequired ? pyOptionalResolvedType(resolved) : resolved;
+            }
+
+            return pyAnyResolvedType();
+        }
+    }
+
+    if (propSchema.enum && Array.isArray(propSchema.enum) && propSchema.enum.every((value) => typeof value === "string")) {
+        const enumType = getOrCreatePyEnum(
+            nestedName,
+            propSchema.enum as string[],
+            ctx,
+            propSchema.description
+        );
+        const resolved: PyResolvedType = {
+            annotation: enumType,
+            fromExpr: (expr) => `parse_enum(${enumType}, ${expr})`,
+            toExpr: (expr) => `to_enum(${enumType}, ${expr})`,
+        };
+        return isRequired ? resolved : pyOptionalResolvedType(resolved);
+    }
+
+    if (propSchema.const !== undefined) {
+        if (typeof propSchema.const === "string") {
+            const resolved = pyPrimitiveResolvedType("str", "from_str");
+            return isRequired ? resolved : pyOptionalResolvedType(resolved);
+        }
+        if (typeof propSchema.const === "boolean") {
+            const resolved = pyPrimitiveResolvedType("bool", "from_bool");
+            return isRequired ? resolved : pyOptionalResolvedType(resolved);
+        }
+        if (typeof propSchema.const === "number") {
+            const resolved = Number.isInteger(propSchema.const)
+                ? pyPrimitiveResolvedType("int", "from_int", "to_int")
+                : pyPrimitiveResolvedType("float", "from_float", "to_float");
+            return isRequired ? resolved : pyOptionalResolvedType(resolved);
+        }
+    }
+
+    const type = propSchema.type;
+    const format = propSchema.format;
+
+    if (Array.isArray(type)) {
+        const nonNullTypes = type.filter((value) => value !== "null");
+        if (nonNullTypes.length === 1) {
+            const inner = resolvePyPropertyType(
+                { ...propSchema, type: nonNullTypes[0] as JSONSchema7["type"] },
+                parentTypeName,
+                jsonPropName,
+                true,
+                ctx
+            );
+            return pyOptionalResolvedType(inner);
+        }
+    }
+
+    if (type === "string") {
+        if (format === "date-time") {
+            const resolved = pyPrimitiveResolvedType("datetime", "from_datetime", "to_datetime");
+            return isRequired ? resolved : pyOptionalResolvedType(resolved);
+        }
+        if (format === "uuid") {
+            const resolved = pyPrimitiveResolvedType("UUID", "from_uuid", "to_uuid");
+            return isRequired ? resolved : pyOptionalResolvedType(resolved);
+        }
+        const resolved = pyPrimitiveResolvedType("str", "from_str");
+        return isRequired ? resolved : pyOptionalResolvedType(resolved);
+    }
+
+    if (type === "integer") {
+        const resolved = pyPrimitiveResolvedType("int", "from_int", "to_int");
+        return isRequired ? resolved : pyOptionalResolvedType(resolved);
+    }
+
+    if (type === "number") {
+        const resolved = pyPrimitiveResolvedType("float", "from_float", "to_float");
+        return isRequired ? resolved : pyOptionalResolvedType(resolved);
+    }
+
+    if (type === "boolean") {
+        const resolved = pyPrimitiveResolvedType("bool", "from_bool");
+        return isRequired ? resolved : pyOptionalResolvedType(resolved);
+    }
+
+    if (type === "array") {
+        const items = propSchema.items as JSONSchema7 | undefined;
+        if (!items) {
+            const resolved: PyResolvedType = {
+                annotation: "list[Any]",
+                fromExpr: (expr) => `from_list(lambda x: x, ${expr})`,
+                toExpr: (expr) => `from_list(lambda x: x, ${expr})`,
+            };
+            return isRequired ? resolved : pyOptionalResolvedType(resolved);
+        }
+
+        if (items.allOf && items.allOf.length === 1 && typeof items.allOf[0] === "object") {
+            return resolvePyPropertyType(
+                { ...propSchema, items: items.allOf[0] as JSONSchema7 },
+                parentTypeName,
+                jsonPropName,
+                isRequired,
+                ctx
+            );
+        }
+
+        if (items.anyOf) {
+            const itemVariants = (items.anyOf as JSONSchema7[])
+                .filter((variant) => typeof variant === "object")
+                .filter((variant) => variant.type !== "null");
+            const discriminator = findPyDiscriminator(itemVariants);
+            if (discriminator) {
+                const itemTypeName = nestedName + "Item";
+                emitPyFlatDiscriminatedUnion(
+                    itemTypeName,
+                    discriminator.property,
+                    discriminator.mapping,
+                    ctx,
+                    items.description
+                );
+                const resolved: PyResolvedType = {
+                    annotation: `list[${itemTypeName}]`,
+                    fromExpr: (expr) => `from_list(${itemTypeName}.from_dict, ${expr})`,
+                    toExpr: (expr) => `from_list(lambda x: to_class(${itemTypeName}, x), ${expr})`,
+                };
+                return isRequired ? resolved : pyOptionalResolvedType(resolved);
+            }
+        }
+
+        const itemType = resolvePyPropertyType(items, parentTypeName, jsonPropName + "Item", true, ctx);
+        const resolved: PyResolvedType = {
+            annotation: `list[${itemType.annotation}]`,
+            fromExpr: (expr) => `from_list(${wrapParser(itemType)}, ${expr})`,
+            toExpr: (expr) => `from_list(${wrapSerializer(itemType)}, ${expr})`,
+        };
+        return isRequired ? resolved : pyOptionalResolvedType(resolved);
+    }
+
+    if (type === "object" || (propSchema.properties && !type)) {
+        if (propSchema.properties) {
+            emitPyClass(nestedName, propSchema, ctx, propSchema.description);
+            const resolved: PyResolvedType = {
+                annotation: nestedName,
+                fromExpr: (expr) => `${nestedName}.from_dict(${expr})`,
+                toExpr: (expr) => `to_class(${nestedName}, ${expr})`,
+            };
+            return isRequired ? resolved : pyOptionalResolvedType(resolved);
+        }
+
+        if (propSchema.additionalProperties) {
+            if (
+                typeof propSchema.additionalProperties === "object" &&
+                Object.keys(propSchema.additionalProperties as Record<string, unknown>).length > 0
+            ) {
+                const valueType = resolvePyPropertyType(
+                    propSchema.additionalProperties as JSONSchema7,
+                    parentTypeName,
+                    jsonPropName + "Value",
+                    true,
+                    ctx
+                );
+                const resolved: PyResolvedType = {
+                    annotation: `dict[str, ${valueType.annotation}]`,
+                    fromExpr: (expr) => `from_dict(${wrapParser(valueType)}, ${expr})`,
+                    toExpr: (expr) => `from_dict(${wrapSerializer(valueType)}, ${expr})`,
+                };
+                return isRequired ? resolved : pyOptionalResolvedType(resolved);
+            }
+
+            const resolved: PyResolvedType = {
+                annotation: "dict[str, Any]",
+                fromExpr: (expr) => `from_dict(lambda x: x, ${expr})`,
+                toExpr: (expr) => `from_dict(lambda x: x, ${expr})`,
+            };
+            return isRequired ? resolved : pyOptionalResolvedType(resolved);
+        }
+
+        return pyAnyResolvedType();
+    }
+
+    return pyAnyResolvedType();
+}
+
+function emitPyClass(
+    typeName: string,
+    schema: JSONSchema7,
+    ctx: PyCodegenCtx,
+    description?: string
+): void {
+    if (ctx.generatedNames.has(typeName)) {
+        return;
+    }
+    ctx.generatedNames.add(typeName);
+
+    const required = new Set(schema.required || []);
+    const fieldEntries = Object.entries(schema.properties || {}).filter(
+        ([, value]) => typeof value === "object"
+    ) as Array<[string, JSONSchema7]>;
+    const orderedFieldEntries = [
+        ...fieldEntries.filter(([name]) => required.has(name)),
+        ...fieldEntries.filter(([name]) => !required.has(name)),
+    ];
+
+    const fieldInfos = orderedFieldEntries.map(([propName, propSchema]) => {
+        const isRequired = required.has(propName);
+        const resolved = resolvePyPropertyType(propSchema, typeName, propName, isRequired, ctx);
+        return {
+            jsonName: propName,
+            fieldName: toSnakeCase(propName),
+            isRequired,
+            resolved,
+        };
+    });
+
+    const lines: string[] = [];
+    lines.push(`@dataclass`);
+    lines.push(`class ${typeName}:`);
+    if (description || schema.description) {
+        lines.push(`    """${(description || schema.description || "").replace(/"/g, '\\"')}"""`);
+    }
+
+    if (fieldInfos.length === 0) {
+        lines.push(`    @staticmethod`);
+        lines.push(`    def from_dict(obj: Any) -> "${typeName}":`);
+        lines.push(`        assert isinstance(obj, dict)`);
+        lines.push(`        return ${typeName}()`);
+        lines.push(``);
+        lines.push(`    def to_dict(self) -> dict:`);
+        lines.push(`        return {}`);
+        ctx.classes.push(lines.join("\n"));
+        return;
+    }
+
+    for (const field of fieldInfos) {
+        const suffix = field.isRequired ? "" : " = None";
+        lines.push(`    ${field.fieldName}: ${field.resolved.annotation}${suffix}`);
+    }
+
+    lines.push(``);
+    lines.push(`    @staticmethod`);
+    lines.push(`    def from_dict(obj: Any) -> "${typeName}":`);
+    lines.push(`        assert isinstance(obj, dict)`);
+    for (const field of fieldInfos) {
+        lines.push(
+            `        ${field.fieldName} = ${field.resolved.fromExpr(`obj.get(${JSON.stringify(field.jsonName)})`)}`
+        );
+    }
+    lines.push(`        return ${typeName}(`);
+    for (const field of fieldInfos) {
+        lines.push(`            ${field.fieldName}=${field.fieldName},`);
+    }
+    lines.push(`        )`);
+    lines.push(``);
+    lines.push(`    def to_dict(self) -> dict:`);
+    lines.push(`        result: dict = {}`);
+    for (const field of fieldInfos) {
+        const valueExpr = field.resolved.toExpr(`self.${field.fieldName}`);
+        if (field.isRequired) {
+            lines.push(`        result[${JSON.stringify(field.jsonName)}] = ${valueExpr}`);
+        } else {
+            lines.push(`        if self.${field.fieldName} is not None:`);
+            lines.push(`            result[${JSON.stringify(field.jsonName)}] = ${valueExpr}`);
+        }
+    }
+    lines.push(`        return result`);
+
+    ctx.classes.push(lines.join("\n"));
+}
+
+function emitPyFlatDiscriminatedUnion(
+    typeName: string,
+    discriminatorProp: string,
+    mapping: Map<string, JSONSchema7>,
+    ctx: PyCodegenCtx,
+    description?: string
+): void {
+    if (ctx.generatedNames.has(typeName)) {
+        return;
+    }
+    ctx.generatedNames.add(typeName);
+
+    const allProps = new Map<string, { schema: JSONSchema7; requiredInAll: boolean }>();
+    for (const [, variant] of mapping) {
+        const required = new Set(variant.required || []);
+        for (const [propName, propSchema] of Object.entries(variant.properties || {})) {
+            if (typeof propSchema !== "object") {
+                continue;
+            }
+            if (!allProps.has(propName)) {
+                allProps.set(propName, {
+                    schema: propSchema as JSONSchema7,
+                    requiredInAll: required.has(propName),
+                });
+            } else if (!required.has(propName)) {
+                allProps.get(propName)!.requiredInAll = false;
+            }
+        }
+    }
+
+    const variantCount = mapping.size;
+    for (const [propName, info] of allProps) {
+        let presentCount = 0;
+        for (const [, variant] of mapping) {
+            if (variant.properties && propName in variant.properties) {
+                presentCount++;
+            }
+        }
+        if (presentCount < variantCount) {
+            info.requiredInAll = false;
+        }
+    }
+
+    const discriminatorEnumName = getOrCreatePyEnum(
+        typeName + toPascalCase(discriminatorProp),
+        [...mapping.keys()],
+        ctx,
+        description ? `${description} discriminator` : `${typeName} discriminator`
+    );
+
+    const fieldEntries: Array<[string, JSONSchema7, boolean]> = [
+        [
+            discriminatorProp,
+            {
+                type: "string",
+                enum: [...mapping.keys()],
+            },
+            true,
+        ],
+        ...[...allProps.entries()]
+            .filter(([propName]) => propName !== discriminatorProp)
+            .map(([propName, info]) => [propName, info.schema, info.requiredInAll] as [string, JSONSchema7, boolean]),
+    ];
+
+    const orderedFieldEntries = [
+        ...fieldEntries.filter(([, , requiredInAll]) => requiredInAll),
+        ...fieldEntries.filter(([, , requiredInAll]) => !requiredInAll),
+    ];
+
+    const fieldInfos = orderedFieldEntries.map(([propName, propSchema, requiredInAll]) => {
+        let resolved: PyResolvedType;
+        if (propName === discriminatorProp) {
+            resolved = {
+                annotation: discriminatorEnumName,
+                fromExpr: (expr) => `parse_enum(${discriminatorEnumName}, ${expr})`,
+                toExpr: (expr) => `to_enum(${discriminatorEnumName}, ${expr})`,
+            };
+        } else {
+            resolved = resolvePyPropertyType(propSchema, typeName, propName, requiredInAll, ctx);
+        }
+
+        return {
+            jsonName: propName,
+            fieldName: toSnakeCase(propName),
+            isRequired: requiredInAll,
+            resolved,
+        };
+    });
+
+    const lines: string[] = [];
+    lines.push(`@dataclass`);
+    lines.push(`class ${typeName}:`);
+    if (description) {
+        lines.push(`    """${description.replace(/"/g, '\\"')}"""`);
+    }
+    for (const field of fieldInfos) {
+        const suffix = field.isRequired ? "" : " = None";
+        lines.push(`    ${field.fieldName}: ${field.resolved.annotation}${suffix}`);
+    }
+    lines.push(``);
+    lines.push(`    @staticmethod`);
+    lines.push(`    def from_dict(obj: Any) -> "${typeName}":`);
+    lines.push(`        assert isinstance(obj, dict)`);
+    for (const field of fieldInfos) {
+        lines.push(
+            `        ${field.fieldName} = ${field.resolved.fromExpr(`obj.get(${JSON.stringify(field.jsonName)})`)}`
+        );
+    }
+    lines.push(`        return ${typeName}(`);
+    for (const field of fieldInfos) {
+        lines.push(`            ${field.fieldName}=${field.fieldName},`);
+    }
+    lines.push(`        )`);
+    lines.push(``);
+    lines.push(`    def to_dict(self) -> dict:`);
+    lines.push(`        result: dict = {}`);
+    for (const field of fieldInfos) {
+        const valueExpr = field.resolved.toExpr(`self.${field.fieldName}`);
+        if (field.isRequired) {
+            lines.push(`        result[${JSON.stringify(field.jsonName)}] = ${valueExpr}`);
+        } else {
+            lines.push(`        if self.${field.fieldName} is not None:`);
+            lines.push(`            result[${JSON.stringify(field.jsonName)}] = ${valueExpr}`);
+        }
+    }
+    lines.push(`        return result`);
+
+    ctx.classes.push(lines.join("\n"));
+}
+
+function generatePythonSessionEventsCode(schema: JSONSchema7): string {
+    const variants = extractPyEventVariants(schema);
+    const ctx: PyCodegenCtx = {
+        classes: [],
+        enums: [],
+        enumsByValues: new Map(),
+        generatedNames: new Set(),
+    };
+
+    for (const variant of variants) {
+        emitPyClass(variant.dataClassName, variant.dataSchema, ctx, variant.dataDescription);
+    }
+
+    const eventTypeLines: string[] = [];
+    eventTypeLines.push(`class SessionEventType(Enum):`);
+    for (const variant of variants) {
+        eventTypeLines.push(`    ${toEnumMemberName(variant.typeName)} = ${JSON.stringify(variant.typeName)}`);
+    }
+    eventTypeLines.push(`    UNKNOWN = "unknown"`);
+    eventTypeLines.push(``);
+    eventTypeLines.push(`    @classmethod`);
+    eventTypeLines.push(`    def _missing_(cls, value: object) -> "SessionEventType":`);
+    eventTypeLines.push(`        return cls.UNKNOWN`);
+
+    const out: string[] = [];
+    out.push(`"""`);
+    out.push(`AUTO-GENERATED FILE - DO NOT EDIT`);
+    out.push(`Generated from: session-events.schema.json`);
+    out.push(`"""`);
+    out.push(``);
+    out.push(`from __future__ import annotations`);
+    out.push(``);
+    out.push(`from collections.abc import Callable`);
+    out.push(`from dataclasses import dataclass`);
+    out.push(`from datetime import datetime`);
+    out.push(`from enum import Enum`);
+    out.push(`from typing import Any, TypeVar, cast`);
+    out.push(`from uuid import UUID`);
+    out.push(``);
+    out.push(`import dateutil.parser`);
+    out.push(``);
+    out.push(`T = TypeVar("T")`);
+    out.push(`EnumT = TypeVar("EnumT", bound=Enum)`);
+    out.push(``);
+    out.push(``);
+    out.push(`def from_str(x: Any) -> str:`);
+    out.push(`    assert isinstance(x, str)`);
+    out.push(`    return x`);
+    out.push(``);
+    out.push(``);
+    out.push(`def from_int(x: Any) -> int:`);
+    out.push(`    assert isinstance(x, int) and not isinstance(x, bool)`);
+    out.push(`    return x`);
+    out.push(``);
+    out.push(``);
+    out.push(`def to_int(x: Any) -> int:`);
+    out.push(`    assert isinstance(x, int) and not isinstance(x, bool)`);
+    out.push(`    return x`);
+    out.push(``);
+    out.push(``);
+    out.push(`def from_float(x: Any) -> float:`);
+    out.push(`    assert isinstance(x, (float, int)) and not isinstance(x, bool)`);
+    out.push(`    return float(x)`);
+    out.push(``);
+    out.push(``);
+    out.push(`def to_float(x: Any) -> float:`);
+    out.push(`    assert isinstance(x, (float, int)) and not isinstance(x, bool)`);
+    out.push(`    return float(x)`);
+    out.push(``);
+    out.push(``);
+    out.push(`def from_bool(x: Any) -> bool:`);
+    out.push(`    assert isinstance(x, bool)`);
+    out.push(`    return x`);
+    out.push(``);
+    out.push(``);
+    out.push(`def from_none(x: Any) -> Any:`);
+    out.push(`    assert x is None`);
+    out.push(`    return x`);
+    out.push(``);
+    out.push(``);
+    out.push(`def from_union(fs: list[Callable[[Any], T]], x: Any) -> T:`);
+    out.push(`    for f in fs:`);
+    out.push(`        try:`);
+    out.push(`            return f(x)`);
+    out.push(`        except Exception:`);
+    out.push(`            pass`);
+    out.push(`    assert False`);
+    out.push(``);
+    out.push(``);
+    out.push(`def from_list(f: Callable[[Any], T], x: Any) -> list[T]:`);
+    out.push(`    assert isinstance(x, list)`);
+    out.push(`    return [f(item) for item in x]`);
+    out.push(``);
+    out.push(``);
+    out.push(`def from_dict(f: Callable[[Any], T], x: Any) -> dict[str, T]:`);
+    out.push(`    assert isinstance(x, dict)`);
+    out.push(`    return {key: f(value) for key, value in x.items()}`);
+    out.push(``);
+    out.push(``);
+    out.push(`def from_datetime(x: Any) -> datetime:`);
+    out.push(`    return dateutil.parser.parse(from_str(x))`);
+    out.push(``);
+    out.push(``);
+    out.push(`def to_datetime(x: datetime) -> str:`);
+    out.push(`    return x.isoformat()`);
+    out.push(``);
+    out.push(``);
+    out.push(`def from_uuid(x: Any) -> UUID:`);
+    out.push(`    return UUID(from_str(x))`);
+    out.push(``);
+    out.push(``);
+    out.push(`def to_uuid(x: UUID) -> str:`);
+    out.push(`    return str(x)`);
+    out.push(``);
+    out.push(``);
+    out.push(`def parse_enum(c: type[EnumT], x: Any) -> EnumT:`);
+    out.push(`    assert isinstance(x, str)`);
+    out.push(`    return c(x)`);
+    out.push(``);
+    out.push(``);
+    out.push(`def to_class(c: type[T], x: Any) -> dict:`);
+    out.push(`    assert isinstance(x, c)`);
+    out.push(`    return cast(Any, x).to_dict()`);
+    out.push(``);
+    out.push(``);
+    out.push(`def to_enum(c: type[EnumT], x: Any) -> str:`);
+    out.push(`    assert isinstance(x, c)`);
+    out.push(`    return cast(str, x.value)`);
+    out.push(``);
+    out.push(``);
+    out.push(eventTypeLines.join("\n"));
+    out.push(``);
+    out.push(``);
+    out.push(`@dataclass`);
+    out.push(`class RawSessionEventData:`);
+    out.push(`    raw: Any`);
+    out.push(``);
+    out.push(`    @staticmethod`);
+    out.push(`    def from_dict(obj: Any) -> "RawSessionEventData":`);
+    out.push(`        return RawSessionEventData(obj)`);
+    out.push(``);
+    out.push(`    def to_dict(self) -> Any:`);
+    out.push(`        return self.raw`);
+    out.push(``);
+    out.push(``);
+    out.push(`def _compat_to_python_key(name: str) -> str:`);
+    out.push(`    result: list[str] = []`);
+    out.push(`    for index, char in enumerate(name.replace(".", "_")):`);
+    out.push(
+        `        if char.isupper() and index > 0 and (not name[index - 1].isupper() or (index + 1 < len(name) and name[index + 1].islower())):`
+    );
+    out.push(`            result.append("_")`);
+    out.push(`        result.append(char.lower())`);
+    out.push(`    return "".join(result)`);
+    out.push(``);
+    out.push(``);
+    out.push(`def _compat_to_json_key(name: str) -> str:`);
+    out.push(`    parts = name.split("_")`);
+    out.push(`    if not parts:`);
+    out.push(`        return name`);
+    out.push(`    return parts[0] + "".join(part[:1].upper() + part[1:] for part in parts[1:])`);
+    out.push(``);
+    out.push(``);
+    out.push(`def _compat_to_json_value(value: Any) -> Any:`);
+    out.push(`    if hasattr(value, "to_dict"):`);
+    out.push(`        return cast(Any, value).to_dict()`);
+    out.push(`    if isinstance(value, Enum):`);
+    out.push(`        return value.value`);
+    out.push(`    if isinstance(value, datetime):`);
+    out.push(`        return value.isoformat()`);
+    out.push(`    if isinstance(value, UUID):`);
+    out.push(`        return str(value)`);
+    out.push(`    if isinstance(value, list):`);
+    out.push(`        return [_compat_to_json_value(item) for item in value]`);
+    out.push(`    if isinstance(value, dict):`);
+    out.push(`        return {key: _compat_to_json_value(item) for key, item in value.items()}`);
+    out.push(`    return value`);
+    out.push(``);
+    out.push(``);
+    out.push(`def _compat_from_json_value(value: Any) -> Any:`);
+    out.push(`    return value`);
+    out.push(``);
+    out.push(``);
+    out.push(`class Data:`);
+    out.push(`    """Backward-compatible shim for manually constructed event payloads."""`);
+    out.push(``);
+    out.push(`    def __init__(self, **kwargs: Any):`);
+    out.push(`        self._values = {key: _compat_from_json_value(value) for key, value in kwargs.items()}`);
+    out.push(`        for key, value in self._values.items():`);
+    out.push(`            setattr(self, key, value)`);
+    out.push(``);
+    out.push(`    @staticmethod`);
+    out.push(`    def from_dict(obj: Any) -> "Data":`);
+    out.push(`        assert isinstance(obj, dict)`);
+    out.push(
+        `        return Data(**{_compat_to_python_key(key): _compat_from_json_value(value) for key, value in obj.items()})`
+    );
+    out.push(``);
+    out.push(`    def to_dict(self) -> dict:`);
+    out.push(
+        `        return {_compat_to_json_key(key): _compat_to_json_value(value) for key, value in self._values.items() if value is not None}`
+    );
+    out.push(``);
+    out.push(``);
+    for (const classDef of ctx.classes) {
+        out.push(classDef);
+        out.push(``);
+        out.push(``);
+    }
+    for (const enumDef of ctx.enums) {
+        out.push(enumDef);
+        out.push(``);
+        out.push(``);
+    }
+
+    const sessionEventDataTypes = [
+        ...variants.map((variant) => variant.dataClassName),
+        "RawSessionEventData",
+        "Data",
+    ];
+    out.push(`SessionEventData = ${sessionEventDataTypes.join(" | ")}`);
+    out.push(``);
+    out.push(``);
+    out.push(`@dataclass`);
+    out.push(`class SessionEvent:`);
+    out.push(`    data: SessionEventData`);
+    out.push(`    id: UUID`);
+    out.push(`    timestamp: datetime`);
+    out.push(`    type: SessionEventType`);
+    out.push(`    ephemeral: bool | None = None`);
+    out.push(`    parent_id: UUID | None = None`);
+    out.push(`    raw_type: str | None = None`);
+    out.push(``);
+    out.push(`    @staticmethod`);
+    out.push(`    def from_dict(obj: Any) -> "SessionEvent":`);
+    out.push(`        assert isinstance(obj, dict)`);
+    out.push(`        raw_type = from_str(obj.get("type"))`);
+    out.push(`        event_type = SessionEventType(raw_type)`);
+    out.push(`        event_id = from_uuid(obj.get("id"))`);
+    out.push(`        timestamp = from_datetime(obj.get("timestamp"))`);
+    out.push(`        ephemeral = from_union([from_bool, from_none], obj.get("ephemeral"))`);
+    out.push(`        parent_id = from_union([from_none, from_uuid], obj.get("parentId"))`);
+    out.push(`        data_obj = obj.get("data")`);
+    out.push(`        match event_type:`);
+    for (const variant of variants) {
+        out.push(
+            `            case SessionEventType.${toEnumMemberName(variant.typeName)}: data = ${variant.dataClassName}.from_dict(data_obj)`
+        );
+    }
+    out.push(`            case _: data = RawSessionEventData.from_dict(data_obj)`);
+    out.push(`        return SessionEvent(`);
+    out.push(`            data=data,`);
+    out.push(`            id=event_id,`);
+    out.push(`            timestamp=timestamp,`);
+    out.push(`            type=event_type,`);
+    out.push(`            ephemeral=ephemeral,`);
+    out.push(`            parent_id=parent_id,`);
+    out.push(`            raw_type=raw_type if event_type == SessionEventType.UNKNOWN else None,`);
+    out.push(`        )`);
+    out.push(``);
+    out.push(`    def to_dict(self) -> dict:`);
+    out.push(`        result: dict = {}`);
+    out.push(`        result["data"] = self.data.to_dict()`);
+    out.push(`        result["id"] = to_uuid(self.id)`);
+    out.push(`        result["timestamp"] = to_datetime(self.timestamp)`);
+    out.push(
+        `        result["type"] = self.raw_type if self.type == SessionEventType.UNKNOWN and self.raw_type is not None else to_enum(SessionEventType, self.type)`
+    );
+    out.push(`        if self.ephemeral is not None:`);
+    out.push(`            result["ephemeral"] = from_bool(self.ephemeral)`);
+    out.push(`        result["parentId"] = from_union([from_none, to_uuid], self.parent_id)`);
+    out.push(`        return result`);
+    out.push(``);
+    out.push(``);
+    out.push(`def session_event_from_dict(s: Any) -> SessionEvent:`);
+    out.push(`    return SessionEvent.from_dict(s)`);
+    out.push(``);
+    out.push(``);
+    out.push(`def session_event_to_dict(x: SessionEvent) -> Any:`);
+    out.push(`    return x.to_dict()`);
+    out.push(``);
+    out.push(``);
+    out.push(`# Compatibility shims for pre-refactor top-level generated types.`);
+    out.push(`class RequestedSchemaType(str, Enum):`);
+    out.push(`    OBJECT = "object"`);
+    out.push(``);
+    out.push(``);
+    out.push(`@dataclass`);
+    out.push(`class ErrorClass:`);
+    out.push(`    """Backward-compatible shim for generic error payloads."""`);
+    out.push(`    message: str`);
+    out.push(`    code: str | None = None`);
+    out.push(`    stack: str | None = None`);
+    out.push(``);
+    out.push(`    @staticmethod`);
+    out.push(`    def from_dict(obj: Any) -> "ErrorClass":`);
+    out.push(`        assert isinstance(obj, dict)`);
+    out.push(`        message = from_str(obj.get("message"))`);
+    out.push(`        code = from_union([from_none, lambda x: from_str(x)], obj.get("code"))`);
+    out.push(`        stack = from_union([from_none, lambda x: from_str(x)], obj.get("stack"))`);
+    out.push(`        return ErrorClass(`);
+    out.push(`            message=message,`);
+    out.push(`            code=code,`);
+    out.push(`            stack=stack,`);
+    out.push(`        )`);
+    out.push(``);
+    out.push(`    def to_dict(self) -> dict:`);
+    out.push(`        result: dict = {}`);
+    out.push(`        result["message"] = from_str(self.message)`);
+    out.push(`        if self.code is not None:`);
+    out.push(`            result["code"] = from_union([from_none, lambda x: from_str(x)], self.code)`);
+    out.push(`        if self.stack is not None:`);
+    out.push(`            result["stack"] = from_union([from_none, lambda x: from_str(x)], self.stack)`);
+    out.push(`        return result`);
+    out.push(``);
+    out.push(``);
+    out.push(`@dataclass`);
+    out.push(`class Resource:`);
+    out.push(`    """Backward-compatible shim for embedded tool result resources."""`);
+    out.push(`    uri: str`);
+    out.push(`    mime_type: str | None = None`);
+    out.push(`    text: str | None = None`);
+    out.push(`    blob: str | None = None`);
+    out.push(``);
+    out.push(`    @staticmethod`);
+    out.push(`    def from_dict(obj: Any) -> "Resource":`);
+    out.push(`        assert isinstance(obj, dict)`);
+    out.push(`        uri = from_str(obj.get("uri"))`);
+    out.push(`        mime_type = from_union([from_none, lambda x: from_str(x)], obj.get("mimeType"))`);
+    out.push(`        text = from_union([from_none, lambda x: from_str(x)], obj.get("text"))`);
+    out.push(`        blob = from_union([from_none, lambda x: from_str(x)], obj.get("blob"))`);
+    out.push(`        return Resource(`);
+    out.push(`            uri=uri,`);
+    out.push(`            mime_type=mime_type,`);
+    out.push(`            text=text,`);
+    out.push(`            blob=blob,`);
+    out.push(`        )`);
+    out.push(``);
+    out.push(`    def to_dict(self) -> dict:`);
+    out.push(`        result: dict = {}`);
+    out.push(`        result["uri"] = from_str(self.uri)`);
+    out.push(`        if self.mime_type is not None:`);
+    out.push(`            result["mimeType"] = from_union([from_none, lambda x: from_str(x)], self.mime_type)`);
+    out.push(`        if self.text is not None:`);
+    out.push(`            result["text"] = from_union([from_none, lambda x: from_str(x)], self.text)`);
+    out.push(`        if self.blob is not None:`);
+    out.push(`            result["blob"] = from_union([from_none, lambda x: from_str(x)], self.blob)`);
+    out.push(`        return result`);
+    out.push(``);
+    out.push(``);
+    out.push(`ContentType = ToolExecutionCompleteDataResultContentsItemType`);
+    out.push(`Theme = ToolExecutionCompleteDataResultContentsItemIconsItemTheme`);
+    out.push(`Icon = ToolExecutionCompleteDataResultContentsItemIconsItem`);
+    out.push(`ResultKind = PermissionCompletedDataResultKind`);
+    out.push(``);
+    out.push(``);
+    out.push(`@dataclass`);
+    out.push(`class ContentElement:`);
+    out.push(`    """Backward-compatible shim for tool result content blocks."""`);
+    out.push(`    type: ContentType`);
+    out.push(`    text: str | None = None`);
+    out.push(`    cwd: str | None = None`);
+    out.push(`    exit_code: float | None = None`);
+    out.push(`    data: str | None = None`);
+    out.push(`    mime_type: str | None = None`);
+    out.push(`    description: str | None = None`);
+    out.push(`    icons: list[Icon] | None = None`);
+    out.push(`    name: str | None = None`);
+    out.push(`    size: float | None = None`);
+    out.push(`    title: str | None = None`);
+    out.push(`    uri: str | None = None`);
+    out.push(`    resource: Resource | None = None`);
+    out.push(``);
+    out.push(`    @staticmethod`);
+    out.push(`    def from_dict(obj: Any) -> "ContentElement":`);
+    out.push(`        assert isinstance(obj, dict)`);
+    out.push(`        type = parse_enum(ContentType, obj.get("type"))`);
+    out.push(`        text = from_union([from_none, lambda x: from_str(x)], obj.get("text"))`);
+    out.push(`        cwd = from_union([from_none, lambda x: from_str(x)], obj.get("cwd"))`);
+    out.push(`        exit_code = from_union([from_none, lambda x: from_float(x)], obj.get("exitCode"))`);
+    out.push(`        data = from_union([from_none, lambda x: from_str(x)], obj.get("data"))`);
+    out.push(`        mime_type = from_union([from_none, lambda x: from_str(x)], obj.get("mimeType"))`);
+    out.push(`        description = from_union([from_none, lambda x: from_str(x)], obj.get("description"))`);
+    out.push(`        icons = from_union([from_none, lambda x: from_list(Icon.from_dict, x)], obj.get("icons"))`);
+    out.push(`        name = from_union([from_none, lambda x: from_str(x)], obj.get("name"))`);
+    out.push(`        size = from_union([from_none, lambda x: from_float(x)], obj.get("size"))`);
+    out.push(`        title = from_union([from_none, lambda x: from_str(x)], obj.get("title"))`);
+    out.push(`        uri = from_union([from_none, lambda x: from_str(x)], obj.get("uri"))`);
+    out.push(`        resource = from_union([from_none, lambda x: Resource.from_dict(x)], obj.get("resource"))`);
+    out.push(`        return ContentElement(`);
+    out.push(`            type=type,`);
+    out.push(`            text=text,`);
+    out.push(`            cwd=cwd,`);
+    out.push(`            exit_code=exit_code,`);
+    out.push(`            data=data,`);
+    out.push(`            mime_type=mime_type,`);
+    out.push(`            description=description,`);
+    out.push(`            icons=icons,`);
+    out.push(`            name=name,`);
+    out.push(`            size=size,`);
+    out.push(`            title=title,`);
+    out.push(`            uri=uri,`);
+    out.push(`            resource=resource,`);
+    out.push(`        )`);
+    out.push(``);
+    out.push(`    def to_dict(self) -> dict:`);
+    out.push(`        result: dict = {}`);
+    out.push(`        result["type"] = to_enum(ContentType, self.type)`);
+    out.push(`        if self.text is not None:`);
+    out.push(`            result["text"] = from_union([from_none, lambda x: from_str(x)], self.text)`);
+    out.push(`        if self.cwd is not None:`);
+    out.push(`            result["cwd"] = from_union([from_none, lambda x: from_str(x)], self.cwd)`);
+    out.push(`        if self.exit_code is not None:`);
+    out.push(`            result["exitCode"] = from_union([from_none, lambda x: to_float(x)], self.exit_code)`);
+    out.push(`        if self.data is not None:`);
+    out.push(`            result["data"] = from_union([from_none, lambda x: from_str(x)], self.data)`);
+    out.push(`        if self.mime_type is not None:`);
+    out.push(`            result["mimeType"] = from_union([from_none, lambda x: from_str(x)], self.mime_type)`);
+    out.push(`        if self.description is not None:`);
+    out.push(`            result["description"] = from_union([from_none, lambda x: from_str(x)], self.description)`);
+    out.push(`        if self.icons is not None:`);
+    out.push(`            result["icons"] = from_union([from_none, lambda x: from_list(lambda x: to_class(Icon, x), x)], self.icons)`);
+    out.push(`        if self.name is not None:`);
+    out.push(`            result["name"] = from_union([from_none, lambda x: from_str(x)], self.name)`);
+    out.push(`        if self.size is not None:`);
+    out.push(`            result["size"] = from_union([from_none, lambda x: to_float(x)], self.size)`);
+    out.push(`        if self.title is not None:`);
+    out.push(`            result["title"] = from_union([from_none, lambda x: from_str(x)], self.title)`);
+    out.push(`        if self.uri is not None:`);
+    out.push(`            result["uri"] = from_union([from_none, lambda x: from_str(x)], self.uri)`);
+    out.push(`        if self.resource is not None:`);
+    out.push(`            result["resource"] = from_union([from_none, lambda x: to_class(Resource, x)], self.resource)`);
+    out.push(`        return result`);
+    out.push(``);
+    out.push(``);
+    out.push(`@dataclass`);
+    out.push(`class Result:`);
+    out.push(`    """Backward-compatible shim for generic result payloads."""`);
+    out.push(`    content: str | None = None`);
+    out.push(`    contents: list[ContentElement] | None = None`);
+    out.push(`    detailed_content: str | None = None`);
+    out.push(`    kind: ResultKind | None = None`);
+    out.push(``);
+    out.push(`    @staticmethod`);
+    out.push(`    def from_dict(obj: Any) -> "Result":`);
+    out.push(`        assert isinstance(obj, dict)`);
+    out.push(`        content = from_union([from_none, lambda x: from_str(x)], obj.get("content"))`);
+    out.push(`        contents = from_union([from_none, lambda x: from_list(ContentElement.from_dict, x)], obj.get("contents"))`);
+    out.push(`        detailed_content = from_union([from_none, lambda x: from_str(x)], obj.get("detailedContent"))`);
+    out.push(`        kind = from_union([from_none, lambda x: parse_enum(ResultKind, x)], obj.get("kind"))`);
+    out.push(`        return Result(`);
+    out.push(`            content=content,`);
+    out.push(`            contents=contents,`);
+    out.push(`            detailed_content=detailed_content,`);
+    out.push(`            kind=kind,`);
+    out.push(`        )`);
+    out.push(``);
+    out.push(`    def to_dict(self) -> dict:`);
+    out.push(`        result: dict = {}`);
+    out.push(`        if self.content is not None:`);
+    out.push(`            result["content"] = from_union([from_none, lambda x: from_str(x)], self.content)`);
+    out.push(`        if self.contents is not None:`);
+    out.push(`            result["contents"] = from_union([from_none, lambda x: from_list(lambda x: to_class(ContentElement, x), x)], self.contents)`);
+    out.push(`        if self.detailed_content is not None:`);
+    out.push(`            result["detailedContent"] = from_union([from_none, lambda x: from_str(x)], self.detailed_content)`);
+    out.push(`        if self.kind is not None:`);
+    out.push(`            result["kind"] = from_union([from_none, lambda x: to_enum(ResultKind, x)], self.kind)`);
+    out.push(`        return result`);
+    out.push(``);
+    out.push(``);
+    out.push(`# Convenience aliases for commonly used nested event types.`);
+    out.push(`Action = ElicitationCompletedDataAction`);
+    out.push(`Agent = SessionCustomAgentsUpdatedDataAgentsItem`);
+    out.push(`AgentMode = UserMessageDataAgentMode`);
+    out.push(`Attachment = UserMessageDataAttachmentsItem`);
+    out.push(`AttachmentType = UserMessageDataAttachmentsItemType`);
+    out.push(`CodeChanges = SessionShutdownDataCodeChanges`);
+    out.push(`CompactionTokensUsed = SessionCompactionCompleteDataCompactionTokensUsed`);
+    out.push(`ContextClass = SessionStartDataContext`);
+    out.push(`CopilotUsage = AssistantUsageDataCopilotUsage`);
+    out.push(`DataCommand = CommandsChangedDataCommandsItem`);
+    out.push(`End = UserMessageDataAttachmentsItemSelectionEnd`);
+    out.push(`Extension = SessionExtensionsLoadedDataExtensionsItem`);
+    out.push(`ExtensionStatus = SessionExtensionsLoadedDataExtensionsItemStatus`);
+    out.push(`HostType = SessionStartDataContextHostType`);
+    out.push(`KindClass = SystemNotificationDataKind`);
+    out.push(`KindStatus = SystemNotificationDataKindStatus`);
+    out.push(`KindType = SystemNotificationDataKindType`);
+    out.push(`LineRange = UserMessageDataAttachmentsItemLineRange`);
+    out.push(`Metadata = SystemMessageDataMetadata`);
+    out.push(`Mode = ElicitationRequestedDataMode`);
+    out.push(`ModelMetric = SessionShutdownDataModelMetricsValue`);
+    out.push(`Operation = SessionPlanChangedDataOperation`);
+    out.push(`PermissionRequest = PermissionRequestedDataPermissionRequest`);
+    out.push(`PermissionRequestKind = PermissionRequestedDataPermissionRequestKind`);
+    out.push(`PermissionRequestCommand = PermissionRequestedDataPermissionRequestCommandsItem`);
+    out.push(`PossibleURL = PermissionRequestedDataPermissionRequestPossibleUrlsItem`);
+    out.push(`QuotaSnapshot = AssistantUsageDataQuotaSnapshotsValue`);
+    out.push(`ReferenceType = UserMessageDataAttachmentsItemReferenceType`);
+    out.push(`RepositoryClass = SessionHandoffDataRepository`);
+    out.push(`RequestedSchema = ElicitationRequestedDataRequestedSchema`);
+    out.push(`Requests = SessionShutdownDataModelMetricsValueRequests`);
+    out.push(`Role = SystemMessageDataRole`);
+    out.push(`Selection = UserMessageDataAttachmentsItemSelection`);
+    out.push(`Server = SessionMcpServersLoadedDataServersItem`);
+    out.push(`ServerStatus = SessionMcpServersLoadedDataServersItemStatus`);
+    out.push(`ShutdownType = SessionShutdownDataShutdownType`);
+    out.push(`Skill = SessionSkillsLoadedDataSkillsItem`);
+    out.push(`Source = SessionExtensionsLoadedDataExtensionsItemSource`);
+    out.push(`SourceType = SessionHandoffDataSourceType`);
+    out.push(`Start = UserMessageDataAttachmentsItemSelectionStart`);
+    out.push(`StaticClientConfig = McpOauthRequiredDataStaticClientConfig`);
+    out.push(`TokenDetail = AssistantUsageDataCopilotUsageTokenDetailsItem`);
+    out.push(`ToolRequest = AssistantMessageDataToolRequestsItem`);
+    out.push(`ToolRequestType = AssistantMessageDataToolRequestsItemType`);
+    out.push(`UI = CapabilitiesChangedDataUi`);
+    out.push(`Usage = SessionShutdownDataModelMetricsValueUsage`);
+
+    return out.join("\n");
+}
 
 async function generateSessionEvents(schemaPath?: string): Promise<void> {
     console.log("Python: generating session-events...");
 
     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
-    const schema = cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7);
-    const resolvedSchema = (schema.definitions?.SessionEvent as JSONSchema7) || schema;
-    const processed = postProcessSchema(resolvedSchema);
+    const schema = JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7;
+    const processed = postProcessSchema(schema);
+    const code = generatePythonSessionEventsCode(processed);
 
-    // Hoist titled inline schemas (enums etc.) to definitions so quicktype
-    // uses the schema-defined names instead of its own structural heuristics.
-    const { rootDefinitions: hoistedRoots, sharedDefinitions } = hoistTitledSchemas({ SessionEvent: processed });
-    const hoisted = hoistedRoots.SessionEvent;
-    if (Object.keys(sharedDefinitions).length > 0) {
-        hoisted.definitions = { ...hoisted.definitions, ...sharedDefinitions };
-    }
-
-    const schemaInput = new JSONSchemaInput(new FetchingJSONSchemaStore());
-    await schemaInput.addSource({ name: "SessionEvent", schema: JSON.stringify(hoisted) });
-
-    const inputData = new InputData();
-    inputData.addInput(schemaInput);
-
-    const result = await quicktype({
-        inputData,
-        lang: "python",
-        rendererOptions: { "python-version": "3.7" },
-    });
-
-    let code = result.lines.join("\n");
-
-    // Fix dataclass field ordering (Any fields need defaults)
-    code = code.replace(/: Any$/gm, ": Any = None");
-    // Fix bare except: to use Exception (required by ruff/pylint)
-    code = code.replace(/except:/g, "except Exception:");
-    // Modernize to Python 3.11+ syntax
-    code = modernizePython(code);
-
-    // Add UNKNOWN enum value for forward compatibility
-    code = code.replace(
-        /^(class SessionEventType\(Enum\):.*?)(^\s*\n@dataclass)/ms,
-        `$1    # UNKNOWN is used for forward compatibility
-    UNKNOWN = "unknown"
-
-    @classmethod
-    def _missing_(cls, value: object) -> "SessionEventType":
-        """Handle unknown event types gracefully for forward compatibility."""
-        return cls.UNKNOWN
-
-$2`
-    );
-
-    const banner = `"""
-AUTO-GENERATED FILE - DO NOT EDIT
-Generated from: session-events.schema.json
-"""
-
-`;
-
-    const outPath = await writeGeneratedFile("python/copilot/generated/session_events.py", banner + code);
+    const outPath = await writeGeneratedFile("python/copilot/generated/session_events.py", code);
     console.log(`  ✓ ${outPath}`);
 }
 

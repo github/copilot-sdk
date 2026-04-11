@@ -12,7 +12,21 @@ from uuid import uuid4
 
 import pytest
 
-from copilot.generated.session_events import SessionEventType, session_event_from_dict
+from copilot.generated.session_events import (
+    Action,
+    AgentMode,
+    ContentElement,
+    Data,
+    Mode,
+    ReferenceType,
+    RequestedSchema,
+    RequestedSchemaType,
+    Resource,
+    Result,
+    ResultKind,
+    SessionEventType,
+    session_event_from_dict,
+)
 
 
 class TestEventForwardCompatibility:
@@ -62,3 +76,55 @@ class TestEventForwardCompatibility:
         # This should raise an error and NOT be silently suppressed
         with pytest.raises((ValueError, TypeError)):
             session_event_from_dict(malformed_event)
+
+    def test_legacy_top_level_generated_symbols_remain_available(self):
+        """Previously top-level generated helper symbols should remain importable."""
+        assert Action.ACCEPT.value == "accept"
+        assert AgentMode.INTERACTIVE.value == "interactive"
+        assert Mode.FORM.value == "form"
+        assert ReferenceType.PR.value == "pr"
+
+        schema = RequestedSchema(properties={"answer": {"type": "string"}}, type=RequestedSchemaType.OBJECT)
+        assert schema.to_dict()["type"] == "object"
+
+        result = Result(
+            content="Approved",
+            kind=ResultKind.APPROVED,
+            contents=[
+                ContentElement(
+                    type=ContentElement.from_dict({"type": "text", "text": "hello"}).type,
+                    text="hello",
+                    resource=Resource(uri="file://artifact.txt", text="artifact"),
+                )
+            ],
+        )
+        assert result.to_dict() == {
+            "content": "Approved",
+            "kind": "approved",
+            "contents": [
+                {
+                    "type": "text",
+                    "text": "hello",
+                    "resource": {
+                        "uri": "file://artifact.txt",
+                        "text": "artifact",
+                    },
+                }
+            ],
+        }
+
+    def test_data_shim_preserves_raw_mapping_values(self):
+        """Compatibility Data should keep arbitrary nested mappings as plain dicts."""
+        parsed = Data.from_dict(
+            {
+                "arguments": {"toolCallId": "call-1"},
+                "input": {"step_name": "build"},
+            }
+        )
+        assert parsed.arguments == {"toolCallId": "call-1"}
+        assert isinstance(parsed.arguments, dict)
+        assert parsed.input == {"step_name": "build"}
+        assert isinstance(parsed.input, dict)
+
+        constructed = Data(arguments={"tool_call_id": "call-1"})
+        assert constructed.to_dict() == {"arguments": {"tool_call_id": "call-1"}}
