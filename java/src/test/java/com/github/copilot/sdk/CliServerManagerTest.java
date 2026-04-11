@@ -70,13 +70,18 @@ class CliServerManagerTest {
         }
     }
 
+    private static Process startBlockingProcess() throws IOException {
+        boolean isWindows = System.getProperty("os.name").toLowerCase().contains("windows");
+        return (isWindows ? new ProcessBuilder("cmd", "/c", "more") : new ProcessBuilder("cat")).start();
+    }
+
     @Test
     void connectToServerStdioMode() throws Exception {
         var options = new CopilotClientOptions();
         var manager = new CliServerManager(options);
 
         // Create a dummy process for stdio mode
-        Process process = new ProcessBuilder("cat").start();
+        Process process = startBlockingProcess();
         try {
             JsonRpcClient client = manager.connectToServer(process, null, null);
             assertNotNull(client);
