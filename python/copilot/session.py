@@ -1132,9 +1132,11 @@ class CopilotSession:
             Exception: If the session has been disconnected or the connection fails.
 
         Example:
+            >>> from typing import cast
+            >>> from copilot.generated.session_events import AssistantMessageData
             >>> response = await session.send_and_wait("What is 2+2?")
             >>> if response:
-            ...     print(response.data.content)
+            ...     print(cast(AssistantMessageData, response.data).content)
         """
         idle_event = asyncio.Event()
         error_event: Exception | None = None
@@ -1180,11 +1182,13 @@ class CopilotSession:
             A function that, when called, unsubscribes the handler.
 
         Example:
+            >>> from typing import cast
+            >>> from copilot.generated.session_events import AssistantMessageData, SessionErrorData
             >>> def handle_event(event):
-            ...     if event.type == "assistant.message":
-            ...         print(f"Assistant: {event.data.content}")
-            ...     elif event.type == "session.error":
-            ...         print(f"Error: {event.data.message}")
+            ...     if event.type.value == "assistant.message":
+            ...         print(f"Assistant: {cast(AssistantMessageData, event.data).content}")
+            ...     elif event.type.value == "session.error":
+            ...         print(f"Error: {cast(SessionErrorData, event.data).message}")
             >>> unsubscribe = session.on(handle_event)
             >>> # Later, to stop receiving events:
             >>> unsubscribe()
@@ -1805,10 +1809,12 @@ class CopilotSession:
             Exception: If the session has been disconnected or the connection fails.
 
         Example:
+            >>> from typing import cast
+            >>> from copilot.generated.session_events import AssistantMessageData
             >>> events = await session.get_messages()
             >>> for event in events:
-            ...     if event.type == "assistant.message":
-            ...         print(f"Assistant: {event.data.content}")
+            ...     if event.type.value == "assistant.message":
+            ...         print(f"Assistant: {cast(AssistantMessageData, event.data).content}")
         """
         response = await self._client.request("session.getMessages", {"sessionId": self.session_id})
         # Convert dict events to SessionEvent objects
