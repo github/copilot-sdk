@@ -1700,7 +1700,9 @@ public class SessionConfig
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
         McpServers = other.McpServers is not null
-            ? new Dictionary<string, McpServerConfig>(other.McpServers)
+            ? (other.McpServers is Dictionary<string, McpServerConfig> dict
+                ? new Dictionary<string, McpServerConfig>(dict, dict.Comparer)
+                : new Dictionary<string, McpServerConfig>(other.McpServers))
             : null;
         Model = other.Model;
         ModelCapabilities = other.ModelCapabilities;
@@ -1928,7 +1930,9 @@ public class ResumeSessionConfig
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
         McpServers = other.McpServers is not null
-            ? new Dictionary<string, McpServerConfig>(other.McpServers)
+            ? (other.McpServers is Dictionary<string, McpServerConfig> dict
+                ? new Dictionary<string, McpServerConfig>(dict, dict.Comparer)
+                : new Dictionary<string, McpServerConfig>(other.McpServers))
             : null;
         Model = other.Model;
         ModelCapabilities = other.ModelCapabilities;

@@ -426,7 +426,7 @@ using GitHub.Copilot.SDK;
 
 var client = new CopilotClient(new CopilotClientOptions
 {
-    OnListModels = (ct) => Task.FromResult(new List<ModelInfo>
+    OnListModels = (ct) => Task.FromResult<IList<ModelInfo>>(new List<ModelInfo>
     {
         new()
         {
