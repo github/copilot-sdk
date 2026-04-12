@@ -99,8 +99,10 @@ func main() {
 
 	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{Model: "gpt-4.1"})
 	response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Hello!"})
-	if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
-		fmt.Println(d.Content)
+	if response != nil {
+		if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
+			fmt.Println(d.Content)
+		}
 	}
 }
 ```
@@ -117,8 +119,10 @@ defer client.Stop()
 
 session, _ := client.CreateSession(ctx, &copilot.SessionConfig{Model: "gpt-4.1"})
 response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Hello!"})
-if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
-    fmt.Println(d.Content)
+if response != nil {
+    if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
+        fmt.Println(d.Content)
+    }
 }
 ```
 

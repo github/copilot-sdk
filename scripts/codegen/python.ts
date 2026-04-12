@@ -78,6 +78,10 @@ function splitTopLevelCommas(s: string): string[] {
     return parts;
 }
 
+function pyDocstringLiteral(text: string): string {
+    return JSON.stringify(text);
+}
+
 function modernizePython(code: string): string {
     // Replace Optional[X] with X | None (handles arbitrarily nested brackets)
     code = replaceBalancedBrackets(code, "Optional", (inner) => `${inner} | None`);
@@ -364,7 +368,7 @@ function getOrCreatePyEnum(
     const lines: string[] = [];
     if (description) {
         lines.push(`class ${enumName}(Enum):`);
-        lines.push(`    """${description.replace(/"/g, '\\"')}"""`);
+        lines.push(`    ${pyDocstringLiteral(description)}`);
     } else {
         lines.push(`class ${enumName}(Enum):`);
     }
@@ -637,7 +641,7 @@ function emitPyClass(
     lines.push(`@dataclass`);
     lines.push(`class ${typeName}:`);
     if (description || schema.description) {
-        lines.push(`    """${(description || schema.description || "").replace(/"/g, '\\"')}"""`);
+        lines.push(`    ${pyDocstringLiteral(description || schema.description || "")}`);
     }
 
     if (fieldInfos.length === 0) {
@@ -781,7 +785,7 @@ function emitPyFlatDiscriminatedUnion(
     lines.push(`@dataclass`);
     lines.push(`class ${typeName}:`);
     if (description) {
-        lines.push(`    """${description.replace(/"/g, '\\"')}"""`);
+        lines.push(`    ${pyDocstringLiteral(description)}`);
     }
     for (const field of fieldInfos) {
         const suffix = field.isRequired ? "" : " = None";
@@ -964,10 +968,11 @@ function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     out.push(``);
     out.push(``);
     out.push(`def _compat_to_python_key(name: str) -> str:`);
+    out.push(`    normalized = name.replace(".", "_")`);
     out.push(`    result: list[str] = []`);
-    out.push(`    for index, char in enumerate(name.replace(".", "_")):`);
+    out.push(`    for index, char in enumerate(normalized):`);
     out.push(
-        `        if char.isupper() and index > 0 and (not name[index - 1].isupper() or (index + 1 < len(name) and name[index + 1].islower())):`
+        `        if char.isupper() and index > 0 and (not normalized[index - 1].isupper() or (index + 1 < len(normalized) and normalized[index + 1].islower())):`
     );
     out.push(`            result.append("_")`);
     out.push(`        result.append(char.lower())`);

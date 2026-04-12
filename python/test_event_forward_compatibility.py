@@ -84,7 +84,9 @@ class TestEventForwardCompatibility:
         assert Mode.FORM.value == "form"
         assert ReferenceType.PR.value == "pr"
 
-        schema = RequestedSchema(properties={"answer": {"type": "string"}}, type=RequestedSchemaType.OBJECT)
+        schema = RequestedSchema(
+            properties={"answer": {"type": "string"}}, type=RequestedSchemaType.OBJECT
+        )
         assert schema.to_dict()["type"] == "object"
 
         result = Result(

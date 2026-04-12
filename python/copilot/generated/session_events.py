@@ -199,9 +199,10 @@ class RawSessionEventData:
 
 
 def _compat_to_python_key(name: str) -> str:
+    normalized = name.replace(".", "_")
     result: list[str] = []
-    for index, char in enumerate(name.replace(".", "_")):
-        if char.isupper() and index > 0 and (not name[index - 1].isupper() or (index + 1 < len(name) and name[index + 1].islower())):
+    for index, char in enumerate(normalized):
+        if char.isupper() and index > 0 and (not normalized[index - 1].isupper() or (index + 1 < len(normalized) and normalized[index + 1].islower())):
             result.append("_")
         result.append(char.lower())
     return "".join(result)
@@ -253,7 +254,7 @@ class Data:
 
 @dataclass
 class SessionStartDataContext:
-    """Working directory and git context at session start"""
+    "Working directory and git context at session start"
     cwd: str
     git_root: str | None = None
     repository: str | None = None
@@ -302,7 +303,7 @@ class SessionStartDataContext:
 
 @dataclass
 class SessionStartData:
-    """Session initialization metadata including context and configuration"""
+    "Session initialization metadata including context and configuration"
     session_id: str
     version: float
     producer: str
@@ -362,7 +363,7 @@ class SessionStartData:
 
 @dataclass
 class SessionResumeDataContext:
-    """Updated working directory and git context at resume time"""
+    "Updated working directory and git context at resume time"
     cwd: str
     git_root: str | None = None
     repository: str | None = None
@@ -411,7 +412,7 @@ class SessionResumeDataContext:
 
 @dataclass
 class SessionResumeData:
-    """Session resume metadata including current context and event count"""
+    "Session resume metadata including current context and event count"
     resume_time: datetime
     event_count: float
     selected_model: str | None = None
@@ -459,7 +460,7 @@ class SessionResumeData:
 
 @dataclass
 class SessionRemoteSteerableChangedData:
-    """Notifies Mission Control that the session's remote steering capability has changed"""
+    "Notifies Mission Control that the session's remote steering capability has changed"
     remote_steerable: bool
 
     @staticmethod
@@ -478,7 +479,7 @@ class SessionRemoteSteerableChangedData:
 
 @dataclass
 class SessionErrorData:
-    """Error details for timeline display including message and optional diagnostic information"""
+    "Error details for timeline display including message and optional diagnostic information"
     error_type: str
     message: str
     stack: str | None = None
@@ -521,7 +522,7 @@ class SessionErrorData:
 
 @dataclass
 class SessionIdleData:
-    """Payload indicating the session is idle with no background agents in flight"""
+    "Payload indicating the session is idle with no background agents in flight"
     aborted: bool | None = None
 
     @staticmethod
@@ -541,7 +542,7 @@ class SessionIdleData:
 
 @dataclass
 class SessionTitleChangedData:
-    """Session title change payload containing the new display title"""
+    "Session title change payload containing the new display title"
     title: str
 
     @staticmethod
@@ -560,7 +561,7 @@ class SessionTitleChangedData:
 
 @dataclass
 class SessionInfoData:
-    """Informational message for timeline display with categorization"""
+    "Informational message for timeline display with categorization"
     info_type: str
     message: str
     url: str | None = None
@@ -588,7 +589,7 @@ class SessionInfoData:
 
 @dataclass
 class SessionWarningData:
-    """Warning message for timeline display with categorization"""
+    "Warning message for timeline display with categorization"
     warning_type: str
     message: str
     url: str | None = None
@@ -616,7 +617,7 @@ class SessionWarningData:
 
 @dataclass
 class SessionModelChangeData:
-    """Model change details including previous and new model identifiers"""
+    "Model change details including previous and new model identifiers"
     new_model: str
     previous_model: str | None = None
     previous_reasoning_effort: str | None = None
@@ -650,7 +651,7 @@ class SessionModelChangeData:
 
 @dataclass
 class SessionModeChangedData:
-    """Agent mode change details including previous and new modes"""
+    "Agent mode change details including previous and new modes"
     previous_mode: str
     new_mode: str
 
@@ -673,7 +674,7 @@ class SessionModeChangedData:
 
 @dataclass
 class SessionPlanChangedData:
-    """Plan file operation details indicating what changed"""
+    "Plan file operation details indicating what changed"
     operation: SessionPlanChangedDataOperation
 
     @staticmethod
@@ -692,7 +693,7 @@ class SessionPlanChangedData:
 
 @dataclass
 class SessionWorkspaceFileChangedData:
-    """Workspace file change details including path and operation type"""
+    "Workspace file change details including path and operation type"
     path: str
     operation: SessionWorkspaceFileChangedDataOperation
 
@@ -946,7 +947,7 @@ class SessionImportLegacyData:
 
 @dataclass
 class SessionHandoffDataRepository:
-    """Repository context for the handed-off session"""
+    "Repository context for the handed-off session"
     owner: str
     name: str
     branch: str | None = None
@@ -974,7 +975,7 @@ class SessionHandoffDataRepository:
 
 @dataclass
 class SessionHandoffData:
-    """Session handoff metadata including source, context, and repository information"""
+    "Session handoff metadata including source, context, and repository information"
     handoff_time: datetime
     source_type: SessionHandoffDataSourceType
     repository: SessionHandoffDataRepository | None = None
@@ -1022,7 +1023,7 @@ class SessionHandoffData:
 
 @dataclass
 class SessionTruncationData:
-    """Conversation truncation statistics including token counts and removed content metrics"""
+    "Conversation truncation statistics including token counts and removed content metrics"
     token_limit: float
     pre_truncation_tokens_in_messages: float
     pre_truncation_messages_length: float
@@ -1069,7 +1070,7 @@ class SessionTruncationData:
 
 @dataclass
 class SessionSnapshotRewindData:
-    """Session rewind details including target event and count of removed events"""
+    "Session rewind details including target event and count of removed events"
     up_to_event_id: str
     events_removed: float
 
@@ -1092,7 +1093,7 @@ class SessionSnapshotRewindData:
 
 @dataclass
 class SessionShutdownDataCodeChanges:
-    """Aggregate code change metrics for the session"""
+    "Aggregate code change metrics for the session"
     lines_added: float
     lines_removed: float
     files_modified: list[str]
@@ -1119,7 +1120,7 @@ class SessionShutdownDataCodeChanges:
 
 @dataclass
 class SessionShutdownDataModelMetricsValueRequests:
-    """Request count and cost metrics"""
+    "Request count and cost metrics"
     count: float
     cost: float
 
@@ -1142,7 +1143,7 @@ class SessionShutdownDataModelMetricsValueRequests:
 
 @dataclass
 class SessionShutdownDataModelMetricsValueUsage:
-    """Token usage breakdown"""
+    "Token usage breakdown"
     input_tokens: float
     output_tokens: float
     cache_read_tokens: float
@@ -1195,7 +1196,7 @@ class SessionShutdownDataModelMetricsValue:
 
 @dataclass
 class SessionShutdownData:
-    """Session termination metrics including usage statistics, code changes, and shutdown reason"""
+    "Session termination metrics including usage statistics, code changes, and shutdown reason"
     shutdown_type: SessionShutdownDataShutdownType
     total_premium_requests: float
     total_api_duration_ms: float
@@ -1264,7 +1265,7 @@ class SessionShutdownData:
 
 @dataclass
 class SessionContextChangedData:
-    """Updated working directory and git context after the change"""
+    "Updated working directory and git context after the change"
     cwd: str
     git_root: str | None = None
     repository: str | None = None
@@ -1313,7 +1314,7 @@ class SessionContextChangedData:
 
 @dataclass
 class SessionUsageInfoData:
-    """Current context window usage statistics including token and message counts"""
+    "Current context window usage statistics including token and message counts"
     token_limit: float
     current_tokens: float
     messages_length: float
@@ -1360,7 +1361,7 @@ class SessionUsageInfoData:
 
 @dataclass
 class SessionCompactionStartData:
-    """Context window breakdown at the start of LLM-powered conversation compaction"""
+    "Context window breakdown at the start of LLM-powered conversation compaction"
     system_tokens: float | None = None
     conversation_tokens: float | None = None
     tool_definitions_tokens: float | None = None
@@ -1390,7 +1391,7 @@ class SessionCompactionStartData:
 
 @dataclass
 class SessionCompactionCompleteDataCompactionTokensUsed:
-    """Token usage breakdown for the compaction LLM call"""
+    "Token usage breakdown for the compaction LLM call"
     input: float
     output: float
     cached_input: float
@@ -1417,7 +1418,7 @@ class SessionCompactionCompleteDataCompactionTokensUsed:
 
 @dataclass
 class SessionCompactionCompleteData:
-    """Conversation compaction results including success status, metrics, and optional error details"""
+    "Conversation compaction results including success status, metrics, and optional error details"
     success: bool
     error: str | None = None
     pre_compaction_tokens: float | None = None
@@ -1506,7 +1507,7 @@ class SessionCompactionCompleteData:
 
 @dataclass
 class SessionTaskCompleteData:
-    """Task completion notification with summary from the agent"""
+    "Task completion notification with summary from the agent"
     summary: str | None = None
     success: bool | None = None
 
@@ -1531,7 +1532,7 @@ class SessionTaskCompleteData:
 
 @dataclass
 class UserMessageDataAttachmentsItemLineRange:
-    """Optional line range to scope the attachment to a specific section of the file"""
+    "Optional line range to scope the attachment to a specific section of the file"
     start: float
     end: float
 
@@ -1554,7 +1555,7 @@ class UserMessageDataAttachmentsItemLineRange:
 
 @dataclass
 class UserMessageDataAttachmentsItemSelectionStart:
-    """Start position of the selection"""
+    "Start position of the selection"
     line: float
     character: float
 
@@ -1577,7 +1578,7 @@ class UserMessageDataAttachmentsItemSelectionStart:
 
 @dataclass
 class UserMessageDataAttachmentsItemSelectionEnd:
-    """End position of the selection"""
+    "End position of the selection"
     line: float
     character: float
 
@@ -1600,7 +1601,7 @@ class UserMessageDataAttachmentsItemSelectionEnd:
 
 @dataclass
 class UserMessageDataAttachmentsItemSelection:
-    """Position range of the selection within the file"""
+    "Position range of the selection within the file"
     start: UserMessageDataAttachmentsItemSelectionStart
     end: UserMessageDataAttachmentsItemSelectionEnd
 
@@ -1623,7 +1624,7 @@ class UserMessageDataAttachmentsItemSelection:
 
 @dataclass
 class UserMessageDataAttachmentsItem:
-    """A user message attachment — a file, directory, code selection, blob, or GitHub reference"""
+    "A user message attachment — a file, directory, code selection, blob, or GitHub reference"
     type: UserMessageDataAttachmentsItemType
     path: str | None = None
     display_name: str | None = None
@@ -1750,7 +1751,7 @@ class UserMessageData:
 
 @dataclass
 class PendingMessagesModifiedData:
-    """Empty payload; the event signals that the pending message queue has changed"""
+    "Empty payload; the event signals that the pending message queue has changed"
     @staticmethod
     def from_dict(obj: Any) -> "PendingMessagesModifiedData":
         assert isinstance(obj, dict)
@@ -1762,7 +1763,7 @@ class PendingMessagesModifiedData:
 
 @dataclass
 class AssistantTurnStartData:
-    """Turn initialization metadata including identifier and interaction tracking"""
+    "Turn initialization metadata including identifier and interaction tracking"
     turn_id: str
     interaction_id: str | None = None
 
@@ -1786,7 +1787,7 @@ class AssistantTurnStartData:
 
 @dataclass
 class AssistantIntentData:
-    """Agent intent description for current activity or plan"""
+    "Agent intent description for current activity or plan"
     intent: str
 
     @staticmethod
@@ -1805,7 +1806,7 @@ class AssistantIntentData:
 
 @dataclass
 class AssistantReasoningData:
-    """Assistant reasoning content for timeline display with complete thinking text"""
+    "Assistant reasoning content for timeline display with complete thinking text"
     reasoning_id: str
     content: str
 
@@ -1828,7 +1829,7 @@ class AssistantReasoningData:
 
 @dataclass
 class AssistantReasoningDeltaData:
-    """Streaming reasoning delta for incremental extended thinking updates"""
+    "Streaming reasoning delta for incremental extended thinking updates"
     reasoning_id: str
     delta_content: str
 
@@ -1851,7 +1852,7 @@ class AssistantReasoningDeltaData:
 
 @dataclass
 class AssistantStreamingDeltaData:
-    """Streaming response progress with cumulative byte count"""
+    "Streaming response progress with cumulative byte count"
     total_response_size_bytes: float
 
     @staticmethod
@@ -1870,7 +1871,7 @@ class AssistantStreamingDeltaData:
 
 @dataclass
 class AssistantMessageDataToolRequestsItem:
-    """A tool invocation request from the assistant"""
+    "A tool invocation request from the assistant"
     tool_call_id: str
     name: str
     arguments: Any = None
@@ -1918,7 +1919,7 @@ class AssistantMessageDataToolRequestsItem:
 
 @dataclass
 class AssistantMessageData:
-    """Assistant response containing text content, optional tool requests, and interaction metadata"""
+    "Assistant response containing text content, optional tool requests, and interaction metadata"
     message_id: str
     content: str
     tool_requests: list[AssistantMessageDataToolRequestsItem] | None = None
@@ -1986,7 +1987,7 @@ class AssistantMessageData:
 
 @dataclass
 class AssistantMessageDeltaData:
-    """Streaming assistant message delta for incremental response updates"""
+    "Streaming assistant message delta for incremental response updates"
     message_id: str
     delta_content: str
     parent_tool_call_id: str | None = None
@@ -2014,7 +2015,7 @@ class AssistantMessageDeltaData:
 
 @dataclass
 class AssistantTurnEndData:
-    """Turn completion metadata including the turn identifier"""
+    "Turn completion metadata including the turn identifier"
     turn_id: str
 
     @staticmethod
@@ -2080,7 +2081,7 @@ class AssistantUsageDataQuotaSnapshotsValue:
 
 @dataclass
 class AssistantUsageDataCopilotUsageTokenDetailsItem:
-    """Token usage detail for a single billing category"""
+    "Token usage detail for a single billing category"
     batch_size: float
     cost_per_batch: float
     token_count: float
@@ -2111,7 +2112,7 @@ class AssistantUsageDataCopilotUsageTokenDetailsItem:
 
 @dataclass
 class AssistantUsageDataCopilotUsage:
-    """Per-request cost and usage data from the CAPI copilot_usage response field"""
+    "Per-request cost and usage data from the CAPI copilot_usage response field"
     token_details: list[AssistantUsageDataCopilotUsageTokenDetailsItem]
     total_nano_aiu: float
 
@@ -2134,7 +2135,7 @@ class AssistantUsageDataCopilotUsage:
 
 @dataclass
 class AssistantUsageData:
-    """LLM API call usage metrics including tokens, costs, quotas, and billing information"""
+    "LLM API call usage metrics including tokens, costs, quotas, and billing information"
     model: str
     input_tokens: float | None = None
     output_tokens: float | None = None
@@ -2228,7 +2229,7 @@ class AssistantUsageData:
 
 @dataclass
 class AbortData:
-    """Turn abort information including the reason for termination"""
+    "Turn abort information including the reason for termination"
     reason: str
 
     @staticmethod
@@ -2247,7 +2248,7 @@ class AbortData:
 
 @dataclass
 class ToolUserRequestedData:
-    """User-initiated tool invocation request with tool name and arguments"""
+    "User-initiated tool invocation request with tool name and arguments"
     tool_call_id: str
     tool_name: str
     arguments: Any = None
@@ -2275,7 +2276,7 @@ class ToolUserRequestedData:
 
 @dataclass
 class ToolExecutionStartData:
-    """Tool execution startup details including MCP server information when applicable"""
+    "Tool execution startup details including MCP server information when applicable"
     tool_call_id: str
     tool_name: str
     arguments: Any = None
@@ -2318,7 +2319,7 @@ class ToolExecutionStartData:
 
 @dataclass
 class ToolExecutionPartialResultData:
-    """Streaming tool execution output for incremental result display"""
+    "Streaming tool execution output for incremental result display"
     tool_call_id: str
     partial_output: str
 
@@ -2341,7 +2342,7 @@ class ToolExecutionPartialResultData:
 
 @dataclass
 class ToolExecutionProgressData:
-    """Tool execution progress notification with status message"""
+    "Tool execution progress notification with status message"
     tool_call_id: str
     progress_message: str
 
@@ -2364,7 +2365,7 @@ class ToolExecutionProgressData:
 
 @dataclass
 class ToolExecutionCompleteDataResultContentsItemIconsItem:
-    """Icon image for a resource"""
+    "Icon image for a resource"
     src: str
     mime_type: str | None = None
     sizes: list[str] | None = None
@@ -2398,7 +2399,7 @@ class ToolExecutionCompleteDataResultContentsItemIconsItem:
 
 @dataclass
 class ToolExecutionCompleteDataResultContentsItem:
-    """A content block within a tool result, which may be text, terminal output, image, audio, or a resource"""
+    "A content block within a tool result, which may be text, terminal output, image, audio, or a resource"
     type: ToolExecutionCompleteDataResultContentsItemType
     text: str | None = None
     exit_code: float | None = None
@@ -2477,7 +2478,7 @@ class ToolExecutionCompleteDataResultContentsItem:
 
 @dataclass
 class ToolExecutionCompleteDataResult:
-    """Tool execution result on success"""
+    "Tool execution result on success"
     content: str
     detailed_content: str | None = None
     contents: list[ToolExecutionCompleteDataResultContentsItem] | None = None
@@ -2506,7 +2507,7 @@ class ToolExecutionCompleteDataResult:
 
 @dataclass
 class ToolExecutionCompleteDataError:
-    """Error details when the tool execution failed"""
+    "Error details when the tool execution failed"
     message: str
     code: str | None = None
 
@@ -2530,7 +2531,7 @@ class ToolExecutionCompleteDataError:
 
 @dataclass
 class ToolExecutionCompleteData:
-    """Tool execution completion results including success status, detailed output, and error information"""
+    "Tool execution completion results including success status, detailed output, and error information"
     tool_call_id: str
     success: bool
     model: str | None = None
@@ -2588,7 +2589,7 @@ class ToolExecutionCompleteData:
 
 @dataclass
 class SkillInvokedData:
-    """Skill invocation details including content, allowed tools, and plugin metadata"""
+    "Skill invocation details including content, allowed tools, and plugin metadata"
     name: str
     path: str
     content: str
@@ -2635,7 +2636,7 @@ class SkillInvokedData:
 
 @dataclass
 class SubagentStartedData:
-    """Sub-agent startup details including parent tool call and agent information"""
+    "Sub-agent startup details including parent tool call and agent information"
     tool_call_id: str
     agent_name: str
     agent_display_name: str
@@ -2666,7 +2667,7 @@ class SubagentStartedData:
 
 @dataclass
 class SubagentCompletedData:
-    """Sub-agent completion details for successful execution"""
+    "Sub-agent completion details for successful execution"
     tool_call_id: str
     agent_name: str
     agent_display_name: str
@@ -2713,7 +2714,7 @@ class SubagentCompletedData:
 
 @dataclass
 class SubagentFailedData:
-    """Sub-agent failure details including error message and agent information"""
+    "Sub-agent failure details including error message and agent information"
     tool_call_id: str
     agent_name: str
     agent_display_name: str
@@ -2764,7 +2765,7 @@ class SubagentFailedData:
 
 @dataclass
 class SubagentSelectedData:
-    """Custom agent selection details including name and available tools"""
+    "Custom agent selection details including name and available tools"
     agent_name: str
     agent_display_name: str
     tools: list[str] | None
@@ -2791,7 +2792,7 @@ class SubagentSelectedData:
 
 @dataclass
 class SubagentDeselectedData:
-    """Empty payload; the event signals that the custom agent was deselected, returning to the default agent"""
+    "Empty payload; the event signals that the custom agent was deselected, returning to the default agent"
     @staticmethod
     def from_dict(obj: Any) -> "SubagentDeselectedData":
         assert isinstance(obj, dict)
@@ -2803,7 +2804,7 @@ class SubagentDeselectedData:
 
 @dataclass
 class HookStartData:
-    """Hook invocation start details including type and input data"""
+    "Hook invocation start details including type and input data"
     hook_invocation_id: str
     hook_type: str
     input: Any = None
@@ -2831,7 +2832,7 @@ class HookStartData:
 
 @dataclass
 class HookEndDataError:
-    """Error details when the hook failed"""
+    "Error details when the hook failed"
     message: str
     stack: str | None = None
 
@@ -2855,7 +2856,7 @@ class HookEndDataError:
 
 @dataclass
 class HookEndData:
-    """Hook invocation completion details including output, success status, and error information"""
+    "Hook invocation completion details including output, success status, and error information"
     hook_invocation_id: str
     hook_type: str
     success: bool
@@ -2892,7 +2893,7 @@ class HookEndData:
 
 @dataclass
 class SystemMessageDataMetadata:
-    """Metadata about the prompt template and its construction"""
+    "Metadata about the prompt template and its construction"
     prompt_version: str | None = None
     variables: dict[str, Any] | None = None
 
@@ -2917,7 +2918,7 @@ class SystemMessageDataMetadata:
 
 @dataclass
 class SystemMessageData:
-    """System or developer message content with role and optional template metadata"""
+    "System or developer message content with role and optional template metadata"
     content: str
     role: SystemMessageDataRole
     name: str | None = None
@@ -2950,7 +2951,7 @@ class SystemMessageData:
 
 @dataclass
 class SystemNotificationDataKind:
-    """Structured metadata identifying what triggered this notification"""
+    "Structured metadata identifying what triggered this notification"
     type: SystemNotificationDataKindType
     agent_id: str | None = None
     agent_type: str | None = None
@@ -3004,7 +3005,7 @@ class SystemNotificationDataKind:
 
 @dataclass
 class SystemNotificationData:
-    """System-generated notification for runtime events like background task completion"""
+    "System-generated notification for runtime events like background task completion"
     content: str
     kind: SystemNotificationDataKind
 
@@ -3067,7 +3068,7 @@ class PermissionRequestedDataPermissionRequestPossibleUrlsItem:
 
 @dataclass
 class PermissionRequestedDataPermissionRequest:
-    """Details of the permission being requested"""
+    "Details of the permission being requested"
     kind: PermissionRequestedDataPermissionRequestKind
     tool_call_id: str | None = None
     full_command_text: str | None = None
@@ -3226,7 +3227,7 @@ class PermissionRequestedDataPermissionRequest:
 
 @dataclass
 class PermissionRequestedData:
-    """Permission request notification requiring client approval with request details"""
+    "Permission request notification requiring client approval with request details"
     request_id: str
     permission_request: PermissionRequestedDataPermissionRequest
     resolved_by_hook: bool | None = None
@@ -3254,7 +3255,7 @@ class PermissionRequestedData:
 
 @dataclass
 class PermissionCompletedDataResult:
-    """The result of the permission request"""
+    "The result of the permission request"
     kind: PermissionCompletedDataResultKind
 
     @staticmethod
@@ -3273,7 +3274,7 @@ class PermissionCompletedDataResult:
 
 @dataclass
 class PermissionCompletedData:
-    """Permission request completion notification signaling UI dismissal"""
+    "Permission request completion notification signaling UI dismissal"
     request_id: str
     result: PermissionCompletedDataResult
 
@@ -3296,7 +3297,7 @@ class PermissionCompletedData:
 
 @dataclass
 class UserInputRequestedData:
-    """User input request notification with question and optional predefined choices"""
+    "User input request notification with question and optional predefined choices"
     request_id: str
     question: str
     choices: list[str] | None = None
@@ -3334,7 +3335,7 @@ class UserInputRequestedData:
 
 @dataclass
 class UserInputCompletedData:
-    """User input request completion with the user's response"""
+    "User input request completion with the user's response"
     request_id: str
     answer: str | None = None
     was_freeform: bool | None = None
@@ -3363,7 +3364,7 @@ class UserInputCompletedData:
 
 @dataclass
 class ElicitationRequestedDataRequestedSchema:
-    """JSON Schema describing the form fields to present to the user (form mode only)"""
+    "JSON Schema describing the form fields to present to the user (form mode only)"
     type: str
     properties: dict[str, Any]
     required: list[str] | None = None
@@ -3391,7 +3392,7 @@ class ElicitationRequestedDataRequestedSchema:
 
 @dataclass
 class ElicitationRequestedData:
-    """Elicitation request; may be form-based (structured input) or URL-based (browser redirect)"""
+    "Elicitation request; may be form-based (structured input) or URL-based (browser redirect)"
     request_id: str
     message: str
     tool_call_id: str | None = None
@@ -3439,7 +3440,7 @@ class ElicitationRequestedData:
 
 @dataclass
 class ElicitationCompletedData:
-    """Elicitation request completion with the user's response"""
+    "Elicitation request completion with the user's response"
     request_id: str
     action: ElicitationCompletedDataAction | None = None
     content: dict[str, Any] | None = None
@@ -3468,7 +3469,7 @@ class ElicitationCompletedData:
 
 @dataclass
 class SamplingRequestedData:
-    """Sampling request from an MCP server; contains the server name and a requestId for correlation"""
+    "Sampling request from an MCP server; contains the server name and a requestId for correlation"
     request_id: str
     server_name: str
     mcp_request_id: Any
@@ -3495,7 +3496,7 @@ class SamplingRequestedData:
 
 @dataclass
 class SamplingCompletedData:
-    """Sampling request completion notification signaling UI dismissal"""
+    "Sampling request completion notification signaling UI dismissal"
     request_id: str
 
     @staticmethod
@@ -3514,7 +3515,7 @@ class SamplingCompletedData:
 
 @dataclass
 class McpOauthRequiredDataStaticClientConfig:
-    """Static OAuth client configuration, if the server specifies one"""
+    "Static OAuth client configuration, if the server specifies one"
     client_id: str
     public_client: bool | None = None
 
@@ -3538,7 +3539,7 @@ class McpOauthRequiredDataStaticClientConfig:
 
 @dataclass
 class McpOauthRequiredData:
-    """OAuth authentication request for an MCP server"""
+    "OAuth authentication request for an MCP server"
     request_id: str
     server_name: str
     server_url: str
@@ -3570,7 +3571,7 @@ class McpOauthRequiredData:
 
 @dataclass
 class McpOauthCompletedData:
-    """MCP OAuth request completion notification"""
+    "MCP OAuth request completion notification"
     request_id: str
 
     @staticmethod
@@ -3589,7 +3590,7 @@ class McpOauthCompletedData:
 
 @dataclass
 class ExternalToolRequestedData:
-    """External tool invocation request for client-side tool execution"""
+    "External tool invocation request for client-side tool execution"
     request_id: str
     session_id: str
     tool_call_id: str
@@ -3635,7 +3636,7 @@ class ExternalToolRequestedData:
 
 @dataclass
 class ExternalToolCompletedData:
-    """External tool completion notification signaling UI dismissal"""
+    "External tool completion notification signaling UI dismissal"
     request_id: str
 
     @staticmethod
@@ -3654,7 +3655,7 @@ class ExternalToolCompletedData:
 
 @dataclass
 class CommandQueuedData:
-    """Queued slash command dispatch request for client execution"""
+    "Queued slash command dispatch request for client execution"
     request_id: str
     command: str
 
@@ -3677,7 +3678,7 @@ class CommandQueuedData:
 
 @dataclass
 class CommandExecuteData:
-    """Registered command dispatch request routed to the owning client"""
+    "Registered command dispatch request routed to the owning client"
     request_id: str
     command: str
     command_name: str
@@ -3708,7 +3709,7 @@ class CommandExecuteData:
 
 @dataclass
 class CommandCompletedData:
-    """Queued command completion notification signaling UI dismissal"""
+    "Queued command completion notification signaling UI dismissal"
     request_id: str
 
     @staticmethod
@@ -3750,7 +3751,7 @@ class CommandsChangedDataCommandsItem:
 
 @dataclass
 class CommandsChangedData:
-    """SDK command registration change notification"""
+    "SDK command registration change notification"
     commands: list[CommandsChangedDataCommandsItem]
 
     @staticmethod
@@ -3769,7 +3770,7 @@ class CommandsChangedData:
 
 @dataclass
 class CapabilitiesChangedDataUi:
-    """UI capability changes"""
+    "UI capability changes"
     elicitation: bool | None = None
 
     @staticmethod
@@ -3789,7 +3790,7 @@ class CapabilitiesChangedDataUi:
 
 @dataclass
 class CapabilitiesChangedData:
-    """Session capability change notification"""
+    "Session capability change notification"
     ui: CapabilitiesChangedDataUi | None = None
 
     @staticmethod
@@ -3809,7 +3810,7 @@ class CapabilitiesChangedData:
 
 @dataclass
 class ExitPlanModeRequestedData:
-    """Plan approval request with plan content and available user actions"""
+    "Plan approval request with plan content and available user actions"
     request_id: str
     summary: str
     plan_content: str
@@ -3844,7 +3845,7 @@ class ExitPlanModeRequestedData:
 
 @dataclass
 class ExitPlanModeCompletedData:
-    """Plan mode exit completion with the user's approval decision and optional feedback"""
+    "Plan mode exit completion with the user's approval decision and optional feedback"
     request_id: str
     approved: bool | None = None
     selected_action: str | None = None
@@ -4161,20 +4162,20 @@ class SessionExtensionsLoadedData:
 
 
 class SessionStartDataContextHostType(Enum):
-    """Hosting platform type of the repository (github or ado)"""
+    "Hosting platform type of the repository (github or ado)"
     GITHUB = "github"
     ADO = "ado"
 
 
 class SessionPlanChangedDataOperation(Enum):
-    """The type of operation performed on the plan file"""
+    "The type of operation performed on the plan file"
     CREATE = "create"
     UPDATE = "update"
     DELETE = "delete"
 
 
 class SessionWorkspaceFileChangedDataOperation(Enum):
-    """Whether the file was newly created or updated"""
+    "Whether the file was newly created or updated"
     CREATE = "create"
     UPDATE = "update"
 
@@ -4216,19 +4217,19 @@ class SessionImportLegacyDataLegacySessionSelectedModel(Enum):
 
 
 class SessionHandoffDataSourceType(Enum):
-    """Origin type of the session being handed off"""
+    "Origin type of the session being handed off"
     REMOTE = "remote"
     LOCAL = "local"
 
 
 class SessionShutdownDataShutdownType(Enum):
-    """Whether the session ended normally (\"routine\") or due to a crash/fatal error (\"error\")"""
+    "Whether the session ended normally (\"routine\") or due to a crash/fatal error (\"error\")"
     ROUTINE = "routine"
     ERROR = "error"
 
 
 class UserMessageDataAttachmentsItemType(Enum):
-    """A user message attachment — a file, directory, code selection, blob, or GitHub reference discriminator"""
+    "A user message attachment — a file, directory, code selection, blob, or GitHub reference discriminator"
     FILE = "file"
     DIRECTORY = "directory"
     SELECTION = "selection"
@@ -4237,22 +4238,26 @@ class UserMessageDataAttachmentsItemType(Enum):
 
 
 class UserMessageDataAttachmentsItemReferenceType(Enum):
-    """Type of GitHub reference"""
+    "Type of GitHub reference"
     ISSUE = "issue"
     PR = "pr"
     DISCUSSION = "discussion"
 
 
 class UserMessageDataAgentMode(Enum):
-    """The agent mode that was active when this message was sent"""
+    "The agent mode that was active when this message was sent"
     INTERACTIVE = "interactive"
     PLAN = "plan"
     AUTOPILOT = "autopilot"
     SHELL = "shell"
 
+class AssistantMessageDataToolRequestsItemType(Enum):
+    "Tool call type: \"function\" for standard tool calls, \"custom\" for grammar-based tool calls. Defaults to \"function\" when absent."
+    FUNCTION = "function"
+    CUSTOM = "custom"
 
 class ToolExecutionCompleteDataResultContentsItemType(Enum):
-    """A content block within a tool result, which may be text, terminal output, image, audio, or a resource discriminator"""
+    "A content block within a tool result, which may be text, terminal output, image, audio, or a resource discriminator"
     TEXT = "text"
     TERMINAL = "terminal"
     IMAGE = "image"
@@ -4262,19 +4267,19 @@ class ToolExecutionCompleteDataResultContentsItemType(Enum):
 
 
 class ToolExecutionCompleteDataResultContentsItemIconsItemTheme(Enum):
-    """Theme variant this icon is intended for"""
+    "Theme variant this icon is intended for"
     LIGHT = "light"
     DARK = "dark"
 
 
 class SystemMessageDataRole(Enum):
-    """Message role: \"system\" for system prompts, \"developer\" for developer-injected instructions"""
+    "Message role: \"system\" for system prompts, \"developer\" for developer-injected instructions"
     SYSTEM = "system"
     DEVELOPER = "developer"
 
 
 class SystemNotificationDataKindType(Enum):
-    """Structured metadata identifying what triggered this notification discriminator"""
+    "Structured metadata identifying what triggered this notification discriminator"
     AGENT_COMPLETED = "agent_completed"
     AGENT_IDLE = "agent_idle"
     SHELL_COMPLETED = "shell_completed"
@@ -4282,13 +4287,13 @@ class SystemNotificationDataKindType(Enum):
 
 
 class SystemNotificationDataKindStatus(Enum):
-    """Whether the agent completed successfully or failed"""
+    "Whether the agent completed successfully or failed"
     COMPLETED = "completed"
     FAILED = "failed"
 
 
 class PermissionRequestedDataPermissionRequestKind(Enum):
-    """Details of the permission being requested discriminator"""
+    "Details of the permission being requested discriminator"
     SHELL = "shell"
     WRITE = "write"
     READ = "read"
@@ -4312,7 +4317,7 @@ class PermissionRequestedDataPermissionRequestDirection(Enum):
 
 
 class PermissionCompletedDataResultKind(Enum):
-    """The outcome of the permission request"""
+    "The outcome of the permission request"
     APPROVED = "approved"
     DENIED_BY_RULES = "denied-by-rules"
     DENIED_NO_APPROVAL_RULE_AND_COULD_NOT_REQUEST_FROM_USER = "denied-no-approval-rule-and-could-not-request-from-user"
@@ -4322,20 +4327,20 @@ class PermissionCompletedDataResultKind(Enum):
 
 
 class ElicitationRequestedDataMode(Enum):
-    """Elicitation mode; \"form\" for structured input, \"url\" for browser-based. Defaults to \"form\" when absent."""
+    "Elicitation mode; \"form\" for structured input, \"url\" for browser-based. Defaults to \"form\" when absent."
     FORM = "form"
     URL = "url"
 
 
 class ElicitationCompletedDataAction(Enum):
-    """The user action: \"accept\" (submitted form), \"decline\" (explicitly refused), or \"cancel\" (dismissed)"""
+    "The user action: \"accept\" (submitted form), \"decline\" (explicitly refused), or \"cancel\" (dismissed)"
     ACCEPT = "accept"
     DECLINE = "decline"
     CANCEL = "cancel"
 
 
 class SessionMcpServersLoadedDataServersItemStatus(Enum):
-    """Connection status: connected, failed, needs-auth, pending, disabled, or not_configured"""
+    "Connection status: connected, failed, needs-auth, pending, disabled, or not_configured"
     CONNECTED = "connected"
     FAILED = "failed"
     NEEDS_AUTH = "needs-auth"
@@ -4345,13 +4350,13 @@ class SessionMcpServersLoadedDataServersItemStatus(Enum):
 
 
 class SessionExtensionsLoadedDataExtensionsItemSource(Enum):
-    """Discovery source"""
+    "Discovery source"
     PROJECT = "project"
     USER = "user"
 
 
 class SessionExtensionsLoadedDataExtensionsItemStatus(Enum):
-    """Current status: running, disabled, failed, or starting"""
+    "Current status: running, disabled, failed, or starting"
     RUNNING = "running"
     DISABLED = "disabled"
     FAILED = "failed"
