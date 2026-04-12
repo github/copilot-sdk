@@ -5,7 +5,9 @@
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: session-events.schema.json
 
+using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -1196,7 +1198,7 @@ public partial class SessionErrorData
     /// <summary>HTTP status code from the upstream request, if applicable.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("statusCode")]
-    public double? StatusCode { get; set; }
+    public long? StatusCode { get; set; }
 
     /// <summary>GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1204,6 +1206,8 @@ public partial class SessionErrorData
     public string? ProviderCallId { get; set; }
 
     /// <summary>Optional URL associated with this error that the user can open in a browser.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("url")]
     public string? Url { get; set; }
@@ -1238,6 +1242,8 @@ public partial class SessionInfoData
     public required string Message { get; set; }
 
     /// <summary>Optional URL associated with this message that the user can open in a browser.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("url")]
     public string? Url { get; set; }
@@ -1255,6 +1261,8 @@ public partial class SessionWarningData
     public required string Message { get; set; }
 
     /// <summary>Optional URL associated with this warning that the user can open in a browser.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("url")]
     public string? Url { get; set; }
@@ -1430,7 +1438,7 @@ public partial class SessionShutdownData
 
     /// <summary>Per-model usage breakdown, keyed by model identifier.</summary>
     [JsonPropertyName("modelMetrics")]
-    public required Dictionary<string, object> ModelMetrics { get; set; }
+    public required IDictionary<string, object> ModelMetrics { get; set; }
 
     /// <summary>Model that was selected at the time of shutdown.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1886,7 +1894,7 @@ public partial class AssistantUsageData
     /// <summary>Per-quota resource usage snapshots, keyed by quota identifier.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("quotaSnapshots")]
-    public Dictionary<string, object>? QuotaSnapshots { get; set; }
+    public IDictionary<string, object>? QuotaSnapshots { get; set; }
 
     /// <summary>Per-request cost and usage data from the CAPI copilot_usage response field.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2019,7 +2027,7 @@ public partial class ToolExecutionCompleteData
     /// <summary>Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolTelemetry")]
-    public Dictionary<string, object>? ToolTelemetry { get; set; }
+    public IDictionary<string, object>? ToolTelemetry { get; set; }
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2383,7 +2391,7 @@ public partial class ElicitationCompletedData
     /// <summary>The submitted form data when action is 'accept'; keys match the requested schema fields.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("content")]
-    public Dictionary<string, object>? Content { get; set; }
+    public IDictionary<string, object>? Content { get; set; }
 }
 
 /// <summary>Sampling request from an MCP server; contains the server name and a requestId for correlation.</summary>
@@ -3270,7 +3278,7 @@ public partial class SystemMessageDataMetadata
     /// <summary>Template variables used when constructing the prompt.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("variables")]
-    public Dictionary<string, object>? Variables { get; set; }
+    public IDictionary<string, object>? Variables { get; set; }
 }
 
 /// <summary>The <c>agent_completed</c> variant of <see cref="SystemNotificationDataKind"/>.</summary>
@@ -3678,7 +3686,7 @@ public partial class ElicitationRequestedDataRequestedSchema
 
     /// <summary>Form field definitions, keyed by field name.</summary>
     [JsonPropertyName("properties")]
-    public required Dictionary<string, object> Properties { get; set; }
+    public required IDictionary<string, object> Properties { get; set; }
 
     /// <summary>List of required field names.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

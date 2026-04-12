@@ -1219,7 +1219,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     {
         public string SessionId { get; init; } = string.Empty;
         public string Prompt { get; init; } = string.Empty;
-        public List<UserMessageDataAttachmentsItem>? Attachments { get; init; }
+        public IList<UserMessageDataAttachmentsItem>? Attachments { get; init; }
         public string? Mode { get; init; }
         public string? Traceparent { get; init; }
         public string? Tracestate { get; init; }
@@ -1237,7 +1237,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
     internal record GetMessagesResponse
     {
-        public List<JsonObject> Events { get; init; } = [];
+        public IList<JsonObject> Events { get => field ??= []; init; }
     }
 
     internal record SessionAbortRequest

@@ -75,7 +75,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private int? _negotiatedProtocolVersion;
     private List<ModelInfo>? _modelsCache;
     private readonly SemaphoreSlim _modelsCacheLock = new(1, 1);
-    private readonly Func<CancellationToken, Task<List<ModelInfo>>>? _onListModels;
+    private readonly Func<CancellationToken, Task<IList<ModelInfo>>>? _onListModels;
     private readonly List<Action<SessionLifecycleEvent>> _lifecycleHandlers = [];
     private readonly Dictionary<string, List<Action<SessionLifecycleEvent>>> _typedLifecycleHandlers = [];
     private readonly object _lifecycleHandlersLock = new();
@@ -735,7 +735,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// The cache is cleared when the client disconnects.
     /// </remarks>
     /// <exception cref="InvalidOperationException">Thrown when the client is not connected or not authenticated.</exception>
-    public async Task<List<ModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
+    public async Task<IList<ModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
     {
         await _modelsCacheLock.WaitAsync(cancellationToken);
         try
@@ -746,7 +746,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 return [.. _modelsCache]; // Return a copy to prevent cache mutation
             }
 
-            List<ModelInfo> models;
+            IList<ModelInfo> models;
             if (_onListModels is not null)
             {
                 // Use custom handler instead of CLI RPC
@@ -847,7 +847,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// }
     /// </code>
     /// </example>
-    public async Task<List<SessionMetadata>> ListSessionsAsync(SessionListFilter? filter = null, CancellationToken cancellationToken = default)
+    public async Task<IList<SessionMetadata>> ListSessionsAsync(SessionListFilter? filter = null, CancellationToken cancellationToken = default)
     {
         var connection = await EnsureConnectedAsync(cancellationToken);
 
@@ -1467,7 +1467,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             client.DispatchLifecycleEvent(evt);
         }
 
-        public async Task<UserInputRequestResponse> OnUserInputRequest(string sessionId, string question, List<string>? choices = null, bool? allowFreeform = null)
+        public async Task<UserInputRequestResponse> OnUserInputRequest(string sessionId, string question, IList<string>? choices = null, bool? allowFreeform = null)
         {
             var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
             var request = new UserInputRequest
@@ -1621,26 +1621,26 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? SessionId,
         string? ClientName,
         string? ReasoningEffort,
-        List<ToolDefinition>? Tools,
+        IList<ToolDefinition>? Tools,
         SystemMessageConfig? SystemMessage,
-        List<string>? AvailableTools,
-        List<string>? ExcludedTools,
+        IList<string>? AvailableTools,
+        IList<string>? ExcludedTools,
         ProviderConfig? Provider,
         bool? RequestPermission,
         bool? RequestUserInput,
         bool? Hooks,
         string? WorkingDirectory,
         bool? Streaming,
-        Dictionary<string, McpServerConfig>? McpServers,
+        IDictionary<string, McpServerConfig>? McpServers,
         string? EnvValueMode,
-        List<CustomAgentConfig>? CustomAgents,
+        IList<CustomAgentConfig>? CustomAgents,
         string? Agent,
         string? ConfigDir,
         bool? EnableConfigDiscovery,
-        List<string>? SkillDirectories,
-        List<string>? DisabledSkills,
+        IList<string>? SkillDirectories,
+        IList<string>? DisabledSkills,
         InfiniteSessionConfig? InfiniteSessions,
-        List<CommandWireDefinition>? Commands = null,
+        IList<CommandWireDefinition>? Commands = null,
         bool? RequestElicitation = null,
         string? Traceparent = null,
         string? Tracestate = null,
@@ -1673,10 +1673,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? ClientName,
         string? Model,
         string? ReasoningEffort,
-        List<ToolDefinition>? Tools,
+        IList<ToolDefinition>? Tools,
         SystemMessageConfig? SystemMessage,
-        List<string>? AvailableTools,
-        List<string>? ExcludedTools,
+        IList<string>? AvailableTools,
+        IList<string>? ExcludedTools,
         ProviderConfig? Provider,
         bool? RequestPermission,
         bool? RequestUserInput,
@@ -1686,14 +1686,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         bool? EnableConfigDiscovery,
         bool? DisableResume,
         bool? Streaming,
-        Dictionary<string, McpServerConfig>? McpServers,
+        IDictionary<string, McpServerConfig>? McpServers,
         string? EnvValueMode,
-        List<CustomAgentConfig>? CustomAgents,
+        IList<CustomAgentConfig>? CustomAgents,
         string? Agent,
-        List<string>? SkillDirectories,
-        List<string>? DisabledSkills,
+        IList<string>? SkillDirectories,
+        IList<string>? DisabledSkills,
         InfiniteSessionConfig? InfiniteSessions,
-        List<CommandWireDefinition>? Commands = null,
+        IList<CommandWireDefinition>? Commands = null,
         bool? RequestElicitation = null,
         string? Traceparent = null,
         string? Tracestate = null,

@@ -278,7 +278,7 @@ public class ClientTests
     [Fact]
     public async Task ListModels_WithCustomHandler_CallsHandler()
     {
-        var customModels = new List<ModelInfo>
+        IList<ModelInfo> customModels = new List<ModelInfo>
         {
             new()
             {
@@ -312,7 +312,7 @@ public class ClientTests
     [Fact]
     public async Task ListModels_WithCustomHandler_CachesResults()
     {
-        var customModels = new List<ModelInfo>
+        IList<ModelInfo> customModels = new List<ModelInfo>
         {
             new()
             {
@@ -345,7 +345,7 @@ public class ClientTests
     [Fact]
     public async Task ListModels_WithCustomHandler_WorksWithoutStart()
     {
-        var customModels = new List<ModelInfo>
+        IList<ModelInfo> customModels = new List<ModelInfo>
         {
             new()
             {

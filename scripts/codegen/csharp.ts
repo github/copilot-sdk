@@ -158,13 +158,25 @@ function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: 
             if (format === "date-time") return "DateTimeOffset?";
             return "string?";
         }
+        if (nonNullTypes.length === 1 && (nonNullTypes[0] === "number" || nonNullTypes[0] === "integer")) {
+            if (format === "duration") {
+                return "TimeSpan?";
+            }
+            return nonNullTypes[0] === "integer" ? "long?" : "double?";
+        }
     }
     if (type === "string") {
         if (format === "uuid") return required ? "Guid" : "Guid?";
         if (format === "date-time") return required ? "DateTimeOffset" : "DateTimeOffset?";
         return required ? "string" : "string?";
     }
-    if (type === "number" || type === "integer") return required ? "double" : "double?";
+    if (type === "number" || type === "integer") {
+        if (format === "duration") {
+            return required ? "TimeSpan" : "TimeSpan?";
+        }
+        if (type === "integer") return required ? "long" : "long?";
+        return required ? "double" : "double?";
+    }
     if (type === "boolean") return required ? "bool" : "bool?";
     if (type === "array") {
         const items = schema.items as JSONSchema7 | undefined;
@@ -174,12 +186,91 @@ function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: 
     if (type === "object") {
         if (schema.additionalProperties && typeof schema.additionalProperties === "object") {
             const valueType = schemaTypeToCSharp(schema.additionalProperties as JSONSchema7, true, knownTypes);
-            return required ? `Dictionary<string, ${valueType}>` : `Dictionary<string, ${valueType}>?`;
+            return required ? `IDictionary<string, ${valueType}>` : `IDictionary<string, ${valueType}>?`;
         }
         return required ? "object" : "object?";
     }
     return required ? "object" : "object?";
 }
+
+/** Tracks whether any TimeSpan property was emitted so the converter can be generated. */
+
+
+/**
+ * Emit C# data-annotation attributes for a JSON Schema property.
+ * Returns an array of attribute lines (without trailing newlines).
+ */
+function emitDataAnnotations(schema: JSONSchema7, indent: string): string[] {
+    const attrs: string[] = [];
+    const format = schema.format;
+
+    // [Url] + [StringSyntax(StringSyntaxAttribute.Uri)] for format: "uri"
+    if (format === "uri") {
+        attrs.push(`${indent}[Url]`);
+        attrs.push(`${indent}[StringSyntax(StringSyntaxAttribute.Uri)]`);
+    }
+
+    // [StringSyntax(StringSyntaxAttribute.Regex)] for format: "regex"
+    if (format === "regex") {
+        attrs.push(`${indent}[StringSyntax(StringSyntaxAttribute.Regex)]`);
+    }
+
+    // [Base64String] for base64-encoded string properties
+    if (format === "byte" || (schema as Record<string, unknown>).contentEncoding === "base64") {
+        attrs.push(`${indent}[Base64String]`);
+    }
+
+    // [Range]for minimum/maximum
+    const hasMin = typeof schema.minimum === "number";
+    const hasMax = typeof schema.maximum === "number";
+    if (hasMin || hasMax) {
+        const min = hasMin ? String(schema.minimum) : (schema.type === "integer" ? "long.MinValue" : "double.MinValue");
+        const max = hasMax ? String(schema.maximum) : (schema.type === "integer" ? "long.MaxValue" : "double.MaxValue");
+        const namedArgs: string[] = [];
+        if (schema.exclusiveMinimum === true) namedArgs.push("MinimumIsExclusive = true");
+        if (schema.exclusiveMaximum === true) namedArgs.push("MaximumIsExclusive = true");
+        const namedSuffix = namedArgs.length > 0 ? `, ${namedArgs.join(", ")}` : "";
+        attrs.push(`${indent}[Range(${min}, ${max}${namedSuffix})]`);
+    }
+
+    // [RegularExpression] for pattern
+    if (typeof schema.pattern === "string") {
+        const escaped = schema.pattern.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+        attrs.push(`${indent}[RegularExpression("${escaped}")]`);
+    }
+
+    // [MinLength] / [MaxLength] for string constraints
+    if (typeof schema.minLength === "number") {
+        attrs.push(`${indent}[MinLength(${schema.minLength})]`);
+    }
+    if (typeof schema.maxLength === "number") {
+        attrs.push(`${indent}[MaxLength(${schema.maxLength})]`);
+    }
+
+    return attrs;
+}
+
+/**
+ * Returns true when a TimeSpan-typed property needs a [JsonConverter] attribute.
+ *
+ * NOTE: The runtime schema uses `format: "duration"` on numeric (integer/number) fields
+ * to mean "a duration value expressed in milliseconds". This differs from the JSON Schema
+ * spec, where `format: "duration"` denotes an ISO 8601 duration string (e.g. "PT1H30M").
+ * The generator and runtime agree on this convention, so we map these to TimeSpan with a
+ * milliseconds-based JSON converter rather than expecting ISO 8601 strings.
+ */
+function isDurationProperty(schema: JSONSchema7): boolean {
+    if (schema.format === "duration") {
+        const t = schema.type;
+        if (t === "number" || t === "integer") return true;
+        if (Array.isArray(t)) {
+            const nonNull = (t as string[]).filter((x) => x !== "null");
+            if (nonNull.length === 1 && (nonNull[0] === "number" || nonNull[0] === "integer")) return true;
+        }
+    }
+    return false;
+}
+
 
 const COPYRIGHT = `/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
@@ -351,6 +442,8 @@ function generateDerivedClass(
             const csharpType = resolveSessionPropertyType(propSchema as JSONSchema7, className, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
 
             lines.push(...xmlDocPropertyComment((propSchema as JSONSchema7).description, propName, "    "));
+            lines.push(...emitDataAnnotations(propSchema as JSONSchema7, "    "));
+            if (isDurationProperty(propSchema as JSONSchema7)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
             if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
             lines.push(`    [JsonPropertyName("${propName}")]`);
             const reqMod = isReq && !csharpType.endsWith("?") ? "required " : "";
@@ -383,6 +476,8 @@ function generateNestedClass(
         const csharpType = resolveSessionPropertyType(prop, className, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
 
         lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
+        lines.push(...emitDataAnnotations(prop, "    "));
+        if (isDurationProperty(prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
         lines.push(`    [JsonPropertyName("${propName}")]`);
         const reqMod = isReq && !csharpType.endsWith("?") ? "required " : "";
@@ -479,6 +574,8 @@ function generateDataClass(variant: EventVariant, knownTypes: Map<string, string
         const csharpType = resolveSessionPropertyType(propSchema as JSONSchema7, variant.dataClassName, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
 
         lines.push(...xmlDocPropertyComment((propSchema as JSONSchema7).description, propName, "    "));
+        lines.push(...emitDataAnnotations(propSchema as JSONSchema7, "    "));
+        if (isDurationProperty(propSchema as JSONSchema7)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
         lines.push(`    [JsonPropertyName("${propName}")]`);
         const reqMod = isReq && !csharpType.endsWith("?") ? "required " : "";
@@ -510,7 +607,9 @@ function generateSessionEventsCode(schema: JSONSchema7): string {
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: session-events.schema.json
 
+using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -640,20 +739,20 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
         if (items.type === "object" && items.properties) {
             const itemClass = singularPascal(propName);
             if (!emittedRpcClasses.has(itemClass)) classes.push(emitRpcClass(itemClass, items, "public", classes));
-            return isRequired ? `List<${itemClass}>` : `List<${itemClass}>?`;
+            return isRequired ? `IList<${itemClass}>` : `IList<${itemClass}>?`;
         }
         const itemType = schemaTypeToCSharp(items, true, rpcKnownTypes);
-        return isRequired ? `List<${itemType}>` : `List<${itemType}>?`;
+        return isRequired ? `IList<${itemType}>` : `IList<${itemType}>?`;
     }
     if (schema.type === "object" && schema.additionalProperties && typeof schema.additionalProperties === "object") {
         const vs = schema.additionalProperties as JSONSchema7;
         if (vs.type === "object" && vs.properties) {
             const valClass = `${parentClassName}${propName}Value`;
             classes.push(emitRpcClass(valClass, vs, "public", classes));
-            return isRequired ? `Dictionary<string, ${valClass}>` : `Dictionary<string, ${valClass}>?`;
+            return isRequired ? `IDictionary<string, ${valClass}>` : `IDictionary<string, ${valClass}>?`;
         }
         const valueType = schemaTypeToCSharp(vs, true, rpcKnownTypes);
-        return isRequired ? `Dictionary<string, ${valueType}>` : `Dictionary<string, ${valueType}>?`;
+        return isRequired ? `IDictionary<string, ${valueType}>` : `IDictionary<string, ${valueType}>?`;
     }
     return schemaTypeToCSharp(schema, isRequired, rpcKnownTypes);
 }
@@ -680,6 +779,8 @@ function emitRpcClass(className: string, schema: JSONSchema7, visibility: "publi
         const csharpType = resolveRpcType(prop, isReq, className, csharpName, extraClasses);
 
         lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
+        lines.push(...emitDataAnnotations(prop, "    "));
+        if (isDurationProperty(prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         lines.push(`    [JsonPropertyName("${propName}")]`);
 
         let defaultVal = "";
@@ -687,8 +788,11 @@ function emitRpcClass(className: string, schema: JSONSchema7, visibility: "publi
         if (isReq && !csharpType.endsWith("?")) {
             if (csharpType === "string") defaultVal = " = string.Empty;";
             else if (csharpType === "object") defaultVal = " = null!;";
-            else if (csharpType.startsWith("List<") || csharpType.startsWith("Dictionary<")) {
+            else if (csharpType.startsWith("IList<")) {
                 propAccessors = "{ get => field ??= []; set; }";
+            } else if (csharpType.startsWith("IDictionary<")) {
+                const concreteType = csharpType.replace("IDictionary<", "Dictionary<");
+                propAccessors = `{ get => field ??= new ${concreteType}(); set; }`;
             } else if (emittedRpcClasses.has(csharpType)) {
                 propAccessors = "{ get => field ??= new(); set; }";
             }
@@ -1082,6 +1186,7 @@ function generateRpcCode(schema: ApiSchema): string {
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: api.schema.json
 
+using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;

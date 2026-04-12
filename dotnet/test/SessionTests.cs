@@ -397,7 +397,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         var sessions = await Client.ListSessionsAsync();
         Assert.NotEmpty(sessions);
 
-        var ourSession = sessions.Find(s => s.SessionId == session.SessionId);
+        var ourSession = sessions.FirstOrDefault(s => s.SessionId == session.SessionId);
         Assert.NotNull(ourSession);
 
         // Context may be present on sessions that have been persisted with workspace.yaml

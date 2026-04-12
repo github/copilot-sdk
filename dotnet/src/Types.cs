@@ -149,7 +149,7 @@ public class CopilotClientOptions
     /// querying the CLI server. Useful in BYOK mode to return models
     /// available from your custom provider.
     /// </summary>
-    public Func<CancellationToken, Task<List<ModelInfo>>>? OnListModels { get; set; }
+    public Func<CancellationToken, Task<IList<ModelInfo>>>? OnListModels { get; set; }
 
     /// <summary>
     /// Custom session filesystem provider configuration.
@@ -293,7 +293,7 @@ public class ToolResultObject
     /// Binary results (e.g., images) to be consumed by the language model.
     /// </summary>
     [JsonPropertyName("binaryResultsForLlm")]
-    public List<ToolBinaryResult>? BinaryResultsForLlm { get; set; }
+    public IList<ToolBinaryResult>? BinaryResultsForLlm { get; set; }
 
     /// <summary>
     /// Result type indicator.
@@ -323,7 +323,7 @@ public class ToolResultObject
     /// Custom telemetry data associated with the tool execution.
     /// </summary>
     [JsonPropertyName("toolTelemetry")]
-    public Dictionary<string, object>? ToolTelemetry { get; set; }
+    public IDictionary<string, object>? ToolTelemetry { get; set; }
 
     /// <summary>
     /// Converts the result of an <see cref="AIFunction"/> invocation into a
@@ -540,7 +540,7 @@ public class PermissionRequestResult
     /// Permission rules to apply for the decision.
     /// </summary>
     [JsonPropertyName("rules")]
-    public List<object>? Rules { get; set; }
+    public IList<object>? Rules { get; set; }
 }
 
 /// <summary>
@@ -578,7 +578,7 @@ public class UserInputRequest
     /// Optional choices for multiple choice questions.
     /// </summary>
     [JsonPropertyName("choices")]
-    public List<string>? Choices { get; set; }
+    public IList<string>? Choices { get; set; }
 
     /// <summary>
     /// Whether freeform text input is allowed.
@@ -696,13 +696,13 @@ public class ElicitationSchema
     /// Form field definitions, keyed by field name.
     /// </summary>
     [JsonPropertyName("properties")]
-    public Dictionary<string, object> Properties { get; set; } = [];
+    public IDictionary<string, object> Properties { get => field ??= new Dictionary<string, object>(); set; }
 
     /// <summary>
     /// List of required field names.
     /// </summary>
     [JsonPropertyName("required")]
-    public List<string>? Required { get; set; }
+    public IList<string>? Required { get; set; }
 }
 
 /// <summary>
@@ -734,7 +734,7 @@ public class ElicitationResult
     /// <summary>
     /// Form values submitted by the user (present when <see cref="Action"/> is <c>Accept</c>).
     /// </summary>
-    public Dictionary<string, object>? Content { get; set; }
+    public IDictionary<string, object>? Content { get; set; }
 }
 
 /// <summary>
@@ -1127,7 +1127,7 @@ public class SessionStartHookOutput
     /// Modified session configuration to apply at startup.
     /// </summary>
     [JsonPropertyName("modifiedConfig")]
-    public Dictionary<string, object>? ModifiedConfig { get; set; }
+    public IDictionary<string, object>? ModifiedConfig { get; set; }
 }
 
 /// <summary>
@@ -1193,7 +1193,7 @@ public class SessionEndHookOutput
     /// List of cleanup action identifiers to execute after the session ends.
     /// </summary>
     [JsonPropertyName("cleanupActions")]
-    public List<string>? CleanupActions { get; set; }
+    public IList<string>? CleanupActions { get; set; }
 
     /// <summary>
     /// Summary of the session to persist for future reference.
@@ -1438,7 +1438,7 @@ public class SystemMessageConfig
     /// Section-level overrides for customize mode.
     /// Keys are section identifiers (see <see cref="SystemPromptSections"/>).
     /// </summary>
-    public Dictionary<string, SectionOverride>? Sections { get; set; }
+    public IDictionary<string, SectionOverride>? Sections { get; set; }
 }
 
 /// <summary>
@@ -1517,7 +1517,7 @@ public abstract class McpServerConfig
     /// List of tools to include from this server. Empty list means none. Use "*" for all.
     /// </summary>
     [JsonPropertyName("tools")]
-    public List<string> Tools { get; set; } = [];
+    public IList<string> Tools { get => field ??= []; set; }
 
     /// <summary>
     /// The server type discriminator.
@@ -1551,13 +1551,13 @@ public sealed class McpStdioServerConfig : McpServerConfig
     /// Arguments to pass to the command.
     /// </summary>
     [JsonPropertyName("args")]
-    public List<string> Args { get; set; } = [];
+    public IList<string> Args { get => field ??= []; set; }
 
     /// <summary>
     /// Environment variables to pass to the server.
     /// </summary>
     [JsonPropertyName("env")]
-    public Dictionary<string, string>? Env { get; set; }
+    public IDictionary<string, string>? Env { get; set; }
 
     /// <summary>
     /// Working directory for the server process.
@@ -1585,7 +1585,7 @@ public sealed class McpHttpServerConfig : McpServerConfig
     /// Optional HTTP headers to include in requests.
     /// </summary>
     [JsonPropertyName("headers")]
-    public Dictionary<string, string>? Headers { get; set; }
+    public IDictionary<string, string>? Headers { get; set; }
 }
 
 // ============================================================================
@@ -1619,7 +1619,7 @@ public class CustomAgentConfig
     /// List of tool names the agent can use. Null for all tools.
     /// </summary>
     [JsonPropertyName("tools")]
-    public List<string>? Tools { get; set; }
+    public IList<string>? Tools { get; set; }
 
     /// <summary>
     /// The prompt content for the agent.
@@ -1631,7 +1631,7 @@ public class CustomAgentConfig
     /// MCP servers specific to this agent.
     /// </summary>
     [JsonPropertyName("mcpServers")]
-    public Dictionary<string, McpServerConfig>? McpServers { get; set; }
+    public IDictionary<string, McpServerConfig>? McpServers { get; set; }
 
     /// <summary>
     /// Whether the agent should be available for model inference.
@@ -1700,7 +1700,7 @@ public class SessionConfig
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
         McpServers = other.McpServers is not null
-            ? new Dictionary<string, McpServerConfig>(other.McpServers, other.McpServers.Comparer)
+            ? new Dictionary<string, McpServerConfig>(other.McpServers)
             : null;
         Model = other.Model;
         ModelCapabilities = other.ModelCapabilities;
@@ -1777,11 +1777,11 @@ public class SessionConfig
     /// <summary>
     /// List of tool names to allow; only these tools will be available when specified.
     /// </summary>
-    public List<string>? AvailableTools { get; set; }
+    public IList<string>? AvailableTools { get; set; }
     /// <summary>
     /// List of tool names to exclude from the session.
     /// </summary>
-    public List<string>? ExcludedTools { get; set; }
+    public IList<string>? ExcludedTools { get; set; }
     /// <summary>
     /// Custom model provider configuration for the session.
     /// </summary>
@@ -1804,7 +1804,7 @@ public class SessionConfig
     /// When the CLI has a TUI, each command appears as <c>/name</c> for the user to invoke.
     /// The handler is called when the user executes the command.
     /// </summary>
-    public List<CommandDefinition>? Commands { get; set; }
+    public IList<CommandDefinition>? Commands { get; set; }
 
     /// <summary>
     /// Handler for elicitation requests from the server or MCP tools.
@@ -1834,12 +1834,12 @@ public class SessionConfig
     /// MCP server configurations for the session.
     /// Keys are server names, values are server configurations (<see cref="McpStdioServerConfig"/> or <see cref="McpHttpServerConfig"/>).
     /// </summary>
-    public Dictionary<string, McpServerConfig>? McpServers { get; set; }
+    public IDictionary<string, McpServerConfig>? McpServers { get; set; }
 
     /// <summary>
     /// Custom agent configurations for the session.
     /// </summary>
-    public List<CustomAgentConfig>? CustomAgents { get; set; }
+    public IList<CustomAgentConfig>? CustomAgents { get; set; }
 
     /// <summary>
     /// Name of the custom agent to activate when the session starts.
@@ -1850,12 +1850,12 @@ public class SessionConfig
     /// <summary>
     /// Directories to load skills from.
     /// </summary>
-    public List<string>? SkillDirectories { get; set; }
+    public IList<string>? SkillDirectories { get; set; }
 
     /// <summary>
     /// List of skill names to disable.
     /// </summary>
-    public List<string>? DisabledSkills { get; set; }
+    public IList<string>? DisabledSkills { get; set; }
 
     /// <summary>
     /// Infinite session configuration for persistent workspaces and automatic compaction.
@@ -1928,7 +1928,7 @@ public class ResumeSessionConfig
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
         McpServers = other.McpServers is not null
-            ? new Dictionary<string, McpServerConfig>(other.McpServers, other.McpServers.Comparer)
+            ? new Dictionary<string, McpServerConfig>(other.McpServers)
             : null;
         Model = other.Model;
         ModelCapabilities = other.ModelCapabilities;
@@ -1971,13 +1971,13 @@ public class ResumeSessionConfig
     /// List of tool names to allow. When specified, only these tools will be available.
     /// Takes precedence over ExcludedTools.
     /// </summary>
-    public List<string>? AvailableTools { get; set; }
+    public IList<string>? AvailableTools { get; set; }
 
     /// <summary>
     /// List of tool names to disable. All other tools remain available.
     /// Ignored if AvailableTools is specified.
     /// </summary>
-    public List<string>? ExcludedTools { get; set; }
+    public IList<string>? ExcludedTools { get; set; }
 
     /// <summary>
     /// Custom model provider configuration for the resumed session.
@@ -2012,7 +2012,7 @@ public class ResumeSessionConfig
     /// When the CLI has a TUI, each command appears as <c>/name</c> for the user to invoke.
     /// The handler is called when the user executes the command.
     /// </summary>
-    public List<CommandDefinition>? Commands { get; set; }
+    public IList<CommandDefinition>? Commands { get; set; }
 
     /// <summary>
     /// Handler for elicitation requests from the server or MCP tools.
@@ -2066,12 +2066,12 @@ public class ResumeSessionConfig
     /// MCP server configurations for the session.
     /// Keys are server names, values are server configurations (<see cref="McpStdioServerConfig"/> or <see cref="McpHttpServerConfig"/>).
     /// </summary>
-    public Dictionary<string, McpServerConfig>? McpServers { get; set; }
+    public IDictionary<string, McpServerConfig>? McpServers { get; set; }
 
     /// <summary>
     /// Custom agent configurations for the session.
     /// </summary>
-    public List<CustomAgentConfig>? CustomAgents { get; set; }
+    public IList<CustomAgentConfig>? CustomAgents { get; set; }
 
     /// <summary>
     /// Name of the custom agent to activate when the session starts.
@@ -2082,12 +2082,12 @@ public class ResumeSessionConfig
     /// <summary>
     /// Directories to load skills from.
     /// </summary>
-    public List<string>? SkillDirectories { get; set; }
+    public IList<string>? SkillDirectories { get; set; }
 
     /// <summary>
     /// List of skill names to disable.
     /// </summary>
-    public List<string>? DisabledSkills { get; set; }
+    public IList<string>? DisabledSkills { get; set; }
 
     /// <summary>
     /// Infinite session configuration for persistent workspaces and automatic compaction.
@@ -2152,7 +2152,7 @@ public class MessageOptions
     /// <summary>
     /// File or data attachments to include with the message.
     /// </summary>
-    public List<UserMessageDataAttachmentsItem>? Attachments { get; set; }
+    public IList<UserMessageDataAttachmentsItem>? Attachments { get; set; }
     /// <summary>
     /// Interaction mode for the message (e.g., "plan", "edit").
     /// </summary>
@@ -2320,7 +2320,7 @@ public class ModelVisionLimits
     /// List of supported image MIME types (e.g., "image/png", "image/jpeg").
     /// </summary>
     [JsonPropertyName("supported_media_types")]
-    public List<string> SupportedMediaTypes { get; set; } = [];
+    public IList<string> SupportedMediaTypes { get => field ??= []; set; }
 
     /// <summary>
     /// Maximum number of images allowed in a single prompt.
@@ -2452,7 +2452,7 @@ public class ModelInfo
 
     /// <summary>Supported reasoning effort levels (only present if model supports reasoning effort)</summary>
     [JsonPropertyName("supportedReasoningEfforts")]
-    public List<string>? SupportedReasoningEfforts { get; set; }
+    public IList<string>? SupportedReasoningEfforts { get; set; }
 
     /// <summary>Default reasoning effort level (only present if model supports reasoning effort)</summary>
     [JsonPropertyName("defaultReasoningEffort")]
@@ -2468,7 +2468,7 @@ public class GetModelsResponse
     /// List of available models.
     /// </summary>
     [JsonPropertyName("models")]
-    public List<ModelInfo> Models { get; set; } = [];
+    public IList<ModelInfo> Models { get => field ??= []; set; }
 }
 
 // ============================================================================
@@ -2597,7 +2597,7 @@ public class SystemMessageTransformRpcResponse
     /// The transformed sections keyed by section identifier.
     /// </summary>
     [JsonPropertyName("sections")]
-    public Dictionary<string, SystemMessageTransformSection>? Sections { get; set; }
+    public IDictionary<string, SystemMessageTransformSection>? Sections { get; set; }
 }
 
 [JsonSourceGenerationOptions(
