@@ -220,17 +220,24 @@ function emitDataAnnotations(schema: JSONSchema7, indent: string): string[] {
         attrs.push(`${indent}[Base64String]`);
     }
 
-    // [Range]for minimum/maximum
+    // [Range] for minimum/maximum
     const hasMin = typeof schema.minimum === "number";
     const hasMax = typeof schema.maximum === "number";
     if (hasMin || hasMax) {
-        const min = hasMin ? String(schema.minimum) : (schema.type === "integer" ? "long.MinValue" : "double.MinValue");
-        const max = hasMax ? String(schema.maximum) : (schema.type === "integer" ? "long.MaxValue" : "double.MaxValue");
         const namedArgs: string[] = [];
         if (schema.exclusiveMinimum === true) namedArgs.push("MinimumIsExclusive = true");
         if (schema.exclusiveMaximum === true) namedArgs.push("MaximumIsExclusive = true");
         const namedSuffix = namedArgs.length > 0 ? `, ${namedArgs.join(", ")}` : "";
-        attrs.push(`${indent}[Range(${min}, ${max}${namedSuffix})]`);
+        if (schema.type === "integer") {
+            // Use Range(Type, string, string) overload since RangeAttribute has no long constructor
+            const min = hasMin ? String(schema.minimum) : "long.MinValue";
+            const max = hasMax ? String(schema.maximum) : "long.MaxValue";
+            attrs.push(`${indent}[Range(typeof(long), "${min}", "${max}"${namedSuffix})]`);
+        } else {
+            const min = hasMin ? String(schema.minimum) : "double.MinValue";
+            const max = hasMax ? String(schema.maximum) : "double.MaxValue";
+            attrs.push(`${indent}[Range(${min}, ${max}${namedSuffix})]`);
+        }
     }
 
     // [RegularExpression] for pattern
@@ -1190,6 +1197,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using GitHub.Copilot.SDK;
 using StreamJsonRpc;
 
 namespace GitHub.Copilot.SDK.Rpc;
