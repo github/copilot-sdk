@@ -88,19 +88,19 @@ public class RpcTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETes
 
         // Get initial mode (default should be interactive)
         var initial = await session.Rpc.Mode.GetAsync();
-        Assert.Equal(SessionModeGetResultMode.Interactive, initial.Mode);
+        Assert.Equal(SessionMode.Interactive, initial);
 
         // Switch to plan mode
-        var planResult = await session.Rpc.Mode.SetAsync(SessionModeGetResultMode.Plan);
-        Assert.Equal(SessionModeGetResultMode.Plan, planResult.Mode);
+        var planResult = await session.Rpc.Mode.SetAsync(SessionMode.Plan);
+        Assert.Equal(SessionMode.Plan, planResult);
 
         // Verify mode persisted
         var afterPlan = await session.Rpc.Mode.GetAsync();
-        Assert.Equal(SessionModeGetResultMode.Plan, afterPlan.Mode);
+        Assert.Equal(SessionMode.Plan, afterPlan);
 
         // Switch back to interactive
-        var interactiveResult = await session.Rpc.Mode.SetAsync(SessionModeGetResultMode.Interactive);
-        Assert.Equal(SessionModeGetResultMode.Interactive, interactiveResult.Mode);
+        var interactiveResult = await session.Rpc.Mode.SetAsync(SessionMode.Interactive);
+        Assert.Equal(SessionMode.Interactive, interactiveResult);
     }
 
     [Fact]

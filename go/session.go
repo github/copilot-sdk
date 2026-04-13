@@ -533,7 +533,7 @@ func (s *Session) executeCommandAndRespond(requestID, commandName, command, args
 	handler, ok := s.getCommandHandler(commandName)
 	if !ok {
 		errMsg := fmt.Sprintf("Unknown command: %s", commandName)
-		s.RPC.Commands.HandlePendingCommand(ctx, &rpc.SessionCommandsHandlePendingCommandParams{
+		s.RPC.Commands.HandlePendingCommand(ctx, &rpc.CommandsHandlePendingCommandRequest{
 			RequestID: requestID,
 			Error:     &errMsg,
 		})
@@ -549,14 +549,14 @@ func (s *Session) executeCommandAndRespond(requestID, commandName, command, args
 
 	if err := handler(cmdCtx); err != nil {
 		errMsg := err.Error()
-		s.RPC.Commands.HandlePendingCommand(ctx, &rpc.SessionCommandsHandlePendingCommandParams{
+		s.RPC.Commands.HandlePendingCommand(ctx, &rpc.CommandsHandlePendingCommandRequest{
 			RequestID: requestID,
 			Error:     &errMsg,
 		})
 		return
 	}
 
-	s.RPC.Commands.HandlePendingCommand(ctx, &rpc.SessionCommandsHandlePendingCommandParams{
+	s.RPC.Commands.HandlePendingCommand(ctx, &rpc.CommandsHandlePendingCommandRequest{
 		RequestID: requestID,
 	})
 }
@@ -588,35 +588,35 @@ func (s *Session) handleElicitationRequest(elicitCtx ElicitationContext, request
 	result, err := handler(elicitCtx)
 	if err != nil {
 		// Handler failed — attempt to cancel so the request doesn't hang.
-		s.RPC.UI.HandlePendingElicitation(ctx, &rpc.SessionUIHandlePendingElicitationParams{
+		s.RPC.UI.HandlePendingElicitation(ctx, &rpc.HandlePendingElicitationRequest{
 			RequestID: requestID,
-			Result: rpc.SessionUIHandlePendingElicitationParamsResult{
-				Action: rpc.ActionCancel,
+			Result: rpc.UIElicitationResponse{
+				Action: rpc.UIElicitationActionCancel,
 			},
 		})
 		return
 	}
 
-	rpcContent := make(map[string]*rpc.Content)
+	rpcContent := make(map[string]*rpc.UIElicitationContent)
 	for k, v := range result.Content {
 		rpcContent[k] = toRPCContent(v)
 	}
 
-	s.RPC.UI.HandlePendingElicitation(ctx, &rpc.SessionUIHandlePendingElicitationParams{
+	s.RPC.UI.HandlePendingElicitation(ctx, &rpc.HandlePendingElicitationRequest{
 		RequestID: requestID,
-		Result: rpc.SessionUIHandlePendingElicitationParamsResult{
-			Action:  rpc.Action(result.Action),
+		Result: rpc.UIElicitationResponse{
+			Action:  rpc.UIElicitationAction(result.Action),
 			Content: rpcContent,
 		},
 	})
 }
 
-// toRPCContent converts an arbitrary value to a *rpc.Content for elicitation responses.
-func toRPCContent(v any) *rpc.Content {
+// toRPCContent converts an arbitrary value to a *rpc.UIElicitationContent for elicitation responses.
+func toRPCContent(v any) *rpc.UIElicitationContent {
 	if v == nil {
 		return nil
 	}
-	c := &rpc.Content{}
+	c := &rpc.UIElicitationContent{}
 	switch val := v.(type) {
 	case bool:
 		c.Bool = &val
@@ -679,11 +679,11 @@ func (s *Session) assertElicitation() error {
 }
 
 // Elicitation shows a generic elicitation dialog with a custom schema.
-func (ui *SessionUI) Elicitation(ctx context.Context, message string, requestedSchema rpc.RequestedSchema) (*ElicitationResult, error) {
+func (ui *SessionUI) Elicitation(ctx context.Context, message string, requestedSchema rpc.UIElicitationSchema) (*ElicitationResult, error) {
 	if err := ui.session.assertElicitation(); err != nil {
 		return nil, err
 	}
-	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.SessionUIElicitationParams{
+	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.UIElicitationRequest{
 		Message:         message,
 		RequestedSchema: requestedSchema,
 	})
@@ -699,14 +699,14 @@ func (ui *SessionUI) Confirm(ctx context.Context, message string) (bool, error) 
 	if err := ui.session.assertElicitation(); err != nil {
 		return false, err
 	}
-	defaultTrue := &rpc.Content{Bool: Bool(true)}
-	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.SessionUIElicitationParams{
+	defaultTrue := &rpc.UIElicitationContent{Bool: Bool(true)}
+	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.UIElicitationRequest{
 		Message: message,
-		RequestedSchema: rpc.RequestedSchema{
+		RequestedSchema: rpc.UIElicitationSchema{
 			Type: rpc.RequestedSchemaTypeObject,
-			Properties: map[string]rpc.Property{
+			Properties: map[string]rpc.UIElicitationSchemaProperty{
 				"confirmed": {
-					Type:    rpc.PropertyTypeBoolean,
+					Type:    rpc.UIElicitationSchemaPropertyNumberTypeBoolean,
 					Default: defaultTrue,
 				},
 			},
@@ -716,7 +716,7 @@ func (ui *SessionUI) Confirm(ctx context.Context, message string) (bool, error) 
 	if err != nil {
 		return false, err
 	}
-	if rpcResult.Action == rpc.ActionAccept {
+	if rpcResult.Action == rpc.UIElicitationActionAccept {
 		if c, ok := rpcResult.Content["confirmed"]; ok && c != nil && c.Bool != nil {
 			return *c.Bool, nil
 		}
@@ -730,13 +730,13 @@ func (ui *SessionUI) Select(ctx context.Context, message string, options []strin
 	if err := ui.session.assertElicitation(); err != nil {
 		return "", false, err
 	}
-	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.SessionUIElicitationParams{
+	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.UIElicitationRequest{
 		Message: message,
-		RequestedSchema: rpc.RequestedSchema{
+		RequestedSchema: rpc.UIElicitationSchema{
 			Type: rpc.RequestedSchemaTypeObject,
-			Properties: map[string]rpc.Property{
+			Properties: map[string]rpc.UIElicitationSchemaProperty{
 				"selection": {
-					Type: rpc.PropertyTypeString,
+					Type: rpc.UIElicitationSchemaPropertyNumberTypeString,
 					Enum: options,
 				},
 			},
@@ -746,7 +746,7 @@ func (ui *SessionUI) Select(ctx context.Context, message string, options []strin
 	if err != nil {
 		return "", false, err
 	}
-	if rpcResult.Action == rpc.ActionAccept {
+	if rpcResult.Action == rpc.UIElicitationActionAccept {
 		if c, ok := rpcResult.Content["selection"]; ok && c != nil && c.String != nil {
 			return *c.String, true, nil
 		}
@@ -760,7 +760,7 @@ func (ui *SessionUI) Input(ctx context.Context, message string, opts *InputOptio
 	if err := ui.session.assertElicitation(); err != nil {
 		return "", false, err
 	}
-	prop := rpc.Property{Type: rpc.PropertyTypeString}
+	prop := rpc.UIElicitationSchemaProperty{Type: rpc.UIElicitationSchemaPropertyNumberTypeString}
 	if opts != nil {
 		if opts.Title != "" {
 			prop.Title = &opts.Title
@@ -777,18 +777,18 @@ func (ui *SessionUI) Input(ctx context.Context, message string, opts *InputOptio
 			prop.MaxLength = &f
 		}
 		if opts.Format != "" {
-			format := rpc.Format(opts.Format)
+			format := rpc.UIElicitationSchemaPropertyStringFormat(opts.Format)
 			prop.Format = &format
 		}
 		if opts.Default != "" {
-			prop.Default = &rpc.Content{String: &opts.Default}
+			prop.Default = &rpc.UIElicitationContent{String: &opts.Default}
 		}
 	}
-	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.SessionUIElicitationParams{
+	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.UIElicitationRequest{
 		Message: message,
-		RequestedSchema: rpc.RequestedSchema{
+		RequestedSchema: rpc.UIElicitationSchema{
 			Type: rpc.RequestedSchemaTypeObject,
-			Properties: map[string]rpc.Property{
+			Properties: map[string]rpc.UIElicitationSchemaProperty{
 				"value": prop,
 			},
 			Required: []string{"value"},
@@ -797,7 +797,7 @@ func (ui *SessionUI) Input(ctx context.Context, message string, opts *InputOptio
 	if err != nil {
 		return "", false, err
 	}
-	if rpcResult.Action == rpc.ActionAccept {
+	if rpcResult.Action == rpc.UIElicitationActionAccept {
 		if c, ok := rpcResult.Content["value"]; ok && c != nil && c.String != nil {
 			return *c.String, true, nil
 		}
@@ -806,7 +806,7 @@ func (ui *SessionUI) Input(ctx context.Context, message string, opts *InputOptio
 }
 
 // fromRPCElicitationResult converts the RPC result to the SDK ElicitationResult.
-func fromRPCElicitationResult(r *rpc.SessionUIElicitationResult) *ElicitationResult {
+func fromRPCElicitationResult(r *rpc.UIElicitationResponse) *ElicitationResult {
 	if r == nil {
 		return nil
 	}
@@ -965,7 +965,7 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 	defer func() {
 		if r := recover(); r != nil {
 			errMsg := fmt.Sprintf("tool panic: %v", r)
-			s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.SessionToolsHandlePendingToolCallParams{
+			s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.ToolsHandlePendingToolCallRequest{
 				RequestID: requestID,
 				Error:     &errMsg,
 			})
@@ -983,7 +983,7 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 	result, err := handler(invocation)
 	if err != nil {
 		errMsg := err.Error()
-		s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.SessionToolsHandlePendingToolCallParams{
+		s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.ToolsHandlePendingToolCallRequest{
 			RequestID: requestID,
 			Error:     &errMsg,
 		})
@@ -1005,17 +1005,17 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 		}
 	}
 
-	rpcResult := rpc.ResultUnion{
-		ResultResult: &rpc.ResultResult{
+	rpcResult := rpc.ToolsHandlePendingToolCall{
+		ToolCallResult: &rpc.ToolCallResult{
 			TextResultForLlm: textResultForLLM,
 			ToolTelemetry:    result.ToolTelemetry,
 			ResultType:       &effectiveResultType,
 		},
 	}
 	if result.Error != "" {
-		rpcResult.ResultResult.Error = &result.Error
+		rpcResult.ToolCallResult.Error = &result.Error
 	}
-	s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.SessionToolsHandlePendingToolCallParams{
+	s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.ToolsHandlePendingToolCallRequest{
 		RequestID: requestID,
 		Result:    &rpcResult,
 	})
@@ -1025,9 +1025,9 @@ func (s *Session) executeToolAndRespond(requestID, toolName, toolCallID string, 
 func (s *Session) executePermissionAndRespond(requestID string, permissionRequest PermissionRequest, handler PermissionHandlerFunc) {
 	defer func() {
 		if r := recover(); r != nil {
-			s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.SessionPermissionsHandlePendingPermissionRequestParams{
+			s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 				RequestID: requestID,
-				Result: rpc.SessionPermissionsHandlePendingPermissionRequestParamsResult{
+				Result: rpc.PermissionDecision{
 					Kind: rpc.KindDeniedNoApprovalRuleAndCouldNotRequestFromUser,
 				},
 			})
@@ -1040,9 +1040,9 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 
 	result, err := handler(permissionRequest, invocation)
 	if err != nil {
-		s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.SessionPermissionsHandlePendingPermissionRequestParams{
+		s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 			RequestID: requestID,
-			Result: rpc.SessionPermissionsHandlePendingPermissionRequestParamsResult{
+			Result: rpc.PermissionDecision{
 				Kind: rpc.KindDeniedNoApprovalRuleAndCouldNotRequestFromUser,
 			},
 		})
@@ -1052,9 +1052,9 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 		return
 	}
 
-	s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.SessionPermissionsHandlePendingPermissionRequestParams{
+	s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 		RequestID: requestID,
-		Result: rpc.SessionPermissionsHandlePendingPermissionRequestParamsResult{
+		Result: rpc.PermissionDecision{
 			Kind:     rpc.Kind(result.Kind),
 			Rules:    result.Rules,
 			Feedback: nil,
@@ -1209,7 +1209,7 @@ type SetModelOptions struct {
 //	    log.Printf("Failed to set model: %v", err)
 //	}
 func (s *Session) SetModel(ctx context.Context, model string, opts *SetModelOptions) error {
-	params := &rpc.SessionModelSwitchToParams{ModelID: model}
+	params := &rpc.ModelSwitchToRequest{ModelID: model}
 	if opts != nil {
 		params.ReasoningEffort = opts.ReasoningEffort
 		params.ModelCapabilities = opts.ModelCapabilities
@@ -1224,9 +1224,9 @@ func (s *Session) SetModel(ctx context.Context, model string, opts *SetModelOpti
 
 // LogOptions configures optional parameters for [Session.Log].
 type LogOptions struct {
-	// Level sets the log severity. Valid values are [rpc.LevelInfo] (default),
-	// [rpc.LevelWarning], and [rpc.LevelError].
-	Level rpc.Level
+	// Level sets the log severity. Valid values are [rpc.SessionLogLevelInfo] (default),
+	// [rpc.SessionLogLevelWarning], and [rpc.SessionLogLevelError].
+	Level rpc.SessionLogLevel
 	// Ephemeral marks the message as transient so it is not persisted
 	// to the session event log on disk. When nil the server decides the
 	// default; set to a non-nil value to explicitly control persistence.
@@ -1245,12 +1245,12 @@ type LogOptions struct {
 //	session.Log(ctx, "Processing started")
 //
 //	// Warning with options
-//	session.Log(ctx, "Rate limit approaching", &copilot.LogOptions{Level: rpc.LevelWarning})
+//	session.Log(ctx, "Rate limit approaching", &copilot.LogOptions{Level: rpc.SessionLogLevelWarning})
 //
 //	// Ephemeral message (not persisted)
 //	session.Log(ctx, "Working...", &copilot.LogOptions{Ephemeral: copilot.Bool(true)})
 func (s *Session) Log(ctx context.Context, message string, opts *LogOptions) error {
-	params := &rpc.SessionLogParams{Message: message}
+	params := &rpc.LogRequest{Message: message}
 
 	if opts != nil {
 		if opts.Level != "" {

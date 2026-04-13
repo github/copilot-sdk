@@ -4,7 +4,7 @@ import pytest
 
 from copilot import CopilotClient
 from copilot.client import SubprocessConfig
-from copilot.generated.rpc import SessionAgentSelectParams
+from copilot.generated.rpc import AgentSelectRequest
 from copilot.session import PermissionHandler
 
 from .testharness import CLI_PATH, E2ETestContext
@@ -98,9 +98,7 @@ class TestAgentSelectionRpc:
             )
 
             # Select the agent
-            select_result = await session.rpc.agent.select(
-                SessionAgentSelectParams(name="test-agent")
-            )
+            select_result = await session.rpc.agent.select(AgentSelectRequest(name="test-agent"))
             assert select_result.agent is not None
             assert select_result.agent.name == "test-agent"
             assert select_result.agent.display_name == "Test Agent"
@@ -135,7 +133,7 @@ class TestAgentSelectionRpc:
             )
 
             # Select then deselect
-            await session.rpc.agent.select(SessionAgentSelectParams(name="test-agent"))
+            await session.rpc.agent.select(AgentSelectRequest(name="test-agent"))
             await session.rpc.agent.deselect()
 
             # Verify no agent is selected

@@ -109,19 +109,19 @@ describe("Session RPC", async () => {
 
         // Get initial mode (default should be interactive)
         const initial = await session.rpc.mode.get();
-        expect(initial.mode).toBe("interactive");
+        expect(initial).toBe("interactive");
 
         // Switch to plan mode
         const planResult = await session.rpc.mode.set({ mode: "plan" });
-        expect(planResult.mode).toBe("plan");
+        expect(planResult).toBe("plan");
 
         // Verify mode persisted
         const afterPlan = await session.rpc.mode.get();
-        expect(afterPlan.mode).toBe("plan");
+        expect(afterPlan).toBe("plan");
 
         // Switch back to interactive
         const interactiveResult = await session.rpc.mode.set({ mode: "interactive" });
-        expect(interactiveResult.mode).toBe("interactive");
+        expect(interactiveResult).toBe("interactive");
     });
 
     it("should read, update, and delete plan", async () => {

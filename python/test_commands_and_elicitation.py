@@ -579,7 +579,7 @@ class TestOnElicitationContext:
 
             from copilot.generated.session_events import (
                 Data,
-                RequestedSchema,
+                ElicitationRequestedSchema,
                 RequestedSchemaType,
                 SessionEvent,
                 SessionEventType,
@@ -589,7 +589,7 @@ class TestOnElicitationContext:
                 data=Data(
                     request_id="req-schema-1",
                     message="Fill in your details",
-                    requested_schema=RequestedSchema(
+                    requested_schema=ElicitationRequestedSchema(
                         type=RequestedSchemaType.OBJECT,
                         properties={
                             "name": {"type": "string"},
@@ -638,14 +638,14 @@ class TestCapabilitiesChanged:
             session._set_capabilities({})
 
             from copilot.generated.session_events import (
-                UI,
+                CapabilitiesChangedUI,
                 Data,
                 SessionEvent,
                 SessionEventType,
             )
 
             event = SessionEvent(
-                data=Data(ui=UI(elicitation=True)),
+                data=Data(ui=CapabilitiesChangedUI(elicitation=True)),
                 id="evt-cap-1",
                 timestamp="2025-01-01T00:00:00Z",
                 type=SessionEventType.CAPABILITIES_CHANGED,

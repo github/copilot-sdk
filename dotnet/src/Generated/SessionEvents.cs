@@ -1121,7 +1121,7 @@ public partial class SessionStartData
     /// <summary>Working directory and git context at session start.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("context")]
-    public SessionStartDataContext? Context { get; set; }
+    public StartContext? Context { get; set; }
 
     /// <summary>Whether the session was already in use by another client at start time.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1158,7 +1158,7 @@ public partial class SessionResumeData
     /// <summary>Updated working directory and git context at resume time.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("context")]
-    public SessionResumeDataContext? Context { get; set; }
+    public ResumeContext? Context { get; set; }
 
     /// <summary>Whether the session was already in use by another client at resume time.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1308,7 +1308,7 @@ public partial class SessionPlanChangedData
 {
     /// <summary>The type of operation performed on the plan file.</summary>
     [JsonPropertyName("operation")]
-    public required SessionPlanChangedDataOperation Operation { get; set; }
+    public required PlanChangedOperation Operation { get; set; }
 }
 
 /// <summary>Workspace file change details including path and operation type.</summary>
@@ -1320,7 +1320,7 @@ public partial class SessionWorkspaceFileChangedData
 
     /// <summary>Whether the file was newly created or updated.</summary>
     [JsonPropertyName("operation")]
-    public required SessionWorkspaceFileChangedDataOperation Operation { get; set; }
+    public required WorkspaceFileChangedOperation Operation { get; set; }
 }
 
 /// <summary>Session handoff metadata including source, context, and repository information.</summary>
@@ -1332,12 +1332,12 @@ public partial class SessionHandoffData
 
     /// <summary>Origin type of the session being handed off.</summary>
     [JsonPropertyName("sourceType")]
-    public required SessionHandoffDataSourceType SourceType { get; set; }
+    public required HandoffSourceType SourceType { get; set; }
 
     /// <summary>Repository context for the handed-off session.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("repository")]
-    public SessionHandoffDataRepository? Repository { get; set; }
+    public HandoffRepository? Repository { get; set; }
 
     /// <summary>Additional context information for the handoff.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1413,7 +1413,7 @@ public partial class SessionShutdownData
 {
     /// <summary>Whether the session ended normally ("routine") or due to a crash/fatal error ("error").</summary>
     [JsonPropertyName("shutdownType")]
-    public required SessionShutdownDataShutdownType ShutdownType { get; set; }
+    public required ShutdownType ShutdownType { get; set; }
 
     /// <summary>Error description when shutdownType is "error".</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1434,7 +1434,7 @@ public partial class SessionShutdownData
 
     /// <summary>Aggregate code change metrics for the session.</summary>
     [JsonPropertyName("codeChanges")]
-    public required SessionShutdownDataCodeChanges CodeChanges { get; set; }
+    public required ShutdownCodeChanges CodeChanges { get; set; }
 
     /// <summary>Per-model usage breakdown, keyed by model identifier.</summary>
     [JsonPropertyName("modelMetrics")]
@@ -1486,7 +1486,7 @@ public partial class SessionContextChangedData
     /// <summary>Hosting platform type of the repository (github or ado).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("hostType")]
-    public SessionStartDataContextHostType? HostType { get; set; }
+    public StartContextHostType? HostType { get; set; }
 
     /// <summary>Current git branch name.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1614,7 +1614,7 @@ public partial class SessionCompactionCompleteData
     /// <summary>Token usage breakdown for the compaction LLM call.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("compactionTokensUsed")]
-    public SessionCompactionCompleteDataCompactionTokensUsed? CompactionTokensUsed { get; set; }
+    public CompactionCompleteCompactionTokensUsed? CompactionTokensUsed { get; set; }
 
     /// <summary>GitHub request tracing ID (x-github-request-id header) for the compaction LLM call.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1666,7 +1666,7 @@ public partial class UserMessageData
     /// <summary>Files, selections, or GitHub references attached to the message.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("attachments")]
-    public UserMessageDataAttachmentsItem[]? Attachments { get; set; }
+    public UserMessageAttachment[]? Attachments { get; set; }
 
     /// <summary>Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected messages that should be hidden from the user).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1676,7 +1676,7 @@ public partial class UserMessageData
     /// <summary>The agent mode that was active when this message was sent.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("agentMode")]
-    public UserMessageDataAgentMode? AgentMode { get; set; }
+    public UserMessageAgentMode? AgentMode { get; set; }
 
     /// <summary>CAPI interaction ID for correlating this user message with its turn.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1756,7 +1756,7 @@ public partial class AssistantMessageData
     /// <summary>Tool invocations requested by the assistant in this message.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolRequests")]
-    public AssistantMessageDataToolRequestsItem[]? ToolRequests { get; set; }
+    public AssistantMessageToolRequest[]? ToolRequests { get; set; }
 
     /// <summary>Opaque/encrypted extended thinking data from Anthropic models. Session-bound and stripped on resume.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1851,6 +1851,11 @@ public partial class AssistantUsageData
     [JsonPropertyName("cacheWriteTokens")]
     public double? CacheWriteTokens { get; set; }
 
+    /// <summary>Number of output tokens used for reasoning (e.g., chain-of-thought).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningTokens")]
+    public double? ReasoningTokens { get; set; }
+
     /// <summary>Model multiplier cost for billing purposes.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("cost")]
@@ -1899,7 +1904,7 @@ public partial class AssistantUsageData
     /// <summary>Per-request cost and usage data from the CAPI copilot_usage response field.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("copilotUsage")]
-    public AssistantUsageDataCopilotUsage? CopilotUsage { get; set; }
+    public AssistantUsageCopilotUsage? CopilotUsage { get; set; }
 
     /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh").</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2017,12 +2022,12 @@ public partial class ToolExecutionCompleteData
     /// <summary>Tool execution result on success.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("result")]
-    public ToolExecutionCompleteDataResult? Result { get; set; }
+    public ToolExecutionCompleteResult? Result { get; set; }
 
     /// <summary>Error details when the tool execution failed.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("error")]
-    public ToolExecutionCompleteDataError? Error { get; set; }
+    public ToolExecutionCompleteError? Error { get; set; }
 
     /// <summary>Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2228,7 +2233,7 @@ public partial class HookEndData
     /// <summary>Error details when the hook failed.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("error")]
-    public HookEndDataError? Error { get; set; }
+    public HookEndError? Error { get; set; }
 }
 
 /// <summary>System or developer message content with role and optional template metadata.</summary>
@@ -2240,7 +2245,7 @@ public partial class SystemMessageData
 
     /// <summary>Message role: "system" for system prompts, "developer" for developer-injected instructions.</summary>
     [JsonPropertyName("role")]
-    public required SystemMessageDataRole Role { get; set; }
+    public required SystemMessageRole Role { get; set; }
 
     /// <summary>Optional name identifier for the message source.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2250,7 +2255,7 @@ public partial class SystemMessageData
     /// <summary>Metadata about the prompt template and its construction.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("metadata")]
-    public SystemMessageDataMetadata? Metadata { get; set; }
+    public SystemMessageMetadata? Metadata { get; set; }
 }
 
 /// <summary>System-generated notification for runtime events like background task completion.</summary>
@@ -2262,7 +2267,7 @@ public partial class SystemNotificationData
 
     /// <summary>Structured metadata identifying what triggered this notification.</summary>
     [JsonPropertyName("kind")]
-    public required SystemNotificationDataKind Kind { get; set; }
+    public required SystemNotification Kind { get; set; }
 }
 
 /// <summary>Permission request notification requiring client approval with request details.</summary>
@@ -2291,7 +2296,7 @@ public partial class PermissionCompletedData
 
     /// <summary>The result of the permission request.</summary>
     [JsonPropertyName("result")]
-    public required PermissionCompletedDataResult Result { get; set; }
+    public required PermissionCompletedResult Result { get; set; }
 }
 
 /// <summary>User input request notification with question and optional predefined choices.</summary>
@@ -2363,12 +2368,12 @@ public partial class ElicitationRequestedData
     /// <summary>Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("mode")]
-    public ElicitationRequestedDataMode? Mode { get; set; }
+    public ElicitationRequestedMode? Mode { get; set; }
 
     /// <summary>JSON Schema describing the form fields to present to the user (form mode only).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("requestedSchema")]
-    public ElicitationRequestedDataRequestedSchema? RequestedSchema { get; set; }
+    public ElicitationRequestedSchema? RequestedSchema { get; set; }
 
     /// <summary>URL to open in the user's browser (url mode only).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2386,7 +2391,7 @@ public partial class ElicitationCompletedData
     /// <summary>The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("action")]
-    public ElicitationCompletedDataAction? Action { get; set; }
+    public ElicitationCompletedAction? Action { get; set; }
 
     /// <summary>The submitted form data when action is 'accept'; keys match the requested schema fields.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2436,7 +2441,7 @@ public partial class McpOauthRequiredData
     /// <summary>Static OAuth client configuration, if the server specifies one.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("staticClientConfig")]
-    public McpOauthRequiredDataStaticClientConfig? StaticClientConfig { get; set; }
+    public McpOauthRequiredStaticClientConfig? StaticClientConfig { get; set; }
 }
 
 /// <summary>MCP OAuth request completion notification.</summary>
@@ -2535,7 +2540,7 @@ public partial class CommandsChangedData
 {
     /// <summary>Current list of registered SDK commands.</summary>
     [JsonPropertyName("commands")]
-    public required CommandsChangedDataCommandsItem[] Commands { get; set; }
+    public required CommandsChangedCommand[] Commands { get; set; }
 }
 
 /// <summary>Session capability change notification.</summary>
@@ -2544,7 +2549,7 @@ public partial class CapabilitiesChangedData
     /// <summary>UI capability changes.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("ui")]
-    public CapabilitiesChangedDataUi? Ui { get; set; }
+    public CapabilitiesChangedUi? Ui { get; set; }
 }
 
 /// <summary>Plan approval request with plan content and available user actions.</summary>
@@ -2617,7 +2622,7 @@ public partial class SessionSkillsLoadedData
 {
     /// <summary>Array of resolved skill metadata.</summary>
     [JsonPropertyName("skills")]
-    public required SessionSkillsLoadedDataSkillsItem[] Skills { get; set; }
+    public required SkillsLoadedSkill[] Skills { get; set; }
 }
 
 /// <summary>Event payload for <see cref="SessionCustomAgentsUpdatedEvent"/>.</summary>
@@ -2625,7 +2630,7 @@ public partial class SessionCustomAgentsUpdatedData
 {
     /// <summary>Array of loaded custom agent metadata.</summary>
     [JsonPropertyName("agents")]
-    public required SessionCustomAgentsUpdatedDataAgentsItem[] Agents { get; set; }
+    public required CustomAgentsUpdatedAgent[] Agents { get; set; }
 
     /// <summary>Non-fatal warnings from agent loading.</summary>
     [JsonPropertyName("warnings")]
@@ -2641,7 +2646,7 @@ public partial class SessionMcpServersLoadedData
 {
     /// <summary>Array of MCP server status summaries.</summary>
     [JsonPropertyName("servers")]
-    public required SessionMcpServersLoadedDataServersItem[] Servers { get; set; }
+    public required McpServersLoadedServer[] Servers { get; set; }
 }
 
 /// <summary>Event payload for <see cref="SessionMcpServerStatusChangedEvent"/>.</summary>
@@ -2653,7 +2658,7 @@ public partial class SessionMcpServerStatusChangedData
 
     /// <summary>New connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
     [JsonPropertyName("status")]
-    public required SessionMcpServersLoadedDataServersItemStatus Status { get; set; }
+    public required McpServersLoadedServerStatus Status { get; set; }
 }
 
 /// <summary>Event payload for <see cref="SessionExtensionsLoadedEvent"/>.</summary>
@@ -2661,12 +2666,12 @@ public partial class SessionExtensionsLoadedData
 {
     /// <summary>Array of discovered extensions and their status.</summary>
     [JsonPropertyName("extensions")]
-    public required SessionExtensionsLoadedDataExtensionsItem[] Extensions { get; set; }
+    public required ExtensionsLoadedExtension[] Extensions { get; set; }
 }
 
 /// <summary>Working directory and git context at session start.</summary>
-/// <remarks>Nested data type for <c>SessionStartDataContext</c>.</remarks>
-public partial class SessionStartDataContext
+/// <remarks>Nested data type for <c>StartContext</c>.</remarks>
+public partial class StartContext
 {
     /// <summary>Current working directory path.</summary>
     [JsonPropertyName("cwd")]
@@ -2685,7 +2690,7 @@ public partial class SessionStartDataContext
     /// <summary>Hosting platform type of the repository (github or ado).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("hostType")]
-    public SessionStartDataContextHostType? HostType { get; set; }
+    public StartContextHostType? HostType { get; set; }
 
     /// <summary>Current git branch name.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2704,8 +2709,8 @@ public partial class SessionStartDataContext
 }
 
 /// <summary>Updated working directory and git context at resume time.</summary>
-/// <remarks>Nested data type for <c>SessionResumeDataContext</c>.</remarks>
-public partial class SessionResumeDataContext
+/// <remarks>Nested data type for <c>ResumeContext</c>.</remarks>
+public partial class ResumeContext
 {
     /// <summary>Current working directory path.</summary>
     [JsonPropertyName("cwd")]
@@ -2724,7 +2729,7 @@ public partial class SessionResumeDataContext
     /// <summary>Hosting platform type of the repository (github or ado).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("hostType")]
-    public SessionStartDataContextHostType? HostType { get; set; }
+    public StartContextHostType? HostType { get; set; }
 
     /// <summary>Current git branch name.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2743,8 +2748,8 @@ public partial class SessionResumeDataContext
 }
 
 /// <summary>Repository context for the handed-off session.</summary>
-/// <remarks>Nested data type for <c>SessionHandoffDataRepository</c>.</remarks>
-public partial class SessionHandoffDataRepository
+/// <remarks>Nested data type for <c>HandoffRepository</c>.</remarks>
+public partial class HandoffRepository
 {
     /// <summary>Repository owner (user or organization).</summary>
     [JsonPropertyName("owner")]
@@ -2761,8 +2766,8 @@ public partial class SessionHandoffDataRepository
 }
 
 /// <summary>Aggregate code change metrics for the session.</summary>
-/// <remarks>Nested data type for <c>SessionShutdownDataCodeChanges</c>.</remarks>
-public partial class SessionShutdownDataCodeChanges
+/// <remarks>Nested data type for <c>ShutdownCodeChanges</c>.</remarks>
+public partial class ShutdownCodeChanges
 {
     /// <summary>Total number of lines added during the session.</summary>
     [JsonPropertyName("linesAdded")]
@@ -2778,8 +2783,8 @@ public partial class SessionShutdownDataCodeChanges
 }
 
 /// <summary>Token usage breakdown for the compaction LLM call.</summary>
-/// <remarks>Nested data type for <c>SessionCompactionCompleteDataCompactionTokensUsed</c>.</remarks>
-public partial class SessionCompactionCompleteDataCompactionTokensUsed
+/// <remarks>Nested data type for <c>CompactionCompleteCompactionTokensUsed</c>.</remarks>
+public partial class CompactionCompleteCompactionTokensUsed
 {
     /// <summary>Input tokens consumed by the compaction LLM call.</summary>
     [JsonPropertyName("input")]
@@ -2795,8 +2800,8 @@ public partial class SessionCompactionCompleteDataCompactionTokensUsed
 }
 
 /// <summary>Optional line range to scope the attachment to a specific section of the file.</summary>
-/// <remarks>Nested data type for <c>UserMessageDataAttachmentsItemFileLineRange</c>.</remarks>
-public partial class UserMessageDataAttachmentsItemFileLineRange
+/// <remarks>Nested data type for <c>UserMessageAttachmentFileLineRange</c>.</remarks>
+public partial class UserMessageAttachmentFileLineRange
 {
     /// <summary>Start line number (1-based).</summary>
     [JsonPropertyName("start")]
@@ -2808,8 +2813,8 @@ public partial class UserMessageDataAttachmentsItemFileLineRange
 }
 
 /// <summary>File attachment.</summary>
-/// <remarks>The <c>file</c> variant of <see cref="UserMessageDataAttachmentsItem"/>.</remarks>
-public partial class UserMessageDataAttachmentsItemFile : UserMessageDataAttachmentsItem
+/// <remarks>The <c>file</c> variant of <see cref="UserMessageAttachment"/>.</remarks>
+public partial class UserMessageAttachmentFile : UserMessageAttachment
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -2826,12 +2831,12 @@ public partial class UserMessageDataAttachmentsItemFile : UserMessageDataAttachm
     /// <summary>Optional line range to scope the attachment to a specific section of the file.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("lineRange")]
-    public UserMessageDataAttachmentsItemFileLineRange? LineRange { get; set; }
+    public UserMessageAttachmentFileLineRange? LineRange { get; set; }
 }
 
 /// <summary>Directory attachment.</summary>
-/// <remarks>The <c>directory</c> variant of <see cref="UserMessageDataAttachmentsItem"/>.</remarks>
-public partial class UserMessageDataAttachmentsItemDirectory : UserMessageDataAttachmentsItem
+/// <remarks>The <c>directory</c> variant of <see cref="UserMessageAttachment"/>.</remarks>
+public partial class UserMessageAttachmentDirectory : UserMessageAttachment
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -2847,8 +2852,8 @@ public partial class UserMessageDataAttachmentsItemDirectory : UserMessageDataAt
 }
 
 /// <summary>Start position of the selection.</summary>
-/// <remarks>Nested data type for <c>UserMessageDataAttachmentsItemSelectionSelectionStart</c>.</remarks>
-public partial class UserMessageDataAttachmentsItemSelectionSelectionStart
+/// <remarks>Nested data type for <c>UserMessageAttachmentSelectionDetailsStart</c>.</remarks>
+public partial class UserMessageAttachmentSelectionDetailsStart
 {
     /// <summary>Start line number (0-based).</summary>
     [JsonPropertyName("line")]
@@ -2860,8 +2865,8 @@ public partial class UserMessageDataAttachmentsItemSelectionSelectionStart
 }
 
 /// <summary>End position of the selection.</summary>
-/// <remarks>Nested data type for <c>UserMessageDataAttachmentsItemSelectionSelectionEnd</c>.</remarks>
-public partial class UserMessageDataAttachmentsItemSelectionSelectionEnd
+/// <remarks>Nested data type for <c>UserMessageAttachmentSelectionDetailsEnd</c>.</remarks>
+public partial class UserMessageAttachmentSelectionDetailsEnd
 {
     /// <summary>End line number (0-based).</summary>
     [JsonPropertyName("line")]
@@ -2873,21 +2878,21 @@ public partial class UserMessageDataAttachmentsItemSelectionSelectionEnd
 }
 
 /// <summary>Position range of the selection within the file.</summary>
-/// <remarks>Nested data type for <c>UserMessageDataAttachmentsItemSelectionSelection</c>.</remarks>
-public partial class UserMessageDataAttachmentsItemSelectionSelection
+/// <remarks>Nested data type for <c>UserMessageAttachmentSelectionDetails</c>.</remarks>
+public partial class UserMessageAttachmentSelectionDetails
 {
     /// <summary>Start position of the selection.</summary>
     [JsonPropertyName("start")]
-    public required UserMessageDataAttachmentsItemSelectionSelectionStart Start { get; set; }
+    public required UserMessageAttachmentSelectionDetailsStart Start { get; set; }
 
     /// <summary>End position of the selection.</summary>
     [JsonPropertyName("end")]
-    public required UserMessageDataAttachmentsItemSelectionSelectionEnd End { get; set; }
+    public required UserMessageAttachmentSelectionDetailsEnd End { get; set; }
 }
 
 /// <summary>Code selection attachment from an editor.</summary>
-/// <remarks>The <c>selection</c> variant of <see cref="UserMessageDataAttachmentsItem"/>.</remarks>
-public partial class UserMessageDataAttachmentsItemSelection : UserMessageDataAttachmentsItem
+/// <remarks>The <c>selection</c> variant of <see cref="UserMessageAttachment"/>.</remarks>
+public partial class UserMessageAttachmentSelection : UserMessageAttachment
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -2907,12 +2912,12 @@ public partial class UserMessageDataAttachmentsItemSelection : UserMessageDataAt
 
     /// <summary>Position range of the selection within the file.</summary>
     [JsonPropertyName("selection")]
-    public required UserMessageDataAttachmentsItemSelectionSelection Selection { get; set; }
+    public required UserMessageAttachmentSelectionDetails Selection { get; set; }
 }
 
 /// <summary>GitHub issue, pull request, or discussion reference.</summary>
-/// <remarks>The <c>github_reference</c> variant of <see cref="UserMessageDataAttachmentsItem"/>.</remarks>
-public partial class UserMessageDataAttachmentsItemGithubReference : UserMessageDataAttachmentsItem
+/// <remarks>The <c>github_reference</c> variant of <see cref="UserMessageAttachment"/>.</remarks>
+public partial class UserMessageAttachmentGithubReference : UserMessageAttachment
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -2928,7 +2933,7 @@ public partial class UserMessageDataAttachmentsItemGithubReference : UserMessage
 
     /// <summary>Type of GitHub reference.</summary>
     [JsonPropertyName("referenceType")]
-    public required UserMessageDataAttachmentsItemGithubReferenceReferenceType ReferenceType { get; set; }
+    public required UserMessageAttachmentGithubReferenceType ReferenceType { get; set; }
 
     /// <summary>Current state of the referenced item (e.g., open, closed, merged).</summary>
     [JsonPropertyName("state")]
@@ -2940,8 +2945,8 @@ public partial class UserMessageDataAttachmentsItemGithubReference : UserMessage
 }
 
 /// <summary>Blob attachment with inline base64-encoded data.</summary>
-/// <remarks>The <c>blob</c> variant of <see cref="UserMessageDataAttachmentsItem"/>.</remarks>
-public partial class UserMessageDataAttachmentsItemBlob : UserMessageDataAttachmentsItem
+/// <remarks>The <c>blob</c> variant of <see cref="UserMessageAttachment"/>.</remarks>
+public partial class UserMessageAttachmentBlob : UserMessageAttachment
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -2966,12 +2971,12 @@ public partial class UserMessageDataAttachmentsItemBlob : UserMessageDataAttachm
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
-[JsonDerivedType(typeof(UserMessageDataAttachmentsItemFile), "file")]
-[JsonDerivedType(typeof(UserMessageDataAttachmentsItemDirectory), "directory")]
-[JsonDerivedType(typeof(UserMessageDataAttachmentsItemSelection), "selection")]
-[JsonDerivedType(typeof(UserMessageDataAttachmentsItemGithubReference), "github_reference")]
-[JsonDerivedType(typeof(UserMessageDataAttachmentsItemBlob), "blob")]
-public partial class UserMessageDataAttachmentsItem
+[JsonDerivedType(typeof(UserMessageAttachmentFile), "file")]
+[JsonDerivedType(typeof(UserMessageAttachmentDirectory), "directory")]
+[JsonDerivedType(typeof(UserMessageAttachmentSelection), "selection")]
+[JsonDerivedType(typeof(UserMessageAttachmentGithubReference), "github_reference")]
+[JsonDerivedType(typeof(UserMessageAttachmentBlob), "blob")]
+public partial class UserMessageAttachment
 {
     /// <summary>The type discriminator.</summary>
     [JsonPropertyName("type")]
@@ -2980,8 +2985,8 @@ public partial class UserMessageDataAttachmentsItem
 
 
 /// <summary>A tool invocation request from the assistant.</summary>
-/// <remarks>Nested data type for <c>AssistantMessageDataToolRequestsItem</c>.</remarks>
-public partial class AssistantMessageDataToolRequestsItem
+/// <remarks>Nested data type for <c>AssistantMessageToolRequest</c>.</remarks>
+public partial class AssistantMessageToolRequest
 {
     /// <summary>Unique identifier for this tool call.</summary>
     [JsonPropertyName("toolCallId")]
@@ -2999,7 +3004,7 @@ public partial class AssistantMessageDataToolRequestsItem
     /// <summary>Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("type")]
-    public AssistantMessageDataToolRequestsItemType? Type { get; set; }
+    public AssistantMessageToolRequestType? Type { get; set; }
 
     /// <summary>Human-readable display title for the tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3018,8 +3023,8 @@ public partial class AssistantMessageDataToolRequestsItem
 }
 
 /// <summary>Token usage detail for a single billing category.</summary>
-/// <remarks>Nested data type for <c>AssistantUsageDataCopilotUsageTokenDetailsItem</c>.</remarks>
-public partial class AssistantUsageDataCopilotUsageTokenDetailsItem
+/// <remarks>Nested data type for <c>AssistantUsageCopilotUsageTokenDetail</c>.</remarks>
+public partial class AssistantUsageCopilotUsageTokenDetail
 {
     /// <summary>Number of tokens in this billing batch.</summary>
     [JsonPropertyName("batchSize")]
@@ -3039,12 +3044,12 @@ public partial class AssistantUsageDataCopilotUsageTokenDetailsItem
 }
 
 /// <summary>Per-request cost and usage data from the CAPI copilot_usage response field.</summary>
-/// <remarks>Nested data type for <c>AssistantUsageDataCopilotUsage</c>.</remarks>
-public partial class AssistantUsageDataCopilotUsage
+/// <remarks>Nested data type for <c>AssistantUsageCopilotUsage</c>.</remarks>
+public partial class AssistantUsageCopilotUsage
 {
     /// <summary>Itemized token usage breakdown.</summary>
     [JsonPropertyName("tokenDetails")]
-    public required AssistantUsageDataCopilotUsageTokenDetailsItem[] TokenDetails { get; set; }
+    public required AssistantUsageCopilotUsageTokenDetail[] TokenDetails { get; set; }
 
     /// <summary>Total cost in nano-AIU (AI Units) for this request.</summary>
     [JsonPropertyName("totalNanoAiu")]
@@ -3052,8 +3057,8 @@ public partial class AssistantUsageDataCopilotUsage
 }
 
 /// <summary>Plain text content block.</summary>
-/// <remarks>The <c>text</c> variant of <see cref="ToolExecutionCompleteDataResultContentsItem"/>.</remarks>
-public partial class ToolExecutionCompleteDataResultContentsItemText : ToolExecutionCompleteDataResultContentsItem
+/// <remarks>The <c>text</c> variant of <see cref="ToolExecutionCompleteContent"/>.</remarks>
+public partial class ToolExecutionCompleteContentText : ToolExecutionCompleteContent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3065,8 +3070,8 @@ public partial class ToolExecutionCompleteDataResultContentsItemText : ToolExecu
 }
 
 /// <summary>Terminal/shell output content block with optional exit code and working directory.</summary>
-/// <remarks>The <c>terminal</c> variant of <see cref="ToolExecutionCompleteDataResultContentsItem"/>.</remarks>
-public partial class ToolExecutionCompleteDataResultContentsItemTerminal : ToolExecutionCompleteDataResultContentsItem
+/// <remarks>The <c>terminal</c> variant of <see cref="ToolExecutionCompleteContent"/>.</remarks>
+public partial class ToolExecutionCompleteContentTerminal : ToolExecutionCompleteContent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3088,8 +3093,8 @@ public partial class ToolExecutionCompleteDataResultContentsItemTerminal : ToolE
 }
 
 /// <summary>Image content block with base64-encoded data.</summary>
-/// <remarks>The <c>image</c> variant of <see cref="ToolExecutionCompleteDataResultContentsItem"/>.</remarks>
-public partial class ToolExecutionCompleteDataResultContentsItemImage : ToolExecutionCompleteDataResultContentsItem
+/// <remarks>The <c>image</c> variant of <see cref="ToolExecutionCompleteContent"/>.</remarks>
+public partial class ToolExecutionCompleteContentImage : ToolExecutionCompleteContent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3105,8 +3110,8 @@ public partial class ToolExecutionCompleteDataResultContentsItemImage : ToolExec
 }
 
 /// <summary>Audio content block with base64-encoded data.</summary>
-/// <remarks>The <c>audio</c> variant of <see cref="ToolExecutionCompleteDataResultContentsItem"/>.</remarks>
-public partial class ToolExecutionCompleteDataResultContentsItemAudio : ToolExecutionCompleteDataResultContentsItem
+/// <remarks>The <c>audio</c> variant of <see cref="ToolExecutionCompleteContent"/>.</remarks>
+public partial class ToolExecutionCompleteContentAudio : ToolExecutionCompleteContent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3122,8 +3127,8 @@ public partial class ToolExecutionCompleteDataResultContentsItemAudio : ToolExec
 }
 
 /// <summary>Icon image for a resource.</summary>
-/// <remarks>Nested data type for <c>ToolExecutionCompleteDataResultContentsItemResourceLinkIconsItem</c>.</remarks>
-public partial class ToolExecutionCompleteDataResultContentsItemResourceLinkIconsItem
+/// <remarks>Nested data type for <c>ToolExecutionCompleteContentResourceLinkIcon</c>.</remarks>
+public partial class ToolExecutionCompleteContentResourceLinkIcon
 {
     /// <summary>URL or path to the icon image.</summary>
     [JsonPropertyName("src")]
@@ -3142,12 +3147,12 @@ public partial class ToolExecutionCompleteDataResultContentsItemResourceLinkIcon
     /// <summary>Theme variant this icon is intended for.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("theme")]
-    public ToolExecutionCompleteDataResultContentsItemResourceLinkIconsItemTheme? Theme { get; set; }
+    public ToolExecutionCompleteContentResourceLinkIconTheme? Theme { get; set; }
 }
 
 /// <summary>Resource link content block referencing an external resource.</summary>
-/// <remarks>The <c>resource_link</c> variant of <see cref="ToolExecutionCompleteDataResultContentsItem"/>.</remarks>
-public partial class ToolExecutionCompleteDataResultContentsItemResourceLink : ToolExecutionCompleteDataResultContentsItem
+/// <remarks>The <c>resource_link</c> variant of <see cref="ToolExecutionCompleteContent"/>.</remarks>
+public partial class ToolExecutionCompleteContentResourceLink : ToolExecutionCompleteContent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3156,7 +3161,7 @@ public partial class ToolExecutionCompleteDataResultContentsItemResourceLink : T
     /// <summary>Icons associated with this resource.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("icons")]
-    public ToolExecutionCompleteDataResultContentsItemResourceLinkIconsItem[]? Icons { get; set; }
+    public ToolExecutionCompleteContentResourceLinkIcon[]? Icons { get; set; }
 
     /// <summary>Resource name identifier.</summary>
     [JsonPropertyName("name")]
@@ -3188,8 +3193,8 @@ public partial class ToolExecutionCompleteDataResultContentsItemResourceLink : T
 }
 
 /// <summary>Embedded resource content block with inline text or binary data.</summary>
-/// <remarks>The <c>resource</c> variant of <see cref="ToolExecutionCompleteDataResultContentsItem"/>.</remarks>
-public partial class ToolExecutionCompleteDataResultContentsItemResource : ToolExecutionCompleteDataResultContentsItem
+/// <remarks>The <c>resource</c> variant of <see cref="ToolExecutionCompleteContent"/>.</remarks>
+public partial class ToolExecutionCompleteContentResource : ToolExecutionCompleteContent
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3205,13 +3210,13 @@ public partial class ToolExecutionCompleteDataResultContentsItemResource : ToolE
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
-[JsonDerivedType(typeof(ToolExecutionCompleteDataResultContentsItemText), "text")]
-[JsonDerivedType(typeof(ToolExecutionCompleteDataResultContentsItemTerminal), "terminal")]
-[JsonDerivedType(typeof(ToolExecutionCompleteDataResultContentsItemImage), "image")]
-[JsonDerivedType(typeof(ToolExecutionCompleteDataResultContentsItemAudio), "audio")]
-[JsonDerivedType(typeof(ToolExecutionCompleteDataResultContentsItemResourceLink), "resource_link")]
-[JsonDerivedType(typeof(ToolExecutionCompleteDataResultContentsItemResource), "resource")]
-public partial class ToolExecutionCompleteDataResultContentsItem
+[JsonDerivedType(typeof(ToolExecutionCompleteContentText), "text")]
+[JsonDerivedType(typeof(ToolExecutionCompleteContentTerminal), "terminal")]
+[JsonDerivedType(typeof(ToolExecutionCompleteContentImage), "image")]
+[JsonDerivedType(typeof(ToolExecutionCompleteContentAudio), "audio")]
+[JsonDerivedType(typeof(ToolExecutionCompleteContentResourceLink), "resource_link")]
+[JsonDerivedType(typeof(ToolExecutionCompleteContentResource), "resource")]
+public partial class ToolExecutionCompleteContent
 {
     /// <summary>The type discriminator.</summary>
     [JsonPropertyName("type")]
@@ -3220,8 +3225,8 @@ public partial class ToolExecutionCompleteDataResultContentsItem
 
 
 /// <summary>Tool execution result on success.</summary>
-/// <remarks>Nested data type for <c>ToolExecutionCompleteDataResult</c>.</remarks>
-public partial class ToolExecutionCompleteDataResult
+/// <remarks>Nested data type for <c>ToolExecutionCompleteResult</c>.</remarks>
+public partial class ToolExecutionCompleteResult
 {
     /// <summary>Concise tool result text sent to the LLM for chat completion, potentially truncated for token efficiency.</summary>
     [JsonPropertyName("content")]
@@ -3235,12 +3240,12 @@ public partial class ToolExecutionCompleteDataResult
     /// <summary>Structured content blocks (text, images, audio, resources) returned by the tool in their native format.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("contents")]
-    public ToolExecutionCompleteDataResultContentsItem[]? Contents { get; set; }
+    public ToolExecutionCompleteContent[]? Contents { get; set; }
 }
 
 /// <summary>Error details when the tool execution failed.</summary>
-/// <remarks>Nested data type for <c>ToolExecutionCompleteDataError</c>.</remarks>
-public partial class ToolExecutionCompleteDataError
+/// <remarks>Nested data type for <c>ToolExecutionCompleteError</c>.</remarks>
+public partial class ToolExecutionCompleteError
 {
     /// <summary>Human-readable error message.</summary>
     [JsonPropertyName("message")]
@@ -3253,8 +3258,8 @@ public partial class ToolExecutionCompleteDataError
 }
 
 /// <summary>Error details when the hook failed.</summary>
-/// <remarks>Nested data type for <c>HookEndDataError</c>.</remarks>
-public partial class HookEndDataError
+/// <remarks>Nested data type for <c>HookEndError</c>.</remarks>
+public partial class HookEndError
 {
     /// <summary>Human-readable error message.</summary>
     [JsonPropertyName("message")]
@@ -3267,8 +3272,8 @@ public partial class HookEndDataError
 }
 
 /// <summary>Metadata about the prompt template and its construction.</summary>
-/// <remarks>Nested data type for <c>SystemMessageDataMetadata</c>.</remarks>
-public partial class SystemMessageDataMetadata
+/// <remarks>Nested data type for <c>SystemMessageMetadata</c>.</remarks>
+public partial class SystemMessageMetadata
 {
     /// <summary>Version identifier of the prompt template used.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3281,8 +3286,8 @@ public partial class SystemMessageDataMetadata
     public IDictionary<string, object>? Variables { get; set; }
 }
 
-/// <summary>The <c>agent_completed</c> variant of <see cref="SystemNotificationDataKind"/>.</summary>
-public partial class SystemNotificationDataKindAgentCompleted : SystemNotificationDataKind
+/// <summary>The <c>agent_completed</c> variant of <see cref="SystemNotification"/>.</summary>
+public partial class SystemNotificationAgentCompleted : SystemNotification
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3298,7 +3303,7 @@ public partial class SystemNotificationDataKindAgentCompleted : SystemNotificati
 
     /// <summary>Whether the agent completed successfully or failed.</summary>
     [JsonPropertyName("status")]
-    public required SystemNotificationDataKindAgentCompletedStatus Status { get; set; }
+    public required SystemNotificationAgentCompletedStatus Status { get; set; }
 
     /// <summary>Human-readable description of the agent task.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3311,8 +3316,8 @@ public partial class SystemNotificationDataKindAgentCompleted : SystemNotificati
     public string? Prompt { get; set; }
 }
 
-/// <summary>The <c>agent_idle</c> variant of <see cref="SystemNotificationDataKind"/>.</summary>
-public partial class SystemNotificationDataKindAgentIdle : SystemNotificationDataKind
+/// <summary>The <c>agent_idle</c> variant of <see cref="SystemNotification"/>.</summary>
+public partial class SystemNotificationAgentIdle : SystemNotification
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3332,8 +3337,8 @@ public partial class SystemNotificationDataKindAgentIdle : SystemNotificationDat
     public string? Description { get; set; }
 }
 
-/// <summary>The <c>shell_completed</c> variant of <see cref="SystemNotificationDataKind"/>.</summary>
-public partial class SystemNotificationDataKindShellCompleted : SystemNotificationDataKind
+/// <summary>The <c>shell_completed</c> variant of <see cref="SystemNotification"/>.</summary>
+public partial class SystemNotificationShellCompleted : SystemNotification
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3354,8 +3359,8 @@ public partial class SystemNotificationDataKindShellCompleted : SystemNotificati
     public string? Description { get; set; }
 }
 
-/// <summary>The <c>shell_detached_completed</c> variant of <see cref="SystemNotificationDataKind"/>.</summary>
-public partial class SystemNotificationDataKindShellDetachedCompleted : SystemNotificationDataKind
+/// <summary>The <c>shell_detached_completed</c> variant of <see cref="SystemNotification"/>.</summary>
+public partial class SystemNotificationShellDetachedCompleted : SystemNotification
 {
     /// <inheritdoc />
     [JsonIgnore]
@@ -3376,11 +3381,11 @@ public partial class SystemNotificationDataKindShellDetachedCompleted : SystemNo
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
-[JsonDerivedType(typeof(SystemNotificationDataKindAgentCompleted), "agent_completed")]
-[JsonDerivedType(typeof(SystemNotificationDataKindAgentIdle), "agent_idle")]
-[JsonDerivedType(typeof(SystemNotificationDataKindShellCompleted), "shell_completed")]
-[JsonDerivedType(typeof(SystemNotificationDataKindShellDetachedCompleted), "shell_detached_completed")]
-public partial class SystemNotificationDataKind
+[JsonDerivedType(typeof(SystemNotificationAgentCompleted), "agent_completed")]
+[JsonDerivedType(typeof(SystemNotificationAgentIdle), "agent_idle")]
+[JsonDerivedType(typeof(SystemNotificationShellCompleted), "shell_completed")]
+[JsonDerivedType(typeof(SystemNotificationShellDetachedCompleted), "shell_detached_completed")]
+public partial class SystemNotification
 {
     /// <summary>The type discriminator.</summary>
     [JsonPropertyName("type")]
@@ -3388,8 +3393,8 @@ public partial class SystemNotificationDataKind
 }
 
 
-/// <summary>Nested data type for <c>PermissionRequestShellCommandsItem</c>.</summary>
-public partial class PermissionRequestShellCommandsItem
+/// <summary>Nested data type for <c>PermissionRequestShellCommand</c>.</summary>
+public partial class PermissionRequestShellCommand
 {
     /// <summary>Command identifier (e.g., executable name).</summary>
     [JsonPropertyName("identifier")]
@@ -3400,8 +3405,8 @@ public partial class PermissionRequestShellCommandsItem
     public required bool ReadOnly { get; set; }
 }
 
-/// <summary>Nested data type for <c>PermissionRequestShellPossibleUrlsItem</c>.</summary>
-public partial class PermissionRequestShellPossibleUrlsItem
+/// <summary>Nested data type for <c>PermissionRequestShellPossibleUrl</c>.</summary>
+public partial class PermissionRequestShellPossibleUrl
 {
     /// <summary>URL that may be accessed by the command.</summary>
     [JsonPropertyName("url")]
@@ -3431,7 +3436,7 @@ public partial class PermissionRequestShell : PermissionRequest
 
     /// <summary>Parsed command identifiers found in the command text.</summary>
     [JsonPropertyName("commands")]
-    public required PermissionRequestShellCommandsItem[] Commands { get; set; }
+    public required PermissionRequestShellCommand[] Commands { get; set; }
 
     /// <summary>File paths that may be read or written by the command.</summary>
     [JsonPropertyName("possiblePaths")]
@@ -3439,7 +3444,7 @@ public partial class PermissionRequestShell : PermissionRequest
 
     /// <summary>URLs that may be accessed by the command.</summary>
     [JsonPropertyName("possibleUrls")]
-    public required PermissionRequestShellPossibleUrlsItem[] PossibleUrls { get; set; }
+    public required PermissionRequestShellPossibleUrl[] PossibleUrls { get; set; }
 
     /// <summary>Whether the command includes a file write redirection (e.g., &gt; or &gt;&gt;).</summary>
     [JsonPropertyName("hasWriteFileRedirection")]
@@ -3685,17 +3690,17 @@ public partial class PermissionRequest
 
 
 /// <summary>The result of the permission request.</summary>
-/// <remarks>Nested data type for <c>PermissionCompletedDataResult</c>.</remarks>
-public partial class PermissionCompletedDataResult
+/// <remarks>Nested data type for <c>PermissionCompletedResult</c>.</remarks>
+public partial class PermissionCompletedResult
 {
     /// <summary>The outcome of the permission request.</summary>
     [JsonPropertyName("kind")]
-    public required PermissionCompletedDataResultKind Kind { get; set; }
+    public required PermissionCompletedKind Kind { get; set; }
 }
 
 /// <summary>JSON Schema describing the form fields to present to the user (form mode only).</summary>
-/// <remarks>Nested data type for <c>ElicitationRequestedDataRequestedSchema</c>.</remarks>
-public partial class ElicitationRequestedDataRequestedSchema
+/// <remarks>Nested data type for <c>ElicitationRequestedSchema</c>.</remarks>
+public partial class ElicitationRequestedSchema
 {
     /// <summary>Schema type indicator (always 'object').</summary>
     [JsonPropertyName("type")]
@@ -3712,8 +3717,8 @@ public partial class ElicitationRequestedDataRequestedSchema
 }
 
 /// <summary>Static OAuth client configuration, if the server specifies one.</summary>
-/// <remarks>Nested data type for <c>McpOauthRequiredDataStaticClientConfig</c>.</remarks>
-public partial class McpOauthRequiredDataStaticClientConfig
+/// <remarks>Nested data type for <c>McpOauthRequiredStaticClientConfig</c>.</remarks>
+public partial class McpOauthRequiredStaticClientConfig
 {
     /// <summary>OAuth client ID for the server.</summary>
     [JsonPropertyName("clientId")]
@@ -3725,8 +3730,8 @@ public partial class McpOauthRequiredDataStaticClientConfig
     public bool? PublicClient { get; set; }
 }
 
-/// <summary>Nested data type for <c>CommandsChangedDataCommandsItem</c>.</summary>
-public partial class CommandsChangedDataCommandsItem
+/// <summary>Nested data type for <c>CommandsChangedCommand</c>.</summary>
+public partial class CommandsChangedCommand
 {
     /// <summary>Gets or sets the <c>name</c> value.</summary>
     [JsonPropertyName("name")]
@@ -3739,8 +3744,8 @@ public partial class CommandsChangedDataCommandsItem
 }
 
 /// <summary>UI capability changes.</summary>
-/// <remarks>Nested data type for <c>CapabilitiesChangedDataUi</c>.</remarks>
-public partial class CapabilitiesChangedDataUi
+/// <remarks>Nested data type for <c>CapabilitiesChangedUi</c>.</remarks>
+public partial class CapabilitiesChangedUi
 {
     /// <summary>Whether elicitation is now supported.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3748,8 +3753,8 @@ public partial class CapabilitiesChangedDataUi
     public bool? Elicitation { get; set; }
 }
 
-/// <summary>Nested data type for <c>SessionSkillsLoadedDataSkillsItem</c>.</summary>
-public partial class SessionSkillsLoadedDataSkillsItem
+/// <summary>Nested data type for <c>SkillsLoadedSkill</c>.</summary>
+public partial class SkillsLoadedSkill
 {
     /// <summary>Unique identifier for the skill.</summary>
     [JsonPropertyName("name")]
@@ -3777,8 +3782,8 @@ public partial class SessionSkillsLoadedDataSkillsItem
     public string? Path { get; set; }
 }
 
-/// <summary>Nested data type for <c>SessionCustomAgentsUpdatedDataAgentsItem</c>.</summary>
-public partial class SessionCustomAgentsUpdatedDataAgentsItem
+/// <summary>Nested data type for <c>CustomAgentsUpdatedAgent</c>.</summary>
+public partial class CustomAgentsUpdatedAgent
 {
     /// <summary>Unique identifier for the agent.</summary>
     [JsonPropertyName("id")]
@@ -3814,8 +3819,8 @@ public partial class SessionCustomAgentsUpdatedDataAgentsItem
     public string? Model { get; set; }
 }
 
-/// <summary>Nested data type for <c>SessionMcpServersLoadedDataServersItem</c>.</summary>
-public partial class SessionMcpServersLoadedDataServersItem
+/// <summary>Nested data type for <c>McpServersLoadedServer</c>.</summary>
+public partial class McpServersLoadedServer
 {
     /// <summary>Server name (config key).</summary>
     [JsonPropertyName("name")]
@@ -3823,7 +3828,7 @@ public partial class SessionMcpServersLoadedDataServersItem
 
     /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
     [JsonPropertyName("status")]
-    public required SessionMcpServersLoadedDataServersItemStatus Status { get; set; }
+    public required McpServersLoadedServerStatus Status { get; set; }
 
     /// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3836,8 +3841,8 @@ public partial class SessionMcpServersLoadedDataServersItem
     public string? Error { get; set; }
 }
 
-/// <summary>Nested data type for <c>SessionExtensionsLoadedDataExtensionsItem</c>.</summary>
-public partial class SessionExtensionsLoadedDataExtensionsItem
+/// <summary>Nested data type for <c>ExtensionsLoadedExtension</c>.</summary>
+public partial class ExtensionsLoadedExtension
 {
     /// <summary>Source-qualified extension ID (e.g., 'project:my-ext', 'user:auth-helper').</summary>
     [JsonPropertyName("id")]
@@ -3849,16 +3854,16 @@ public partial class SessionExtensionsLoadedDataExtensionsItem
 
     /// <summary>Discovery source.</summary>
     [JsonPropertyName("source")]
-    public required SessionExtensionsLoadedDataExtensionsItemSource Source { get; set; }
+    public required ExtensionsLoadedExtensionSource Source { get; set; }
 
     /// <summary>Current status: running, disabled, failed, or starting.</summary>
     [JsonPropertyName("status")]
-    public required SessionExtensionsLoadedDataExtensionsItemStatus Status { get; set; }
+    public required ExtensionsLoadedExtensionStatus Status { get; set; }
 }
 
 /// <summary>Hosting platform type of the repository (github or ado).</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<SessionStartDataContextHostType>))]
-public enum SessionStartDataContextHostType
+[JsonConverter(typeof(JsonStringEnumConverter<StartContextHostType>))]
+public enum StartContextHostType
 {
     /// <summary>The <c>github</c> variant.</summary>
     [JsonStringEnumMemberName("github")]
@@ -3869,8 +3874,8 @@ public enum SessionStartDataContextHostType
 }
 
 /// <summary>The type of operation performed on the plan file.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<SessionPlanChangedDataOperation>))]
-public enum SessionPlanChangedDataOperation
+[JsonConverter(typeof(JsonStringEnumConverter<PlanChangedOperation>))]
+public enum PlanChangedOperation
 {
     /// <summary>The <c>create</c> variant.</summary>
     [JsonStringEnumMemberName("create")]
@@ -3884,8 +3889,8 @@ public enum SessionPlanChangedDataOperation
 }
 
 /// <summary>Whether the file was newly created or updated.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<SessionWorkspaceFileChangedDataOperation>))]
-public enum SessionWorkspaceFileChangedDataOperation
+[JsonConverter(typeof(JsonStringEnumConverter<WorkspaceFileChangedOperation>))]
+public enum WorkspaceFileChangedOperation
 {
     /// <summary>The <c>create</c> variant.</summary>
     [JsonStringEnumMemberName("create")]
@@ -3896,8 +3901,8 @@ public enum SessionWorkspaceFileChangedDataOperation
 }
 
 /// <summary>Origin type of the session being handed off.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<SessionHandoffDataSourceType>))]
-public enum SessionHandoffDataSourceType
+[JsonConverter(typeof(JsonStringEnumConverter<HandoffSourceType>))]
+public enum HandoffSourceType
 {
     /// <summary>The <c>remote</c> variant.</summary>
     [JsonStringEnumMemberName("remote")]
@@ -3908,8 +3913,8 @@ public enum SessionHandoffDataSourceType
 }
 
 /// <summary>Whether the session ended normally ("routine") or due to a crash/fatal error ("error").</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<SessionShutdownDataShutdownType>))]
-public enum SessionShutdownDataShutdownType
+[JsonConverter(typeof(JsonStringEnumConverter<ShutdownType>))]
+public enum ShutdownType
 {
     /// <summary>The <c>routine</c> variant.</summary>
     [JsonStringEnumMemberName("routine")]
@@ -3920,8 +3925,8 @@ public enum SessionShutdownDataShutdownType
 }
 
 /// <summary>Type of GitHub reference.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<UserMessageDataAttachmentsItemGithubReferenceReferenceType>))]
-public enum UserMessageDataAttachmentsItemGithubReferenceReferenceType
+[JsonConverter(typeof(JsonStringEnumConverter<UserMessageAttachmentGithubReferenceType>))]
+public enum UserMessageAttachmentGithubReferenceType
 {
     /// <summary>The <c>issue</c> variant.</summary>
     [JsonStringEnumMemberName("issue")]
@@ -3935,8 +3940,8 @@ public enum UserMessageDataAttachmentsItemGithubReferenceReferenceType
 }
 
 /// <summary>The agent mode that was active when this message was sent.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<UserMessageDataAgentMode>))]
-public enum UserMessageDataAgentMode
+[JsonConverter(typeof(JsonStringEnumConverter<UserMessageAgentMode>))]
+public enum UserMessageAgentMode
 {
     /// <summary>The <c>interactive</c> variant.</summary>
     [JsonStringEnumMemberName("interactive")]
@@ -3953,8 +3958,8 @@ public enum UserMessageDataAgentMode
 }
 
 /// <summary>Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<AssistantMessageDataToolRequestsItemType>))]
-public enum AssistantMessageDataToolRequestsItemType
+[JsonConverter(typeof(JsonStringEnumConverter<AssistantMessageToolRequestType>))]
+public enum AssistantMessageToolRequestType
 {
     /// <summary>The <c>function</c> variant.</summary>
     [JsonStringEnumMemberName("function")]
@@ -3965,8 +3970,8 @@ public enum AssistantMessageDataToolRequestsItemType
 }
 
 /// <summary>Theme variant this icon is intended for.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<ToolExecutionCompleteDataResultContentsItemResourceLinkIconsItemTheme>))]
-public enum ToolExecutionCompleteDataResultContentsItemResourceLinkIconsItemTheme
+[JsonConverter(typeof(JsonStringEnumConverter<ToolExecutionCompleteContentResourceLinkIconTheme>))]
+public enum ToolExecutionCompleteContentResourceLinkIconTheme
 {
     /// <summary>The <c>light</c> variant.</summary>
     [JsonStringEnumMemberName("light")]
@@ -3977,8 +3982,8 @@ public enum ToolExecutionCompleteDataResultContentsItemResourceLinkIconsItemThem
 }
 
 /// <summary>Message role: "system" for system prompts, "developer" for developer-injected instructions.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<SystemMessageDataRole>))]
-public enum SystemMessageDataRole
+[JsonConverter(typeof(JsonStringEnumConverter<SystemMessageRole>))]
+public enum SystemMessageRole
 {
     /// <summary>The <c>system</c> variant.</summary>
     [JsonStringEnumMemberName("system")]
@@ -3989,8 +3994,8 @@ public enum SystemMessageDataRole
 }
 
 /// <summary>Whether the agent completed successfully or failed.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<SystemNotificationDataKindAgentCompletedStatus>))]
-public enum SystemNotificationDataKindAgentCompletedStatus
+[JsonConverter(typeof(JsonStringEnumConverter<SystemNotificationAgentCompletedStatus>))]
+public enum SystemNotificationAgentCompletedStatus
 {
     /// <summary>The <c>completed</c> variant.</summary>
     [JsonStringEnumMemberName("completed")]
@@ -4025,8 +4030,8 @@ public enum PermissionRequestMemoryDirection
 }
 
 /// <summary>The outcome of the permission request.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<PermissionCompletedDataResultKind>))]
-public enum PermissionCompletedDataResultKind
+[JsonConverter(typeof(JsonStringEnumConverter<PermissionCompletedKind>))]
+public enum PermissionCompletedKind
 {
     /// <summary>The <c>approved</c> variant.</summary>
     [JsonStringEnumMemberName("approved")]
@@ -4049,8 +4054,8 @@ public enum PermissionCompletedDataResultKind
 }
 
 /// <summary>Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<ElicitationRequestedDataMode>))]
-public enum ElicitationRequestedDataMode
+[JsonConverter(typeof(JsonStringEnumConverter<ElicitationRequestedMode>))]
+public enum ElicitationRequestedMode
 {
     /// <summary>The <c>form</c> variant.</summary>
     [JsonStringEnumMemberName("form")]
@@ -4061,8 +4066,8 @@ public enum ElicitationRequestedDataMode
 }
 
 /// <summary>The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed).</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<ElicitationCompletedDataAction>))]
-public enum ElicitationCompletedDataAction
+[JsonConverter(typeof(JsonStringEnumConverter<ElicitationCompletedAction>))]
+public enum ElicitationCompletedAction
 {
     /// <summary>The <c>accept</c> variant.</summary>
     [JsonStringEnumMemberName("accept")]
@@ -4076,8 +4081,8 @@ public enum ElicitationCompletedDataAction
 }
 
 /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<SessionMcpServersLoadedDataServersItemStatus>))]
-public enum SessionMcpServersLoadedDataServersItemStatus
+[JsonConverter(typeof(JsonStringEnumConverter<McpServersLoadedServerStatus>))]
+public enum McpServersLoadedServerStatus
 {
     /// <summary>The <c>connected</c> variant.</summary>
     [JsonStringEnumMemberName("connected")]
@@ -4100,8 +4105,8 @@ public enum SessionMcpServersLoadedDataServersItemStatus
 }
 
 /// <summary>Discovery source.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<SessionExtensionsLoadedDataExtensionsItemSource>))]
-public enum SessionExtensionsLoadedDataExtensionsItemSource
+[JsonConverter(typeof(JsonStringEnumConverter<ExtensionsLoadedExtensionSource>))]
+public enum ExtensionsLoadedExtensionSource
 {
     /// <summary>The <c>project</c> variant.</summary>
     [JsonStringEnumMemberName("project")]
@@ -4112,8 +4117,8 @@ public enum SessionExtensionsLoadedDataExtensionsItemSource
 }
 
 /// <summary>Current status: running, disabled, failed, or starting.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<SessionExtensionsLoadedDataExtensionsItemStatus>))]
-public enum SessionExtensionsLoadedDataExtensionsItemStatus
+[JsonConverter(typeof(JsonStringEnumConverter<ExtensionsLoadedExtensionStatus>))]
+public enum ExtensionsLoadedExtensionStatus
 {
     /// <summary>The <c>running</c> variant.</summary>
     [JsonStringEnumMemberName("running")]
@@ -4139,10 +4144,10 @@ public enum SessionExtensionsLoadedDataExtensionsItemStatus
 [JsonSerializable(typeof(AssistantIntentData))]
 [JsonSerializable(typeof(AssistantIntentEvent))]
 [JsonSerializable(typeof(AssistantMessageData))]
-[JsonSerializable(typeof(AssistantMessageDataToolRequestsItem))]
 [JsonSerializable(typeof(AssistantMessageDeltaData))]
 [JsonSerializable(typeof(AssistantMessageDeltaEvent))]
 [JsonSerializable(typeof(AssistantMessageEvent))]
+[JsonSerializable(typeof(AssistantMessageToolRequest))]
 [JsonSerializable(typeof(AssistantReasoningData))]
 [JsonSerializable(typeof(AssistantReasoningDeltaData))]
 [JsonSerializable(typeof(AssistantReasoningDeltaEvent))]
@@ -4153,50 +4158,55 @@ public enum SessionExtensionsLoadedDataExtensionsItemStatus
 [JsonSerializable(typeof(AssistantTurnEndEvent))]
 [JsonSerializable(typeof(AssistantTurnStartData))]
 [JsonSerializable(typeof(AssistantTurnStartEvent))]
+[JsonSerializable(typeof(AssistantUsageCopilotUsage))]
+[JsonSerializable(typeof(AssistantUsageCopilotUsageTokenDetail))]
 [JsonSerializable(typeof(AssistantUsageData))]
-[JsonSerializable(typeof(AssistantUsageDataCopilotUsage))]
-[JsonSerializable(typeof(AssistantUsageDataCopilotUsageTokenDetailsItem))]
 [JsonSerializable(typeof(AssistantUsageEvent))]
 [JsonSerializable(typeof(CapabilitiesChangedData))]
-[JsonSerializable(typeof(CapabilitiesChangedDataUi))]
 [JsonSerializable(typeof(CapabilitiesChangedEvent))]
+[JsonSerializable(typeof(CapabilitiesChangedUi))]
 [JsonSerializable(typeof(CommandCompletedData))]
 [JsonSerializable(typeof(CommandCompletedEvent))]
 [JsonSerializable(typeof(CommandExecuteData))]
 [JsonSerializable(typeof(CommandExecuteEvent))]
 [JsonSerializable(typeof(CommandQueuedData))]
 [JsonSerializable(typeof(CommandQueuedEvent))]
+[JsonSerializable(typeof(CommandsChangedCommand))]
 [JsonSerializable(typeof(CommandsChangedData))]
-[JsonSerializable(typeof(CommandsChangedDataCommandsItem))]
 [JsonSerializable(typeof(CommandsChangedEvent))]
+[JsonSerializable(typeof(CompactionCompleteCompactionTokensUsed))]
+[JsonSerializable(typeof(CustomAgentsUpdatedAgent))]
 [JsonSerializable(typeof(ElicitationCompletedData))]
 [JsonSerializable(typeof(ElicitationCompletedEvent))]
 [JsonSerializable(typeof(ElicitationRequestedData))]
-[JsonSerializable(typeof(ElicitationRequestedDataRequestedSchema))]
 [JsonSerializable(typeof(ElicitationRequestedEvent))]
+[JsonSerializable(typeof(ElicitationRequestedSchema))]
 [JsonSerializable(typeof(ExitPlanModeCompletedData))]
 [JsonSerializable(typeof(ExitPlanModeCompletedEvent))]
 [JsonSerializable(typeof(ExitPlanModeRequestedData))]
 [JsonSerializable(typeof(ExitPlanModeRequestedEvent))]
+[JsonSerializable(typeof(ExtensionsLoadedExtension))]
 [JsonSerializable(typeof(ExternalToolCompletedData))]
 [JsonSerializable(typeof(ExternalToolCompletedEvent))]
 [JsonSerializable(typeof(ExternalToolRequestedData))]
 [JsonSerializable(typeof(ExternalToolRequestedEvent))]
+[JsonSerializable(typeof(HandoffRepository))]
 [JsonSerializable(typeof(HookEndData))]
-[JsonSerializable(typeof(HookEndDataError))]
+[JsonSerializable(typeof(HookEndError))]
 [JsonSerializable(typeof(HookEndEvent))]
 [JsonSerializable(typeof(HookStartData))]
 [JsonSerializable(typeof(HookStartEvent))]
 [JsonSerializable(typeof(McpOauthCompletedData))]
 [JsonSerializable(typeof(McpOauthCompletedEvent))]
 [JsonSerializable(typeof(McpOauthRequiredData))]
-[JsonSerializable(typeof(McpOauthRequiredDataStaticClientConfig))]
 [JsonSerializable(typeof(McpOauthRequiredEvent))]
+[JsonSerializable(typeof(McpOauthRequiredStaticClientConfig))]
+[JsonSerializable(typeof(McpServersLoadedServer))]
 [JsonSerializable(typeof(PendingMessagesModifiedData))]
 [JsonSerializable(typeof(PendingMessagesModifiedEvent))]
 [JsonSerializable(typeof(PermissionCompletedData))]
-[JsonSerializable(typeof(PermissionCompletedDataResult))]
 [JsonSerializable(typeof(PermissionCompletedEvent))]
+[JsonSerializable(typeof(PermissionCompletedResult))]
 [JsonSerializable(typeof(PermissionRequest))]
 [JsonSerializable(typeof(PermissionRequestCustomTool))]
 [JsonSerializable(typeof(PermissionRequestHook))]
@@ -4204,12 +4214,13 @@ public enum SessionExtensionsLoadedDataExtensionsItemStatus
 [JsonSerializable(typeof(PermissionRequestMemory))]
 [JsonSerializable(typeof(PermissionRequestRead))]
 [JsonSerializable(typeof(PermissionRequestShell))]
-[JsonSerializable(typeof(PermissionRequestShellCommandsItem))]
-[JsonSerializable(typeof(PermissionRequestShellPossibleUrlsItem))]
+[JsonSerializable(typeof(PermissionRequestShellCommand))]
+[JsonSerializable(typeof(PermissionRequestShellPossibleUrl))]
 [JsonSerializable(typeof(PermissionRequestUrl))]
 [JsonSerializable(typeof(PermissionRequestWrite))]
 [JsonSerializable(typeof(PermissionRequestedData))]
 [JsonSerializable(typeof(PermissionRequestedEvent))]
+[JsonSerializable(typeof(ResumeContext))]
 [JsonSerializable(typeof(SamplingCompletedData))]
 [JsonSerializable(typeof(SamplingCompletedEvent))]
 [JsonSerializable(typeof(SamplingRequestedData))]
@@ -4217,23 +4228,19 @@ public enum SessionExtensionsLoadedDataExtensionsItemStatus
 [JsonSerializable(typeof(SessionBackgroundTasksChangedData))]
 [JsonSerializable(typeof(SessionBackgroundTasksChangedEvent))]
 [JsonSerializable(typeof(SessionCompactionCompleteData))]
-[JsonSerializable(typeof(SessionCompactionCompleteDataCompactionTokensUsed))]
 [JsonSerializable(typeof(SessionCompactionCompleteEvent))]
 [JsonSerializable(typeof(SessionCompactionStartData))]
 [JsonSerializable(typeof(SessionCompactionStartEvent))]
 [JsonSerializable(typeof(SessionContextChangedData))]
 [JsonSerializable(typeof(SessionContextChangedEvent))]
 [JsonSerializable(typeof(SessionCustomAgentsUpdatedData))]
-[JsonSerializable(typeof(SessionCustomAgentsUpdatedDataAgentsItem))]
 [JsonSerializable(typeof(SessionCustomAgentsUpdatedEvent))]
 [JsonSerializable(typeof(SessionErrorData))]
 [JsonSerializable(typeof(SessionErrorEvent))]
 [JsonSerializable(typeof(SessionEvent))]
 [JsonSerializable(typeof(SessionExtensionsLoadedData))]
-[JsonSerializable(typeof(SessionExtensionsLoadedDataExtensionsItem))]
 [JsonSerializable(typeof(SessionExtensionsLoadedEvent))]
 [JsonSerializable(typeof(SessionHandoffData))]
-[JsonSerializable(typeof(SessionHandoffDataRepository))]
 [JsonSerializable(typeof(SessionHandoffEvent))]
 [JsonSerializable(typeof(SessionIdleData))]
 [JsonSerializable(typeof(SessionIdleEvent))]
@@ -4242,7 +4249,6 @@ public enum SessionExtensionsLoadedDataExtensionsItemStatus
 [JsonSerializable(typeof(SessionMcpServerStatusChangedData))]
 [JsonSerializable(typeof(SessionMcpServerStatusChangedEvent))]
 [JsonSerializable(typeof(SessionMcpServersLoadedData))]
-[JsonSerializable(typeof(SessionMcpServersLoadedDataServersItem))]
 [JsonSerializable(typeof(SessionMcpServersLoadedEvent))]
 [JsonSerializable(typeof(SessionModeChangedData))]
 [JsonSerializable(typeof(SessionModeChangedEvent))]
@@ -4253,18 +4259,14 @@ public enum SessionExtensionsLoadedDataExtensionsItemStatus
 [JsonSerializable(typeof(SessionRemoteSteerableChangedData))]
 [JsonSerializable(typeof(SessionRemoteSteerableChangedEvent))]
 [JsonSerializable(typeof(SessionResumeData))]
-[JsonSerializable(typeof(SessionResumeDataContext))]
 [JsonSerializable(typeof(SessionResumeEvent))]
 [JsonSerializable(typeof(SessionShutdownData))]
-[JsonSerializable(typeof(SessionShutdownDataCodeChanges))]
 [JsonSerializable(typeof(SessionShutdownEvent))]
 [JsonSerializable(typeof(SessionSkillsLoadedData))]
-[JsonSerializable(typeof(SessionSkillsLoadedDataSkillsItem))]
 [JsonSerializable(typeof(SessionSkillsLoadedEvent))]
 [JsonSerializable(typeof(SessionSnapshotRewindData))]
 [JsonSerializable(typeof(SessionSnapshotRewindEvent))]
 [JsonSerializable(typeof(SessionStartData))]
-[JsonSerializable(typeof(SessionStartDataContext))]
 [JsonSerializable(typeof(SessionStartEvent))]
 [JsonSerializable(typeof(SessionTaskCompleteData))]
 [JsonSerializable(typeof(SessionTaskCompleteEvent))]
@@ -4280,8 +4282,11 @@ public enum SessionExtensionsLoadedDataExtensionsItemStatus
 [JsonSerializable(typeof(SessionWarningEvent))]
 [JsonSerializable(typeof(SessionWorkspaceFileChangedData))]
 [JsonSerializable(typeof(SessionWorkspaceFileChangedEvent))]
+[JsonSerializable(typeof(ShutdownCodeChanges))]
 [JsonSerializable(typeof(SkillInvokedData))]
 [JsonSerializable(typeof(SkillInvokedEvent))]
+[JsonSerializable(typeof(SkillsLoadedSkill))]
+[JsonSerializable(typeof(StartContext))]
 [JsonSerializable(typeof(SubagentCompletedData))]
 [JsonSerializable(typeof(SubagentCompletedEvent))]
 [JsonSerializable(typeof(SubagentDeselectedData))]
@@ -4293,27 +4298,27 @@ public enum SessionExtensionsLoadedDataExtensionsItemStatus
 [JsonSerializable(typeof(SubagentStartedData))]
 [JsonSerializable(typeof(SubagentStartedEvent))]
 [JsonSerializable(typeof(SystemMessageData))]
-[JsonSerializable(typeof(SystemMessageDataMetadata))]
 [JsonSerializable(typeof(SystemMessageEvent))]
+[JsonSerializable(typeof(SystemMessageMetadata))]
+[JsonSerializable(typeof(SystemNotification))]
+[JsonSerializable(typeof(SystemNotificationAgentCompleted))]
+[JsonSerializable(typeof(SystemNotificationAgentIdle))]
 [JsonSerializable(typeof(SystemNotificationData))]
-[JsonSerializable(typeof(SystemNotificationDataKind))]
-[JsonSerializable(typeof(SystemNotificationDataKindAgentCompleted))]
-[JsonSerializable(typeof(SystemNotificationDataKindAgentIdle))]
-[JsonSerializable(typeof(SystemNotificationDataKindShellCompleted))]
-[JsonSerializable(typeof(SystemNotificationDataKindShellDetachedCompleted))]
 [JsonSerializable(typeof(SystemNotificationEvent))]
+[JsonSerializable(typeof(SystemNotificationShellCompleted))]
+[JsonSerializable(typeof(SystemNotificationShellDetachedCompleted))]
+[JsonSerializable(typeof(ToolExecutionCompleteContent))]
+[JsonSerializable(typeof(ToolExecutionCompleteContentAudio))]
+[JsonSerializable(typeof(ToolExecutionCompleteContentImage))]
+[JsonSerializable(typeof(ToolExecutionCompleteContentResource))]
+[JsonSerializable(typeof(ToolExecutionCompleteContentResourceLink))]
+[JsonSerializable(typeof(ToolExecutionCompleteContentResourceLinkIcon))]
+[JsonSerializable(typeof(ToolExecutionCompleteContentTerminal))]
+[JsonSerializable(typeof(ToolExecutionCompleteContentText))]
 [JsonSerializable(typeof(ToolExecutionCompleteData))]
-[JsonSerializable(typeof(ToolExecutionCompleteDataError))]
-[JsonSerializable(typeof(ToolExecutionCompleteDataResult))]
-[JsonSerializable(typeof(ToolExecutionCompleteDataResultContentsItem))]
-[JsonSerializable(typeof(ToolExecutionCompleteDataResultContentsItemAudio))]
-[JsonSerializable(typeof(ToolExecutionCompleteDataResultContentsItemImage))]
-[JsonSerializable(typeof(ToolExecutionCompleteDataResultContentsItemResource))]
-[JsonSerializable(typeof(ToolExecutionCompleteDataResultContentsItemResourceLink))]
-[JsonSerializable(typeof(ToolExecutionCompleteDataResultContentsItemResourceLinkIconsItem))]
-[JsonSerializable(typeof(ToolExecutionCompleteDataResultContentsItemTerminal))]
-[JsonSerializable(typeof(ToolExecutionCompleteDataResultContentsItemText))]
+[JsonSerializable(typeof(ToolExecutionCompleteError))]
 [JsonSerializable(typeof(ToolExecutionCompleteEvent))]
+[JsonSerializable(typeof(ToolExecutionCompleteResult))]
 [JsonSerializable(typeof(ToolExecutionPartialResultData))]
 [JsonSerializable(typeof(ToolExecutionPartialResultEvent))]
 [JsonSerializable(typeof(ToolExecutionProgressData))]
@@ -4326,17 +4331,17 @@ public enum SessionExtensionsLoadedDataExtensionsItemStatus
 [JsonSerializable(typeof(UserInputCompletedEvent))]
 [JsonSerializable(typeof(UserInputRequestedData))]
 [JsonSerializable(typeof(UserInputRequestedEvent))]
+[JsonSerializable(typeof(UserMessageAttachment))]
+[JsonSerializable(typeof(UserMessageAttachmentBlob))]
+[JsonSerializable(typeof(UserMessageAttachmentDirectory))]
+[JsonSerializable(typeof(UserMessageAttachmentFile))]
+[JsonSerializable(typeof(UserMessageAttachmentFileLineRange))]
+[JsonSerializable(typeof(UserMessageAttachmentGithubReference))]
+[JsonSerializable(typeof(UserMessageAttachmentSelection))]
+[JsonSerializable(typeof(UserMessageAttachmentSelectionDetails))]
+[JsonSerializable(typeof(UserMessageAttachmentSelectionDetailsEnd))]
+[JsonSerializable(typeof(UserMessageAttachmentSelectionDetailsStart))]
 [JsonSerializable(typeof(UserMessageData))]
-[JsonSerializable(typeof(UserMessageDataAttachmentsItem))]
-[JsonSerializable(typeof(UserMessageDataAttachmentsItemBlob))]
-[JsonSerializable(typeof(UserMessageDataAttachmentsItemDirectory))]
-[JsonSerializable(typeof(UserMessageDataAttachmentsItemFile))]
-[JsonSerializable(typeof(UserMessageDataAttachmentsItemFileLineRange))]
-[JsonSerializable(typeof(UserMessageDataAttachmentsItemGithubReference))]
-[JsonSerializable(typeof(UserMessageDataAttachmentsItemSelection))]
-[JsonSerializable(typeof(UserMessageDataAttachmentsItemSelectionSelection))]
-[JsonSerializable(typeof(UserMessageDataAttachmentsItemSelectionSelectionEnd))]
-[JsonSerializable(typeof(UserMessageDataAttachmentsItemSelectionSelectionStart))]
 [JsonSerializable(typeof(UserMessageEvent))]
 [JsonSerializable(typeof(JsonElement))]
 internal partial class SessionEventsJsonContext : JsonSerializerContext;

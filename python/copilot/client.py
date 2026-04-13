@@ -762,23 +762,24 @@ def _get_bundled_cli_path() -> str | None:
 
 
 def _extract_transform_callbacks(
-    system_message: dict | None,
-) -> tuple[dict | None, dict[str, SectionTransformFn] | None]:
+    system_message: SystemMessageConfig | dict[str, Any] | None,
+) -> tuple[dict[str, Any] | None, dict[str, SectionTransformFn] | None]:
     """Extract function-valued actions from system message config.
 
     Returns a wire-safe payload (with callable actions replaced by ``"transform"``)
     and a dict of transform callbacks keyed by section ID.
     """
+    wire_system_message = cast(dict[str, Any] | None, system_message)
     if (
-        not system_message
-        or system_message.get("mode") != "customize"
-        or not system_message.get("sections")
+        not wire_system_message
+        or wire_system_message.get("mode") != "customize"
+        or not wire_system_message.get("sections")
     ):
-        return system_message, None
+        return wire_system_message, None
 
     callbacks: dict[str, SectionTransformFn] = {}
-    wire_sections: dict[str, dict] = {}
-    for section_id, override in system_message["sections"].items():
+    wire_sections: dict[str, Any] = {}
+    for section_id, override in wire_system_message["sections"].items():
         if not override:
             continue
         action = override.get("action")
@@ -789,9 +790,9 @@ def _extract_transform_callbacks(
             wire_sections[section_id] = override
 
     if not callbacks:
-        return system_message, None
+        return wire_system_message, None
 
-    wire_payload = {**system_message, "sections": wire_sections}
+    wire_payload = {**wire_system_message, "sections": wire_sections}
     return wire_payload, callbacks
 
 
@@ -1798,9 +1799,9 @@ class CopilotClient:
                 # Use custom handler instead of CLI RPC
                 result = self._on_list_models()
                 if inspect.isawaitable(result):
-                    models = await result
+                    models = cast(list[ModelInfo], await result)
                 else:
-                    models = result
+                    models = cast(list[ModelInfo], result)
             else:
                 if not self._client:
                     raise RuntimeError("Client not connected")

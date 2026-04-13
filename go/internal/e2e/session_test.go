@@ -1157,7 +1157,7 @@ func TestSessionLog(t *testing.T) {
 	})
 
 	t.Run("should log warning message", func(t *testing.T) {
-		if err := session.Log(t.Context(), "Warning message", &copilot.LogOptions{Level: rpc.LevelWarning}); err != nil {
+		if err := session.Log(t.Context(), "Warning message", &copilot.LogOptions{Level: rpc.SessionLogLevelWarning}); err != nil {
 			t.Fatalf("Log failed: %v", err)
 		}
 
@@ -1172,7 +1172,7 @@ func TestSessionLog(t *testing.T) {
 	})
 
 	t.Run("should log error message", func(t *testing.T) {
-		if err := session.Log(t.Context(), "Error message", &copilot.LogOptions{Level: rpc.LevelError}); err != nil {
+		if err := session.Log(t.Context(), "Error message", &copilot.LogOptions{Level: rpc.SessionLogLevelError}); err != nil {
 			t.Fatalf("Log failed: %v", err)
 		}
 

@@ -21,9 +21,6 @@ const __dirname = path.dirname(__filename);
 /** Root of the copilot-sdk repo */
 export const REPO_ROOT = path.resolve(__dirname, "../..");
 
-/** Event types to exclude from generation (internal/legacy types) */
-export const EXCLUDED_EVENT_TYPES = new Set(["session.import_legacy"]);
-
 // ── Schema paths ────────────────────────────────────────────────────────────
 
 export async function getSessionEventsSchemaPath(): Promise<string> {
@@ -49,7 +46,7 @@ export async function getApiSchemaPath(cliArg?: string): Promise<string> {
 
 /**
  * Post-process JSON Schema for quicktype compatibility.
- * Converts boolean const values to enum, filters excluded event types.
+ * Converts boolean const values to enum.
  */
 export function postProcessSchema(schema: JSONSchema7): JSONSchema7 {
     if (typeof schema !== "object" || schema === null) return schema;
@@ -81,18 +78,9 @@ export function postProcessSchema(schema: JSONSchema7): JSONSchema7 {
 
     for (const combiner of ["anyOf", "allOf", "oneOf"] as const) {
         if (processed[combiner]) {
-            processed[combiner] = processed[combiner]!
-                .filter((item) => {
-                    if (typeof item !== "object") return true;
-                    const typeConst = (item as JSONSchema7).properties?.type;
-                    if (typeof typeConst === "object" && "const" in typeConst) {
-                        return !EXCLUDED_EVENT_TYPES.has(typeConst.const as string);
-                    }
-                    return true;
-                })
-                .map((item) =>
-                    typeof item === "object" ? postProcessSchema(item as JSONSchema7) : item
-                ) as JSONSchema7Definition[];
+            processed[combiner] = processed[combiner]!.map((item) =>
+                typeof item === "object" ? postProcessSchema(item as JSONSchema7) : item
+            ) as JSONSchema7Definition[];
         }
     }
 
@@ -127,6 +115,160 @@ export interface RpcMethod {
     params: JSONSchema7 | null;
     result: JSONSchema7 | null;
     stability?: string;
+}
+
+export function getRpcSchemaTypeName(schema: JSONSchema7 | null | undefined, fallback: string): string {
+    if (typeof schema?.title === "string") return schema.title;
+    return fallback;
+}
+
+/**
+ * Returns true if the schema represents an object with properties (i.e., a type that should
+ * be generated as a class/struct/dataclass). Returns false for enums, primitives, arrays,
+ * and other non-object schemas.
+ */
+export function isObjectSchema(schema: JSONSchema7 | null | undefined): boolean {
+    if (!schema) return false;
+    if (schema.type === "object" && schema.properties) return true;
+    return false;
+}
+
+export function cloneSchemaForCodegen<T>(value: T): T {
+    if (Array.isArray(value)) {
+        return value.map((item) => cloneSchemaForCodegen(item)) as T;
+    }
+
+    if (value && typeof value === "object") {
+        const result: Record<string, unknown> = {};
+        for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+            if (key === "titleSource") {
+                continue;
+            }
+            result[key] = cloneSchemaForCodegen(child);
+        }
+
+        return result as T;
+    }
+
+    return value;
+}
+
+export function stripNonAnnotationTitles<T>(value: T): T {
+    if (Array.isArray(value)) {
+        return value.map((item) => stripNonAnnotationTitles(item)) as T;
+    }
+
+    if (value && typeof value === "object") {
+        const result: Record<string, unknown> = {};
+        const source = value as Record<string, unknown>;
+        const keepTitle = typeof source.title === "string" && source.titleSource === "annotation";
+        for (const [key, child] of Object.entries(source)) {
+            if (key === "titleSource") {
+                continue;
+            }
+            if (key === "title" && !keepTitle) {
+                continue;
+            }
+            result[key] = stripNonAnnotationTitles(child);
+        }
+
+        return result as T;
+    }
+
+    return value;
+}
+
+export function hoistTitledSchemas(
+    rootDefinitions: Record<string, JSONSchema7>
+): { rootDefinitions: Record<string, JSONSchema7>; sharedDefinitions: Record<string, JSONSchema7> } {
+    const sharedDefinitions: Record<string, JSONSchema7> = {};
+    const processedRoots: Record<string, JSONSchema7> = {};
+
+    for (const [rootName, definition] of Object.entries(rootDefinitions)) {
+        processedRoots[rootName] = visitSchema(definition, rootName, sharedDefinitions);
+    }
+
+    return { rootDefinitions: processedRoots, sharedDefinitions };
+}
+
+function visitSchema(
+    schema: JSONSchema7,
+    rootName: string,
+    sharedDefinitions: Record<string, JSONSchema7>
+): JSONSchema7 {
+    const result: JSONSchema7 = { ...schema };
+
+    if (result.properties) {
+        result.properties = Object.fromEntries(
+            Object.entries(result.properties).map(([key, value]) => [
+                key,
+                typeof value === "object" && value !== null && !Array.isArray(value)
+                    ? visitSchema(value as JSONSchema7, rootName, sharedDefinitions)
+                    : value,
+            ])
+        );
+    }
+
+    if (result.items) {
+        if (Array.isArray(result.items)) {
+            result.items = result.items.map((item) =>
+                typeof item === "object" && item !== null && !Array.isArray(item)
+                    ? visitSchema(item as JSONSchema7, rootName, sharedDefinitions)
+                    : item
+            ) as JSONSchema7Definition[];
+        } else if (typeof result.items === "object" && result.items !== null) {
+            result.items = visitSchema(result.items as JSONSchema7, rootName, sharedDefinitions);
+        }
+    }
+
+    if (typeof result.additionalProperties === "object" && result.additionalProperties !== null) {
+        result.additionalProperties = visitSchema(result.additionalProperties as JSONSchema7, rootName, sharedDefinitions);
+    }
+
+    for (const combiner of ["anyOf", "allOf", "oneOf"] as const) {
+        if (result[combiner]) {
+            result[combiner] = result[combiner]!.map((item) =>
+                typeof item === "object" && item !== null && !Array.isArray(item)
+                    ? visitSchema(item as JSONSchema7, rootName, sharedDefinitions)
+                    : item
+            ) as JSONSchema7Definition[];
+        }
+    }
+
+    if (typeof result.title === "string" && result.title !== rootName) {
+        const existing = sharedDefinitions[result.title];
+        if (existing) {
+            if (stableStringify(existing) !== stableStringify(result)) {
+                throw new Error(`Conflicting titled schemas for "${result.title}" while preparing quicktype inputs.`);
+            }
+        } else {
+            sharedDefinitions[result.title] = result;
+        }
+        return { $ref: `#/definitions/${result.title}` };
+    }
+
+    return result;
+}
+
+function stableStringify(value: unknown): string {
+    return JSON.stringify(sortJsonValue(value));
+}
+
+function sortJsonValue(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        return value.map(sortJsonValue);
+    }
+
+    if (value && typeof value === "object") {
+        return Object.fromEntries(
+            Object.entries(value as Record<string, unknown>)
+                .filter(([key]) => key !== "description" && key !== "titleSource")
+                .sort(([left], [right]) => left.localeCompare(right))
+                .map(([key, child]) => [key, sortJsonValue(child)])
+        );
+    }
+
+    return value;
 }
 
 export interface ApiSchema {

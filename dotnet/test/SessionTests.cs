@@ -529,8 +529,8 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
         session.On(evt => events.Add(evt));
 
         await session.LogAsync("Info message");
-        await session.LogAsync("Warning message", level: SessionLogRequestLevel.Warning);
-        await session.LogAsync("Error message", level: SessionLogRequestLevel.Error);
+        await session.LogAsync("Warning message", level: SessionLogLevel.Warning);
+        await session.LogAsync("Error message", level: SessionLogLevel.Error);
         await session.LogAsync("Ephemeral message", ephemeral: true);
 
         // Poll until all 4 notification events arrive
@@ -618,7 +618,7 @@ public class SessionTests(E2ETestFixture fixture, ITestOutputHelper output) : E2
             Prompt = "Describe this image",
             Attachments =
             [
-                new UserMessageDataAttachmentsItemBlob
+                new UserMessageAttachmentBlob
                 {
                     Data = pngBase64,
                     MimeType = "image/png",

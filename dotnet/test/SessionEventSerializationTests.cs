@@ -24,12 +24,12 @@ public class SessionEventSerializationTests
                     Content = "",
                     ToolRequests =
                     [
-                        new AssistantMessageDataToolRequestsItem
+                        new AssistantMessageToolRequest
                         {
                             ToolCallId = "call-1",
                             Name = "view",
                             Arguments = ParseJsonElement("""{"path":"README.md"}"""),
-                            Type = AssistantMessageDataToolRequestsItemType.Function,
+                            Type = AssistantMessageToolRequestType.Function,
                         },
                     ],
                 },
@@ -61,7 +61,7 @@ public class SessionEventSerializationTests
                 {
                     ToolCallId = "call-1",
                     Success = true,
-                    Result = new ToolExecutionCompleteDataResult
+                    Result = new ToolExecutionCompleteResult
                     {
                         Content = "ok",
                         DetailedContent = "ok",
@@ -83,11 +83,11 @@ public class SessionEventSerializationTests
                 ParentId = Guid.Parse("88888888-8888-8888-8888-888888888888"),
                 Data = new SessionShutdownData
                 {
-                    ShutdownType = SessionShutdownDataShutdownType.Routine,
+                    ShutdownType = ShutdownType.Routine,
                     TotalPremiumRequests = 1,
                     TotalApiDurationMs = 100,
                     SessionStartTime = 1773609948932,
-                    CodeChanges = new SessionShutdownDataCodeChanges
+                    CodeChanges = new ShutdownCodeChanges
                     {
                         LinesAdded = 1,
                         LinesRemoved = 0,

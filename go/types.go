@@ -474,7 +474,7 @@ type SessionFsConfig struct {
 	// session-scoped files such as events, checkpoints, and temp files.
 	SessionStatePath string
 	// Conventions identifies the path conventions used by this filesystem provider.
-	Conventions rpc.Conventions
+	Conventions rpc.SessionFSSetProviderConventions
 }
 
 // SessionConfig configures a new session

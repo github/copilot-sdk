@@ -10,12 +10,15 @@ import fs from "fs/promises";
 import type { JSONSchema7 } from "json-schema";
 import { FetchingJSONSchemaStore, InputData, JSONSchemaInput, quicktype } from "quicktype-core";
 import {
+    cloneSchemaForCodegen,
     getApiSchemaPath,
+    getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
+    hoistTitledSchemas,
+    isObjectSchema,
     isRpcMethod,
     postProcessSchema,
     writeGeneratedFile,
-    isRpcMethod,
     isNodeFullyExperimental,
     type ApiSchema,
     type RpcMethod,
@@ -118,6 +121,59 @@ function modernizePython(code: string): string {
     return code;
 }
 
+function collapsePlaceholderPythonDataclasses(code: string): string {
+    const classBlockRe = /(@dataclass\r?\nclass\s+(\w+):[\s\S]*?)(?=^@dataclass|^class\s+\w+|^def\s+\w+|\Z)/gm;
+    const matches = [...code.matchAll(classBlockRe)].map((match) => ({
+        fullBlock: match[1],
+        name: match[2],
+        normalizedBody: normalizePythonDataclassBlock(match[1], match[2]),
+    }));
+    const groups = new Map<string, typeof matches>();
+
+    for (const match of matches) {
+        const group = groups.get(match.normalizedBody) ?? [];
+        group.push(match);
+        groups.set(match.normalizedBody, group);
+    }
+
+    for (const group of groups.values()) {
+        if (group.length < 2) continue;
+
+        const canonical = chooseCanonicalPlaceholderDuplicate(group.map(({ name }) => name));
+        if (!canonical) continue;
+
+        for (const duplicate of group) {
+            if (duplicate.name === canonical) continue;
+            if (!isPlaceholderTypeName(duplicate.name)) continue;
+
+            code = code.replace(duplicate.fullBlock, "");
+            code = code.replace(new RegExp(`\\b${duplicate.name}\\b`, "g"), canonical);
+        }
+    }
+
+    return code.replace(/\n{3,}/g, "\n\n");
+}
+
+function normalizePythonDataclassBlock(block: string, name: string): string {
+    return block
+        .replace(/^@dataclass\r?\nclass\s+\w+:/, "@dataclass\nclass:")
+        .replace(new RegExp(`\\b${name}\\b`, "g"), "SelfType")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+        .join("\n");
+}
+
+function chooseCanonicalPlaceholderDuplicate(names: string[]): string | undefined {
+    const specificNames = names.filter((name) => !isPlaceholderTypeName(name));
+    if (specificNames.length === 0) return undefined;
+    return specificNames.sort((left, right) => right.length - left.length || left.localeCompare(right))[0];
+}
+
+function isPlaceholderTypeName(name: string): boolean {
+    return name.endsWith("Class");
+}
+
 function toSnakeCase(s: string): string {
     return s
         .replace(/([a-z])([A-Z])/g, "$1_$2")
@@ -144,13 +200,21 @@ function collectRpcMethods(node: Record<string, unknown>): RpcMethod[] {
     return results;
 }
 
+function pythonResultTypeName(method: RpcMethod): string {
+    return getRpcSchemaTypeName(method.result, toPascalCase(method.rpcMethod) + "Result");
+}
+
+function pythonParamsTypeName(method: RpcMethod): string {
+    return getRpcSchemaTypeName(method.params, toPascalCase(method.rpcMethod) + "Request");
+}
+
 // ── Session Events ──────────────────────────────────────────────────────────
 
 async function generateSessionEvents(schemaPath?: string): Promise<void> {
     console.log("Python: generating session-events...");
 
     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
-    const schema = JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7;
+    const schema = cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7);
     const resolvedSchema = (schema.definitions?.SessionEvent as JSONSchema7) || schema;
     const processed = postProcessSchema(resolvedSchema);
 
@@ -206,7 +270,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     console.log("Python: generating RPC types...");
 
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    const schema = JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema;
+    const schema = cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema);
 
     const allMethods = [
         ...collectRpcMethods(schema.server || {}),
@@ -221,9 +285,8 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     };
 
     for (const method of allMethods) {
-        const baseName = toPascalCase(method.rpcMethod);
         if (method.result) {
-            combinedSchema.definitions![baseName + "Result"] = method.result;
+            combinedSchema.definitions![pythonResultTypeName(method)] = method.result;
         }
         if (method.params?.properties && Object.keys(method.params.properties).length > 0) {
             if (method.rpcMethod.startsWith("session.")) {
@@ -235,18 +298,26 @@ async function generateRpc(schemaPath?: string): Promise<void> {
                     required: method.params.required?.filter((r) => r !== "sessionId"),
                 };
                 if (Object.keys(filtered.properties!).length > 0) {
-                    combinedSchema.definitions![baseName + "Params"] = filtered;
+                    combinedSchema.definitions![pythonParamsTypeName(method)] = filtered;
                 }
             } else {
-                combinedSchema.definitions![baseName + "Params"] = method.params;
+                combinedSchema.definitions![pythonParamsTypeName(method)] = method.params;
             }
         }
     }
 
+    const { rootDefinitions, sharedDefinitions } = hoistTitledSchemas(combinedSchema.definitions! as Record<string, JSONSchema7>);
+
     // Generate types via quicktype
     const schemaInput = new JSONSchemaInput(new FetchingJSONSchemaStore());
-    for (const [name, def] of Object.entries(combinedSchema.definitions!)) {
-        await schemaInput.addSource({ name, schema: JSON.stringify(def) });
+    for (const [name, def] of Object.entries(rootDefinitions)) {
+        await schemaInput.addSource({
+            name,
+            schema: JSON.stringify({
+                ...def,
+                definitions: sharedDefinitions,
+            }),
+        });
     }
 
     const inputData = new InputData();
@@ -267,15 +338,16 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     typesCode = typesCode.replace(/^(\s*)pass\n\n(\s*@staticmethod)/gm, "$2");
     // Modernize to Python 3.11+ syntax
     typesCode = modernizePython(typesCode);
+    typesCode = collapsePlaceholderPythonDataclasses(typesCode);
 
     // Annotate experimental data types
     const experimentalTypeNames = new Set<string>();
     for (const method of allMethods) {
         if (method.stability !== "experimental") continue;
-        experimentalTypeNames.add(toPascalCase(method.rpcMethod) + "Result");
-        const baseName = toPascalCase(method.rpcMethod);
-        if (combinedSchema.definitions![baseName + "Params"]) {
-            experimentalTypeNames.add(baseName + "Params");
+        experimentalTypeNames.add(pythonResultTypeName(method));
+        const paramsTypeName = pythonParamsTypeName(method);
+        if (rootDefinitions[paramsTypeName]) {
+            experimentalTypeNames.add(paramsTypeName);
         }
     }
     for (const typeName of experimentalTypeNames) {
@@ -402,12 +474,13 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
 
 function emitMethod(lines: string[], name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, groupExperimental = false): void {
     const methodName = toSnakeCase(name);
-    const resultType = resolveType(toPascalCase(method.rpcMethod) + "Result");
+    const resultType = resolveType(pythonResultTypeName(method));
+    const resultIsObject = isObjectSchema(method.result);
 
     const paramProps = method.params?.properties || {};
     const nonSessionParams = Object.keys(paramProps).filter((k) => k !== "sessionId");
     const hasParams = isSession ? nonSessionParams.length > 0 : Object.keys(paramProps).length > 0;
-    const paramsType = resolveType(toPascalCase(method.rpcMethod) + "Params");
+    const paramsType = resolveType(pythonParamsTypeName(method));
 
     // Build signature with typed params + optional timeout
     const sig = hasParams
@@ -420,21 +493,24 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
         lines.push(`        """.. warning:: This API is experimental and may change or be removed in future versions."""`);
     }
 
+    // For object results use .from_dict(); for enums/primitives use direct construction
+    const deserialize = (expr: string) => resultIsObject ? `${resultType}.from_dict(${expr})` : `${resultType}(${expr})`;
+
     // Build request body with proper serialization/deserialization
     if (isSession) {
         if (hasParams) {
             lines.push(`        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}`);
             lines.push(`        params_dict["sessionId"] = self._session_id`);
-            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", params_dict, **_timeout_kwargs(timeout)))`);
+            lines.push(`        return ${deserialize(`await self._client.request("${method.rpcMethod}", params_dict, **_timeout_kwargs(timeout))`)}`);
         } else {
-            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))`);
+            lines.push(`        return ${deserialize(`await self._client.request("${method.rpcMethod}", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))`)}`);
         }
     } else {
         if (hasParams) {
             lines.push(`        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}`);
-            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", params_dict, **_timeout_kwargs(timeout)))`);
+            lines.push(`        return ${deserialize(`await self._client.request("${method.rpcMethod}", params_dict, **_timeout_kwargs(timeout))`)}`);
         } else {
-            lines.push(`        return ${resultType}.from_dict(await self._client.request("${method.rpcMethod}", {}, **_timeout_kwargs(timeout)))`);
+            lines.push(`        return ${deserialize(`await self._client.request("${method.rpcMethod}", {}, **_timeout_kwargs(timeout))`)}`);
         }
     }
     lines.push(``);
@@ -503,8 +579,8 @@ function emitClientSessionHandlerMethod(
     resolveType: (name: string) => string,
     groupExperimental = false
 ): void {
-    const paramsType = resolveType(toPascalCase(method.rpcMethod) + "Params");
-    const resultType = method.result ? resolveType(toPascalCase(method.rpcMethod) + "Result") : "None";
+    const paramsType = resolveType(pythonParamsTypeName(method));
+    const resultType = method.result ? resolveType(pythonResultTypeName(method)) : "None";
     lines.push(`    async def ${toSnakeCase(name)}(self, params: ${paramsType}) -> ${resultType}:`);
     if (method.stability === "experimental" && !groupExperimental) {
         lines.push(`        """.. warning:: This API is experimental and may change or be removed in future versions."""`);
@@ -520,8 +596,8 @@ function emitClientSessionRegistrationMethod(
     resolveType: (name: string) => string
 ): void {
     const handlerVariableName = `handle_${toSnakeCase(groupName)}_${toSnakeCase(methodName)}`;
-    const paramsType = resolveType(toPascalCase(method.rpcMethod) + "Params");
-    const resultType = method.result ? resolveType(toPascalCase(method.rpcMethod) + "Result") : null;
+    const paramsType = resolveType(pythonParamsTypeName(method));
+    const resultType = method.result ? resolveType(pythonResultTypeName(method)) : null;
     const handlerField = toSnakeCase(groupName);
     const handlerMethod = toSnakeCase(methodName);
 
@@ -533,7 +609,11 @@ function emitClientSessionRegistrationMethod(
     );
     if (resultType) {
         lines.push(`        result = await handler.${handlerMethod}(request)`);
-        lines.push(`        return result.to_dict()`);
+        if (isObjectSchema(method.result)) {
+            lines.push(`        return result.to_dict()`);
+        } else {
+            lines.push(`        return result.value if hasattr(result, 'value') else result`);
+        }
     } else {
         lines.push(`        await handler.${handlerMethod}(request)`);
         lines.push(`        return None`);

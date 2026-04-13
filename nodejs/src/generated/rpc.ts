@@ -20,14 +20,14 @@ export interface PingResult {
   protocolVersion: number;
 }
 
-export interface PingParams {
+export interface PingRequest {
   /**
    * Optional message to echo back
    */
   message?: string;
 }
 
-export interface ModelsListResult {
+export interface ModelList {
   /**
    * List of available models with full metadata
    */
@@ -77,59 +77,56 @@ export interface ModelsListResult {
  * Model capabilities and limits
  */
 export interface ModelCapabilities {
-  supports: ModelCapabilitiesSupports;
-  limits: ModelCapabilitiesLimits;
-}
-/**
- * Feature flags indicating what the model supports
- */
-export interface ModelCapabilitiesSupports {
   /**
-   * Whether this model supports vision/image input
+   * Feature flags indicating what the model supports
    */
-  vision?: boolean;
+  supports: {
+    /**
+     * Whether this model supports vision/image input
+     */
+    vision?: boolean;
+    /**
+     * Whether this model supports reasoning effort configuration
+     */
+    reasoningEffort?: boolean;
+  };
   /**
-   * Whether this model supports reasoning effort configuration
+   * Token limits for prompts, outputs, and context window
    */
-  reasoningEffort?: boolean;
-}
-/**
- * Token limits for prompts, outputs, and context window
- */
-export interface ModelCapabilitiesLimits {
-  /**
-   * Maximum number of prompt/input tokens
-   */
-  max_prompt_tokens?: number;
-  /**
-   * Maximum number of output/completion tokens
-   */
-  max_output_tokens?: number;
-  /**
-   * Maximum total context window size in tokens
-   */
-  max_context_window_tokens: number;
-  vision?: ModelCapabilitiesLimitsVision;
-}
-/**
- * Vision-specific limits
- */
-export interface ModelCapabilitiesLimitsVision {
-  /**
-   * MIME types the model accepts
-   */
-  supported_media_types: string[];
-  /**
-   * Maximum number of images per prompt
-   */
-  max_prompt_images: number;
-  /**
-   * Maximum image size in bytes
-   */
-  max_prompt_image_size: number;
+  limits: {
+    /**
+     * Maximum number of prompt/input tokens
+     */
+    max_prompt_tokens?: number;
+    /**
+     * Maximum number of output/completion tokens
+     */
+    max_output_tokens?: number;
+    /**
+     * Maximum total context window size in tokens
+     */
+    max_context_window_tokens: number;
+    /**
+     * Vision-specific limits
+     */
+    vision?: {
+      /**
+       * MIME types the model accepts
+       */
+      supported_media_types: string[];
+      /**
+       * Maximum number of images per prompt
+       */
+      max_prompt_images: number;
+      /**
+       * Maximum image size in bytes
+       */
+      max_prompt_image_size: number;
+    };
+  };
 }
 
-export interface ToolsListResult {
+export interface ToolList {
   /**
    * List of available built-in tools with metadata
    */
@@ -159,14 +156,14 @@ export interface ToolsListResult {
   }[];
 }
 
-export interface ToolsListParams {
+export interface ToolsListRequest {
   /**
    * Optional model ID — when provided, the returned tool list reflects model-specific overrides
    */
   model?: string;
 }
 
-export interface AccountGetQuotaResult {
+export interface AccountQuota {
   /**
    * Quota snapshots keyed by type (e.g., chat, completions, premium_interactions)
    */
@@ -200,7 +197,7 @@ export interface AccountGetQuotaResult {
   };
 }
 
-export interface McpConfigListResult {
+export interface McpConfigList {
   /**
    * All MCP servers from user config, keyed by name
    */
@@ -221,6 +218,9 @@ export interface McpConfigListResult {
                 [k: string]: "none" | "markdown" | "hidden_characters";
               }
             | ("none" | "markdown" | "hidden_characters");
+          /**
+           * Timeout in milliseconds for tool calls to this server.
+           */
           timeout?: number;
           command: string;
           args: string[];
@@ -241,6 +241,9 @@ export interface McpConfigListResult {
                 [k: string]: "none" | "markdown" | "hidden_characters";
               }
             | ("none" | "markdown" | "hidden_characters");
+          /**
+           * Timeout in milliseconds for tool calls to this server.
+           */
           timeout?: number;
           url: string;
           headers?: {
@@ -252,7 +255,7 @@ export interface McpConfigListResult {
   };
 }
 
-export interface McpConfigAddParams {
+export interface McpConfigAddRequest {
   /**
    * Unique name for the MCP server
    */
@@ -273,6 +276,9 @@ export interface McpConfigAddParams {
               [k: string]: "none" | "markdown" | "hidden_characters";
             }
           | ("none" | "markdown" | "hidden_characters");
+        /**
+         * Timeout in milliseconds for tool calls to this server.
+         */
         timeout?: number;
         command: string;
         args: string[];
@@ -293,6 +299,9 @@ export interface McpConfigAddParams {
               [k: string]: "none" | "markdown" | "hidden_characters";
             }
           | ("none" | "markdown" | "hidden_characters");
+        /**
+         * Timeout in milliseconds for tool calls to this server.
+         */
         timeout?: number;
         url: string;
         headers?: {
@@ -303,7 +312,7 @@ export interface McpConfigAddParams {
       };
 }
 
-export interface McpConfigUpdateParams {
+export interface McpConfigUpdateRequest {
   /**
    * Name of the MCP server to update
    */
@@ -324,6 +333,9 @@ export interface McpConfigUpdateParams {
               [k: string]: "none" | "markdown" | "hidden_characters";
             }
           | ("none" | "markdown" | "hidden_characters");
+        /**
+         * Timeout in milliseconds for tool calls to this server.
+         */
         timeout?: number;
         command: string;
         args: string[];
@@ -344,6 +356,9 @@ export interface McpConfigUpdateParams {
               [k: string]: "none" | "markdown" | "hidden_characters";
             }
           | ("none" | "markdown" | "hidden_characters");
+        /**
+         * Timeout in milliseconds for tool calls to this server.
+         */
         timeout?: number;
         url: string;
         headers?: {
@@ -354,7 +369,7 @@ export interface McpConfigUpdateParams {
       };
 }
 
-export interface McpConfigRemoveParams {
+export interface McpConfigRemoveRequest {
   /**
    * Name of the MCP server to remove
    */
@@ -373,9 +388,9 @@ export interface DiscoveredMcpServer {
    */
   name: string;
   /**
-   * Server type: local, stdio, http, or sse
+   * Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio)
    */
-  type?: string;
+  type?: "stdio" | "http" | "sse" | "memory";
   /**
    * Configuration source
    */
@@ -386,7 +401,7 @@ export interface DiscoveredMcpServer {
   enabled: boolean;
 }
 
-export interface McpDiscoverParams {
+export interface McpDiscoverRequest {
   /**
    * Working directory used as context for discovery (e.g., plugin resolution)
    */
@@ -400,7 +415,7 @@ export interface SessionFsSetProviderResult {
   success: boolean;
 }
 
-export interface SessionFsSetProviderParams {
+export interface SessionFsSetProviderRequest {
   /**
    * Initial working directory for sessions
    */
@@ -424,7 +439,7 @@ export interface SessionsForkResult {
 }
 
 /** @experimental */
-export interface SessionsForkParams {
+export interface SessionsForkRequest {
   /**
    * Source session ID to fork from
    */
@@ -435,28 +450,28 @@ export interface SessionsForkParams {
   toEventId?: string;
 }
 
-export interface SessionModelGetCurrentResult {
+export interface ModelCurrent {
   /**
    * Currently active model identifier
    */
   modelId?: string;
 }
 
-export interface SessionModelGetCurrentParams {
+export interface SessionModelGetCurrentRequest {
   /**
    * Target session identifier
    */
   sessionId: string;
 }
 
-export interface SessionModelSwitchToResult {
+export interface ModelSwitchToResult {
   /**
    * Currently active model identifier after the switch
    */
   modelId?: string;
 }
 
-export interface SessionModelSwitchToParams {
+export interface ModelSwitchToRequest {
   /**
    * Target session identifier
    */
@@ -475,76 +490,62 @@ export interface SessionModelSwitchToParams {
  * Override individual model capabilities resolved by the runtime
  */
 export interface ModelCapabilitiesOverride {
-  supports?: ModelCapabilitiesOverrideSupports;
-  limits?: ModelCapabilitiesOverrideLimits;
-}
-/**
- * Feature flags indicating what the model supports
- */
-export interface ModelCapabilitiesOverrideSupports {
-  vision?: boolean;
-  reasoningEffort?: boolean;
-}
-/**
- * Token limits for prompts, outputs, and context window
- */
-export interface ModelCapabilitiesOverrideLimits {
-  max_prompt_tokens?: number;
-  max_output_tokens?: number;
   /**
-   * Maximum total context window size in tokens
+   * Feature flags indicating what the model supports
    */
-  max_context_window_tokens?: number;
-  vision?: ModelCapabilitiesOverrideLimitsVision;
-}
-export interface ModelCapabilitiesOverrideLimitsVision {
+  supports?: {
+    vision?: boolean;
+    reasoningEffort?: boolean;
+  };
   /**
-   * MIME types the model accepts
+   * Token limits for prompts, outputs, and context window
    */
-  supported_media_types?: string[];
-  /**
-   * Maximum number of images per prompt
-   */
-  max_prompt_images?: number;
-  /**
-   * Maximum image size in bytes
-   */
-  max_prompt_image_size?: number;
+  limits?: {
+    max_prompt_tokens?: number;
+    max_output_tokens?: number;
+    /**
+     * Maximum total context window size in tokens
+     */
+    max_context_window_tokens?: number;
+    vision?: {
+      /**
+       * MIME types the model accepts
+       */
+      supported_media_types?: string[];
+      /**
+       * Maximum number of images per prompt
+       */
+      max_prompt_images?: number;
+      /**
+       * Maximum image size in bytes
+       */
+      max_prompt_image_size?: number;
+    };
+  };
 }
 
-export interface SessionModeGetResult {
-  /**
-   * The current agent mode.
-   */
-  mode: "interactive" | "plan" | "autopilot";
-}
+/**
+ * The agent mode. Valid values: "interactive", "plan", "autopilot".
+ */
+export type SessionMode = "interactive" | "plan" | "autopilot";
 
-export interface SessionModeGetParams {
+export interface SessionModeGetRequest {
   /**
    * Target session identifier
    */
   sessionId: string;
 }
 
-export interface SessionModeSetResult {
-  /**
-   * The agent mode after switching.
-   */
-  mode: "interactive" | "plan" | "autopilot";
-}
 
-export interface SessionModeSetParams {
+export interface ModeSetRequest {
   /**
    * Target session identifier
    */
   sessionId: string;
-  /**
-   * The mode to switch to. Valid values: "interactive", "plan", "autopilot".
-   */
-  mode: "interactive" | "plan" | "autopilot";
+  mode: SessionMode;
 }
 
-export interface SessionPlanReadResult {
+export interface Plan {
   /**
    * Whether the plan file exists in the workspace
    */
@@ -559,16 +560,16 @@ export interface SessionPlanReadResult {
   path: string | null;
 }
 
-export interface SessionPlanReadParams {
+export interface SessionPlanReadRequest {
   /**
    * Target session identifier
    */
   sessionId: string;
 }
 
-export interface SessionPlanUpdateResult {}
+export interface PlanUpdateResult {}
 
-export interface SessionPlanUpdateParams {
+export interface PlanUpdateRequest {
   /**
    * Target session identifier
    */
@@ -579,37 +580,37 @@ export interface SessionPlanUpdateParams {
   content: string;
 }
 
-export interface SessionPlanDeleteResult {}
+export interface PlanDelete {}
 
-export interface SessionPlanDeleteParams {
+export interface SessionPlanDeleteRequest {
   /**
    * Target session identifier
    */
   sessionId: string;
 }
 
-export interface SessionWorkspaceListFilesResult {
+export interface WorkspaceFiles {
   /**
    * Relative file paths in the workspace files directory
    */
   files: string[];
 }
 
-export interface SessionWorkspaceListFilesParams {
+export interface SessionWorkspaceListFilesRequest {
   /**
    * Target session identifier
    */
   sessionId: string;
 }
 
-export interface SessionWorkspaceReadFileResult {
+export interface WorkspaceReadFileResult {
   /**
    * File content as a UTF-8 string
    */
   content: string;
 }
 
-export interface SessionWorkspaceReadFileParams {
+export interface WorkspaceReadFileRequest {
   /**
    * Target session identifier
    */
@@ -620,9 +621,9 @@ export interface SessionWorkspaceReadFileParams {
   path: string;
 }
 
-export interface SessionWorkspaceCreateFileResult {}
+export interface WorkspaceCreateFileResult {}
 
-export interface SessionWorkspaceCreateFileParams {
+export interface WorkspaceCreateFileRequest {
   /**
    * Target session identifier
    */
@@ -638,7 +639,7 @@ export interface SessionWorkspaceCreateFileParams {
 }
 
 /** @experimental */
-export interface SessionFleetStartResult {
+export interface FleetStartResult {
   /**
    * Whether fleet mode was successfully activated
    */
@@ -646,7 +647,7 @@ export interface SessionFleetStartResult {
 }
 
 /** @experimental */
-export interface SessionFleetStartParams {
+export interface FleetStartRequest {
   /**
    * Target session identifier
    */
@@ -658,7 +659,7 @@ export interface SessionFleetStartParams {
 }
 
 /** @experimental */
-export interface SessionAgentListResult {
+export interface AgentList {
   /**
    * Available custom agents
    */
@@ -679,7 +680,7 @@ export interface SessionAgentListResult {
 }
 
 /** @experimental */
-export interface SessionAgentListParams {
+export interface SessionAgentListRequest {
   /**
    * Target session identifier
    */
@@ -687,7 +688,7 @@ export interface SessionAgentListParams {
 }
 
 /** @experimental */
-export interface SessionAgentGetCurrentResult {
+export interface AgentCurrent {
   /**
    * Currently selected custom agent, or null if using the default agent
    */
@@ -708,7 +709,7 @@ export interface SessionAgentGetCurrentResult {
 }
 
 /** @experimental */
-export interface SessionAgentGetCurrentParams {
+export interface SessionAgentGetCurrentRequest {
   /**
    * Target session identifier
    */
@@ -716,7 +717,7 @@ export interface SessionAgentGetCurrentParams {
 }
 
 /** @experimental */
-export interface SessionAgentSelectResult {
+export interface AgentSelectResult {
   /**
    * The newly selected custom agent
    */
@@ -737,7 +738,7 @@ export interface SessionAgentSelectResult {
 }
 
 /** @experimental */
-export interface SessionAgentSelectParams {
+export interface AgentSelectRequest {
   /**
    * Target session identifier
    */
@@ -749,10 +750,10 @@ export interface SessionAgentSelectParams {
 }
 
 /** @experimental */
-export interface SessionAgentDeselectResult {}
+export interface AgentDeselect {}
 
 /** @experimental */
-export interface SessionAgentDeselectParams {
+export interface SessionAgentDeselectRequest {
   /**
    * Target session identifier
    */
@@ -760,7 +761,7 @@ export interface SessionAgentDeselectParams {
 }
 
 /** @experimental */
-export interface SessionAgentReloadResult {
+export interface AgentReload {
   /**
    * Reloaded custom agents
    */
@@ -781,7 +782,7 @@ export interface SessionAgentReloadResult {
 }
 
 /** @experimental */
-export interface SessionAgentReloadParams {
+export interface SessionAgentReloadRequest {
   /**
    * Target session identifier
    */
@@ -789,7 +790,7 @@ export interface SessionAgentReloadParams {
 }
 
 /** @experimental */
-export interface SessionSkillsListResult {
+export interface SkillList {
   /**
    * Available skills
    */
@@ -822,7 +823,7 @@ export interface SessionSkillsListResult {
 }
 
 /** @experimental */
-export interface SessionSkillsListParams {
+export interface SessionSkillsListRequest {
   /**
    * Target session identifier
    */
@@ -830,10 +831,10 @@ export interface SessionSkillsListParams {
 }
 
 /** @experimental */
-export interface SessionSkillsEnableResult {}
+export interface SkillsEnableResult {}
 
 /** @experimental */
-export interface SessionSkillsEnableParams {
+export interface SkillsEnableRequest {
   /**
    * Target session identifier
    */
@@ -845,10 +846,10 @@ export interface SessionSkillsEnableParams {
 }
 
 /** @experimental */
-export interface SessionSkillsDisableResult {}
+export interface SkillsDisableResult {}
 
 /** @experimental */
-export interface SessionSkillsDisableParams {
+export interface SkillsDisableRequest {
   /**
    * Target session identifier
    */
@@ -860,10 +861,10 @@ export interface SessionSkillsDisableParams {
 }
 
 /** @experimental */
-export interface SessionSkillsReloadResult {}
+export interface SkillsReload {}
 
 /** @experimental */
-export interface SessionSkillsReloadParams {
+export interface SessionSkillsReloadRequest {
   /**
    * Target session identifier
    */
@@ -871,7 +872,7 @@ export interface SessionSkillsReloadParams {
 }
 
 /** @experimental */
-export interface SessionMcpListResult {
+export interface McpList {
   /**
    * Configured MCP servers
    */
@@ -887,7 +888,7 @@ export interface SessionMcpListResult {
     /**
      * Configuration source: user, workspace, plugin, or builtin
      */
-    source?: string;
+    source?: "user" | "workspace" | "plugin" | "builtin";
     /**
      * Error message if the server failed to connect
      */
@@ -896,7 +897,7 @@ export interface SessionMcpListResult {
 }
 
 /** @experimental */
-export interface SessionMcpListParams {
+export interface SessionMcpListRequest {
   /**
    * Target session identifier
    */
@@ -904,10 +905,10 @@ export interface SessionMcpListParams {
 }
 
 /** @experimental */
-export interface SessionMcpEnableResult {}
+export interface McpEnableResult {}
 
 /** @experimental */
-export interface SessionMcpEnableParams {
+export interface McpEnableRequest {
   /**
    * Target session identifier
    */
@@ -919,10 +920,10 @@ export interface SessionMcpEnableParams {
 }
 
 /** @experimental */
-export interface SessionMcpDisableResult {}
+export interface McpDisableResult {}
 
 /** @experimental */
-export interface SessionMcpDisableParams {
+export interface McpDisableRequest {
   /**
    * Target session identifier
    */
@@ -934,10 +935,10 @@ export interface SessionMcpDisableParams {
 }
 
 /** @experimental */
-export interface SessionMcpReloadResult {}
+export interface McpReload {}
 
 /** @experimental */
-export interface SessionMcpReloadParams {
+export interface SessionMcpReloadRequest {
   /**
    * Target session identifier
    */
@@ -945,7 +946,7 @@ export interface SessionMcpReloadParams {
 }
 
 /** @experimental */
-export interface SessionPluginsListResult {
+export interface PluginList {
   /**
    * Installed plugins
    */
@@ -970,7 +971,7 @@ export interface SessionPluginsListResult {
 }
 
 /** @experimental */
-export interface SessionPluginsListParams {
+export interface SessionPluginsListRequest {
   /**
    * Target session identifier
    */
@@ -978,7 +979,7 @@ export interface SessionPluginsListParams {
 }
 
 /** @experimental */
-export interface SessionExtensionsListResult {
+export interface ExtensionList {
   /**
    * Discovered extensions and their current status
    */
@@ -1007,7 +1008,7 @@ export interface SessionExtensionsListResult {
 }
 
 /** @experimental */
-export interface SessionExtensionsListParams {
+export interface SessionExtensionsListRequest {
   /**
    * Target session identifier
    */
@@ -1015,10 +1016,10 @@ export interface SessionExtensionsListParams {
 }
 
 /** @experimental */
-export interface SessionExtensionsEnableResult {}
+export interface ExtensionsEnableResult {}
 
 /** @experimental */
-export interface SessionExtensionsEnableParams {
+export interface ExtensionsEnableRequest {
   /**
    * Target session identifier
    */
@@ -1030,10 +1031,10 @@ export interface SessionExtensionsEnableParams {
 }
 
 /** @experimental */
-export interface SessionExtensionsDisableResult {}
+export interface ExtensionsDisableResult {}
 
 /** @experimental */
-export interface SessionExtensionsDisableParams {
+export interface ExtensionsDisableRequest {
   /**
    * Target session identifier
    */
@@ -1045,24 +1046,24 @@ export interface SessionExtensionsDisableParams {
 }
 
 /** @experimental */
-export interface SessionExtensionsReloadResult {}
+export interface ExtensionsReload {}
 
 /** @experimental */
-export interface SessionExtensionsReloadParams {
+export interface SessionExtensionsReloadRequest {
   /**
    * Target session identifier
    */
   sessionId: string;
 }
 
-export interface SessionToolsHandlePendingToolCallResult {
+export interface HandleToolCallResult {
   /**
    * Whether the tool call result was handled successfully
    */
   success: boolean;
 }
 
-export interface SessionToolsHandlePendingToolCallParams {
+export interface ToolsHandlePendingToolCallRequest {
   /**
    * Target session identifier
    */
@@ -1074,42 +1075,41 @@ export interface SessionToolsHandlePendingToolCallParams {
   /**
    * Tool call result (string or expanded result object)
    */
-  result?:
-    | string
-    | {
-        /**
-         * Text result to send back to the LLM
-         */
-        textResultForLlm: string;
-        /**
-         * Type of the tool result
-         */
-        resultType?: string;
-        /**
-         * Error message if the tool call failed
-         */
-        error?: string;
-        /**
-         * Telemetry data from tool execution
-         */
-        toolTelemetry?: {
-          [k: string]: unknown;
-        };
-      };
+  result?: string | ToolCallResult;
   /**
    * Error message if the tool call failed
    */
   error?: string;
 }
+export interface ToolCallResult {
+  /**
+   * Text result to send back to the LLM
+   */
+  textResultForLlm: string;
+  /**
+   * Type of the tool result
+   */
+  resultType?: string;
+  /**
+   * Error message if the tool call failed
+   */
+  error?: string;
+  /**
+   * Telemetry data from tool execution
+   */
+  toolTelemetry?: {
+    [k: string]: unknown;
+  };
+}
 
-export interface SessionCommandsHandlePendingCommandResult {
+export interface CommandsHandlePendingCommandResult {
   /**
    * Whether the command was handled successfully
    */
   success: boolean;
 }
 
-export interface SessionCommandsHandlePendingCommandParams {
+export interface CommandsHandlePendingCommandRequest {
   /**
    * Target session identifier
    */
@@ -1124,20 +1124,26 @@ export interface SessionCommandsHandlePendingCommandParams {
   error?: string;
 }
 
-export interface SessionUiElicitationResult {
-  /**
-   * The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
-   */
-  action: "accept" | "decline" | "cancel";
-  /**
-   * The form values submitted by the user (present when action is 'accept')
-   */
-  content?: {
-    [k: string]: string | number | boolean | string[];
-  };
+/**
+ * The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
+ */
+export type ElicitationResponseAction = "accept" | "decline" | "cancel";
+export type ElicitationFieldValue = string | number | boolean | string[];
+/**
+ * The elicitation response (accept with form values, decline, or cancel)
+ */
+export interface UiElicitationResponse {
+  action: ElicitationResponseAction;
+  content?: ElicitationResponseContent;
+}
+/**
+ * The form values submitted by the user (present when action is 'accept')
+ */
+export interface ElicitationResponseContent {
+  [k: string]: ElicitationFieldValue;
 }
 
-export interface SessionUiElicitationParams {
+export interface UiElicitationRequest {
   /**
    * Target session identifier
    */
@@ -1159,59 +1165,17 @@ export interface SessionUiElicitationParams {
      */
     properties: {
       [k: string]:
-        | {
-            type: "string";
-            title?: string;
-            description?: string;
-            enum: string[];
-            enumNames?: string[];
-            default?: string;
-          }
-        | {
-            type: "string";
-            title?: string;
-            description?: string;
-            oneOf: {
-              const: string;
-              title: string;
-            }[];
-            default?: string;
-          }
-        | {
-            type: "array";
-            title?: string;
-            description?: string;
-            minItems?: number;
-            maxItems?: number;
-            items: {
-              type: "string";
-              enum: string[];
-            };
-            default?: string[];
-          }
-        | {
-            type: "array";
-            title?: string;
-            description?: string;
-            minItems?: number;
-            maxItems?: number;
-            items: {
-              anyOf: {
-                const: string;
-                title: string;
-              }[];
-            };
-            default?: string[];
-          }
+        | ElicitationStringEnumField
+        | ElicitationStringOneOfField
+        | ElicitationArrayEnumField
+        | ElicitationArrayAnyOfField
         | {
             type: "boolean";
-            title?: string;
             description?: string;
             default?: boolean;
           }
         | {
             type: "string";
-            title?: string;
             description?: string;
             minLength?: number;
             maxLength?: number;
@@ -1220,7 +1184,6 @@ export interface SessionUiElicitationParams {
           }
         | {
             type: "number" | "integer";
-            title?: string;
             description?: string;
             minimum?: number;
             maximum?: number;
@@ -1233,15 +1196,53 @@ export interface SessionUiElicitationParams {
     required?: string[];
   };
 }
+export interface ElicitationStringEnumField {
+  type: "string";
+  description?: string;
+  enum: string[];
+  enumNames?: string[];
+  default?: string;
+}
+export interface ElicitationStringOneOfField {
+  type: "string";
+  description?: string;
+  oneOf: {
+    const: string;
+  }[];
+  default?: string;
+}
+export interface ElicitationArrayEnumField {
+  type: "array";
+  description?: string;
+  minItems?: number;
+  maxItems?: number;
+  items: {
+    type: "string";
+    enum: string[];
+  };
+  default?: string[];
+}
+export interface ElicitationArrayAnyOfField {
+  type: "array";
+  description?: string;
+  minItems?: number;
+  maxItems?: number;
+  items: {
+    anyOf: {
+      const: string;
+    }[];
+  };
+  default?: string[];
+}
 
-export interface SessionUiHandlePendingElicitationResult {
+export interface UiElicitationResult {
   /**
    * Whether the response was accepted. False if the request was already resolved by another client.
    */
   success: boolean;
 }
 
-export interface SessionUiHandlePendingElicitationParams {
+export interface HandlePendingElicitationRequest {
   /**
    * Target session identifier
    */
@@ -1250,31 +1251,79 @@ export interface SessionUiHandlePendingElicitationParams {
    * The unique request ID from the elicitation.requested event
    */
   requestId: string;
-  /**
-   * The elicitation response (accept with form values, decline, or cancel)
-   */
-  result: {
-    /**
-     * The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
-     */
-    action: "accept" | "decline" | "cancel";
-    /**
-     * The form values submitted by the user (present when action is 'accept')
-     */
-    content?: {
-      [k: string]: string | number | boolean | string[];
-    };
-  };
+  result: UiElicitationResponse;
 }
 
-export interface SessionPermissionsHandlePendingPermissionRequestResult {
+export interface PermissionRequestResult {
   /**
    * Whether the permission request was handled successfully
    */
   success: boolean;
 }
 
-export interface SessionPermissionsHandlePendingPermissionRequestParams {
+export type PermissionDecision =
+  | {
+      /**
+       * The permission request was approved
+       */
+      kind: "approved";
+    }
+| {
+      /**
+       * Denied because approval rules explicitly blocked it
+       */
+      kind: "denied-by-rules";
+      /**
+       * Rules that denied the request
+       */
+      rules: unknown[];
+    }
+  | {
+      /**
+       * Denied because no approval rule matched and user confirmation was unavailable
+       */
+      kind: "denied-no-approval-rule-and-could-not-request-from-user";
+    }
+  | {
+      /**
+       * Denied by the user during an interactive prompt
+       */
+      kind: "denied-interactively-by-user";
+      /**
+       * Optional feedback from the user explaining the denial
+       */
+      feedback?: string;
+    }
+  | {
+      /**
+       * Denied by the organization's content exclusion policy
+       */
+      kind: "denied-by-content-exclusion-policy";
+      /**
+       * File path that triggered the exclusion
+       */
+      path: string;
+      /**
+       * Human-readable explanation of why the path was excluded
+       */
+      message: string;
+    }
+  | {
+      /**
+       * Denied by a permission request hook registered by an extension or plugin
+       */
+      kind: "denied-by-permission-request-hook";
+      /**
+       * Optional message from the hook explaining the denial
+       */
+      message?: string;
+      /**
+       * Whether to interrupt the current agent turn
+       */
+      interrupt?: boolean;
+    };
+
+export interface PermissionDecisionRequest {
   /**
    * Target session identifier
    */
@@ -1283,77 +1332,21 @@ export interface SessionPermissionsHandlePendingPermissionRequestParams {
    * Request ID of the pending permission request
    */
   requestId: string;
-  result:
-    | {
-        /**
-         * The permission request was approved
-         */
-        kind: "approved";
-      }
-    | {
-        /**
-         * Denied because approval rules explicitly blocked it
-         */
-        kind: "denied-by-rules";
-        /**
-         * Rules that denied the request
-         */
-        rules: unknown[];
-      }
-    | {
-        /**
-         * Denied because no approval rule matched and user confirmation was unavailable
-         */
-        kind: "denied-no-approval-rule-and-could-not-request-from-user";
-      }
-    | {
-        /**
-         * Denied by the user during an interactive prompt
-         */
-        kind: "denied-interactively-by-user";
-        /**
-         * Optional feedback from the user explaining the denial
-         */
-        feedback?: string;
-      }
-    | {
-        /**
-         * Denied by the organization's content exclusion policy
-         */
-        kind: "denied-by-content-exclusion-policy";
-        /**
-         * File path that triggered the exclusion
-         */
-        path: string;
-        /**
-         * Human-readable explanation of why the path was excluded
-         */
-        message: string;
-      }
-    | {
-        /**
-         * Denied by a permission request hook registered by an extension or plugin
-         */
-        kind: "denied-by-permission-request-hook";
-        /**
-         * Optional message from the hook explaining the denial
-         */
-        message?: string;
-        /**
-         * Whether to interrupt the current agent turn
-         */
-        interrupt?: boolean;
-      };
+  result: PermissionDecision;
 }
 
-export interface SessionLogResult {
+export interface LogResult {
   /**
    * The unique identifier of the emitted session event
    */
   eventId: string;
 }
 
-export interface SessionLogParams {
+/**
+ * Log severity level. Determines how the message is displayed in the timeline. Defaults to "info".
+ */
+export type SessionLogLevel = "info" | "warning" | "error";
+export interface LogRequest {
   /**
    * Target session identifier
    */
@@ -1362,10 +1355,7 @@ export interface SessionLogParams {
    * Human-readable message
    */
   message: string;
-  /**
-   * Log severity level. Determines how the message is displayed in the timeline. Defaults to "info".
-   */
-  level?: "info" | "warning" | "error";
+  level?: SessionLogLevel;
   /**
    * When true, the message is transient and not persisted to the session event log on disk
    */
@@ -1376,14 +1366,14 @@ export interface SessionLogParams {
   url?: string;
 }
 
-export interface SessionShellExecResult {
+export interface ShellExecResult {
   /**
    * Unique identifier for tracking streamed output
    */
   processId: string;
 }
 
-export interface SessionShellExecParams {
+export interface ShellExecRequest {
   /**
    * Target session identifier
    */
@@ -1402,14 +1392,14 @@ export interface SessionShellExecParams {
   timeout?: number;
 }
 
-export interface SessionShellKillResult {
+export interface ShellKillResult {
   /**
    * Whether the signal was sent successfully
    */
   killed: boolean;
 }
 
-export interface SessionShellKillParams {
+export interface ShellKillRequest {
   /**
    * Target session identifier
    */
@@ -1425,7 +1415,7 @@ export interface SessionShellKillParams {
 }
 
 /** @experimental */
-export interface SessionHistoryCompactResult {
+export interface HistoryCompact {
   /**
    * Whether compaction completed successfully
    */
@@ -1470,7 +1460,7 @@ export interface SessionHistoryCompactResult {
 }
 
 /** @experimental */
-export interface SessionHistoryCompactParams {
+export interface SessionHistoryCompactRequest {
   /**
    * Target session identifier
    */
@@ -1478,7 +1468,7 @@ export interface SessionHistoryCompactParams {
 }
 
 /** @experimental */
-export interface SessionHistoryTruncateResult {
+export interface HistoryTruncateResult {
   /**
    * Number of events that were removed
    */
@@ -1486,7 +1476,7 @@ export interface SessionHistoryTruncateResult {
 }
 
 /** @experimental */
-export interface SessionHistoryTruncateParams {
+export interface HistoryTruncateRequest {
   /**
    * Target session identifier
    */
@@ -1498,7 +1488,7 @@ export interface SessionHistoryTruncateParams {
 }
 
 /** @experimental */
-export interface SessionUsageGetMetricsResult {
+export interface UsageMetrics {
   /**
    * Total user-initiated premium request cost across all models (may be fractional due to multipliers)
    */
@@ -1570,6 +1560,10 @@ export interface SessionUsageGetMetricsResult {
          * Total tokens written to prompt cache
          */
         cacheWriteTokens: number;
+        /**
+         * Total output tokens used for reasoning
+         */
+        reasoningTokens?: number;
       };
     };
   };
@@ -1588,7 +1582,7 @@ export interface SessionUsageGetMetricsResult {
 }
 
 /** @experimental */
-export interface SessionUsageGetMetricsParams {
+export interface SessionUsageGetMetricsRequest {
   /**
    * Target session identifier
    */
@@ -1602,7 +1596,7 @@ export interface SessionFsReadFileResult {
   content: string;
 }
 
-export interface SessionFsReadFileParams {
+export interface SessionFsReadFileRequest {
   /**
    * Target session identifier
    */
@@ -1613,7 +1607,7 @@ export interface SessionFsReadFileParams {
   path: string;
 }
 
-export interface SessionFsWriteFileParams {
+export interface SessionFsWriteFileRequest {
   /**
    * Target session identifier
    */
@@ -1632,7 +1626,7 @@ export interface SessionFsWriteFileParams {
   mode?: number;
 }
 
-export interface SessionFsAppendFileParams {
+export interface SessionFsAppendFileRequest {
   /**
    * Target session identifier
    */
@@ -1658,7 +1652,7 @@ export interface SessionFsExistsResult {
   exists: boolean;
 }
 
-export interface SessionFsExistsParams {
+export interface SessionFsExistsRequest {
   /**
    * Target session identifier
    */
@@ -1692,7 +1686,7 @@ export interface SessionFsStatResult {
   birthtime: string;
 }
 
-export interface SessionFsStatParams {
+export interface SessionFsStatRequest {
   /**
    * Target session identifier
    */
@@ -1703,7 +1697,7 @@ export interface SessionFsStatParams {
   path: string;
 }
 
-export interface SessionFsMkdirParams {
+export interface SessionFsMkdirRequest {
   /**
    * Target session identifier
    */
@@ -1729,7 +1723,7 @@ export interface SessionFsReaddirResult {
   entries: string[];
 }
 
-export interface SessionFsReaddirParams {
+export interface SessionFsReaddirRequest {
   /**
    * Target session identifier
    */
@@ -1756,7 +1750,7 @@ export interface SessionFsReaddirWithTypesResult {
   }[];
 }
 
-export interface SessionFsReaddirWithTypesParams {
+export interface SessionFsReaddirWithTypesRequest {
   /**
    * Target session identifier
    */
@@ -1767,7 +1761,7 @@ export interface SessionFsReaddirWithTypesParams {
   path: string;
 }
 
-export interface SessionFsRmParams {
+export interface SessionFsRmRequest {
   /**
    * Target session identifier
    */
@@ -1786,7 +1780,7 @@ export interface SessionFsRmParams {
   force?: boolean;
 }
 
-export interface SessionFsRenameParams {
+export interface SessionFsRenameRequest {
   /**
    * Target session identifier
    */
@@ -1804,41 +1798,41 @@ export interface SessionFsRenameParams {
 /** Create typed server-scoped RPC methods (no session required). */
 export function createServerRpc(connection: MessageConnection) {
     return {
-        ping: async (params: PingParams): Promise<PingResult> =>
+        ping: async (params: PingRequest): Promise<PingResult> =>
             connection.sendRequest("ping", params),
         models: {
-            list: async (): Promise<ModelsListResult> =>
+            list: async (): Promise<ModelList> =>
                 connection.sendRequest("models.list", {}),
         },
         tools: {
-            list: async (params: ToolsListParams): Promise<ToolsListResult> =>
+            list: async (params: ToolsListRequest): Promise<ToolList> =>
                 connection.sendRequest("tools.list", params),
         },
         account: {
-            getQuota: async (): Promise<AccountGetQuotaResult> =>
+            getQuota: async (): Promise<AccountQuota> =>
                 connection.sendRequest("account.getQuota", {}),
         },
         mcp: {
             config: {
-                list: async (): Promise<McpConfigListResult> =>
+                list: async (): Promise<McpConfigList> =>
                     connection.sendRequest("mcp.config.list", {}),
-                add: async (params: McpConfigAddParams): Promise<void> =>
+                add: async (params: McpConfigAddRequest): Promise<void> =>
                     connection.sendRequest("mcp.config.add", params),
-                update: async (params: McpConfigUpdateParams): Promise<void> =>
+                update: async (params: McpConfigUpdateRequest): Promise<void> =>
                     connection.sendRequest("mcp.config.update", params),
-                remove: async (params: McpConfigRemoveParams): Promise<void> =>
+                remove: async (params: McpConfigRemoveRequest): Promise<void> =>
                     connection.sendRequest("mcp.config.remove", params),
             },
-            discover: async (params: McpDiscoverParams): Promise<McpDiscoverResult> =>
+            discover: async (params: McpDiscoverRequest): Promise<McpDiscoverResult> =>
                 connection.sendRequest("mcp.discover", params),
         },
         sessionFs: {
-            setProvider: async (params: SessionFsSetProviderParams): Promise<SessionFsSetProviderResult> =>
+            setProvider: async (params: SessionFsSetProviderRequest): Promise<SessionFsSetProviderResult> =>
                 connection.sendRequest("sessionFs.setProvider", params),
         },
         /** @experimental */
         sessions: {
-            fork: async (params: SessionsForkParams): Promise<SessionsForkResult> =>
+            fork: async (params: SessionsForkRequest): Promise<SessionsForkResult> =>
                 connection.sendRequest("sessions.fork", params),
         },
     };
@@ -1848,125 +1842,125 @@ export function createServerRpc(connection: MessageConnection) {
 export function createSessionRpc(connection: MessageConnection, sessionId: string) {
     return {
         model: {
-            getCurrent: async (): Promise<SessionModelGetCurrentResult> =>
+            getCurrent: async (): Promise<ModelCurrent> =>
                 connection.sendRequest("session.model.getCurrent", { sessionId }),
-            switchTo: async (params: Omit<SessionModelSwitchToParams, "sessionId">): Promise<SessionModelSwitchToResult> =>
+            switchTo: async (params: Omit<ModelSwitchToRequest, "sessionId">): Promise<ModelSwitchToResult> =>
                 connection.sendRequest("session.model.switchTo", { sessionId, ...params }),
         },
         mode: {
-            get: async (): Promise<SessionModeGetResult> =>
+            get: async (): Promise<SessionMode> =>
                 connection.sendRequest("session.mode.get", { sessionId }),
-            set: async (params: Omit<SessionModeSetParams, "sessionId">): Promise<SessionModeSetResult> =>
+            set: async (params: Omit<ModeSetRequest, "sessionId">): Promise<SessionMode> =>
                 connection.sendRequest("session.mode.set", { sessionId, ...params }),
         },
         plan: {
-            read: async (): Promise<SessionPlanReadResult> =>
+            read: async (): Promise<Plan> =>
                 connection.sendRequest("session.plan.read", { sessionId }),
-            update: async (params: Omit<SessionPlanUpdateParams, "sessionId">): Promise<SessionPlanUpdateResult> =>
+            update: async (params: Omit<PlanUpdateRequest, "sessionId">): Promise<PlanUpdateResult> =>
                 connection.sendRequest("session.plan.update", { sessionId, ...params }),
-            delete: async (): Promise<SessionPlanDeleteResult> =>
+            delete: async (): Promise<PlanDelete> =>
                 connection.sendRequest("session.plan.delete", { sessionId }),
         },
         workspace: {
-            listFiles: async (): Promise<SessionWorkspaceListFilesResult> =>
+            listFiles: async (): Promise<WorkspaceFiles> =>
                 connection.sendRequest("session.workspace.listFiles", { sessionId }),
-            readFile: async (params: Omit<SessionWorkspaceReadFileParams, "sessionId">): Promise<SessionWorkspaceReadFileResult> =>
+            readFile: async (params: Omit<WorkspaceReadFileRequest, "sessionId">): Promise<WorkspaceReadFileResult> =>
                 connection.sendRequest("session.workspace.readFile", { sessionId, ...params }),
-            createFile: async (params: Omit<SessionWorkspaceCreateFileParams, "sessionId">): Promise<SessionWorkspaceCreateFileResult> =>
+            createFile: async (params: Omit<WorkspaceCreateFileRequest, "sessionId">): Promise<WorkspaceCreateFileResult> =>
                 connection.sendRequest("session.workspace.createFile", { sessionId, ...params }),
         },
         /** @experimental */
         fleet: {
-            start: async (params: Omit<SessionFleetStartParams, "sessionId">): Promise<SessionFleetStartResult> =>
+            start: async (params: Omit<FleetStartRequest, "sessionId">): Promise<FleetStartResult> =>
                 connection.sendRequest("session.fleet.start", { sessionId, ...params }),
         },
         /** @experimental */
         agent: {
-            list: async (): Promise<SessionAgentListResult> =>
+            list: async (): Promise<AgentList> =>
                 connection.sendRequest("session.agent.list", { sessionId }),
-            getCurrent: async (): Promise<SessionAgentGetCurrentResult> =>
+            getCurrent: async (): Promise<AgentCurrent> =>
                 connection.sendRequest("session.agent.getCurrent", { sessionId }),
-            select: async (params: Omit<SessionAgentSelectParams, "sessionId">): Promise<SessionAgentSelectResult> =>
+            select: async (params: Omit<AgentSelectRequest, "sessionId">): Promise<AgentSelectResult> =>
                 connection.sendRequest("session.agent.select", { sessionId, ...params }),
-            deselect: async (): Promise<SessionAgentDeselectResult> =>
+            deselect: async (): Promise<AgentDeselect> =>
                 connection.sendRequest("session.agent.deselect", { sessionId }),
-            reload: async (): Promise<SessionAgentReloadResult> =>
+            reload: async (): Promise<AgentReload> =>
                 connection.sendRequest("session.agent.reload", { sessionId }),
         },
         /** @experimental */
         skills: {
-            list: async (): Promise<SessionSkillsListResult> =>
+            list: async (): Promise<SkillList> =>
                 connection.sendRequest("session.skills.list", { sessionId }),
-            enable: async (params: Omit<SessionSkillsEnableParams, "sessionId">): Promise<SessionSkillsEnableResult> =>
+            enable: async (params: Omit<SkillsEnableRequest, "sessionId">): Promise<SkillsEnableResult> =>
                 connection.sendRequest("session.skills.enable", { sessionId, ...params }),
-            disable: async (params: Omit<SessionSkillsDisableParams, "sessionId">): Promise<SessionSkillsDisableResult> =>
+            disable: async (params: Omit<SkillsDisableRequest, "sessionId">): Promise<SkillsDisableResult> =>
                 connection.sendRequest("session.skills.disable", { sessionId, ...params }),
-            reload: async (): Promise<SessionSkillsReloadResult> =>
+            reload: async (): Promise<SkillsReload> =>
                 connection.sendRequest("session.skills.reload", { sessionId }),
         },
         /** @experimental */
         mcp: {
-            list: async (): Promise<SessionMcpListResult> =>
+            list: async (): Promise<McpList> =>
                 connection.sendRequest("session.mcp.list", { sessionId }),
-            enable: async (params: Omit<SessionMcpEnableParams, "sessionId">): Promise<SessionMcpEnableResult> =>
+            enable: async (params: Omit<McpEnableRequest, "sessionId">): Promise<McpEnableResult> =>
                 connection.sendRequest("session.mcp.enable", { sessionId, ...params }),
-            disable: async (params: Omit<SessionMcpDisableParams, "sessionId">): Promise<SessionMcpDisableResult> =>
+            disable: async (params: Omit<McpDisableRequest, "sessionId">): Promise<McpDisableResult> =>
                 connection.sendRequest("session.mcp.disable", { sessionId, ...params }),
-            reload: async (): Promise<SessionMcpReloadResult> =>
+            reload: async (): Promise<McpReload> =>
                 connection.sendRequest("session.mcp.reload", { sessionId }),
         },
         /** @experimental */
         plugins: {
-            list: async (): Promise<SessionPluginsListResult> =>
+            list: async (): Promise<PluginList> =>
                 connection.sendRequest("session.plugins.list", { sessionId }),
         },
         /** @experimental */
         extensions: {
-            list: async (): Promise<SessionExtensionsListResult> =>
+            list: async (): Promise<ExtensionList> =>
                 connection.sendRequest("session.extensions.list", { sessionId }),
-            enable: async (params: Omit<SessionExtensionsEnableParams, "sessionId">): Promise<SessionExtensionsEnableResult> =>
+            enable: async (params: Omit<ExtensionsEnableRequest, "sessionId">): Promise<ExtensionsEnableResult> =>
                 connection.sendRequest("session.extensions.enable", { sessionId, ...params }),
-            disable: async (params: Omit<SessionExtensionsDisableParams, "sessionId">): Promise<SessionExtensionsDisableResult> =>
+            disable: async (params: Omit<ExtensionsDisableRequest, "sessionId">): Promise<ExtensionsDisableResult> =>
                 connection.sendRequest("session.extensions.disable", { sessionId, ...params }),
-            reload: async (): Promise<SessionExtensionsReloadResult> =>
+            reload: async (): Promise<ExtensionsReload> =>
                 connection.sendRequest("session.extensions.reload", { sessionId }),
         },
         tools: {
-            handlePendingToolCall: async (params: Omit<SessionToolsHandlePendingToolCallParams, "sessionId">): Promise<SessionToolsHandlePendingToolCallResult> =>
+            handlePendingToolCall: async (params: Omit<ToolsHandlePendingToolCallRequest, "sessionId">): Promise<HandleToolCallResult> =>
                 connection.sendRequest("session.tools.handlePendingToolCall", { sessionId, ...params }),
         },
         commands: {
-            handlePendingCommand: async (params: Omit<SessionCommandsHandlePendingCommandParams, "sessionId">): Promise<SessionCommandsHandlePendingCommandResult> =>
+            handlePendingCommand: async (params: Omit<CommandsHandlePendingCommandRequest, "sessionId">): Promise<CommandsHandlePendingCommandResult> =>
                 connection.sendRequest("session.commands.handlePendingCommand", { sessionId, ...params }),
         },
         ui: {
-            elicitation: async (params: Omit<SessionUiElicitationParams, "sessionId">): Promise<SessionUiElicitationResult> =>
+            elicitation: async (params: Omit<UiElicitationRequest, "sessionId">): Promise<UiElicitationResponse> =>
                 connection.sendRequest("session.ui.elicitation", { sessionId, ...params }),
-            handlePendingElicitation: async (params: Omit<SessionUiHandlePendingElicitationParams, "sessionId">): Promise<SessionUiHandlePendingElicitationResult> =>
+            handlePendingElicitation: async (params: Omit<HandlePendingElicitationRequest, "sessionId">): Promise<UiElicitationResult> =>
                 connection.sendRequest("session.ui.handlePendingElicitation", { sessionId, ...params }),
         },
         permissions: {
-            handlePendingPermissionRequest: async (params: Omit<SessionPermissionsHandlePendingPermissionRequestParams, "sessionId">): Promise<SessionPermissionsHandlePendingPermissionRequestResult> =>
+            handlePendingPermissionRequest: async (params: Omit<PermissionDecisionRequest, "sessionId">): Promise<PermissionRequestResult> =>
                 connection.sendRequest("session.permissions.handlePendingPermissionRequest", { sessionId, ...params }),
         },
-        log: async (params: Omit<SessionLogParams, "sessionId">): Promise<SessionLogResult> =>
+        log: async (params: Omit<LogRequest, "sessionId">): Promise<LogResult> =>
             connection.sendRequest("session.log", { sessionId, ...params }),
         shell: {
-            exec: async (params: Omit<SessionShellExecParams, "sessionId">): Promise<SessionShellExecResult> =>
+            exec: async (params: Omit<ShellExecRequest, "sessionId">): Promise<ShellExecResult> =>
                 connection.sendRequest("session.shell.exec", { sessionId, ...params }),
-            kill: async (params: Omit<SessionShellKillParams, "sessionId">): Promise<SessionShellKillResult> =>
+            kill: async (params: Omit<ShellKillRequest, "sessionId">): Promise<ShellKillResult> =>
                 connection.sendRequest("session.shell.kill", { sessionId, ...params }),
         },
         /** @experimental */
         history: {
-            compact: async (): Promise<SessionHistoryCompactResult> =>
+            compact: async (): Promise<HistoryCompact> =>
                 connection.sendRequest("session.history.compact", { sessionId }),
-            truncate: async (params: Omit<SessionHistoryTruncateParams, "sessionId">): Promise<SessionHistoryTruncateResult> =>
+            truncate: async (params: Omit<HistoryTruncateRequest, "sessionId">): Promise<HistoryTruncateResult> =>
                 connection.sendRequest("session.history.truncate", { sessionId, ...params }),
         },
         /** @experimental */
         usage: {
-            getMetrics: async (): Promise<SessionUsageGetMetricsResult> =>
+            getMetrics: async (): Promise<UsageMetrics> =>
                 connection.sendRequest("session.usage.getMetrics", { sessionId }),
         },
     };
@@ -1974,16 +1968,16 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
 
 /** Handler for `sessionFs` client session API methods. */
 export interface SessionFsHandler {
-    readFile(params: SessionFsReadFileParams): Promise<SessionFsReadFileResult>;
-    writeFile(params: SessionFsWriteFileParams): Promise<void>;
-    appendFile(params: SessionFsAppendFileParams): Promise<void>;
-    exists(params: SessionFsExistsParams): Promise<SessionFsExistsResult>;
-    stat(params: SessionFsStatParams): Promise<SessionFsStatResult>;
-    mkdir(params: SessionFsMkdirParams): Promise<void>;
-    readdir(params: SessionFsReaddirParams): Promise<SessionFsReaddirResult>;
-    readdirWithTypes(params: SessionFsReaddirWithTypesParams): Promise<SessionFsReaddirWithTypesResult>;
-    rm(params: SessionFsRmParams): Promise<void>;
-    rename(params: SessionFsRenameParams): Promise<void>;
+    readFile(params: SessionFsReadFileRequest): Promise<SessionFsReadFileResult>;
+    writeFile(params: SessionFsWriteFileRequest): Promise<void>;
+    appendFile(params: SessionFsAppendFileRequest): Promise<void>;
+    exists(params: SessionFsExistsRequest): Promise<SessionFsExistsResult>;
+    stat(params: SessionFsStatRequest): Promise<SessionFsStatResult>;
+    mkdir(params: SessionFsMkdirRequest): Promise<void>;
+    readdir(params: SessionFsReaddirRequest): Promise<SessionFsReaddirResult>;
+    readdirWithTypes(params: SessionFsReaddirWithTypesRequest): Promise<SessionFsReaddirWithTypesResult>;
+    rm(params: SessionFsRmRequest): Promise<void>;
+    rename(params: SessionFsRenameRequest): Promise<void>;
 }
 
 /** All client session API handler groups. */
@@ -2001,52 +1995,52 @@ export function registerClientSessionApiHandlers(
     connection: MessageConnection,
     getHandlers: (sessionId: string) => ClientSessionApiHandlers,
 ): void {
-    connection.onRequest("sessionFs.readFile", async (params: SessionFsReadFileParams) => {
+    connection.onRequest("sessionFs.readFile", async (params: SessionFsReadFileRequest) => {
         const handler = getHandlers(params.sessionId).sessionFs;
         if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
         return handler.readFile(params);
     });
-    connection.onRequest("sessionFs.writeFile", async (params: SessionFsWriteFileParams) => {
+    connection.onRequest("sessionFs.writeFile", async (params: SessionFsWriteFileRequest) => {
         const handler = getHandlers(params.sessionId).sessionFs;
         if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
         return handler.writeFile(params);
     });
-    connection.onRequest("sessionFs.appendFile", async (params: SessionFsAppendFileParams) => {
+    connection.onRequest("sessionFs.appendFile", async (params: SessionFsAppendFileRequest) => {
         const handler = getHandlers(params.sessionId).sessionFs;
         if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
         return handler.appendFile(params);
     });
-    connection.onRequest("sessionFs.exists", async (params: SessionFsExistsParams) => {
+    connection.onRequest("sessionFs.exists", async (params: SessionFsExistsRequest) => {
         const handler = getHandlers(params.sessionId).sessionFs;
         if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
         return handler.exists(params);
     });
-    connection.onRequest("sessionFs.stat", async (params: SessionFsStatParams) => {
+    connection.onRequest("sessionFs.stat", async (params: SessionFsStatRequest) => {
         const handler = getHandlers(params.sessionId).sessionFs;
         if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
         return handler.stat(params);
     });
-    connection.onRequest("sessionFs.mkdir", async (params: SessionFsMkdirParams) => {
+    connection.onRequest("sessionFs.mkdir", async (params: SessionFsMkdirRequest) => {
         const handler = getHandlers(params.sessionId).sessionFs;
         if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
         return handler.mkdir(params);
     });
-    connection.onRequest("sessionFs.readdir", async (params: SessionFsReaddirParams) => {
+    connection.onRequest("sessionFs.readdir", async (params: SessionFsReaddirRequest) => {
         const handler = getHandlers(params.sessionId).sessionFs;
         if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
         return handler.readdir(params);
     });
-    connection.onRequest("sessionFs.readdirWithTypes", async (params: SessionFsReaddirWithTypesParams) => {
+    connection.onRequest("sessionFs.readdirWithTypes", async (params: SessionFsReaddirWithTypesRequest) => {
         const handler = getHandlers(params.sessionId).sessionFs;
         if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
         return handler.readdirWithTypes(params);
     });
-    connection.onRequest("sessionFs.rm", async (params: SessionFsRmParams) => {
+    connection.onRequest("sessionFs.rm", async (params: SessionFsRmRequest) => {
         const handler = getHandlers(params.sessionId).sessionFs;
         if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
         return handler.rm(params);
     });
-    connection.onRequest("sessionFs.rename", async (params: SessionFsRenameParams) => {
+    connection.onRequest("sessionFs.rename", async (params: SessionFsRenameRequest) => {
         const handler = getHandlers(params.sessionId).sessionFs;
         if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
         return handler.rename(params);

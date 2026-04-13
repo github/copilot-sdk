@@ -10,20 +10,106 @@ import fs from "fs/promises";
 import type { JSONSchema7 } from "json-schema";
 import { compile } from "json-schema-to-typescript";
 import {
-    getSessionEventsSchemaPath,
     getApiSchemaPath,
-    postProcessSchema,
-    writeGeneratedFile,
-    isRpcMethod,
+    getRpcSchemaTypeName,
+    getSessionEventsSchemaPath,
     isNodeFullyExperimental,
+    isRpcMethod,
+    postProcessSchema,
+    stripNonAnnotationTitles,
+    writeGeneratedFile,
     type ApiSchema,
     type RpcMethod,
 } from "./utils.js";
 
-// ── Utilities ───────────────────────────────────────────────────────────────
-
 function toPascalCase(s: string): string {
     return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function appendUniqueExportBlocks(output: string[], compiled: string, seenBlocks: Map<string, string>): void {
+    for (const block of splitExportBlocks(compiled)) {
+        const nameMatch = /^export\s+(?:interface|type)\s+(\w+)/m.exec(block);
+        if (!nameMatch) {
+            output.push(block);
+            continue;
+        }
+
+        const name = nameMatch[1];
+        const normalizedBlock = normalizeExportBlock(block);
+        const existing = seenBlocks.get(name);
+        if (existing) {
+            if (existing !== normalizedBlock) {
+                throw new Error(`Duplicate generated TypeScript declaration for "${name}" with different content.`);
+            }
+            continue;
+        }
+
+        seenBlocks.set(name, normalizedBlock);
+        output.push(block);
+    }
+}
+
+function splitExportBlocks(compiled: string): string[] {
+    const normalizedCompiled = compiled
+        .trim()
+        .replace(/;(export\s+(?:interface|type)\s+)/g, ";\n$1")
+        .replace(/}(export\s+(?:interface|type)\s+)/g, "}\n$1");
+    const lines = normalizedCompiled.split(/\r?\n/);
+    const blocks: string[] = [];
+    let pending: string[] = [];
+
+    for (let index = 0; index < lines.length;) {
+        const line = lines[index];
+        if (!/^export\s+(?:interface|type)\s+\w+/.test(line)) {
+            pending.push(line);
+            index++;
+            continue;
+        }
+
+        const blockLines = [...pending, line];
+        pending = [];
+        let braceDepth = countBraces(line);
+        index++;
+
+        if (braceDepth === 0 && line.trim().endsWith(";")) {
+            blocks.push(blockLines.join("\n").trim());
+            continue;
+        }
+
+        while (index < lines.length) {
+            const nextLine = lines[index];
+            blockLines.push(nextLine);
+            braceDepth += countBraces(nextLine);
+            index++;
+
+            const trimmed = nextLine.trim();
+            if (braceDepth === 0 && (trimmed === "}" || trimmed.endsWith(";"))) {
+                break;
+            }
+        }
+
+        blocks.push(blockLines.join("\n").trim());
+    }
+
+    return blocks;
+}
+
+function countBraces(line: string): number {
+    let depth = 0;
+    for (const char of line) {
+        if (char === "{") depth++;
+        if (char === "}") depth--;
+    }
+    return depth;
+}
+
+function normalizeExportBlock(block: string): string {
+    return block
+        .replace(/\/\*\*[\s\S]*?\*\//g, "")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+        .join("\n");
 }
 
 function collectRpcMethods(node: Record<string, unknown>): RpcMethod[] {
@@ -45,7 +131,7 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
 
     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
     const schema = JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7;
-    const processed = postProcessSchema(schema);
+    const processed = postProcessSchema(stripNonAnnotationTitles(schema));
 
     const ts = await compile(processed, "SessionEvent", {
         bannerComment: `/**
@@ -62,12 +148,12 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
 
 // ── RPC Types ───────────────────────────────────────────────────────────────
 
-function resultTypeName(rpcMethod: string): string {
-    return rpcMethod.split(".").map(toPascalCase).join("") + "Result";
+function resultTypeName(method: RpcMethod): string {
+    return getRpcSchemaTypeName(method.result, method.rpcMethod.split(".").map(toPascalCase).join("") + "Result");
 }
 
-function paramsTypeName(rpcMethod: string): string {
-    return rpcMethod.split(".").map(toPascalCase).join("") + "Params";
+function paramsTypeName(method: RpcMethod): string {
+    return getRpcSchemaTypeName(method.params, method.rpcMethod.split(".").map(toPascalCase).join("") + "Request");
 }
 
 async function generateRpc(schemaPath?: string): Promise<void> {
@@ -87,29 +173,30 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
     const allMethods = [...collectRpcMethods(schema.server || {}), ...collectRpcMethods(schema.session || {})];
     const clientSessionMethods = collectRpcMethods(schema.clientSession || {});
+    const seenBlocks = new Map<string, string>();
 
     for (const method of [...allMethods, ...clientSessionMethods]) {
         if (method.result) {
-            const compiled = await compile(method.result, resultTypeName(method.rpcMethod), {
+            const compiled = await compile(stripNonAnnotationTitles(method.result), resultTypeName(method), {
                 bannerComment: "",
                 additionalProperties: false,
             });
             if (method.stability === "experimental") {
                 lines.push("/** @experimental */");
             }
-            lines.push(compiled.trim());
+            appendUniqueExportBlocks(lines, compiled, seenBlocks);
             lines.push("");
         }
 
         if (method.params?.properties && Object.keys(method.params.properties).length > 0) {
-            const paramsCompiled = await compile(method.params, paramsTypeName(method.rpcMethod), {
+            const paramsCompiled = await compile(stripNonAnnotationTitles(method.params), paramsTypeName(method), {
                 bannerComment: "",
                 additionalProperties: false,
             });
             if (method.stability === "experimental") {
                 lines.push("/** @experimental */");
             }
-            lines.push(paramsCompiled.trim());
+            appendUniqueExportBlocks(lines, paramsCompiled, seenBlocks);
             lines.push("");
         }
     }
@@ -149,8 +236,8 @@ function emitGroup(node: Record<string, unknown>, indent: string, isSession: boo
     for (const [key, value] of Object.entries(node)) {
         if (isRpcMethod(value)) {
             const { rpcMethod, params } = value;
-            const resultType = value.result ? resultTypeName(rpcMethod) : "void";
-            const paramsType = paramsTypeName(rpcMethod);
+            const resultType = value.result ? resultTypeName(value) : "void";
+            const paramsType = paramsTypeName(value);
 
             const paramEntries = params?.properties ? Object.entries(params.properties).filter(([k]) => k !== "sessionId") : [];
             const hasParams = params?.properties && Object.keys(params.properties).length > 0;
@@ -238,8 +325,8 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>)
         for (const method of methods) {
             const name = handlerMethodName(method.rpcMethod);
             const hasParams = method.params?.properties && Object.keys(method.params.properties).length > 0;
-            const pType = hasParams ? paramsTypeName(method.rpcMethod) : "";
-            const rType = method.result ? resultTypeName(method.rpcMethod) : "void";
+            const pType = hasParams ? paramsTypeName(method) : "";
+            const rType = method.result ? resultTypeName(method) : "void";
 
             if (hasParams) {
                 lines.push(`    ${name}(params: ${pType}): Promise<${rType}>;`);
@@ -276,7 +363,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>)
     for (const [groupName, methods] of groups) {
         for (const method of methods) {
             const name = handlerMethodName(method.rpcMethod);
-            const pType = paramsTypeName(method.rpcMethod);
+            const pType = paramsTypeName(method);
             const hasParams = method.params?.properties && Object.keys(method.params.properties).length > 0;
 
             if (hasParams) {

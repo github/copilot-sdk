@@ -12,9 +12,11 @@ import type { JSONSchema7 } from "json-schema";
 import { FetchingJSONSchemaStore, InputData, JSONSchemaInput, quicktype } from "quicktype-core";
 import { promisify } from "util";
 import {
-    EXCLUDED_EVENT_TYPES,
+    cloneSchemaForCodegen,
     getApiSchemaPath,
+    getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
+    hoistTitledSchemas,
     isNodeFullyExperimental,
     isRpcMethod,
     postProcessSchema,
@@ -96,6 +98,59 @@ function postProcessEnumConstants(code: string): string {
     return code;
 }
 
+function collapsePlaceholderGoStructs(code: string): string {
+    const structBlockRe = /((?:\/\/.*\r?\n)*)type\s+(\w+)\s+struct\s*\{[\s\S]*?^\}/gm;
+    const matches = [...code.matchAll(structBlockRe)].map((match) => ({
+        fullBlock: match[0],
+        name: match[2],
+        normalizedBody: normalizeGoStructBlock(match[0], match[2]),
+    }));
+    const groups = new Map<string, typeof matches>();
+
+    for (const match of matches) {
+        const group = groups.get(match.normalizedBody) ?? [];
+        group.push(match);
+        groups.set(match.normalizedBody, group);
+    }
+
+    for (const group of groups.values()) {
+        if (group.length < 2) continue;
+
+        const canonical = chooseCanonicalPlaceholderDuplicate(group.map(({ name }) => name));
+        if (!canonical) continue;
+
+        for (const duplicate of group) {
+            if (duplicate.name === canonical) continue;
+            if (!isPlaceholderTypeName(duplicate.name)) continue;
+
+            code = code.replace(duplicate.fullBlock, "");
+            code = code.replace(new RegExp(`\\b${duplicate.name}\\b`, "g"), canonical);
+        }
+    }
+
+    return code.replace(/\n{3,}/g, "\n\n");
+}
+
+function normalizeGoStructBlock(block: string, name: string): string {
+    return block
+        .replace(/^\/\/.*\r?\n/gm, "")
+        .replace(new RegExp(`^type\\s+${name}\\s+struct\\s*\\{`, "m"), "type struct {")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+        .join("\n");
+}
+
+function chooseCanonicalPlaceholderDuplicate(names: string[]): string | undefined {
+    const specificNames = names.filter((name) => !isPlaceholderTypeName(name));
+    if (specificNames.length === 0) return undefined;
+    return specificNames.sort((left, right) => right.length - left.length || left.localeCompare(right))[0];
+}
+
+function isPlaceholderTypeName(name: string): boolean {
+    return name.endsWith("Class");
+}
+
 /**
  * Extract a mapping from (structName, jsonFieldName) → goFieldName
  * so the wrapper code references the actual quicktype-generated field names.
@@ -115,6 +170,14 @@ function extractFieldNames(qtCode: string): Map<string, Map<string, string>> {
         result.set(structName, fields);
     }
     return result;
+}
+
+function goResultTypeName(method: RpcMethod): string {
+    return getRpcSchemaTypeName(method.result, toPascalCase(method.rpcMethod) + "Result");
+}
+
+function goParamsTypeName(method: RpcMethod): string {
+    return getRpcSchemaTypeName(method.params, toPascalCase(method.rpcMethod) + "Request");
 }
 
 async function formatGoFile(filePath: string): Promise<void> {
@@ -171,8 +234,7 @@ function extractGoEventVariants(schema: JSONSchema7): GoEventVariant[] {
                 dataSchema,
                 dataDescription: dataSchema.description,
             };
-        })
-        .filter((v) => !EXCLUDED_EVENT_TYPES.has(v.typeName));
+        });
 }
 
 /**
@@ -277,8 +339,9 @@ function resolveGoPropertyType(
             // Check for discriminated union
             const disc = findGoDiscriminator(nonNull);
             if (disc) {
-                emitGoFlatDiscriminatedUnion(nestedName, disc.property, disc.mapping, ctx, propSchema.description);
-                return isRequired && !hasNull ? nestedName : `*${nestedName}`;
+                const unionName = (propSchema.title as string) || nestedName;
+                emitGoFlatDiscriminatedUnion(unionName, disc.property, disc.mapping, ctx, propSchema.description);
+                return isRequired && !hasNull ? unionName : `*${unionName}`;
             }
             // Non-discriminated multi-type union → any
             return "any";
@@ -287,7 +350,7 @@ function resolveGoPropertyType(
 
     // Handle enum
     if (propSchema.enum && Array.isArray(propSchema.enum)) {
-        const enumType = getOrCreateGoEnum(nestedName, propSchema.enum as string[], ctx, propSchema.description);
+        const enumType = getOrCreateGoEnum((propSchema.title as string) || nestedName, propSchema.enum as string[], ctx, propSchema.description);
         return isRequired ? enumType : `*${enumType}`;
     }
 
@@ -335,7 +398,7 @@ function resolveGoPropertyType(
                 const itemVariants = (items.anyOf as JSONSchema7[]).filter((v) => v.type !== "null");
                 const disc = findGoDiscriminator(itemVariants);
                 if (disc) {
-                    const itemTypeName = nestedName + "Item";
+                    const itemTypeName = (items.title as string) || (nestedName + "Item");
                     emitGoFlatDiscriminatedUnion(itemTypeName, disc.property, disc.mapping, ctx, items.description);
                     return `[]${itemTypeName}`;
                 }
@@ -349,8 +412,9 @@ function resolveGoPropertyType(
     // Object type
     if (type === "object" || (propSchema.properties && !type)) {
         if (propSchema.properties && Object.keys(propSchema.properties).length > 0) {
-            emitGoStruct(nestedName, propSchema, ctx);
-            return isRequired ? nestedName : `*${nestedName}`;
+            const structName = (propSchema.title as string) || nestedName;
+            emitGoStruct(structName, propSchema, ctx);
+            return isRequired ? structName : `*${structName}`;
         }
         if (propSchema.additionalProperties) {
             if (
@@ -359,8 +423,9 @@ function resolveGoPropertyType(
             ) {
                 const ap = propSchema.additionalProperties as JSONSchema7;
                 if (ap.type === "object" && ap.properties) {
-                    emitGoStruct(nestedName + "Value", ap, ctx);
-                    return `map[string]${nestedName}Value`;
+                    const valueName = (ap.title as string) || `${nestedName}Value`;
+                    emitGoStruct(valueName, ap, ctx);
+                    return `map[string]${valueName}`;
                 }
                 const valueType = resolveGoPropertyType(ap, parentTypeName, jsonPropName + "Value", true, ctx);
                 return `map[string]${valueType}`;
@@ -733,27 +798,17 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
 
     // Type aliases for types referenced by non-generated SDK code under their short names.
     const TYPE_ALIASES: Record<string, string> = {
-        PermissionRequest: "PermissionRequestedDataPermissionRequest",
-        PermissionRequestKind: "PermissionRequestedDataPermissionRequestKind",
-        PermissionRequestCommand: "PermissionRequestedDataPermissionRequestCommandsItem",
-        PossibleURL: "PermissionRequestedDataPermissionRequestPossibleUrlsItem",
-        Attachment: "UserMessageDataAttachmentsItem",
-        AttachmentType: "UserMessageDataAttachmentsItemType",
+        PermissionRequestCommand: "PermissionRequestShellCommand",
+        PossibleURL: "PermissionRequestShellPossibleUrl",
+        Attachment: "UserMessageAttachment",
+        AttachmentType: "UserMessageAttachmentType",
     };
     const CONST_ALIASES: Record<string, string> = {
-        AttachmentTypeFile: "UserMessageDataAttachmentsItemTypeFile",
-        AttachmentTypeDirectory: "UserMessageDataAttachmentsItemTypeDirectory",
-        AttachmentTypeSelection: "UserMessageDataAttachmentsItemTypeSelection",
-        AttachmentTypeGithubReference: "UserMessageDataAttachmentsItemTypeGithubReference",
-        AttachmentTypeBlob: "UserMessageDataAttachmentsItemTypeBlob",
-        PermissionRequestKindShell: "PermissionRequestedDataPermissionRequestKindShell",
-        PermissionRequestKindWrite: "PermissionRequestedDataPermissionRequestKindWrite",
-        PermissionRequestKindRead: "PermissionRequestedDataPermissionRequestKindRead",
-        PermissionRequestKindMcp: "PermissionRequestedDataPermissionRequestKindMcp",
-        PermissionRequestKindURL: "PermissionRequestedDataPermissionRequestKindURL",
-        PermissionRequestKindMemory: "PermissionRequestedDataPermissionRequestKindMemory",
-        PermissionRequestKindCustomTool: "PermissionRequestedDataPermissionRequestKindCustomTool",
-        PermissionRequestKindHook: "PermissionRequestedDataPermissionRequestKindHook",
+        AttachmentTypeFile: "UserMessageAttachmentTypeFile",
+        AttachmentTypeDirectory: "UserMessageAttachmentTypeDirectory",
+        AttachmentTypeSelection: "UserMessageAttachmentTypeSelection",
+        AttachmentTypeGithubReference: "UserMessageAttachmentTypeGithubReference",
+        AttachmentTypeBlob: "UserMessageAttachmentTypeBlob",
     };
     out.push(`// Type aliases for convenience.`);
     out.push(`type (`);
@@ -777,7 +832,7 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
     console.log("Go: generating session-events...");
 
     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
-    const schema = JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7;
+    const schema = cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7);
     const processed = postProcessSchema(schema);
 
     const code = generateGoSessionEventsCode(processed);
@@ -794,7 +849,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     console.log("Go: generating RPC types...");
 
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    const schema = JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema;
+    const schema = cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema);
 
     const allMethods = [
         ...collectRpcMethods(schema.server || {}),
@@ -809,9 +864,8 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     };
 
     for (const method of allMethods) {
-        const baseName = toPascalCase(method.rpcMethod);
         if (method.result) {
-            combinedSchema.definitions![baseName + "Result"] = method.result;
+            combinedSchema.definitions![goResultTypeName(method)] = method.result;
         }
         if (method.params?.properties && Object.keys(method.params.properties).length > 0) {
             // For session methods, filter out sessionId from params type
@@ -824,18 +878,26 @@ async function generateRpc(schemaPath?: string): Promise<void> {
                     required: method.params.required?.filter((r) => r !== "sessionId"),
                 };
                 if (Object.keys(filtered.properties!).length > 0) {
-                    combinedSchema.definitions![baseName + "Params"] = filtered;
+                    combinedSchema.definitions![goParamsTypeName(method)] = filtered;
                 }
             } else {
-                combinedSchema.definitions![baseName + "Params"] = method.params;
+                combinedSchema.definitions![goParamsTypeName(method)] = method.params;
             }
         }
     }
 
+    const { rootDefinitions, sharedDefinitions } = hoistTitledSchemas(combinedSchema.definitions! as Record<string, JSONSchema7>);
+
     // Generate types via quicktype
     const schemaInput = new JSONSchemaInput(new FetchingJSONSchemaStore());
-    for (const [name, def] of Object.entries(combinedSchema.definitions!)) {
-        await schemaInput.addSource({ name, schema: JSON.stringify(def) });
+    for (const [name, def] of Object.entries(rootDefinitions)) {
+        await schemaInput.addSource({
+            name,
+            schema: JSON.stringify({
+                ...def,
+                definitions: sharedDefinitions,
+            }),
+        });
     }
 
     const inputData = new InputData();
@@ -850,14 +912,15 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     // Post-process quicktype output: fix enum constant names
     let qtCode = qtResult.lines.filter((l) => !l.startsWith("package ")).join("\n");
     qtCode = postProcessEnumConstants(qtCode);
+    qtCode = collapsePlaceholderGoStructs(qtCode);
     // Strip trailing whitespace from quicktype output (gofmt requirement)
     qtCode = qtCode.replace(/[ \t]+$/gm, "");
 
     // Extract actual type names generated by quicktype (may differ from toPascalCase)
     const actualTypeNames = new Map<string, string>();
-    const structRe = /^type\s+(\w+)\s+struct\b/gm;
+    const typeRe = /^type\s+(\w+)\s+/gm;
     let sm;
-    while ((sm = structRe.exec(qtCode)) !== null) {
+    while ((sm = typeRe.exec(qtCode)) !== null) {
         actualTypeNames.set(sm[1].toLowerCase(), sm[1]);
     }
     const resolveType = (name: string): string => actualTypeNames.get(name.toLowerCase()) ?? name;
@@ -869,10 +932,10 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     const experimentalTypeNames = new Set<string>();
     for (const method of allMethods) {
         if (method.stability !== "experimental") continue;
-        experimentalTypeNames.add(toPascalCase(method.rpcMethod) + "Result");
-        const baseName = toPascalCase(method.rpcMethod);
-        if (combinedSchema.definitions![baseName + "Params"]) {
-            experimentalTypeNames.add(baseName + "Params");
+        experimentalTypeNames.add(goResultTypeName(method));
+        const paramsTypeName = goParamsTypeName(method);
+        if (rootDefinitions[paramsTypeName]) {
+            experimentalTypeNames.add(paramsTypeName);
         }
     }
     for (const typeName of experimentalTypeNames) {
@@ -1004,13 +1067,13 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
 
 function emitMethod(lines: string[], receiver: string, name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, fieldNames: Map<string, Map<string, string>>, groupExperimental = false, isWrapper = false): void {
     const methodName = toPascalCase(name);
-    const resultType = resolveType(toPascalCase(method.rpcMethod) + "Result");
+    const resultType = resolveType(goResultTypeName(method));
 
     const paramProps = method.params?.properties || {};
     const requiredParams = new Set(method.params?.required || []);
     const nonSessionParams = Object.keys(paramProps).filter((k) => k !== "sessionId");
     const hasParams = isSession ? nonSessionParams.length > 0 : Object.keys(paramProps).length > 0;
-    const paramsType = hasParams ? resolveType(toPascalCase(method.rpcMethod) + "Params") : "";
+    const paramsType = hasParams ? resolveType(goParamsTypeName(method)) : "";
 
     // For wrapper-level methods, access fields through a.common; for service type aliases, use a directly
     const clientRef = isWrapper ? "a.common.client" : "a.client";
@@ -1103,9 +1166,9 @@ function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<
             if (method.stability === "experimental" && !groupExperimental) {
                 lines.push(`\t// Experimental: ${clientHandlerMethodName(method.rpcMethod)} is an experimental API and may change or be removed in future versions.`);
             }
-            const paramsType = resolveType(toPascalCase(method.rpcMethod) + "Params");
+            const paramsType = resolveType(goParamsTypeName(method));
             if (method.result) {
-                const resultType = resolveType(toPascalCase(method.rpcMethod) + "Result");
+                const resultType = resolveType(goResultTypeName(method));
                 lines.push(`\t${clientHandlerMethodName(method.rpcMethod)}(request *${paramsType}) (*${resultType}, error)`);
             } else {
                 lines.push(`\t${clientHandlerMethodName(method.rpcMethod)}(request *${paramsType}) error`);
@@ -1140,7 +1203,7 @@ function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<
     for (const { groupName, methods } of groups) {
         const handlerField = toPascalCase(groupName);
         for (const method of methods) {
-            const paramsType = resolveType(toPascalCase(method.rpcMethod) + "Params");
+            const paramsType = resolveType(goParamsTypeName(method));
             lines.push(`\tclient.SetRequestHandler("${method.rpcMethod}", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {`);
             lines.push(`\t\tvar request ${paramsType}`);
             lines.push(`\t\tif err := json.Unmarshal(params, &request); err != nil {`);

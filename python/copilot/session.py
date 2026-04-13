@@ -22,30 +22,28 @@ from typing import TYPE_CHECKING, Any, Literal, NotRequired, Required, TypedDict
 from ._jsonrpc import JsonRpcError, ProcessExitedError
 from ._telemetry import get_trace_context, trace_context
 from .generated.rpc import (
-    Action,
     ClientSessionApiHandlers,
+    CommandsHandlePendingCommandRequest,
+    HandlePendingElicitationRequest,
     Kind,
-    Level,
-    Property,
-    PropertyType,
-    RequestedSchema,
+    LogRequest,
+    ModelSwitchToRequest,
+    PermissionDecision,
+    PermissionDecisionRequest,
     RequestedSchemaType,
-    ResultResult,
-    SessionCommandsHandlePendingCommandParams,
     SessionFsHandler,
-    SessionLogParams,
-    SessionModelSwitchToParams,
-    SessionPermissionsHandlePendingPermissionRequestParams,
-    SessionPermissionsHandlePendingPermissionRequestParamsResult,
+    SessionLogLevel,
     SessionRpc,
-    SessionToolsHandlePendingToolCallParams,
-    SessionUIElicitationParams,
-    SessionUIHandlePendingElicitationParams,
-    SessionUIHandlePendingElicitationParamsResult,
+    ToolCallResult,
+    ToolsHandlePendingToolCallRequest,
+    UIElicitationAction,
+    UIElicitationRequest,
+    UIElicitationResponse,
+    UIElicitationSchema,
+    UIElicitationSchemaProperty,
+    UIElicitationSchemaPropertyNumberType,
 )
-from .generated.rpc import (
-    ModelCapabilitiesOverride as _RpcModelCapabilitiesOverride,
-)
+from .generated.rpc import ModelCapabilitiesOverride as _RpcModelCapabilitiesOverride
 from .generated.session_events import (
     PermissionRequest,
     SessionEvent,
@@ -439,12 +437,12 @@ class SessionUiApi:
         """
         self._session._assert_elicitation()
         rpc_result = await self._session.rpc.ui.elicitation(
-            SessionUIElicitationParams(
+            UIElicitationRequest(
                 message=params["message"],
-                requested_schema=RequestedSchema.from_dict(params["requestedSchema"]),
+                requested_schema=UIElicitationSchema.from_dict(params["requestedSchema"]),
             )
         )
-        result: ElicitationResult = {"action": rpc_result.action.value}  # type: ignore[typeddict-item]
+        result: ElicitationResult = {"action": rpc_result.action.value}
         if rpc_result.content is not None:
             result["content"] = rpc_result.content
         return result
@@ -463,19 +461,22 @@ class SessionUiApi:
         """
         self._session._assert_elicitation()
         rpc_result = await self._session.rpc.ui.elicitation(
-            SessionUIElicitationParams(
+            UIElicitationRequest(
                 message=message,
-                requested_schema=RequestedSchema(
+                requested_schema=UIElicitationSchema(
                     type=RequestedSchemaType.OBJECT,
                     properties={
-                        "confirmed": Property(type=PropertyType.BOOLEAN, default=True),
+                        "confirmed": UIElicitationSchemaProperty(
+                            type=UIElicitationSchemaPropertyNumberType.BOOLEAN,
+                            default=True,
+                        ),
                     },
                     required=["confirmed"],
                 ),
             )
         )
         return (
-            rpc_result.action == Action.ACCEPT
+            rpc_result.action == UIElicitationAction.ACCEPT
             and rpc_result.content is not None
             and rpc_result.content.get("confirmed") is True
         )
@@ -495,19 +496,22 @@ class SessionUiApi:
         """
         self._session._assert_elicitation()
         rpc_result = await self._session.rpc.ui.elicitation(
-            SessionUIElicitationParams(
+            UIElicitationRequest(
                 message=message,
-                requested_schema=RequestedSchema(
+                requested_schema=UIElicitationSchema(
                     type=RequestedSchemaType.OBJECT,
                     properties={
-                        "selection": Property(type=PropertyType.STRING, enum=options),
+                        "selection": UIElicitationSchemaProperty(
+                            type=UIElicitationSchemaPropertyNumberType.STRING,
+                            enum=options,
+                        ),
                     },
                     required=["selection"],
                 ),
             )
         )
         if (
-            rpc_result.action == Action.ACCEPT
+            rpc_result.action == UIElicitationAction.ACCEPT
             and rpc_result.content is not None
             and rpc_result.content.get("selection") is not None
         ):
@@ -535,9 +539,9 @@ class SessionUiApi:
                     field[key] = options[key]
 
         rpc_result = await self._session.rpc.ui.elicitation(
-            SessionUIElicitationParams(
+            UIElicitationRequest(
                 message=message,
-                requested_schema=RequestedSchema.from_dict(
+                requested_schema=UIElicitationSchema.from_dict(
                     {
                         "type": "object",
                         "properties": {"value": field},
@@ -547,7 +551,7 @@ class SessionUiApi:
             )
         )
         if (
-            rpc_result.action == Action.ACCEPT
+            rpc_result.action == UIElicitationAction.ACCEPT
             and rpc_result.content is not None
             and rpc_result.content.get("value") is not None
         ):
@@ -1345,19 +1349,19 @@ class CopilotSession:
             # failures send the full structured result to preserve metadata.
             if tool_result._from_exception:
                 await self.rpc.tools.handle_pending_tool_call(
-                    SessionToolsHandlePendingToolCallParams(
+                    ToolsHandlePendingToolCallRequest(
                         request_id=request_id,
                         error=tool_result.error,
                     )
                 )
             else:
                 await self.rpc.tools.handle_pending_tool_call(
-                    SessionToolsHandlePendingToolCallParams(
+                    ToolsHandlePendingToolCallRequest(
                         request_id=request_id,
-                        result=ResultResult(
+                        result=ToolCallResult(
                             text_result_for_llm=tool_result.text_result_for_llm,
-                            result_type=tool_result.result_type,
                             error=tool_result.error,
+                            result_type=tool_result.result_type,
                             tool_telemetry=tool_result.tool_telemetry,
                         ),
                     )
@@ -1365,7 +1369,7 @@ class CopilotSession:
         except Exception as exc:
             try:
                 await self.rpc.tools.handle_pending_tool_call(
-                    SessionToolsHandlePendingToolCallParams(
+                    ToolsHandlePendingToolCallRequest(
                         request_id=request_id,
                         error=str(exc),
                     )
@@ -1389,7 +1393,7 @@ class CopilotSession:
             if result.kind == "no-result":
                 return
 
-            perm_result = SessionPermissionsHandlePendingPermissionRequestParamsResult(
+            perm_result = PermissionDecision(
                 kind=Kind(result.kind),
                 rules=result.rules,
                 feedback=result.feedback,
@@ -1398,7 +1402,7 @@ class CopilotSession:
             )
 
             await self.rpc.permissions.handle_pending_permission_request(
-                SessionPermissionsHandlePendingPermissionRequestParams(
+                PermissionDecisionRequest(
                     request_id=request_id,
                     result=perm_result,
                 )
@@ -1406,9 +1410,9 @@ class CopilotSession:
         except Exception:
             try:
                 await self.rpc.permissions.handle_pending_permission_request(
-                    SessionPermissionsHandlePendingPermissionRequestParams(
+                    PermissionDecisionRequest(
                         request_id=request_id,
-                        result=SessionPermissionsHandlePendingPermissionRequestParamsResult(
+                        result=PermissionDecision(
                             kind=Kind.DENIED_NO_APPROVAL_RULE_AND_COULD_NOT_REQUEST_FROM_USER,
                         ),
                     )
@@ -1430,7 +1434,7 @@ class CopilotSession:
         if not handler:
             try:
                 await self.rpc.commands.handle_pending_command(
-                    SessionCommandsHandlePendingCommandParams(
+                    CommandsHandlePendingCommandRequest(
                         request_id=request_id,
                         error=f"Unknown command: {command_name}",
                     )
@@ -1450,13 +1454,13 @@ class CopilotSession:
             if inspect.isawaitable(result):
                 await result
             await self.rpc.commands.handle_pending_command(
-                SessionCommandsHandlePendingCommandParams(request_id=request_id)
+                CommandsHandlePendingCommandRequest(request_id=request_id)
             )
         except Exception as exc:
             message = str(exc)
             try:
                 await self.rpc.commands.handle_pending_command(
-                    SessionCommandsHandlePendingCommandParams(
+                    CommandsHandlePendingCommandRequest(
                         request_id=request_id,
                         error=message,
                     )
@@ -1484,12 +1488,12 @@ class CopilotSession:
                 result = await result
             result = cast(ElicitationResult, result)
             action_val = result.get("action", "cancel")
-            rpc_result = SessionUIHandlePendingElicitationParamsResult(
-                action=Action(action_val),
+            rpc_result = UIElicitationResponse(
+                action=UIElicitationAction(action_val),
                 content=result.get("content"),
             )
             await self.rpc.ui.handle_pending_elicitation(
-                SessionUIHandlePendingElicitationParams(
+                HandlePendingElicitationRequest(
                     request_id=request_id,
                     result=rpc_result,
                 )
@@ -1498,10 +1502,10 @@ class CopilotSession:
             # Handler failed — attempt to cancel so the request doesn't hang
             try:
                 await self.rpc.ui.handle_pending_elicitation(
-                    SessionUIHandlePendingElicitationParams(
+                    HandlePendingElicitationRequest(
                         request_id=request_id,
-                        result=SessionUIHandlePendingElicitationParamsResult(
-                            action=Action.CANCEL,
+                        result=UIElicitationResponse(
+                            action=UIElicitationAction.CANCEL,
                         ),
                     )
                 )
@@ -1939,7 +1943,7 @@ class CopilotSession:
                 _capabilities_to_dict(model_capabilities)
             )
         await self.rpc.model.switch_to(
-            SessionModelSwitchToParams(
+            ModelSwitchToRequest(
                 model_id=model,
                 reasoning_effort=reasoning_effort,
                 model_capabilities=rpc_caps,
@@ -1973,9 +1977,9 @@ class CopilotSession:
             >>> await session.log("Operation failed", level="error")
             >>> await session.log("Temporary status update", ephemeral=True)
         """
-        params = SessionLogParams(
+        params = LogRequest(
             message=message,
-            level=Level(level) if level is not None else None,
+            level=SessionLogLevel(level) if level is not None else None,
             ephemeral=ephemeral,
         )
         await self.rpc.log(params)

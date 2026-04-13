@@ -17,7 +17,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
     {
         InitialCwd = "/",
         SessionStatePath = "/session-state",
-        Conventions = SessionFsSetProviderRequestConventions.Posix,
+        Conventions = SessionFsSetProviderConventions.Posix,
     };
 
     [Fact]
@@ -369,27 +369,27 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
 
     private sealed class TestSessionFsHandler(string sessionId, string rootDir) : ISessionFsHandler
     {
-        public async Task<SessionFsReadFileResult> ReadFileAsync(SessionFsReadFileParams request, CancellationToken cancellationToken = default)
+        public async Task<SessionFsReadFileResult> ReadFileAsync(SessionFsReadFileRequest request, CancellationToken cancellationToken = default)
         {
             var content = await File.ReadAllTextAsync(ResolvePath(request.Path), cancellationToken);
             return new SessionFsReadFileResult { Content = content };
         }
 
-        public async Task WriteFileAsync(SessionFsWriteFileParams request, CancellationToken cancellationToken = default)
+        public async Task WriteFileAsync(SessionFsWriteFileRequest request, CancellationToken cancellationToken = default)
         {
             var fullPath = ResolvePath(request.Path);
             Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
             await File.WriteAllTextAsync(fullPath, request.Content, cancellationToken);
         }
 
-        public async Task AppendFileAsync(SessionFsAppendFileParams request, CancellationToken cancellationToken = default)
+        public async Task AppendFileAsync(SessionFsAppendFileRequest request, CancellationToken cancellationToken = default)
         {
             var fullPath = ResolvePath(request.Path);
             Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
             await File.AppendAllTextAsync(fullPath, request.Content, cancellationToken);
         }
 
-        public Task<SessionFsExistsResult> ExistsAsync(SessionFsExistsParams request, CancellationToken cancellationToken = default)
+        public Task<SessionFsExistsResult> ExistsAsync(SessionFsExistsRequest request, CancellationToken cancellationToken = default)
         {
             var fullPath = ResolvePath(request.Path);
             return Task.FromResult(new SessionFsExistsResult
@@ -398,7 +398,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
             });
         }
 
-        public Task<SessionFsStatResult> StatAsync(SessionFsStatParams request, CancellationToken cancellationToken = default)
+        public Task<SessionFsStatResult> StatAsync(SessionFsStatRequest request, CancellationToken cancellationToken = default)
         {
             var fullPath = ResolvePath(request.Path);
             if (File.Exists(fullPath))
@@ -430,13 +430,13 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
             });
         }
 
-        public Task MkdirAsync(SessionFsMkdirParams request, CancellationToken cancellationToken = default)
+        public Task MkdirAsync(SessionFsMkdirRequest request, CancellationToken cancellationToken = default)
         {
             Directory.CreateDirectory(ResolvePath(request.Path));
             return Task.CompletedTask;
         }
 
-        public Task<SessionFsReaddirResult> ReaddirAsync(SessionFsReaddirParams request, CancellationToken cancellationToken = default)
+        public Task<SessionFsReaddirResult> ReaddirAsync(SessionFsReaddirRequest request, CancellationToken cancellationToken = default)
         {
             var entries = Directory
                 .EnumerateFileSystemEntries(ResolvePath(request.Path))
@@ -448,21 +448,21 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
             return Task.FromResult(new SessionFsReaddirResult { Entries = entries });
         }
 
-        public Task<SessionFsReaddirWithTypesResult> ReaddirWithTypesAsync(SessionFsReaddirWithTypesParams request, CancellationToken cancellationToken = default)
+        public Task<SessionFsReaddirWithTypesResult> ReaddirWithTypesAsync(SessionFsReaddirWithTypesRequest request, CancellationToken cancellationToken = default)
         {
             var entries = Directory
                 .EnumerateFileSystemEntries(ResolvePath(request.Path))
-                .Select(path => new Entry
+                .Select(path => new SessionFsReaddirWithTypesEntry
                 {
                     Name = Path.GetFileName(path),
-                    Type = Directory.Exists(path) ? EntryType.Directory : EntryType.File,
+                    Type = Directory.Exists(path) ? SessionFsReaddirWithTypesEntryType.Directory : SessionFsReaddirWithTypesEntryType.File,
                 })
                 .ToList();
 
             return Task.FromResult(new SessionFsReaddirWithTypesResult { Entries = entries });
         }
 
-        public Task RmAsync(SessionFsRmParams request, CancellationToken cancellationToken = default)
+        public Task RmAsync(SessionFsRmRequest request, CancellationToken cancellationToken = default)
         {
             var fullPath = ResolvePath(request.Path);
 
@@ -486,7 +486,7 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
             throw new FileNotFoundException($"Path does not exist: {request.Path}");
         }
 
-        public Task RenameAsync(SessionFsRenameParams request, CancellationToken cancellationToken = default)
+        public Task RenameAsync(SessionFsRenameRequest request, CancellationToken cancellationToken = default)
         {
             var src = ResolvePath(request.Src);
             var dest = ResolvePath(request.Dest);
