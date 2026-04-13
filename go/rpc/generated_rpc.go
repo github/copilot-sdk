@@ -323,6 +323,9 @@ type ModelCapabilitiesOverrideSupports struct {
 	Vision          *bool `json:"vision,omitempty"`
 }
 
+type SessionModeSetResult struct {
+}
+
 type ModeSetRequest struct {
 	Mode SessionMode `json:"mode"`
 }
@@ -1376,7 +1379,7 @@ func (a *ModeApi) Get(ctx context.Context) (*SessionMode, error) {
 	return &result, nil
 }
 
-func (a *ModeApi) Set(ctx context.Context, params *ModeSetRequest) (*SessionMode, error) {
+func (a *ModeApi) Set(ctx context.Context, params *ModeSetRequest) (*SessionModeSetResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["mode"] = params.Mode
@@ -1385,7 +1388,7 @@ func (a *ModeApi) Set(ctx context.Context, params *ModeSetRequest) (*SessionMode
 	if err != nil {
 		return nil, err
 	}
-	var result SessionMode
+	var result SessionModeSetResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}

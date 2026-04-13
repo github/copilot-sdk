@@ -536,7 +536,6 @@ export interface SessionModeGetRequest {
   sessionId: string;
 }
 
-
 export interface ModeSetRequest {
   /**
    * Target session identifier
@@ -1850,7 +1849,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         mode: {
             get: async (): Promise<SessionMode> =>
                 connection.sendRequest("session.mode.get", { sessionId }),
-            set: async (params: Omit<ModeSetRequest, "sessionId">): Promise<SessionMode> =>
+            set: async (params: Omit<ModeSetRequest, "sessionId">): Promise<void> =>
                 connection.sendRequest("session.mode.set", { sessionId, ...params }),
         },
         plan: {

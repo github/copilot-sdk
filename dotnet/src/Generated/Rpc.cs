@@ -2215,10 +2215,10 @@ public class ModeApi
     }
 
     /// <summary>Calls "session.mode.set".</summary>
-    public async Task<SessionMode> SetAsync(SessionMode mode, CancellationToken cancellationToken = default)
+    public async Task SetAsync(SessionMode mode, CancellationToken cancellationToken = default)
     {
         var request = new ModeSetRequest { SessionId = _sessionId, Mode = mode };
-        return await CopilotClient.InvokeRpcAsync<SessionMode>(_rpc, "session.mode.set", [request], cancellationToken);
+        await CopilotClient.InvokeRpcAsync(_rpc, "session.mode.set", [request], cancellationToken);
     }
 }
 

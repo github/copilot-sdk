@@ -3860,10 +3860,10 @@ class ModeApi:
     async def get(self, *, timeout: float | None = None) -> SessionMode:
         return SessionMode(await self._client.request("session.mode.get", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
-    async def set(self, params: ModeSetRequest, *, timeout: float | None = None) -> SessionMode:
+    async def set(self, params: ModeSetRequest, *, timeout: float | None = None) -> None:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return SessionMode(await self._client.request("session.mode.set", params_dict, **_timeout_kwargs(timeout)))
+        await self._client.request("session.mode.set", params_dict, **_timeout_kwargs(timeout))
 
 
 class PlanApi:
