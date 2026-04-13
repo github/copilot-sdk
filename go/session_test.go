@@ -403,7 +403,7 @@ func TestSession_Capabilities(t *testing.T) {
 		session.dispatchEvent(SessionEvent{
 			Type: SessionEventTypeCapabilitiesChanged,
 			Data: &CapabilitiesChangedData{
-				UI: &CapabilitiesChangedUi{Elicitation: &elicitTrue},
+				UI: &CapabilitiesChangedUI{Elicitation: &elicitTrue},
 			},
 		})
 
@@ -420,7 +420,7 @@ func TestSession_Capabilities(t *testing.T) {
 		session.dispatchEvent(SessionEvent{
 			Type: SessionEventTypeCapabilitiesChanged,
 			Data: &CapabilitiesChangedData{
-				UI: &CapabilitiesChangedUi{Elicitation: &elicitFalse},
+				UI: &CapabilitiesChangedUI{Elicitation: &elicitFalse},
 			},
 		})
 

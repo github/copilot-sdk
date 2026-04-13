@@ -24,7 +24,7 @@ from ._telemetry import get_trace_context, trace_context
 from .generated.rpc import (
     ClientSessionApiHandlers,
     CommandsHandlePendingCommandRequest,
-    HandlePendingElicitationRequest,
+    UIHandlePendingElicitationRequest,
     Kind,
     LogRequest,
     ModelSwitchToRequest,
@@ -36,7 +36,7 @@ from .generated.rpc import (
     SessionRpc,
     ToolCallResult,
     ToolsHandlePendingToolCallRequest,
-    UIElicitationAction,
+    UIElicitationResponseAction,
     UIElicitationRequest,
     UIElicitationResponse,
     UIElicitationSchema,
@@ -476,7 +476,7 @@ class SessionUiApi:
             )
         )
         return (
-            rpc_result.action == UIElicitationAction.ACCEPT
+            rpc_result.action == UIElicitationResponseAction.ACCEPT
             and rpc_result.content is not None
             and rpc_result.content.get("confirmed") is True
         )
@@ -511,7 +511,7 @@ class SessionUiApi:
             )
         )
         if (
-            rpc_result.action == UIElicitationAction.ACCEPT
+            rpc_result.action == UIElicitationResponseAction.ACCEPT
             and rpc_result.content is not None
             and rpc_result.content.get("selection") is not None
         ):
@@ -551,7 +551,7 @@ class SessionUiApi:
             )
         )
         if (
-            rpc_result.action == UIElicitationAction.ACCEPT
+            rpc_result.action == UIElicitationResponseAction.ACCEPT
             and rpc_result.content is not None
             and rpc_result.content.get("value") is not None
         ):
@@ -1489,11 +1489,11 @@ class CopilotSession:
             result = cast(ElicitationResult, result)
             action_val = result.get("action", "cancel")
             rpc_result = UIElicitationResponse(
-                action=UIElicitationAction(action_val),
+                action=UIElicitationResponseAction(action_val),
                 content=result.get("content"),
             )
             await self.rpc.ui.handle_pending_elicitation(
-                HandlePendingElicitationRequest(
+                UIHandlePendingElicitationRequest(
                     request_id=request_id,
                     result=rpc_result,
                 )
@@ -1502,10 +1502,10 @@ class CopilotSession:
             # Handler failed — attempt to cancel so the request doesn't hang
             try:
                 await self.rpc.ui.handle_pending_elicitation(
-                    HandlePendingElicitationRequest(
+                    UIHandlePendingElicitationRequest(
                         request_id=request_id,
                         result=UIElicitationResponse(
-                            action=UIElicitationAction.CANCEL,
+                            action=UIElicitationResponseAction.CANCEL,
                         ),
                     )
                 )
