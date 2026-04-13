@@ -1132,17 +1132,6 @@ class Plan:
         return result
 
 @dataclass
-class PlanUpdateResult:
-    @staticmethod
-    def from_dict(obj: Any) -> 'PlanUpdateResult':
-        assert isinstance(obj, dict)
-        return PlanUpdateResult()
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        return result
-
-@dataclass
 class PlanUpdateRequest:
     content: str
     """The new content for the plan file"""
@@ -1156,17 +1145,6 @@ class PlanUpdateRequest:
     def to_dict(self) -> dict:
         result: dict = {}
         result["content"] = from_str(self.content)
-        return result
-
-@dataclass
-class PlanDelete:
-    @staticmethod
-    def from_dict(obj: Any) -> 'PlanDelete':
-        assert isinstance(obj, dict)
-        return PlanDelete()
-
-    def to_dict(self) -> dict:
-        result: dict = {}
         return result
 
 @dataclass
@@ -1215,17 +1193,6 @@ class WorkspaceReadFileRequest:
     def to_dict(self) -> dict:
         result: dict = {}
         result["path"] = from_str(self.path)
-        return result
-
-@dataclass
-class WorkspaceCreateFileResult:
-    @staticmethod
-    def from_dict(obj: Any) -> 'WorkspaceCreateFileResult':
-        assert isinstance(obj, dict)
-        return WorkspaceCreateFileResult()
-
-    def to_dict(self) -> dict:
-        result: dict = {}
         return result
 
 @dataclass
@@ -1431,18 +1398,6 @@ class AgentSelectRequest:
         result["name"] = from_str(self.name)
         return result
 
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class AgentDeselect:
-    @staticmethod
-    def from_dict(obj: Any) -> 'AgentDeselect':
-        assert isinstance(obj, dict)
-        return AgentDeselect()
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        return result
-
 @dataclass
 class AgentReloadAgent:
     description: str
@@ -1547,18 +1502,6 @@ class SkillList:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class SkillsEnableResult:
-    @staticmethod
-    def from_dict(obj: Any) -> 'SkillsEnableResult':
-        assert isinstance(obj, dict)
-        return SkillsEnableResult()
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
 class SkillsEnableRequest:
     name: str
     """Name of the skill to enable"""
@@ -1576,18 +1519,6 @@ class SkillsEnableRequest:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class SkillsDisableResult:
-    @staticmethod
-    def from_dict(obj: Any) -> 'SkillsDisableResult':
-        assert isinstance(obj, dict)
-        return SkillsDisableResult()
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
 class SkillsDisableRequest:
     name: str
     """Name of the skill to disable"""
@@ -1601,18 +1532,6 @@ class SkillsDisableRequest:
     def to_dict(self) -> dict:
         result: dict = {}
         result["name"] = from_str(self.name)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class SkillsReload:
-    @staticmethod
-    def from_dict(obj: Any) -> 'SkillsReload':
-        assert isinstance(obj, dict)
-        return SkillsReload()
-
-    def to_dict(self) -> dict:
-        result: dict = {}
         return result
 
 class MCPServerStatus(Enum):
@@ -1672,17 +1591,6 @@ class MCPList:
         return result
 
 @dataclass
-class MCPEnableResult:
-    @staticmethod
-    def from_dict(obj: Any) -> 'MCPEnableResult':
-        assert isinstance(obj, dict)
-        return MCPEnableResult()
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        return result
-
-@dataclass
 class MCPEnableRequest:
     server_name: str
     """Name of the MCP server to enable"""
@@ -1699,17 +1607,6 @@ class MCPEnableRequest:
         return result
 
 @dataclass
-class MCPDisableResult:
-    @staticmethod
-    def from_dict(obj: Any) -> 'MCPDisableResult':
-        assert isinstance(obj, dict)
-        return MCPDisableResult()
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        return result
-
-@dataclass
 class MCPDisableRequest:
     server_name: str
     """Name of the MCP server to disable"""
@@ -1723,17 +1620,6 @@ class MCPDisableRequest:
     def to_dict(self) -> dict:
         result: dict = {}
         result["serverName"] = from_str(self.server_name)
-        return result
-
-@dataclass
-class MCPReload:
-    @staticmethod
-    def from_dict(obj: Any) -> 'MCPReload':
-        assert isinstance(obj, dict)
-        return MCPReload()
-
-    def to_dict(self) -> dict:
-        result: dict = {}
         return result
 
 @dataclass
@@ -1851,18 +1737,6 @@ class ExtensionList:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class ExtensionsEnableResult:
-    @staticmethod
-    def from_dict(obj: Any) -> 'ExtensionsEnableResult':
-        assert isinstance(obj, dict)
-        return ExtensionsEnableResult()
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
 class ExtensionsEnableRequest:
     id: str
     """Source-qualified extension ID to enable"""
@@ -1880,18 +1754,6 @@ class ExtensionsEnableRequest:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class ExtensionsDisableResult:
-    @staticmethod
-    def from_dict(obj: Any) -> 'ExtensionsDisableResult':
-        assert isinstance(obj, dict)
-        return ExtensionsDisableResult()
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
 class ExtensionsDisableRequest:
     id: str
     """Source-qualified extension ID to disable"""
@@ -1905,18 +1767,6 @@ class ExtensionsDisableRequest:
     def to_dict(self) -> dict:
         result: dict = {}
         result["id"] = from_str(self.id)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class ExtensionsReload:
-    @staticmethod
-    def from_dict(obj: Any) -> 'ExtensionsReload':
-        assert isinstance(obj, dict)
-        return ExtensionsReload()
-
-    def to_dict(self) -> dict:
-        result: dict = {}
         return result
 
 @dataclass
@@ -3341,23 +3191,11 @@ def plan_from_dict(s: Any) -> Plan:
 def plan_to_dict(x: Plan) -> Any:
     return to_class(Plan, x)
 
-def plan_update_result_from_dict(s: Any) -> PlanUpdateResult:
-    return PlanUpdateResult.from_dict(s)
-
-def plan_update_result_to_dict(x: PlanUpdateResult) -> Any:
-    return to_class(PlanUpdateResult, x)
-
 def plan_update_request_from_dict(s: Any) -> PlanUpdateRequest:
     return PlanUpdateRequest.from_dict(s)
 
 def plan_update_request_to_dict(x: PlanUpdateRequest) -> Any:
     return to_class(PlanUpdateRequest, x)
-
-def plan_delete_from_dict(s: Any) -> PlanDelete:
-    return PlanDelete.from_dict(s)
-
-def plan_delete_to_dict(x: PlanDelete) -> Any:
-    return to_class(PlanDelete, x)
 
 def workspace_files_from_dict(s: Any) -> WorkspaceFiles:
     return WorkspaceFiles.from_dict(s)
@@ -3376,12 +3214,6 @@ def workspace_read_file_request_from_dict(s: Any) -> WorkspaceReadFileRequest:
 
 def workspace_read_file_request_to_dict(x: WorkspaceReadFileRequest) -> Any:
     return to_class(WorkspaceReadFileRequest, x)
-
-def workspace_create_file_result_from_dict(s: Any) -> WorkspaceCreateFileResult:
-    return WorkspaceCreateFileResult.from_dict(s)
-
-def workspace_create_file_result_to_dict(x: WorkspaceCreateFileResult) -> Any:
-    return to_class(WorkspaceCreateFileResult, x)
 
 def workspace_create_file_request_from_dict(s: Any) -> WorkspaceCreateFileRequest:
     return WorkspaceCreateFileRequest.from_dict(s)
@@ -3425,12 +3257,6 @@ def agent_select_request_from_dict(s: Any) -> AgentSelectRequest:
 def agent_select_request_to_dict(x: AgentSelectRequest) -> Any:
     return to_class(AgentSelectRequest, x)
 
-def agent_deselect_from_dict(s: Any) -> AgentDeselect:
-    return AgentDeselect.from_dict(s)
-
-def agent_deselect_to_dict(x: AgentDeselect) -> Any:
-    return to_class(AgentDeselect, x)
-
 def agent_reload_from_dict(s: Any) -> AgentReload:
     return AgentReload.from_dict(s)
 
@@ -3443,23 +3269,11 @@ def skill_list_from_dict(s: Any) -> SkillList:
 def skill_list_to_dict(x: SkillList) -> Any:
     return to_class(SkillList, x)
 
-def skills_enable_result_from_dict(s: Any) -> SkillsEnableResult:
-    return SkillsEnableResult.from_dict(s)
-
-def skills_enable_result_to_dict(x: SkillsEnableResult) -> Any:
-    return to_class(SkillsEnableResult, x)
-
 def skills_enable_request_from_dict(s: Any) -> SkillsEnableRequest:
     return SkillsEnableRequest.from_dict(s)
 
 def skills_enable_request_to_dict(x: SkillsEnableRequest) -> Any:
     return to_class(SkillsEnableRequest, x)
-
-def skills_disable_result_from_dict(s: Any) -> SkillsDisableResult:
-    return SkillsDisableResult.from_dict(s)
-
-def skills_disable_result_to_dict(x: SkillsDisableResult) -> Any:
-    return to_class(SkillsDisableResult, x)
 
 def skills_disable_request_from_dict(s: Any) -> SkillsDisableRequest:
     return SkillsDisableRequest.from_dict(s)
@@ -3467,23 +3281,11 @@ def skills_disable_request_from_dict(s: Any) -> SkillsDisableRequest:
 def skills_disable_request_to_dict(x: SkillsDisableRequest) -> Any:
     return to_class(SkillsDisableRequest, x)
 
-def skills_reload_from_dict(s: Any) -> SkillsReload:
-    return SkillsReload.from_dict(s)
-
-def skills_reload_to_dict(x: SkillsReload) -> Any:
-    return to_class(SkillsReload, x)
-
 def mcp_list_from_dict(s: Any) -> MCPList:
     return MCPList.from_dict(s)
 
 def mcp_list_to_dict(x: MCPList) -> Any:
     return to_class(MCPList, x)
-
-def mcp_enable_result_from_dict(s: Any) -> MCPEnableResult:
-    return MCPEnableResult.from_dict(s)
-
-def mcp_enable_result_to_dict(x: MCPEnableResult) -> Any:
-    return to_class(MCPEnableResult, x)
 
 def mcp_enable_request_from_dict(s: Any) -> MCPEnableRequest:
     return MCPEnableRequest.from_dict(s)
@@ -3491,23 +3293,11 @@ def mcp_enable_request_from_dict(s: Any) -> MCPEnableRequest:
 def mcp_enable_request_to_dict(x: MCPEnableRequest) -> Any:
     return to_class(MCPEnableRequest, x)
 
-def mcp_disable_result_from_dict(s: Any) -> MCPDisableResult:
-    return MCPDisableResult.from_dict(s)
-
-def mcp_disable_result_to_dict(x: MCPDisableResult) -> Any:
-    return to_class(MCPDisableResult, x)
-
 def mcp_disable_request_from_dict(s: Any) -> MCPDisableRequest:
     return MCPDisableRequest.from_dict(s)
 
 def mcp_disable_request_to_dict(x: MCPDisableRequest) -> Any:
     return to_class(MCPDisableRequest, x)
-
-def mcp_reload_from_dict(s: Any) -> MCPReload:
-    return MCPReload.from_dict(s)
-
-def mcp_reload_to_dict(x: MCPReload) -> Any:
-    return to_class(MCPReload, x)
 
 def plugin_list_from_dict(s: Any) -> PluginList:
     return PluginList.from_dict(s)
@@ -3521,35 +3311,17 @@ def extension_list_from_dict(s: Any) -> ExtensionList:
 def extension_list_to_dict(x: ExtensionList) -> Any:
     return to_class(ExtensionList, x)
 
-def extensions_enable_result_from_dict(s: Any) -> ExtensionsEnableResult:
-    return ExtensionsEnableResult.from_dict(s)
-
-def extensions_enable_result_to_dict(x: ExtensionsEnableResult) -> Any:
-    return to_class(ExtensionsEnableResult, x)
-
 def extensions_enable_request_from_dict(s: Any) -> ExtensionsEnableRequest:
     return ExtensionsEnableRequest.from_dict(s)
 
 def extensions_enable_request_to_dict(x: ExtensionsEnableRequest) -> Any:
     return to_class(ExtensionsEnableRequest, x)
 
-def extensions_disable_result_from_dict(s: Any) -> ExtensionsDisableResult:
-    return ExtensionsDisableResult.from_dict(s)
-
-def extensions_disable_result_to_dict(x: ExtensionsDisableResult) -> Any:
-    return to_class(ExtensionsDisableResult, x)
-
 def extensions_disable_request_from_dict(s: Any) -> ExtensionsDisableRequest:
     return ExtensionsDisableRequest.from_dict(s)
 
 def extensions_disable_request_to_dict(x: ExtensionsDisableRequest) -> Any:
     return to_class(ExtensionsDisableRequest, x)
-
-def extensions_reload_from_dict(s: Any) -> ExtensionsReload:
-    return ExtensionsReload.from_dict(s)
-
-def extensions_reload_to_dict(x: ExtensionsReload) -> Any:
-    return to_class(ExtensionsReload, x)
 
 def handle_tool_call_result_from_dict(s: Any) -> HandleToolCallResult:
     return HandleToolCallResult.from_dict(s)
@@ -3874,13 +3646,13 @@ class PlanApi:
     async def read(self, *, timeout: float | None = None) -> Plan:
         return Plan.from_dict(await self._client.request("session.plan.read", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
-    async def update(self, params: PlanUpdateRequest, *, timeout: float | None = None) -> PlanUpdateResult:
+    async def update(self, params: PlanUpdateRequest, *, timeout: float | None = None) -> None:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return PlanUpdateResult.from_dict(await self._client.request("session.plan.update", params_dict, **_timeout_kwargs(timeout)))
+        await self._client.request("session.plan.update", params_dict, **_timeout_kwargs(timeout))
 
-    async def delete(self, *, timeout: float | None = None) -> PlanDelete:
-        return PlanDelete.from_dict(await self._client.request("session.plan.delete", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+    async def delete(self, *, timeout: float | None = None) -> None:
+        await self._client.request("session.plan.delete", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
 
 class WorkspaceApi:
@@ -3896,10 +3668,10 @@ class WorkspaceApi:
         params_dict["sessionId"] = self._session_id
         return WorkspaceReadFileResult.from_dict(await self._client.request("session.workspace.readFile", params_dict, **_timeout_kwargs(timeout)))
 
-    async def create_file(self, params: WorkspaceCreateFileRequest, *, timeout: float | None = None) -> WorkspaceCreateFileResult:
+    async def create_file(self, params: WorkspaceCreateFileRequest, *, timeout: float | None = None) -> None:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return WorkspaceCreateFileResult.from_dict(await self._client.request("session.workspace.createFile", params_dict, **_timeout_kwargs(timeout)))
+        await self._client.request("session.workspace.createFile", params_dict, **_timeout_kwargs(timeout))
 
 
 # Experimental: this API group is experimental and may change or be removed.
@@ -3914,74 +3686,81 @@ class FleetApi:
         return FleetStartResult.from_dict(await self._client.request("session.fleet.start", params_dict, **_timeout_kwargs(timeout)))
 
 
-# Experimental: this API group is experimental and may change or be removed.
 class AgentApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
         self._session_id = session_id
 
     async def list(self, *, timeout: float | None = None) -> AgentList:
+        """.. warning:: This API is experimental and may change or be removed in future versions."""
         return AgentList.from_dict(await self._client.request("session.agent.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def get_current(self, *, timeout: float | None = None) -> AgentCurrent:
+        """.. warning:: This API is experimental and may change or be removed in future versions."""
         return AgentCurrent.from_dict(await self._client.request("session.agent.getCurrent", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def select(self, params: AgentSelectRequest, *, timeout: float | None = None) -> AgentSelectResult:
+        """.. warning:: This API is experimental and may change or be removed in future versions."""
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return AgentSelectResult.from_dict(await self._client.request("session.agent.select", params_dict, **_timeout_kwargs(timeout)))
 
-    async def deselect(self, *, timeout: float | None = None) -> AgentDeselect:
-        return AgentDeselect.from_dict(await self._client.request("session.agent.deselect", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+    async def deselect(self, *, timeout: float | None = None) -> None:
+        await self._client.request("session.agent.deselect", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
     async def reload(self, *, timeout: float | None = None) -> AgentReload:
+        """.. warning:: This API is experimental and may change or be removed in future versions."""
         return AgentReload.from_dict(await self._client.request("session.agent.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
-# Experimental: this API group is experimental and may change or be removed.
 class SkillsApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
         self._session_id = session_id
 
     async def list(self, *, timeout: float | None = None) -> SkillList:
+        """.. warning:: This API is experimental and may change or be removed in future versions."""
         return SkillList.from_dict(await self._client.request("session.skills.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
-    async def enable(self, params: SkillsEnableRequest, *, timeout: float | None = None) -> SkillsEnableResult:
+    async def enable(self, params: SkillsEnableRequest, *, timeout: float | None = None) -> None:
+        """.. warning:: This API is experimental and may change or be removed in future versions."""
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return SkillsEnableResult.from_dict(await self._client.request("session.skills.enable", params_dict, **_timeout_kwargs(timeout)))
+        await self._client.request("session.skills.enable", params_dict, **_timeout_kwargs(timeout))
 
-    async def disable(self, params: SkillsDisableRequest, *, timeout: float | None = None) -> SkillsDisableResult:
+    async def disable(self, params: SkillsDisableRequest, *, timeout: float | None = None) -> None:
+        """.. warning:: This API is experimental and may change or be removed in future versions."""
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return SkillsDisableResult.from_dict(await self._client.request("session.skills.disable", params_dict, **_timeout_kwargs(timeout)))
+        await self._client.request("session.skills.disable", params_dict, **_timeout_kwargs(timeout))
 
-    async def reload(self, *, timeout: float | None = None) -> SkillsReload:
-        return SkillsReload.from_dict(await self._client.request("session.skills.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+    async def reload(self, *, timeout: float | None = None) -> None:
+        await self._client.request("session.skills.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
 
-# Experimental: this API group is experimental and may change or be removed.
 class McpApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
         self._session_id = session_id
 
     async def list(self, *, timeout: float | None = None) -> MCPList:
+        """.. warning:: This API is experimental and may change or be removed in future versions."""
         return MCPList.from_dict(await self._client.request("session.mcp.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
-    async def enable(self, params: MCPEnableRequest, *, timeout: float | None = None) -> MCPEnableResult:
+    async def enable(self, params: MCPEnableRequest, *, timeout: float | None = None) -> None:
+        """.. warning:: This API is experimental and may change or be removed in future versions."""
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return MCPEnableResult.from_dict(await self._client.request("session.mcp.enable", params_dict, **_timeout_kwargs(timeout)))
+        await self._client.request("session.mcp.enable", params_dict, **_timeout_kwargs(timeout))
 
-    async def disable(self, params: MCPDisableRequest, *, timeout: float | None = None) -> MCPDisableResult:
+    async def disable(self, params: MCPDisableRequest, *, timeout: float | None = None) -> None:
+        """.. warning:: This API is experimental and may change or be removed in future versions."""
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return MCPDisableResult.from_dict(await self._client.request("session.mcp.disable", params_dict, **_timeout_kwargs(timeout)))
+        await self._client.request("session.mcp.disable", params_dict, **_timeout_kwargs(timeout))
 
-    async def reload(self, *, timeout: float | None = None) -> MCPReload:
-        return MCPReload.from_dict(await self._client.request("session.mcp.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+    async def reload(self, *, timeout: float | None = None) -> None:
+        await self._client.request("session.mcp.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
 
 # Experimental: this API group is experimental and may change or be removed.
@@ -3994,27 +3773,29 @@ class PluginsApi:
         return PluginList.from_dict(await self._client.request("session.plugins.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
-# Experimental: this API group is experimental and may change or be removed.
 class ExtensionsApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
         self._session_id = session_id
 
     async def list(self, *, timeout: float | None = None) -> ExtensionList:
+        """.. warning:: This API is experimental and may change or be removed in future versions."""
         return ExtensionList.from_dict(await self._client.request("session.extensions.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
-    async def enable(self, params: ExtensionsEnableRequest, *, timeout: float | None = None) -> ExtensionsEnableResult:
+    async def enable(self, params: ExtensionsEnableRequest, *, timeout: float | None = None) -> None:
+        """.. warning:: This API is experimental and may change or be removed in future versions."""
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return ExtensionsEnableResult.from_dict(await self._client.request("session.extensions.enable", params_dict, **_timeout_kwargs(timeout)))
+        await self._client.request("session.extensions.enable", params_dict, **_timeout_kwargs(timeout))
 
-    async def disable(self, params: ExtensionsDisableRequest, *, timeout: float | None = None) -> ExtensionsDisableResult:
+    async def disable(self, params: ExtensionsDisableRequest, *, timeout: float | None = None) -> None:
+        """.. warning:: This API is experimental and may change or be removed in future versions."""
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return ExtensionsDisableResult.from_dict(await self._client.request("session.extensions.disable", params_dict, **_timeout_kwargs(timeout)))
+        await self._client.request("session.extensions.disable", params_dict, **_timeout_kwargs(timeout))
 
-    async def reload(self, *, timeout: float | None = None) -> ExtensionsReload:
-        return ExtensionsReload.from_dict(await self._client.request("session.extensions.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+    async def reload(self, *, timeout: float | None = None) -> None:
+        await self._client.request("session.extensions.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
 
 class ToolsApi:

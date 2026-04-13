@@ -133,6 +133,16 @@ export function isObjectSchema(schema: JSONSchema7 | null | undefined): boolean 
     return false;
 }
 
+/**
+ * Returns true if the schema represents a void/null result (type: "null").
+ * These carry a title for languages that need a named empty type (e.g., Go)
+ * but should be treated as void in other languages.
+ */
+export function isVoidSchema(schema: JSONSchema7 | null | undefined): boolean {
+    if (!schema) return true;
+    return schema.type === "null";
+}
+
 export function cloneSchemaForCodegen<T>(value: T): T {
     if (Array.isArray(value)) {
         return value.map((item) => cloneSchemaForCodegen(item)) as T;

@@ -18,6 +18,7 @@ import {
     getSessionEventsSchemaPath,
     isNodeFullyExperimental,
     isObjectSchema,
+    isVoidSchema,
     isRpcMethod,
     REPO_ROOT,
     writeGeneratedFile,
@@ -952,14 +953,14 @@ function emitServerInstanceMethod(
     groupExperimental: boolean
 ): void {
     const methodName = toPascalCase(name);
-    let resultClassName = method.result ? resultTypeName(method) : "";
-    if (method.result && method.stability === "experimental") {
+    let resultClassName = !isVoidSchema(method.result) ? resultTypeName(method) : "";
+    if (!isVoidSchema(method.result) && method.stability === "experimental") {
         experimentalRpcTypes.add(resultClassName);
     }
     if (isObjectSchema(method.result)) {
         const resultClass = emitRpcClass(resultClassName, method.result, "public", classes);
         if (resultClass) classes.push(resultClass);
-    } else if (method.result) {
+    } else if (!isVoidSchema(method.result)) {
         resultClassName = emitNonObjectResultType(resultClassName, method.result, classes);
     }
 
@@ -1003,18 +1004,18 @@ function emitServerInstanceMethod(
     }
     sigParams.push("CancellationToken cancellationToken = default");
 
-    const taskType = method.result ? `Task<${resultClassName}>` : "Task";
+    const taskType = !isVoidSchema(method.result) ? `Task<${resultClassName}>` : "Task";
     lines.push(`${indent}public async ${taskType} ${methodName}Async(${sigParams.join(", ")})`);
     lines.push(`${indent}{`);
     if (requestClassName && bodyAssignments.length > 0) {
         lines.push(`${indent}    var request = new ${requestClassName} { ${bodyAssignments.join(", ")} };`);
-        if (method.result) {
+        if (!isVoidSchema(method.result)) {
             lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [request], cancellationToken);`);
         } else {
             lines.push(`${indent}    await CopilotClient.InvokeRpcAsync(_rpc, "${method.rpcMethod}", [request], cancellationToken);`);
         }
     } else {
-        if (method.result) {
+        if (!isVoidSchema(method.result)) {
             lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [], cancellationToken);`);
         } else {
             lines.push(`${indent}    await CopilotClient.InvokeRpcAsync(_rpc, "${method.rpcMethod}", [], cancellationToken);`);
@@ -1052,14 +1053,14 @@ function emitSessionRpcClasses(node: Record<string, unknown>, classes: string[])
 
 function emitSessionMethod(key: string, method: RpcMethod, lines: string[], classes: string[], indent: string, groupExperimental: boolean): void {
     const methodName = toPascalCase(key);
-    let resultClassName = method.result ? resultTypeName(method) : "";
-    if (method.result && method.stability === "experimental") {
+    let resultClassName = !isVoidSchema(method.result) ? resultTypeName(method) : "";
+    if (!isVoidSchema(method.result) && method.stability === "experimental") {
         experimentalRpcTypes.add(resultClassName);
     }
     if (isObjectSchema(method.result)) {
         const resultClass = emitRpcClass(resultClassName, method.result, "public", classes);
         if (resultClass) classes.push(resultClass);
-    } else if (method.result) {
+    } else if (!isVoidSchema(method.result)) {
         resultClassName = emitNonObjectResultType(resultClassName, method.result, classes);
     }
 
@@ -1098,10 +1099,10 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     }
     sigParams.push("CancellationToken cancellationToken = default");
 
-    const taskType = method.result ? `Task<${resultClassName}>` : "Task";
+    const taskType = !isVoidSchema(method.result) ? `Task<${resultClassName}>` : "Task";
     lines.push(`${indent}public async ${taskType} ${methodName}Async(${sigParams.join(", ")})`);
     lines.push(`${indent}{`, `${indent}    var request = new ${requestClassName} { ${bodyAssignments.join(", ")} };`);
-    if (method.result) {
+    if (!isVoidSchema(method.result)) {
         lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [request], cancellationToken);`, `${indent}}`);
     } else {
         lines.push(`${indent}    await CopilotClient.InvokeRpcAsync(_rpc, "${method.rpcMethod}", [request], cancellationToken);`, `${indent}}`);
@@ -1152,7 +1153,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
 
     for (const { methods } of groups) {
         for (const method of methods) {
-            if (method.result) {
+            if (!isVoidSchema(method.result)) {
                 if (isObjectSchema(method.result)) {
                     const resultClass = emitRpcClass(resultTypeName(method), method.result, "public", classes);
                     if (resultClass) classes.push(resultClass);
@@ -1179,7 +1180,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
         lines.push(`{`);
         for (const method of methods) {
             const hasParams = method.params?.properties && Object.keys(method.params.properties).length > 0;
-            const taskType = method.result ? `Task<${resultTypeName(method)}>` : "Task";
+            const taskType = !isVoidSchema(method.result) ? `Task<${resultTypeName(method)}>` : "Task";
             lines.push(`    /// <summary>Handles "${method.rpcMethod}".</summary>`);
             if (method.stability === "experimental" && !groupExperimental) {
                 lines.push(`    [Experimental(Diagnostics.Experimental)]`);
@@ -1222,7 +1223,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
             const handlerMethod = clientHandlerMethodName(method.rpcMethod);
             const hasParams = method.params?.properties && Object.keys(method.params.properties).length > 0;
             const paramsClass = paramsTypeName(method);
-            const taskType = method.result ? `Task<${resultTypeName(method)}>` : "Task";
+            const taskType = !isVoidSchema(method.result) ? `Task<${resultTypeName(method)}>` : "Task";
             const registrationVar = `register${typeToClassName(method.rpcMethod)}Method`;
 
             if (hasParams) {
@@ -1230,7 +1231,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
                 lines.push(`        {`);
                 lines.push(`            var handler = getHandlers(request.SessionId).${handlerProperty};`);
                 lines.push(`            if (handler is null) throw new InvalidOperationException($"No ${groupName} handler registered for session: {request.SessionId}");`);
-                if (method.result) {
+                if (!isVoidSchema(method.result)) {
                     lines.push(`            return await handler.${handlerMethod}(request, cancellationToken);`);
                 } else {
                     lines.push(`            await handler.${handlerMethod}(request, cancellationToken);`);

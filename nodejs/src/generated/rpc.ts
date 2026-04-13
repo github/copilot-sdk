@@ -566,8 +566,6 @@ export interface SessionPlanReadRequest {
   sessionId: string;
 }
 
-export interface PlanUpdateResult {}
-
 export interface PlanUpdateRequest {
   /**
    * Target session identifier
@@ -578,8 +576,6 @@ export interface PlanUpdateRequest {
    */
   content: string;
 }
-
-export interface PlanDelete {}
 
 export interface SessionPlanDeleteRequest {
   /**
@@ -619,8 +615,6 @@ export interface WorkspaceReadFileRequest {
    */
   path: string;
 }
-
-export interface WorkspaceCreateFileResult {}
 
 export interface WorkspaceCreateFileRequest {
   /**
@@ -748,10 +742,6 @@ export interface AgentSelectRequest {
   name: string;
 }
 
-/** @experimental */
-export interface AgentDeselect {}
-
-/** @experimental */
 export interface SessionAgentDeselectRequest {
   /**
    * Target session identifier
@@ -830,9 +820,6 @@ export interface SessionSkillsListRequest {
 }
 
 /** @experimental */
-export interface SkillsEnableResult {}
-
-/** @experimental */
 export interface SkillsEnableRequest {
   /**
    * Target session identifier
@@ -843,9 +830,6 @@ export interface SkillsEnableRequest {
    */
   name: string;
 }
-
-/** @experimental */
-export interface SkillsDisableResult {}
 
 /** @experimental */
 export interface SkillsDisableRequest {
@@ -859,10 +843,6 @@ export interface SkillsDisableRequest {
   name: string;
 }
 
-/** @experimental */
-export interface SkillsReload {}
-
-/** @experimental */
 export interface SessionSkillsReloadRequest {
   /**
    * Target session identifier
@@ -904,9 +884,6 @@ export interface SessionMcpListRequest {
 }
 
 /** @experimental */
-export interface McpEnableResult {}
-
-/** @experimental */
 export interface McpEnableRequest {
   /**
    * Target session identifier
@@ -917,9 +894,6 @@ export interface McpEnableRequest {
    */
   serverName: string;
 }
-
-/** @experimental */
-export interface McpDisableResult {}
 
 /** @experimental */
 export interface McpDisableRequest {
@@ -933,10 +907,6 @@ export interface McpDisableRequest {
   serverName: string;
 }
 
-/** @experimental */
-export interface McpReload {}
-
-/** @experimental */
 export interface SessionMcpReloadRequest {
   /**
    * Target session identifier
@@ -1015,9 +985,6 @@ export interface SessionExtensionsListRequest {
 }
 
 /** @experimental */
-export interface ExtensionsEnableResult {}
-
-/** @experimental */
 export interface ExtensionsEnableRequest {
   /**
    * Target session identifier
@@ -1028,9 +995,6 @@ export interface ExtensionsEnableRequest {
    */
   id: string;
 }
-
-/** @experimental */
-export interface ExtensionsDisableResult {}
 
 /** @experimental */
 export interface ExtensionsDisableRequest {
@@ -1044,10 +1008,6 @@ export interface ExtensionsDisableRequest {
   id: string;
 }
 
-/** @experimental */
-export interface ExtensionsReload {}
-
-/** @experimental */
 export interface SessionExtensionsReloadRequest {
   /**
    * Target session identifier
@@ -1855,9 +1815,9 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         plan: {
             read: async (): Promise<Plan> =>
                 connection.sendRequest("session.plan.read", { sessionId }),
-            update: async (params: Omit<PlanUpdateRequest, "sessionId">): Promise<PlanUpdateResult> =>
+            update: async (params: Omit<PlanUpdateRequest, "sessionId">): Promise<void> =>
                 connection.sendRequest("session.plan.update", { sessionId, ...params }),
-            delete: async (): Promise<PlanDelete> =>
+            delete: async (): Promise<void> =>
                 connection.sendRequest("session.plan.delete", { sessionId }),
         },
         workspace: {
@@ -1865,7 +1825,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.workspace.listFiles", { sessionId }),
             readFile: async (params: Omit<WorkspaceReadFileRequest, "sessionId">): Promise<WorkspaceReadFileResult> =>
                 connection.sendRequest("session.workspace.readFile", { sessionId, ...params }),
-            createFile: async (params: Omit<WorkspaceCreateFileRequest, "sessionId">): Promise<WorkspaceCreateFileResult> =>
+            createFile: async (params: Omit<WorkspaceCreateFileRequest, "sessionId">): Promise<void> =>
                 connection.sendRequest("session.workspace.createFile", { sessionId, ...params }),
         },
         /** @experimental */
@@ -1873,39 +1833,46 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             start: async (params: Omit<FleetStartRequest, "sessionId">): Promise<FleetStartResult> =>
                 connection.sendRequest("session.fleet.start", { sessionId, ...params }),
         },
-        /** @experimental */
         agent: {
+            /** @experimental */
             list: async (): Promise<AgentList> =>
                 connection.sendRequest("session.agent.list", { sessionId }),
+            /** @experimental */
             getCurrent: async (): Promise<AgentCurrent> =>
                 connection.sendRequest("session.agent.getCurrent", { sessionId }),
+            /** @experimental */
             select: async (params: Omit<AgentSelectRequest, "sessionId">): Promise<AgentSelectResult> =>
                 connection.sendRequest("session.agent.select", { sessionId, ...params }),
-            deselect: async (): Promise<AgentDeselect> =>
+            deselect: async (): Promise<void> =>
                 connection.sendRequest("session.agent.deselect", { sessionId }),
+            /** @experimental */
             reload: async (): Promise<AgentReload> =>
                 connection.sendRequest("session.agent.reload", { sessionId }),
         },
-        /** @experimental */
         skills: {
+            /** @experimental */
             list: async (): Promise<SkillList> =>
                 connection.sendRequest("session.skills.list", { sessionId }),
-            enable: async (params: Omit<SkillsEnableRequest, "sessionId">): Promise<SkillsEnableResult> =>
+            /** @experimental */
+            enable: async (params: Omit<SkillsEnableRequest, "sessionId">): Promise<void> =>
                 connection.sendRequest("session.skills.enable", { sessionId, ...params }),
-            disable: async (params: Omit<SkillsDisableRequest, "sessionId">): Promise<SkillsDisableResult> =>
+            /** @experimental */
+            disable: async (params: Omit<SkillsDisableRequest, "sessionId">): Promise<void> =>
                 connection.sendRequest("session.skills.disable", { sessionId, ...params }),
-            reload: async (): Promise<SkillsReload> =>
+            reload: async (): Promise<void> =>
                 connection.sendRequest("session.skills.reload", { sessionId }),
         },
-        /** @experimental */
         mcp: {
+            /** @experimental */
             list: async (): Promise<McpList> =>
                 connection.sendRequest("session.mcp.list", { sessionId }),
-            enable: async (params: Omit<McpEnableRequest, "sessionId">): Promise<McpEnableResult> =>
+            /** @experimental */
+            enable: async (params: Omit<McpEnableRequest, "sessionId">): Promise<void> =>
                 connection.sendRequest("session.mcp.enable", { sessionId, ...params }),
-            disable: async (params: Omit<McpDisableRequest, "sessionId">): Promise<McpDisableResult> =>
+            /** @experimental */
+            disable: async (params: Omit<McpDisableRequest, "sessionId">): Promise<void> =>
                 connection.sendRequest("session.mcp.disable", { sessionId, ...params }),
-            reload: async (): Promise<McpReload> =>
+            reload: async (): Promise<void> =>
                 connection.sendRequest("session.mcp.reload", { sessionId }),
         },
         /** @experimental */
@@ -1913,15 +1880,17 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             list: async (): Promise<PluginList> =>
                 connection.sendRequest("session.plugins.list", { sessionId }),
         },
-        /** @experimental */
         extensions: {
+            /** @experimental */
             list: async (): Promise<ExtensionList> =>
                 connection.sendRequest("session.extensions.list", { sessionId }),
-            enable: async (params: Omit<ExtensionsEnableRequest, "sessionId">): Promise<ExtensionsEnableResult> =>
+            /** @experimental */
+            enable: async (params: Omit<ExtensionsEnableRequest, "sessionId">): Promise<void> =>
                 connection.sendRequest("session.extensions.enable", { sessionId, ...params }),
-            disable: async (params: Omit<ExtensionsDisableRequest, "sessionId">): Promise<ExtensionsDisableResult> =>
+            /** @experimental */
+            disable: async (params: Omit<ExtensionsDisableRequest, "sessionId">): Promise<void> =>
                 connection.sendRequest("session.extensions.disable", { sessionId, ...params }),
-            reload: async (): Promise<ExtensionsReload> =>
+            reload: async (): Promise<void> =>
                 connection.sendRequest("session.extensions.reload", { sessionId }),
         },
         tools: {

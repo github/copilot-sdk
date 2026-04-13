@@ -16,6 +16,7 @@ import {
     getSessionEventsSchemaPath,
     hoistTitledSchemas,
     isObjectSchema,
+    isVoidSchema,
     isRpcMethod,
     postProcessSchema,
     writeGeneratedFile,
@@ -285,7 +286,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     };
 
     for (const method of allMethods) {
-        if (method.result) {
+        if (!isVoidSchema(method.result)) {
             combinedSchema.definitions![pythonResultTypeName(method)] = method.result;
         }
         if (method.params?.properties && Object.keys(method.params.properties).length > 0) {
@@ -474,7 +475,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
 
 function emitMethod(lines: string[], name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, groupExperimental = false): void {
     const methodName = toSnakeCase(name);
-    const hasResult = !!method.result;
+    const hasResult = !isVoidSchema(method.result);
     const resultType = hasResult ? resolveType(pythonResultTypeName(method)) : "None";
     const resultIsObject = isObjectSchema(method.result);
 
@@ -597,7 +598,7 @@ function emitClientSessionHandlerMethod(
     groupExperimental = false
 ): void {
     const paramsType = resolveType(pythonParamsTypeName(method));
-    const resultType = method.result ? resolveType(pythonResultTypeName(method)) : "None";
+    const resultType = !isVoidSchema(method.result) ? resolveType(pythonResultTypeName(method)) : "None";
     lines.push(`    async def ${toSnakeCase(name)}(self, params: ${paramsType}) -> ${resultType}:`);
     if (method.stability === "experimental" && !groupExperimental) {
         lines.push(`        """.. warning:: This API is experimental and may change or be removed in future versions."""`);
@@ -614,7 +615,7 @@ function emitClientSessionRegistrationMethod(
 ): void {
     const handlerVariableName = `handle_${toSnakeCase(groupName)}_${toSnakeCase(methodName)}`;
     const paramsType = resolveType(pythonParamsTypeName(method));
-    const resultType = method.result ? resolveType(pythonResultTypeName(method)) : null;
+    const resultType = !isVoidSchema(method.result) ? resolveType(pythonResultTypeName(method)) : null;
     const handlerField = toSnakeCase(groupName);
     const handlerMethod = toSnakeCase(methodName);
 

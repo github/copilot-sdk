@@ -18,6 +18,7 @@ import {
     getSessionEventsSchemaPath,
     hoistTitledSchemas,
     isNodeFullyExperimental,
+    isVoidSchema,
     isRpcMethod,
     postProcessSchema,
     writeGeneratedFile,
@@ -864,11 +865,11 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     };
 
     for (const method of allMethods) {
-        if (method.result) {
-            combinedSchema.definitions![goResultTypeName(method)] = method.result;
-        } else {
+        if (isVoidSchema(method.result)) {
             // Emit an empty struct for void results (forward-compatible with adding fields later)
             combinedSchema.definitions![goResultTypeName(method)] = { type: "object", properties: {}, additionalProperties: false };
+        } else {
+            combinedSchema.definitions![goResultTypeName(method)] = method.result;
         }
         if (method.params?.properties && Object.keys(method.params.properties).length > 0) {
             // For session methods, filter out sessionId from params type

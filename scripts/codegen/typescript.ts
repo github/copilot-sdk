@@ -15,6 +15,7 @@ import {
     getSessionEventsSchemaPath,
     isNodeFullyExperimental,
     isRpcMethod,
+    isVoidSchema,
     postProcessSchema,
     stripNonAnnotationTitles,
     writeGeneratedFile,
@@ -176,7 +177,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
     const seenBlocks = new Map<string, string>();
 
     for (const method of [...allMethods, ...clientSessionMethods]) {
-        if (method.result) {
+        if (!isVoidSchema(method.result)) {
             const compiled = await compile(stripNonAnnotationTitles(method.result), resultTypeName(method), {
                 bannerComment: "",
                 additionalProperties: false,
@@ -236,7 +237,7 @@ function emitGroup(node: Record<string, unknown>, indent: string, isSession: boo
     for (const [key, value] of Object.entries(node)) {
         if (isRpcMethod(value)) {
             const { rpcMethod, params } = value;
-            const resultType = value.result ? resultTypeName(value) : "void";
+            const resultType = !isVoidSchema(value.result) ? resultTypeName(value) : "void";
             const paramsType = paramsTypeName(value);
 
             const paramEntries = params?.properties ? Object.entries(params.properties).filter(([k]) => k !== "sessionId") : [];
@@ -326,7 +327,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>)
             const name = handlerMethodName(method.rpcMethod);
             const hasParams = method.params?.properties && Object.keys(method.params.properties).length > 0;
             const pType = hasParams ? paramsTypeName(method) : "";
-            const rType = method.result ? resultTypeName(method) : "void";
+            const rType = !isVoidSchema(method.result) ? resultTypeName(method) : "void";
 
             if (hasParams) {
                 lines.push(`    ${name}(params: ${pType}): Promise<${rType}>;`);

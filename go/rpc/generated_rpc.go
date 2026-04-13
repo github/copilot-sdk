@@ -323,7 +323,7 @@ type ModelCapabilitiesOverrideSupports struct {
 	Vision          *bool `json:"vision,omitempty"`
 }
 
-type SessionModeSetResult struct {
+type ModeSetResult struct {
 }
 
 type ModeSetRequest struct {
@@ -438,7 +438,6 @@ type AgentSelectRequest struct {
 	Name                                 string `json:"name"`
 }
 
-// Experimental: AgentDeselect is part of an experimental API and may change or be removed.
 type AgentDeselect struct {
 }
 
@@ -498,7 +497,6 @@ type SkillsDisableRequest struct {
 	Name                           string `json:"name"`
 }
 
-// Experimental: SkillsReload is part of an experimental API and may change or be removed.
 type SkillsReload struct {
 }
 
@@ -589,7 +587,6 @@ type ExtensionsDisableRequest struct {
 	ID                                         string `json:"id"`
 }
 
-// Experimental: ExtensionsReload is part of an experimental API and may change or be removed.
 type ExtensionsReload struct {
 }
 
@@ -1379,7 +1376,7 @@ func (a *ModeApi) Get(ctx context.Context) (*SessionMode, error) {
 	return &result, nil
 }
 
-func (a *ModeApi) Set(ctx context.Context, params *ModeSetRequest) (*SessionModeSetResult, error) {
+func (a *ModeApi) Set(ctx context.Context, params *ModeSetRequest) (*ModeSetResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["mode"] = params.Mode
@@ -1388,7 +1385,7 @@ func (a *ModeApi) Set(ctx context.Context, params *ModeSetRequest) (*SessionMode
 	if err != nil {
 		return nil, err
 	}
-	var result SessionModeSetResult
+	var result ModeSetResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -1508,9 +1505,9 @@ func (a *FleetApi) Start(ctx context.Context, params *FleetStartRequest) (*Fleet
 	return &result, nil
 }
 
-// Experimental: AgentApi contains experimental APIs that may change or be removed.
 type AgentApi sessionApi
 
+// Experimental: List is an experimental API and may change or be removed in future versions.
 func (a *AgentApi) List(ctx context.Context) (*AgentList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.agent.list", req)
@@ -1524,6 +1521,7 @@ func (a *AgentApi) List(ctx context.Context) (*AgentList, error) {
 	return &result, nil
 }
 
+// Experimental: GetCurrent is an experimental API and may change or be removed in future versions.
 func (a *AgentApi) GetCurrent(ctx context.Context) (*AgentCurrent, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.agent.getCurrent", req)
@@ -1537,6 +1535,7 @@ func (a *AgentApi) GetCurrent(ctx context.Context) (*AgentCurrent, error) {
 	return &result, nil
 }
 
+// Experimental: Select is an experimental API and may change or be removed in future versions.
 func (a *AgentApi) Select(ctx context.Context, params *AgentSelectRequest) (*AgentSelectResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -1566,6 +1565,7 @@ func (a *AgentApi) Deselect(ctx context.Context) (*AgentDeselect, error) {
 	return &result, nil
 }
 
+// Experimental: Reload is an experimental API and may change or be removed in future versions.
 func (a *AgentApi) Reload(ctx context.Context) (*AgentReload, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.agent.reload", req)
@@ -1579,9 +1579,9 @@ func (a *AgentApi) Reload(ctx context.Context) (*AgentReload, error) {
 	return &result, nil
 }
 
-// Experimental: SkillsApi contains experimental APIs that may change or be removed.
 type SkillsApi sessionApi
 
+// Experimental: List is an experimental API and may change or be removed in future versions.
 func (a *SkillsApi) List(ctx context.Context) (*SkillList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.skills.list", req)
@@ -1595,6 +1595,7 @@ func (a *SkillsApi) List(ctx context.Context) (*SkillList, error) {
 	return &result, nil
 }
 
+// Experimental: Enable is an experimental API and may change or be removed in future versions.
 func (a *SkillsApi) Enable(ctx context.Context, params *SkillsEnableRequest) (*SkillsEnableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -1611,6 +1612,7 @@ func (a *SkillsApi) Enable(ctx context.Context, params *SkillsEnableRequest) (*S
 	return &result, nil
 }
 
+// Experimental: Disable is an experimental API and may change or be removed in future versions.
 func (a *SkillsApi) Disable(ctx context.Context, params *SkillsDisableRequest) (*SkillsDisableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -1640,9 +1642,9 @@ func (a *SkillsApi) Reload(ctx context.Context) (*SkillsReload, error) {
 	return &result, nil
 }
 
-// Experimental: McpApi contains experimental APIs that may change or be removed.
 type McpApi sessionApi
 
+// Experimental: List is an experimental API and may change or be removed in future versions.
 func (a *McpApi) List(ctx context.Context) (*MCPList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.mcp.list", req)
@@ -1656,6 +1658,7 @@ func (a *McpApi) List(ctx context.Context) (*MCPList, error) {
 	return &result, nil
 }
 
+// Experimental: Enable is an experimental API and may change or be removed in future versions.
 func (a *McpApi) Enable(ctx context.Context, params *MCPEnableRequest) (*MCPEnableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -1672,6 +1675,7 @@ func (a *McpApi) Enable(ctx context.Context, params *MCPEnableRequest) (*MCPEnab
 	return &result, nil
 }
 
+// Experimental: Disable is an experimental API and may change or be removed in future versions.
 func (a *McpApi) Disable(ctx context.Context, params *MCPDisableRequest) (*MCPDisableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -1717,9 +1721,9 @@ func (a *PluginsApi) List(ctx context.Context) (*PluginList, error) {
 	return &result, nil
 }
 
-// Experimental: ExtensionsApi contains experimental APIs that may change or be removed.
 type ExtensionsApi sessionApi
 
+// Experimental: List is an experimental API and may change or be removed in future versions.
 func (a *ExtensionsApi) List(ctx context.Context) (*ExtensionList, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.extensions.list", req)
@@ -1733,6 +1737,7 @@ func (a *ExtensionsApi) List(ctx context.Context) (*ExtensionList, error) {
 	return &result, nil
 }
 
+// Experimental: Enable is an experimental API and may change or be removed in future versions.
 func (a *ExtensionsApi) Enable(ctx context.Context, params *ExtensionsEnableRequest) (*ExtensionsEnableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -1749,6 +1754,7 @@ func (a *ExtensionsApi) Enable(ctx context.Context, params *ExtensionsEnableRequ
 	return &result, nil
 }
 
+// Experimental: Disable is an experimental API and may change or be removed in future versions.
 func (a *ExtensionsApi) Disable(ctx context.Context, params *ExtensionsDisableRequest) (*ExtensionsDisableResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {

@@ -518,11 +518,6 @@ internal class SessionPlanReadRequest
 }
 
 /// <summary>RPC data type for PlanUpdate operations.</summary>
-public class PlanUpdateResult
-{
-}
-
-/// <summary>RPC data type for PlanUpdate operations.</summary>
 internal class PlanUpdateRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -532,11 +527,6 @@ internal class PlanUpdateRequest
     /// <summary>The new content for the plan file.</summary>
     [JsonPropertyName("content")]
     public string Content { get; set; } = string.Empty;
-}
-
-/// <summary>RPC data type for PlanDelete operations.</summary>
-public class PlanDelete
-{
 }
 
 /// <summary>RPC data type for SessionPlanDelete operations.</summary>
@@ -581,11 +571,6 @@ internal class WorkspaceReadFileRequest
     /// <summary>Relative path within the workspace files directory.</summary>
     [JsonPropertyName("path")]
     public string Path { get; set; } = string.Empty;
-}
-
-/// <summary>RPC data type for WorkspaceCreateFile operations.</summary>
-public class WorkspaceCreateFileResult
-{
 }
 
 /// <summary>RPC data type for WorkspaceCreateFile operations.</summary>
@@ -732,14 +717,7 @@ internal class AgentSelectRequest
     public string Name { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for AgentDeselect operations.</summary>
-[Experimental(Diagnostics.Experimental)]
-public class AgentDeselect
-{
-}
-
 /// <summary>RPC data type for SessionAgentDeselect operations.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal class SessionAgentDeselectRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -829,12 +807,6 @@ internal class SessionSkillsListRequest
 
 /// <summary>RPC data type for SkillsEnable operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-public class SkillsEnableResult
-{
-}
-
-/// <summary>RPC data type for SkillsEnable operations.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal class SkillsEnableRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -844,12 +816,6 @@ internal class SkillsEnableRequest
     /// <summary>Name of the skill to enable.</summary>
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
-}
-
-/// <summary>RPC data type for SkillsDisable operations.</summary>
-[Experimental(Diagnostics.Experimental)]
-public class SkillsDisableResult
-{
 }
 
 /// <summary>RPC data type for SkillsDisable operations.</summary>
@@ -865,14 +831,7 @@ internal class SkillsDisableRequest
     public string Name { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for SkillsReload operations.</summary>
-[Experimental(Diagnostics.Experimental)]
-public class SkillsReload
-{
-}
-
 /// <summary>RPC data type for SessionSkillsReload operations.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal class SessionSkillsReloadRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -921,12 +880,6 @@ internal class SessionMcpListRequest
 
 /// <summary>RPC data type for McpEnable operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-public class McpEnableResult
-{
-}
-
-/// <summary>RPC data type for McpEnable operations.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal class McpEnableRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -937,12 +890,6 @@ internal class McpEnableRequest
     [RegularExpression("^[0-9a-zA-Z_.@-]+(\\/[0-9a-zA-Z_.@-]+)*$")]
     [JsonPropertyName("serverName")]
     public string ServerName { get; set; } = string.Empty;
-}
-
-/// <summary>RPC data type for McpDisable operations.</summary>
-[Experimental(Diagnostics.Experimental)]
-public class McpDisableResult
-{
 }
 
 /// <summary>RPC data type for McpDisable operations.</summary>
@@ -959,14 +906,7 @@ internal class McpDisableRequest
     public string ServerName { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for McpReload operations.</summary>
-[Experimental(Diagnostics.Experimental)]
-public class McpReload
-{
-}
-
 /// <summary>RPC data type for SessionMcpReload operations.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal class SessionMcpReloadRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -1056,12 +996,6 @@ internal class SessionExtensionsListRequest
 
 /// <summary>RPC data type for ExtensionsEnable operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-public class ExtensionsEnableResult
-{
-}
-
-/// <summary>RPC data type for ExtensionsEnable operations.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal class ExtensionsEnableRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -1071,12 +1005,6 @@ internal class ExtensionsEnableRequest
     /// <summary>Source-qualified extension ID to enable.</summary>
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
-}
-
-/// <summary>RPC data type for ExtensionsDisable operations.</summary>
-[Experimental(Diagnostics.Experimental)]
-public class ExtensionsDisableResult
-{
 }
 
 /// <summary>RPC data type for ExtensionsDisable operations.</summary>
@@ -1092,14 +1020,7 @@ internal class ExtensionsDisableRequest
     public string Id { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for ExtensionsReload operations.</summary>
-[Experimental(Diagnostics.Experimental)]
-public class ExtensionsReload
-{
-}
-
 /// <summary>RPC data type for SessionExtensionsReload operations.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal class SessionExtensionsReloadRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2242,17 +2163,17 @@ public class PlanApi
     }
 
     /// <summary>Calls "session.plan.update".</summary>
-    public async Task<PlanUpdateResult> UpdateAsync(string content, CancellationToken cancellationToken = default)
+    public async Task UpdateAsync(string content, CancellationToken cancellationToken = default)
     {
         var request = new PlanUpdateRequest { SessionId = _sessionId, Content = content };
-        return await CopilotClient.InvokeRpcAsync<PlanUpdateResult>(_rpc, "session.plan.update", [request], cancellationToken);
+        await CopilotClient.InvokeRpcAsync(_rpc, "session.plan.update", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.plan.delete".</summary>
-    public async Task<PlanDelete> DeleteAsync(CancellationToken cancellationToken = default)
+    public async Task DeleteAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionPlanDeleteRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<PlanDelete>(_rpc, "session.plan.delete", [request], cancellationToken);
+        await CopilotClient.InvokeRpcAsync(_rpc, "session.plan.delete", [request], cancellationToken);
     }
 }
 
@@ -2283,10 +2204,10 @@ public class WorkspaceApi
     }
 
     /// <summary>Calls "session.workspace.createFile".</summary>
-    public async Task<WorkspaceCreateFileResult> CreateFileAsync(string path, string content, CancellationToken cancellationToken = default)
+    public async Task CreateFileAsync(string path, string content, CancellationToken cancellationToken = default)
     {
         var request = new WorkspaceCreateFileRequest { SessionId = _sessionId, Path = path, Content = content };
-        return await CopilotClient.InvokeRpcAsync<WorkspaceCreateFileResult>(_rpc, "session.workspace.createFile", [request], cancellationToken);
+        await CopilotClient.InvokeRpcAsync(_rpc, "session.workspace.createFile", [request], cancellationToken);
     }
 }
 
@@ -2312,7 +2233,6 @@ public class FleetApi
 }
 
 /// <summary>Provides session-scoped Agent APIs.</summary>
-[Experimental(Diagnostics.Experimental)]
 public class AgentApi
 {
     private readonly JsonRpc _rpc;
@@ -2325,6 +2245,7 @@ public class AgentApi
     }
 
     /// <summary>Calls "session.agent.list".</summary>
+    [Experimental(Diagnostics.Experimental)]
     public async Task<AgentList> ListAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionAgentListRequest { SessionId = _sessionId };
@@ -2332,6 +2253,7 @@ public class AgentApi
     }
 
     /// <summary>Calls "session.agent.getCurrent".</summary>
+    [Experimental(Diagnostics.Experimental)]
     public async Task<AgentCurrent> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionAgentGetCurrentRequest { SessionId = _sessionId };
@@ -2339,6 +2261,7 @@ public class AgentApi
     }
 
     /// <summary>Calls "session.agent.select".</summary>
+    [Experimental(Diagnostics.Experimental)]
     public async Task<AgentSelectResult> SelectAsync(string name, CancellationToken cancellationToken = default)
     {
         var request = new AgentSelectRequest { SessionId = _sessionId, Name = name };
@@ -2346,13 +2269,14 @@ public class AgentApi
     }
 
     /// <summary>Calls "session.agent.deselect".</summary>
-    public async Task<AgentDeselect> DeselectAsync(CancellationToken cancellationToken = default)
+    public async Task DeselectAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionAgentDeselectRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<AgentDeselect>(_rpc, "session.agent.deselect", [request], cancellationToken);
+        await CopilotClient.InvokeRpcAsync(_rpc, "session.agent.deselect", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.agent.reload".</summary>
+    [Experimental(Diagnostics.Experimental)]
     public async Task<AgentReload> ReloadAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionAgentReloadRequest { SessionId = _sessionId };
@@ -2361,7 +2285,6 @@ public class AgentApi
 }
 
 /// <summary>Provides session-scoped Skills APIs.</summary>
-[Experimental(Diagnostics.Experimental)]
 public class SkillsApi
 {
     private readonly JsonRpc _rpc;
@@ -2374,6 +2297,7 @@ public class SkillsApi
     }
 
     /// <summary>Calls "session.skills.list".</summary>
+    [Experimental(Diagnostics.Experimental)]
     public async Task<SkillList> ListAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionSkillsListRequest { SessionId = _sessionId };
@@ -2381,29 +2305,30 @@ public class SkillsApi
     }
 
     /// <summary>Calls "session.skills.enable".</summary>
-    public async Task<SkillsEnableResult> EnableAsync(string name, CancellationToken cancellationToken = default)
+    [Experimental(Diagnostics.Experimental)]
+    public async Task EnableAsync(string name, CancellationToken cancellationToken = default)
     {
         var request = new SkillsEnableRequest { SessionId = _sessionId, Name = name };
-        return await CopilotClient.InvokeRpcAsync<SkillsEnableResult>(_rpc, "session.skills.enable", [request], cancellationToken);
+        await CopilotClient.InvokeRpcAsync(_rpc, "session.skills.enable", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.skills.disable".</summary>
-    public async Task<SkillsDisableResult> DisableAsync(string name, CancellationToken cancellationToken = default)
+    [Experimental(Diagnostics.Experimental)]
+    public async Task DisableAsync(string name, CancellationToken cancellationToken = default)
     {
         var request = new SkillsDisableRequest { SessionId = _sessionId, Name = name };
-        return await CopilotClient.InvokeRpcAsync<SkillsDisableResult>(_rpc, "session.skills.disable", [request], cancellationToken);
+        await CopilotClient.InvokeRpcAsync(_rpc, "session.skills.disable", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.skills.reload".</summary>
-    public async Task<SkillsReload> ReloadAsync(CancellationToken cancellationToken = default)
+    public async Task ReloadAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionSkillsReloadRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<SkillsReload>(_rpc, "session.skills.reload", [request], cancellationToken);
+        await CopilotClient.InvokeRpcAsync(_rpc, "session.skills.reload", [request], cancellationToken);
     }
 }
 
 /// <summary>Provides session-scoped Mcp APIs.</summary>
-[Experimental(Diagnostics.Experimental)]
 public class McpApi
 {
     private readonly JsonRpc _rpc;
@@ -2416,6 +2341,7 @@ public class McpApi
     }
 
     /// <summary>Calls "session.mcp.list".</summary>
+    [Experimental(Diagnostics.Experimental)]
     public async Task<McpList> ListAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionMcpListRequest { SessionId = _sessionId };
@@ -2423,24 +2349,26 @@ public class McpApi
     }
 
     /// <summary>Calls "session.mcp.enable".</summary>
-    public async Task<McpEnableResult> EnableAsync(string serverName, CancellationToken cancellationToken = default)
+    [Experimental(Diagnostics.Experimental)]
+    public async Task EnableAsync(string serverName, CancellationToken cancellationToken = default)
     {
         var request = new McpEnableRequest { SessionId = _sessionId, ServerName = serverName };
-        return await CopilotClient.InvokeRpcAsync<McpEnableResult>(_rpc, "session.mcp.enable", [request], cancellationToken);
+        await CopilotClient.InvokeRpcAsync(_rpc, "session.mcp.enable", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.mcp.disable".</summary>
-    public async Task<McpDisableResult> DisableAsync(string serverName, CancellationToken cancellationToken = default)
+    [Experimental(Diagnostics.Experimental)]
+    public async Task DisableAsync(string serverName, CancellationToken cancellationToken = default)
     {
         var request = new McpDisableRequest { SessionId = _sessionId, ServerName = serverName };
-        return await CopilotClient.InvokeRpcAsync<McpDisableResult>(_rpc, "session.mcp.disable", [request], cancellationToken);
+        await CopilotClient.InvokeRpcAsync(_rpc, "session.mcp.disable", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.mcp.reload".</summary>
-    public async Task<McpReload> ReloadAsync(CancellationToken cancellationToken = default)
+    public async Task ReloadAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionMcpReloadRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<McpReload>(_rpc, "session.mcp.reload", [request], cancellationToken);
+        await CopilotClient.InvokeRpcAsync(_rpc, "session.mcp.reload", [request], cancellationToken);
     }
 }
 
@@ -2466,7 +2394,6 @@ public class PluginsApi
 }
 
 /// <summary>Provides session-scoped Extensions APIs.</summary>
-[Experimental(Diagnostics.Experimental)]
 public class ExtensionsApi
 {
     private readonly JsonRpc _rpc;
@@ -2479,6 +2406,7 @@ public class ExtensionsApi
     }
 
     /// <summary>Calls "session.extensions.list".</summary>
+    [Experimental(Diagnostics.Experimental)]
     public async Task<ExtensionList> ListAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionExtensionsListRequest { SessionId = _sessionId };
@@ -2486,24 +2414,26 @@ public class ExtensionsApi
     }
 
     /// <summary>Calls "session.extensions.enable".</summary>
-    public async Task<ExtensionsEnableResult> EnableAsync(string id, CancellationToken cancellationToken = default)
+    [Experimental(Diagnostics.Experimental)]
+    public async Task EnableAsync(string id, CancellationToken cancellationToken = default)
     {
         var request = new ExtensionsEnableRequest { SessionId = _sessionId, Id = id };
-        return await CopilotClient.InvokeRpcAsync<ExtensionsEnableResult>(_rpc, "session.extensions.enable", [request], cancellationToken);
+        await CopilotClient.InvokeRpcAsync(_rpc, "session.extensions.enable", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.extensions.disable".</summary>
-    public async Task<ExtensionsDisableResult> DisableAsync(string id, CancellationToken cancellationToken = default)
+    [Experimental(Diagnostics.Experimental)]
+    public async Task DisableAsync(string id, CancellationToken cancellationToken = default)
     {
         var request = new ExtensionsDisableRequest { SessionId = _sessionId, Id = id };
-        return await CopilotClient.InvokeRpcAsync<ExtensionsDisableResult>(_rpc, "session.extensions.disable", [request], cancellationToken);
+        await CopilotClient.InvokeRpcAsync(_rpc, "session.extensions.disable", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.extensions.reload".</summary>
-    public async Task<ExtensionsReload> ReloadAsync(CancellationToken cancellationToken = default)
+    public async Task ReloadAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionExtensionsReloadRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<ExtensionsReload>(_rpc, "session.extensions.reload", [request], cancellationToken);
+        await CopilotClient.InvokeRpcAsync(_rpc, "session.extensions.reload", [request], cancellationToken);
     }
 }
 
@@ -2824,7 +2754,6 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(Agent))]
 [JsonSerializable(typeof(AgentCurrent))]
 [JsonSerializable(typeof(AgentCurrentAgent))]
-[JsonSerializable(typeof(AgentDeselect))]
 [JsonSerializable(typeof(AgentList))]
 [JsonSerializable(typeof(AgentReload))]
 [JsonSerializable(typeof(AgentReloadAgent))]
@@ -2837,10 +2766,7 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(Extension))]
 [JsonSerializable(typeof(ExtensionList))]
 [JsonSerializable(typeof(ExtensionsDisableRequest))]
-[JsonSerializable(typeof(ExtensionsDisableResult))]
 [JsonSerializable(typeof(ExtensionsEnableRequest))]
-[JsonSerializable(typeof(ExtensionsEnableResult))]
-[JsonSerializable(typeof(ExtensionsReload))]
 [JsonSerializable(typeof(FleetStartRequest))]
 [JsonSerializable(typeof(FleetStartResult))]
 [JsonSerializable(typeof(HandlePendingElicitationRequest))]
@@ -2852,13 +2778,10 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(LogRequest))]
 [JsonSerializable(typeof(LogResult))]
 [JsonSerializable(typeof(McpDisableRequest))]
-[JsonSerializable(typeof(McpDisableResult))]
 [JsonSerializable(typeof(McpDiscoverRequest))]
 [JsonSerializable(typeof(McpDiscoverResult))]
 [JsonSerializable(typeof(McpEnableRequest))]
-[JsonSerializable(typeof(McpEnableResult))]
 [JsonSerializable(typeof(McpList))]
-[JsonSerializable(typeof(McpReload))]
 [JsonSerializable(typeof(McpServer))]
 [JsonSerializable(typeof(ModeSetRequest))]
 [JsonSerializable(typeof(Model))]
@@ -2881,9 +2804,7 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(PingRequest))]
 [JsonSerializable(typeof(PingResult))]
 [JsonSerializable(typeof(Plan))]
-[JsonSerializable(typeof(PlanDelete))]
 [JsonSerializable(typeof(PlanUpdateRequest))]
-[JsonSerializable(typeof(PlanUpdateResult))]
 [JsonSerializable(typeof(Plugin))]
 [JsonSerializable(typeof(PluginList))]
 [JsonSerializable(typeof(SessionAgentDeselectRequest))]
@@ -2932,10 +2853,7 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(Skill))]
 [JsonSerializable(typeof(SkillList))]
 [JsonSerializable(typeof(SkillsDisableRequest))]
-[JsonSerializable(typeof(SkillsDisableResult))]
 [JsonSerializable(typeof(SkillsEnableRequest))]
-[JsonSerializable(typeof(SkillsEnableResult))]
-[JsonSerializable(typeof(SkillsReload))]
 [JsonSerializable(typeof(Tool))]
 [JsonSerializable(typeof(ToolList))]
 [JsonSerializable(typeof(ToolsHandlePendingToolCallRequest))]
@@ -2950,7 +2868,6 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(UsageMetricsModelMetricRequests))]
 [JsonSerializable(typeof(UsageMetricsModelMetricUsage))]
 [JsonSerializable(typeof(WorkspaceCreateFileRequest))]
-[JsonSerializable(typeof(WorkspaceCreateFileResult))]
 [JsonSerializable(typeof(WorkspaceFiles))]
 [JsonSerializable(typeof(WorkspaceReadFileRequest))]
 [JsonSerializable(typeof(WorkspaceReadFileResult))]
