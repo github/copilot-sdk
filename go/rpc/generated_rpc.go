@@ -649,9 +649,9 @@ type CommandsHandlePendingCommandRequest struct {
 // The elicitation response (accept with form values, decline, or cancel)
 type UIElicitationResponse struct {
 	// The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
-	Action ElicitationResponseAction `json:"action"`
+	Action UIElicitationResponseAction `json:"action"`
 	// The form values submitted by the user (present when action is 'accept')
-	Content map[string]*ElicitationFieldValue `json:"content,omitempty"`
+	Content map[string]*UIElicitationFieldValue `json:"content,omitempty"`
 }
 
 type UIElicitationRequest struct {
@@ -672,14 +672,14 @@ type UIElicitationSchema struct {
 }
 
 type UIElicitationSchemaProperty struct {
-	Default     *ElicitationFieldValue                   `json:"default"`
+	Default     *UIElicitationFieldValue                 `json:"default"`
 	Description *string                                  `json:"description,omitempty"`
 	Enum        []string                                 `json:"enum,omitempty"`
 	EnumNames   []string                                 `json:"enumNames,omitempty"`
 	Title       *string                                  `json:"title,omitempty"`
 	Type        UIElicitationSchemaPropertyNumberType    `json:"type"`
-	OneOf       []ElicitationStringOneOfFieldOneOf       `json:"oneOf,omitempty"`
-	Items       *ElicitationArrayFieldItems              `json:"items,omitempty"`
+	OneOf       []UIElicitationStringOneOfFieldOneOf     `json:"oneOf,omitempty"`
+	Items       *UIElicitationArrayFieldItems            `json:"items,omitempty"`
 	MaxItems    *float64                                 `json:"maxItems,omitempty"`
 	MinItems    *float64                                 `json:"minItems,omitempty"`
 	Format      *UIElicitationSchemaPropertyStringFormat `json:"format,omitempty"`
@@ -689,18 +689,18 @@ type UIElicitationSchemaProperty struct {
 	Minimum     *float64                                 `json:"minimum,omitempty"`
 }
 
-type ElicitationArrayFieldItems struct {
-	Enum  []string                               `json:"enum,omitempty"`
-	Type  *ItemsType                             `json:"type,omitempty"`
-	AnyOf []ElicitationArrayAnyOfFieldItemsAnyOf `json:"anyOf,omitempty"`
+type UIElicitationArrayFieldItems struct {
+	Enum  []string                                 `json:"enum,omitempty"`
+	Type  *ItemsType                               `json:"type,omitempty"`
+	AnyOf []UIElicitationArrayAnyOfFieldItemsAnyOf `json:"anyOf,omitempty"`
 }
 
-type ElicitationArrayAnyOfFieldItemsAnyOf struct {
+type UIElicitationArrayAnyOfFieldItemsAnyOf struct {
 	Const string `json:"const"`
 	Title string `json:"title"`
 }
 
-type ElicitationStringOneOfFieldOneOf struct {
+type UIElicitationStringOneOfFieldOneOf struct {
 	Const string `json:"const"`
 	Title string `json:"title"`
 }
@@ -711,7 +711,7 @@ type UIElicitationResult struct {
 	Success bool `json:"success"`
 }
 
-type HandlePendingElicitationRequest struct {
+type UIHandlePendingElicitationRequest struct {
 	// The unique request ID from the elicitation.requested event
 	RequestID string `json:"requestId"`
 	// The elicitation response (accept with form values, decline, or cancel)
@@ -1131,12 +1131,12 @@ const (
 )
 
 // The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
-type ElicitationResponseAction string
+type UIElicitationResponseAction string
 
 const (
-	ElicitationResponseActionAccept  ElicitationResponseAction = "accept"
-	ElicitationResponseActionCancel  ElicitationResponseAction = "cancel"
-	ElicitationResponseActionDecline ElicitationResponseAction = "decline"
+	UIElicitationResponseActionAccept  UIElicitationResponseAction = "accept"
+	UIElicitationResponseActionCancel  UIElicitationResponseAction = "cancel"
+	UIElicitationResponseActionDecline UIElicitationResponseAction = "decline"
 )
 
 type UIElicitationSchemaPropertyStringFormat string
@@ -1219,7 +1219,7 @@ type ToolsHandlePendingToolCall struct {
 	ToolCallResult *ToolCallResult
 }
 
-type ElicitationFieldValue struct {
+type UIElicitationFieldValue struct {
 	Bool        *bool
 	Double      *float64
 	String      *string
@@ -1880,7 +1880,7 @@ func (a *UIApi) Elicitation(ctx context.Context, params *UIElicitationRequest) (
 	return &result, nil
 }
 
-func (a *UIApi) HandlePendingElicitation(ctx context.Context, params *HandlePendingElicitationRequest) (*UIElicitationResult, error) {
+func (a *UIApi) HandlePendingElicitation(ctx context.Context, params *UIHandlePendingElicitationRequest) (*UIElicitationResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["requestId"] = params.RequestID

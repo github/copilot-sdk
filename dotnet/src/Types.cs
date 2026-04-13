@@ -729,7 +729,7 @@ public class ElicitationResult
     /// <summary>
     /// User action: <c>"accept"</c> (submitted), <c>"decline"</c> (rejected), or <c>"cancel"</c> (dismissed).
     /// </summary>
-    public ElicitationResponseAction Action { get; set; }
+    public UIElicitationResponseAction Action { get; set; }
 
     /// <summary>
     /// Form values submitted by the user (present when <see cref="Action"/> is <c>Accept</c>).

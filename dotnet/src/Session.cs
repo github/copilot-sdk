@@ -727,7 +727,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         try
         {
             var result = await handler(context);
-            await Rpc.Ui.HandlePendingElicitationAsync(requestId, new UiElicitationResponse
+            await Rpc.Ui.HandlePendingElicitationAsync(requestId, new UIElicitationResponse
             {
                 Action = result.Action,
                 Content = result.Content
@@ -738,9 +738,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
             // User handler can throw any exception — attempt to cancel so the request doesn't hang.
             try
             {
-                await Rpc.Ui.HandlePendingElicitationAsync(requestId, new UiElicitationResponse
+                await Rpc.Ui.HandlePendingElicitationAsync(requestId, new UIElicitationResponse
                 {
-                    Action = ElicitationResponseAction.Cancel
+                    Action = UIElicitationResponseAction.Cancel
                 });
             }
             catch (Exception innerEx) when (innerEx is IOException or ObjectDisposedException)
@@ -771,7 +771,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         public async Task<ElicitationResult> ElicitationAsync(ElicitationParams elicitationParams, CancellationToken cancellationToken)
         {
             session.AssertElicitation();
-            var schema = new UiElicitationSchema
+            var schema = new UIElicitationSchema
             {
                 Type = elicitationParams.RequestedSchema.Type,
                 Properties = elicitationParams.RequestedSchema.Properties,
@@ -784,7 +784,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         public async Task<bool> ConfirmAsync(string message, CancellationToken cancellationToken)
         {
             session.AssertElicitation();
-            var schema = new UiElicitationSchema
+            var schema = new UIElicitationSchema
             {
                 Type = "object",
                 Properties = new Dictionary<string, object>
@@ -794,7 +794,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 Required = ["confirmed"]
             };
             var result = await session.Rpc.Ui.ElicitationAsync(message, schema, cancellationToken);
-            if (result.Action == ElicitationResponseAction.Accept
+            if (result.Action == UIElicitationResponseAction.Accept
                 && result.Content != null
                 && result.Content.TryGetValue("confirmed", out var val))
             {
@@ -812,7 +812,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         public async Task<string?> SelectAsync(string message, string[] options, CancellationToken cancellationToken)
         {
             session.AssertElicitation();
-            var schema = new UiElicitationSchema
+            var schema = new UIElicitationSchema
             {
                 Type = "object",
                 Properties = new Dictionary<string, object>
@@ -822,7 +822,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 Required = ["selection"]
             };
             var result = await session.Rpc.Ui.ElicitationAsync(message, schema, cancellationToken);
-            if (result.Action == ElicitationResponseAction.Accept
+            if (result.Action == UIElicitationResponseAction.Accept
                 && result.Content != null
                 && result.Content.TryGetValue("selection", out var val))
             {
@@ -847,14 +847,14 @@ public sealed partial class CopilotSession : IAsyncDisposable
             if (options?.Format != null) field["format"] = options.Format;
             if (options?.Default != null) field["default"] = options.Default;
 
-            var schema = new UiElicitationSchema
+            var schema = new UIElicitationSchema
             {
                 Type = "object",
                 Properties = new Dictionary<string, object> { ["value"] = field },
                 Required = ["value"]
             };
             var result = await session.Rpc.Ui.ElicitationAsync(message, schema, cancellationToken);
-            if (result.Action == ElicitationResponseAction.Accept
+            if (result.Action == UIElicitationResponseAction.Accept
                 && result.Content != null
                 && result.Content.TryGetValue("value", out var val))
             {

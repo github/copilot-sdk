@@ -1535,7 +1535,7 @@ func (*CommandsChangedData) sessionEventData() {}
 // Session capability change notification
 type CapabilitiesChangedData struct {
 	// UI capability changes
-	UI *CapabilitiesChangedUi `json:"ui,omitempty"`
+	UI *CapabilitiesChangedUI `json:"ui,omitempty"`
 }
 
 func (*CapabilitiesChangedData) sessionEventData() {}
@@ -2047,7 +2047,7 @@ type CommandsChangedCommand struct {
 }
 
 // UI capability changes
-type CapabilitiesChangedUi struct {
+type CapabilitiesChangedUI struct {
 	// Whether elicitation is now supported
 	Elicitation *bool `json:"elicitation,omitempty"`
 }

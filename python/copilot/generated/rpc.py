@@ -1918,7 +1918,7 @@ class CommandsHandlePendingCommandRequest:
             result["error"] = from_union([from_str, from_none], self.error)
         return result
 
-class ElicitationResponseAction(Enum):
+class UIElicitationResponseAction(Enum):
     """The user's response: accept (submitted), decline (rejected), or cancel (dismissed)"""
 
     ACCEPT = "accept"
@@ -1929,7 +1929,7 @@ class ElicitationResponseAction(Enum):
 class UIElicitationResponse:
     """The elicitation response (accept with form values, decline, or cancel)"""
 
-    action: ElicitationResponseAction
+    action: UIElicitationResponseAction
     """The user's response: accept (submitted), decline (rejected), or cancel (dismissed)"""
 
     content: dict[str, float | bool | list[str] | str] | None = None
@@ -1938,13 +1938,13 @@ class UIElicitationResponse:
     @staticmethod
     def from_dict(obj: Any) -> 'UIElicitationResponse':
         assert isinstance(obj, dict)
-        action = ElicitationResponseAction(obj.get("action"))
+        action = UIElicitationResponseAction(obj.get("action"))
         content = from_union([lambda x: from_dict(lambda x: from_union([from_float, from_bool, lambda x: from_list(from_str, x), from_str], x), x), from_none], obj.get("content"))
         return UIElicitationResponse(action, content)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["action"] = to_enum(ElicitationResponseAction, self.action)
+        result["action"] = to_enum(UIElicitationResponseAction, self.action)
         if self.content is not None:
             result["content"] = from_union([lambda x: from_dict(lambda x: from_union([to_float, from_bool, lambda x: from_list(from_str, x), from_str], x), x), from_none], self.content)
         return result
@@ -1956,16 +1956,16 @@ class UIElicitationSchemaPropertyStringFormat(Enum):
     URI = "uri"
 
 @dataclass
-class ElicitationArrayAnyOfFieldItemsAnyOf:
+class UIElicitationArrayAnyOfFieldItemsAnyOf:
     const: str
     title: str
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ElicitationArrayAnyOfFieldItemsAnyOf':
+    def from_dict(obj: Any) -> 'UIElicitationArrayAnyOfFieldItemsAnyOf':
         assert isinstance(obj, dict)
         const = from_str(obj.get("const"))
         title = from_str(obj.get("title"))
-        return ElicitationArrayAnyOfFieldItemsAnyOf(const, title)
+        return UIElicitationArrayAnyOfFieldItemsAnyOf(const, title)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -1977,18 +1977,18 @@ class ItemsType(Enum):
     STRING = "string"
 
 @dataclass
-class ElicitationArrayFieldItems:
+class UIElicitationArrayFieldItems:
     enum: list[str] | None = None
     type: ItemsType | None = None
-    any_of: list[ElicitationArrayAnyOfFieldItemsAnyOf] | None = None
+    any_of: list[UIElicitationArrayAnyOfFieldItemsAnyOf] | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ElicitationArrayFieldItems':
+    def from_dict(obj: Any) -> 'UIElicitationArrayFieldItems':
         assert isinstance(obj, dict)
         enum = from_union([lambda x: from_list(from_str, x), from_none], obj.get("enum"))
         type = from_union([ItemsType, from_none], obj.get("type"))
-        any_of = from_union([lambda x: from_list(ElicitationArrayAnyOfFieldItemsAnyOf.from_dict, x), from_none], obj.get("anyOf"))
-        return ElicitationArrayFieldItems(enum, type, any_of)
+        any_of = from_union([lambda x: from_list(UIElicitationArrayAnyOfFieldItemsAnyOf.from_dict, x), from_none], obj.get("anyOf"))
+        return UIElicitationArrayFieldItems(enum, type, any_of)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -1997,20 +1997,20 @@ class ElicitationArrayFieldItems:
         if self.type is not None:
             result["type"] = from_union([lambda x: to_enum(ItemsType, x), from_none], self.type)
         if self.any_of is not None:
-            result["anyOf"] = from_union([lambda x: from_list(lambda x: to_class(ElicitationArrayAnyOfFieldItemsAnyOf, x), x), from_none], self.any_of)
+            result["anyOf"] = from_union([lambda x: from_list(lambda x: to_class(UIElicitationArrayAnyOfFieldItemsAnyOf, x), x), from_none], self.any_of)
         return result
 
 @dataclass
-class ElicitationStringOneOfFieldOneOf:
+class UIElicitationStringOneOfFieldOneOf:
     const: str
     title: str
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ElicitationStringOneOfFieldOneOf':
+    def from_dict(obj: Any) -> 'UIElicitationStringOneOfFieldOneOf':
         assert isinstance(obj, dict)
         const = from_str(obj.get("const"))
         title = from_str(obj.get("title"))
-        return ElicitationStringOneOfFieldOneOf(const, title)
+        return UIElicitationStringOneOfFieldOneOf(const, title)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -2033,8 +2033,8 @@ class UIElicitationSchemaProperty:
     enum: list[str] | None = None
     enum_names: list[str] | None = None
     title: str | None = None
-    one_of: list[ElicitationStringOneOfFieldOneOf] | None = None
-    items: ElicitationArrayFieldItems | None = None
+    one_of: list[UIElicitationStringOneOfFieldOneOf] | None = None
+    items: UIElicitationArrayFieldItems | None = None
     max_items: float | None = None
     min_items: float | None = None
     format: UIElicitationSchemaPropertyStringFormat | None = None
@@ -2052,8 +2052,8 @@ class UIElicitationSchemaProperty:
         enum = from_union([lambda x: from_list(from_str, x), from_none], obj.get("enum"))
         enum_names = from_union([lambda x: from_list(from_str, x), from_none], obj.get("enumNames"))
         title = from_union([from_str, from_none], obj.get("title"))
-        one_of = from_union([lambda x: from_list(ElicitationStringOneOfFieldOneOf.from_dict, x), from_none], obj.get("oneOf"))
-        items = from_union([ElicitationArrayFieldItems.from_dict, from_none], obj.get("items"))
+        one_of = from_union([lambda x: from_list(UIElicitationStringOneOfFieldOneOf.from_dict, x), from_none], obj.get("oneOf"))
+        items = from_union([UIElicitationArrayFieldItems.from_dict, from_none], obj.get("items"))
         max_items = from_union([from_float, from_none], obj.get("maxItems"))
         min_items = from_union([from_float, from_none], obj.get("minItems"))
         format = from_union([UIElicitationSchemaPropertyStringFormat, from_none], obj.get("format"))
@@ -2077,9 +2077,9 @@ class UIElicitationSchemaProperty:
         if self.title is not None:
             result["title"] = from_union([from_str, from_none], self.title)
         if self.one_of is not None:
-            result["oneOf"] = from_union([lambda x: from_list(lambda x: to_class(ElicitationStringOneOfFieldOneOf, x), x), from_none], self.one_of)
+            result["oneOf"] = from_union([lambda x: from_list(lambda x: to_class(UIElicitationStringOneOfFieldOneOf, x), x), from_none], self.one_of)
         if self.items is not None:
-            result["items"] = from_union([lambda x: to_class(ElicitationArrayFieldItems, x), from_none], self.items)
+            result["items"] = from_union([lambda x: to_class(UIElicitationArrayFieldItems, x), from_none], self.items)
         if self.max_items is not None:
             result["maxItems"] = from_union([to_float, from_none], self.max_items)
         if self.min_items is not None:
@@ -2168,7 +2168,7 @@ class UIElicitationResult:
         return result
 
 @dataclass
-class HandlePendingElicitationRequest:
+class UIHandlePendingElicitationRequest:
     request_id: str
     """The unique request ID from the elicitation.requested event"""
 
@@ -2176,11 +2176,11 @@ class HandlePendingElicitationRequest:
     """The elicitation response (accept with form values, decline, or cancel)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'HandlePendingElicitationRequest':
+    def from_dict(obj: Any) -> 'UIHandlePendingElicitationRequest':
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         result = UIElicitationResponse.from_dict(obj.get("result"))
-        return HandlePendingElicitationRequest(request_id, result)
+        return UIHandlePendingElicitationRequest(request_id, result)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -3415,11 +3415,11 @@ def ui_elicitation_result_from_dict(s: Any) -> UIElicitationResult:
 def ui_elicitation_result_to_dict(x: UIElicitationResult) -> Any:
     return to_class(UIElicitationResult, x)
 
-def handle_pending_elicitation_request_from_dict(s: Any) -> HandlePendingElicitationRequest:
-    return HandlePendingElicitationRequest.from_dict(s)
+def ui_handle_pending_elicitation_request_from_dict(s: Any) -> UIHandlePendingElicitationRequest:
+    return UIHandlePendingElicitationRequest.from_dict(s)
 
-def handle_pending_elicitation_request_to_dict(x: HandlePendingElicitationRequest) -> Any:
-    return to_class(HandlePendingElicitationRequest, x)
+def ui_handle_pending_elicitation_request_to_dict(x: UIHandlePendingElicitationRequest) -> Any:
+    return to_class(UIHandlePendingElicitationRequest, x)
 
 def permission_request_result_from_dict(s: Any) -> PermissionRequestResult:
     return PermissionRequestResult.from_dict(s)
@@ -3880,7 +3880,7 @@ class UiApi:
         params_dict["sessionId"] = self._session_id
         return UIElicitationResponse.from_dict(await self._client.request("session.ui.elicitation", params_dict, **_timeout_kwargs(timeout)))
 
-    async def handle_pending_elicitation(self, params: HandlePendingElicitationRequest, *, timeout: float | None = None) -> UIElicitationResult:
+    async def handle_pending_elicitation(self, params: UIHandlePendingElicitationRequest, *, timeout: float | None = None) -> UIElicitationResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return UIElicitationResult.from_dict(await self._client.request("session.ui.handlePendingElicitation", params_dict, **_timeout_kwargs(timeout)))

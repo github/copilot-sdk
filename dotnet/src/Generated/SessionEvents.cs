@@ -2549,7 +2549,7 @@ public partial class CapabilitiesChangedData
     /// <summary>UI capability changes.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("ui")]
-    public CapabilitiesChangedUi? Ui { get; set; }
+    public CapabilitiesChangedUI? Ui { get; set; }
 }
 
 /// <summary>Plan approval request with plan content and available user actions.</summary>
@@ -3744,8 +3744,8 @@ public partial class CommandsChangedCommand
 }
 
 /// <summary>UI capability changes.</summary>
-/// <remarks>Nested data type for <c>CapabilitiesChangedUi</c>.</remarks>
-public partial class CapabilitiesChangedUi
+/// <remarks>Nested data type for <c>CapabilitiesChangedUI</c>.</remarks>
+public partial class CapabilitiesChangedUI
 {
     /// <summary>Whether elicitation is now supported.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -4164,7 +4164,7 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(AssistantUsageEvent))]
 [JsonSerializable(typeof(CapabilitiesChangedData))]
 [JsonSerializable(typeof(CapabilitiesChangedEvent))]
-[JsonSerializable(typeof(CapabilitiesChangedUi))]
+[JsonSerializable(typeof(CapabilitiesChangedUI))]
 [JsonSerializable(typeof(CommandCompletedData))]
 [JsonSerializable(typeof(CommandCompletedEvent))]
 [JsonSerializable(typeof(CommandExecuteData))]

@@ -1086,23 +1086,23 @@ export interface CommandsHandlePendingCommandRequest {
 /**
  * The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
  */
-export type ElicitationResponseAction = "accept" | "decline" | "cancel";
-export type ElicitationFieldValue = string | number | boolean | string[];
+export type UIElicitationResponseAction = "accept" | "decline" | "cancel";
+export type UIElicitationFieldValue = string | number | boolean | string[];
 /**
  * The elicitation response (accept with form values, decline, or cancel)
  */
-export interface UiElicitationResponse {
-  action: ElicitationResponseAction;
-  content?: ElicitationResponseContent;
+export interface UIElicitationResponse {
+  action: UIElicitationResponseAction;
+  content?: UIElicitationResponseContent;
 }
 /**
  * The form values submitted by the user (present when action is 'accept')
  */
-export interface ElicitationResponseContent {
-  [k: string]: ElicitationFieldValue;
+export interface UIElicitationResponseContent {
+  [k: string]: UIElicitationFieldValue;
 }
 
-export interface UiElicitationRequest {
+export interface UIElicitationRequest {
   /**
    * Target session identifier
    */
@@ -1124,10 +1124,10 @@ export interface UiElicitationRequest {
      */
     properties: {
       [k: string]:
-        | ElicitationStringEnumField
-        | ElicitationStringOneOfField
-        | ElicitationArrayEnumField
-        | ElicitationArrayAnyOfField
+        | UIElicitationStringEnumField
+        | UIElicitationStringOneOfField
+        | UIElicitationArrayEnumField
+        | UIElicitationArrayAnyOfField
         | {
             type: "boolean";
             description?: string;
@@ -1155,14 +1155,14 @@ export interface UiElicitationRequest {
     required?: string[];
   };
 }
-export interface ElicitationStringEnumField {
+export interface UIElicitationStringEnumField {
   type: "string";
   description?: string;
   enum: string[];
   enumNames?: string[];
   default?: string;
 }
-export interface ElicitationStringOneOfField {
+export interface UIElicitationStringOneOfField {
   type: "string";
   description?: string;
   oneOf: {
@@ -1170,7 +1170,7 @@ export interface ElicitationStringOneOfField {
   }[];
   default?: string;
 }
-export interface ElicitationArrayEnumField {
+export interface UIElicitationArrayEnumField {
   type: "array";
   description?: string;
   minItems?: number;
@@ -1181,7 +1181,7 @@ export interface ElicitationArrayEnumField {
   };
   default?: string[];
 }
-export interface ElicitationArrayAnyOfField {
+export interface UIElicitationArrayAnyOfField {
   type: "array";
   description?: string;
   minItems?: number;
@@ -1194,14 +1194,14 @@ export interface ElicitationArrayAnyOfField {
   default?: string[];
 }
 
-export interface UiElicitationResult {
+export interface UIElicitationResult {
   /**
    * Whether the response was accepted. False if the request was already resolved by another client.
    */
   success: boolean;
 }
 
-export interface HandlePendingElicitationRequest {
+export interface UIHandlePendingElicitationRequest {
   /**
    * Target session identifier
    */
@@ -1210,7 +1210,7 @@ export interface HandlePendingElicitationRequest {
    * The unique request ID from the elicitation.requested event
    */
   requestId: string;
-  result: UiElicitationResponse;
+  result: UIElicitationResponse;
 }
 
 export interface PermissionRequestResult {
@@ -1902,9 +1902,9 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.commands.handlePendingCommand", { sessionId, ...params }),
         },
         ui: {
-            elicitation: async (params: Omit<UiElicitationRequest, "sessionId">): Promise<UiElicitationResponse> =>
+            elicitation: async (params: Omit<UIElicitationRequest, "sessionId">): Promise<UIElicitationResponse> =>
                 connection.sendRequest("session.ui.elicitation", { sessionId, ...params }),
-            handlePendingElicitation: async (params: Omit<HandlePendingElicitationRequest, "sessionId">): Promise<UiElicitationResult> =>
+            handlePendingElicitation: async (params: Omit<UIHandlePendingElicitationRequest, "sessionId">): Promise<UIElicitationResult> =>
                 connection.sendRequest("session.ui.handlePendingElicitation", { sessionId, ...params }),
         },
         permissions: {

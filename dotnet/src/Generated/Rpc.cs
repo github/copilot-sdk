@@ -1081,11 +1081,11 @@ internal sealed class CommandsHandlePendingCommandRequest
 }
 
 /// <summary>The elicitation response (accept with form values, decline, or cancel).</summary>
-public sealed class UiElicitationResponse
+public sealed class UIElicitationResponse
 {
     /// <summary>The user's response: accept (submitted), decline (rejected), or cancel (dismissed).</summary>
     [JsonPropertyName("action")]
-    public ElicitationResponseAction Action { get; set; }
+    public UIElicitationResponseAction Action { get; set; }
 
     /// <summary>The form values submitted by the user (present when action is 'accept').</summary>
     [JsonPropertyName("content")]
@@ -1093,7 +1093,7 @@ public sealed class UiElicitationResponse
 }
 
 /// <summary>JSON Schema describing the form fields to present to the user.</summary>
-public sealed class UiElicitationSchema
+public sealed class UIElicitationSchema
 {
     /// <summary>Schema type indicator (always 'object').</summary>
     [JsonPropertyName("type")]
@@ -1108,8 +1108,8 @@ public sealed class UiElicitationSchema
     public IList<string>? Required { get; set; }
 }
 
-/// <summary>RPC data type for UiElicitation operations.</summary>
-internal sealed class UiElicitationRequest
+/// <summary>RPC data type for UIElicitation operations.</summary>
+internal sealed class UIElicitationRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1121,19 +1121,19 @@ internal sealed class UiElicitationRequest
 
     /// <summary>JSON Schema describing the form fields to present to the user.</summary>
     [JsonPropertyName("requestedSchema")]
-    public UiElicitationSchema RequestedSchema { get => field ??= new(); set; }
+    public UIElicitationSchema RequestedSchema { get => field ??= new(); set; }
 }
 
-/// <summary>RPC data type for UiElicitation operations.</summary>
-public sealed class UiElicitationResult
+/// <summary>RPC data type for UIElicitation operations.</summary>
+public sealed class UIElicitationResult
 {
     /// <summary>Whether the response was accepted. False if the request was already resolved by another client.</summary>
     [JsonPropertyName("success")]
     public bool Success { get; set; }
 }
 
-/// <summary>RPC data type for HandlePendingElicitation operations.</summary>
-internal sealed class HandlePendingElicitationRequest
+/// <summary>RPC data type for UIHandlePendingElicitation operations.</summary>
+internal sealed class UIHandlePendingElicitationRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1145,7 +1145,7 @@ internal sealed class HandlePendingElicitationRequest
 
     /// <summary>The elicitation response (accept with form values, decline, or cancel).</summary>
     [JsonPropertyName("result")]
-    public UiElicitationResponse Result { get => field ??= new(); set; }
+    public UIElicitationResponse Result { get => field ??= new(); set; }
 }
 
 /// <summary>RPC data type for PermissionRequest operations.</summary>
@@ -1808,8 +1808,8 @@ public enum ExtensionStatus
 
 
 /// <summary>The user's response: accept (submitted), decline (rejected), or cancel (dismissed).</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<ElicitationResponseAction>))]
-public enum ElicitationResponseAction
+[JsonConverter(typeof(JsonStringEnumConverter<UIElicitationResponseAction>))]
+public enum UIElicitationResponseAction
 {
     /// <summary>The <c>accept</c> variant.</summary>
     [JsonStringEnumMemberName("accept")]
@@ -2490,17 +2490,17 @@ public sealed class UiApi
     }
 
     /// <summary>Calls "session.ui.elicitation".</summary>
-    public async Task<UiElicitationResponse> ElicitationAsync(string message, UiElicitationSchema requestedSchema, CancellationToken cancellationToken = default)
+    public async Task<UIElicitationResponse> ElicitationAsync(string message, UIElicitationSchema requestedSchema, CancellationToken cancellationToken = default)
     {
-        var request = new UiElicitationRequest { SessionId = _sessionId, Message = message, RequestedSchema = requestedSchema };
-        return await CopilotClient.InvokeRpcAsync<UiElicitationResponse>(_rpc, "session.ui.elicitation", [request], cancellationToken);
+        var request = new UIElicitationRequest { SessionId = _sessionId, Message = message, RequestedSchema = requestedSchema };
+        return await CopilotClient.InvokeRpcAsync<UIElicitationResponse>(_rpc, "session.ui.elicitation", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.ui.handlePendingElicitation".</summary>
-    public async Task<UiElicitationResult> HandlePendingElicitationAsync(string requestId, UiElicitationResponse result, CancellationToken cancellationToken = default)
+    public async Task<UIElicitationResult> HandlePendingElicitationAsync(string requestId, UIElicitationResponse result, CancellationToken cancellationToken = default)
     {
-        var request = new HandlePendingElicitationRequest { SessionId = _sessionId, RequestId = requestId, Result = result };
-        return await CopilotClient.InvokeRpcAsync<UiElicitationResult>(_rpc, "session.ui.handlePendingElicitation", [request], cancellationToken);
+        var request = new UIHandlePendingElicitationRequest { SessionId = _sessionId, RequestId = requestId, Result = result };
+        return await CopilotClient.InvokeRpcAsync<UIElicitationResult>(_rpc, "session.ui.handlePendingElicitation", [request], cancellationToken);
     }
 }
 
@@ -2769,7 +2769,6 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(ExtensionsEnableRequest))]
 [JsonSerializable(typeof(FleetStartRequest))]
 [JsonSerializable(typeof(FleetStartResult))]
-[JsonSerializable(typeof(HandlePendingElicitationRequest))]
 [JsonSerializable(typeof(HandleToolCallResult))]
 [JsonSerializable(typeof(HistoryCompact))]
 [JsonSerializable(typeof(HistoryCompactContextWindow))]
@@ -2858,10 +2857,11 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(ToolList))]
 [JsonSerializable(typeof(ToolsHandlePendingToolCallRequest))]
 [JsonSerializable(typeof(ToolsListRequest))]
-[JsonSerializable(typeof(UiElicitationRequest))]
-[JsonSerializable(typeof(UiElicitationResponse))]
-[JsonSerializable(typeof(UiElicitationResult))]
-[JsonSerializable(typeof(UiElicitationSchema))]
+[JsonSerializable(typeof(UIElicitationRequest))]
+[JsonSerializable(typeof(UIElicitationResponse))]
+[JsonSerializable(typeof(UIElicitationResult))]
+[JsonSerializable(typeof(UIElicitationSchema))]
+[JsonSerializable(typeof(UIHandlePendingElicitationRequest))]
 [JsonSerializable(typeof(UsageMetrics))]
 [JsonSerializable(typeof(UsageMetricsCodeChanges))]
 [JsonSerializable(typeof(UsageMetricsModelMetric))]
