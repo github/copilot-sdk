@@ -26,8 +26,8 @@ from copilot.generated.session_events import (
     Resource,
     Result,
     ResultKind,
-    SessionTaskCompleteData,
     SessionEventType,
+    SessionTaskCompleteData,
     session_event_from_dict,
 )
 
@@ -136,7 +136,9 @@ class TestEventForwardCompatibility:
 
     def test_schema_defaults_are_applied_for_missing_optional_fields(self):
         """Generated event models should honor primitive schema defaults during parsing."""
-        request = PermissionRequestedDataPermissionRequest.from_dict({"kind": "memory", "fact": "remember this"})
+        request = PermissionRequestedDataPermissionRequest.from_dict(
+            {"kind": "memory", "fact": "remember this"}
+        )
         assert request.action == PermissionRequestedDataPermissionRequestAction.STORE
 
         task_complete = SessionTaskCompleteData.from_dict({"success": True})
