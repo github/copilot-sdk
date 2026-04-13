@@ -1851,6 +1851,11 @@ public partial class AssistantUsageData
     [JsonPropertyName("cacheWriteTokens")]
     public double? CacheWriteTokens { get; set; }
 
+    /// <summary>Number of output tokens used for reasoning (e.g., chain-of-thought).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reasoningTokens")]
+    public double? ReasoningTokens { get; set; }
+
     /// <summary>Model multiplier cost for billing purposes.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("cost")]

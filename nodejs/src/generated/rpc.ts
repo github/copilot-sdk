@@ -1570,6 +1570,10 @@ export interface SessionUsageGetMetricsResult {
          * Total tokens written to prompt cache
          */
         cacheWriteTokens: number;
+        /**
+         * Total output tokens used for reasoning
+         */
+        reasoningTokens?: number;
       };
     };
   };

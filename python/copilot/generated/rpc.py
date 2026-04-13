@@ -2947,6 +2947,9 @@ class Usage:
     output_tokens: int
     """Total output tokens produced"""
 
+    reasoning_tokens: int | None = None
+    """Total output tokens used for reasoning"""
+
     @staticmethod
     def from_dict(obj: Any) -> 'Usage':
         assert isinstance(obj, dict)
@@ -2954,7 +2957,8 @@ class Usage:
         cache_write_tokens = from_int(obj.get("cacheWriteTokens"))
         input_tokens = from_int(obj.get("inputTokens"))
         output_tokens = from_int(obj.get("outputTokens"))
-        return Usage(cache_read_tokens, cache_write_tokens, input_tokens, output_tokens)
+        reasoning_tokens = from_union([from_int, from_none], obj.get("reasoningTokens"))
+        return Usage(cache_read_tokens, cache_write_tokens, input_tokens, output_tokens, reasoning_tokens)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -2962,6 +2966,8 @@ class Usage:
         result["cacheWriteTokens"] = from_int(self.cache_write_tokens)
         result["inputTokens"] = from_int(self.input_tokens)
         result["outputTokens"] = from_int(self.output_tokens)
+        if self.reasoning_tokens is not None:
+            result["reasoningTokens"] = from_union([from_int, from_none], self.reasoning_tokens)
         return result
 
 

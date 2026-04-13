@@ -1084,6 +1084,8 @@ type AssistantUsageData struct {
 	CacheReadTokens *float64 `json:"cacheReadTokens,omitempty"`
 	// Number of tokens written to prompt cache
 	CacheWriteTokens *float64 `json:"cacheWriteTokens,omitempty"`
+	// Number of output tokens used for reasoning (e.g., chain-of-thought)
+	ReasoningTokens *float64 `json:"reasoningTokens,omitempty"`
 	// Model multiplier cost for billing purposes
 	Cost *float64 `json:"cost,omitempty"`
 	// Duration of the API call in milliseconds
@@ -1703,6 +1705,8 @@ type SessionShutdownDataModelMetricsValueUsage struct {
 	CacheReadTokens float64 `json:"cacheReadTokens"`
 	// Total tokens written to prompt cache across all requests
 	CacheWriteTokens float64 `json:"cacheWriteTokens"`
+	// Total reasoning tokens produced across all requests to this model
+	ReasoningTokens *float64 `json:"reasoningTokens,omitempty"`
 }
 
 type SessionShutdownDataModelMetricsValue struct {

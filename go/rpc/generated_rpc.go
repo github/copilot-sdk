@@ -901,6 +901,8 @@ type Usage struct {
 	InputTokens int64 `json:"inputTokens"`
 	// Total output tokens produced
 	OutputTokens int64 `json:"outputTokens"`
+	// Total output tokens used for reasoning
+	ReasoningTokens *int64 `json:"reasoningTokens,omitempty"`
 }
 
 type SessionFSReadFileResult struct {

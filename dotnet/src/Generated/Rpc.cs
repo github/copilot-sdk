@@ -1425,6 +1425,10 @@ public class SessionUsageGetMetricsResultModelMetricsValueUsage
     /// <summary>Total tokens written to prompt cache.</summary>
     [JsonPropertyName("cacheWriteTokens")]
     public long CacheWriteTokens { get; set; }
+
+    /// <summary>Total output tokens used for reasoning.</summary>
+    [JsonPropertyName("reasoningTokens")]
+    public long? ReasoningTokens { get; set; }
 }
 
 /// <summary>RPC data type for SessionUsageGetMetricsResultModelMetricsValue operations.</summary>

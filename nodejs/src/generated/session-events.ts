@@ -755,6 +755,10 @@ export type SessionEvent =
                * Total tokens written to prompt cache across all requests
                */
               cacheWriteTokens: number;
+              /**
+               * Total reasoning tokens produced across all requests to this model
+               */
+              reasoningTokens?: number;
             };
           };
         };
@@ -1588,6 +1592,10 @@ export type SessionEvent =
          * Number of tokens written to prompt cache
          */
         cacheWriteTokens?: number;
+        /**
+         * Number of output tokens used for reasoning (e.g., chain-of-thought)
+         */
+        reasoningTokens?: number;
         /**
          * Model multiplier cost for billing purposes
          */
