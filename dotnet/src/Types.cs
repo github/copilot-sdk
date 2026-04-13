@@ -1657,6 +1657,21 @@ public class CustomAgentConfig
 }
 
 /// <summary>
+/// Configuration for the default agent (the built-in agent that handles turns when no custom agent is selected).
+/// Use <see cref="ExcludedTools"/> to hide specific tools from the default agent
+/// while keeping them available to custom sub-agents.
+/// </summary>
+public class DefaultAgentConfig
+{
+    /// <summary>
+    /// List of tool names to exclude from the default agent.
+    /// These tools remain available to custom sub-agents that reference them
+    /// in their <see cref="CustomAgentConfig.Tools"/> list.
+    /// </summary>
+    public IList<string>? ExcludedTools { get; set; }
+}
+
+/// <summary>
 /// Configuration for infinite sessions with automatic context compaction and workspace persistence.
 /// When enabled, sessions automatically manage context window limits through background compaction
 /// and persist state to a workspace directory.
@@ -1709,6 +1724,7 @@ public class SessionConfig
         Commands = other.Commands is not null ? [.. other.Commands] : null;
         ConfigDir = other.ConfigDir;
         CustomAgents = other.CustomAgents is not null ? [.. other.CustomAgents] : null;
+        DefaultAgent = other.DefaultAgent;
         Agent = other.Agent;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
         EnableConfigDiscovery = other.EnableConfigDiscovery;
@@ -1860,6 +1876,13 @@ public class SessionConfig
     public IList<CustomAgentConfig>? CustomAgents { get; set; }
 
     /// <summary>
+    /// Configuration for the default agent (the built-in agent that handles turns when no custom agent is selected).
+    /// Use <see cref="DefaultAgentConfig.ExcludedTools"/> to hide specific tools from the default agent
+    /// while keeping them available to custom sub-agents.
+    /// </summary>
+    public DefaultAgentConfig? DefaultAgent { get; set; }
+
+    /// <summary>
     /// Name of the custom agent to activate when the session starts.
     /// Must match the <see cref="CustomAgentConfig.Name"/> of one of the agents in <see cref="CustomAgents"/>.
     /// </summary>
@@ -1938,6 +1961,7 @@ public class ResumeSessionConfig
         Commands = other.Commands is not null ? [.. other.Commands] : null;
         ConfigDir = other.ConfigDir;
         CustomAgents = other.CustomAgents is not null ? [.. other.CustomAgents] : null;
+        DefaultAgent = other.DefaultAgent;
         Agent = other.Agent;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
         DisableResume = other.DisableResume;
@@ -2092,6 +2116,13 @@ public class ResumeSessionConfig
     /// Custom agent configurations for the session.
     /// </summary>
     public IList<CustomAgentConfig>? CustomAgents { get; set; }
+
+    /// <summary>
+    /// Configuration for the default agent (the built-in agent that handles turns when no custom agent is selected).
+    /// Use <see cref="DefaultAgentConfig.ExcludedTools"/> to hide specific tools from the default agent
+    /// while keeping them available to custom sub-agents.
+    /// </summary>
+    public DefaultAgentConfig? DefaultAgent { get; set; }
 
     /// <summary>
     /// Name of the custom agent to activate when the session starts.

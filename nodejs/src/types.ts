@@ -1115,6 +1115,21 @@ export interface CustomAgentConfig {
 }
 
 /**
+ * Configuration for the default agent (the built-in agent that handles
+ * turns when no custom agent is selected).
+ * Use this to control tool visibility for the default agent independently of custom sub-agents.
+ */
+export interface DefaultAgentConfig {
+    /**
+     * List of tool names to exclude from the default agent.
+     * These tools remain available to custom sub-agents that reference them in their `tools` array.
+     * Use this to register tools that should only be accessed via delegation to sub-agents,
+     * keeping the default agent's context clean.
+     */
+    excludedTools?: string[];
+}
+
+/**
  * Configuration for infinite sessions with automatic context compaction and workspace persistence.
  * When enabled, sessions automatically manage context window limits through background compaction
  * and persist state to a workspace directory.
@@ -1282,6 +1297,14 @@ export interface SessionConfig {
     customAgents?: CustomAgentConfig[];
 
     /**
+     * Configuration for the default agent (the built-in agent that handles
+     * turns when no custom agent is selected).
+     * Use `excludedTools` to hide specific tools from the default agent while keeping
+     * them available to custom sub-agents.
+     */
+    defaultAgent?: DefaultAgentConfig;
+
+    /**
      * Name of the custom agent to activate when the session starts.
      * Must match the `name` of one of the agents in `customAgents`.
      * Equivalent to calling `session.rpc.agent.select({ name })` after creation.
@@ -1348,6 +1371,7 @@ export type ResumeSessionConfig = Pick<
     | "enableConfigDiscovery"
     | "mcpServers"
     | "customAgents"
+    | "defaultAgent"
     | "agent"
     | "skillDirectories"
     | "disabledSkills"

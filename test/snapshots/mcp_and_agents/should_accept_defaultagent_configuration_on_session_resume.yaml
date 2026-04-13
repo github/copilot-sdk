@@ -1,0 +1,14 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: What is 3+3?
+      - role: assistant
+        content: 3 + 3 = 6
+      - role: user
+        content: What is 4+4?
+      - role: assistant
+        content: 4 + 4 = 8

@@ -759,6 +759,153 @@ const session = await client.createSession({
 
 > **Note:** When `tools` is `null` or omitted, the agent inherits access to all tools configured on the session. Use explicit tool lists to enforce the principle of least privilege.
 
+## Agent-Exclusive Tools
+
+Use the `defaultAgent` property on the session configuration to hide specific tools from the default agent (the built-in agent that handles turns when no custom agent is selected). This forces the main agent to delegate to sub-agents when those tools' capabilities are needed, keeping the main agent's context clean.
+
+This is useful when:
+- Certain tools generate large amounts of context that would overwhelm the main agent
+- You want the main agent to act as an orchestrator, delegating heavy work to specialized sub-agents
+- You need strict separation between orchestration and execution
+
+<details open>
+<summary><strong>Node.js / TypeScript</strong></summary>
+
+```typescript
+import { CopilotClient, defineTool, approveAll } from "@github/copilot-sdk";
+import { z } from "zod";
+
+const heavyContextTool = defineTool({
+    name: "analyze-codebase",
+    description: "Performs deep analysis of the codebase, generating extensive context",
+    parameters: z.object({ query: z.string() }),
+    handler: async ({ query }) => {
+        // ... expensive analysis that returns lots of data
+        return { analysis: "..." };
+    },
+});
+
+const session = await client.createSession({
+    tools: [heavyContextTool],
+    defaultAgent: {
+        excludedTools: ["analyze-codebase"],
+    },
+    customAgents: [
+        {
+            name: "researcher",
+            description: "Deep codebase analysis agent with access to heavy-context tools",
+            tools: ["analyze-codebase"],
+            prompt: "You perform thorough codebase analysis using the analyze-codebase tool.",
+        },
+    ],
+});
+```
+
+</details>
+
+<details>
+<summary><strong>Python</strong></summary>
+
+```python
+from copilot import CopilotClient
+from copilot.tools import Tool
+
+heavy_tool = Tool(
+    name="analyze-codebase",
+    description="Performs deep analysis of the codebase",
+    handler=analyze_handler,
+    parameters={"type": "object", "properties": {"query": {"type": "string"}}},
+)
+
+session = await client.create_session(
+    tools=[heavy_tool],
+    default_agent={"excluded_tools": ["analyze-codebase"]},
+    custom_agents=[
+        {
+            "name": "researcher",
+            "description": "Deep codebase analysis agent",
+            "tools": ["analyze-codebase"],
+            "prompt": "You perform thorough codebase analysis.",
+        },
+    ],
+    on_permission_request=approve_all,
+)
+```
+
+</details>
+
+<details>
+<summary><strong>Go</strong></summary>
+
+```go
+session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+    Tools: []copilot.Tool{heavyTool},
+    defaultAgent: &copilot.DefaultAgentConfig{
+        ExcludedTools: []string{"analyze-codebase"},
+    },
+    CustomAgents: []copilot.CustomAgentConfig{
+        {
+            Name:        "researcher",
+            Description: "Deep codebase analysis agent",
+            Tools:       []string{"analyze-codebase"},
+            Prompt:      "You perform thorough codebase analysis.",
+        },
+    },
+})
+```
+
+</details>
+
+<details>
+<summary><strong>C# / .NET</strong></summary>
+
+```csharp
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    Tools = [analyzeCodebaseTool],
+    defaultAgent = new DefaultAgentConfig
+    {
+        ExcludedTools = ["analyze-codebase"],
+    },
+    CustomAgents =
+    [
+        new CustomAgentConfig
+        {
+            Name = "researcher",
+            Description = "Deep codebase analysis agent",
+            Tools = ["analyze-codebase"],
+            Prompt = "You perform thorough codebase analysis.",
+        },
+    ],
+});
+```
+
+</details>
+
+### How It Works
+
+Tools listed in `defaultAgent.excludedTools`:
+
+1. **Are registered** — their handlers are available for execution
+2. **Are hidden** from the main agent's tool list — the LLM won't see or call them directly
+3. **Remain available** to any custom sub-agent that includes them in its `tools` array
+
+### Interaction with Other Tool Filters
+
+`defaultAgent.excludedTools` is orthogonal to the session-level `availableTools` and `excludedTools`:
+
+| Filter | Scope | Effect |
+|--------|-------|--------|
+| `availableTools` | Session-wide | Allowlist — only these tools exist for anyone |
+| `excludedTools` | Session-wide | Blocklist — these tools are blocked for everyone |
+| `defaultAgent.excludedTools` | Main agent only | These tools are hidden from the main agent but available to sub-agents |
+
+Precedence:
+1. Session-level `availableTools`/`excludedTools` are applied first (globally)
+2. `defaultAgent.excludedTools` is applied on top, further restricting the main agent only
+
+> **Note:** If a tool is in both `excludedTools` (session-level) and `defaultAgent.excludedTools`, the session-level exclusion takes precedence — the tool is unavailable to everyone.
+
 ## Attaching MCP Servers to Agents
 
 Each custom agent can have its own MCP (Model Context Protocol) servers, giving it access to specialized data sources:

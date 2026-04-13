@@ -89,6 +89,7 @@ public class CloneTests
             McpServers = new Dictionary<string, McpServerConfig> { ["server1"] = new McpStdioServerConfig { Command = "echo" } },
             CustomAgents = [new CustomAgentConfig { Name = "agent1" }],
             Agent = "agent1",
+            DefaultAgent = new DefaultAgentConfig { ExcludedTools = ["hidden-tool"] },
             SkillDirectories = ["/skills"],
             DisabledSkills = ["skill1"],
         };
@@ -107,6 +108,7 @@ public class CloneTests
         Assert.Equal(original.McpServers.Count, clone.McpServers!.Count);
         Assert.Equal(original.CustomAgents.Count, clone.CustomAgents!.Count);
         Assert.Equal(original.Agent, clone.Agent);
+        Assert.Equal(original.DefaultAgent!.ExcludedTools, clone.DefaultAgent!.ExcludedTools);
         Assert.Equal(original.SkillDirectories, clone.SkillDirectories);
         Assert.Equal(original.DisabledSkills, clone.DisabledSkills);
     }
@@ -243,6 +245,7 @@ public class CloneTests
         Assert.Null(clone.SkillDirectories);
         Assert.Null(clone.DisabledSkills);
         Assert.Null(clone.Tools);
+        Assert.Null(clone.DefaultAgent);
     }
 
     [Fact]

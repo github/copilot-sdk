@@ -781,6 +781,18 @@ class CustomAgentConfig(TypedDict, total=False):
     skills: NotRequired[list[str]]
 
 
+class DefaultAgentConfig(TypedDict, total=False):
+    """Configuration for the default agent.
+
+    The default agent is the built-in agent that handles turns
+    when no custom agent is selected.
+    """
+
+    # List of tool names to exclude from the default agent.
+    # These tools remain available to custom sub-agents that reference them.
+    excluded_tools: list[str]
+
+
 class InfiniteSessionConfig(TypedDict, total=False):
     """
     Configuration for infinite sessions with automatic context compaction
@@ -863,6 +875,10 @@ class SessionConfig(TypedDict, total=False):
     mcp_servers: dict[str, MCPServerConfig]
     # Custom agent configurations for the session
     custom_agents: list[CustomAgentConfig]
+    # Configuration for the default agent.
+    # Use excluded_tools to hide tools from the default agent
+    # while keeping them available to sub-agents.
+    default_agent: DefaultAgentConfig
     # Name of the custom agent to activate when the session starts.
     # Must match the name of one of the agents in custom_agents.
     agent: str
@@ -924,6 +940,8 @@ class ResumeSessionConfig(TypedDict, total=False):
     mcp_servers: dict[str, MCPServerConfig]
     # Custom agent configurations for the session
     custom_agents: list[CustomAgentConfig]
+    # Configuration for the default agent.
+    default_agent: DefaultAgentConfig
     # Name of the custom agent to activate when the session starts.
     # Must match the name of one of the agents in custom_agents.
     agent: str

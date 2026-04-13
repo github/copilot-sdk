@@ -38,6 +38,7 @@ export type {
     MCPStdioServerConfig,
     MCPHTTPServerConfig,
     MCPServerConfig,
+    DefaultAgentConfig,
     MessageOptions,
     ModelBilling,
     ModelCapabilities,

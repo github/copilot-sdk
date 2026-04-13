@@ -159,6 +159,45 @@ describe("CopilotClient", () => {
         spy.mockRestore();
     });
 
+    it("forwards defaultAgent in session.create request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi.spyOn((client as any).connection!, "sendRequest");
+        await client.createSession({
+            defaultAgent: { excludedTools: ["heavy-tool"] },
+            onPermissionRequest: approveAll,
+        });
+
+        expect(spy).toHaveBeenCalledWith(
+            "session.create",
+            expect.objectContaining({
+                defaultAgent: { excludedTools: ["heavy-tool"] },
+            })
+        );
+    });
+
+    it("forwards defaultAgent in session.resume request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const spy = vi.spyOn((client as any).connection!, "sendRequest");
+        await client.resumeSession(session.sessionId, {
+            defaultAgent: { excludedTools: ["heavy-tool"] },
+            onPermissionRequest: approveAll,
+        });
+
+        expect(spy).toHaveBeenCalledWith(
+            "session.resume",
+            expect.objectContaining({
+                defaultAgent: { excludedTools: ["heavy-tool"] },
+            })
+        );
+    });
+
     it("does not request permissions on session.resume when using the default joinSession handler", async () => {
         const client = new CopilotClient();
         await client.start();
