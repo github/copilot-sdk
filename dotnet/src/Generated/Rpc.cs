@@ -265,7 +265,7 @@ public class McpDiscoverResult
 {
     /// <summary>MCP servers discovered from all sources.</summary>
     [JsonPropertyName("servers")]
-    public List<DiscoveredMcpServer> Servers { get => field ??= []; set; }
+    public IList<DiscoveredMcpServer> Servers { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for McpDiscover operations.</summary>
@@ -1384,15 +1384,15 @@ public class SessionUsageGetMetricsResultCodeChanges
 {
     /// <summary>Total lines of code added.</summary>
     [JsonPropertyName("linesAdded")]
-    public double LinesAdded { get; set; }
+    public long LinesAdded { get; set; }
 
     /// <summary>Total lines of code removed.</summary>
     [JsonPropertyName("linesRemoved")]
-    public double LinesRemoved { get; set; }
+    public long LinesRemoved { get; set; }
 
     /// <summary>Number of distinct files modified.</summary>
     [JsonPropertyName("filesModifiedCount")]
-    public double FilesModifiedCount { get; set; }
+    public long FilesModifiedCount { get; set; }
 }
 
 /// <summary>Request count and cost metrics for this model.</summary>
@@ -1400,7 +1400,7 @@ public class SessionUsageGetMetricsResultModelMetricsValueRequests
 {
     /// <summary>Number of API requests made with this model.</summary>
     [JsonPropertyName("count")]
-    public double Count { get; set; }
+    public long Count { get; set; }
 
     /// <summary>User-initiated premium request cost (with multiplier applied).</summary>
     [JsonPropertyName("cost")]
@@ -1412,19 +1412,19 @@ public class SessionUsageGetMetricsResultModelMetricsValueUsage
 {
     /// <summary>Total input tokens consumed.</summary>
     [JsonPropertyName("inputTokens")]
-    public double InputTokens { get; set; }
+    public long InputTokens { get; set; }
 
     /// <summary>Total output tokens produced.</summary>
     [JsonPropertyName("outputTokens")]
-    public double OutputTokens { get; set; }
+    public long OutputTokens { get; set; }
 
     /// <summary>Total tokens read from prompt cache.</summary>
     [JsonPropertyName("cacheReadTokens")]
-    public double CacheReadTokens { get; set; }
+    public long CacheReadTokens { get; set; }
 
     /// <summary>Total tokens written to prompt cache.</summary>
     [JsonPropertyName("cacheWriteTokens")]
-    public double CacheWriteTokens { get; set; }
+    public long CacheWriteTokens { get; set; }
 }
 
 /// <summary>RPC data type for SessionUsageGetMetricsResultModelMetricsValue operations.</summary>
@@ -1449,7 +1449,7 @@ public class SessionUsageGetMetricsResult
 
     /// <summary>Raw count of user-initiated API requests.</summary>
     [JsonPropertyName("totalUserRequests")]
-    public double TotalUserRequests { get; set; }
+    public long TotalUserRequests { get; set; }
 
     /// <summary>Total time spent in model API calls (milliseconds).</summary>
     [JsonPropertyName("totalApiDurationMs")]
@@ -1457,7 +1457,7 @@ public class SessionUsageGetMetricsResult
 
     /// <summary>Session start timestamp (epoch milliseconds).</summary>
     [JsonPropertyName("sessionStartTime")]
-    public double SessionStartTime { get; set; }
+    public long SessionStartTime { get; set; }
 
     /// <summary>Aggregated code change metrics.</summary>
     [JsonPropertyName("codeChanges")]
@@ -1465,7 +1465,7 @@ public class SessionUsageGetMetricsResult
 
     /// <summary>Per-model token and request metrics, keyed by model identifier.</summary>
     [JsonPropertyName("modelMetrics")]
-    public Dictionary<string, SessionUsageGetMetricsResultModelMetricsValue> ModelMetrics { get => field ??= []; set; }
+    public IDictionary<string, SessionUsageGetMetricsResultModelMetricsValue> ModelMetrics { get => field ??= new Dictionary<string, SessionUsageGetMetricsResultModelMetricsValue>(); set; }
 
     /// <summary>Currently active model identifier.</summary>
     [JsonPropertyName("currentModel")]
@@ -1473,11 +1473,11 @@ public class SessionUsageGetMetricsResult
 
     /// <summary>Input tokens from the most recent main-agent API call.</summary>
     [JsonPropertyName("lastCallInputTokens")]
-    public double LastCallInputTokens { get; set; }
+    public long LastCallInputTokens { get; set; }
 
     /// <summary>Output tokens from the most recent main-agent API call.</summary>
     [JsonPropertyName("lastCallOutputTokens")]
-    public double LastCallOutputTokens { get; set; }
+    public long LastCallOutputTokens { get; set; }
 }
 
 /// <summary>RPC data type for SessionUsageGetMetrics operations.</summary>

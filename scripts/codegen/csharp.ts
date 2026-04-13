@@ -757,20 +757,20 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
         if (items.type === "object" && items.properties) {
             const itemClass = (items.title as string) ?? singularPascal(propName);
             classes.push(emitRpcClass(itemClass, items, "public", classes));
-            return isRequired ? `List<${itemClass}>` : `List<${itemClass}>?`;
+            return isRequired ? `IList<${itemClass}>` : `IList<${itemClass}>?`;
         }
         const itemType = schemaTypeToCSharp(items, true, rpcKnownTypes);
-        return isRequired ? `List<${itemType}>` : `List<${itemType}>?`;
+        return isRequired ? `IList<${itemType}>` : `IList<${itemType}>?`;
     }
     if (schema.type === "object" && schema.additionalProperties && typeof schema.additionalProperties === "object") {
         const vs = schema.additionalProperties as JSONSchema7;
         if (vs.type === "object" && vs.properties) {
             const valClass = `${parentClassName}${propName}Value`;
             classes.push(emitRpcClass(valClass, vs, "public", classes));
-            return isRequired ? `Dictionary<string, ${valClass}>` : `Dictionary<string, ${valClass}>?`;
+            return isRequired ? `IDictionary<string, ${valClass}>` : `IDictionary<string, ${valClass}>?`;
         }
         const valueType = schemaTypeToCSharp(vs, true, rpcKnownTypes);
-        return isRequired ? `Dictionary<string, ${valueType}>` : `Dictionary<string, ${valueType}>?`;
+        return isRequired ? `IDictionary<string, ${valueType}>` : `IDictionary<string, ${valueType}>?`;
     }
     return schemaTypeToCSharp(schema, isRequired, rpcKnownTypes);
 }
@@ -816,8 +816,11 @@ function emitRpcClass(className: string, schema: JSONSchema7, visibility: "publi
         if (isReq && !csharpType.endsWith("?")) {
             if (csharpType === "string") defaultVal = " = string.Empty;";
             else if (csharpType === "object") defaultVal = " = null!;";
-            else if (csharpType.startsWith("List<") || csharpType.startsWith("Dictionary<")) {
+            else if (csharpType.startsWith("IList<")) {
                 propAccessors = "{ get => field ??= []; set; }";
+            } else if (csharpType.startsWith("IDictionary<")) {
+                const concreteType = csharpType.replace("IDictionary<", "Dictionary<");
+                propAccessors = `{ get => field ??= new ${concreteType}(); set; }`;
             } else if (emittedRpcClassSchemas.has(csharpType)) {
                 propAccessors = "{ get => field ??= new(); set; }";
             }
