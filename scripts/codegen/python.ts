@@ -474,7 +474,8 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
 
 function emitMethod(lines: string[], name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, groupExperimental = false): void {
     const methodName = toSnakeCase(name);
-    const resultType = resolveType(pythonResultTypeName(method));
+    const hasResult = !!method.result;
+    const resultType = hasResult ? resolveType(pythonResultTypeName(method)) : "None";
     const resultIsObject = isObjectSchema(method.result);
 
     const paramProps = method.params?.properties || {};
@@ -501,16 +502,32 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
         if (hasParams) {
             lines.push(`        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}`);
             lines.push(`        params_dict["sessionId"] = self._session_id`);
-            lines.push(`        return ${deserialize(`await self._client.request("${method.rpcMethod}", params_dict, **_timeout_kwargs(timeout))`)}`);
+            if (hasResult) {
+                lines.push(`        return ${deserialize(`await self._client.request("${method.rpcMethod}", params_dict, **_timeout_kwargs(timeout))`)}`);
+            } else {
+                lines.push(`        await self._client.request("${method.rpcMethod}", params_dict, **_timeout_kwargs(timeout))`);
+            }
         } else {
-            lines.push(`        return ${deserialize(`await self._client.request("${method.rpcMethod}", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))`)}`);
+            if (hasResult) {
+                lines.push(`        return ${deserialize(`await self._client.request("${method.rpcMethod}", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))`)}`);
+            } else {
+                lines.push(`        await self._client.request("${method.rpcMethod}", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))`);
+            }
         }
     } else {
         if (hasParams) {
             lines.push(`        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}`);
-            lines.push(`        return ${deserialize(`await self._client.request("${method.rpcMethod}", params_dict, **_timeout_kwargs(timeout))`)}`);
+            if (hasResult) {
+                lines.push(`        return ${deserialize(`await self._client.request("${method.rpcMethod}", params_dict, **_timeout_kwargs(timeout))`)}`);
+            } else {
+                lines.push(`        await self._client.request("${method.rpcMethod}", params_dict, **_timeout_kwargs(timeout))`);
+            }
         } else {
-            lines.push(`        return ${deserialize(`await self._client.request("${method.rpcMethod}", {}, **_timeout_kwargs(timeout))`)}`);
+            if (hasResult) {
+                lines.push(`        return ${deserialize(`await self._client.request("${method.rpcMethod}", {}, **_timeout_kwargs(timeout))`)}`);
+            } else {
+                lines.push(`        await self._client.request("${method.rpcMethod}", {}, **_timeout_kwargs(timeout))`);
+            }
         }
     }
     lines.push(``);

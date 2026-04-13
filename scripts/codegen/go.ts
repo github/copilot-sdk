@@ -1067,7 +1067,8 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
 
 function emitMethod(lines: string[], receiver: string, name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, fieldNames: Map<string, Map<string, string>>, groupExperimental = false, isWrapper = false): void {
     const methodName = toPascalCase(name);
-    const resultType = resolveType(goResultTypeName(method));
+    const hasResult = !!method.result;
+    const resultType = hasResult ? resolveType(goResultTypeName(method)) : "";
 
     const paramProps = method.params?.properties || {};
     const requiredParams = new Set(method.params?.required || []);
@@ -1082,11 +1083,15 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
     if (method.stability === "experimental" && !groupExperimental) {
         lines.push(`// Experimental: ${methodName} is an experimental API and may change or be removed in future versions.`);
     }
+
+    const returnType = hasResult ? `(*${resultType}, error)` : `error`;
     const sig = hasParams
-        ? `func (a *${receiver}) ${methodName}(ctx context.Context, params *${paramsType}) (*${resultType}, error)`
-        : `func (a *${receiver}) ${methodName}(ctx context.Context) (*${resultType}, error)`;
+        ? `func (a *${receiver}) ${methodName}(ctx context.Context, params *${paramsType}) ${returnType}`
+        : `func (a *${receiver}) ${methodName}(ctx context.Context) ${returnType}`;
 
     lines.push(sig + ` {`);
+
+    const errReturn = hasResult ? `return nil, err` : `return err`;
 
     if (isSession) {
         lines.push(`\treq := map[string]any{"sessionId": ${sessionIDRef}}`);
@@ -1113,13 +1118,18 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
     }
 
     lines.push(`\tif err != nil {`);
-    lines.push(`\t\treturn nil, err`);
+    lines.push(`\t\t${errReturn}`);
     lines.push(`\t}`);
-    lines.push(`\tvar result ${resultType}`);
-    lines.push(`\tif err := json.Unmarshal(raw, &result); err != nil {`);
-    lines.push(`\t\treturn nil, err`);
-    lines.push(`\t}`);
-    lines.push(`\treturn &result, nil`);
+
+    if (hasResult) {
+        lines.push(`\tvar result ${resultType}`);
+        lines.push(`\tif err := json.Unmarshal(raw, &result); err != nil {`);
+        lines.push(`\t\treturn nil, err`);
+        lines.push(`\t}`);
+        lines.push(`\treturn &result, nil`);
+    } else {
+        lines.push(`\treturn nil`);
+    }
     lines.push(`}`);
     lines.push(``);
 }

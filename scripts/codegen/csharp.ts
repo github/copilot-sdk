@@ -952,8 +952,8 @@ function emitServerInstanceMethod(
     groupExperimental: boolean
 ): void {
     const methodName = toPascalCase(name);
-    let resultClassName = resultTypeName(method);
-    if (method.stability === "experimental") {
+    let resultClassName = method.result ? resultTypeName(method) : "";
+    if (method.result && method.stability === "experimental") {
         experimentalRpcTypes.add(resultClassName);
     }
     if (isObjectSchema(method.result)) {
@@ -1003,13 +1003,22 @@ function emitServerInstanceMethod(
     }
     sigParams.push("CancellationToken cancellationToken = default");
 
-    lines.push(`${indent}public async Task<${resultClassName}> ${methodName}Async(${sigParams.join(", ")})`);
+    const taskType = method.result ? `Task<${resultClassName}>` : "Task";
+    lines.push(`${indent}public async ${taskType} ${methodName}Async(${sigParams.join(", ")})`);
     lines.push(`${indent}{`);
     if (requestClassName && bodyAssignments.length > 0) {
         lines.push(`${indent}    var request = new ${requestClassName} { ${bodyAssignments.join(", ")} };`);
-        lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [request], cancellationToken);`);
+        if (method.result) {
+            lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [request], cancellationToken);`);
+        } else {
+            lines.push(`${indent}    await CopilotClient.InvokeRpcAsync(_rpc, "${method.rpcMethod}", [request], cancellationToken);`);
+        }
     } else {
-        lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [], cancellationToken);`);
+        if (method.result) {
+            lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [], cancellationToken);`);
+        } else {
+            lines.push(`${indent}    await CopilotClient.InvokeRpcAsync(_rpc, "${method.rpcMethod}", [], cancellationToken);`);
+        }
     }
     lines.push(`${indent}}`);
 }
@@ -1043,8 +1052,8 @@ function emitSessionRpcClasses(node: Record<string, unknown>, classes: string[])
 
 function emitSessionMethod(key: string, method: RpcMethod, lines: string[], classes: string[], indent: string, groupExperimental: boolean): void {
     const methodName = toPascalCase(key);
-    let resultClassName = resultTypeName(method);
-    if (method.stability === "experimental") {
+    let resultClassName = method.result ? resultTypeName(method) : "";
+    if (method.result && method.stability === "experimental") {
         experimentalRpcTypes.add(resultClassName);
     }
     if (isObjectSchema(method.result)) {
@@ -1089,9 +1098,14 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     }
     sigParams.push("CancellationToken cancellationToken = default");
 
-    lines.push(`${indent}public async Task<${resultClassName}> ${methodName}Async(${sigParams.join(", ")})`);
+    const taskType = method.result ? `Task<${resultClassName}>` : "Task";
+    lines.push(`${indent}public async ${taskType} ${methodName}Async(${sigParams.join(", ")})`);
     lines.push(`${indent}{`, `${indent}    var request = new ${requestClassName} { ${bodyAssignments.join(", ")} };`);
-    lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [request], cancellationToken);`, `${indent}}`);
+    if (method.result) {
+        lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [request], cancellationToken);`, `${indent}}`);
+    } else {
+        lines.push(`${indent}    await CopilotClient.InvokeRpcAsync(_rpc, "${method.rpcMethod}", [request], cancellationToken);`, `${indent}}`);
+    }
 }
 
 function emitSessionApiClass(className: string, node: Record<string, unknown>, classes: string[]): string {
