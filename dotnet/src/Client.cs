@@ -1043,6 +1043,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         return await InvokeRpcAsync<T>(rpc, method, args, null, cancellationToken);
     }
 
+    internal static async Task InvokeRpcAsync(JsonRpc rpc, string method, object?[]? args, CancellationToken cancellationToken)
+    {
+        await InvokeRpcAsync<object>(rpc, method, args, null, cancellationToken);
+    }
+
     internal static async Task<T> InvokeRpcAsync<T>(JsonRpc rpc, string method, object?[]? args, StringBuilder? stderrBuffer, CancellationToken cancellationToken)
     {
         try

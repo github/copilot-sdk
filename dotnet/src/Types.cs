@@ -729,7 +729,7 @@ public class ElicitationResult
     /// <summary>
     /// User action: <c>"accept"</c> (submitted), <c>"decline"</c> (rejected), or <c>"cancel"</c> (dismissed).
     /// </summary>
-    public UiElicitationAction Action { get; set; }
+    public ElicitationResponseAction Action { get; set; }
 
     /// <summary>
     /// Form values submitted by the user (present when <see cref="Action"/> is <c>Accept</c>).
@@ -2156,7 +2156,7 @@ public class MessageOptions
     /// <summary>
     /// File or data attachments to include with the message.
     /// </summary>
-    public IList<UserMessageDataAttachmentsItem>? Attachments { get; set; }
+    public IList<UserMessageAttachment>? Attachments { get; set; }
     /// <summary>
     /// Interaction mode for the message (e.g., "plan", "edit").
     /// </summary>

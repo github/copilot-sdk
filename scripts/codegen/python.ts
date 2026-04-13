@@ -219,8 +219,16 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
     const resolvedSchema = (schema.definitions?.SessionEvent as JSONSchema7) || schema;
     const processed = postProcessSchema(resolvedSchema);
 
+    // Hoist titled inline schemas (enums etc.) to definitions so quicktype
+    // uses the schema-defined names instead of its own structural heuristics.
+    const { rootDefinitions: hoistedRoots, sharedDefinitions } = hoistTitledSchemas({ SessionEvent: processed });
+    const hoisted = hoistedRoots.SessionEvent;
+    if (Object.keys(sharedDefinitions).length > 0) {
+        hoisted.definitions = { ...hoisted.definitions, ...sharedDefinitions };
+    }
+
     const schemaInput = new JSONSchemaInput(new FetchingJSONSchemaStore());
-    await schemaInput.addSource({ name: "SessionEvent", schema: JSON.stringify(processed) });
+    await schemaInput.addSource({ name: "SessionEvent", schema: JSON.stringify(hoisted) });
 
     const inputData = new InputData();
     inputData.addInput(schemaInput);

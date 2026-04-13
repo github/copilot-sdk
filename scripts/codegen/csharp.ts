@@ -232,10 +232,11 @@ function emitDataAnnotations(schema: JSONSchema7, indent: string): string[] {
         if (schema.exclusiveMaximum === true) namedArgs.push("MaximumIsExclusive = true");
         const namedSuffix = namedArgs.length > 0 ? `, ${namedArgs.join(", ")}` : "";
         if (schema.type === "integer") {
-            // Use Range(Type, string, string) overload since RangeAttribute has no long constructor
+            // Use Range(double, double) for AOT/trimming compatibility.
+            // The Range(Type, string, string) overload uses TypeConverter which triggers IL2026.
             const min = hasMin ? String(schema.minimum) : "long.MinValue";
             const max = hasMax ? String(schema.maximum) : "long.MaxValue";
-            attrs.push(`${indent}[Range(typeof(long), "${min}", "${max}"${namedSuffix})]`);
+            attrs.push(`${indent}[Range((double)${min}, (double)${max}${namedSuffix})]`);
         } else {
             const min = hasMin ? String(schema.minimum) : "double.MinValue";
             const max = hasMax ? String(schema.maximum) : "double.MaxValue";
@@ -767,7 +768,7 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
         if (items.type === "object" && items.properties) {
             const itemClass = (items.title as string) ?? singularPascal(propName);
             classes.push(emitRpcClass(itemClass, items, "public", classes));
-            return isRequired ? `List<${itemClass}>` : `List<${itemClass}>?`;
+            return isRequired ? `IList<${itemClass}>` : `IList<${itemClass}>?`;
         }
         if (items.enum && Array.isArray(items.enum)) {
             const itemEnum = getOrCreateEnum(
@@ -778,7 +779,7 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
                 items.description,
                 items.title as string | undefined,
             );
-            return isRequired ? `List<${itemEnum}>` : `List<${itemEnum}>?`;
+            return isRequired ? `IList<${itemEnum}>` : `IList<${itemEnum}>?`;
         }
         const itemType = schemaTypeToCSharp(items, true, rpcKnownTypes);
         return isRequired ? `IList<${itemType}>` : `IList<${itemType}>?`;
@@ -816,7 +817,7 @@ function emitRpcClass(className: string, schema: JSONSchema7, visibility: "publi
     if (experimentalRpcTypes.has(className)) {
         lines.push(`[Experimental(Diagnostics.Experimental)]`);
     }
-    lines.push(`${visibility} class ${className}`, `{`);
+    lines.push(`${visibility} sealed class ${className}`, `{`);
 
     const props = Object.entries(schema.properties || {});
     for (let i = 0; i < props.length; i++) {
@@ -882,7 +883,7 @@ function emitServerRpcClasses(node: Record<string, unknown>, classes: string[]):
     // ServerRpc class
     const srLines: string[] = [];
     srLines.push(`/// <summary>Provides server-scoped RPC methods (no session required).</summary>`);
-    srLines.push(`public class ServerRpc`);
+    srLines.push(`public sealed class ServerRpc`);
     srLines.push(`{`);
     srLines.push(`    private readonly JsonRpc _rpc;`);
     srLines.push("");
@@ -926,7 +927,7 @@ function emitServerApiClass(className: string, node: Record<string, unknown>, cl
     if (groupExperimental) {
         lines.push(`[Experimental(Diagnostics.Experimental)]`);
     }
-    lines.push(`public class ${className}`);
+    lines.push(`public sealed class ${className}`);
     lines.push(`{`);
     lines.push(`    private readonly JsonRpc _rpc;`);
     lines.push("");
@@ -1029,7 +1030,7 @@ function emitSessionRpcClasses(node: Record<string, unknown>, classes: string[])
     const groups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
     const topLevelMethods = Object.entries(node).filter(([, v]) => isRpcMethod(v));
 
-    const srLines = [`/// <summary>Provides typed session-scoped RPC methods.</summary>`, `public class SessionRpc`, `{`, `    private readonly JsonRpc _rpc;`, `    private readonly string _sessionId;`, ""];
+    const srLines = [`/// <summary>Provides typed session-scoped RPC methods.</summary>`, `public sealed class SessionRpc`, `{`, `    private readonly JsonRpc _rpc;`, `    private readonly string _sessionId;`, ""];
     srLines.push(`    internal SessionRpc(JsonRpc rpc, string sessionId)`, `    {`, `        _rpc = rpc;`, `        _sessionId = sessionId;`);
     for (const [groupName] of groups) srLines.push(`        ${toPascalCase(groupName)} = new ${toPascalCase(groupName)}Api(rpc, sessionId);`);
     srLines.push(`    }`);
@@ -1113,7 +1114,7 @@ function emitSessionApiClass(className: string, node: Record<string, unknown>, c
     const displayName = className.replace(/Api$/, "");
     const groupExperimental = isNodeFullyExperimental(node);
     const experimentalAttr = groupExperimental ? `[Experimental(Diagnostics.Experimental)]\n` : "";
-    const lines = [`/// <summary>Provides session-scoped ${displayName} APIs.</summary>`, `${experimentalAttr}public class ${className}`, `{`, `    private readonly JsonRpc _rpc;`, `    private readonly string _sessionId;`, ""];
+    const lines = [`/// <summary>Provides session-scoped ${displayName} APIs.</summary>`, `${experimentalAttr}public sealed class ${className}`, `{`, `    private readonly JsonRpc _rpc;`, `    private readonly string _sessionId;`, ""];
     lines.push(`    internal ${className}(JsonRpc rpc, string sessionId)`, `    {`, `        _rpc = rpc;`, `        _sessionId = sessionId;`, `    }`);
 
     for (const [key, value] of Object.entries(node)) {
@@ -1196,7 +1197,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
     }
 
     lines.push(`/// <summary>Provides all client session API handler groups for a session.</summary>`);
-    lines.push(`public class ClientSessionApiHandlers`);
+    lines.push(`public sealed class ClientSessionApiHandlers`);
     lines.push(`{`);
     for (const { groupName } of groups) {
         lines.push(`    /// <summary>Optional handler for ${toPascalCase(groupName)} client session API methods.</summary>`);

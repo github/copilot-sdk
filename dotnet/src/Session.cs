@@ -740,7 +740,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             {
                 await Rpc.Ui.HandlePendingElicitationAsync(requestId, new UiElicitationResponse
                 {
-                    Action = UiElicitationAction.Cancel
+                    Action = ElicitationResponseAction.Cancel
                 });
             }
             catch (Exception innerEx) when (innerEx is IOException or ObjectDisposedException)
@@ -794,7 +794,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 Required = ["confirmed"]
             };
             var result = await session.Rpc.Ui.ElicitationAsync(message, schema, cancellationToken);
-            if (result.Action == UiElicitationAction.Accept
+            if (result.Action == ElicitationResponseAction.Accept
                 && result.Content != null
                 && result.Content.TryGetValue("confirmed", out var val))
             {
@@ -822,7 +822,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 Required = ["selection"]
             };
             var result = await session.Rpc.Ui.ElicitationAsync(message, schema, cancellationToken);
-            if (result.Action == UiElicitationAction.Accept
+            if (result.Action == ElicitationResponseAction.Accept
                 && result.Content != null
                 && result.Content.TryGetValue("selection", out var val))
             {
@@ -854,7 +854,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 Required = ["value"]
             };
             var result = await session.Rpc.Ui.ElicitationAsync(message, schema, cancellationToken);
-            if (result.Action == UiElicitationAction.Accept
+            if (result.Action == ElicitationResponseAction.Accept
                 && result.Content != null
                 && result.Content.TryGetValue("value", out var val))
             {
@@ -1219,7 +1219,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     {
         public string SessionId { get; init; } = string.Empty;
         public string Prompt { get; init; } = string.Empty;
-        public IList<UserMessageDataAttachmentsItem>? Attachments { get; init; }
+        public IList<UserMessageAttachment>? Attachments { get; init; }
         public string? Mode { get; init; }
         public string? Traceparent { get; init; }
         public string? Tracestate { get; init; }

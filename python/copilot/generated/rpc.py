@@ -177,6 +177,7 @@ class ModelCapabilitiesLimits:
     """Maximum number of prompt/input tokens"""
 
     vision: ModelCapabilitiesLimitsVision | None = None
+    """Vision-specific limits"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'ModelCapabilitiesLimits':
@@ -228,7 +229,10 @@ class ModelCapabilities:
     """Model capabilities and limits"""
 
     limits: ModelCapabilitiesLimits
+    """Token limits for prompts, outputs, and context window"""
+
     supports: ModelCapabilitiesSupports
+    """Feature flags indicating what the model supports"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'ModelCapabilities':
@@ -269,6 +273,8 @@ class ModelPolicy:
 @dataclass
 class Model:
     capabilities: ModelCapabilities
+    """Model capabilities and limits"""
+
     id: str
     """Model identifier (e.g., "claude-sonnet-4.5")"""
 
@@ -276,10 +282,14 @@ class Model:
     """Display name"""
 
     billing: ModelBilling | None = None
+    """Billing information"""
+
     default_reasoning_effort: str | None = None
     """Default reasoning effort level (only present if model supports reasoning effort)"""
 
     policy: ModelPolicy | None = None
+    """Policy state (if applicable)"""
+
     supported_reasoning_efforts: list[str] | None = None
     """Supported reasoning effort levels (only present if model supports reasoning effort)"""
 
@@ -629,6 +639,8 @@ class MCPConfigAddConfig:
 @dataclass
 class MCPConfigAddRequest:
     config: MCPConfigAddConfig
+    """MCP server configuration (local/stdio or remote/http)"""
+
     name: str
     """Unique name for the MCP server"""
 
@@ -718,6 +730,8 @@ class MCPConfigUpdateConfig:
 @dataclass
 class MCPConfigUpdateRequest:
     config: MCPConfigUpdateConfig
+    """MCP server configuration (local/stdio or remote/http)"""
+
     name: str
     """Name of the MCP server to update"""
 
@@ -777,7 +791,10 @@ class DiscoveredMCPServer:
     """Server name (config key)"""
 
     source: MCPServerSource
+    """Configuration source"""
+
     type: DiscoveredMCPServerType | None = None
+    """Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio)"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'DiscoveredMCPServer':
@@ -855,6 +872,8 @@ class SessionFSSetProviderConventions(Enum):
 @dataclass
 class SessionFSSetProviderRequest:
     conventions: SessionFSSetProviderConventions
+    """Path conventions used by this filesystem"""
+
     initial_cwd: str
     """Initial working directory for sessions"""
 
@@ -1040,7 +1059,10 @@ class ModelCapabilitiesOverride:
     """Override individual model capabilities resolved by the runtime"""
 
     limits: ModelCapabilitiesOverrideLimits | None = None
+    """Token limits for prompts, outputs, and context window"""
+
     supports: ModelCapabilitiesOverrideSupports | None = None
+    """Feature flags indicating what the model supports"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'ModelCapabilitiesOverride':
@@ -1063,6 +1085,8 @@ class ModelSwitchToRequest:
     """Model identifier to switch to"""
 
     model_capabilities: ModelCapabilitiesOverride | None = None
+    """Override individual model capabilities resolved by the runtime"""
+
     reasoning_effort: str | None = None
     """Reasoning effort level to use for the model"""
 
@@ -1093,6 +1117,7 @@ class SessionMode(Enum):
 @dataclass
 class ModeSetRequest:
     mode: SessionMode
+    """The agent mode. Valid values: "interactive", "plan", "autopilot"."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'ModeSetRequest':
@@ -1369,6 +1394,7 @@ class AgentSelectAgent:
 @dataclass
 class AgentSelectResult:
     agent: AgentSelectAgent
+    """The newly selected custom agent"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'AgentSelectResult':
@@ -1550,10 +1576,13 @@ class MCPServer:
     """Server name (config key)"""
 
     status: MCPServerStatus
+    """Connection status: connected, failed, needs-auth, pending, disabled, or not_configured"""
+
     error: str | None = None
     """Error message if the server failed to connect"""
 
     source: MCPServerSource | None = None
+    """Configuration source: user, workspace, plugin, or builtin"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'MCPServer':
@@ -1575,15 +1604,15 @@ class MCPServer:
         return result
 
 @dataclass
-class MCPList:
+class MCPServerList:
     servers: list[MCPServer]
     """Configured MCP servers"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPList':
+    def from_dict(obj: Any) -> 'MCPServerList':
         assert isinstance(obj, dict)
         servers = from_list(MCPServer.from_dict, obj.get("servers"))
-        return MCPList(servers)
+        return MCPServerList(servers)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -1694,7 +1723,11 @@ class Extension:
     """Extension name (directory name)"""
 
     source: ExtensionSource
+    """Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)"""
+
     status: ExtensionStatus
+    """Current status: running, disabled, failed, or starting"""
+
     pid: int | None = None
     """Process ID if the extension is running"""
 
@@ -1828,6 +1861,7 @@ class ToolsHandlePendingToolCallRequest:
     """Error message if the tool call failed"""
 
     result: ToolCallResult | str | None = None
+    """Tool call result (string or expanded result object)"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'ToolsHandlePendingToolCallRequest':
@@ -1896,7 +1930,10 @@ class UIElicitationResponse:
     """The elicitation response (accept with form values, decline, or cancel)"""
 
     action: ElicitationResponseAction
+    """The user's response: accept (submitted), decline (rejected), or cancel (dismissed)"""
+
     content: dict[str, float | bool | list[str] | str] | None = None
+    """The form values submitted by the user (present when action is 'accept')"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'UIElicitationResponse':
@@ -2097,6 +2134,7 @@ class UIElicitationRequest:
     """Message describing what information is needed from the user"""
 
     requested_schema: UIElicitationSchema
+    """JSON Schema describing the form fields to present to the user"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'UIElicitationRequest':
@@ -2135,6 +2173,7 @@ class HandlePendingElicitationRequest:
     """The unique request ID from the elicitation.requested event"""
 
     result: UIElicitationResponse
+    """The elicitation response (accept with form values, decline, or cancel)"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'HandlePendingElicitationRequest':
@@ -2284,6 +2323,9 @@ class LogRequest:
     """When true, the message is transient and not persisted to the session event log on disk"""
 
     level: SessionLogLevel | None = None
+    """Log severity level. Determines how the message is displayed in the timeline. Defaults to
+    "info".
+    """
     url: str | None = None
     """Optional URL the user can open in their browser for more details"""
 
@@ -2380,6 +2422,7 @@ class ShellKillRequest:
     """Process identifier returned by shell.exec"""
 
     signal: ShellKillSignal | None = None
+    """Signal to send (default: SIGTERM)"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'ShellKillRequest':
@@ -2454,6 +2497,7 @@ class HistoryCompact:
     """Number of tokens freed by compaction"""
 
     context_window: HistoryCompactContextWindow | None = None
+    """Post-compaction context window usage breakdown"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'HistoryCompact':
@@ -2600,7 +2644,10 @@ class UsageMetricsModelMetricUsage:
 @dataclass
 class UsageMetricsModelMetric:
     requests: UsageMetricsModelMetricRequests
+    """Request count and cost metrics for this model"""
+
     usage: UsageMetricsModelMetricUsage
+    """Token usage metrics for this model"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'UsageMetricsModelMetric':
@@ -2619,6 +2666,8 @@ class UsageMetricsModelMetric:
 @dataclass
 class UsageMetrics:
     code_changes: UsageMetricsCodeChanges
+    """Aggregated code change metrics"""
+
     last_call_input_tokens: int
     """Input tokens from the most recent main-agent API call"""
 
@@ -2949,6 +2998,7 @@ class SessionFSReaddirWithTypesEntry:
     """Entry name"""
 
     type: SessionFSReaddirWithTypesEntryType
+    """Entry type"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'SessionFSReaddirWithTypesEntry':
@@ -3281,11 +3331,11 @@ def skills_disable_request_from_dict(s: Any) -> SkillsDisableRequest:
 def skills_disable_request_to_dict(x: SkillsDisableRequest) -> Any:
     return to_class(SkillsDisableRequest, x)
 
-def mcp_list_from_dict(s: Any) -> MCPList:
-    return MCPList.from_dict(s)
+def mcp_server_list_from_dict(s: Any) -> MCPServerList:
+    return MCPServerList.from_dict(s)
 
-def mcp_list_to_dict(x: MCPList) -> Any:
-    return to_class(MCPList, x)
+def mcp_server_list_to_dict(x: MCPServerList) -> Any:
+    return to_class(MCPServerList, x)
 
 def mcp_enable_request_from_dict(s: Any) -> MCPEnableRequest:
     return MCPEnableRequest.from_dict(s)
@@ -3743,9 +3793,9 @@ class McpApi:
         self._client = client
         self._session_id = session_id
 
-    async def list(self, *, timeout: float | None = None) -> MCPList:
+    async def list(self, *, timeout: float | None = None) -> MCPServerList:
         """.. warning:: This API is experimental and may change or be removed in future versions."""
-        return MCPList.from_dict(await self._client.request("session.mcp.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+        return MCPServerList.from_dict(await self._client.request("session.mcp.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def enable(self, params: MCPEnableRequest, *, timeout: float | None = None) -> None:
         """.. warning:: This API is experimental and may change or be removed in future versions."""

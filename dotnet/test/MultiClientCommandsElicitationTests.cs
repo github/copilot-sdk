@@ -175,7 +175,7 @@ public class MultiClientCommandsElicitationTests
             OnPermissionRequest = PermissionHandler.ApproveAll,
             OnElicitationRequest = _ => Task.FromResult(new ElicitationResult
             {
-                Action = Rpc.UiElicitationAction.Accept,
+                Action = Rpc.ElicitationResponseAction.Accept,
                 Content = new Dictionary<string, object>(),
             }),
             DisableResume = true,
@@ -229,7 +229,7 @@ public class MultiClientCommandsElicitationTests
             OnPermissionRequest = PermissionHandler.ApproveAll,
             OnElicitationRequest = _ => Task.FromResult(new ElicitationResult
             {
-                Action = Rpc.UiElicitationAction.Accept,
+                Action = Rpc.ElicitationResponseAction.Accept,
                 Content = new Dictionary<string, object>(),
             }),
             DisableResume = true,

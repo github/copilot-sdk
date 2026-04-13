@@ -591,13 +591,13 @@ func (s *Session) handleElicitationRequest(elicitCtx ElicitationContext, request
 		s.RPC.UI.HandlePendingElicitation(ctx, &rpc.HandlePendingElicitationRequest{
 			RequestID: requestID,
 			Result: rpc.UIElicitationResponse{
-				Action: rpc.UIElicitationActionCancel,
+				Action: rpc.ElicitationResponseActionCancel,
 			},
 		})
 		return
 	}
 
-	rpcContent := make(map[string]*rpc.UIElicitationContent)
+	rpcContent := make(map[string]*rpc.ElicitationFieldValue)
 	for k, v := range result.Content {
 		rpcContent[k] = toRPCContent(v)
 	}
@@ -605,18 +605,18 @@ func (s *Session) handleElicitationRequest(elicitCtx ElicitationContext, request
 	s.RPC.UI.HandlePendingElicitation(ctx, &rpc.HandlePendingElicitationRequest{
 		RequestID: requestID,
 		Result: rpc.UIElicitationResponse{
-			Action:  rpc.UIElicitationAction(result.Action),
+			Action:  rpc.ElicitationResponseAction(result.Action),
 			Content: rpcContent,
 		},
 	})
 }
 
-// toRPCContent converts an arbitrary value to a *rpc.UIElicitationContent for elicitation responses.
-func toRPCContent(v any) *rpc.UIElicitationContent {
+// toRPCContent converts an arbitrary value to a *rpc.ElicitationFieldValue for elicitation responses.
+func toRPCContent(v any) *rpc.ElicitationFieldValue {
 	if v == nil {
 		return nil
 	}
-	c := &rpc.UIElicitationContent{}
+	c := &rpc.ElicitationFieldValue{}
 	switch val := v.(type) {
 	case bool:
 		c.Bool = &val
@@ -699,7 +699,7 @@ func (ui *SessionUI) Confirm(ctx context.Context, message string) (bool, error) 
 	if err := ui.session.assertElicitation(); err != nil {
 		return false, err
 	}
-	defaultTrue := &rpc.UIElicitationContent{Bool: Bool(true)}
+	defaultTrue := &rpc.ElicitationFieldValue{Bool: Bool(true)}
 	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.UIElicitationRequest{
 		Message: message,
 		RequestedSchema: rpc.UIElicitationSchema{
@@ -716,7 +716,7 @@ func (ui *SessionUI) Confirm(ctx context.Context, message string) (bool, error) 
 	if err != nil {
 		return false, err
 	}
-	if rpcResult.Action == rpc.UIElicitationActionAccept {
+	if rpcResult.Action == rpc.ElicitationResponseActionAccept {
 		if c, ok := rpcResult.Content["confirmed"]; ok && c != nil && c.Bool != nil {
 			return *c.Bool, nil
 		}
@@ -746,7 +746,7 @@ func (ui *SessionUI) Select(ctx context.Context, message string, options []strin
 	if err != nil {
 		return "", false, err
 	}
-	if rpcResult.Action == rpc.UIElicitationActionAccept {
+	if rpcResult.Action == rpc.ElicitationResponseActionAccept {
 		if c, ok := rpcResult.Content["selection"]; ok && c != nil && c.String != nil {
 			return *c.String, true, nil
 		}
@@ -781,7 +781,7 @@ func (ui *SessionUI) Input(ctx context.Context, message string, opts *InputOptio
 			prop.Format = &format
 		}
 		if opts.Default != "" {
-			prop.Default = &rpc.UIElicitationContent{String: &opts.Default}
+			prop.Default = &rpc.ElicitationFieldValue{String: &opts.Default}
 		}
 	}
 	rpcResult, err := ui.session.RPC.UI.Elicitation(ctx, &rpc.UIElicitationRequest{
@@ -797,7 +797,7 @@ func (ui *SessionUI) Input(ctx context.Context, message string, opts *InputOptio
 	if err != nil {
 		return "", false, err
 	}
-	if rpcResult.Action == rpc.UIElicitationActionAccept {
+	if rpcResult.Action == rpc.ElicitationResponseActionAccept {
 		if c, ok := rpcResult.Content["value"]; ok && c != nil && c.String != nil {
 			return *c.String, true, nil
 		}

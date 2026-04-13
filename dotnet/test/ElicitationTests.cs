@@ -80,7 +80,7 @@ public class ElicitationTests(E2ETestFixture fixture, ITestOutputHelper output)
             OnPermissionRequest = PermissionHandler.ApproveAll,
             OnElicitationRequest = _ => Task.FromResult(new ElicitationResult
             {
-                Action = UiElicitationAction.Accept,
+                Action = ElicitationResponseAction.Accept,
                 Content = new Dictionary<string, object>(),
             }),
         });
@@ -99,7 +99,7 @@ public class ElicitationTests(E2ETestFixture fixture, ITestOutputHelper output)
             OnPermissionRequest = PermissionHandler.ApproveAll,
             OnElicitationRequest = _ => Task.FromResult(new ElicitationResult
             {
-                Action = UiElicitationAction.Accept,
+                Action = ElicitationResponseAction.Accept,
                 Content = new Dictionary<string, object>(),
             }),
         });
@@ -194,17 +194,17 @@ public class ElicitationTests(E2ETestFixture fixture, ITestOutputHelper output)
     {
         var result = new ElicitationResult
         {
-            Action = UiElicitationAction.Accept,
+            Action = ElicitationResponseAction.Accept,
             Content = new Dictionary<string, object> { ["name"] = "Alice" },
         };
 
-        Assert.Equal(UiElicitationAction.Accept, result.Action);
+        Assert.Equal(ElicitationResponseAction.Accept, result.Action);
         Assert.NotNull(result.Content);
         Assert.Equal("Alice", result.Content!["name"]);
 
         var declined = new ElicitationResult
         {
-            Action = UiElicitationAction.Decline,
+            Action = ElicitationResponseAction.Decline,
         };
         Assert.Null(declined.Content);
     }
@@ -262,7 +262,7 @@ public class ElicitationTests(E2ETestFixture fixture, ITestOutputHelper output)
     {
         ElicitationHandler handler = _ => Task.FromResult(new ElicitationResult
         {
-            Action = UiElicitationAction.Cancel,
+            Action = ElicitationResponseAction.Cancel,
         });
 
         var config = new SessionConfig
@@ -281,7 +281,7 @@ public class ElicitationTests(E2ETestFixture fixture, ITestOutputHelper output)
     {
         ElicitationHandler handler = _ => Task.FromResult(new ElicitationResult
         {
-            Action = UiElicitationAction.Cancel,
+            Action = ElicitationResponseAction.Cancel,
         });
 
         var config = new ResumeSessionConfig

@@ -409,8 +409,8 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
                     IsFile = true,
                     IsDirectory = false,
                     Size = info.Length,
-                    Mtime = info.LastWriteTimeUtc.ToString("O"),
-                    Birthtime = info.CreationTimeUtc.ToString("O"),
+                    Mtime = info.LastWriteTimeUtc,
+                    Birthtime = info.CreationTimeUtc,
                 });
             }
 
@@ -425,8 +425,8 @@ public class SessionFsTests(E2ETestFixture fixture, ITestOutputHelper output)
                 IsFile = false,
                 IsDirectory = true,
                 Size = 0,
-                Mtime = dirInfo.LastWriteTimeUtc.ToString("O"),
-                Birthtime = dirInfo.CreationTimeUtc.ToString("O"),
+                Mtime = dirInfo.LastWriteTimeUtc,
+                Birthtime = dirInfo.CreationTimeUtc,
             });
         }
 

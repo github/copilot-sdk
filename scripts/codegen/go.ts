@@ -915,6 +915,19 @@ async function generateRpc(schemaPath?: string): Promise<void> {
 
     // Post-process quicktype output: fix enum constant names
     let qtCode = qtResult.lines.filter((l) => !l.startsWith("package ")).join("\n");
+    // Extract any imports quicktype emitted (e.g., "time") and hoist them
+    const qtImports: string[] = [];
+    qtCode = qtCode.replace(/^import\s+"([^"]+)"\s*$/gm, (_match, imp) => {
+        qtImports.push(`"${imp}"`);
+        return "";
+    });
+    qtCode = qtCode.replace(/^import\s+\(([^)]*)\)\s*$/gm, (_match, block) => {
+        for (const line of block.split("\n")) {
+            const trimmed = line.trim();
+            if (trimmed) qtImports.push(trimmed);
+        }
+        return "";
+    });
     qtCode = postProcessEnumConstants(qtCode);
     qtCode = collapsePlaceholderGoStructs(qtCode);
     // Strip trailing whitespace from quicktype output (gofmt requirement)
@@ -965,6 +978,10 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         imports.push(`"errors"`, `"fmt"`);
     }
     imports.push(`"github.com/github/copilot-sdk/go/internal/jsonrpc2"`);
+    // Add any imports hoisted from quicktype output
+    for (const qi of qtImports) {
+        if (!imports.includes(qi)) imports.push(qi);
+    }
 
     lines.push(`import (`);
     for (const imp of imports) {

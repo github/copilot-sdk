@@ -851,7 +851,7 @@ export interface SessionSkillsReloadRequest {
 }
 
 /** @experimental */
-export interface McpList {
+export interface McpServerList {
   /**
    * Configured MCP servers
    */
@@ -1864,7 +1864,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         },
         mcp: {
             /** @experimental */
-            list: async (): Promise<McpList> =>
+            list: async (): Promise<McpServerList> =>
                 connection.sendRequest("session.mcp.list", { sessionId }),
             /** @experimental */
             enable: async (params: Omit<McpEnableRequest, "sessionId">): Promise<void> =>

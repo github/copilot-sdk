@@ -91,16 +91,14 @@ public class RpcTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETes
         Assert.Equal(SessionMode.Interactive, initial);
 
         // Switch to plan mode
-        var planResult = await session.Rpc.Mode.SetAsync(SessionMode.Plan);
-        Assert.Equal(SessionMode.Plan, planResult);
+        await session.Rpc.Mode.SetAsync(SessionMode.Plan);
 
         // Verify mode persisted
         var afterPlan = await session.Rpc.Mode.GetAsync();
         Assert.Equal(SessionMode.Plan, afterPlan);
 
         // Switch back to interactive
-        var interactiveResult = await session.Rpc.Mode.SetAsync(SessionMode.Interactive);
-        Assert.Equal(SessionMode.Interactive, interactiveResult);
+        await session.Rpc.Mode.SetAsync(SessionMode.Interactive);
     }
 
     [Fact]

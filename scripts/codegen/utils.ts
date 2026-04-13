@@ -254,7 +254,7 @@ function visitSchema(
         } else {
             sharedDefinitions[result.title] = result;
         }
-        return { $ref: `#/definitions/${result.title}` };
+        return { $ref: `#/definitions/${result.title}`, description: result.description } as JSONSchema7;
     }
 
     return result;

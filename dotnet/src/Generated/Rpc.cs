@@ -21,7 +21,7 @@ internal static class Diagnostics
 }
 
 /// <summary>RPC data type for Ping operations.</summary>
-public class PingResult
+public sealed class PingResult
 {
     /// <summary>Echoed message (or default greeting).</summary>
     [JsonPropertyName("message")]
@@ -37,7 +37,7 @@ public class PingResult
 }
 
 /// <summary>RPC data type for Ping operations.</summary>
-internal class PingRequest
+internal sealed class PingRequest
 {
     /// <summary>Optional message to echo back.</summary>
     [JsonPropertyName("message")]
@@ -45,7 +45,7 @@ internal class PingRequest
 }
 
 /// <summary>Feature flags indicating what the model supports.</summary>
-public class ModelCapabilitiesSupports
+public sealed class ModelCapabilitiesSupports
 {
     /// <summary>Whether this model supports vision/image input.</summary>
     [JsonPropertyName("vision")]
@@ -57,38 +57,38 @@ public class ModelCapabilitiesSupports
 }
 
 /// <summary>Vision-specific limits.</summary>
-public class ModelCapabilitiesLimitsVision
+public sealed class ModelCapabilitiesLimitsVision
 {
     /// <summary>MIME types the model accepts.</summary>
     [JsonPropertyName("supported_media_types")]
     public IList<string> SupportedMediaTypes { get => field ??= []; set; }
 
     /// <summary>Maximum number of images per prompt.</summary>
-    [Range(typeof(long), "1", "long.MaxValue")]
+    [Range((double)1, (double)long.MaxValue)]
     [JsonPropertyName("max_prompt_images")]
     public long MaxPromptImages { get; set; }
 
     /// <summary>Maximum image size in bytes.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("max_prompt_image_size")]
     public long MaxPromptImageSize { get; set; }
 }
 
 /// <summary>Token limits for prompts, outputs, and context window.</summary>
-public class ModelCapabilitiesLimits
+public sealed class ModelCapabilitiesLimits
 {
     /// <summary>Maximum number of prompt/input tokens.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("max_prompt_tokens")]
     public long? MaxPromptTokens { get; set; }
 
     /// <summary>Maximum number of output/completion tokens.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("max_output_tokens")]
     public long? MaxOutputTokens { get; set; }
 
     /// <summary>Maximum total context window size in tokens.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("max_context_window_tokens")]
     public long MaxContextWindowTokens { get; set; }
 
@@ -98,7 +98,7 @@ public class ModelCapabilitiesLimits
 }
 
 /// <summary>Model capabilities and limits.</summary>
-public class ModelCapabilities
+public sealed class ModelCapabilities
 {
     /// <summary>Feature flags indicating what the model supports.</summary>
     [JsonPropertyName("supports")]
@@ -110,7 +110,7 @@ public class ModelCapabilities
 }
 
 /// <summary>Policy state (if applicable).</summary>
-public class ModelPolicy
+public sealed class ModelPolicy
 {
     /// <summary>Current policy state for this model.</summary>
     [JsonPropertyName("state")]
@@ -122,7 +122,7 @@ public class ModelPolicy
 }
 
 /// <summary>Billing information.</summary>
-public class ModelBilling
+public sealed class ModelBilling
 {
     /// <summary>Billing cost multiplier relative to the base rate.</summary>
     [JsonPropertyName("multiplier")]
@@ -130,7 +130,7 @@ public class ModelBilling
 }
 
 /// <summary>RPC data type for Model operations.</summary>
-public class Model
+public sealed class Model
 {
     /// <summary>Model identifier (e.g., "claude-sonnet-4.5").</summary>
     [JsonPropertyName("id")]
@@ -162,15 +162,15 @@ public class Model
 }
 
 /// <summary>RPC data type for ModelList operations.</summary>
-public class ModelList
+public sealed class ModelList
 {
     /// <summary>List of available models with full metadata.</summary>
     [JsonPropertyName("models")]
-    public List<Model> Models { get; set; }
+    public IList<Model> Models { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for Tool operations.</summary>
-public class Tool
+public sealed class Tool
 {
     /// <summary>Tool identifier (e.g., "bash", "grep", "str_replace_editor").</summary>
     [JsonPropertyName("name")]
@@ -194,15 +194,15 @@ public class Tool
 }
 
 /// <summary>RPC data type for ToolList operations.</summary>
-public class ToolList
+public sealed class ToolList
 {
     /// <summary>List of available built-in tools with metadata.</summary>
     [JsonPropertyName("tools")]
-    public List<Tool> Tools { get; set; }
+    public IList<Tool> Tools { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for ToolsList operations.</summary>
-internal class ToolsListRequest
+internal sealed class ToolsListRequest
 {
     /// <summary>Optional model ID — when provided, the returned tool list reflects model-specific overrides.</summary>
     [JsonPropertyName("model")]
@@ -210,14 +210,14 @@ internal class ToolsListRequest
 }
 
 /// <summary>RPC data type for AccountQuotaSnapshot operations.</summary>
-public class AccountQuotaSnapshot
+public sealed class AccountQuotaSnapshot
 {
     /// <summary>Number of requests included in the entitlement.</summary>
     [JsonPropertyName("entitlementRequests")]
     public long EntitlementRequests { get; set; }
 
     /// <summary>Number of requests used so far this period.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("usedRequests")]
     public long UsedRequests { get; set; }
 
@@ -226,7 +226,7 @@ public class AccountQuotaSnapshot
     public double RemainingPercentage { get; set; }
 
     /// <summary>Number of overage requests made this period.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("overage")]
     public long Overage { get; set; }
 
@@ -240,7 +240,7 @@ public class AccountQuotaSnapshot
 }
 
 /// <summary>RPC data type for AccountQuota operations.</summary>
-public class AccountQuota
+public sealed class AccountQuota
 {
     /// <summary>Quota snapshots keyed by type (e.g., chat, completions, premium_interactions).</summary>
     [JsonPropertyName("quotaSnapshots")]
@@ -248,7 +248,7 @@ public class AccountQuota
 }
 
 /// <summary>RPC data type for DiscoveredMcpServer operations.</summary>
-public class DiscoveredMcpServer
+public sealed class DiscoveredMcpServer
 {
     /// <summary>Server name (config key).</summary>
     [RegularExpression("^[0-9a-zA-Z_.@-]+(\\/[0-9a-zA-Z_.@-]+)*$")]
@@ -269,15 +269,15 @@ public class DiscoveredMcpServer
 }
 
 /// <summary>RPC data type for McpDiscover operations.</summary>
-public class McpDiscoverResult
+public sealed class McpDiscoverResult
 {
     /// <summary>MCP servers discovered from all sources.</summary>
     [JsonPropertyName("servers")]
-    public List<DiscoveredMcpServer> Servers { get; set; }
+    public IList<DiscoveredMcpServer> Servers { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for McpDiscover operations.</summary>
-internal class McpDiscoverRequest
+internal sealed class McpDiscoverRequest
 {
     /// <summary>Working directory used as context for discovery (e.g., plugin resolution).</summary>
     [JsonPropertyName("workingDirectory")]
@@ -285,7 +285,7 @@ internal class McpDiscoverRequest
 }
 
 /// <summary>RPC data type for SessionFsSetProvider operations.</summary>
-public class SessionFsSetProviderResult
+public sealed class SessionFsSetProviderResult
 {
     /// <summary>Whether the provider was set successfully.</summary>
     [JsonPropertyName("success")]
@@ -293,7 +293,7 @@ public class SessionFsSetProviderResult
 }
 
 /// <summary>RPC data type for SessionFsSetProvider operations.</summary>
-internal class SessionFsSetProviderRequest
+internal sealed class SessionFsSetProviderRequest
 {
     /// <summary>Initial working directory for sessions.</summary>
     [JsonPropertyName("initialCwd")]
@@ -310,7 +310,7 @@ internal class SessionFsSetProviderRequest
 
 /// <summary>RPC data type for SessionsFork operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-public class SessionsForkResult
+public sealed class SessionsForkResult
 {
     /// <summary>The new forked session's ID.</summary>
     [JsonPropertyName("sessionId")]
@@ -319,7 +319,7 @@ public class SessionsForkResult
 
 /// <summary>RPC data type for SessionsFork operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal class SessionsForkRequest
+internal sealed class SessionsForkRequest
 {
     /// <summary>Source session ID to fork from.</summary>
     [JsonPropertyName("sessionId")]
@@ -331,7 +331,7 @@ internal class SessionsForkRequest
 }
 
 /// <summary>RPC data type for Log operations.</summary>
-public class LogResult
+public sealed class LogResult
 {
     /// <summary>The unique identifier of the emitted session event.</summary>
     [JsonPropertyName("eventId")]
@@ -339,7 +339,7 @@ public class LogResult
 }
 
 /// <summary>RPC data type for Log operations.</summary>
-internal class LogRequest
+internal sealed class LogRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -365,7 +365,7 @@ internal class LogRequest
 }
 
 /// <summary>RPC data type for ModelCurrent operations.</summary>
-public class ModelCurrent
+public sealed class ModelCurrent
 {
     /// <summary>Currently active model identifier.</summary>
     [JsonPropertyName("modelId")]
@@ -373,7 +373,7 @@ public class ModelCurrent
 }
 
 /// <summary>RPC data type for SessionModelGetCurrent operations.</summary>
-internal class SessionModelGetCurrentRequest
+internal sealed class SessionModelGetCurrentRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -381,7 +381,7 @@ internal class SessionModelGetCurrentRequest
 }
 
 /// <summary>RPC data type for ModelSwitchTo operations.</summary>
-public class ModelSwitchToResult
+public sealed class ModelSwitchToResult
 {
     /// <summary>Currently active model identifier after the switch.</summary>
     [JsonPropertyName("modelId")]
@@ -389,7 +389,7 @@ public class ModelSwitchToResult
 }
 
 /// <summary>Feature flags indicating what the model supports.</summary>
-public class ModelCapabilitiesOverrideSupports
+public sealed class ModelCapabilitiesOverrideSupports
 {
     /// <summary>Gets or sets the <c>vision</c> value.</summary>
     [JsonPropertyName("vision")]
@@ -401,38 +401,38 @@ public class ModelCapabilitiesOverrideSupports
 }
 
 /// <summary>RPC data type for ModelCapabilitiesOverrideLimitsVision operations.</summary>
-public class ModelCapabilitiesOverrideLimitsVision
+public sealed class ModelCapabilitiesOverrideLimitsVision
 {
     /// <summary>MIME types the model accepts.</summary>
     [JsonPropertyName("supported_media_types")]
     public IList<string>? SupportedMediaTypes { get; set; }
 
     /// <summary>Maximum number of images per prompt.</summary>
-    [Range(typeof(long), "1", "long.MaxValue")]
+    [Range((double)1, (double)long.MaxValue)]
     [JsonPropertyName("max_prompt_images")]
     public long? MaxPromptImages { get; set; }
 
     /// <summary>Maximum image size in bytes.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("max_prompt_image_size")]
     public long? MaxPromptImageSize { get; set; }
 }
 
 /// <summary>Token limits for prompts, outputs, and context window.</summary>
-public class ModelCapabilitiesOverrideLimits
+public sealed class ModelCapabilitiesOverrideLimits
 {
     /// <summary>Gets or sets the <c>max_prompt_tokens</c> value.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("max_prompt_tokens")]
     public long? MaxPromptTokens { get; set; }
 
     /// <summary>Gets or sets the <c>max_output_tokens</c> value.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("max_output_tokens")]
     public long? MaxOutputTokens { get; set; }
 
     /// <summary>Maximum total context window size in tokens.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("max_context_window_tokens")]
     public long? MaxContextWindowTokens { get; set; }
 
@@ -442,7 +442,7 @@ public class ModelCapabilitiesOverrideLimits
 }
 
 /// <summary>Override individual model capabilities resolved by the runtime.</summary>
-public class ModelCapabilitiesOverride
+public sealed class ModelCapabilitiesOverride
 {
     /// <summary>Feature flags indicating what the model supports.</summary>
     [JsonPropertyName("supports")]
@@ -454,7 +454,7 @@ public class ModelCapabilitiesOverride
 }
 
 /// <summary>RPC data type for ModelSwitchTo operations.</summary>
-internal class ModelSwitchToRequest
+internal sealed class ModelSwitchToRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -474,7 +474,7 @@ internal class ModelSwitchToRequest
 }
 
 /// <summary>RPC data type for SessionModeGet operations.</summary>
-internal class SessionModeGetRequest
+internal sealed class SessionModeGetRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -482,7 +482,7 @@ internal class SessionModeGetRequest
 }
 
 /// <summary>RPC data type for ModeSet operations.</summary>
-internal class ModeSetRequest
+internal sealed class ModeSetRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -494,7 +494,7 @@ internal class ModeSetRequest
 }
 
 /// <summary>RPC data type for Plan operations.</summary>
-public class Plan
+public sealed class Plan
 {
     /// <summary>Whether the plan file exists in the workspace.</summary>
     [JsonPropertyName("exists")]
@@ -510,7 +510,7 @@ public class Plan
 }
 
 /// <summary>RPC data type for SessionPlanRead operations.</summary>
-internal class SessionPlanReadRequest
+internal sealed class SessionPlanReadRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -518,7 +518,7 @@ internal class SessionPlanReadRequest
 }
 
 /// <summary>RPC data type for PlanUpdate operations.</summary>
-internal class PlanUpdateRequest
+internal sealed class PlanUpdateRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -530,7 +530,7 @@ internal class PlanUpdateRequest
 }
 
 /// <summary>RPC data type for SessionPlanDelete operations.</summary>
-internal class SessionPlanDeleteRequest
+internal sealed class SessionPlanDeleteRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -538,7 +538,7 @@ internal class SessionPlanDeleteRequest
 }
 
 /// <summary>RPC data type for WorkspaceFiles operations.</summary>
-public class WorkspaceFiles
+public sealed class WorkspaceFiles
 {
     /// <summary>Relative file paths in the workspace files directory.</summary>
     [JsonPropertyName("files")]
@@ -546,7 +546,7 @@ public class WorkspaceFiles
 }
 
 /// <summary>RPC data type for SessionWorkspaceListFiles operations.</summary>
-internal class SessionWorkspaceListFilesRequest
+internal sealed class SessionWorkspaceListFilesRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -554,7 +554,7 @@ internal class SessionWorkspaceListFilesRequest
 }
 
 /// <summary>RPC data type for WorkspaceReadFile operations.</summary>
-public class WorkspaceReadFileResult
+public sealed class WorkspaceReadFileResult
 {
     /// <summary>File content as a UTF-8 string.</summary>
     [JsonPropertyName("content")]
@@ -562,7 +562,7 @@ public class WorkspaceReadFileResult
 }
 
 /// <summary>RPC data type for WorkspaceReadFile operations.</summary>
-internal class WorkspaceReadFileRequest
+internal sealed class WorkspaceReadFileRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -574,7 +574,7 @@ internal class WorkspaceReadFileRequest
 }
 
 /// <summary>RPC data type for WorkspaceCreateFile operations.</summary>
-internal class WorkspaceCreateFileRequest
+internal sealed class WorkspaceCreateFileRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -591,7 +591,7 @@ internal class WorkspaceCreateFileRequest
 
 /// <summary>RPC data type for FleetStart operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-public class FleetStartResult
+public sealed class FleetStartResult
 {
     /// <summary>Whether fleet mode was successfully activated.</summary>
     [JsonPropertyName("started")]
@@ -600,7 +600,7 @@ public class FleetStartResult
 
 /// <summary>RPC data type for FleetStart operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal class FleetStartRequest
+internal sealed class FleetStartRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -612,7 +612,7 @@ internal class FleetStartRequest
 }
 
 /// <summary>RPC data type for Agent operations.</summary>
-public class Agent
+public sealed class Agent
 {
     /// <summary>Unique identifier of the custom agent.</summary>
     [JsonPropertyName("name")]
@@ -629,16 +629,16 @@ public class Agent
 
 /// <summary>RPC data type for AgentList operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-public class AgentList
+public sealed class AgentList
 {
     /// <summary>Available custom agents.</summary>
     [JsonPropertyName("agents")]
-    public List<Agent> Agents { get; set; }
+    public IList<Agent> Agents { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for SessionAgentList operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal class SessionAgentListRequest
+internal sealed class SessionAgentListRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -646,7 +646,7 @@ internal class SessionAgentListRequest
 }
 
 /// <summary>RPC data type for AgentCurrentAgent operations.</summary>
-public class AgentCurrentAgent
+public sealed class AgentCurrentAgent
 {
     /// <summary>Unique identifier of the custom agent.</summary>
     [JsonPropertyName("name")]
@@ -663,7 +663,7 @@ public class AgentCurrentAgent
 
 /// <summary>RPC data type for AgentCurrent operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-public class AgentCurrent
+public sealed class AgentCurrent
 {
     /// <summary>Currently selected custom agent, or null if using the default agent.</summary>
     [JsonPropertyName("agent")]
@@ -672,7 +672,7 @@ public class AgentCurrent
 
 /// <summary>RPC data type for SessionAgentGetCurrent operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal class SessionAgentGetCurrentRequest
+internal sealed class SessionAgentGetCurrentRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -680,7 +680,7 @@ internal class SessionAgentGetCurrentRequest
 }
 
 /// <summary>The newly selected custom agent.</summary>
-public class AgentSelectAgent
+public sealed class AgentSelectAgent
 {
     /// <summary>Unique identifier of the custom agent.</summary>
     [JsonPropertyName("name")]
@@ -697,7 +697,7 @@ public class AgentSelectAgent
 
 /// <summary>RPC data type for AgentSelect operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-public class AgentSelectResult
+public sealed class AgentSelectResult
 {
     /// <summary>The newly selected custom agent.</summary>
     [JsonPropertyName("agent")]
@@ -706,7 +706,7 @@ public class AgentSelectResult
 
 /// <summary>RPC data type for AgentSelect operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal class AgentSelectRequest
+internal sealed class AgentSelectRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -718,7 +718,7 @@ internal class AgentSelectRequest
 }
 
 /// <summary>RPC data type for SessionAgentDeselect operations.</summary>
-internal class SessionAgentDeselectRequest
+internal sealed class SessionAgentDeselectRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -726,7 +726,7 @@ internal class SessionAgentDeselectRequest
 }
 
 /// <summary>RPC data type for AgentReloadAgent operations.</summary>
-public class AgentReloadAgent
+public sealed class AgentReloadAgent
 {
     /// <summary>Unique identifier of the custom agent.</summary>
     [JsonPropertyName("name")]
@@ -743,16 +743,16 @@ public class AgentReloadAgent
 
 /// <summary>RPC data type for AgentReload operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-public class AgentReload
+public sealed class AgentReload
 {
     /// <summary>Reloaded custom agents.</summary>
     [JsonPropertyName("agents")]
-    public List<AgentReloadAgent> Agents { get; set; }
+    public IList<AgentReloadAgent> Agents { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for SessionAgentReload operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal class SessionAgentReloadRequest
+internal sealed class SessionAgentReloadRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -760,7 +760,7 @@ internal class SessionAgentReloadRequest
 }
 
 /// <summary>RPC data type for Skill operations.</summary>
-public class Skill
+public sealed class Skill
 {
     /// <summary>Unique identifier for the skill.</summary>
     [JsonPropertyName("name")]
@@ -789,16 +789,16 @@ public class Skill
 
 /// <summary>RPC data type for SkillList operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-public class SkillList
+public sealed class SkillList
 {
     /// <summary>Available skills.</summary>
     [JsonPropertyName("skills")]
-    public List<Skill> Skills { get; set; }
+    public IList<Skill> Skills { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for SessionSkillsList operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal class SessionSkillsListRequest
+internal sealed class SessionSkillsListRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -807,7 +807,7 @@ internal class SessionSkillsListRequest
 
 /// <summary>RPC data type for SkillsEnable operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal class SkillsEnableRequest
+internal sealed class SkillsEnableRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -820,7 +820,7 @@ internal class SkillsEnableRequest
 
 /// <summary>RPC data type for SkillsDisable operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal class SkillsDisableRequest
+internal sealed class SkillsDisableRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -832,7 +832,7 @@ internal class SkillsDisableRequest
 }
 
 /// <summary>RPC data type for SessionSkillsReload operations.</summary>
-internal class SessionSkillsReloadRequest
+internal sealed class SessionSkillsReloadRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -840,7 +840,7 @@ internal class SessionSkillsReloadRequest
 }
 
 /// <summary>RPC data type for McpServer operations.</summary>
-public class McpServer
+public sealed class McpServer
 {
     /// <summary>Server name (config key).</summary>
     [RegularExpression("^[0-9a-zA-Z_.@-]+(\\/[0-9a-zA-Z_.@-]+)*$")]
@@ -860,18 +860,18 @@ public class McpServer
     public string? Error { get; set; }
 }
 
-/// <summary>RPC data type for McpList operations.</summary>
+/// <summary>RPC data type for McpServerList operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-public class McpList
+public sealed class McpServerList
 {
     /// <summary>Configured MCP servers.</summary>
     [JsonPropertyName("servers")]
-    public List<McpServer> Servers { get; set; }
+    public IList<McpServer> Servers { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for SessionMcpList operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal class SessionMcpListRequest
+internal sealed class SessionMcpListRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -880,7 +880,7 @@ internal class SessionMcpListRequest
 
 /// <summary>RPC data type for McpEnable operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal class McpEnableRequest
+internal sealed class McpEnableRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -894,7 +894,7 @@ internal class McpEnableRequest
 
 /// <summary>RPC data type for McpDisable operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal class McpDisableRequest
+internal sealed class McpDisableRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -907,7 +907,7 @@ internal class McpDisableRequest
 }
 
 /// <summary>RPC data type for SessionMcpReload operations.</summary>
-internal class SessionMcpReloadRequest
+internal sealed class SessionMcpReloadRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -915,7 +915,7 @@ internal class SessionMcpReloadRequest
 }
 
 /// <summary>RPC data type for Plugin operations.</summary>
-public class Plugin
+public sealed class Plugin
 {
     /// <summary>Plugin name.</summary>
     [JsonPropertyName("name")]
@@ -936,16 +936,16 @@ public class Plugin
 
 /// <summary>RPC data type for PluginList operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-public class PluginList
+public sealed class PluginList
 {
     /// <summary>Installed plugins.</summary>
     [JsonPropertyName("plugins")]
-    public List<Plugin> Plugins { get; set; }
+    public IList<Plugin> Plugins { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for SessionPluginsList operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal class SessionPluginsListRequest
+internal sealed class SessionPluginsListRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -953,7 +953,7 @@ internal class SessionPluginsListRequest
 }
 
 /// <summary>RPC data type for Extension operations.</summary>
-public class Extension
+public sealed class Extension
 {
     /// <summary>Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper').</summary>
     [JsonPropertyName("id")]
@@ -978,16 +978,16 @@ public class Extension
 
 /// <summary>RPC data type for ExtensionList operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-public class ExtensionList
+public sealed class ExtensionList
 {
     /// <summary>Discovered extensions and their current status.</summary>
     [JsonPropertyName("extensions")]
-    public List<Extension> Extensions { get; set; }
+    public IList<Extension> Extensions { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for SessionExtensionsList operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal class SessionExtensionsListRequest
+internal sealed class SessionExtensionsListRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -996,7 +996,7 @@ internal class SessionExtensionsListRequest
 
 /// <summary>RPC data type for ExtensionsEnable operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal class ExtensionsEnableRequest
+internal sealed class ExtensionsEnableRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1009,7 +1009,7 @@ internal class ExtensionsEnableRequest
 
 /// <summary>RPC data type for ExtensionsDisable operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal class ExtensionsDisableRequest
+internal sealed class ExtensionsDisableRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1021,7 +1021,7 @@ internal class ExtensionsDisableRequest
 }
 
 /// <summary>RPC data type for SessionExtensionsReload operations.</summary>
-internal class SessionExtensionsReloadRequest
+internal sealed class SessionExtensionsReloadRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1029,7 +1029,7 @@ internal class SessionExtensionsReloadRequest
 }
 
 /// <summary>RPC data type for HandleToolCall operations.</summary>
-public class HandleToolCallResult
+public sealed class HandleToolCallResult
 {
     /// <summary>Whether the tool call result was handled successfully.</summary>
     [JsonPropertyName("success")]
@@ -1037,7 +1037,7 @@ public class HandleToolCallResult
 }
 
 /// <summary>RPC data type for ToolsHandlePendingToolCall operations.</summary>
-internal class ToolsHandlePendingToolCallRequest
+internal sealed class ToolsHandlePendingToolCallRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1057,7 +1057,7 @@ internal class ToolsHandlePendingToolCallRequest
 }
 
 /// <summary>RPC data type for CommandsHandlePendingCommand operations.</summary>
-public class CommandsHandlePendingCommandResult
+public sealed class CommandsHandlePendingCommandResult
 {
     /// <summary>Whether the command was handled successfully.</summary>
     [JsonPropertyName("success")]
@@ -1065,7 +1065,7 @@ public class CommandsHandlePendingCommandResult
 }
 
 /// <summary>RPC data type for CommandsHandlePendingCommand operations.</summary>
-internal class CommandsHandlePendingCommandRequest
+internal sealed class CommandsHandlePendingCommandRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1081,7 +1081,7 @@ internal class CommandsHandlePendingCommandRequest
 }
 
 /// <summary>The elicitation response (accept with form values, decline, or cancel).</summary>
-public class UiElicitationResponse
+public sealed class UiElicitationResponse
 {
     /// <summary>The user's response: accept (submitted), decline (rejected), or cancel (dismissed).</summary>
     [JsonPropertyName("action")]
@@ -1093,7 +1093,7 @@ public class UiElicitationResponse
 }
 
 /// <summary>JSON Schema describing the form fields to present to the user.</summary>
-public class UiElicitationSchema
+public sealed class UiElicitationSchema
 {
     /// <summary>Schema type indicator (always 'object').</summary>
     [JsonPropertyName("type")]
@@ -1109,7 +1109,7 @@ public class UiElicitationSchema
 }
 
 /// <summary>RPC data type for UiElicitation operations.</summary>
-internal class UiElicitationRequest
+internal sealed class UiElicitationRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1125,7 +1125,7 @@ internal class UiElicitationRequest
 }
 
 /// <summary>RPC data type for UiElicitation operations.</summary>
-public class UiElicitationResult
+public sealed class UiElicitationResult
 {
     /// <summary>Whether the response was accepted. False if the request was already resolved by another client.</summary>
     [JsonPropertyName("success")]
@@ -1133,7 +1133,7 @@ public class UiElicitationResult
 }
 
 /// <summary>RPC data type for HandlePendingElicitation operations.</summary>
-internal class HandlePendingElicitationRequest
+internal sealed class HandlePendingElicitationRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1149,7 +1149,7 @@ internal class HandlePendingElicitationRequest
 }
 
 /// <summary>RPC data type for PermissionRequest operations.</summary>
-public class PermissionRequestResult
+public sealed class PermissionRequestResult
 {
     /// <summary>Whether the permission request was handled successfully.</summary>
     [JsonPropertyName("success")]
@@ -1157,7 +1157,7 @@ public class PermissionRequestResult
 }
 
 /// <summary>RPC data type for PermissionDecision operations.</summary>
-internal class PermissionDecisionRequest
+internal sealed class PermissionDecisionRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1173,7 +1173,7 @@ internal class PermissionDecisionRequest
 }
 
 /// <summary>RPC data type for ShellExec operations.</summary>
-public class ShellExecResult
+public sealed class ShellExecResult
 {
     /// <summary>Unique identifier for tracking streamed output.</summary>
     [JsonPropertyName("processId")]
@@ -1181,7 +1181,7 @@ public class ShellExecResult
 }
 
 /// <summary>RPC data type for ShellExec operations.</summary>
-internal class ShellExecRequest
+internal sealed class ShellExecRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1196,14 +1196,14 @@ internal class ShellExecRequest
     public string? Cwd { get; set; }
 
     /// <summary>Timeout in milliseconds (default: 30000).</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonPropertyName("timeout")]
     public TimeSpan? Timeout { get; set; }
 }
 
 /// <summary>RPC data type for ShellKill operations.</summary>
-public class ShellKillResult
+public sealed class ShellKillResult
 {
     /// <summary>Whether the signal was sent successfully.</summary>
     [JsonPropertyName("killed")]
@@ -1211,7 +1211,7 @@ public class ShellKillResult
 }
 
 /// <summary>RPC data type for ShellKill operations.</summary>
-internal class ShellKillRequest
+internal sealed class ShellKillRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1227,54 +1227,54 @@ internal class ShellKillRequest
 }
 
 /// <summary>Post-compaction context window usage breakdown.</summary>
-public class HistoryCompactContextWindow
+public sealed class HistoryCompactContextWindow
 {
     /// <summary>Maximum token count for the model's context window.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("tokenLimit")]
     public long TokenLimit { get; set; }
 
     /// <summary>Current total tokens in the context window (system + conversation + tool definitions).</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("currentTokens")]
     public long CurrentTokens { get; set; }
 
     /// <summary>Current number of messages in the conversation.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("messagesLength")]
     public long MessagesLength { get; set; }
 
     /// <summary>Token count from system message(s).</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("systemTokens")]
     public long? SystemTokens { get; set; }
 
     /// <summary>Token count from non-system messages (user, assistant, tool).</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("conversationTokens")]
     public long? ConversationTokens { get; set; }
 
     /// <summary>Token count from tool definitions.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("toolDefinitionsTokens")]
     public long? ToolDefinitionsTokens { get; set; }
 }
 
 /// <summary>RPC data type for HistoryCompact operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-public class HistoryCompact
+public sealed class HistoryCompact
 {
     /// <summary>Whether compaction completed successfully.</summary>
     [JsonPropertyName("success")]
     public bool Success { get; set; }
 
     /// <summary>Number of tokens freed by compaction.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("tokensRemoved")]
     public long TokensRemoved { get; set; }
 
     /// <summary>Number of messages removed during compaction.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("messagesRemoved")]
     public long MessagesRemoved { get; set; }
 
@@ -1285,7 +1285,7 @@ public class HistoryCompact
 
 /// <summary>RPC data type for SessionHistoryCompact operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal class SessionHistoryCompactRequest
+internal sealed class SessionHistoryCompactRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1294,17 +1294,17 @@ internal class SessionHistoryCompactRequest
 
 /// <summary>RPC data type for HistoryTruncate operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-public class HistoryTruncateResult
+public sealed class HistoryTruncateResult
 {
     /// <summary>Number of events that were removed.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("eventsRemoved")]
     public long EventsRemoved { get; set; }
 }
 
 /// <summary>RPC data type for HistoryTruncate operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal class HistoryTruncateRequest
+internal sealed class HistoryTruncateRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1316,7 +1316,7 @@ internal class HistoryTruncateRequest
 }
 
 /// <summary>Aggregated code change metrics.</summary>
-public class UsageMetricsCodeChanges
+public sealed class UsageMetricsCodeChanges
 {
     /// <summary>Total lines of code added.</summary>
     [JsonPropertyName("linesAdded")]
@@ -1332,7 +1332,7 @@ public class UsageMetricsCodeChanges
 }
 
 /// <summary>Request count and cost metrics for this model.</summary>
-public class UsageMetricsModelMetricRequests
+public sealed class UsageMetricsModelMetricRequests
 {
     /// <summary>Number of API requests made with this model.</summary>
     [JsonPropertyName("count")]
@@ -1344,36 +1344,36 @@ public class UsageMetricsModelMetricRequests
 }
 
 /// <summary>Token usage metrics for this model.</summary>
-public class UsageMetricsModelMetricUsage
+public sealed class UsageMetricsModelMetricUsage
 {
     /// <summary>Total input tokens consumed.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("inputTokens")]
     public long InputTokens { get; set; }
 
     /// <summary>Total output tokens produced.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("outputTokens")]
     public long OutputTokens { get; set; }
 
     /// <summary>Total tokens read from prompt cache.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("cacheReadTokens")]
     public long CacheReadTokens { get; set; }
 
     /// <summary>Total tokens written to prompt cache.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("cacheWriteTokens")]
     public long CacheWriteTokens { get; set; }
 
     /// <summary>Total output tokens used for reasoning.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("reasoningTokens")]
     public long? ReasoningTokens { get; set; }
 }
 
 /// <summary>RPC data type for UsageMetricsModelMetric operations.</summary>
-public class UsageMetricsModelMetric
+public sealed class UsageMetricsModelMetric
 {
     /// <summary>Request count and cost metrics for this model.</summary>
     [JsonPropertyName("requests")]
@@ -1386,14 +1386,14 @@ public class UsageMetricsModelMetric
 
 /// <summary>RPC data type for UsageMetrics operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-public class UsageMetrics
+public sealed class UsageMetrics
 {
     /// <summary>Total user-initiated premium request cost across all models (may be fractional due to multipliers).</summary>
     [JsonPropertyName("totalPremiumRequestCost")]
     public double TotalPremiumRequestCost { get; set; }
 
     /// <summary>Raw count of user-initiated API requests.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("totalUserRequests")]
     public long TotalUserRequests { get; set; }
 
@@ -1420,19 +1420,19 @@ public class UsageMetrics
     public string? CurrentModel { get; set; }
 
     /// <summary>Input tokens from the most recent main-agent API call.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("lastCallInputTokens")]
     public long LastCallInputTokens { get; set; }
 
     /// <summary>Output tokens from the most recent main-agent API call.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("lastCallOutputTokens")]
     public long LastCallOutputTokens { get; set; }
 }
 
 /// <summary>RPC data type for SessionUsageGetMetrics operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal class SessionUsageGetMetricsRequest
+internal sealed class SessionUsageGetMetricsRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1440,7 +1440,7 @@ internal class SessionUsageGetMetricsRequest
 }
 
 /// <summary>RPC data type for SessionFsReadFile operations.</summary>
-public class SessionFsReadFileResult
+public sealed class SessionFsReadFileResult
 {
     /// <summary>File content as UTF-8 string.</summary>
     [JsonPropertyName("content")]
@@ -1448,7 +1448,7 @@ public class SessionFsReadFileResult
 }
 
 /// <summary>RPC data type for SessionFsReadFile operations.</summary>
-public class SessionFsReadFileRequest
+public sealed class SessionFsReadFileRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1460,7 +1460,7 @@ public class SessionFsReadFileRequest
 }
 
 /// <summary>RPC data type for SessionFsWriteFile operations.</summary>
-public class SessionFsWriteFileRequest
+public sealed class SessionFsWriteFileRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1475,13 +1475,13 @@ public class SessionFsWriteFileRequest
     public string Content { get; set; } = string.Empty;
 
     /// <summary>Optional POSIX-style mode for newly created files.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("mode")]
     public long? Mode { get; set; }
 }
 
 /// <summary>RPC data type for SessionFsAppendFile operations.</summary>
-public class SessionFsAppendFileRequest
+public sealed class SessionFsAppendFileRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1496,13 +1496,13 @@ public class SessionFsAppendFileRequest
     public string Content { get; set; } = string.Empty;
 
     /// <summary>Optional POSIX-style mode for newly created files.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("mode")]
     public long? Mode { get; set; }
 }
 
 /// <summary>RPC data type for SessionFsExists operations.</summary>
-public class SessionFsExistsResult
+public sealed class SessionFsExistsResult
 {
     /// <summary>Whether the path exists.</summary>
     [JsonPropertyName("exists")]
@@ -1510,7 +1510,7 @@ public class SessionFsExistsResult
 }
 
 /// <summary>RPC data type for SessionFsExists operations.</summary>
-public class SessionFsExistsRequest
+public sealed class SessionFsExistsRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1522,7 +1522,7 @@ public class SessionFsExistsRequest
 }
 
 /// <summary>RPC data type for SessionFsStat operations.</summary>
-public class SessionFsStatResult
+public sealed class SessionFsStatResult
 {
     /// <summary>Whether the path is a file.</summary>
     [JsonPropertyName("isFile")]
@@ -1533,7 +1533,7 @@ public class SessionFsStatResult
     public bool IsDirectory { get; set; }
 
     /// <summary>File size in bytes.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("size")]
     public long Size { get; set; }
 
@@ -1547,7 +1547,7 @@ public class SessionFsStatResult
 }
 
 /// <summary>RPC data type for SessionFsStat operations.</summary>
-public class SessionFsStatRequest
+public sealed class SessionFsStatRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1559,7 +1559,7 @@ public class SessionFsStatRequest
 }
 
 /// <summary>RPC data type for SessionFsMkdir operations.</summary>
-public class SessionFsMkdirRequest
+public sealed class SessionFsMkdirRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1574,13 +1574,13 @@ public class SessionFsMkdirRequest
     public bool? Recursive { get; set; }
 
     /// <summary>Optional POSIX-style mode for newly created directories.</summary>
-    [Range(typeof(long), "0", "long.MaxValue")]
+    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("mode")]
     public long? Mode { get; set; }
 }
 
 /// <summary>RPC data type for SessionFsReaddir operations.</summary>
-public class SessionFsReaddirResult
+public sealed class SessionFsReaddirResult
 {
     /// <summary>Entry names in the directory.</summary>
     [JsonPropertyName("entries")]
@@ -1588,7 +1588,7 @@ public class SessionFsReaddirResult
 }
 
 /// <summary>RPC data type for SessionFsReaddir operations.</summary>
-public class SessionFsReaddirRequest
+public sealed class SessionFsReaddirRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1600,7 +1600,7 @@ public class SessionFsReaddirRequest
 }
 
 /// <summary>RPC data type for SessionFsReaddirWithTypesEntry operations.</summary>
-public class SessionFsReaddirWithTypesEntry
+public sealed class SessionFsReaddirWithTypesEntry
 {
     /// <summary>Entry name.</summary>
     [JsonPropertyName("name")]
@@ -1612,15 +1612,15 @@ public class SessionFsReaddirWithTypesEntry
 }
 
 /// <summary>RPC data type for SessionFsReaddirWithTypes operations.</summary>
-public class SessionFsReaddirWithTypesResult
+public sealed class SessionFsReaddirWithTypesResult
 {
     /// <summary>Directory entries with type information.</summary>
     [JsonPropertyName("entries")]
-    public List<SessionFsReaddirWithTypesEntry> Entries { get; set; }
+    public IList<SessionFsReaddirWithTypesEntry> Entries { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for SessionFsReaddirWithTypes operations.</summary>
-public class SessionFsReaddirWithTypesRequest
+public sealed class SessionFsReaddirWithTypesRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1632,7 +1632,7 @@ public class SessionFsReaddirWithTypesRequest
 }
 
 /// <summary>RPC data type for SessionFsRm operations.</summary>
-public class SessionFsRmRequest
+public sealed class SessionFsRmRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1652,7 +1652,7 @@ public class SessionFsRmRequest
 }
 
 /// <summary>RPC data type for SessionFsRename operations.</summary>
-public class SessionFsRenameRequest
+public sealed class SessionFsRenameRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1853,7 +1853,7 @@ public enum SessionFsReaddirWithTypesEntryType
 
 
 /// <summary>Provides server-scoped RPC methods (no session required).</summary>
-public class ServerRpc
+public sealed class ServerRpc
 {
     private readonly JsonRpc _rpc;
 
@@ -1895,7 +1895,7 @@ public class ServerRpc
 }
 
 /// <summary>Provides server-scoped Models APIs.</summary>
-public class ServerModelsApi
+public sealed class ServerModelsApi
 {
     private readonly JsonRpc _rpc;
 
@@ -1912,7 +1912,7 @@ public class ServerModelsApi
 }
 
 /// <summary>Provides server-scoped Tools APIs.</summary>
-public class ServerToolsApi
+public sealed class ServerToolsApi
 {
     private readonly JsonRpc _rpc;
 
@@ -1930,7 +1930,7 @@ public class ServerToolsApi
 }
 
 /// <summary>Provides server-scoped Account APIs.</summary>
-public class ServerAccountApi
+public sealed class ServerAccountApi
 {
     private readonly JsonRpc _rpc;
 
@@ -1947,7 +1947,7 @@ public class ServerAccountApi
 }
 
 /// <summary>Provides server-scoped Mcp APIs.</summary>
-public class ServerMcpApi
+public sealed class ServerMcpApi
 {
     private readonly JsonRpc _rpc;
 
@@ -1965,7 +1965,7 @@ public class ServerMcpApi
 }
 
 /// <summary>Provides server-scoped SessionFs APIs.</summary>
-public class ServerSessionFsApi
+public sealed class ServerSessionFsApi
 {
     private readonly JsonRpc _rpc;
 
@@ -1984,7 +1984,7 @@ public class ServerSessionFsApi
 
 /// <summary>Provides server-scoped Sessions APIs.</summary>
 [Experimental(Diagnostics.Experimental)]
-public class ServerSessionsApi
+public sealed class ServerSessionsApi
 {
     private readonly JsonRpc _rpc;
 
@@ -2002,7 +2002,7 @@ public class ServerSessionsApi
 }
 
 /// <summary>Provides typed session-scoped RPC methods.</summary>
-public class SessionRpc
+public sealed class SessionRpc
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
@@ -2090,7 +2090,7 @@ public class SessionRpc
 }
 
 /// <summary>Provides session-scoped Model APIs.</summary>
-public class ModelApi
+public sealed class ModelApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
@@ -2117,7 +2117,7 @@ public class ModelApi
 }
 
 /// <summary>Provides session-scoped Mode APIs.</summary>
-public class ModeApi
+public sealed class ModeApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
@@ -2144,7 +2144,7 @@ public class ModeApi
 }
 
 /// <summary>Provides session-scoped Plan APIs.</summary>
-public class PlanApi
+public sealed class PlanApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
@@ -2178,7 +2178,7 @@ public class PlanApi
 }
 
 /// <summary>Provides session-scoped Workspace APIs.</summary>
-public class WorkspaceApi
+public sealed class WorkspaceApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
@@ -2213,7 +2213,7 @@ public class WorkspaceApi
 
 /// <summary>Provides session-scoped Fleet APIs.</summary>
 [Experimental(Diagnostics.Experimental)]
-public class FleetApi
+public sealed class FleetApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
@@ -2233,7 +2233,7 @@ public class FleetApi
 }
 
 /// <summary>Provides session-scoped Agent APIs.</summary>
-public class AgentApi
+public sealed class AgentApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
@@ -2285,7 +2285,7 @@ public class AgentApi
 }
 
 /// <summary>Provides session-scoped Skills APIs.</summary>
-public class SkillsApi
+public sealed class SkillsApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
@@ -2329,7 +2329,7 @@ public class SkillsApi
 }
 
 /// <summary>Provides session-scoped Mcp APIs.</summary>
-public class McpApi
+public sealed class McpApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
@@ -2342,10 +2342,10 @@ public class McpApi
 
     /// <summary>Calls "session.mcp.list".</summary>
     [Experimental(Diagnostics.Experimental)]
-    public async Task<McpList> ListAsync(CancellationToken cancellationToken = default)
+    public async Task<McpServerList> ListAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionMcpListRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<McpList>(_rpc, "session.mcp.list", [request], cancellationToken);
+        return await CopilotClient.InvokeRpcAsync<McpServerList>(_rpc, "session.mcp.list", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.mcp.enable".</summary>
@@ -2374,7 +2374,7 @@ public class McpApi
 
 /// <summary>Provides session-scoped Plugins APIs.</summary>
 [Experimental(Diagnostics.Experimental)]
-public class PluginsApi
+public sealed class PluginsApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
@@ -2394,7 +2394,7 @@ public class PluginsApi
 }
 
 /// <summary>Provides session-scoped Extensions APIs.</summary>
-public class ExtensionsApi
+public sealed class ExtensionsApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
@@ -2438,7 +2438,7 @@ public class ExtensionsApi
 }
 
 /// <summary>Provides session-scoped Tools APIs.</summary>
-public class ToolsApi
+public sealed class ToolsApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
@@ -2458,7 +2458,7 @@ public class ToolsApi
 }
 
 /// <summary>Provides session-scoped Commands APIs.</summary>
-public class CommandsApi
+public sealed class CommandsApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
@@ -2478,7 +2478,7 @@ public class CommandsApi
 }
 
 /// <summary>Provides session-scoped Ui APIs.</summary>
-public class UiApi
+public sealed class UiApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
@@ -2505,7 +2505,7 @@ public class UiApi
 }
 
 /// <summary>Provides session-scoped Permissions APIs.</summary>
-public class PermissionsApi
+public sealed class PermissionsApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
@@ -2525,7 +2525,7 @@ public class PermissionsApi
 }
 
 /// <summary>Provides session-scoped Shell APIs.</summary>
-public class ShellApi
+public sealed class ShellApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
@@ -2553,7 +2553,7 @@ public class ShellApi
 
 /// <summary>Provides session-scoped History APIs.</summary>
 [Experimental(Diagnostics.Experimental)]
-public class HistoryApi
+public sealed class HistoryApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
@@ -2581,7 +2581,7 @@ public class HistoryApi
 
 /// <summary>Provides session-scoped Usage APIs.</summary>
 [Experimental(Diagnostics.Experimental)]
-public class UsageApi
+public sealed class UsageApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
@@ -2626,7 +2626,7 @@ public interface ISessionFsHandler
 }
 
 /// <summary>Provides all client session API handler groups for a session.</summary>
-public class ClientSessionApiHandlers
+public sealed class ClientSessionApiHandlers
 {
     /// <summary>Optional handler for SessionFs client session API methods.</summary>
     public ISessionFsHandler? SessionFs { get; set; }
@@ -2781,8 +2781,8 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(McpDiscoverRequest))]
 [JsonSerializable(typeof(McpDiscoverResult))]
 [JsonSerializable(typeof(McpEnableRequest))]
-[JsonSerializable(typeof(McpList))]
 [JsonSerializable(typeof(McpServer))]
+[JsonSerializable(typeof(McpServerList))]
 [JsonSerializable(typeof(ModeSetRequest))]
 [JsonSerializable(typeof(Model))]
 [JsonSerializable(typeof(ModelBilling))]
