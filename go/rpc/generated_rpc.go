@@ -164,6 +164,9 @@ type MCPConfigServer struct {
 	URL                                                         *string                 `json:"url,omitempty"`
 }
 
+type MCPConfigAddResult struct {
+}
+
 type MCPConfigAddRequest struct {
 	Config                           MCPConfigAddConfig `json:"config"`
 	// Unique name for the MCP server
@@ -189,6 +192,9 @@ type MCPConfigAddConfig struct {
 	URL                                                         *string                 `json:"url,omitempty"`
 }
 
+type MCPConfigUpdateResult struct {
+}
+
 type MCPConfigUpdateRequest struct {
 	Config                             MCPConfigUpdateConfig `json:"config"`
 	// Name of the MCP server to update
@@ -212,6 +218,9 @@ type MCPConfigUpdateConfig struct {
 	OauthClientID                                               *string                 `json:"oauthClientId,omitempty"`
 	OauthPublicClient                                           *bool                   `json:"oauthPublicClient,omitempty"`
 	URL                                                         *string                 `json:"url,omitempty"`
+}
+
+type MCPConfigRemoveResult struct {
 }
 
 type MCPConfigRemoveRequest struct {
@@ -873,6 +882,9 @@ type SessionFSReadFileRequest struct {
 	SessionID                          string `json:"sessionId"`
 }
 
+type SessionFSWriteFileResult struct {
+}
+
 type SessionFSWriteFileRequest struct {
 	// Content to write
 	Content                                             string `json:"content"`
@@ -882,6 +894,9 @@ type SessionFSWriteFileRequest struct {
 	Path                                                string `json:"path"`
 	// Target session identifier
 	SessionID                                           string `json:"sessionId"`
+}
+
+type SessionFSAppendFileResult struct {
 }
 
 type SessionFSAppendFileRequest struct {
@@ -927,6 +942,9 @@ type SessionFSStatRequest struct {
 	SessionID                          string `json:"sessionId"`
 }
 
+type SessionFSMkdirResult struct {
+}
+
 type SessionFSMkdirRequest struct {
 	// Optional POSIX-style mode for newly created directories
 	Mode                                                      *int64 `json:"mode,omitempty"`
@@ -968,6 +986,9 @@ type SessionFSReaddirWithTypesRequest struct {
 	SessionID                          string `json:"sessionId"`
 }
 
+type SessionFSRmResult struct {
+}
+
 type SessionFSRmRequest struct {
 	// Ignore errors if the path does not exist
 	Force                                               *bool  `json:"force,omitempty"`
@@ -977,6 +998,9 @@ type SessionFSRmRequest struct {
 	Recursive                                           *bool  `json:"recursive,omitempty"`
 	// Target session identifier
 	SessionID                                           string `json:"sessionId"`
+}
+
+type SessionFSRenameResult struct {
 }
 
 type SessionFSRenameRequest struct {
@@ -2015,15 +2039,15 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 
 type SessionFsHandler interface {
 	ReadFile(request *SessionFSReadFileRequest) (*SessionFSReadFileResult, error)
-	WriteFile(request *SessionFSWriteFileRequest) error
-	AppendFile(request *SessionFSAppendFileRequest) error
+	WriteFile(request *SessionFSWriteFileRequest) (*SessionFSWriteFileResult, error)
+	AppendFile(request *SessionFSAppendFileRequest) (*SessionFSAppendFileResult, error)
 	Exists(request *SessionFSExistsRequest) (*SessionFSExistsResult, error)
 	Stat(request *SessionFSStatRequest) (*SessionFSStatResult, error)
-	Mkdir(request *SessionFSMkdirRequest) error
+	Mkdir(request *SessionFSMkdirRequest) (*SessionFSMkdirResult, error)
 	Readdir(request *SessionFSReaddirRequest) (*SessionFSReaddirResult, error)
 	ReaddirWithTypes(request *SessionFSReaddirWithTypesRequest) (*SessionFSReaddirWithTypesResult, error)
-	Rm(request *SessionFSRmRequest) error
-	Rename(request *SessionFSRenameRequest) error
+	Rm(request *SessionFSRmRequest) (*SessionFSRmResult, error)
+	Rename(request *SessionFSRenameRequest) (*SessionFSRenameResult, error)
 }
 
 // ClientSessionApiHandlers provides all client session API handler groups for a session.
@@ -2072,10 +2096,15 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		if handlers == nil || handlers.SessionFs == nil {
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
-		if err := handlers.SessionFs.WriteFile(&request); err != nil {
+		result, err := handlers.SessionFs.WriteFile(&request)
+		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
-		return json.RawMessage("null"), nil
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
 	})
 	client.SetRequestHandler("sessionFs.appendFile", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		var request SessionFSAppendFileRequest
@@ -2086,10 +2115,15 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		if handlers == nil || handlers.SessionFs == nil {
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
-		if err := handlers.SessionFs.AppendFile(&request); err != nil {
+		result, err := handlers.SessionFs.AppendFile(&request)
+		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
-		return json.RawMessage("null"), nil
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
 	})
 	client.SetRequestHandler("sessionFs.exists", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		var request SessionFSExistsRequest
@@ -2138,10 +2172,15 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		if handlers == nil || handlers.SessionFs == nil {
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
-		if err := handlers.SessionFs.Mkdir(&request); err != nil {
+		result, err := handlers.SessionFs.Mkdir(&request)
+		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
-		return json.RawMessage("null"), nil
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
 	})
 	client.SetRequestHandler("sessionFs.readdir", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		var request SessionFSReaddirRequest
@@ -2190,10 +2229,15 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		if handlers == nil || handlers.SessionFs == nil {
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
-		if err := handlers.SessionFs.Rm(&request); err != nil {
+		result, err := handlers.SessionFs.Rm(&request)
+		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
-		return json.RawMessage("null"), nil
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
 	})
 	client.SetRequestHandler("sessionFs.rename", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		var request SessionFSRenameRequest
@@ -2204,9 +2248,14 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		if handlers == nil || handlers.SessionFs == nil {
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
-		if err := handlers.SessionFs.Rename(&request); err != nil {
+		result, err := handlers.SessionFs.Rename(&request)
+		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}
-		return json.RawMessage("null"), nil
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
 	})
 }

@@ -866,6 +866,9 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     for (const method of allMethods) {
         if (method.result) {
             combinedSchema.definitions![goResultTypeName(method)] = method.result;
+        } else {
+            // Emit an empty struct for void results (forward-compatible with adding fields later)
+            combinedSchema.definitions![goResultTypeName(method)] = { type: "object", properties: {}, additionalProperties: false };
         }
         if (method.params?.properties && Object.keys(method.params.properties).length > 0) {
             // For session methods, filter out sessionId from params type
@@ -1067,8 +1070,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
 
 function emitMethod(lines: string[], receiver: string, name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, fieldNames: Map<string, Map<string, string>>, groupExperimental = false, isWrapper = false): void {
     const methodName = toPascalCase(name);
-    const hasResult = !!method.result;
-    const resultType = hasResult ? resolveType(goResultTypeName(method)) : "";
+    const resultType = resolveType(goResultTypeName(method));
 
     const paramProps = method.params?.properties || {};
     const requiredParams = new Set(method.params?.required || []);
@@ -1083,15 +1085,11 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
     if (method.stability === "experimental" && !groupExperimental) {
         lines.push(`// Experimental: ${methodName} is an experimental API and may change or be removed in future versions.`);
     }
-
-    const returnType = hasResult ? `(*${resultType}, error)` : `error`;
     const sig = hasParams
-        ? `func (a *${receiver}) ${methodName}(ctx context.Context, params *${paramsType}) ${returnType}`
-        : `func (a *${receiver}) ${methodName}(ctx context.Context) ${returnType}`;
+        ? `func (a *${receiver}) ${methodName}(ctx context.Context, params *${paramsType}) (*${resultType}, error)`
+        : `func (a *${receiver}) ${methodName}(ctx context.Context) (*${resultType}, error)`;
 
     lines.push(sig + ` {`);
-
-    const errReturn = hasResult ? `return nil, err` : `return err`;
 
     if (isSession) {
         lines.push(`\treq := map[string]any{"sessionId": ${sessionIDRef}}`);
@@ -1118,18 +1116,13 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
     }
 
     lines.push(`\tif err != nil {`);
-    lines.push(`\t\t${errReturn}`);
+    lines.push(`\t\treturn nil, err`);
     lines.push(`\t}`);
-
-    if (hasResult) {
-        lines.push(`\tvar result ${resultType}`);
-        lines.push(`\tif err := json.Unmarshal(raw, &result); err != nil {`);
-        lines.push(`\t\treturn nil, err`);
-        lines.push(`\t}`);
-        lines.push(`\treturn &result, nil`);
-    } else {
-        lines.push(`\treturn nil`);
-    }
+    lines.push(`\tvar result ${resultType}`);
+    lines.push(`\tif err := json.Unmarshal(raw, &result); err != nil {`);
+    lines.push(`\t\treturn nil, err`);
+    lines.push(`\t}`);
+    lines.push(`\treturn &result, nil`);
     lines.push(`}`);
     lines.push(``);
 }
@@ -1177,12 +1170,8 @@ function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<
                 lines.push(`\t// Experimental: ${clientHandlerMethodName(method.rpcMethod)} is an experimental API and may change or be removed in future versions.`);
             }
             const paramsType = resolveType(goParamsTypeName(method));
-            if (method.result) {
-                const resultType = resolveType(goResultTypeName(method));
-                lines.push(`\t${clientHandlerMethodName(method.rpcMethod)}(request *${paramsType}) (*${resultType}, error)`);
-            } else {
-                lines.push(`\t${clientHandlerMethodName(method.rpcMethod)}(request *${paramsType}) error`);
-            }
+            const resultType = resolveType(goResultTypeName(method));
+            lines.push(`\t${clientHandlerMethodName(method.rpcMethod)}(request *${paramsType}) (*${resultType}, error)`);
         }
         lines.push(`}`);
         lines.push(``);
@@ -1223,22 +1212,15 @@ function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<
             lines.push(`\t\tif handlers == nil || handlers.${handlerField} == nil {`);
             lines.push(`\t\t\treturn nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No ${groupName} handler registered for session: %s", request.SessionID)}`);
             lines.push(`\t\t}`);
-            if (method.result) {
-                lines.push(`\t\tresult, err := handlers.${handlerField}.${clientHandlerMethodName(method.rpcMethod)}(&request)`);
-                lines.push(`\t\tif err != nil {`);
-                lines.push(`\t\t\treturn nil, clientSessionHandlerError(err)`);
-                lines.push(`\t\t}`);
-                lines.push(`\t\traw, err := json.Marshal(result)`);
-                lines.push(`\t\tif err != nil {`);
-                lines.push(`\t\t\treturn nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}`);
-                lines.push(`\t\t}`);
-                lines.push(`\t\treturn raw, nil`);
-            } else {
-                lines.push(`\t\tif err := handlers.${handlerField}.${clientHandlerMethodName(method.rpcMethod)}(&request); err != nil {`);
-                lines.push(`\t\t\treturn nil, clientSessionHandlerError(err)`);
-                lines.push(`\t\t}`);
-                lines.push(`\t\treturn json.RawMessage("null"), nil`);
-            }
+            lines.push(`\t\tresult, err := handlers.${handlerField}.${clientHandlerMethodName(method.rpcMethod)}(&request)`);
+            lines.push(`\t\tif err != nil {`);
+            lines.push(`\t\t\treturn nil, clientSessionHandlerError(err)`);
+            lines.push(`\t\t}`);
+            lines.push(`\t\traw, err := json.Marshal(result)`);
+            lines.push(`\t\tif err != nil {`);
+            lines.push(`\t\t\treturn nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}`);
+            lines.push(`\t\t}`);
+            lines.push(`\t\treturn raw, nil`);
             lines.push(`\t})`);
         }
     }
