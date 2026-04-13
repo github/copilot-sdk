@@ -239,8 +239,8 @@ public sealed class AccountQuotaSnapshot
     public DateTimeOffset? ResetDate { get; set; }
 }
 
-/// <summary>RPC data type for AccountQuota operations.</summary>
-public sealed class AccountQuota
+/// <summary>RPC data type for AccountGetQuota operations.</summary>
+public sealed class AccountGetQuotaResult
 {
     /// <summary>Quota snapshots keyed by type (e.g., chat, completions, premium_interactions).</summary>
     [JsonPropertyName("quotaSnapshots")]
@@ -493,8 +493,8 @@ internal sealed class ModeSetRequest
     public SessionMode Mode { get; set; }
 }
 
-/// <summary>RPC data type for Plan operations.</summary>
-public sealed class Plan
+/// <summary>RPC data type for PlanRead operations.</summary>
+public sealed class PlanReadResult
 {
     /// <summary>Whether the plan file exists in the workspace.</summary>
     [JsonPropertyName("exists")]
@@ -537,8 +537,8 @@ internal sealed class SessionPlanDeleteRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for WorkspaceFiles operations.</summary>
-public sealed class WorkspaceFiles
+/// <summary>RPC data type for WorkspaceListFiles operations.</summary>
+public sealed class WorkspaceListFilesResult
 {
     /// <summary>Relative file paths in the workspace files directory.</summary>
     [JsonPropertyName("files")]
@@ -645,8 +645,8 @@ internal sealed class SessionAgentListRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for AgentCurrentAgent operations.</summary>
-public sealed class AgentCurrentAgent
+/// <summary>RPC data type for AgentGetCurrentResultAgent operations.</summary>
+public sealed class AgentGetCurrentResultAgent
 {
     /// <summary>Unique identifier of the custom agent.</summary>
     [JsonPropertyName("name")]
@@ -661,13 +661,13 @@ public sealed class AgentCurrentAgent
     public string Description { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for AgentCurrent operations.</summary>
+/// <summary>RPC data type for AgentGetCurrent operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-public sealed class AgentCurrent
+public sealed class AgentGetCurrentResult
 {
     /// <summary>Currently selected custom agent, or null if using the default agent.</summary>
     [JsonPropertyName("agent")]
-    public AgentCurrentAgent? Agent { get; set; }
+    public AgentGetCurrentResultAgent? Agent { get; set; }
 }
 
 /// <summary>RPC data type for SessionAgentGetCurrent operations.</summary>
@@ -744,7 +744,7 @@ public sealed class AgentReloadAgent
 
 /// <summary>RPC data type for AgentReload operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-public sealed class AgentReload
+public sealed class AgentReloadResult
 {
     /// <summary>Reloaded custom agents.</summary>
     [JsonPropertyName("agents")]
@@ -1266,7 +1266,7 @@ public sealed class HistoryCompactContextWindow
 
 /// <summary>RPC data type for HistoryCompact operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-public sealed class HistoryCompact
+public sealed class HistoryCompactResult
 {
     /// <summary>Whether compaction completed successfully.</summary>
     [JsonPropertyName("success")]
@@ -1388,9 +1388,9 @@ public sealed class UsageMetricsModelMetric
     public UsageMetricsModelMetricUsage Usage { get => field ??= new(); set; }
 }
 
-/// <summary>RPC data type for UsageMetrics operations.</summary>
+/// <summary>RPC data type for UsageGetMetrics operations.</summary>
 [Experimental(Diagnostics.Experimental)]
-public sealed class UsageMetrics
+public sealed class UsageGetMetricsResult
 {
     /// <summary>Total user-initiated premium request cost across all models (may be fractional due to multipliers).</summary>
     [JsonPropertyName("totalPremiumRequestCost")]
@@ -1944,9 +1944,9 @@ public sealed class ServerAccountApi
     }
 
     /// <summary>Calls "account.getQuota".</summary>
-    public async Task<AccountQuota> GetQuotaAsync(CancellationToken cancellationToken = default)
+    public async Task<AccountGetQuotaResult> GetQuotaAsync(CancellationToken cancellationToken = default)
     {
-        return await CopilotClient.InvokeRpcAsync<AccountQuota>(_rpc, "account.getQuota", [], cancellationToken);
+        return await CopilotClient.InvokeRpcAsync<AccountGetQuotaResult>(_rpc, "account.getQuota", [], cancellationToken);
     }
 }
 
@@ -2160,10 +2160,10 @@ public sealed class PlanApi
     }
 
     /// <summary>Calls "session.plan.read".</summary>
-    public async Task<Plan> ReadAsync(CancellationToken cancellationToken = default)
+    public async Task<PlanReadResult> ReadAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionPlanReadRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<Plan>(_rpc, "session.plan.read", [request], cancellationToken);
+        return await CopilotClient.InvokeRpcAsync<PlanReadResult>(_rpc, "session.plan.read", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.plan.update".</summary>
@@ -2194,10 +2194,10 @@ public sealed class WorkspaceApi
     }
 
     /// <summary>Calls "session.workspace.listFiles".</summary>
-    public async Task<WorkspaceFiles> ListFilesAsync(CancellationToken cancellationToken = default)
+    public async Task<WorkspaceListFilesResult> ListFilesAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionWorkspaceListFilesRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<WorkspaceFiles>(_rpc, "session.workspace.listFiles", [request], cancellationToken);
+        return await CopilotClient.InvokeRpcAsync<WorkspaceListFilesResult>(_rpc, "session.workspace.listFiles", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.workspace.readFile".</summary>
@@ -2257,10 +2257,10 @@ public sealed class AgentApi
     }
 
     /// <summary>Calls "session.agent.getCurrent".</summary>
-    public async Task<AgentCurrent> GetCurrentAsync(CancellationToken cancellationToken = default)
+    public async Task<AgentGetCurrentResult> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionAgentGetCurrentRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<AgentCurrent>(_rpc, "session.agent.getCurrent", [request], cancellationToken);
+        return await CopilotClient.InvokeRpcAsync<AgentGetCurrentResult>(_rpc, "session.agent.getCurrent", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.agent.select".</summary>
@@ -2278,10 +2278,10 @@ public sealed class AgentApi
     }
 
     /// <summary>Calls "session.agent.reload".</summary>
-    public async Task<AgentReload> ReloadAsync(CancellationToken cancellationToken = default)
+    public async Task<AgentReloadResult> ReloadAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionAgentReloadRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<AgentReload>(_rpc, "session.agent.reload", [request], cancellationToken);
+        return await CopilotClient.InvokeRpcAsync<AgentReloadResult>(_rpc, "session.agent.reload", [request], cancellationToken);
     }
 }
 
@@ -2560,10 +2560,10 @@ public sealed class HistoryApi
     }
 
     /// <summary>Calls "session.history.compact".</summary>
-    public async Task<HistoryCompact> CompactAsync(CancellationToken cancellationToken = default)
+    public async Task<HistoryCompactResult> CompactAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionHistoryCompactRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<HistoryCompact>(_rpc, "session.history.compact", [request], cancellationToken);
+        return await CopilotClient.InvokeRpcAsync<HistoryCompactResult>(_rpc, "session.history.compact", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.history.truncate".</summary>
@@ -2588,10 +2588,10 @@ public sealed class UsageApi
     }
 
     /// <summary>Calls "session.usage.getMetrics".</summary>
-    public async Task<UsageMetrics> GetMetricsAsync(CancellationToken cancellationToken = default)
+    public async Task<UsageGetMetricsResult> GetMetricsAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionUsageGetMetricsRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<UsageMetrics>(_rpc, "session.usage.getMetrics", [request], cancellationToken);
+        return await CopilotClient.InvokeRpcAsync<UsageGetMetricsResult>(_rpc, "session.usage.getMetrics", [request], cancellationToken);
     }
 }
 
@@ -2744,14 +2744,14 @@ public static class ClientSessionApiRegistration
     JsonSerializerDefaults.Web,
     AllowOutOfOrderMetadataProperties = true,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
-[JsonSerializable(typeof(AccountQuota))]
+[JsonSerializable(typeof(AccountGetQuotaResult))]
 [JsonSerializable(typeof(AccountQuotaSnapshot))]
 [JsonSerializable(typeof(Agent))]
-[JsonSerializable(typeof(AgentCurrent))]
-[JsonSerializable(typeof(AgentCurrentAgent))]
+[JsonSerializable(typeof(AgentGetCurrentResult))]
+[JsonSerializable(typeof(AgentGetCurrentResultAgent))]
 [JsonSerializable(typeof(AgentList))]
-[JsonSerializable(typeof(AgentReload))]
 [JsonSerializable(typeof(AgentReloadAgent))]
+[JsonSerializable(typeof(AgentReloadResult))]
 [JsonSerializable(typeof(AgentSelectAgent))]
 [JsonSerializable(typeof(AgentSelectRequest))]
 [JsonSerializable(typeof(AgentSelectResult))]
@@ -2766,8 +2766,8 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(FleetStartRequest))]
 [JsonSerializable(typeof(FleetStartResult))]
 [JsonSerializable(typeof(HandleToolCallResult))]
-[JsonSerializable(typeof(HistoryCompact))]
 [JsonSerializable(typeof(HistoryCompactContextWindow))]
+[JsonSerializable(typeof(HistoryCompactResult))]
 [JsonSerializable(typeof(HistoryTruncateRequest))]
 [JsonSerializable(typeof(HistoryTruncateResult))]
 [JsonSerializable(typeof(LogRequest))]
@@ -2797,7 +2797,7 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(PermissionRequestResult))]
 [JsonSerializable(typeof(PingRequest))]
 [JsonSerializable(typeof(PingResult))]
-[JsonSerializable(typeof(Plan))]
+[JsonSerializable(typeof(PlanReadResult))]
 [JsonSerializable(typeof(PlanUpdateRequest))]
 [JsonSerializable(typeof(Plugin))]
 [JsonSerializable(typeof(PluginList))]
@@ -2857,13 +2857,13 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(UIElicitationResult))]
 [JsonSerializable(typeof(UIElicitationSchema))]
 [JsonSerializable(typeof(UIHandlePendingElicitationRequest))]
-[JsonSerializable(typeof(UsageMetrics))]
+[JsonSerializable(typeof(UsageGetMetricsResult))]
 [JsonSerializable(typeof(UsageMetricsCodeChanges))]
 [JsonSerializable(typeof(UsageMetricsModelMetric))]
 [JsonSerializable(typeof(UsageMetricsModelMetricRequests))]
 [JsonSerializable(typeof(UsageMetricsModelMetricUsage))]
 [JsonSerializable(typeof(WorkspaceCreateFileRequest))]
-[JsonSerializable(typeof(WorkspaceFiles))]
+[JsonSerializable(typeof(WorkspaceListFilesResult))]
 [JsonSerializable(typeof(WorkspaceReadFileRequest))]
 [JsonSerializable(typeof(WorkspaceReadFileResult))]
 internal partial class RpcJsonContext : JsonSerializerContext;

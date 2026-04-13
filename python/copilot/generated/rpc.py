@@ -454,15 +454,15 @@ class AccountQuotaSnapshot:
         return result
 
 @dataclass
-class AccountQuota:
+class AccountGetQuotaResult:
     quota_snapshots: dict[str, AccountQuotaSnapshot]
     """Quota snapshots keyed by type (e.g., chat, completions, premium_interactions)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'AccountQuota':
+    def from_dict(obj: Any) -> 'AccountGetQuotaResult':
         assert isinstance(obj, dict)
         quota_snapshots = from_dict(AccountQuotaSnapshot.from_dict, obj.get("quotaSnapshots"))
-        return AccountQuota(quota_snapshots)
+        return AccountGetQuotaResult(quota_snapshots)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -1131,7 +1131,7 @@ class ModeSetRequest:
         return result
 
 @dataclass
-class Plan:
+class PlanReadResult:
     exists: bool
     """Whether the plan file exists in the workspace"""
 
@@ -1142,12 +1142,12 @@ class Plan:
     """Absolute file path of the plan file, or null if workspace is not enabled"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'Plan':
+    def from_dict(obj: Any) -> 'PlanReadResult':
         assert isinstance(obj, dict)
         exists = from_bool(obj.get("exists"))
         content = from_union([from_none, from_str], obj.get("content"))
         path = from_union([from_none, from_str], obj.get("path"))
-        return Plan(exists, content, path)
+        return PlanReadResult(exists, content, path)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -1173,15 +1173,15 @@ class PlanUpdateRequest:
         return result
 
 @dataclass
-class WorkspaceFiles:
+class WorkspaceListFilesResult:
     files: list[str]
     """Relative file paths in the workspace files directory"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'WorkspaceFiles':
+    def from_dict(obj: Any) -> 'WorkspaceListFilesResult':
         assert isinstance(obj, dict)
         files = from_list(from_str, obj.get("files"))
-        return WorkspaceFiles(files)
+        return WorkspaceListFilesResult(files)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -1320,7 +1320,7 @@ class AgentList:
         return result
 
 @dataclass
-class AgentCurrentAgent:
+class AgentGetCurrentResultAgent:
     description: str
     """Description of the agent's purpose"""
 
@@ -1331,12 +1331,12 @@ class AgentCurrentAgent:
     """Unique identifier of the custom agent"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'AgentCurrentAgent':
+    def from_dict(obj: Any) -> 'AgentGetCurrentResultAgent':
         assert isinstance(obj, dict)
         description = from_str(obj.get("description"))
         display_name = from_str(obj.get("displayName"))
         name = from_str(obj.get("name"))
-        return AgentCurrentAgent(description, display_name, name)
+        return AgentGetCurrentResultAgent(description, display_name, name)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -1347,19 +1347,19 @@ class AgentCurrentAgent:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class AgentCurrent:
-    agent: AgentCurrentAgent | None = None
+class AgentGetCurrentResult:
+    agent: AgentGetCurrentResultAgent | None = None
     """Currently selected custom agent, or null if using the default agent"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'AgentCurrent':
+    def from_dict(obj: Any) -> 'AgentGetCurrentResult':
         assert isinstance(obj, dict)
-        agent = from_union([AgentCurrentAgent.from_dict, from_none], obj.get("agent"))
-        return AgentCurrent(agent)
+        agent = from_union([AgentGetCurrentResultAgent.from_dict, from_none], obj.get("agent"))
+        return AgentGetCurrentResult(agent)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["agent"] = from_union([lambda x: to_class(AgentCurrentAgent, x), from_none], self.agent)
+        result["agent"] = from_union([lambda x: to_class(AgentGetCurrentResultAgent, x), from_none], self.agent)
         return result
 
 @dataclass
@@ -1452,15 +1452,15 @@ class AgentReloadAgent:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class AgentReload:
+class AgentReloadResult:
     agents: list[AgentReloadAgent]
     """Reloaded custom agents"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'AgentReload':
+    def from_dict(obj: Any) -> 'AgentReloadResult':
         assert isinstance(obj, dict)
         agents = from_list(AgentReloadAgent.from_dict, obj.get("agents"))
-        return AgentReload(agents)
+        return AgentReloadResult(agents)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -2486,7 +2486,7 @@ class HistoryCompactContextWindow:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class HistoryCompact:
+class HistoryCompactResult:
     messages_removed: int
     """Number of messages removed during compaction"""
 
@@ -2500,13 +2500,13 @@ class HistoryCompact:
     """Post-compaction context window usage breakdown"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'HistoryCompact':
+    def from_dict(obj: Any) -> 'HistoryCompactResult':
         assert isinstance(obj, dict)
         messages_removed = from_int(obj.get("messagesRemoved"))
         success = from_bool(obj.get("success"))
         tokens_removed = from_int(obj.get("tokensRemoved"))
         context_window = from_union([HistoryCompactContextWindow.from_dict, from_none], obj.get("contextWindow"))
-        return HistoryCompact(messages_removed, success, tokens_removed, context_window)
+        return HistoryCompactResult(messages_removed, success, tokens_removed, context_window)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -2664,7 +2664,7 @@ class UsageMetricsModelMetric:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class UsageMetrics:
+class UsageGetMetricsResult:
     code_changes: UsageMetricsCodeChanges
     """Aggregated code change metrics"""
 
@@ -2694,7 +2694,7 @@ class UsageMetrics:
     """Currently active model identifier"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UsageMetrics':
+    def from_dict(obj: Any) -> 'UsageGetMetricsResult':
         assert isinstance(obj, dict)
         code_changes = UsageMetricsCodeChanges.from_dict(obj.get("codeChanges"))
         last_call_input_tokens = from_int(obj.get("lastCallInputTokens"))
@@ -2705,7 +2705,7 @@ class UsageMetrics:
         total_premium_request_cost = from_float(obj.get("totalPremiumRequestCost"))
         total_user_requests = from_int(obj.get("totalUserRequests"))
         current_model = from_union([from_str, from_none], obj.get("currentModel"))
-        return UsageMetrics(code_changes, last_call_input_tokens, last_call_output_tokens, model_metrics, session_start_time, total_api_duration_ms, total_premium_request_cost, total_user_requests, current_model)
+        return UsageGetMetricsResult(code_changes, last_call_input_tokens, last_call_output_tokens, model_metrics, session_start_time, total_api_duration_ms, total_premium_request_cost, total_user_requests, current_model)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -3139,11 +3139,11 @@ def tools_list_request_from_dict(s: Any) -> ToolsListRequest:
 def tools_list_request_to_dict(x: ToolsListRequest) -> Any:
     return to_class(ToolsListRequest, x)
 
-def account_quota_from_dict(s: Any) -> AccountQuota:
-    return AccountQuota.from_dict(s)
+def account_get_quota_result_from_dict(s: Any) -> AccountGetQuotaResult:
+    return AccountGetQuotaResult.from_dict(s)
 
-def account_quota_to_dict(x: AccountQuota) -> Any:
-    return to_class(AccountQuota, x)
+def account_get_quota_result_to_dict(x: AccountGetQuotaResult) -> Any:
+    return to_class(AccountGetQuotaResult, x)
 
 def mcp_config_list_from_dict(s: Any) -> MCPConfigList:
     return MCPConfigList.from_dict(s)
@@ -3235,11 +3235,11 @@ def mode_set_request_from_dict(s: Any) -> ModeSetRequest:
 def mode_set_request_to_dict(x: ModeSetRequest) -> Any:
     return to_class(ModeSetRequest, x)
 
-def plan_from_dict(s: Any) -> Plan:
-    return Plan.from_dict(s)
+def plan_read_result_from_dict(s: Any) -> PlanReadResult:
+    return PlanReadResult.from_dict(s)
 
-def plan_to_dict(x: Plan) -> Any:
-    return to_class(Plan, x)
+def plan_read_result_to_dict(x: PlanReadResult) -> Any:
+    return to_class(PlanReadResult, x)
 
 def plan_update_request_from_dict(s: Any) -> PlanUpdateRequest:
     return PlanUpdateRequest.from_dict(s)
@@ -3247,11 +3247,11 @@ def plan_update_request_from_dict(s: Any) -> PlanUpdateRequest:
 def plan_update_request_to_dict(x: PlanUpdateRequest) -> Any:
     return to_class(PlanUpdateRequest, x)
 
-def workspace_files_from_dict(s: Any) -> WorkspaceFiles:
-    return WorkspaceFiles.from_dict(s)
+def workspace_list_files_result_from_dict(s: Any) -> WorkspaceListFilesResult:
+    return WorkspaceListFilesResult.from_dict(s)
 
-def workspace_files_to_dict(x: WorkspaceFiles) -> Any:
-    return to_class(WorkspaceFiles, x)
+def workspace_list_files_result_to_dict(x: WorkspaceListFilesResult) -> Any:
+    return to_class(WorkspaceListFilesResult, x)
 
 def workspace_read_file_result_from_dict(s: Any) -> WorkspaceReadFileResult:
     return WorkspaceReadFileResult.from_dict(s)
@@ -3289,11 +3289,11 @@ def agent_list_from_dict(s: Any) -> AgentList:
 def agent_list_to_dict(x: AgentList) -> Any:
     return to_class(AgentList, x)
 
-def agent_current_from_dict(s: Any) -> AgentCurrent:
-    return AgentCurrent.from_dict(s)
+def agent_get_current_result_from_dict(s: Any) -> AgentGetCurrentResult:
+    return AgentGetCurrentResult.from_dict(s)
 
-def agent_current_to_dict(x: AgentCurrent) -> Any:
-    return to_class(AgentCurrent, x)
+def agent_get_current_result_to_dict(x: AgentGetCurrentResult) -> Any:
+    return to_class(AgentGetCurrentResult, x)
 
 def agent_select_result_from_dict(s: Any) -> AgentSelectResult:
     return AgentSelectResult.from_dict(s)
@@ -3307,11 +3307,11 @@ def agent_select_request_from_dict(s: Any) -> AgentSelectRequest:
 def agent_select_request_to_dict(x: AgentSelectRequest) -> Any:
     return to_class(AgentSelectRequest, x)
 
-def agent_reload_from_dict(s: Any) -> AgentReload:
-    return AgentReload.from_dict(s)
+def agent_reload_result_from_dict(s: Any) -> AgentReloadResult:
+    return AgentReloadResult.from_dict(s)
 
-def agent_reload_to_dict(x: AgentReload) -> Any:
-    return to_class(AgentReload, x)
+def agent_reload_result_to_dict(x: AgentReloadResult) -> Any:
+    return to_class(AgentReloadResult, x)
 
 def skill_list_from_dict(s: Any) -> SkillList:
     return SkillList.from_dict(s)
@@ -3469,11 +3469,11 @@ def shell_kill_request_from_dict(s: Any) -> ShellKillRequest:
 def shell_kill_request_to_dict(x: ShellKillRequest) -> Any:
     return to_class(ShellKillRequest, x)
 
-def history_compact_from_dict(s: Any) -> HistoryCompact:
-    return HistoryCompact.from_dict(s)
+def history_compact_result_from_dict(s: Any) -> HistoryCompactResult:
+    return HistoryCompactResult.from_dict(s)
 
-def history_compact_to_dict(x: HistoryCompact) -> Any:
-    return to_class(HistoryCompact, x)
+def history_compact_result_to_dict(x: HistoryCompactResult) -> Any:
+    return to_class(HistoryCompactResult, x)
 
 def history_truncate_result_from_dict(s: Any) -> HistoryTruncateResult:
     return HistoryTruncateResult.from_dict(s)
@@ -3487,11 +3487,11 @@ def history_truncate_request_from_dict(s: Any) -> HistoryTruncateRequest:
 def history_truncate_request_to_dict(x: HistoryTruncateRequest) -> Any:
     return to_class(HistoryTruncateRequest, x)
 
-def usage_metrics_from_dict(s: Any) -> UsageMetrics:
-    return UsageMetrics.from_dict(s)
+def usage_get_metrics_result_from_dict(s: Any) -> UsageGetMetricsResult:
+    return UsageGetMetricsResult.from_dict(s)
 
-def usage_metrics_to_dict(x: UsageMetrics) -> Any:
-    return to_class(UsageMetrics, x)
+def usage_get_metrics_result_to_dict(x: UsageGetMetricsResult) -> Any:
+    return to_class(UsageGetMetricsResult, x)
 
 def session_fs_read_file_result_from_dict(s: Any) -> SessionFSReadFileResult:
     return SessionFSReadFileResult.from_dict(s)
@@ -3612,8 +3612,8 @@ class ServerAccountApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
-    async def get_quota(self, *, timeout: float | None = None) -> AccountQuota:
-        return AccountQuota.from_dict(await self._client.request("account.getQuota", {}, **_timeout_kwargs(timeout)))
+    async def get_quota(self, *, timeout: float | None = None) -> AccountGetQuotaResult:
+        return AccountGetQuotaResult.from_dict(await self._client.request("account.getQuota", {}, **_timeout_kwargs(timeout)))
 
 
 class ServerMcpApi:
@@ -3693,8 +3693,8 @@ class PlanApi:
         self._client = client
         self._session_id = session_id
 
-    async def read(self, *, timeout: float | None = None) -> Plan:
-        return Plan.from_dict(await self._client.request("session.plan.read", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+    async def read(self, *, timeout: float | None = None) -> PlanReadResult:
+        return PlanReadResult.from_dict(await self._client.request("session.plan.read", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def update(self, params: PlanUpdateRequest, *, timeout: float | None = None) -> None:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -3710,8 +3710,8 @@ class WorkspaceApi:
         self._client = client
         self._session_id = session_id
 
-    async def list_files(self, *, timeout: float | None = None) -> WorkspaceFiles:
-        return WorkspaceFiles.from_dict(await self._client.request("session.workspace.listFiles", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+    async def list_files(self, *, timeout: float | None = None) -> WorkspaceListFilesResult:
+        return WorkspaceListFilesResult.from_dict(await self._client.request("session.workspace.listFiles", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def read_file(self, params: WorkspaceReadFileRequest, *, timeout: float | None = None) -> WorkspaceReadFileResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -3745,8 +3745,8 @@ class AgentApi:
     async def list(self, *, timeout: float | None = None) -> AgentList:
         return AgentList.from_dict(await self._client.request("session.agent.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
-    async def get_current(self, *, timeout: float | None = None) -> AgentCurrent:
-        return AgentCurrent.from_dict(await self._client.request("session.agent.getCurrent", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+    async def get_current(self, *, timeout: float | None = None) -> AgentGetCurrentResult:
+        return AgentGetCurrentResult.from_dict(await self._client.request("session.agent.getCurrent", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def select(self, params: AgentSelectRequest, *, timeout: float | None = None) -> AgentSelectResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -3756,8 +3756,8 @@ class AgentApi:
     async def deselect(self, *, timeout: float | None = None) -> None:
         await self._client.request("session.agent.deselect", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
-    async def reload(self, *, timeout: float | None = None) -> AgentReload:
-        return AgentReload.from_dict(await self._client.request("session.agent.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+    async def reload(self, *, timeout: float | None = None) -> AgentReloadResult:
+        return AgentReloadResult.from_dict(await self._client.request("session.agent.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
 # Experimental: this API group is experimental and may change or be removed.
@@ -3910,8 +3910,8 @@ class HistoryApi:
         self._client = client
         self._session_id = session_id
 
-    async def compact(self, *, timeout: float | None = None) -> HistoryCompact:
-        return HistoryCompact.from_dict(await self._client.request("session.history.compact", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+    async def compact(self, *, timeout: float | None = None) -> HistoryCompactResult:
+        return HistoryCompactResult.from_dict(await self._client.request("session.history.compact", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def truncate(self, params: HistoryTruncateRequest, *, timeout: float | None = None) -> HistoryTruncateResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -3925,8 +3925,8 @@ class UsageApi:
         self._client = client
         self._session_id = session_id
 
-    async def get_metrics(self, *, timeout: float | None = None) -> UsageMetrics:
-        return UsageMetrics.from_dict(await self._client.request("session.usage.getMetrics", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+    async def get_metrics(self, *, timeout: float | None = None) -> UsageGetMetricsResult:
+        return UsageGetMetricsResult.from_dict(await self._client.request("session.usage.getMetrics", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
 class SessionRpc:

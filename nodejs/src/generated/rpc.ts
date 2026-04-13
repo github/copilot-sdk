@@ -163,7 +163,7 @@ export interface ToolsListRequest {
   model?: string;
 }
 
-export interface AccountQuota {
+export interface AccountGetQuotaResult {
   /**
    * Quota snapshots keyed by type (e.g., chat, completions, premium_interactions)
    */
@@ -544,7 +544,7 @@ export interface ModeSetRequest {
   mode: SessionMode;
 }
 
-export interface Plan {
+export interface PlanReadResult {
   /**
    * Whether the plan file exists in the workspace
    */
@@ -584,7 +584,7 @@ export interface SessionPlanDeleteRequest {
   sessionId: string;
 }
 
-export interface WorkspaceFiles {
+export interface WorkspaceListFilesResult {
   /**
    * Relative file paths in the workspace files directory
    */
@@ -681,7 +681,7 @@ export interface SessionAgentListRequest {
 }
 
 /** @experimental */
-export interface AgentCurrent {
+export interface AgentGetCurrentResult {
   /**
    * Currently selected custom agent, or null if using the default agent
    */
@@ -751,7 +751,7 @@ export interface SessionAgentDeselectRequest {
 }
 
 /** @experimental */
-export interface AgentReload {
+export interface AgentReloadResult {
   /**
    * Reloaded custom agents
    */
@@ -1378,7 +1378,7 @@ export interface ShellKillRequest {
 }
 
 /** @experimental */
-export interface HistoryCompact {
+export interface HistoryCompactResult {
   /**
    * Whether compaction completed successfully
    */
@@ -1451,7 +1451,7 @@ export interface HistoryTruncateRequest {
 }
 
 /** @experimental */
-export interface UsageMetrics {
+export interface UsageGetMetricsResult {
   /**
    * Total user-initiated premium request cost across all models (may be fractional due to multipliers)
    */
@@ -1772,7 +1772,7 @@ export function createServerRpc(connection: MessageConnection) {
                 connection.sendRequest("tools.list", params),
         },
         account: {
-            getQuota: async (): Promise<AccountQuota> =>
+            getQuota: async (): Promise<AccountGetQuotaResult> =>
                 connection.sendRequest("account.getQuota", {}),
         },
         mcp: {
@@ -1817,7 +1817,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.mode.set", { sessionId, ...params }),
         },
         plan: {
-            read: async (): Promise<Plan> =>
+            read: async (): Promise<PlanReadResult> =>
                 connection.sendRequest("session.plan.read", { sessionId }),
             update: async (params: Omit<PlanUpdateRequest, "sessionId">): Promise<void> =>
                 connection.sendRequest("session.plan.update", { sessionId, ...params }),
@@ -1825,7 +1825,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                 connection.sendRequest("session.plan.delete", { sessionId }),
         },
         workspace: {
-            listFiles: async (): Promise<WorkspaceFiles> =>
+            listFiles: async (): Promise<WorkspaceListFilesResult> =>
                 connection.sendRequest("session.workspace.listFiles", { sessionId }),
             readFile: async (params: Omit<WorkspaceReadFileRequest, "sessionId">): Promise<WorkspaceReadFileResult> =>
                 connection.sendRequest("session.workspace.readFile", { sessionId, ...params }),
@@ -1841,13 +1841,13 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         agent: {
             list: async (): Promise<AgentList> =>
                 connection.sendRequest("session.agent.list", { sessionId }),
-            getCurrent: async (): Promise<AgentCurrent> =>
+            getCurrent: async (): Promise<AgentGetCurrentResult> =>
                 connection.sendRequest("session.agent.getCurrent", { sessionId }),
             select: async (params: Omit<AgentSelectRequest, "sessionId">): Promise<AgentSelectResult> =>
                 connection.sendRequest("session.agent.select", { sessionId, ...params }),
             deselect: async (): Promise<void> =>
                 connection.sendRequest("session.agent.deselect", { sessionId }),
-            reload: async (): Promise<AgentReload> =>
+            reload: async (): Promise<AgentReloadResult> =>
                 connection.sendRequest("session.agent.reload", { sessionId }),
         },
         /** @experimental */
@@ -1916,14 +1916,14 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
         },
         /** @experimental */
         history: {
-            compact: async (): Promise<HistoryCompact> =>
+            compact: async (): Promise<HistoryCompactResult> =>
                 connection.sendRequest("session.history.compact", { sessionId }),
             truncate: async (params: Omit<HistoryTruncateRequest, "sessionId">): Promise<HistoryTruncateResult> =>
                 connection.sendRequest("session.history.truncate", { sessionId, ...params }),
         },
         /** @experimental */
         usage: {
-            getMetrics: async (): Promise<UsageMetrics> =>
+            getMetrics: async (): Promise<UsageGetMetricsResult> =>
                 connection.sendRequest("session.usage.getMetrics", { sessionId }),
         },
     };

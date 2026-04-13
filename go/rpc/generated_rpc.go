@@ -125,7 +125,7 @@ type ToolsListRequest struct {
 	Model *string `json:"model,omitempty"`
 }
 
-type AccountQuota struct {
+type AccountGetQuotaResult struct {
 	// Quota snapshots keyed by type (e.g., chat, completions, premium_interactions)
 	QuotaSnapshots map[string]AccountQuotaSnapshot `json:"quotaSnapshots"`
 }
@@ -344,7 +344,7 @@ type ModeSetRequest struct {
 	Mode SessionMode `json:"mode"`
 }
 
-type Plan struct {
+type PlanReadResult struct {
 	// The content of the plan file, or null if it does not exist
 	Content *string `json:"content"`
 	// Whether the plan file exists in the workspace
@@ -361,10 +361,10 @@ type PlanUpdateRequest struct {
 	Content string `json:"content"`
 }
 
-type PlanDelete struct {
+type PlanDeleteResult struct {
 }
 
-type WorkspaceFiles struct {
+type WorkspaceListFilesResult struct {
 	// Relative file paths in the workspace files directory
 	Files []string `json:"files"`
 }
@@ -416,13 +416,13 @@ type Agent struct {
 	Name string `json:"name"`
 }
 
-// Experimental: AgentCurrent is part of an experimental API and may change or be removed.
-type AgentCurrent struct {
+// Experimental: AgentGetCurrentResult is part of an experimental API and may change or be removed.
+type AgentGetCurrentResult struct {
 	// Currently selected custom agent, or null if using the default agent
-	Agent *AgentCurrentAgent `json:"agent"`
+	Agent *AgentGetCurrentResultAgent `json:"agent"`
 }
 
-type AgentCurrentAgent struct {
+type AgentGetCurrentResultAgent struct {
 	// Description of the agent's purpose
 	Description string `json:"description"`
 	// Human-readable display name
@@ -453,12 +453,12 @@ type AgentSelectRequest struct {
 	Name string `json:"name"`
 }
 
-// Experimental: AgentDeselect is part of an experimental API and may change or be removed.
-type AgentDeselect struct {
+// Experimental: AgentDeselectResult is part of an experimental API and may change or be removed.
+type AgentDeselectResult struct {
 }
 
-// Experimental: AgentReload is part of an experimental API and may change or be removed.
-type AgentReload struct {
+// Experimental: AgentReloadResult is part of an experimental API and may change or be removed.
+type AgentReloadResult struct {
 	// Reloaded custom agents
 	Agents []AgentReloadAgent `json:"agents"`
 }
@@ -513,8 +513,8 @@ type SkillsDisableRequest struct {
 	Name string `json:"name"`
 }
 
-// Experimental: SkillsReload is part of an experimental API and may change or be removed.
-type SkillsReload struct {
+// Experimental: SkillsReloadResult is part of an experimental API and may change or be removed.
+type SkillsReloadResult struct {
 }
 
 type MCPServerList struct {
@@ -549,7 +549,7 @@ type MCPDisableRequest struct {
 	ServerName string `json:"serverName"`
 }
 
-type MCPReload struct {
+type MCPReloadResult struct {
 }
 
 // Experimental: PluginList is part of an experimental API and may change or be removed.
@@ -608,8 +608,8 @@ type ExtensionsDisableRequest struct {
 	ID string `json:"id"`
 }
 
-// Experimental: ExtensionsReload is part of an experimental API and may change or be removed.
-type ExtensionsReload struct {
+// Experimental: ExtensionsReloadResult is part of an experimental API and may change or be removed.
+type ExtensionsReloadResult struct {
 }
 
 type HandleToolCallResult struct {
@@ -802,8 +802,8 @@ type ShellKillRequest struct {
 	Signal *ShellKillSignal `json:"signal,omitempty"`
 }
 
-// Experimental: HistoryCompact is part of an experimental API and may change or be removed.
-type HistoryCompact struct {
+// Experimental: HistoryCompactResult is part of an experimental API and may change or be removed.
+type HistoryCompactResult struct {
 	// Post-compaction context window usage breakdown
 	ContextWindow *HistoryCompactContextWindow `json:"contextWindow,omitempty"`
 	// Number of messages removed during compaction
@@ -842,8 +842,8 @@ type HistoryTruncateRequest struct {
 	EventID string `json:"eventId"`
 }
 
-// Experimental: UsageMetrics is part of an experimental API and may change or be removed.
-type UsageMetrics struct {
+// Experimental: UsageGetMetricsResult is part of an experimental API and may change or be removed.
+type UsageGetMetricsResult struct {
 	// Aggregated code change metrics
 	CodeChanges UsageMetricsCodeChanges `json:"codeChanges"`
 	// Currently active model identifier
@@ -1263,12 +1263,12 @@ func (a *ServerToolsApi) List(ctx context.Context, params *ToolsListRequest) (*T
 
 type ServerAccountApi serverApi
 
-func (a *ServerAccountApi) GetQuota(ctx context.Context) (*AccountQuota, error) {
+func (a *ServerAccountApi) GetQuota(ctx context.Context) (*AccountGetQuotaResult, error) {
 	raw, err := a.client.Request("account.getQuota", nil)
 	if err != nil {
 		return nil, err
 	}
-	var result AccountQuota
+	var result AccountGetQuotaResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -1429,13 +1429,13 @@ func (a *ModeApi) Set(ctx context.Context, params *ModeSetRequest) (*ModeSetResu
 
 type PlanApi sessionApi
 
-func (a *PlanApi) Read(ctx context.Context) (*Plan, error) {
+func (a *PlanApi) Read(ctx context.Context) (*PlanReadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.plan.read", req)
 	if err != nil {
 		return nil, err
 	}
-	var result Plan
+	var result PlanReadResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -1458,13 +1458,13 @@ func (a *PlanApi) Update(ctx context.Context, params *PlanUpdateRequest) (*PlanU
 	return &result, nil
 }
 
-func (a *PlanApi) Delete(ctx context.Context) (*PlanDelete, error) {
+func (a *PlanApi) Delete(ctx context.Context) (*PlanDeleteResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.plan.delete", req)
 	if err != nil {
 		return nil, err
 	}
-	var result PlanDelete
+	var result PlanDeleteResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -1473,13 +1473,13 @@ func (a *PlanApi) Delete(ctx context.Context) (*PlanDelete, error) {
 
 type WorkspaceApi sessionApi
 
-func (a *WorkspaceApi) ListFiles(ctx context.Context) (*WorkspaceFiles, error) {
+func (a *WorkspaceApi) ListFiles(ctx context.Context) (*WorkspaceListFilesResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.workspace.listFiles", req)
 	if err != nil {
 		return nil, err
 	}
-	var result WorkspaceFiles
+	var result WorkspaceListFilesResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -1556,13 +1556,13 @@ func (a *AgentApi) List(ctx context.Context) (*AgentList, error) {
 	return &result, nil
 }
 
-func (a *AgentApi) GetCurrent(ctx context.Context) (*AgentCurrent, error) {
+func (a *AgentApi) GetCurrent(ctx context.Context) (*AgentGetCurrentResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.agent.getCurrent", req)
 	if err != nil {
 		return nil, err
 	}
-	var result AgentCurrent
+	var result AgentGetCurrentResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -1585,26 +1585,26 @@ func (a *AgentApi) Select(ctx context.Context, params *AgentSelectRequest) (*Age
 	return &result, nil
 }
 
-func (a *AgentApi) Deselect(ctx context.Context) (*AgentDeselect, error) {
+func (a *AgentApi) Deselect(ctx context.Context) (*AgentDeselectResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.agent.deselect", req)
 	if err != nil {
 		return nil, err
 	}
-	var result AgentDeselect
+	var result AgentDeselectResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-func (a *AgentApi) Reload(ctx context.Context) (*AgentReload, error) {
+func (a *AgentApi) Reload(ctx context.Context) (*AgentReloadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.agent.reload", req)
 	if err != nil {
 		return nil, err
 	}
-	var result AgentReload
+	var result AgentReloadResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -1659,13 +1659,13 @@ func (a *SkillsApi) Disable(ctx context.Context, params *SkillsDisableRequest) (
 	return &result, nil
 }
 
-func (a *SkillsApi) Reload(ctx context.Context) (*SkillsReload, error) {
+func (a *SkillsApi) Reload(ctx context.Context) (*SkillsReloadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.skills.reload", req)
 	if err != nil {
 		return nil, err
 	}
-	var result SkillsReload
+	var result SkillsReloadResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -1720,13 +1720,13 @@ func (a *McpApi) Disable(ctx context.Context, params *MCPDisableRequest) (*MCPDi
 	return &result, nil
 }
 
-func (a *McpApi) Reload(ctx context.Context) (*MCPReload, error) {
+func (a *McpApi) Reload(ctx context.Context) (*MCPReloadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.mcp.reload", req)
 	if err != nil {
 		return nil, err
 	}
-	var result MCPReload
+	var result MCPReloadResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -1797,13 +1797,13 @@ func (a *ExtensionsApi) Disable(ctx context.Context, params *ExtensionsDisableRe
 	return &result, nil
 }
 
-func (a *ExtensionsApi) Reload(ctx context.Context) (*ExtensionsReload, error) {
+func (a *ExtensionsApi) Reload(ctx context.Context) (*ExtensionsReloadResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.extensions.reload", req)
 	if err != nil {
 		return nil, err
 	}
-	var result ExtensionsReload
+	var result ExtensionsReloadResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -1956,13 +1956,13 @@ func (a *ShellApi) Kill(ctx context.Context, params *ShellKillRequest) (*ShellKi
 // Experimental: HistoryApi contains experimental APIs that may change or be removed.
 type HistoryApi sessionApi
 
-func (a *HistoryApi) Compact(ctx context.Context) (*HistoryCompact, error) {
+func (a *HistoryApi) Compact(ctx context.Context) (*HistoryCompactResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.history.compact", req)
 	if err != nil {
 		return nil, err
 	}
-	var result HistoryCompact
+	var result HistoryCompactResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -1988,13 +1988,13 @@ func (a *HistoryApi) Truncate(ctx context.Context, params *HistoryTruncateReques
 // Experimental: UsageApi contains experimental APIs that may change or be removed.
 type UsageApi sessionApi
 
-func (a *UsageApi) GetMetrics(ctx context.Context) (*UsageMetrics, error) {
+func (a *UsageApi) GetMetrics(ctx context.Context) (*UsageGetMetricsResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.usage.getMetrics", req)
 	if err != nil {
 		return nil, err
 	}
-	var result UsageMetrics
+	var result UsageGetMetricsResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
