@@ -1232,8 +1232,9 @@ class CopilotSession:
         Implements the protocol v3 broadcast model where tool calls and permission requests
         are broadcast as session events to all clients.
         """
-        if event.type == SessionEventType.EXTERNAL_TOOL_REQUESTED:
-            data = cast(ExternalToolRequestedData, event.data)
+        data = event.data
+
+        if isinstance(data, ExternalToolRequestedData):
             request_id = data.request_id
             tool_name = data.tool_name
             if not request_id or not tool_name:
@@ -1253,8 +1254,7 @@ class CopilotSession:
                 )
             )
 
-        elif event.type == SessionEventType.PERMISSION_REQUESTED:
-            data = cast(PermissionRequestedData, event.data)
+        elif isinstance(data, PermissionRequestedData):
             request_id = data.request_id
             permission_request = data.permission_request
             if not request_id or not permission_request:
@@ -1273,8 +1273,7 @@ class CopilotSession:
                 self._execute_permission_and_respond(request_id, permission_request, perm_handler)
             )
 
-        elif event.type == SessionEventType.COMMAND_EXECUTE:
-            data = cast(CommandExecuteData, event.data)
+        elif isinstance(data, CommandExecuteData):
             request_id = data.request_id
             command_name = data.command_name
             command = data.command
@@ -1287,8 +1286,7 @@ class CopilotSession:
                 )
             )
 
-        elif event.type == SessionEventType.ELICITATION_REQUESTED:
-            data = cast(ElicitationRequestedData, event.data)
+        elif isinstance(data, ElicitationRequestedData):
             with self._elicitation_handler_lock:
                 handler = self._elicitation_handler
             if not handler:
@@ -1310,8 +1308,7 @@ class CopilotSession:
                 context["url"] = data.url
             asyncio.ensure_future(self._handle_elicitation_request(context, request_id))
 
-        elif event.type == SessionEventType.CAPABILITIES_CHANGED:
-            data = cast(CapabilitiesChangedData, event.data)
+        elif isinstance(data, CapabilitiesChangedData):
             cap: SessionCapabilities = {}
             if data.ui is not None:
                 ui_cap: SessionUiCapabilities = {}
