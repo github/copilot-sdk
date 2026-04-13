@@ -1993,12 +1993,18 @@ type PermissionRequestedDataPermissionRequest struct {
 	ReadOnly *bool `json:"readOnly,omitempty"`
 	// URL to be fetched
 	URL *string `json:"url,omitempty"`
-	// Topic or subject of the memory being stored
+	// Whether this is a store or vote memory operation
+	Action *PermissionRequestedDataPermissionRequestAction `json:"action,omitempty"`
+	// Topic or subject of the memory (store only)
 	Subject *string `json:"subject,omitempty"`
-	// The fact or convention being stored
+	// The fact being stored or voted on
 	Fact *string `json:"fact,omitempty"`
-	// Source references for the stored fact
+	// Source references for the stored fact (store only)
 	Citations *string `json:"citations,omitempty"`
+	// Vote direction (vote only)
+	Direction *PermissionRequestedDataPermissionRequestDirection `json:"direction,omitempty"`
+	// Reason for the vote (vote only)
+	Reason *string `json:"reason,omitempty"`
 	// Description of what the custom tool does
 	ToolDescription *string `json:"toolDescription,omitempty"`
 	// Arguments of the tool call being gated
@@ -2235,6 +2241,22 @@ const (
 	PermissionRequestedDataPermissionRequestKindMemory     PermissionRequestedDataPermissionRequestKind = "memory"
 	PermissionRequestedDataPermissionRequestKindCustomTool PermissionRequestedDataPermissionRequestKind = "custom-tool"
 	PermissionRequestedDataPermissionRequestKindHook       PermissionRequestedDataPermissionRequestKind = "hook"
+)
+
+// Whether this is a store or vote memory operation
+type PermissionRequestedDataPermissionRequestAction string
+
+const (
+	PermissionRequestedDataPermissionRequestActionStore PermissionRequestedDataPermissionRequestAction = "store"
+	PermissionRequestedDataPermissionRequestActionVote  PermissionRequestedDataPermissionRequestAction = "vote"
+)
+
+// Vote direction (vote only)
+type PermissionRequestedDataPermissionRequestDirection string
+
+const (
+	PermissionRequestedDataPermissionRequestDirectionUpvote   PermissionRequestedDataPermissionRequestDirection = "upvote"
+	PermissionRequestedDataPermissionRequestDirectionDownvote PermissionRequestedDataPermissionRequestDirection = "downvote"
 )
 
 // The outcome of the permission request

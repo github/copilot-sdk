@@ -240,6 +240,42 @@ public class AccountGetQuotaResult
     public IDictionary<string, AccountGetQuotaResultQuotaSnapshotsValue> QuotaSnapshots { get => field ??= new Dictionary<string, AccountGetQuotaResultQuotaSnapshotsValue>(); set; }
 }
 
+/// <summary>RPC data type for DiscoveredMcpServer operations.</summary>
+public class DiscoveredMcpServer
+{
+    /// <summary>Server name (config key).</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Server type: local, stdio, http, or sse.</summary>
+    [JsonPropertyName("type")]
+    public string? Type { get; set; }
+
+    /// <summary>Configuration source.</summary>
+    [JsonPropertyName("source")]
+    public DiscoveredMcpServerSource Source { get; set; }
+
+    /// <summary>Whether the server is enabled (not in the disabled list).</summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+}
+
+/// <summary>RPC data type for McpDiscover operations.</summary>
+public class McpDiscoverResult
+{
+    /// <summary>MCP servers discovered from all sources.</summary>
+    [JsonPropertyName("servers")]
+    public IList<DiscoveredMcpServer> Servers { get => field ??= []; set; }
+}
+
+/// <summary>RPC data type for McpDiscover operations.</summary>
+internal class McpDiscoverRequest
+{
+    /// <summary>Working directory used as context for discovery (e.g., plugin resolution).</summary>
+    [JsonPropertyName("workingDirectory")]
+    public string? WorkingDirectory { get; set; }
+}
+
 /// <summary>RPC data type for SessionFsSetProvider operations.</summary>
 public class SessionFsSetProviderResult
 {
@@ -1070,15 +1106,15 @@ internal class SessionToolsHandlePendingToolCallRequest
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>requestId</c> value.</summary>
+    /// <summary>Request ID of the pending tool call.</summary>
     [JsonPropertyName("requestId")]
     public string RequestId { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>result</c> value.</summary>
+    /// <summary>Tool call result (string or expanded result object).</summary>
     [JsonPropertyName("result")]
     public object? Result { get; set; }
 
-    /// <summary>Gets or sets the <c>error</c> value.</summary>
+    /// <summary>Error message if the tool call failed.</summary>
     [JsonPropertyName("error")]
     public string? Error { get; set; }
 }
@@ -1086,7 +1122,7 @@ internal class SessionToolsHandlePendingToolCallRequest
 /// <summary>RPC data type for SessionCommandsHandlePendingCommand operations.</summary>
 public class SessionCommandsHandlePendingCommandResult
 {
-    /// <summary>Gets or sets the <c>success</c> value.</summary>
+    /// <summary>Whether the command was handled successfully.</summary>
     [JsonPropertyName("success")]
     public bool Success { get; set; }
 }
@@ -1202,7 +1238,7 @@ internal class SessionPermissionsHandlePendingPermissionRequestRequest
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the <c>requestId</c> value.</summary>
+    /// <summary>Request ID of the pending permission request.</summary>
     [JsonPropertyName("requestId")]
     public string RequestId { get; set; } = string.Empty;
 
@@ -1263,6 +1299,34 @@ internal class SessionShellKillRequest
     public SessionShellKillRequestSignal? Signal { get; set; }
 }
 
+/// <summary>Post-compaction context window usage breakdown.</summary>
+public class SessionHistoryCompactResultContextWindow
+{
+    /// <summary>Maximum token count for the model's context window.</summary>
+    [JsonPropertyName("tokenLimit")]
+    public double TokenLimit { get; set; }
+
+    /// <summary>Current total tokens in the context window (system + conversation + tool definitions).</summary>
+    [JsonPropertyName("currentTokens")]
+    public double CurrentTokens { get; set; }
+
+    /// <summary>Current number of messages in the conversation.</summary>
+    [JsonPropertyName("messagesLength")]
+    public double MessagesLength { get; set; }
+
+    /// <summary>Token count from system message(s).</summary>
+    [JsonPropertyName("systemTokens")]
+    public double? SystemTokens { get; set; }
+
+    /// <summary>Token count from non-system messages (user, assistant, tool).</summary>
+    [JsonPropertyName("conversationTokens")]
+    public double? ConversationTokens { get; set; }
+
+    /// <summary>Token count from tool definitions.</summary>
+    [JsonPropertyName("toolDefinitionsTokens")]
+    public double? ToolDefinitionsTokens { get; set; }
+}
+
 /// <summary>RPC data type for SessionHistoryCompact operations.</summary>
 [Experimental(Diagnostics.Experimental)]
 public class SessionHistoryCompactResult
@@ -1278,6 +1342,10 @@ public class SessionHistoryCompactResult
     /// <summary>Number of messages removed during compaction.</summary>
     [JsonPropertyName("messagesRemoved")]
     public double MessagesRemoved { get; set; }
+
+    /// <summary>Post-compaction context window usage breakdown.</summary>
+    [JsonPropertyName("contextWindow")]
+    public SessionHistoryCompactResultContextWindow? ContextWindow { get; set; }
 }
 
 /// <summary>RPC data type for SessionHistoryCompact operations.</summary>
@@ -1309,6 +1377,116 @@ internal class SessionHistoryTruncateRequest
     /// <summary>Event ID to truncate to. This event and all events after it are removed from the session.</summary>
     [JsonPropertyName("eventId")]
     public string EventId { get; set; } = string.Empty;
+}
+
+/// <summary>Aggregated code change metrics.</summary>
+public class SessionUsageGetMetricsResultCodeChanges
+{
+    /// <summary>Total lines of code added.</summary>
+    [JsonPropertyName("linesAdded")]
+    public long LinesAdded { get; set; }
+
+    /// <summary>Total lines of code removed.</summary>
+    [JsonPropertyName("linesRemoved")]
+    public long LinesRemoved { get; set; }
+
+    /// <summary>Number of distinct files modified.</summary>
+    [JsonPropertyName("filesModifiedCount")]
+    public long FilesModifiedCount { get; set; }
+}
+
+/// <summary>Request count and cost metrics for this model.</summary>
+public class SessionUsageGetMetricsResultModelMetricsValueRequests
+{
+    /// <summary>Number of API requests made with this model.</summary>
+    [JsonPropertyName("count")]
+    public long Count { get; set; }
+
+    /// <summary>User-initiated premium request cost (with multiplier applied).</summary>
+    [JsonPropertyName("cost")]
+    public double Cost { get; set; }
+}
+
+/// <summary>Token usage metrics for this model.</summary>
+public class SessionUsageGetMetricsResultModelMetricsValueUsage
+{
+    /// <summary>Total input tokens consumed.</summary>
+    [JsonPropertyName("inputTokens")]
+    public long InputTokens { get; set; }
+
+    /// <summary>Total output tokens produced.</summary>
+    [JsonPropertyName("outputTokens")]
+    public long OutputTokens { get; set; }
+
+    /// <summary>Total tokens read from prompt cache.</summary>
+    [JsonPropertyName("cacheReadTokens")]
+    public long CacheReadTokens { get; set; }
+
+    /// <summary>Total tokens written to prompt cache.</summary>
+    [JsonPropertyName("cacheWriteTokens")]
+    public long CacheWriteTokens { get; set; }
+}
+
+/// <summary>RPC data type for SessionUsageGetMetricsResultModelMetricsValue operations.</summary>
+public class SessionUsageGetMetricsResultModelMetricsValue
+{
+    /// <summary>Request count and cost metrics for this model.</summary>
+    [JsonPropertyName("requests")]
+    public SessionUsageGetMetricsResultModelMetricsValueRequests Requests { get => field ??= new(); set; }
+
+    /// <summary>Token usage metrics for this model.</summary>
+    [JsonPropertyName("usage")]
+    public SessionUsageGetMetricsResultModelMetricsValueUsage Usage { get => field ??= new(); set; }
+}
+
+/// <summary>RPC data type for SessionUsageGetMetrics operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class SessionUsageGetMetricsResult
+{
+    /// <summary>Total user-initiated premium request cost across all models (may be fractional due to multipliers).</summary>
+    [JsonPropertyName("totalPremiumRequestCost")]
+    public double TotalPremiumRequestCost { get; set; }
+
+    /// <summary>Raw count of user-initiated API requests.</summary>
+    [JsonPropertyName("totalUserRequests")]
+    public long TotalUserRequests { get; set; }
+
+    /// <summary>Total time spent in model API calls (milliseconds).</summary>
+    [JsonPropertyName("totalApiDurationMs")]
+    public double TotalApiDurationMs { get; set; }
+
+    /// <summary>Session start timestamp (epoch milliseconds).</summary>
+    [JsonPropertyName("sessionStartTime")]
+    public long SessionStartTime { get; set; }
+
+    /// <summary>Aggregated code change metrics.</summary>
+    [JsonPropertyName("codeChanges")]
+    public SessionUsageGetMetricsResultCodeChanges CodeChanges { get => field ??= new(); set; }
+
+    /// <summary>Per-model token and request metrics, keyed by model identifier.</summary>
+    [JsonPropertyName("modelMetrics")]
+    public IDictionary<string, SessionUsageGetMetricsResultModelMetricsValue> ModelMetrics { get => field ??= new Dictionary<string, SessionUsageGetMetricsResultModelMetricsValue>(); set; }
+
+    /// <summary>Currently active model identifier.</summary>
+    [JsonPropertyName("currentModel")]
+    public string? CurrentModel { get; set; }
+
+    /// <summary>Input tokens from the most recent main-agent API call.</summary>
+    [JsonPropertyName("lastCallInputTokens")]
+    public long LastCallInputTokens { get; set; }
+
+    /// <summary>Output tokens from the most recent main-agent API call.</summary>
+    [JsonPropertyName("lastCallOutputTokens")]
+    public long LastCallOutputTokens { get; set; }
+}
+
+/// <summary>RPC data type for SessionUsageGetMetrics operations.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal class SessionUsageGetMetricsRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
 }
 
 /// <summary>RPC data type for SessionFsReadFile operations.</summary>
@@ -1534,6 +1712,25 @@ public class SessionFsRenameParams
     [JsonPropertyName("dest")]
     public string Dest { get; set; } = string.Empty;
 }
+
+/// <summary>Configuration source.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<DiscoveredMcpServerSource>))]
+public enum DiscoveredMcpServerSource
+{
+    /// <summary>The <c>user</c> variant.</summary>
+    [JsonStringEnumMemberName("user")]
+    User,
+    /// <summary>The <c>workspace</c> variant.</summary>
+    [JsonStringEnumMemberName("workspace")]
+    Workspace,
+    /// <summary>The <c>plugin</c> variant.</summary>
+    [JsonStringEnumMemberName("plugin")]
+    Plugin,
+    /// <summary>The <c>builtin</c> variant.</summary>
+    [JsonStringEnumMemberName("builtin")]
+    Builtin,
+}
+
 
 /// <summary>Path conventions used by this filesystem.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<SessionFsSetProviderRequestConventions>))]
@@ -1785,6 +1982,13 @@ public class ServerMcpApi
     {
         _rpc = rpc;
     }
+
+    /// <summary>Calls "mcp.discover".</summary>
+    public async Task<McpDiscoverResult> DiscoverAsync(string? workingDirectory = null, CancellationToken cancellationToken = default)
+    {
+        var request = new McpDiscoverRequest { WorkingDirectory = workingDirectory };
+        return await CopilotClient.InvokeRpcAsync<McpDiscoverResult>(_rpc, "mcp.discover", [request], cancellationToken);
+    }
 }
 
 /// <summary>Provides server-scoped SessionFs APIs.</summary>
@@ -1850,6 +2054,7 @@ public class SessionRpc
         Permissions = new PermissionsApi(rpc, sessionId);
         Shell = new ShellApi(rpc, sessionId);
         History = new HistoryApi(rpc, sessionId);
+        Usage = new UsageApi(rpc, sessionId);
     }
 
     /// <summary>Model APIs.</summary>
@@ -1899,6 +2104,9 @@ public class SessionRpc
 
     /// <summary>History APIs.</summary>
     public HistoryApi History { get; }
+
+    /// <summary>Usage APIs.</summary>
+    public UsageApi Usage { get; }
 
     /// <summary>Calls "session.log".</summary>
     public async Task<SessionLogResult> LogAsync(string message, SessionLogRequestLevel? level = null, bool? ephemeral = null, string? url = null, CancellationToken cancellationToken = default)
@@ -2389,6 +2597,27 @@ public class HistoryApi
     }
 }
 
+/// <summary>Provides session-scoped Usage APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public class UsageApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal UsageApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.usage.getMetrics".</summary>
+    public async Task<SessionUsageGetMetricsResult> GetMetricsAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new SessionUsageGetMetricsRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionUsageGetMetricsResult>(_rpc, "session.usage.getMetrics", [request], cancellationToken);
+    }
+}
+
 /// <summary>Handles `sessionFs` client session API methods.</summary>
 public interface ISessionFsHandler
 {
@@ -2541,8 +2770,11 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(AccountGetQuotaResult))]
 [JsonSerializable(typeof(AccountGetQuotaResultQuotaSnapshotsValue))]
 [JsonSerializable(typeof(Agent))]
+[JsonSerializable(typeof(DiscoveredMcpServer))]
 [JsonSerializable(typeof(Entry))]
 [JsonSerializable(typeof(Extension))]
+[JsonSerializable(typeof(McpDiscoverRequest))]
+[JsonSerializable(typeof(McpDiscoverResult))]
 [JsonSerializable(typeof(Model))]
 [JsonSerializable(typeof(ModelBilling))]
 [JsonSerializable(typeof(ModelCapabilities))]
@@ -2602,6 +2834,7 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionFsWriteFileParams))]
 [JsonSerializable(typeof(SessionHistoryCompactRequest))]
 [JsonSerializable(typeof(SessionHistoryCompactResult))]
+[JsonSerializable(typeof(SessionHistoryCompactResultContextWindow))]
 [JsonSerializable(typeof(SessionHistoryTruncateRequest))]
 [JsonSerializable(typeof(SessionHistoryTruncateResult))]
 [JsonSerializable(typeof(SessionLogRequest))]
@@ -2652,6 +2885,12 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionUiHandlePendingElicitationRequest))]
 [JsonSerializable(typeof(SessionUiHandlePendingElicitationRequestResult))]
 [JsonSerializable(typeof(SessionUiHandlePendingElicitationResult))]
+[JsonSerializable(typeof(SessionUsageGetMetricsRequest))]
+[JsonSerializable(typeof(SessionUsageGetMetricsResult))]
+[JsonSerializable(typeof(SessionUsageGetMetricsResultCodeChanges))]
+[JsonSerializable(typeof(SessionUsageGetMetricsResultModelMetricsValue))]
+[JsonSerializable(typeof(SessionUsageGetMetricsResultModelMetricsValueRequests))]
+[JsonSerializable(typeof(SessionUsageGetMetricsResultModelMetricsValueUsage))]
 [JsonSerializable(typeof(SessionWorkspaceCreateFileRequest))]
 [JsonSerializable(typeof(SessionWorkspaceCreateFileResult))]
 [JsonSerializable(typeof(SessionWorkspaceListFilesRequest))]

@@ -222,6 +222,27 @@ type MCPConfigRemoveParams struct {
 	Name string `json:"name"`
 }
 
+type MCPDiscoverResult struct {
+	// MCP servers discovered from all sources
+	Servers []DiscoveredMCPServer `json:"servers"`
+}
+
+type DiscoveredMCPServer struct {
+	// Whether the server is enabled (not in the disabled list)
+	Enabled bool `json:"enabled"`
+	// Server name (config key)
+	Name string `json:"name"`
+	// Configuration source
+	Source ServerSource `json:"source"`
+	// Server type: local, stdio, http, or sse
+	Type *string `json:"type,omitempty"`
+}
+
+type MCPDiscoverParams struct {
+	// Working directory used as context for discovery (e.g., plugin resolution)
+	WorkingDirectory *string `json:"workingDirectory,omitempty"`
+}
+
 type SessionFSSetProviderResult struct {
 	// Whether the provider was set successfully
 	Success bool `json:"success"`
@@ -528,10 +549,10 @@ type SessionMCPReloadResult struct {
 // Experimental: SessionPluginsListResult is part of an experimental API and may change or be removed.
 type SessionPluginsListResult struct {
 	// Installed plugins
-	Plugins []Plugin `json:"plugins"`
+	Plugins []PluginElement `json:"plugins"`
 }
 
-type Plugin struct {
+type PluginElement struct {
 	// Whether the plugin is currently enabled
 	Enabled bool `json:"enabled"`
 	// Marketplace the plugin came from
@@ -556,7 +577,7 @@ type Extension struct {
 	// Process ID if the extension is running
 	PID *int64 `json:"pid,omitempty"`
 	// Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
-	Source Source `json:"source"`
+	Source ExtensionSource `json:"source"`
 	// Current status: running, disabled, failed, or starting
 	Status ExtensionStatus `json:"status"`
 }
@@ -591,19 +612,27 @@ type SessionToolsHandlePendingToolCallResult struct {
 }
 
 type SessionToolsHandlePendingToolCallParams struct {
-	Error     *string      `json:"error,omitempty"`
-	RequestID string       `json:"requestId"`
-	Result    *ResultUnion `json:"result"`
+	// Error message if the tool call failed
+	Error *string `json:"error,omitempty"`
+	// Request ID of the pending tool call
+	RequestID string `json:"requestId"`
+	// Tool call result (string or expanded result object)
+	Result *ResultUnion `json:"result"`
 }
 
 type ResultResult struct {
-	Error            *string        `json:"error,omitempty"`
-	ResultType       *string        `json:"resultType,omitempty"`
-	TextResultForLlm string         `json:"textResultForLlm"`
-	ToolTelemetry    map[string]any `json:"toolTelemetry,omitempty"`
+	// Error message if the tool call failed
+	Error *string `json:"error,omitempty"`
+	// Type of the tool result
+	ResultType *string `json:"resultType,omitempty"`
+	// Text result to send back to the LLM
+	TextResultForLlm string `json:"textResultForLlm"`
+	// Telemetry data from tool execution
+	ToolTelemetry map[string]any `json:"toolTelemetry,omitempty"`
 }
 
 type SessionCommandsHandlePendingCommandResult struct {
+	// Whether the command was handled successfully
 	Success bool `json:"success"`
 }
 
@@ -699,17 +728,36 @@ type SessionPermissionsHandlePendingPermissionRequestResult struct {
 }
 
 type SessionPermissionsHandlePendingPermissionRequestParams struct {
+	// Request ID of the pending permission request
 	RequestID string                                                       `json:"requestId"`
 	Result    SessionPermissionsHandlePendingPermissionRequestParamsResult `json:"result"`
 }
 
 type SessionPermissionsHandlePendingPermissionRequestParamsResult struct {
-	Kind      Kind    `json:"kind"`
-	Rules     []any   `json:"rules,omitempty"`
-	Feedback  *string `json:"feedback,omitempty"`
-	Message   *string `json:"message,omitempty"`
-	Path      *string `json:"path,omitempty"`
-	Interrupt *bool   `json:"interrupt,omitempty"`
+	// The permission request was approved
+	//
+	// Denied because approval rules explicitly blocked it
+	//
+	// Denied because no approval rule matched and user confirmation was unavailable
+	//
+	// Denied by the user during an interactive prompt
+	//
+	// Denied by the organization's content exclusion policy
+	//
+	// Denied by a permission request hook registered by an extension or plugin
+	Kind Kind `json:"kind"`
+	// Rules that denied the request
+	Rules []any `json:"rules,omitempty"`
+	// Optional feedback from the user explaining the denial
+	Feedback *string `json:"feedback,omitempty"`
+	// Human-readable explanation of why the path was excluded
+	//
+	// Optional message from the hook explaining the denial
+	Message *string `json:"message,omitempty"`
+	// File path that triggered the exclusion
+	Path *string `json:"path,omitempty"`
+	// Whether to interrupt the current agent turn
+	Interrupt *bool `json:"interrupt,omitempty"`
 }
 
 type SessionLogResult struct {
@@ -757,12 +805,30 @@ type SessionShellKillParams struct {
 
 // Experimental: SessionHistoryCompactResult is part of an experimental API and may change or be removed.
 type SessionHistoryCompactResult struct {
+	// Post-compaction context window usage breakdown
+	ContextWindow *ContextWindow `json:"contextWindow,omitempty"`
 	// Number of messages removed during compaction
 	MessagesRemoved float64 `json:"messagesRemoved"`
 	// Whether compaction completed successfully
 	Success bool `json:"success"`
 	// Number of tokens freed by compaction
 	TokensRemoved float64 `json:"tokensRemoved"`
+}
+
+// Post-compaction context window usage breakdown
+type ContextWindow struct {
+	// Token count from non-system messages (user, assistant, tool)
+	ConversationTokens *float64 `json:"conversationTokens,omitempty"`
+	// Current total tokens in the context window (system + conversation + tool definitions)
+	CurrentTokens float64 `json:"currentTokens"`
+	// Current number of messages in the conversation
+	MessagesLength float64 `json:"messagesLength"`
+	// Token count from system message(s)
+	SystemTokens *float64 `json:"systemTokens,omitempty"`
+	// Maximum token count for the model's context window
+	TokenLimit float64 `json:"tokenLimit"`
+	// Token count from tool definitions
+	ToolDefinitionsTokens *float64 `json:"toolDefinitionsTokens,omitempty"`
 }
 
 // Experimental: SessionHistoryTruncateResult is part of an experimental API and may change or be removed.
@@ -775,6 +841,66 @@ type SessionHistoryTruncateResult struct {
 type SessionHistoryTruncateParams struct {
 	// Event ID to truncate to. This event and all events after it are removed from the session.
 	EventID string `json:"eventId"`
+}
+
+// Experimental: SessionUsageGetMetricsResult is part of an experimental API and may change or be removed.
+type SessionUsageGetMetricsResult struct {
+	// Aggregated code change metrics
+	CodeChanges CodeChanges `json:"codeChanges"`
+	// Currently active model identifier
+	CurrentModel *string `json:"currentModel,omitempty"`
+	// Input tokens from the most recent main-agent API call
+	LastCallInputTokens int64 `json:"lastCallInputTokens"`
+	// Output tokens from the most recent main-agent API call
+	LastCallOutputTokens int64 `json:"lastCallOutputTokens"`
+	// Per-model token and request metrics, keyed by model identifier
+	ModelMetrics map[string]ModelMetric `json:"modelMetrics"`
+	// Session start timestamp (epoch milliseconds)
+	SessionStartTime int64 `json:"sessionStartTime"`
+	// Total time spent in model API calls (milliseconds)
+	TotalAPIDurationMS float64 `json:"totalApiDurationMs"`
+	// Total user-initiated premium request cost across all models (may be fractional due to
+	// multipliers)
+	TotalPremiumRequestCost float64 `json:"totalPremiumRequestCost"`
+	// Raw count of user-initiated API requests
+	TotalUserRequests int64 `json:"totalUserRequests"`
+}
+
+// Aggregated code change metrics
+type CodeChanges struct {
+	// Number of distinct files modified
+	FilesModifiedCount int64 `json:"filesModifiedCount"`
+	// Total lines of code added
+	LinesAdded int64 `json:"linesAdded"`
+	// Total lines of code removed
+	LinesRemoved int64 `json:"linesRemoved"`
+}
+
+type ModelMetric struct {
+	// Request count and cost metrics for this model
+	Requests Requests `json:"requests"`
+	// Token usage metrics for this model
+	Usage Usage `json:"usage"`
+}
+
+// Request count and cost metrics for this model
+type Requests struct {
+	// User-initiated premium request cost (with multiplier applied)
+	Cost float64 `json:"cost"`
+	// Number of API requests made with this model
+	Count int64 `json:"count"`
+}
+
+// Token usage metrics for this model
+type Usage struct {
+	// Total tokens read from prompt cache
+	CacheReadTokens int64 `json:"cacheReadTokens"`
+	// Total tokens written to prompt cache
+	CacheWriteTokens int64 `json:"cacheWriteTokens"`
+	// Total input tokens consumed
+	InputTokens int64 `json:"inputTokens"`
+	// Total output tokens produced
+	OutputTokens int64 `json:"outputTokens"`
 }
 
 type SessionFSReadFileResult struct {
@@ -922,6 +1048,16 @@ const (
 	ServerTypeStdio ServerType = "stdio"
 )
 
+// Configuration source
+type ServerSource string
+
+const (
+	ServerSourceBuiltin   ServerSource = "builtin"
+	ServerSourcePlugin    ServerSource = "plugin"
+	ServerSourceUser      ServerSource = "user"
+	ServerSourceWorkspace ServerSource = "workspace"
+)
+
 // Path conventions used by this filesystem
 type Conventions string
 
@@ -956,11 +1092,11 @@ const (
 )
 
 // Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
-type Source string
+type ExtensionSource string
 
 const (
-	SourceProject Source = "project"
-	SourceUser    Source = "user"
+	ExtensionSourceUser    ExtensionSource = "user"
+	ExtensionSourceProject ExtensionSource = "project"
 )
 
 // Current status: running, disabled, failed, or starting
@@ -1056,6 +1192,7 @@ type FilterMappingUnion struct {
 	EnumMap map[string]FilterMappingEnum
 }
 
+// Tool call result (string or expanded result object)
 type ResultUnion struct {
 	ResultResult *ResultResult
 	String       *string
@@ -1115,6 +1252,18 @@ func (a *ServerAccountApi) GetQuota(ctx context.Context) (*AccountGetQuotaResult
 }
 
 type ServerMcpApi serverApi
+
+func (a *ServerMcpApi) Discover(ctx context.Context, params *MCPDiscoverParams) (*MCPDiscoverResult, error) {
+	raw, err := a.client.Request("mcp.discover", params)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPDiscoverResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
 
 type ServerSessionFsApi serverApi
 
@@ -1812,6 +1961,22 @@ func (a *HistoryApi) Truncate(ctx context.Context, params *SessionHistoryTruncat
 	return &result, nil
 }
 
+// Experimental: UsageApi contains experimental APIs that may change or be removed.
+type UsageApi sessionApi
+
+func (a *UsageApi) GetMetrics(ctx context.Context) (*SessionUsageGetMetricsResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.usage.getMetrics", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionUsageGetMetricsResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // SessionRpc provides typed session-scoped RPC methods.
 type SessionRpc struct {
 	common sessionApi // Reuse a single struct instead of allocating one for each service on the heap.
@@ -1832,6 +1997,7 @@ type SessionRpc struct {
 	Permissions *PermissionsApi
 	Shell       *ShellApi
 	History     *HistoryApi
+	Usage       *UsageApi
 }
 
 func (a *SessionRpc) Log(ctx context.Context, params *SessionLogParams) (*SessionLogResult, error) {
@@ -1878,6 +2044,7 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 	r.Permissions = (*PermissionsApi)(&r.common)
 	r.Shell = (*ShellApi)(&r.common)
 	r.History = (*HistoryApi)(&r.common)
+	r.Usage = (*UsageApi)(&r.common)
 	return r
 }
 

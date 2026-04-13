@@ -701,7 +701,7 @@ export async function generateSessionEvents(schemaPath?: string): Promise<void> 
 // RPC TYPES
 // ══════════════════════════════════════════════════════════════════════════════
 
-let emittedRpcClasses = new Set<string>();
+let emittedRpcClassSchemas = new Map<string, string>();
 let experimentalRpcTypes = new Set<string>();
 let rpcKnownTypes = new Map<string, string>();
 let rpcEnumOutput: string[] = [];
@@ -720,6 +720,17 @@ function resultTypeName(rpcMethod: string): string {
 
 function paramsTypeName(rpcMethod: string): string {
     return `${typeToClassName(rpcMethod)}Params`;
+}
+
+function stableStringify(value: unknown): string {
+    if (Array.isArray(value)) {
+        return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+    }
+    if (value && typeof value === "object") {
+        const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b));
+        return `{${entries.map(([key, entryValue]) => `${JSON.stringify(key)}:${stableStringify(entryValue)}`).join(",")}}`;
+    }
+    return JSON.stringify(value);
 }
 
 function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassName: string, propName: string, classes: string[]): string {
@@ -744,8 +755,8 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
     if (schema.type === "array" && schema.items) {
         const items = schema.items as JSONSchema7;
         if (items.type === "object" && items.properties) {
-            const itemClass = singularPascal(propName);
-            if (!emittedRpcClasses.has(itemClass)) classes.push(emitRpcClass(itemClass, items, "public", classes));
+            const itemClass = (items.title as string) ?? singularPascal(propName);
+            classes.push(emitRpcClass(itemClass, items, "public", classes));
             return isRequired ? `IList<${itemClass}>` : `IList<${itemClass}>?`;
         }
         const itemType = schemaTypeToCSharp(items, true, rpcKnownTypes);
@@ -765,8 +776,18 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
 }
 
 function emitRpcClass(className: string, schema: JSONSchema7, visibility: "public" | "internal", extraClasses: string[]): string {
-    if (emittedRpcClasses.has(className)) return "";
-    emittedRpcClasses.add(className);
+    const schemaKey = stableStringify(schema);
+    const existingSchema = emittedRpcClassSchemas.get(className);
+    if (existingSchema) {
+        if (existingSchema !== schemaKey) {
+            throw new Error(
+                `Conflicting RPC class name "${className}" for different schemas. Add a schema title/withTypeName to disambiguate.`
+            );
+        }
+        return "";
+    }
+
+    emittedRpcClassSchemas.set(className, schemaKey);
 
     const requiredSet = new Set(schema.required || []);
     const lines: string[] = [];
@@ -800,7 +821,7 @@ function emitRpcClass(className: string, schema: JSONSchema7, visibility: "publi
             } else if (csharpType.startsWith("IDictionary<")) {
                 const concreteType = csharpType.replace("IDictionary<", "Dictionary<");
                 propAccessors = `{ get => field ??= new ${concreteType}(); set; }`;
-            } else if (emittedRpcClasses.has(csharpType)) {
+            } else if (emittedRpcClassSchemas.has(csharpType)) {
                 propAccessors = "{ get => field ??= new(); set; }";
             }
         }
@@ -1171,7 +1192,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
 }
 
 function generateRpcCode(schema: ApiSchema): string {
-    emittedRpcClasses.clear();
+    emittedRpcClassSchemas.clear();
     experimentalRpcTypes.clear();
     rpcKnownTypes.clear();
     rpcEnumOutput = [];
@@ -1216,7 +1237,7 @@ internal static class Diagnostics
     if (clientSessionParts.length > 0) lines.push(...clientSessionParts, "");
 
     // Add JsonSerializerContext for AOT/trimming support
-    const typeNames = [...emittedRpcClasses].sort();
+    const typeNames = [...emittedRpcClassSchemas.keys()].sort();
     if (typeNames.length > 0) {
         lines.push(`[JsonSourceGenerationOptions(`);
         lines.push(`    JsonSerializerDefaults.Web,`);

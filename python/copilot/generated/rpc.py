@@ -790,6 +790,83 @@ class MCPConfigRemoveParams:
         return result
 
 
+class ServerSource(Enum):
+    """Configuration source"""
+
+    BUILTIN = "builtin"
+    PLUGIN = "plugin"
+    USER = "user"
+    WORKSPACE = "workspace"
+
+
+@dataclass
+class DiscoveredMCPServer:
+    enabled: bool
+    """Whether the server is enabled (not in the disabled list)"""
+
+    name: str
+    """Server name (config key)"""
+
+    source: ServerSource
+    """Configuration source"""
+
+    type: str | None = None
+    """Server type: local, stdio, http, or sse"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'DiscoveredMCPServer':
+        assert isinstance(obj, dict)
+        enabled = from_bool(obj.get("enabled"))
+        name = from_str(obj.get("name"))
+        source = ServerSource(obj.get("source"))
+        type = from_union([from_str, from_none], obj.get("type"))
+        return DiscoveredMCPServer(enabled, name, source, type)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["enabled"] = from_bool(self.enabled)
+        result["name"] = from_str(self.name)
+        result["source"] = to_enum(ServerSource, self.source)
+        if self.type is not None:
+            result["type"] = from_union([from_str, from_none], self.type)
+        return result
+
+
+@dataclass
+class MCPDiscoverResult:
+    servers: list[DiscoveredMCPServer]
+    """MCP servers discovered from all sources"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPDiscoverResult':
+        assert isinstance(obj, dict)
+        servers = from_list(DiscoveredMCPServer.from_dict, obj.get("servers"))
+        return MCPDiscoverResult(servers)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["servers"] = from_list(lambda x: to_class(DiscoveredMCPServer, x), self.servers)
+        return result
+
+
+@dataclass
+class MCPDiscoverParams:
+    working_directory: str | None = None
+    """Working directory used as context for discovery (e.g., plugin resolution)"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'MCPDiscoverParams':
+        assert isinstance(obj, dict)
+        working_directory = from_union([from_str, from_none], obj.get("workingDirectory"))
+        return MCPDiscoverParams(working_directory)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.working_directory is not None:
+            result["workingDirectory"] = from_union([from_str, from_none], self.working_directory)
+        return result
+
+
 @dataclass
 class SessionFSSetProviderResult:
     success: bool
@@ -1847,7 +1924,7 @@ class SessionPluginsListResult:
         return result
 
 
-class Source(Enum):
+class ExtensionSource(Enum):
     """Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)"""
 
     PROJECT = "project"
@@ -1871,7 +1948,7 @@ class Extension:
     name: str
     """Extension name (directory name)"""
 
-    source: Source
+    source: ExtensionSource
     """Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)"""
 
     status: ExtensionStatus
@@ -1885,7 +1962,7 @@ class Extension:
         assert isinstance(obj, dict)
         id = from_str(obj.get("id"))
         name = from_str(obj.get("name"))
-        source = Source(obj.get("source"))
+        source = ExtensionSource(obj.get("source"))
         status = ExtensionStatus(obj.get("status"))
         pid = from_union([from_int, from_none], obj.get("pid"))
         return Extension(id, name, source, status, pid)
@@ -1894,7 +1971,7 @@ class Extension:
         result: dict = {}
         result["id"] = from_str(self.id)
         result["name"] = from_str(self.name)
-        result["source"] = to_enum(Source, self.source)
+        result["source"] = to_enum(ExtensionSource, self.source)
         result["status"] = to_enum(ExtensionStatus, self.status)
         if self.pid is not None:
             result["pid"] = from_union([from_int, from_none], self.pid)
@@ -2014,9 +2091,16 @@ class SessionToolsHandlePendingToolCallResult:
 @dataclass
 class ResultResult:
     text_result_for_llm: str
+    """Text result to send back to the LLM"""
+
     error: str | None = None
+    """Error message if the tool call failed"""
+
     result_type: str | None = None
+    """Type of the tool result"""
+
     tool_telemetry: dict[str, Any] | None = None
+    """Telemetry data from tool execution"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'ResultResult':
@@ -2042,8 +2126,13 @@ class ResultResult:
 @dataclass
 class SessionToolsHandlePendingToolCallParams:
     request_id: str
+    """Request ID of the pending tool call"""
+
     error: str | None = None
+    """Error message if the tool call failed"""
+
     result: ResultResult | str | None = None
+    """Tool call result (string or expanded result object)"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'SessionToolsHandlePendingToolCallParams':
@@ -2066,6 +2155,7 @@ class SessionToolsHandlePendingToolCallParams:
 @dataclass
 class SessionCommandsHandlePendingCommandResult:
     success: bool
+    """Whether the command was handled successfully"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'SessionCommandsHandlePendingCommandResult':
@@ -2438,11 +2528,34 @@ class Kind(Enum):
 @dataclass
 class SessionPermissionsHandlePendingPermissionRequestParamsResult:
     kind: Kind
+    """The permission request was approved
+    
+    Denied because approval rules explicitly blocked it
+    
+    Denied because no approval rule matched and user confirmation was unavailable
+    
+    Denied by the user during an interactive prompt
+    
+    Denied by the organization's content exclusion policy
+    
+    Denied by a permission request hook registered by an extension or plugin
+    """
     rules: list[Any] | None = None
+    """Rules that denied the request"""
+
     feedback: str | None = None
+    """Optional feedback from the user explaining the denial"""
+
     message: str | None = None
+    """Human-readable explanation of why the path was excluded
+    
+    Optional message from the hook explaining the denial
+    """
     path: str | None = None
+    """File path that triggered the exclusion"""
+
     interrupt: bool | None = None
+    """Whether to interrupt the current agent turn"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'SessionPermissionsHandlePendingPermissionRequestParamsResult':
@@ -2474,6 +2587,8 @@ class SessionPermissionsHandlePendingPermissionRequestParamsResult:
 @dataclass
 class SessionPermissionsHandlePendingPermissionRequestParams:
     request_id: str
+    """Request ID of the pending permission request"""
+
     result: SessionPermissionsHandlePendingPermissionRequestParamsResult
 
     @staticmethod
@@ -2646,6 +2761,53 @@ class SessionShellKillParams:
         return result
 
 
+@dataclass
+class ContextWindow:
+    """Post-compaction context window usage breakdown"""
+
+    current_tokens: float
+    """Current total tokens in the context window (system + conversation + tool definitions)"""
+
+    messages_length: float
+    """Current number of messages in the conversation"""
+
+    token_limit: float
+    """Maximum token count for the model's context window"""
+
+    conversation_tokens: float | None = None
+    """Token count from non-system messages (user, assistant, tool)"""
+
+    system_tokens: float | None = None
+    """Token count from system message(s)"""
+
+    tool_definitions_tokens: float | None = None
+    """Token count from tool definitions"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ContextWindow':
+        assert isinstance(obj, dict)
+        current_tokens = from_float(obj.get("currentTokens"))
+        messages_length = from_float(obj.get("messagesLength"))
+        token_limit = from_float(obj.get("tokenLimit"))
+        conversation_tokens = from_union([from_float, from_none], obj.get("conversationTokens"))
+        system_tokens = from_union([from_float, from_none], obj.get("systemTokens"))
+        tool_definitions_tokens = from_union([from_float, from_none], obj.get("toolDefinitionsTokens"))
+        return ContextWindow(current_tokens, messages_length, token_limit, conversation_tokens, system_tokens, tool_definitions_tokens)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["currentTokens"] = to_float(self.current_tokens)
+        result["messagesLength"] = to_float(self.messages_length)
+        result["tokenLimit"] = to_float(self.token_limit)
+        if self.conversation_tokens is not None:
+            result["conversationTokens"] = from_union([to_float, from_none], self.conversation_tokens)
+        if self.system_tokens is not None:
+            result["systemTokens"] = from_union([to_float, from_none], self.system_tokens)
+        if self.tool_definitions_tokens is not None:
+            result["toolDefinitionsTokens"] = from_union([to_float, from_none], self.tool_definitions_tokens)
+        return result
+
+
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SessionHistoryCompactResult:
@@ -2658,19 +2820,25 @@ class SessionHistoryCompactResult:
     tokens_removed: float
     """Number of tokens freed by compaction"""
 
+    context_window: ContextWindow | None = None
+    """Post-compaction context window usage breakdown"""
+
     @staticmethod
     def from_dict(obj: Any) -> 'SessionHistoryCompactResult':
         assert isinstance(obj, dict)
         messages_removed = from_float(obj.get("messagesRemoved"))
         success = from_bool(obj.get("success"))
         tokens_removed = from_float(obj.get("tokensRemoved"))
-        return SessionHistoryCompactResult(messages_removed, success, tokens_removed)
+        context_window = from_union([ContextWindow.from_dict, from_none], obj.get("contextWindow"))
+        return SessionHistoryCompactResult(messages_removed, success, tokens_removed, context_window)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["messagesRemoved"] = to_float(self.messages_removed)
         result["success"] = from_bool(self.success)
         result["tokensRemoved"] = to_float(self.tokens_removed)
+        if self.context_window is not None:
+            result["contextWindow"] = from_union([lambda x: to_class(ContextWindow, x), from_none], self.context_window)
         return result
 
 
@@ -2707,6 +2875,175 @@ class SessionHistoryTruncateParams:
     def to_dict(self) -> dict:
         result: dict = {}
         result["eventId"] = from_str(self.event_id)
+        return result
+
+
+@dataclass
+class CodeChanges:
+    """Aggregated code change metrics"""
+
+    files_modified_count: int
+    """Number of distinct files modified"""
+
+    lines_added: int
+    """Total lines of code added"""
+
+    lines_removed: int
+    """Total lines of code removed"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CodeChanges':
+        assert isinstance(obj, dict)
+        files_modified_count = from_int(obj.get("filesModifiedCount"))
+        lines_added = from_int(obj.get("linesAdded"))
+        lines_removed = from_int(obj.get("linesRemoved"))
+        return CodeChanges(files_modified_count, lines_added, lines_removed)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["filesModifiedCount"] = from_int(self.files_modified_count)
+        result["linesAdded"] = from_int(self.lines_added)
+        result["linesRemoved"] = from_int(self.lines_removed)
+        return result
+
+
+@dataclass
+class Requests:
+    """Request count and cost metrics for this model"""
+
+    cost: float
+    """User-initiated premium request cost (with multiplier applied)"""
+
+    count: int
+    """Number of API requests made with this model"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'Requests':
+        assert isinstance(obj, dict)
+        cost = from_float(obj.get("cost"))
+        count = from_int(obj.get("count"))
+        return Requests(cost, count)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["cost"] = to_float(self.cost)
+        result["count"] = from_int(self.count)
+        return result
+
+
+@dataclass
+class Usage:
+    """Token usage metrics for this model"""
+
+    cache_read_tokens: int
+    """Total tokens read from prompt cache"""
+
+    cache_write_tokens: int
+    """Total tokens written to prompt cache"""
+
+    input_tokens: int
+    """Total input tokens consumed"""
+
+    output_tokens: int
+    """Total output tokens produced"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'Usage':
+        assert isinstance(obj, dict)
+        cache_read_tokens = from_int(obj.get("cacheReadTokens"))
+        cache_write_tokens = from_int(obj.get("cacheWriteTokens"))
+        input_tokens = from_int(obj.get("inputTokens"))
+        output_tokens = from_int(obj.get("outputTokens"))
+        return Usage(cache_read_tokens, cache_write_tokens, input_tokens, output_tokens)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["cacheReadTokens"] = from_int(self.cache_read_tokens)
+        result["cacheWriteTokens"] = from_int(self.cache_write_tokens)
+        result["inputTokens"] = from_int(self.input_tokens)
+        result["outputTokens"] = from_int(self.output_tokens)
+        return result
+
+
+@dataclass
+class ModelMetric:
+    requests: Requests
+    """Request count and cost metrics for this model"""
+
+    usage: Usage
+    """Token usage metrics for this model"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ModelMetric':
+        assert isinstance(obj, dict)
+        requests = Requests.from_dict(obj.get("requests"))
+        usage = Usage.from_dict(obj.get("usage"))
+        return ModelMetric(requests, usage)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["requests"] = to_class(Requests, self.requests)
+        result["usage"] = to_class(Usage, self.usage)
+        return result
+
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SessionUsageGetMetricsResult:
+    code_changes: CodeChanges
+    """Aggregated code change metrics"""
+
+    last_call_input_tokens: int
+    """Input tokens from the most recent main-agent API call"""
+
+    last_call_output_tokens: int
+    """Output tokens from the most recent main-agent API call"""
+
+    model_metrics: dict[str, ModelMetric]
+    """Per-model token and request metrics, keyed by model identifier"""
+
+    session_start_time: int
+    """Session start timestamp (epoch milliseconds)"""
+
+    total_api_duration_ms: float
+    """Total time spent in model API calls (milliseconds)"""
+
+    total_premium_request_cost: float
+    """Total user-initiated premium request cost across all models (may be fractional due to
+    multipliers)
+    """
+    total_user_requests: int
+    """Raw count of user-initiated API requests"""
+
+    current_model: str | None = None
+    """Currently active model identifier"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionUsageGetMetricsResult':
+        assert isinstance(obj, dict)
+        code_changes = CodeChanges.from_dict(obj.get("codeChanges"))
+        last_call_input_tokens = from_int(obj.get("lastCallInputTokens"))
+        last_call_output_tokens = from_int(obj.get("lastCallOutputTokens"))
+        model_metrics = from_dict(ModelMetric.from_dict, obj.get("modelMetrics"))
+        session_start_time = from_int(obj.get("sessionStartTime"))
+        total_api_duration_ms = from_float(obj.get("totalApiDurationMs"))
+        total_premium_request_cost = from_float(obj.get("totalPremiumRequestCost"))
+        total_user_requests = from_int(obj.get("totalUserRequests"))
+        current_model = from_union([from_str, from_none], obj.get("currentModel"))
+        return SessionUsageGetMetricsResult(code_changes, last_call_input_tokens, last_call_output_tokens, model_metrics, session_start_time, total_api_duration_ms, total_premium_request_cost, total_user_requests, current_model)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["codeChanges"] = to_class(CodeChanges, self.code_changes)
+        result["lastCallInputTokens"] = from_int(self.last_call_input_tokens)
+        result["lastCallOutputTokens"] = from_int(self.last_call_output_tokens)
+        result["modelMetrics"] = from_dict(lambda x: to_class(ModelMetric, x), self.model_metrics)
+        result["sessionStartTime"] = from_int(self.session_start_time)
+        result["totalApiDurationMs"] = to_float(self.total_api_duration_ms)
+        result["totalPremiumRequestCost"] = to_float(self.total_premium_request_cost)
+        result["totalUserRequests"] = from_int(self.total_user_requests)
+        if self.current_model is not None:
+            result["currentModel"] = from_union([from_str, from_none], self.current_model)
         return result
 
 
@@ -3193,6 +3530,22 @@ def mcp_config_remove_params_from_dict(s: Any) -> MCPConfigRemoveParams:
 
 def mcp_config_remove_params_to_dict(x: MCPConfigRemoveParams) -> Any:
     return to_class(MCPConfigRemoveParams, x)
+
+
+def mcp_discover_result_from_dict(s: Any) -> MCPDiscoverResult:
+    return MCPDiscoverResult.from_dict(s)
+
+
+def mcp_discover_result_to_dict(x: MCPDiscoverResult) -> Any:
+    return to_class(MCPDiscoverResult, x)
+
+
+def mcp_discover_params_from_dict(s: Any) -> MCPDiscoverParams:
+    return MCPDiscoverParams.from_dict(s)
+
+
+def mcp_discover_params_to_dict(x: MCPDiscoverParams) -> Any:
+    return to_class(MCPDiscoverParams, x)
 
 
 def session_fs_set_provider_result_from_dict(s: Any) -> SessionFSSetProviderResult:
@@ -3715,6 +4068,14 @@ def session_history_truncate_params_to_dict(x: SessionHistoryTruncateParams) -> 
     return to_class(SessionHistoryTruncateParams, x)
 
 
+def session_usage_get_metrics_result_from_dict(s: Any) -> SessionUsageGetMetricsResult:
+    return SessionUsageGetMetricsResult.from_dict(s)
+
+
+def session_usage_get_metrics_result_to_dict(x: SessionUsageGetMetricsResult) -> Any:
+    return to_class(SessionUsageGetMetricsResult, x)
+
+
 def session_fs_read_file_result_from_dict(s: Any) -> SessionFSReadFileResult:
     return SessionFSReadFileResult.from_dict(s)
 
@@ -3870,6 +4231,10 @@ class ServerAccountApi:
 class ServerMcpApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
+
+    async def discover(self, params: MCPDiscoverParams, *, timeout: float | None = None) -> MCPDiscoverResult:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return MCPDiscoverResult.from_dict(await self._client.request("mcp.discover", params_dict, **_timeout_kwargs(timeout)))
 
 
 class ServerSessionFsApi:
@@ -4166,6 +4531,16 @@ class HistoryApi:
         return SessionHistoryTruncateResult.from_dict(await self._client.request("session.history.truncate", params_dict, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
+class UsageApi:
+    def __init__(self, client: "JsonRpcClient", session_id: str):
+        self._client = client
+        self._session_id = session_id
+
+    async def get_metrics(self, *, timeout: float | None = None) -> SessionUsageGetMetricsResult:
+        return SessionUsageGetMetricsResult.from_dict(await self._client.request("session.usage.getMetrics", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+
+
 class SessionRpc:
     """Typed session-scoped RPC methods."""
     def __init__(self, client: "JsonRpcClient", session_id: str):
@@ -4187,6 +4562,7 @@ class SessionRpc:
         self.permissions = PermissionsApi(client, session_id)
         self.shell = ShellApi(client, session_id)
         self.history = HistoryApi(client, session_id)
+        self.usage = UsageApi(client, session_id)
 
     async def log(self, params: SessionLogParams, *, timeout: float | None = None) -> SessionLogResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
