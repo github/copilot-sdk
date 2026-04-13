@@ -22,6 +22,8 @@ import {
     isNodeFullyExperimental,
     postProcessSchema,
     writeGeneratedFile,
+    collectDefinitions,
+    withSharedDefinitions,
     type ApiSchema,
     type RpcMethod,
 } from "./utils.js";
@@ -1275,10 +1277,12 @@ async function generateRpc(schemaPath?: string): Promise<void> {
 
     // Build a combined schema for quicktype, including shared definitions from the API schema
     const sharedDefs = collectDefinitions(schema as Record<string, unknown>);
-    const combinedSchema: JSONSchema7 = {
-        $schema: "http://json-schema.org/draft-07/schema#",
-        definitions: { ...sharedDefs },
-    };
+    const combinedSchema = withSharedDefinitions(
+        {
+            $schema: "http://json-schema.org/draft-07/schema#",
+        },
+        sharedDefs
+    );
 
     for (const method of allMethods) {
         if (!isVoidSchema(method.result)) {
@@ -1308,13 +1312,11 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     // Generate types via quicktype
     const schemaInput = new JSONSchemaInput(new FetchingJSONSchemaStore());
     for (const [name, def] of Object.entries(rootDefinitions)) {
-        await schemaInput.addSource({
-            name,
-            schema: JSON.stringify({
-                ...def,
-                definitions: allDefinitions,
-            }),
-        });
+        const schemaWithDefs = withSharedDefinitions(
+            typeof def === "object" ? (def as JSONSchema7) : {},
+            allDefinitions
+        );
+        await schemaInput.addSource({ name, schema: JSON.stringify(schemaWithDefs) });
     }
 
     const inputData = new InputData();

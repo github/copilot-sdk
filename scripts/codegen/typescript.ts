@@ -16,6 +16,7 @@ import {
     postProcessSchema,
     writeGeneratedFile,
     collectDefinitions,
+    withSharedDefinitions,
     isRpcMethod,
     isNodeFullyExperimental,
     isVoidSchema,
@@ -180,11 +181,13 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
     // Build a single combined schema with shared definitions and all method types.
     // This ensures $ref-referenced types are generated exactly once.
     const sharedDefs = collectDefinitions(schema as Record<string, unknown>);
-    const combinedSchema: JSONSchema7 = {
-        $schema: "http://json-schema.org/draft-07/schema#",
-        type: "object",
-        definitions: { ...sharedDefs },
-    };
+    const combinedSchema = withSharedDefinitions(
+        {
+            $schema: "http://json-schema.org/draft-07/schema#",
+            type: "object",
+        },
+        sharedDefs
+    );
 
     // Track which type names come from experimental methods for JSDoc annotations.
     const experimentalTypes = new Set<string>();

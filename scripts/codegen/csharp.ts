@@ -326,7 +326,7 @@ let sessionDefinitions: Record<string, JSONSchema7Definition> = {};
 }
 
 function extractEventVariants(schema: JSONSchema7): EventVariant[] {
-    const sessionEvent = schema.definitions?.SessionEvent as JSONSchema7;
+    const sessionEvent = collectDefinitions(schema as Record<string, unknown>).SessionEvent as JSONSchema7;
     if (!sessionEvent?.anyOf) throw new Error("Schema must have SessionEvent definition with anyOf");
 
     return sessionEvent.anyOf
@@ -611,14 +611,15 @@ function generateDataClass(variant: EventVariant, knownTypes: Map<string, string
 
 function generateSessionEventsCode(schema: JSONSchema7): string {
     generatedEnums.clear();
-    sessionDefinitions = schema.definitions as Record<string, JSONSchema7Definition> || {};
+    sessionDefinitions = collectDefinitions(schema as Record<string, unknown>);
     const variants = extractEventVariants(schema);
     const knownTypes = new Map<string, string>();
     const nestedClasses = new Map<string, string>();
     const enumOutput: string[] = [];
 
     // Extract descriptions for base class properties from the first variant
-    const firstVariant = (schema.definitions?.SessionEvent as JSONSchema7)?.anyOf?.[0];
+    const sessionEventDefinition = sessionDefinitions.SessionEvent;
+    const firstVariant = typeof sessionEventDefinition === "object" ? (sessionEventDefinition as JSONSchema7).anyOf?.[0] : undefined;
     const baseProps = typeof firstVariant === "object" && firstVariant?.properties ? firstVariant.properties : {};
     const baseDesc = (name: string) => {
         const prop = baseProps[name];

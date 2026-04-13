@@ -21,6 +21,17 @@ const __dirname = path.dirname(__filename);
 /** Root of the copilot-sdk repo */
 export const REPO_ROOT = path.resolve(__dirname, "../..");
 
+/** Event types to exclude from generation (internal/legacy types) */
+export const EXCLUDED_EVENT_TYPES = new Set(["session.import_legacy"]);
+
+export interface JSONSchema7WithDefs extends JSONSchema7 {
+    $defs?: Record<string, JSONSchema7Definition>;
+}
+
+export type SchemaWithSharedDefinitions<T extends JSONSchema7 = JSONSchema7> = T & {
+    definitions: Record<string, JSONSchema7Definition>;
+    $defs: Record<string, JSONSchema7Definition>;
+};
 // ── Schema paths ────────────────────────────────────────────────────────────
 
 export async function getSessionEventsSchemaPath(): Promise<string> {
@@ -51,16 +62,7 @@ export async function getApiSchemaPath(cliArg?: string): Promise<string> {
 export function postProcessSchema(schema: JSONSchema7): JSONSchema7 {
     if (typeof schema !== "object" || schema === null) return schema;
 
-    const processed: JSONSchema7 = { ...schema };
-
-    // Normalize $defs → definitions for draft 2019+ compatibility
-    if ("$defs" in processed && !processed.definitions) {
-        processed.definitions = (processed as Record<string, unknown>).$defs as Record<
-            string,
-            JSONSchema7Definition
-        >;
-        delete (processed as Record<string, unknown>).$defs;
-    }
+    const processed = { ...schema } as JSONSchema7WithDefs;
 
     if ("const" in processed && typeof processed.const === "boolean") {
         processed.enum = [processed.const];
@@ -93,12 +95,14 @@ export function postProcessSchema(schema: JSONSchema7): JSONSchema7 {
         }
     }
 
-    if (processed.definitions) {
+    const definitions = collectDefinitions(processed as Record<string, unknown>);
+    if (Object.keys(definitions).length > 0) {
         const newDefs: Record<string, JSONSchema7Definition> = {};
-        for (const [key, value] of Object.entries(processed.definitions)) {
+        for (const [key, value] of Object.entries(definitions)) {
             newDefs[key] = typeof value === "object" ? postProcessSchema(value as JSONSchema7) : value;
         }
         processed.definitions = newDefs;
+        processed.$defs = newDefs;
     }
 
     if (typeof processed.additionalProperties === "object") {
@@ -339,6 +343,19 @@ export function resolveRef(
 export function collectDefinitions(
     schema: Record<string, unknown>
 ): Record<string, JSONSchema7Definition> {
-    const defs = (schema.definitions ?? schema.$defs ?? {}) as Record<string, JSONSchema7Definition>;
-    return { ...defs }
+    const legacyDefinitions = (schema.definitions ?? {}) as Record<string, JSONSchema7Definition>;
+    const draft2019Definitions = (schema.$defs ?? {}) as Record<string, JSONSchema7Definition>;
+    return { ...draft2019Definitions, ...legacyDefinitions };
+}
+
+export function withSharedDefinitions<T extends JSONSchema7>(
+    schema: T,
+    definitions: Record<string, JSONSchema7Definition>
+): SchemaWithSharedDefinitions<T> {
+    const sharedDefinitions = { ...definitions };
+    return {
+        ...schema,
+        definitions: sharedDefinitions,
+        $defs: sharedDefinitions,
+    };
 }
