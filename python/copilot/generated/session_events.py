@@ -1514,7 +1514,7 @@ class SessionTaskCompleteData:
     @staticmethod
     def from_dict(obj: Any) -> "SessionTaskCompleteData":
         assert isinstance(obj, dict)
-        summary = from_union([from_none, lambda x: from_str(x)], obj.get("summary"))
+        summary = from_union([from_none, lambda x: from_str(x)], obj.get("summary", ""))
         success = from_union([from_none, lambda x: from_bool(x)], obj.get("success"))
         return SessionTaskCompleteData(
             summary=summary,
@@ -3122,7 +3122,7 @@ class PermissionRequestedDataPermissionRequest:
         args = obj.get("args")
         read_only = from_union([from_none, lambda x: from_bool(x)], obj.get("readOnly"))
         url = from_union([from_none, lambda x: from_str(x)], obj.get("url"))
-        action = from_union([from_none, lambda x: parse_enum(PermissionRequestedDataPermissionRequestAction, x)], obj.get("action"))
+        action = from_union([from_none, lambda x: parse_enum(PermissionRequestedDataPermissionRequestAction, x)], obj.get("action", "store"))
         subject = from_union([from_none, lambda x: from_str(x)], obj.get("subject"))
         fact = from_union([from_none, lambda x: from_str(x)], obj.get("fact"))
         citations = from_union([from_none, lambda x: from_str(x)], obj.get("citations"))
@@ -4305,13 +4305,13 @@ class PermissionRequestedDataPermissionRequestKind(Enum):
 
 
 class PermissionRequestedDataPermissionRequestAction(Enum):
-    """Whether this is a store or vote memory operation"""
+    "Whether this is a store or vote memory operation"
     STORE = "store"
     VOTE = "vote"
 
 
 class PermissionRequestedDataPermissionRequestDirection(Enum):
-    """Vote direction (vote only)"""
+    "Vote direction (vote only)"
     UPVOTE = "upvote"
     DOWNVOTE = "downvote"
 

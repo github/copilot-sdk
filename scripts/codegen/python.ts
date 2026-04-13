@@ -7,8 +7,9 @@
  */
 
 import fs from "fs/promises";
+import path from "path";
 import type { JSONSchema7 } from "json-schema";
-import { FetchingJSONSchemaStore, InputData, JSONSchemaInput, quicktype } from "quicktype-core";
+import { fileURLToPath } from "url";
 import {
     cloneSchemaForCodegen,
     getApiSchemaPath,
@@ -234,6 +235,8 @@ interface PyCodegenCtx {
     enums: string[];
     enumsByValues: Map<string, string>;
     generatedNames: Set<string>;
+    usesTimedelta: boolean;
+    usesIntegerTimedelta: boolean;
 }
 
 function toEnumMemberName(value: string): string {
@@ -278,6 +281,38 @@ function pyAnyResolvedType(): PyResolvedType {
         fromExpr: (expr) => expr,
         toExpr: (expr) => expr,
     };
+}
+
+function pyDurationResolvedType(ctx: PyCodegenCtx, isInteger: boolean): PyResolvedType {
+    ctx.usesTimedelta = true;
+    if (isInteger) {
+        ctx.usesIntegerTimedelta = true;
+    }
+    return {
+        annotation: "timedelta",
+        fromExpr: (expr) => `from_timedelta(${expr})`,
+        toExpr: (expr) => (isInteger ? `to_timedelta_int(${expr})` : `to_timedelta(${expr})`),
+    };
+}
+
+function isPyBase64StringSchema(schema: JSONSchema7): boolean {
+    return schema.format === "byte" || (schema as Record<string, unknown>).contentEncoding === "base64";
+}
+
+function toPythonLiteral(value: unknown): string | undefined {
+    if (typeof value === "string") {
+        return JSON.stringify(value);
+    }
+    if (typeof value === "number") {
+        return Number.isFinite(value) ? String(value) : undefined;
+    }
+    if (typeof value === "boolean") {
+        return value ? "True" : "False";
+    }
+    if (value === null) {
+        return "None";
+    }
+    return undefined;
 }
 
 function extractPyEventVariants(schema: JSONSchema7): PyEventVariant[] {
@@ -489,16 +524,28 @@ function resolvePyPropertyType(
             const resolved = pyPrimitiveResolvedType("UUID", "from_uuid", "to_uuid");
             return isRequired ? resolved : pyOptionalResolvedType(resolved);
         }
+        if (format === "uri" || format === "regex" || isPyBase64StringSchema(propSchema)) {
+            const resolved = pyPrimitiveResolvedType("str", "from_str");
+            return isRequired ? resolved : pyOptionalResolvedType(resolved);
+        }
         const resolved = pyPrimitiveResolvedType("str", "from_str");
         return isRequired ? resolved : pyOptionalResolvedType(resolved);
     }
 
     if (type === "integer") {
+        if (format === "duration") {
+            const resolved = pyDurationResolvedType(ctx, true);
+            return isRequired ? resolved : pyOptionalResolvedType(resolved);
+        }
         const resolved = pyPrimitiveResolvedType("int", "from_int", "to_int");
         return isRequired ? resolved : pyOptionalResolvedType(resolved);
     }
 
     if (type === "number") {
+        if (format === "duration") {
+            const resolved = pyDurationResolvedType(ctx, false);
+            return isRequired ? resolved : pyOptionalResolvedType(resolved);
+        }
         const resolved = pyPrimitiveResolvedType("float", "from_float", "to_float");
         return isRequired ? resolved : pyOptionalResolvedType(resolved);
     }
@@ -634,6 +681,7 @@ function emitPyClass(
             fieldName: toSnakeCase(propName),
             isRequired,
             resolved,
+            defaultLiteral: isRequired ? undefined : toPythonLiteral(propSchema.default),
         };
     });
 
@@ -666,8 +714,11 @@ function emitPyClass(
     lines.push(`    def from_dict(obj: Any) -> "${typeName}":`);
     lines.push(`        assert isinstance(obj, dict)`);
     for (const field of fieldInfos) {
+        const sourceExpr = field.defaultLiteral
+            ? `obj.get(${JSON.stringify(field.jsonName)}, ${field.defaultLiteral})`
+            : `obj.get(${JSON.stringify(field.jsonName)})`;
         lines.push(
-            `        ${field.fieldName} = ${field.resolved.fromExpr(`obj.get(${JSON.stringify(field.jsonName)})`)}`
+            `        ${field.fieldName} = ${field.resolved.fromExpr(sourceExpr)}`
         );
     }
     lines.push(`        return ${typeName}(`);
@@ -778,6 +829,7 @@ function emitPyFlatDiscriminatedUnion(
             fieldName: toSnakeCase(propName),
             isRequired: requiredInAll,
             resolved,
+            defaultLiteral: requiredInAll ? undefined : toPythonLiteral(propSchema.default),
         };
     });
 
@@ -796,8 +848,11 @@ function emitPyFlatDiscriminatedUnion(
     lines.push(`    def from_dict(obj: Any) -> "${typeName}":`);
     lines.push(`        assert isinstance(obj, dict)`);
     for (const field of fieldInfos) {
+        const sourceExpr = field.defaultLiteral
+            ? `obj.get(${JSON.stringify(field.jsonName)}, ${field.defaultLiteral})`
+            : `obj.get(${JSON.stringify(field.jsonName)})`;
         lines.push(
-            `        ${field.fieldName} = ${field.resolved.fromExpr(`obj.get(${JSON.stringify(field.jsonName)})`)}`
+            `        ${field.fieldName} = ${field.resolved.fromExpr(sourceExpr)}`
         );
     }
     lines.push(`        return ${typeName}(`);
@@ -822,13 +877,15 @@ function emitPyFlatDiscriminatedUnion(
     ctx.classes.push(lines.join("\n"));
 }
 
-function generatePythonSessionEventsCode(schema: JSONSchema7): string {
+export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     const variants = extractPyEventVariants(schema);
     const ctx: PyCodegenCtx = {
         classes: [],
         enums: [],
         enumsByValues: new Map(),
         generatedNames: new Set(),
+        usesTimedelta: false,
+        usesIntegerTimedelta: false,
     };
 
     for (const variant of variants) {
@@ -856,7 +913,7 @@ function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     out.push(``);
     out.push(`from collections.abc import Callable`);
     out.push(`from dataclasses import dataclass`);
-    out.push(`from datetime import datetime`);
+    out.push(ctx.usesTimedelta ? `from datetime import datetime, timedelta` : `from datetime import datetime`);
     out.push(`from enum import Enum`);
     out.push(`from typing import Any, TypeVar, cast`);
     out.push(`from uuid import UUID`);
@@ -892,6 +949,27 @@ function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     out.push(`    return float(x)`);
     out.push(``);
     out.push(``);
+    if (ctx.usesTimedelta) {
+        out.push(`def from_timedelta(x: Any) -> timedelta:`);
+        out.push(`    assert isinstance(x, (float, int)) and not isinstance(x, bool)`);
+        out.push(`    return timedelta(milliseconds=float(x))`);
+        out.push(``);
+        out.push(``);
+        if (ctx.usesIntegerTimedelta) {
+            out.push(`def to_timedelta_int(x: timedelta) -> int:`);
+            out.push(`    assert isinstance(x, timedelta)`);
+            out.push(`    milliseconds = x.total_seconds() * 1000.0`);
+            out.push(`    assert milliseconds.is_integer()`);
+            out.push(`    return int(milliseconds)`);
+            out.push(``);
+            out.push(``);
+        }
+        out.push(`def to_timedelta(x: timedelta) -> float:`);
+        out.push(`    assert isinstance(x, timedelta)`);
+        out.push(`    return x.total_seconds() * 1000.0`);
+        out.push(``);
+        out.push(``);
+    }
     out.push(`def from_bool(x: Any) -> bool:`);
     out.push(`    assert isinstance(x, bool)`);
     out.push(`    return x`);
@@ -993,6 +1071,10 @@ function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     out.push(`        return value.value`);
     out.push(`    if isinstance(value, datetime):`);
     out.push(`        return value.isoformat()`);
+    if (ctx.usesTimedelta) {
+        out.push(`    if isinstance(value, timedelta):`);
+        out.push(`        return value.total_seconds() * 1000.0`);
+    }
     out.push(`    if isinstance(value, UUID):`);
     out.push(`        return str(value)`);
     out.push(`    if isinstance(value, list):`);
@@ -1360,6 +1442,7 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
 
 async function generateRpc(schemaPath?: string): Promise<void> {
     console.log("Python: generating RPC types...");
+    const { FetchingJSONSchemaStore, InputData, JSONSchemaInput, quicktype } = await import("quicktype-core");
 
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
     const schema = cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema);
@@ -1778,9 +1861,13 @@ async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Pro
     }
 }
 
-const sessionArg = process.argv[2] || undefined;
-const apiArg = process.argv[3] || undefined;
-generate(sessionArg, apiArg).catch((err) => {
-    console.error("Python generation failed:", err);
-    process.exit(1);
-});
+const __filename = fileURLToPath(import.meta.url);
+
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+    const sessionArg = process.argv[2] || undefined;
+    const apiArg = process.argv[3] || undefined;
+    generate(sessionArg, apiArg).catch((err) => {
+        console.error("Python generation failed:", err);
+        process.exit(1);
+    });
+}
