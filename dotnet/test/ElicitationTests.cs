@@ -62,7 +62,7 @@ public class ElicitationTests(E2ETestFixture fixture, ITestOutputHelper output)
                 Message = "Enter name",
                 RequestedSchema = new ElicitationSchema
                 {
-                    Properties = new() { ["name"] = new Dictionary<string, object> { ["type"] = "string" } },
+                    Properties = new Dictionary<string, object>() { ["name"] = new Dictionary<string, object> { ["type"] = "string" } },
                     Required = ["name"],
                 },
             });

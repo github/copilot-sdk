@@ -131,7 +131,7 @@ Ping the server to check connectivity.
 
 Get current connection state.
 
-##### `ListSessionsAsync(): Task<List<SessionMetadata>>`
+##### `ListSessionsAsync(): Task<IList<SessionMetadata>>`
 
 List all available sessions.
 

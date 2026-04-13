@@ -5,6 +5,7 @@
 // AUTO-GENERATED FILE - DO NOT EDIT
 // Generated from: api.schema.json
 
+using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -60,7 +61,7 @@ public class ModelCapabilitiesLimitsVision
 {
     /// <summary>MIME types the model accepts.</summary>
     [JsonPropertyName("supported_media_types")]
-    public List<string> SupportedMediaTypes { get => field ??= []; set; }
+    public IList<string> SupportedMediaTypes { get => field ??= []; set; }
 
     /// <summary>Maximum number of images per prompt.</summary>
     [JsonPropertyName("max_prompt_images")]
@@ -148,7 +149,7 @@ public class Model
 
     /// <summary>Supported reasoning effort levels (only present if model supports reasoning effort).</summary>
     [JsonPropertyName("supportedReasoningEfforts")]
-    public List<string>? SupportedReasoningEfforts { get; set; }
+    public IList<string>? SupportedReasoningEfforts { get; set; }
 
     /// <summary>Default reasoning effort level (only present if model supports reasoning effort).</summary>
     [JsonPropertyName("defaultReasoningEffort")]
@@ -160,7 +161,7 @@ public class ModelsListResult
 {
     /// <summary>List of available models with full metadata.</summary>
     [JsonPropertyName("models")]
-    public List<Model> Models { get => field ??= []; set; }
+    public IList<Model> Models { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for Tool operations.</summary>
@@ -180,7 +181,7 @@ public class Tool
 
     /// <summary>JSON Schema for the tool's input parameters.</summary>
     [JsonPropertyName("parameters")]
-    public Dictionary<string, object>? Parameters { get; set; }
+    public IDictionary<string, object>? Parameters { get; set; }
 
     /// <summary>Optional instructions for how to use this tool effectively.</summary>
     [JsonPropertyName("instructions")]
@@ -192,7 +193,7 @@ public class ToolsListResult
 {
     /// <summary>List of available built-in tools with metadata.</summary>
     [JsonPropertyName("tools")]
-    public List<Tool> Tools { get => field ??= []; set; }
+    public IList<Tool> Tools { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for ToolsList operations.</summary>
@@ -236,7 +237,7 @@ public class AccountGetQuotaResult
 {
     /// <summary>Quota snapshots keyed by type (e.g., chat, completions, premium_interactions).</summary>
     [JsonPropertyName("quotaSnapshots")]
-    public Dictionary<string, AccountGetQuotaResultQuotaSnapshotsValue> QuotaSnapshots { get => field ??= []; set; }
+    public IDictionary<string, AccountGetQuotaResultQuotaSnapshotsValue> QuotaSnapshots { get => field ??= new Dictionary<string, AccountGetQuotaResultQuotaSnapshotsValue>(); set; }
 }
 
 /// <summary>RPC data type for SessionFsSetProvider operations.</summary>
@@ -313,6 +314,8 @@ internal class SessionLogRequest
     public bool? Ephemeral { get; set; }
 
     /// <summary>Optional URL the user can open in their browser for more details.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("url")]
     public string? Url { get; set; }
 }
@@ -358,7 +361,7 @@ public class ModelCapabilitiesOverrideLimitsVision
 {
     /// <summary>MIME types the model accepts.</summary>
     [JsonPropertyName("supported_media_types")]
-    public List<string>? SupportedMediaTypes { get; set; }
+    public IList<string>? SupportedMediaTypes { get; set; }
 
     /// <summary>Maximum number of images per prompt.</summary>
     [JsonPropertyName("max_prompt_images")]
@@ -516,7 +519,7 @@ public class SessionWorkspaceListFilesResult
 {
     /// <summary>Relative file paths in the workspace files directory.</summary>
     [JsonPropertyName("files")]
-    public List<string> Files { get => field ??= []; set; }
+    public IList<string> Files { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for SessionWorkspaceListFiles operations.</summary>
@@ -612,7 +615,7 @@ public class SessionAgentListResult
 {
     /// <summary>Available custom agents.</summary>
     [JsonPropertyName("agents")]
-    public List<Agent> Agents { get => field ??= []; set; }
+    public IList<Agent> Agents { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for SessionAgentList operations.</summary>
@@ -717,7 +720,7 @@ public class SessionAgentReloadResult
 {
     /// <summary>Reloaded custom agents.</summary>
     [JsonPropertyName("agents")]
-    public List<Agent> Agents { get => field ??= []; set; }
+    public IList<Agent> Agents { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for SessionAgentReload operations.</summary>
@@ -763,7 +766,7 @@ public class SessionSkillsListResult
 {
     /// <summary>Available skills.</summary>
     [JsonPropertyName("skills")]
-    public List<Skill> Skills { get => field ??= []; set; }
+    public IList<Skill> Skills { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for SessionSkillsList operations.</summary>
@@ -854,7 +857,7 @@ public class SessionMcpListResult
 {
     /// <summary>Configured MCP servers.</summary>
     [JsonPropertyName("servers")]
-    public List<Server> Servers { get => field ??= []; set; }
+    public IList<Server> Servers { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for SessionMcpList operations.</summary>
@@ -945,7 +948,7 @@ public class SessionPluginsListResult
 {
     /// <summary>Installed plugins.</summary>
     [JsonPropertyName("plugins")]
-    public List<Plugin> Plugins { get => field ??= []; set; }
+    public IList<Plugin> Plugins { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for SessionPluginsList operations.</summary>
@@ -978,7 +981,7 @@ public class Extension
 
     /// <summary>Process ID if the extension is running.</summary>
     [JsonPropertyName("pid")]
-    public double? Pid { get; set; }
+    public long? Pid { get; set; }
 }
 
 /// <summary>RPC data type for SessionExtensionsList operations.</summary>
@@ -987,7 +990,7 @@ public class SessionExtensionsListResult
 {
     /// <summary>Discovered extensions and their current status.</summary>
     [JsonPropertyName("extensions")]
-    public List<Extension> Extensions { get => field ??= []; set; }
+    public IList<Extension> Extensions { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for SessionExtensionsList operations.</summary>
@@ -1113,7 +1116,7 @@ public class SessionUiElicitationResult
 
     /// <summary>The form values submitted by the user (present when action is 'accept').</summary>
     [JsonPropertyName("content")]
-    public Dictionary<string, object>? Content { get; set; }
+    public IDictionary<string, object>? Content { get; set; }
 }
 
 /// <summary>JSON Schema describing the form fields to present to the user.</summary>
@@ -1125,11 +1128,11 @@ public class SessionUiElicitationRequestRequestedSchema
 
     /// <summary>Form field definitions, keyed by field name.</summary>
     [JsonPropertyName("properties")]
-    public Dictionary<string, object> Properties { get => field ??= []; set; }
+    public IDictionary<string, object> Properties { get => field ??= new Dictionary<string, object>(); set; }
 
     /// <summary>List of required field names.</summary>
     [JsonPropertyName("required")]
-    public List<string>? Required { get; set; }
+    public IList<string>? Required { get; set; }
 }
 
 /// <summary>RPC data type for SessionUiElicitation operations.</summary>
@@ -1165,7 +1168,7 @@ public class SessionUiHandlePendingElicitationRequestResult
 
     /// <summary>The form values submitted by the user (present when action is 'accept').</summary>
     [JsonPropertyName("content")]
-    public Dictionary<string, object>? Content { get; set; }
+    public IDictionary<string, object>? Content { get; set; }
 }
 
 /// <summary>RPC data type for SessionUiHandlePendingElicitation operations.</summary>
@@ -1449,7 +1452,7 @@ public class SessionFsReaddirResult
 {
     /// <summary>Entry names in the directory.</summary>
     [JsonPropertyName("entries")]
-    public List<string> Entries { get => field ??= []; set; }
+    public IList<string> Entries { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for SessionFsReaddir operations.</summary>
@@ -1481,7 +1484,7 @@ public class SessionFsReaddirWithTypesResult
 {
     /// <summary>Directory entries with type information.</summary>
     [JsonPropertyName("entries")]
-    public List<Entry> Entries { get => field ??= []; set; }
+    public IList<Entry> Entries { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for SessionFsReaddirWithTypes operations.</summary>
