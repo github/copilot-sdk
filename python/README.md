@@ -25,7 +25,6 @@ python chat.py
 
 ```python
 import asyncio
-from typing import cast
 
 from copilot import CopilotClient
 from copilot.generated.session_events import AssistantMessageData
@@ -39,8 +38,8 @@ async def main():
             done = asyncio.Event()
 
             def on_event(event):
-                if event.type.value == "assistant.message":
-                    print(cast(AssistantMessageData, event.data).content)
+                if event.type.value == "assistant.message" and isinstance(event.data, AssistantMessageData):
+                    print(event.data.content)
                 elif event.type.value == "session.idle":
                     done.set()
 
@@ -59,7 +58,6 @@ If you need more control over the lifecycle, you can call `start()`, `stop()`, a
 
 ```python
 import asyncio
-from typing import cast
 
 from copilot import CopilotClient
 from copilot.generated.session_events import AssistantMessageData
@@ -78,8 +76,8 @@ async def main():
     done = asyncio.Event()
 
     def on_event(event):
-        if event.type.value == "assistant.message":
-            print(cast(AssistantMessageData, event.data).content)
+        if event.type.value == "assistant.message" and isinstance(event.data, AssistantMessageData):
+            print(event.data.content)
         elif event.type.value == "session.idle":
             done.set()
 
@@ -338,7 +336,6 @@ Enable streaming to receive assistant response chunks as they're generated:
 
 ```python
 import asyncio
-from typing import cast
 
 from copilot import CopilotClient
 from copilot.generated.session_events import (
@@ -362,21 +359,25 @@ async def main():
             def on_event(event):
                 match event.type.value:
                     case "assistant.message_delta":
-                        # Streaming message chunk - print incrementally
-                        delta = cast(AssistantMessageDeltaData, event.data).delta_content or ""
-                        print(delta, end="", flush=True)
+                        if isinstance(event.data, AssistantMessageDeltaData):
+                            # Streaming message chunk - print incrementally
+                            delta = event.data.delta_content or ""
+                            print(delta, end="", flush=True)
                     case "assistant.reasoning_delta":
-                        # Streaming reasoning chunk (if model supports reasoning)
-                        delta = cast(AssistantReasoningDeltaData, event.data).delta_content or ""
-                        print(delta, end="", flush=True)
+                        if isinstance(event.data, AssistantReasoningDeltaData):
+                            # Streaming reasoning chunk (if model supports reasoning)
+                            delta = event.data.delta_content or ""
+                            print(delta, end="", flush=True)
                     case "assistant.message":
-                        # Final message - complete content
-                        print("\n--- Final message ---")
-                        print(cast(AssistantMessageData, event.data).content)
+                        if isinstance(event.data, AssistantMessageData):
+                            # Final message - complete content
+                            print("\n--- Final message ---")
+                            print(event.data.content)
                     case "assistant.reasoning":
-                        # Final reasoning content (if model supports reasoning)
-                        print("--- Reasoning ---")
-                        print(cast(AssistantReasoningData, event.data).content)
+                        if isinstance(event.data, AssistantReasoningData):
+                            # Final reasoning content (if model supports reasoning)
+                            print("--- Reasoning ---")
+                            print(event.data.content)
                     case "session.idle":
                         # Session finished processing
                         done.set()
