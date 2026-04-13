@@ -450,7 +450,7 @@ export interface SessionsForkRequest {
   toEventId?: string;
 }
 
-export interface ModelCurrent {
+export interface CurrentModel {
   /**
    * Currently active model identifier
    */
@@ -742,6 +742,7 @@ export interface AgentSelectRequest {
   name: string;
 }
 
+/** @experimental */
 export interface SessionAgentDeselectRequest {
   /**
    * Target session identifier
@@ -843,6 +844,7 @@ export interface SkillsDisableRequest {
   name: string;
 }
 
+/** @experimental */
 export interface SessionSkillsReloadRequest {
   /**
    * Target session identifier
@@ -907,6 +909,7 @@ export interface McpDisableRequest {
   serverName: string;
 }
 
+/** @experimental */
 export interface SessionMcpReloadRequest {
   /**
    * Target session identifier
@@ -1008,6 +1011,7 @@ export interface ExtensionsDisableRequest {
   id: string;
 }
 
+/** @experimental */
 export interface SessionExtensionsReloadRequest {
   /**
    * Target session identifier
@@ -1801,7 +1805,7 @@ export function createServerRpc(connection: MessageConnection) {
 export function createSessionRpc(connection: MessageConnection, sessionId: string) {
     return {
         model: {
-            getCurrent: async (): Promise<ModelCurrent> =>
+            getCurrent: async (): Promise<CurrentModel> =>
                 connection.sendRequest("session.model.getCurrent", { sessionId }),
             switchTo: async (params: Omit<ModelSwitchToRequest, "sessionId">): Promise<ModelSwitchToResult> =>
                 connection.sendRequest("session.model.switchTo", { sessionId, ...params }),
@@ -1833,43 +1837,36 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             start: async (params: Omit<FleetStartRequest, "sessionId">): Promise<FleetStartResult> =>
                 connection.sendRequest("session.fleet.start", { sessionId, ...params }),
         },
+        /** @experimental */
         agent: {
-            /** @experimental */
             list: async (): Promise<AgentList> =>
                 connection.sendRequest("session.agent.list", { sessionId }),
-            /** @experimental */
             getCurrent: async (): Promise<AgentCurrent> =>
                 connection.sendRequest("session.agent.getCurrent", { sessionId }),
-            /** @experimental */
             select: async (params: Omit<AgentSelectRequest, "sessionId">): Promise<AgentSelectResult> =>
                 connection.sendRequest("session.agent.select", { sessionId, ...params }),
             deselect: async (): Promise<void> =>
                 connection.sendRequest("session.agent.deselect", { sessionId }),
-            /** @experimental */
             reload: async (): Promise<AgentReload> =>
                 connection.sendRequest("session.agent.reload", { sessionId }),
         },
+        /** @experimental */
         skills: {
-            /** @experimental */
             list: async (): Promise<SkillList> =>
                 connection.sendRequest("session.skills.list", { sessionId }),
-            /** @experimental */
             enable: async (params: Omit<SkillsEnableRequest, "sessionId">): Promise<void> =>
                 connection.sendRequest("session.skills.enable", { sessionId, ...params }),
-            /** @experimental */
             disable: async (params: Omit<SkillsDisableRequest, "sessionId">): Promise<void> =>
                 connection.sendRequest("session.skills.disable", { sessionId, ...params }),
             reload: async (): Promise<void> =>
                 connection.sendRequest("session.skills.reload", { sessionId }),
         },
+        /** @experimental */
         mcp: {
-            /** @experimental */
             list: async (): Promise<McpServerList> =>
                 connection.sendRequest("session.mcp.list", { sessionId }),
-            /** @experimental */
             enable: async (params: Omit<McpEnableRequest, "sessionId">): Promise<void> =>
                 connection.sendRequest("session.mcp.enable", { sessionId, ...params }),
-            /** @experimental */
             disable: async (params: Omit<McpDisableRequest, "sessionId">): Promise<void> =>
                 connection.sendRequest("session.mcp.disable", { sessionId, ...params }),
             reload: async (): Promise<void> =>
@@ -1880,14 +1877,12 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             list: async (): Promise<PluginList> =>
                 connection.sendRequest("session.plugins.list", { sessionId }),
         },
+        /** @experimental */
         extensions: {
-            /** @experimental */
             list: async (): Promise<ExtensionList> =>
                 connection.sendRequest("session.extensions.list", { sessionId }),
-            /** @experimental */
             enable: async (params: Omit<ExtensionsEnableRequest, "sessionId">): Promise<void> =>
                 connection.sendRequest("session.extensions.enable", { sessionId, ...params }),
-            /** @experimental */
             disable: async (params: Omit<ExtensionsDisableRequest, "sessionId">): Promise<void> =>
                 connection.sendRequest("session.extensions.disable", { sessionId, ...params }),
             reload: async (): Promise<void> =>

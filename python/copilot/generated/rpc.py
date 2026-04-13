@@ -938,15 +938,15 @@ class SessionsForkRequest:
         return result
 
 @dataclass
-class ModelCurrent:
+class CurrentModel:
     model_id: str | None = None
     """Currently active model identifier"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ModelCurrent':
+    def from_dict(obj: Any) -> 'CurrentModel':
         assert isinstance(obj, dict)
         model_id = from_union([from_str, from_none], obj.get("modelId"))
-        return ModelCurrent(model_id)
+        return CurrentModel(model_id)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -3205,11 +3205,11 @@ def sessions_fork_request_from_dict(s: Any) -> SessionsForkRequest:
 def sessions_fork_request_to_dict(x: SessionsForkRequest) -> Any:
     return to_class(SessionsForkRequest, x)
 
-def model_current_from_dict(s: Any) -> ModelCurrent:
-    return ModelCurrent.from_dict(s)
+def current_model_from_dict(s: Any) -> CurrentModel:
+    return CurrentModel.from_dict(s)
 
-def model_current_to_dict(x: ModelCurrent) -> Any:
-    return to_class(ModelCurrent, x)
+def current_model_to_dict(x: CurrentModel) -> Any:
+    return to_class(CurrentModel, x)
 
 def model_switch_to_result_from_dict(s: Any) -> ModelSwitchToResult:
     return ModelSwitchToResult.from_dict(s)
@@ -3665,8 +3665,8 @@ class ModelApi:
         self._client = client
         self._session_id = session_id
 
-    async def get_current(self, *, timeout: float | None = None) -> ModelCurrent:
-        return ModelCurrent.from_dict(await self._client.request("session.model.getCurrent", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+    async def get_current(self, *, timeout: float | None = None) -> CurrentModel:
+        return CurrentModel.from_dict(await self._client.request("session.model.getCurrent", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def switch_to(self, params: ModelSwitchToRequest, *, timeout: float | None = None) -> ModelSwitchToResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
@@ -3736,21 +3736,19 @@ class FleetApi:
         return FleetStartResult.from_dict(await self._client.request("session.fleet.start", params_dict, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
 class AgentApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
         self._session_id = session_id
 
     async def list(self, *, timeout: float | None = None) -> AgentList:
-        """.. warning:: This API is experimental and may change or be removed in future versions."""
         return AgentList.from_dict(await self._client.request("session.agent.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def get_current(self, *, timeout: float | None = None) -> AgentCurrent:
-        """.. warning:: This API is experimental and may change or be removed in future versions."""
         return AgentCurrent.from_dict(await self._client.request("session.agent.getCurrent", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def select(self, params: AgentSelectRequest, *, timeout: float | None = None) -> AgentSelectResult:
-        """.. warning:: This API is experimental and may change or be removed in future versions."""
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return AgentSelectResult.from_dict(await self._client.request("session.agent.select", params_dict, **_timeout_kwargs(timeout)))
@@ -3759,27 +3757,24 @@ class AgentApi:
         await self._client.request("session.agent.deselect", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
     async def reload(self, *, timeout: float | None = None) -> AgentReload:
-        """.. warning:: This API is experimental and may change or be removed in future versions."""
         return AgentReload.from_dict(await self._client.request("session.agent.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
 class SkillsApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
         self._session_id = session_id
 
     async def list(self, *, timeout: float | None = None) -> SkillList:
-        """.. warning:: This API is experimental and may change or be removed in future versions."""
         return SkillList.from_dict(await self._client.request("session.skills.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def enable(self, params: SkillsEnableRequest, *, timeout: float | None = None) -> None:
-        """.. warning:: This API is experimental and may change or be removed in future versions."""
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.skills.enable", params_dict, **_timeout_kwargs(timeout))
 
     async def disable(self, params: SkillsDisableRequest, *, timeout: float | None = None) -> None:
-        """.. warning:: This API is experimental and may change or be removed in future versions."""
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.skills.disable", params_dict, **_timeout_kwargs(timeout))
@@ -3788,23 +3783,21 @@ class SkillsApi:
         await self._client.request("session.skills.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
 
+# Experimental: this API group is experimental and may change or be removed.
 class McpApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
         self._session_id = session_id
 
     async def list(self, *, timeout: float | None = None) -> MCPServerList:
-        """.. warning:: This API is experimental and may change or be removed in future versions."""
         return MCPServerList.from_dict(await self._client.request("session.mcp.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def enable(self, params: MCPEnableRequest, *, timeout: float | None = None) -> None:
-        """.. warning:: This API is experimental and may change or be removed in future versions."""
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.mcp.enable", params_dict, **_timeout_kwargs(timeout))
 
     async def disable(self, params: MCPDisableRequest, *, timeout: float | None = None) -> None:
-        """.. warning:: This API is experimental and may change or be removed in future versions."""
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.mcp.disable", params_dict, **_timeout_kwargs(timeout))
@@ -3823,23 +3816,21 @@ class PluginsApi:
         return PluginList.from_dict(await self._client.request("session.plugins.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
 class ExtensionsApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
         self._session_id = session_id
 
     async def list(self, *, timeout: float | None = None) -> ExtensionList:
-        """.. warning:: This API is experimental and may change or be removed in future versions."""
         return ExtensionList.from_dict(await self._client.request("session.extensions.list", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
     async def enable(self, params: ExtensionsEnableRequest, *, timeout: float | None = None) -> None:
-        """.. warning:: This API is experimental and may change or be removed in future versions."""
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.extensions.enable", params_dict, **_timeout_kwargs(timeout))
 
     async def disable(self, params: ExtensionsDisableRequest, *, timeout: float | None = None) -> None:
-        """.. warning:: This API is experimental and may change or be removed in future versions."""
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.extensions.disable", params_dict, **_timeout_kwargs(timeout))

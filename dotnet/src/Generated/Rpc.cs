@@ -364,8 +364,8 @@ internal sealed class LogRequest
     public string? Url { get; set; }
 }
 
-/// <summary>RPC data type for ModelCurrent operations.</summary>
-public sealed class ModelCurrent
+/// <summary>RPC data type for CurrentModel operations.</summary>
+public sealed class CurrentModel
 {
     /// <summary>Currently active model identifier.</summary>
     [JsonPropertyName("modelId")]
@@ -718,6 +718,7 @@ internal sealed class AgentSelectRequest
 }
 
 /// <summary>RPC data type for SessionAgentDeselect operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionAgentDeselectRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -832,6 +833,7 @@ internal sealed class SkillsDisableRequest
 }
 
 /// <summary>RPC data type for SessionSkillsReload operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionSkillsReloadRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -907,6 +909,7 @@ internal sealed class McpDisableRequest
 }
 
 /// <summary>RPC data type for SessionMcpReload operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionMcpReloadRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -1021,6 +1024,7 @@ internal sealed class ExtensionsDisableRequest
 }
 
 /// <summary>RPC data type for SessionExtensionsReload operations.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionExtensionsReloadRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2102,10 +2106,10 @@ public sealed class ModelApi
     }
 
     /// <summary>Calls "session.model.getCurrent".</summary>
-    public async Task<ModelCurrent> GetCurrentAsync(CancellationToken cancellationToken = default)
+    public async Task<CurrentModel> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionModelGetCurrentRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<ModelCurrent>(_rpc, "session.model.getCurrent", [request], cancellationToken);
+        return await CopilotClient.InvokeRpcAsync<CurrentModel>(_rpc, "session.model.getCurrent", [request], cancellationToken);
     }
 
     /// <summary>Calls "session.model.switchTo".</summary>
@@ -2233,6 +2237,7 @@ public sealed class FleetApi
 }
 
 /// <summary>Provides session-scoped Agent APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class AgentApi
 {
     private readonly JsonRpc _rpc;
@@ -2245,7 +2250,6 @@ public sealed class AgentApi
     }
 
     /// <summary>Calls "session.agent.list".</summary>
-    [Experimental(Diagnostics.Experimental)]
     public async Task<AgentList> ListAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionAgentListRequest { SessionId = _sessionId };
@@ -2253,7 +2257,6 @@ public sealed class AgentApi
     }
 
     /// <summary>Calls "session.agent.getCurrent".</summary>
-    [Experimental(Diagnostics.Experimental)]
     public async Task<AgentCurrent> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionAgentGetCurrentRequest { SessionId = _sessionId };
@@ -2261,7 +2264,6 @@ public sealed class AgentApi
     }
 
     /// <summary>Calls "session.agent.select".</summary>
-    [Experimental(Diagnostics.Experimental)]
     public async Task<AgentSelectResult> SelectAsync(string name, CancellationToken cancellationToken = default)
     {
         var request = new AgentSelectRequest { SessionId = _sessionId, Name = name };
@@ -2276,7 +2278,6 @@ public sealed class AgentApi
     }
 
     /// <summary>Calls "session.agent.reload".</summary>
-    [Experimental(Diagnostics.Experimental)]
     public async Task<AgentReload> ReloadAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionAgentReloadRequest { SessionId = _sessionId };
@@ -2285,6 +2286,7 @@ public sealed class AgentApi
 }
 
 /// <summary>Provides session-scoped Skills APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SkillsApi
 {
     private readonly JsonRpc _rpc;
@@ -2297,7 +2299,6 @@ public sealed class SkillsApi
     }
 
     /// <summary>Calls "session.skills.list".</summary>
-    [Experimental(Diagnostics.Experimental)]
     public async Task<SkillList> ListAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionSkillsListRequest { SessionId = _sessionId };
@@ -2305,7 +2306,6 @@ public sealed class SkillsApi
     }
 
     /// <summary>Calls "session.skills.enable".</summary>
-    [Experimental(Diagnostics.Experimental)]
     public async Task EnableAsync(string name, CancellationToken cancellationToken = default)
     {
         var request = new SkillsEnableRequest { SessionId = _sessionId, Name = name };
@@ -2313,7 +2313,6 @@ public sealed class SkillsApi
     }
 
     /// <summary>Calls "session.skills.disable".</summary>
-    [Experimental(Diagnostics.Experimental)]
     public async Task DisableAsync(string name, CancellationToken cancellationToken = default)
     {
         var request = new SkillsDisableRequest { SessionId = _sessionId, Name = name };
@@ -2329,6 +2328,7 @@ public sealed class SkillsApi
 }
 
 /// <summary>Provides session-scoped Mcp APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class McpApi
 {
     private readonly JsonRpc _rpc;
@@ -2341,7 +2341,6 @@ public sealed class McpApi
     }
 
     /// <summary>Calls "session.mcp.list".</summary>
-    [Experimental(Diagnostics.Experimental)]
     public async Task<McpServerList> ListAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionMcpListRequest { SessionId = _sessionId };
@@ -2349,7 +2348,6 @@ public sealed class McpApi
     }
 
     /// <summary>Calls "session.mcp.enable".</summary>
-    [Experimental(Diagnostics.Experimental)]
     public async Task EnableAsync(string serverName, CancellationToken cancellationToken = default)
     {
         var request = new McpEnableRequest { SessionId = _sessionId, ServerName = serverName };
@@ -2357,7 +2355,6 @@ public sealed class McpApi
     }
 
     /// <summary>Calls "session.mcp.disable".</summary>
-    [Experimental(Diagnostics.Experimental)]
     public async Task DisableAsync(string serverName, CancellationToken cancellationToken = default)
     {
         var request = new McpDisableRequest { SessionId = _sessionId, ServerName = serverName };
@@ -2394,6 +2391,7 @@ public sealed class PluginsApi
 }
 
 /// <summary>Provides session-scoped Extensions APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ExtensionsApi
 {
     private readonly JsonRpc _rpc;
@@ -2406,7 +2404,6 @@ public sealed class ExtensionsApi
     }
 
     /// <summary>Calls "session.extensions.list".</summary>
-    [Experimental(Diagnostics.Experimental)]
     public async Task<ExtensionList> ListAsync(CancellationToken cancellationToken = default)
     {
         var request = new SessionExtensionsListRequest { SessionId = _sessionId };
@@ -2414,7 +2411,6 @@ public sealed class ExtensionsApi
     }
 
     /// <summary>Calls "session.extensions.enable".</summary>
-    [Experimental(Diagnostics.Experimental)]
     public async Task EnableAsync(string id, CancellationToken cancellationToken = default)
     {
         var request = new ExtensionsEnableRequest { SessionId = _sessionId, Id = id };
@@ -2422,7 +2418,6 @@ public sealed class ExtensionsApi
     }
 
     /// <summary>Calls "session.extensions.disable".</summary>
-    [Experimental(Diagnostics.Experimental)]
     public async Task DisableAsync(string id, CancellationToken cancellationToken = default)
     {
         var request = new ExtensionsDisableRequest { SessionId = _sessionId, Id = id };
@@ -2762,6 +2757,7 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(AgentSelectResult))]
 [JsonSerializable(typeof(CommandsHandlePendingCommandRequest))]
 [JsonSerializable(typeof(CommandsHandlePendingCommandResult))]
+[JsonSerializable(typeof(CurrentModel))]
 [JsonSerializable(typeof(DiscoveredMcpServer))]
 [JsonSerializable(typeof(Extension))]
 [JsonSerializable(typeof(ExtensionList))]
@@ -2793,7 +2789,6 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(ModelCapabilitiesOverrideLimitsVision))]
 [JsonSerializable(typeof(ModelCapabilitiesOverrideSupports))]
 [JsonSerializable(typeof(ModelCapabilitiesSupports))]
-[JsonSerializable(typeof(ModelCurrent))]
 [JsonSerializable(typeof(ModelList))]
 [JsonSerializable(typeof(ModelPolicy))]
 [JsonSerializable(typeof(ModelSwitchToRequest))]
