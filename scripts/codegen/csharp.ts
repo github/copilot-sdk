@@ -18,6 +18,7 @@ import {
     getSessionEventsSchemaPath,
     writeGeneratedFile,
     collectDefinitions,
+    postProcessSchema,
     resolveRef,
     refTypeName,
     isRpcMethod,
@@ -512,18 +513,25 @@ function resolveSessionPropertyType(
 ): string {
     // Handle $ref by resolving against schema definitions
     if (propSchema.$ref) {
-        const typeName = refTypeName(propSchema.$ref);
-        const className = typeToClassName(typeName);
-        if (!nestedClasses.has(className)) {
-            const refSchema = resolveRef(propSchema.$ref, sessionDefinitions);
-            if (refSchema) {
-                if (refSchema.enum && Array.isArray(refSchema.enum)) {
-                    return getOrCreateEnum(className, "", refSchema.enum as string[], enumOutput);
-                }
+        const className = typeToClassName(refTypeName(propSchema.$ref));
+        const refSchema = resolveRef(propSchema.$ref, sessionDefinitions);
+        if (!refSchema) {
+            return isRequired ? className : `${className}?`;
+        }
+
+        if (refSchema.enum && Array.isArray(refSchema.enum)) {
+            const enumName = getOrCreateEnum(className, "", refSchema.enum as string[], enumOutput, refSchema.description);
+            return isRequired ? enumName : `${enumName}?`;
+        }
+
+        if (refSchema.type === "object" && refSchema.properties) {
+            if (!nestedClasses.has(className)) {
                 nestedClasses.set(className, generateNestedClass(className, refSchema, knownTypes, nestedClasses, enumOutput));
             }
+            return isRequired ? className : `${className}?`;
         }
-        return isRequired ? className : `${className}?`;
+
+        return resolveSessionPropertyType(refSchema, parentClassName, propName, isRequired, knownTypes, nestedClasses, enumOutput);
     }
     if (propSchema.anyOf) {
         const hasNull = propSchema.anyOf.some((s) => typeof s === "object" && (s as JSONSchema7).type === "null");
@@ -556,40 +564,15 @@ function resolveSessionPropertyType(
     }
     if (propSchema.type === "array" && propSchema.items) {
         const items = propSchema.items as JSONSchema7;
-        // Handle $ref in array items
-        if (items.$ref) {
-            const typeName = refTypeName(items.$ref);
-            const className = typeToClassName(typeName);
-            if (!nestedClasses.has(className)) {
-                const refSchema = resolveRef(items.$ref, sessionDefinitions);
-                if (refSchema) {
-                    nestedClasses.set(className, generateNestedClass(className, refSchema, knownTypes, nestedClasses, enumOutput));
-                }
-            }
-            return isRequired ? `${className}[]` : `${className}[]?`;
-        }
-        // Array of discriminated union (anyOf with shared discriminator)
-        if (items.anyOf && Array.isArray(items.anyOf)) {
-            const variants = items.anyOf.filter((v): v is JSONSchema7 => typeof v === "object");
-            const discriminatorInfo = findDiscriminator(variants);
-            if (discriminatorInfo) {
-                const baseClassName = (items.title as string) ?? `${parentClassName}${propName}Item`;
-                const renamedBase = applyTypeRename(baseClassName);
-                const polymorphicCode = generatePolymorphicClasses(baseClassName, discriminatorInfo.property, variants, knownTypes, nestedClasses, enumOutput, items.description);
-                nestedClasses.set(renamedBase, polymorphicCode);
-                return isRequired ? `${renamedBase}[]` : `${renamedBase}[]?`;
-            }
-        }
-        if (items.type === "object" && items.properties) {
-            const itemClassName = (items.title as string) ?? `${parentClassName}${propName}Item`;
-            nestedClasses.set(itemClassName, generateNestedClass(itemClassName, items, knownTypes, nestedClasses, enumOutput));
-            return isRequired ? `${itemClassName}[]` : `${itemClassName}[]?`;
-        }
-        if (items.enum && Array.isArray(items.enum)) {
-            const enumName = getOrCreateEnum(parentClassName, `${propName}Item`, items.enum as string[], enumOutput, items.description, items.title as string | undefined);
-            return isRequired ? `${enumName}[]` : `${enumName}[]?`;
-        }
-        const itemType = schemaTypeToCSharp(items, true, knownTypes);
+        const itemType = resolveSessionPropertyType(
+            items,
+            parentClassName,
+            `${propName}Item`,
+            true,
+            knownTypes,
+            nestedClasses,
+            enumOutput
+        );
         return isRequired ? `${itemType}[]` : `${itemType}[]?`;
     }
     return schemaTypeToCSharp(propSchema, isRequired, knownTypes);
@@ -725,7 +708,8 @@ export async function generateSessionEvents(schemaPath?: string): Promise<void> 
     console.log("C#: generating session-events...");
     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
     const schema = cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7);
-    const code = generateSessionEventsCode(schema);
+    const processed = postProcessSchema(schema);
+    const code = generateSessionEventsCode(processed);
     const outPath = await writeGeneratedFile("dotnet/src/Generated/SessionEvents.cs", code);
     console.log(`  ✓ ${outPath}`);
     await formatCSharpFile(outPath);
@@ -774,13 +758,24 @@ function stableStringify(value: unknown): string {
 function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassName: string, propName: string, classes: string[]): string {
     // Handle $ref by resolving against schema definitions and generating the referenced class
     if (schema.$ref) {
-        const typeName = refTypeName(schema.$ref);
+        const typeName = typeToClassName(refTypeName(schema.$ref));
         const refSchema = resolveRef(schema.$ref, rpcDefinitions);
-        if (refSchema && !emittedRpcClasses.has(typeName)) {
+        if (!refSchema) {
+            return isRequired ? typeName : `${typeName}?`;
+        }
+
+        if (refSchema.enum && Array.isArray(refSchema.enum)) {
+            const enumName = getOrCreateEnum(typeName, "", refSchema.enum as string[], rpcEnumOutput, refSchema.description);
+            return isRequired ? enumName : `${enumName}?`;
+        }
+
+        if (refSchema.type === "object" && refSchema.properties) {
             const cls = emitRpcClass(typeName, refSchema, "public", classes);
             if (cls) classes.push(cls);
+            return isRequired ? typeName : `${typeName}?`;
         }
-        return isRequired ? typeName : `${typeName}?`;
+
+        return resolveRpcType(refSchema, isRequired, parentClassName, propName, classes);
     }
     // Handle anyOf: [T, null] → T? (nullable typed property)
     if (schema.anyOf) {
@@ -809,43 +804,17 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
     }
     if (schema.type === "array" && schema.items) {
         const items = schema.items as JSONSchema7;
-        // Handle $ref in array items
-        if (items.$ref) {
-            const typeName = refTypeName(items.$ref);
-            const refSchema = resolveRef(items.$ref, rpcDefinitions);
-            if (refSchema && !emittedRpcClasses.has(typeName)) {
-                const cls = emitRpcClass(typeName, refSchema, "public", classes);
-                if (cls) classes.push(cls);
-            }
-            return isRequired ? `List<${typeName}>` : `List<${typeName}>?`;
-        }
         if (items.type === "object" && items.properties) {
             const itemClass = (items.title as string) ?? singularPascal(propName);
             classes.push(emitRpcClass(itemClass, items, "public", classes));
             return isRequired ? `IList<${itemClass}>` : `IList<${itemClass}>?`;
         }
-        if (items.enum && Array.isArray(items.enum)) {
-            const itemEnum = getOrCreateEnum(
-                parentClassName,
-                `${propName}Item`,
-                items.enum as string[],
-                rpcEnumOutput,
-                items.description,
-                items.title as string | undefined,
-            );
-            return isRequired ? `IList<${itemEnum}>` : `IList<${itemEnum}>?`;
-        }
-        const itemType = schemaTypeToCSharp(items, true, rpcKnownTypes);
+        const itemType = resolveRpcType(items, true, parentClassName, `${propName}Item`, classes);
         return isRequired ? `IList<${itemType}>` : `IList<${itemType}>?`;
     }
     if (schema.type === "object" && schema.additionalProperties && typeof schema.additionalProperties === "object") {
         const vs = schema.additionalProperties as JSONSchema7;
-        if (vs.type === "object" && vs.properties) {
-            const valClass = (vs.title as string) ?? `${parentClassName}${propName}Value`;
-            classes.push(emitRpcClass(valClass, vs, "public", classes));
-            return isRequired ? `IDictionary<string, ${valClass}>` : `IDictionary<string, ${valClass}>?`;
-        }
-        const valueType = schemaTypeToCSharp(vs, true, rpcKnownTypes);
+        const valueType = resolveRpcType(vs, true, parentClassName, `${propName}Value`, classes);
         return isRequired ? `IDictionary<string, ${valueType}>` : `IDictionary<string, ${valueType}>?`;
     }
     return schemaTypeToCSharp(schema, isRequired, rpcKnownTypes);
@@ -1045,15 +1014,9 @@ function emitServerInstanceMethod(
         if (typeof pSchema !== "object") continue;
         const isReq = requiredSet.has(pName);
         const jsonSchema = pSchema as JSONSchema7;
-        let csType: string;
-        // If the property has an enum, resolve to the generated enum type by title
-        if (jsonSchema.enum && Array.isArray(jsonSchema.enum) && requestClassName) {
-            const enumTitle = (jsonSchema.title as string) ?? `${requestClassName}${toPascalCase(pName)}`;
-            const match = generatedEnums.get(enumTitle);
-            csType = match ? (isReq ? match.enumName : `${match.enumName}?`) : schemaTypeToCSharp(jsonSchema, isReq, rpcKnownTypes);
-        } else {
-            csType = schemaTypeToCSharp(jsonSchema, isReq, rpcKnownTypes);
-        }
+        const csType = requestClassName
+            ? resolveRpcType(jsonSchema, isReq, requestClassName, toPascalCase(pName), classes)
+            : schemaTypeToCSharp(jsonSchema, isReq, rpcKnownTypes);
         sigParams.push(`${csType} ${pName}${isReq ? "" : " = null"}`);
         bodyAssignments.push(`${toPascalCase(pName)} = ${pName}`);
     }

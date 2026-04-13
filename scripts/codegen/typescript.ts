@@ -213,7 +213,12 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
     // Strip the placeholder root type and keep only the definition-generated types
     const strippedTs = compiled
+        .replace(
+            /\/\*\*\n \* This (?:interface|type) was referenced by `_RpcSchemaRoot`'s JSON-Schema\n \* via the `definition` "[^"]+"\.\n \*\/\n/g,
+            "\n"
+        )
         .replace(/export interface _RpcSchemaRoot\s*\{[^}]*\}\s*/g, "")
+        .replace(/export type _RpcSchemaRoot = [^;]+;\s*/g, "")
         .trim();
 
     if (strippedTs) {
