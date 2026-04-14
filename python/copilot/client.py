@@ -360,15 +360,13 @@ class ModelLimits:
 class ModelSupports:
     """Model support flags"""
 
-    vision: bool
+    vision: bool = False
     reasoning_effort: bool = False  # Whether this model supports reasoning effort
 
     @staticmethod
     def from_dict(obj: Any) -> ModelSupports:
         assert isinstance(obj, dict)
-        vision = obj.get("vision")
-        if vision is None:
-            raise ValueError("Missing required field 'vision' in ModelSupports")
+        vision = obj.get("vision", False)
         reasoning_effort = obj.get("reasoningEffort", False)
         return ModelSupports(vision=bool(vision), reasoning_effort=bool(reasoning_effort))
 

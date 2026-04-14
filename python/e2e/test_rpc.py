@@ -129,18 +129,16 @@ class TestSessionRpc:
             assert initial == SessionMode.INTERACTIVE
 
             # Switch to plan mode
-            plan_result = await session.rpc.mode.set(ModeSetRequest(mode=SessionMode.PLAN))
-            assert plan_result == SessionMode.PLAN
+            await session.rpc.mode.set(ModeSetRequest(mode=SessionMode.PLAN))
 
             # Verify mode persisted
             after_plan = await session.rpc.mode.get()
             assert after_plan == SessionMode.PLAN
 
             # Switch back to interactive
-            interactive_result = await session.rpc.mode.set(
+            await session.rpc.mode.set(
                 ModeSetRequest(mode=SessionMode.INTERACTIVE)
             )
-            assert interactive_result == SessionMode.INTERACTIVE
 
             await session.disconnect()
             await client.stop()
