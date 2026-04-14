@@ -13,21 +13,16 @@ from uuid import uuid4
 import pytest
 
 from copilot.generated.session_events import (
-    Action,
-    AgentMode,
-    ContentElement,
     Data,
-    Mode,
+    ElicitationCompletedDataAction,
+    ElicitationRequestedDataMode,
+    ElicitationRequestedDataRequestedSchema,
     PermissionRequestedDataPermissionRequest,
     PermissionRequestedDataPermissionRequestAction,
-    ReferenceType,
-    RequestedSchema,
-    RequestedSchemaType,
-    Resource,
-    Result,
-    ResultKind,
     SessionEventType,
     SessionTaskCompleteData,
+    UserMessageDataAgentMode,
+    UserMessageDataAttachmentsItemReferenceType,
     session_event_from_dict,
 )
 
@@ -80,43 +75,17 @@ class TestEventForwardCompatibility:
         with pytest.raises((ValueError, TypeError)):
             session_event_from_dict(malformed_event)
 
-    def test_legacy_top_level_generated_symbols_remain_available(self):
-        """Previously top-level generated helper symbols should remain importable."""
-        assert Action.ACCEPT.value == "accept"
-        assert AgentMode.INTERACTIVE.value == "interactive"
-        assert Mode.FORM.value == "form"
-        assert ReferenceType.PR.value == "pr"
+    def test_explicit_generated_symbols_remain_available(self):
+        """Explicit generated helper symbols should remain importable."""
+        assert ElicitationCompletedDataAction.ACCEPT.value == "accept"
+        assert UserMessageDataAgentMode.INTERACTIVE.value == "interactive"
+        assert ElicitationRequestedDataMode.FORM.value == "form"
+        assert UserMessageDataAttachmentsItemReferenceType.PR.value == "pr"
 
-        schema = RequestedSchema(
-            properties={"answer": {"type": "string"}}, type=RequestedSchemaType.OBJECT
+        schema = ElicitationRequestedDataRequestedSchema(
+            properties={"answer": {"type": "string"}}, type="object"
         )
         assert schema.to_dict()["type"] == "object"
-
-        result = Result(
-            content="Approved",
-            kind=ResultKind.APPROVED,
-            contents=[
-                ContentElement(
-                    type=ContentElement.from_dict({"type": "text", "text": "hello"}).type,
-                    text="hello",
-                    resource=Resource(uri="file://artifact.txt", text="artifact"),
-                )
-            ],
-        )
-        assert result.to_dict() == {
-            "content": "Approved",
-            "kind": "approved",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": "hello",
-                    "resource": {
-                        "uri": "file://artifact.txt",
-                        "text": "artifact",
-                    },
-                }
-            ],
-        }
 
     def test_data_shim_preserves_raw_mapping_values(self):
         """Compatibility Data should keep arbitrary nested mappings as plain dicts."""
