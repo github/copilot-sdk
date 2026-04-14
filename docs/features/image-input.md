@@ -178,9 +178,9 @@ public static class ImageInputExample
         await session.SendAsync(new MessageOptions
         {
             Prompt = "Describe what you see in this image",
-            Attachments = new List<UserMessageDataAttachmentsItem>
+            Attachments = new List<UserMessageAttachment>
             {
-                new UserMessageDataAttachmentsItemFile
+                new UserMessageAttachmentFile
                 {
                     Path = "/absolute/path/to/screenshot.png",
                     DisplayName = "screenshot.png",
@@ -206,9 +206,9 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
 await session.SendAsync(new MessageOptions
 {
     Prompt = "Describe what you see in this image",
-    Attachments = new List<UserMessageDataAttachmentsItem>
+    Attachments = new List<UserMessageAttachment>
     {
-        new UserMessageDataAttachmentsItemFile
+        new UserMessageAttachmentFile
         {
             Path = "/absolute/path/to/screenshot.png",
             DisplayName = "screenshot.png",
@@ -396,9 +396,9 @@ public static class BlobAttachmentExample
         await session.SendAsync(new MessageOptions
         {
             Prompt = "Describe what you see in this image",
-            Attachments = new List<UserMessageDataAttachmentsItem>
+            Attachments = new List<UserMessageAttachment>
             {
-                new UserMessageDataAttachmentsItemBlob
+                new UserMessageAttachmentBlob
                 {
                     Data = base64ImageData,
                     MimeType = "image/png",
@@ -415,9 +415,9 @@ public static class BlobAttachmentExample
 await session.SendAsync(new MessageOptions
 {
     Prompt = "Describe what you see in this image",
-    Attachments = new List<UserMessageDataAttachmentsItem>
+    Attachments = new List<UserMessageAttachment>
     {
-        new UserMessageDataAttachmentsItemBlob
+        new UserMessageAttachmentBlob
         {
             Data = base64ImageData,
             MimeType = "image/png",

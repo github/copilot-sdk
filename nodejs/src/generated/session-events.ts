@@ -297,12 +297,7 @@ export type SessionEvent =
       /**
        * Session title change payload containing the new display title
        */
-      data: {
-        /**
-         * The new display title for the session
-         */
-        title: string;
-      };
+      data: {};
     }
   | {
       /**
@@ -755,6 +750,10 @@ export type SessionEvent =
                * Total tokens written to prompt cache across all requests
                */
               cacheWriteTokens: number;
+              /**
+               * Total reasoning tokens produced across all requests to this model
+               */
+              reasoningTokens?: number;
             };
           };
         };
@@ -1177,10 +1176,6 @@ export type SessionEvent =
                */
               number: number;
               /**
-               * Title of the referenced item
-               */
-              title: string;
-              /**
                * Type of GitHub reference
                */
               referenceType: "issue" | "pr" | "discussion";
@@ -1588,6 +1583,10 @@ export type SessionEvent =
          * Number of tokens written to prompt cache
          */
         cacheWriteTokens?: number;
+        /**
+         * Number of output tokens used for reasoning (e.g., chain-of-thought)
+         */
+        reasoningTokens?: number;
         /**
          * Model multiplier cost for billing purposes
          */
@@ -2010,10 +2009,6 @@ export type SessionEvent =
                  */
                 name: string;
                 /**
-                 * Human-readable display title for the resource
-                 */
-                title?: string;
-                /**
                  * URI identifying the resource
                  */
                 uri: string;
@@ -2042,35 +2037,7 @@ export type SessionEvent =
                 /**
                  * The embedded resource contents, either text or base64-encoded binary
                  */
-                resource:
-                  | {
-                      /**
-                       * URI identifying the resource
-                       */
-                      uri: string;
-                      /**
-                       * MIME type of the text content
-                       */
-                      mimeType?: string;
-                      /**
-                       * Text content of the resource
-                       */
-                      text: string;
-                    }
-                  | {
-                      /**
-                       * URI identifying the resource
-                       */
-                      uri: string;
-                      /**
-                       * MIME type of the blob content
-                       */
-                      mimeType?: string;
-                      /**
-                       * Base64-encoded binary content of the resource
-                       */
-                      blob: string;
-                    };
+                resource: EmbeddedTextResourceContents | EmbeddedBlobResourceContents;
               }
           )[];
         };
@@ -3764,3 +3731,32 @@ export type SessionEvent =
         }[];
       };
     };
+
+export interface EmbeddedTextResourceContents {
+  /**
+   * URI identifying the resource
+   */
+  uri: string;
+  /**
+   * MIME type of the text content
+   */
+  mimeType?: string;
+  /**
+   * Text content of the resource
+   */
+  text: string;
+}
+export interface EmbeddedBlobResourceContents {
+  /**
+   * URI identifying the resource
+   */
+  uri: string;
+  /**
+   * MIME type of the blob content
+   */
+  mimeType?: string;
+  /**
+   * Base64-encoded binary content of the resource
+   */
+  blob: string;
+}

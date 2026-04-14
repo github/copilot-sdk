@@ -744,11 +744,9 @@ export interface PermissionRequest {
     [key: string]: unknown;
 }
 
-import type { SessionPermissionsHandlePendingPermissionRequestParams } from "./generated/rpc.js";
+import type { PermissionDecisionRequest } from "./generated/rpc.js";
 
-export type PermissionRequestResult =
-    | SessionPermissionsHandlePendingPermissionRequestParams["result"]
-    | { kind: "no-result" };
+export type PermissionRequestResult = PermissionDecisionRequest["result"] | { kind: "no-result" };
 
 export type PermissionHandler = (
     request: PermissionRequest,

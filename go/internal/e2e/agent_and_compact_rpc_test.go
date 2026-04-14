@@ -136,7 +136,7 @@ func TestAgentSelectionRpc(t *testing.T) {
 		}
 
 		// Select the agent
-		selectResult, err := session.RPC.Agent.Select(t.Context(), &rpc.SessionAgentSelectParams{Name: "test-agent"})
+		selectResult, err := session.RPC.Agent.Select(t.Context(), &rpc.AgentSelectRequest{Name: "test-agent"})
 		if err != nil {
 			t.Fatalf("Failed to select agent: %v", err)
 		}
@@ -191,7 +191,7 @@ func TestAgentSelectionRpc(t *testing.T) {
 		}
 
 		// Select then deselect
-		_, err = session.RPC.Agent.Select(t.Context(), &rpc.SessionAgentSelectParams{Name: "test-agent"})
+		_, err = session.RPC.Agent.Select(t.Context(), &rpc.AgentSelectRequest{Name: "test-agent"})
 		if err != nil {
 			t.Fatalf("Failed to select agent: %v", err)
 		}

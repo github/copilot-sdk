@@ -24,7 +24,7 @@ try
         Prompt = "What languages are listed in the attached file?",
         Attachments =
         [
-            new UserMessageDataAttachmentsItemFile { Path = sampleFile, DisplayName = "sample-data.txt" },
+            new UserMessageAttachmentFile { Path = sampleFile, DisplayName = "sample-data.txt" },
         ],
     });
 

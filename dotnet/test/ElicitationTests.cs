@@ -80,7 +80,7 @@ public class ElicitationTests(E2ETestFixture fixture, ITestOutputHelper output)
             OnPermissionRequest = PermissionHandler.ApproveAll,
             OnElicitationRequest = _ => Task.FromResult(new ElicitationResult
             {
-                Action = SessionUiElicitationResultAction.Accept,
+                Action = UIElicitationResponseAction.Accept,
                 Content = new Dictionary<string, object>(),
             }),
         });
@@ -99,7 +99,7 @@ public class ElicitationTests(E2ETestFixture fixture, ITestOutputHelper output)
             OnPermissionRequest = PermissionHandler.ApproveAll,
             OnElicitationRequest = _ => Task.FromResult(new ElicitationResult
             {
-                Action = SessionUiElicitationResultAction.Accept,
+                Action = UIElicitationResponseAction.Accept,
                 Content = new Dictionary<string, object>(),
             }),
         });
@@ -194,17 +194,17 @@ public class ElicitationTests(E2ETestFixture fixture, ITestOutputHelper output)
     {
         var result = new ElicitationResult
         {
-            Action = SessionUiElicitationResultAction.Accept,
+            Action = UIElicitationResponseAction.Accept,
             Content = new Dictionary<string, object> { ["name"] = "Alice" },
         };
 
-        Assert.Equal(SessionUiElicitationResultAction.Accept, result.Action);
+        Assert.Equal(UIElicitationResponseAction.Accept, result.Action);
         Assert.NotNull(result.Content);
         Assert.Equal("Alice", result.Content!["name"]);
 
         var declined = new ElicitationResult
         {
-            Action = SessionUiElicitationResultAction.Decline,
+            Action = UIElicitationResponseAction.Decline,
         };
         Assert.Null(declined.Content);
     }
@@ -244,7 +244,7 @@ public class ElicitationTests(E2ETestFixture fixture, ITestOutputHelper output)
                     ["color"] = new Dictionary<string, object> { ["type"] = "string", ["enum"] = new[] { "red", "blue" } },
                 },
             },
-            Mode = ElicitationRequestedDataMode.Form,
+            Mode = ElicitationRequestedMode.Form,
             ElicitationSource = "mcp-server",
             Url = null,
         };
@@ -252,7 +252,7 @@ public class ElicitationTests(E2ETestFixture fixture, ITestOutputHelper output)
         Assert.Equal("session-42", context.SessionId);
         Assert.Equal("Pick a color", context.Message);
         Assert.NotNull(context.RequestedSchema);
-        Assert.Equal(ElicitationRequestedDataMode.Form, context.Mode);
+        Assert.Equal(ElicitationRequestedMode.Form, context.Mode);
         Assert.Equal("mcp-server", context.ElicitationSource);
         Assert.Null(context.Url);
     }
@@ -262,7 +262,7 @@ public class ElicitationTests(E2ETestFixture fixture, ITestOutputHelper output)
     {
         ElicitationHandler handler = _ => Task.FromResult(new ElicitationResult
         {
-            Action = SessionUiElicitationResultAction.Cancel,
+            Action = UIElicitationResponseAction.Cancel,
         });
 
         var config = new SessionConfig
@@ -281,7 +281,7 @@ public class ElicitationTests(E2ETestFixture fixture, ITestOutputHelper output)
     {
         ElicitationHandler handler = _ => Task.FromResult(new ElicitationResult
         {
-            Action = SessionUiElicitationResultAction.Cancel,
+            Action = UIElicitationResponseAction.Cancel,
         });
 
         var config = new ResumeSessionConfig

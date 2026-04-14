@@ -26,7 +26,7 @@ func TestRpc(t *testing.T) {
 			t.Fatalf("Failed to start client: %v", err)
 		}
 
-		result, err := client.RPC.Ping(t.Context(), &rpc.PingParams{Message: copilot.String("typed rpc test")})
+		result, err := client.RPC.Ping(t.Context(), &rpc.PingRequest{Message: copilot.String("typed rpc test")})
 		if err != nil {
 			t.Fatalf("Failed to call RPC.Ping: %v", err)
 		}
@@ -36,7 +36,7 @@ func TestRpc(t *testing.T) {
 		}
 
 		if result.Timestamp < 0 {
-			t.Errorf("Expected timestamp >= 0, got %f", result.Timestamp)
+			t.Errorf("Expected timestamp >= 0, got %d", result.Timestamp)
 		}
 
 		if err := client.Stop(); err != nil {
@@ -170,7 +170,7 @@ func TestSessionRpc(t *testing.T) {
 
 		// Switch to a different model with reasoning effort
 		re := "high"
-		result, err := session.RPC.Model.SwitchTo(t.Context(), &rpc.SessionModelSwitchToParams{
+		result, err := session.RPC.Model.SwitchTo(t.Context(), &rpc.ModelSwitchToRequest{
 			ModelID:         "gpt-4.1",
 			ReasoningEffort: &re,
 		})
@@ -218,17 +218,14 @@ func TestSessionRpc(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get mode: %v", err)
 		}
-		if initial.Mode != rpc.ModeInteractive {
-			t.Errorf("Expected initial mode 'interactive', got %q", initial.Mode)
+		if *initial != rpc.SessionModeInteractive {
+			t.Errorf("Expected initial mode 'interactive', got %q", *initial)
 		}
 
 		// Switch to plan mode
-		planResult, err := session.RPC.Mode.Set(t.Context(), &rpc.SessionModeSetParams{Mode: rpc.ModePlan})
+		_, err = session.RPC.Mode.Set(t.Context(), &rpc.ModeSetRequest{Mode: rpc.SessionModePlan})
 		if err != nil {
 			t.Fatalf("Failed to set mode to plan: %v", err)
-		}
-		if planResult.Mode != rpc.ModePlan {
-			t.Errorf("Expected mode 'plan', got %q", planResult.Mode)
 		}
 
 		// Verify mode persisted
@@ -236,17 +233,14 @@ func TestSessionRpc(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get mode after plan: %v", err)
 		}
-		if afterPlan.Mode != rpc.ModePlan {
-			t.Errorf("Expected mode 'plan' after set, got %q", afterPlan.Mode)
+		if *afterPlan != rpc.SessionModePlan {
+			t.Errorf("Expected mode 'plan' after set, got %q", *afterPlan)
 		}
 
 		// Switch back to interactive
-		interactiveResult, err := session.RPC.Mode.Set(t.Context(), &rpc.SessionModeSetParams{Mode: rpc.ModeInteractive})
+		_, err = session.RPC.Mode.Set(t.Context(), &rpc.ModeSetRequest{Mode: rpc.SessionModeInteractive})
 		if err != nil {
 			t.Fatalf("Failed to set mode to interactive: %v", err)
-		}
-		if interactiveResult.Mode != rpc.ModeInteractive {
-			t.Errorf("Expected mode 'interactive', got %q", interactiveResult.Mode)
 		}
 	})
 
@@ -270,7 +264,7 @@ func TestSessionRpc(t *testing.T) {
 
 		// Create/update plan
 		planContent := "# Test Plan\n\n- Step 1\n- Step 2"
-		_, err = session.RPC.Plan.Update(t.Context(), &rpc.SessionPlanUpdateParams{Content: planContent})
+		_, err = session.RPC.Plan.Update(t.Context(), &rpc.PlanUpdateRequest{Content: planContent})
 		if err != nil {
 			t.Fatalf("Failed to update plan: %v", err)
 		}
@@ -323,7 +317,7 @@ func TestSessionRpc(t *testing.T) {
 
 		// Create a file
 		fileContent := "Hello, workspace!"
-		_, err = session.RPC.Workspace.CreateFile(t.Context(), &rpc.SessionWorkspaceCreateFileParams{
+		_, err = session.RPC.Workspace.CreateFile(t.Context(), &rpc.WorkspaceCreateFileRequest{
 			Path:    "test.txt",
 			Content: fileContent,
 		})
@@ -341,7 +335,7 @@ func TestSessionRpc(t *testing.T) {
 		}
 
 		// Read file
-		readResult, err := session.RPC.Workspace.ReadFile(t.Context(), &rpc.SessionWorkspaceReadFileParams{
+		readResult, err := session.RPC.Workspace.ReadFile(t.Context(), &rpc.WorkspaceReadFileRequest{
 			Path: "test.txt",
 		})
 		if err != nil {
@@ -352,7 +346,7 @@ func TestSessionRpc(t *testing.T) {
 		}
 
 		// Create nested file
-		_, err = session.RPC.Workspace.CreateFile(t.Context(), &rpc.SessionWorkspaceCreateFileParams{
+		_, err = session.RPC.Workspace.CreateFile(t.Context(), &rpc.WorkspaceCreateFileRequest{
 			Path:    "subdir/nested.txt",
 			Content: "Nested content",
 		})

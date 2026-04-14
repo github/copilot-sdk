@@ -245,7 +245,7 @@ public sealed class SessionFsConfig
     /// <summary>
     /// Path conventions used by this filesystem provider.
     /// </summary>
-    public required SessionFsSetProviderRequestConventions Conventions { get; init; }
+    public required SessionFsSetProviderConventions Conventions { get; init; }
 }
 
 /// <summary>
@@ -729,7 +729,7 @@ public class ElicitationResult
     /// <summary>
     /// User action: <c>"accept"</c> (submitted), <c>"decline"</c> (rejected), or <c>"cancel"</c> (dismissed).
     /// </summary>
-    public SessionUiElicitationResultAction Action { get; set; }
+    public UIElicitationResponseAction Action { get; set; }
 
     /// <summary>
     /// Form values submitted by the user (present when <see cref="Action"/> is <c>Accept</c>).
@@ -828,7 +828,7 @@ public class ElicitationContext
     public ElicitationSchema? RequestedSchema { get; set; }
 
     /// <summary>Elicitation mode: <c>"form"</c> for structured input, <c>"url"</c> for browser redirect.</summary>
-    public ElicitationRequestedDataMode? Mode { get; set; }
+    public ElicitationRequestedMode? Mode { get; set; }
 
     /// <summary>The source that initiated the request (e.g., MCP server name).</summary>
     public string? ElicitationSource { get; set; }
@@ -2156,7 +2156,7 @@ public class MessageOptions
     /// <summary>
     /// File or data attachments to include with the message.
     /// </summary>
-    public IList<UserMessageDataAttachmentsItem>? Attachments { get; set; }
+    public IList<UserMessageAttachment>? Attachments { get; set; }
     /// <summary>
     /// Interaction mode for the message (e.g., "plan", "edit").
     /// </summary>

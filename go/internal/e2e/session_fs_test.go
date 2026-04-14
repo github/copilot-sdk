@@ -250,7 +250,7 @@ func TestSessionFs(t *testing.T) {
 var sessionFsConfig = &copilot.SessionFsConfig{
 	InitialCwd:       "/",
 	SessionStatePath: "/session-state",
-	Conventions:      rpc.ConventionsPosix,
+	Conventions:      rpc.SessionFSSetProviderConventionsPosix,
 }
 
 type testSessionFsHandler struct {
@@ -258,7 +258,7 @@ type testSessionFsHandler struct {
 	sessionID string
 }
 
-func (h *testSessionFsHandler) ReadFile(request *rpc.SessionFSReadFileParams) (*rpc.SessionFSReadFileResult, error) {
+func (h *testSessionFsHandler) ReadFile(request *rpc.SessionFSReadFileRequest) (*rpc.SessionFSReadFileResult, error) {
 	content, err := os.ReadFile(providerPath(h.root, h.sessionID, request.Path))
 	if err != nil {
 		return nil, err
@@ -266,22 +266,22 @@ func (h *testSessionFsHandler) ReadFile(request *rpc.SessionFSReadFileParams) (*
 	return &rpc.SessionFSReadFileResult{Content: string(content)}, nil
 }
 
-func (h *testSessionFsHandler) WriteFile(request *rpc.SessionFSWriteFileParams) error {
+func (h *testSessionFsHandler) WriteFile(request *rpc.SessionFSWriteFileRequest) (*rpc.SessionFSWriteFileResult, error) {
 	path := providerPath(h.root, h.sessionID, request.Path)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
+		return nil, err
 	}
 	mode := os.FileMode(0o666)
 	if request.Mode != nil {
 		mode = os.FileMode(uint32(*request.Mode))
 	}
-	return os.WriteFile(path, []byte(request.Content), mode)
+	return &rpc.SessionFSWriteFileResult{}, os.WriteFile(path, []byte(request.Content), mode)
 }
 
-func (h *testSessionFsHandler) AppendFile(request *rpc.SessionFSAppendFileParams) error {
+func (h *testSessionFsHandler) AppendFile(request *rpc.SessionFSAppendFileRequest) (*rpc.SessionFSAppendFileResult, error) {
 	path := providerPath(h.root, h.sessionID, request.Path)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
+		return nil, err
 	}
 	mode := os.FileMode(0o666)
 	if request.Mode != nil {
@@ -289,14 +289,17 @@ func (h *testSessionFsHandler) AppendFile(request *rpc.SessionFSAppendFileParams
 	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, mode)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer f.Close()
 	_, err = f.WriteString(request.Content)
-	return err
+	if err != nil {
+		return nil, err
+	}
+	return &rpc.SessionFSAppendFileResult{}, nil
 }
 
-func (h *testSessionFsHandler) Exists(request *rpc.SessionFSExistsParams) (*rpc.SessionFSExistsResult, error) {
+func (h *testSessionFsHandler) Exists(request *rpc.SessionFSExistsRequest) (*rpc.SessionFSExistsResult, error) {
 	_, err := os.Stat(providerPath(h.root, h.sessionID, request.Path))
 	if err == nil {
 		return &rpc.SessionFSExistsResult{Exists: true}, nil
@@ -307,34 +310,34 @@ func (h *testSessionFsHandler) Exists(request *rpc.SessionFSExistsParams) (*rpc.
 	return nil, err
 }
 
-func (h *testSessionFsHandler) Stat(request *rpc.SessionFSStatParams) (*rpc.SessionFSStatResult, error) {
+func (h *testSessionFsHandler) Stat(request *rpc.SessionFSStatRequest) (*rpc.SessionFSStatResult, error) {
 	info, err := os.Stat(providerPath(h.root, h.sessionID, request.Path))
 	if err != nil {
 		return nil, err
 	}
-	ts := info.ModTime().UTC().Format(time.RFC3339)
+	ts := info.ModTime().UTC()
 	return &rpc.SessionFSStatResult{
 		IsFile:      !info.IsDir(),
 		IsDirectory: info.IsDir(),
-		Size:        float64(info.Size()),
+		Size:        info.Size(),
 		Mtime:       ts,
 		Birthtime:   ts,
 	}, nil
 }
 
-func (h *testSessionFsHandler) Mkdir(request *rpc.SessionFSMkdirParams) error {
+func (h *testSessionFsHandler) Mkdir(request *rpc.SessionFSMkdirRequest) (*rpc.SessionFSMkdirResult, error) {
 	path := providerPath(h.root, h.sessionID, request.Path)
 	mode := os.FileMode(0o777)
 	if request.Mode != nil {
 		mode = os.FileMode(uint32(*request.Mode))
 	}
 	if request.Recursive != nil && *request.Recursive {
-		return os.MkdirAll(path, mode)
+		return &rpc.SessionFSMkdirResult{}, os.MkdirAll(path, mode)
 	}
-	return os.Mkdir(path, mode)
+	return &rpc.SessionFSMkdirResult{}, os.Mkdir(path, mode)
 }
 
-func (h *testSessionFsHandler) Readdir(request *rpc.SessionFSReaddirParams) (*rpc.SessionFSReaddirResult, error) {
+func (h *testSessionFsHandler) Readdir(request *rpc.SessionFSReaddirRequest) (*rpc.SessionFSReaddirResult, error) {
 	entries, err := os.ReadDir(providerPath(h.root, h.sessionID, request.Path))
 	if err != nil {
 		return nil, err
@@ -346,18 +349,18 @@ func (h *testSessionFsHandler) Readdir(request *rpc.SessionFSReaddirParams) (*rp
 	return &rpc.SessionFSReaddirResult{Entries: names}, nil
 }
 
-func (h *testSessionFsHandler) ReaddirWithTypes(request *rpc.SessionFSReaddirWithTypesParams) (*rpc.SessionFSReaddirWithTypesResult, error) {
+func (h *testSessionFsHandler) ReaddirWithTypes(request *rpc.SessionFSReaddirWithTypesRequest) (*rpc.SessionFSReaddirWithTypesResult, error) {
 	entries, err := os.ReadDir(providerPath(h.root, h.sessionID, request.Path))
 	if err != nil {
 		return nil, err
 	}
-	result := make([]rpc.Entry, 0, len(entries))
+	result := make([]rpc.SessionFSReaddirWithTypesEntry, 0, len(entries))
 	for _, entry := range entries {
-		entryType := rpc.EntryTypeFile
+		entryType := rpc.SessionFSReaddirWithTypesEntryTypeFile
 		if entry.IsDir() {
-			entryType = rpc.EntryTypeDirectory
+			entryType = rpc.SessionFSReaddirWithTypesEntryTypeDirectory
 		}
-		result = append(result, rpc.Entry{
+		result = append(result, rpc.SessionFSReaddirWithTypesEntry{
 			Name: entry.Name(),
 			Type: entryType,
 		})
@@ -365,28 +368,28 @@ func (h *testSessionFsHandler) ReaddirWithTypes(request *rpc.SessionFSReaddirWit
 	return &rpc.SessionFSReaddirWithTypesResult{Entries: result}, nil
 }
 
-func (h *testSessionFsHandler) Rm(request *rpc.SessionFSRmParams) error {
+func (h *testSessionFsHandler) Rm(request *rpc.SessionFSRmRequest) (*rpc.SessionFSRmResult, error) {
 	path := providerPath(h.root, h.sessionID, request.Path)
 	if request.Recursive != nil && *request.Recursive {
 		err := os.RemoveAll(path)
 		if err != nil && request.Force != nil && *request.Force && os.IsNotExist(err) {
-			return nil
+			return &rpc.SessionFSRmResult{}, nil
 		}
-		return err
+		return &rpc.SessionFSRmResult{}, err
 	}
 	err := os.Remove(path)
 	if err != nil && request.Force != nil && *request.Force && os.IsNotExist(err) {
-		return nil
+		return &rpc.SessionFSRmResult{}, nil
 	}
-	return err
+	return &rpc.SessionFSRmResult{}, err
 }
 
-func (h *testSessionFsHandler) Rename(request *rpc.SessionFSRenameParams) error {
+func (h *testSessionFsHandler) Rename(request *rpc.SessionFSRenameRequest) (*rpc.SessionFSRenameResult, error) {
 	dest := providerPath(h.root, h.sessionID, request.Dest)
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-		return err
+		return nil, err
 	}
-	return os.Rename(
+	return &rpc.SessionFSRenameResult{}, os.Rename(
 		providerPath(h.root, h.sessionID, request.Src),
 		dest,
 	)

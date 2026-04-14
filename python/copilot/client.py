@@ -360,15 +360,13 @@ class ModelLimits:
 class ModelSupports:
     """Model support flags"""
 
-    vision: bool
+    vision: bool = False
     reasoning_effort: bool = False  # Whether this model supports reasoning effort
 
     @staticmethod
     def from_dict(obj: Any) -> ModelSupports:
         assert isinstance(obj, dict)
-        vision = obj.get("vision")
-        if vision is None:
-            raise ValueError("Missing required field 'vision' in ModelSupports")
+        vision = obj.get("vision", False)
         reasoning_effort = obj.get("reasoningEffort", False)
         return ModelSupports(vision=bool(vision), reasoning_effort=bool(reasoning_effort))
 
@@ -391,13 +389,8 @@ class ModelCapabilities:
         assert isinstance(obj, dict)
         supports_dict = obj.get("supports")
         limits_dict = obj.get("limits")
-        if supports_dict is None or limits_dict is None:
-            raise ValueError(
-                f"Missing required fields in ModelCapabilities: supports={supports_dict}, "
-                f"limits={limits_dict}"
-            )
-        supports = ModelSupports.from_dict(supports_dict)
-        limits = ModelLimits.from_dict(limits_dict)
+        supports = ModelSupports.from_dict(supports_dict) if supports_dict else ModelSupports()
+        limits = ModelLimits.from_dict(limits_dict) if limits_dict else ModelLimits()
         return ModelCapabilities(supports=supports, limits=limits)
 
     def to_dict(self) -> dict:
@@ -762,23 +755,24 @@ def _get_bundled_cli_path() -> str | None:
 
 
 def _extract_transform_callbacks(
-    system_message: dict | None,
-) -> tuple[dict | None, dict[str, SectionTransformFn] | None]:
+    system_message: SystemMessageConfig | dict[str, Any] | None,
+) -> tuple[dict[str, Any] | None, dict[str, SectionTransformFn] | None]:
     """Extract function-valued actions from system message config.
 
     Returns a wire-safe payload (with callable actions replaced by ``"transform"``)
     and a dict of transform callbacks keyed by section ID.
     """
+    wire_system_message = cast(dict[str, Any] | None, system_message)
     if (
-        not system_message
-        or system_message.get("mode") != "customize"
-        or not system_message.get("sections")
+        not wire_system_message
+        or wire_system_message.get("mode") != "customize"
+        or not wire_system_message.get("sections")
     ):
-        return system_message, None
+        return wire_system_message, None
 
     callbacks: dict[str, SectionTransformFn] = {}
-    wire_sections: dict[str, dict] = {}
-    for section_id, override in system_message["sections"].items():
+    wire_sections: dict[str, Any] = {}
+    for section_id, override in wire_system_message["sections"].items():
         if not override:
             continue
         action = override.get("action")
@@ -789,9 +783,9 @@ def _extract_transform_callbacks(
             wire_sections[section_id] = override
 
     if not callbacks:
-        return system_message, None
+        return wire_system_message, None
 
-    wire_payload = {**system_message, "sections": wire_sections}
+    wire_payload = {**wire_system_message, "sections": wire_sections}
     return wire_payload, callbacks
 
 
@@ -1798,9 +1792,9 @@ class CopilotClient:
                 # Use custom handler instead of CLI RPC
                 result = self._on_list_models()
                 if inspect.isawaitable(result):
-                    models = await result
+                    models = cast(list[ModelInfo], await result)
                 else:
-                    models = result
+                    models = cast(list[ModelInfo], result)
             else:
                 if not self._client:
                     raise RuntimeError("Client not connected")
