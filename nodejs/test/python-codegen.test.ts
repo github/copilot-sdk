@@ -82,4 +82,239 @@ describe("python session event codegen", () => {
         expect(code).toContain("encoded: str");
         expect(code).toContain("count: int");
     });
+
+    it("preserves key shortened nested type names", () => {
+        const schema: JSONSchema7 = {
+            definitions: {
+                SessionEvent: {
+                    anyOf: [
+                        {
+                            type: "object",
+                            required: ["type", "data"],
+                            properties: {
+                                type: { const: "permission.requested" },
+                                data: {
+                                    type: "object",
+                                    required: ["requestId", "permissionRequest"],
+                                    properties: {
+                                        requestId: { type: "string" },
+                                        permissionRequest: {
+                                            anyOf: [
+                                                {
+                                                    type: "object",
+                                                    required: [
+                                                        "kind",
+                                                        "fullCommandText",
+                                                        "intention",
+                                                        "commands",
+                                                        "possiblePaths",
+                                                        "possibleUrls",
+                                                        "hasWriteFileRedirection",
+                                                        "canOfferSessionApproval",
+                                                    ],
+                                                    properties: {
+                                                        kind: { const: "shell", type: "string" },
+                                                        fullCommandText: { type: "string" },
+                                                        intention: { type: "string" },
+                                                        commands: {
+                                                            type: "array",
+                                                            items: {
+                                                                type: "object",
+                                                                required: ["identifier", "readOnly"],
+                                                                properties: {
+                                                                    identifier: { type: "string" },
+                                                                    readOnly: { type: "boolean" },
+                                                                },
+                                                            },
+                                                        },
+                                                        possiblePaths: {
+                                                            type: "array",
+                                                            items: { type: "string" },
+                                                        },
+                                                        possibleUrls: {
+                                                            type: "array",
+                                                            items: {
+                                                                type: "object",
+                                                                required: ["url"],
+                                                                properties: { url: { type: "string" } },
+                                                            },
+                                                        },
+                                                        hasWriteFileRedirection: { type: "boolean" },
+                                                        canOfferSessionApproval: { type: "boolean" },
+                                                    },
+                                                },
+                                                {
+                                                    type: "object",
+                                                    required: ["kind", "fact"],
+                                                    properties: {
+                                                        kind: { const: "memory", type: "string" },
+                                                        fact: { type: "string" },
+                                                        action: {
+                                                            type: "string",
+                                                            enum: ["store", "vote"],
+                                                            default: "store",
+                                                        },
+                                                        direction: {
+                                                            type: "string",
+                                                            enum: ["upvote", "downvote"],
+                                                        },
+                                                    },
+                                                },
+                                            ],
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                        {
+                            type: "object",
+                            required: ["type", "data"],
+                            properties: {
+                                type: { const: "elicitation.requested" },
+                                data: {
+                                    type: "object",
+                                    properties: {
+                                        requestedSchema: {
+                                            type: "object",
+                                            required: ["type", "properties"],
+                                            properties: {
+                                                type: { const: "object", type: "string" },
+                                                properties: {
+                                                    type: "object",
+                                                    additionalProperties: {},
+                                                },
+                                            },
+                                        },
+                                        mode: {
+                                            type: "string",
+                                            enum: ["form", "url"],
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                        {
+                            type: "object",
+                            required: ["type", "data"],
+                            properties: {
+                                type: { const: "capabilities.changed" },
+                                data: {
+                                    type: "object",
+                                    properties: {
+                                        ui: {
+                                            type: "object",
+                                            properties: {
+                                                elicitation: { type: "boolean" },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+        };
+
+        const code = generatePythonSessionEventsCode(schema);
+
+        expect(code).toContain("class PermissionRequest:");
+        expect(code).toContain("class PermissionRequestShellCommand:");
+        expect(code).toContain("class PermissionRequestShellPossibleURL:");
+        expect(code).toContain("class PermissionRequestMemoryAction(Enum):");
+        expect(code).toContain("class PermissionRequestMemoryDirection(Enum):");
+        expect(code).toContain("class ElicitationRequestedSchema:");
+        expect(code).toContain("class ElicitationRequestedMode(Enum):");
+        expect(code).toContain("class CapabilitiesChangedUI:");
+        expect(code).not.toContain("class PermissionRequestedDataPermissionRequest:");
+        expect(code).not.toContain("class ElicitationRequestedDataRequestedSchema:");
+        expect(code).not.toContain("class CapabilitiesChangedDataUi:");
+    });
+
+    it("keeps distinct enum types even when they share the same values", () => {
+        const schema: JSONSchema7 = {
+            definitions: {
+                SessionEvent: {
+                    anyOf: [
+                        {
+                            type: "object",
+                            required: ["type", "data"],
+                            properties: {
+                                type: { const: "assistant.message" },
+                                data: {
+                                    type: "object",
+                                    properties: {
+                                        toolRequests: {
+                                            type: "array",
+                                            items: {
+                                                type: "object",
+                                                required: ["toolCallId", "name", "type"],
+                                                properties: {
+                                                    toolCallId: { type: "string" },
+                                                    name: { type: "string" },
+                                                    type: {
+                                                        type: "string",
+                                                        enum: ["function", "custom"],
+                                                    },
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                        {
+                            type: "object",
+                            required: ["type", "data"],
+                            properties: {
+                                type: { const: "session.import_legacy" },
+                                data: {
+                                    type: "object",
+                                    properties: {
+                                        legacySession: {
+                                            type: "object",
+                                            properties: {
+                                                chatMessages: {
+                                                    type: "array",
+                                                    items: {
+                                                        type: "object",
+                                                        properties: {
+                                                            toolCalls: {
+                                                                type: "array",
+                                                                items: {
+                                                                    type: "object",
+                                                                    properties: {
+                                                                        type: {
+                                                                            type: "string",
+                                                                            enum: [
+                                                                                "function",
+                                                                                "custom",
+                                                                            ],
+                                                                        },
+                                                                    },
+                                                                },
+                                                            },
+                                                        },
+                                                    },
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+        };
+
+        const code = generatePythonSessionEventsCode(schema);
+
+        expect(code).toContain("class AssistantMessageToolRequestType(Enum):");
+        expect(code).toContain("type: AssistantMessageToolRequestType");
+        expect(code).toContain("parse_enum(AssistantMessageToolRequestType,");
+        expect(code).toContain(
+            "class SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItemType(Enum):"
+        );
+    });
 });

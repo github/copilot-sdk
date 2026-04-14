@@ -38,7 +38,7 @@ from .generated.rpc import (
     register_client_session_api_handlers,
 )
 from .generated.session_events import (
-    PermissionRequestedDataPermissionRequest,
+    PermissionRequest,
     SessionEvent,
     session_event_from_dict,
 )
@@ -2633,7 +2633,7 @@ class CopilotClient:
             raise ValueError(f"unknown session {session_id}")
 
         try:
-            perm_request = PermissionRequestedDataPermissionRequest.from_dict(permission_request)
+            perm_request = PermissionRequest.from_dict(permission_request)
             result = await session._handle_permission_request(perm_request)
             if result.kind == "no-result":
                 raise ValueError(NO_RESULT_PERMISSION_V2_ERROR)

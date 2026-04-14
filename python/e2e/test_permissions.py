@@ -7,7 +7,7 @@ import asyncio
 import pytest
 
 from copilot.generated.session_events import (
-    PermissionRequestedDataPermissionRequest,
+    PermissionRequest,
     SessionIdleData,
     ToolExecutionCompleteData,
 )
@@ -25,7 +25,7 @@ class TestPermissions:
         permission_requests = []
 
         def on_permission_request(
-            request: PermissionRequestedDataPermissionRequest, invocation: dict
+            request: PermissionRequest, invocation: dict
         ) -> PermissionRequestResult:
             permission_requests.append(request)
             assert invocation["session_id"] == session.session_id
@@ -50,7 +50,7 @@ class TestPermissions:
         """Test denying permissions"""
 
         def on_permission_request(
-            request: PermissionRequestedDataPermissionRequest, invocation: dict
+            request: PermissionRequest, invocation: dict
         ) -> PermissionRequestResult:
             return PermissionRequestResult(kind="denied-interactively-by-user")
 
@@ -162,7 +162,7 @@ class TestPermissions:
         permission_requests = []
 
         async def on_permission_request(
-            request: PermissionRequestedDataPermissionRequest, invocation: dict
+            request: PermissionRequest, invocation: dict
         ) -> PermissionRequestResult:
             permission_requests.append(request)
             # Simulate async permission check (e.g., user prompt)
@@ -190,7 +190,7 @@ class TestPermissions:
 
         # Resume with permission handler
         def on_permission_request(
-            request: PermissionRequestedDataPermissionRequest, invocation: dict
+            request: PermissionRequest, invocation: dict
         ) -> PermissionRequestResult:
             permission_requests.append(request)
             return PermissionRequestResult(kind="approved")
@@ -210,7 +210,7 @@ class TestPermissions:
         """Test that permission handler errors are handled gracefully"""
 
         def on_permission_request(
-            request: PermissionRequestedDataPermissionRequest, invocation: dict
+            request: PermissionRequest, invocation: dict
         ) -> PermissionRequestResult:
             raise RuntimeError("Handler error")
 
@@ -230,7 +230,7 @@ class TestPermissions:
         received_tool_call_id = False
 
         def on_permission_request(
-            request: PermissionRequestedDataPermissionRequest, invocation: dict
+            request: PermissionRequest, invocation: dict
         ) -> PermissionRequestResult:
             nonlocal received_tool_call_id
             if request.tool_call_id:

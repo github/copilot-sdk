@@ -50,8 +50,8 @@ from .generated.session_events import (
     CommandExecuteData,
     ElicitationRequestedData,
     ExternalToolRequestedData,
+    PermissionRequest,
     PermissionRequestedData,
-    PermissionRequestedDataPermissionRequest,
     SessionErrorData,
     SessionEvent,
     SessionIdleData,
@@ -242,7 +242,7 @@ class PermissionRequestResult:
 
 
 _PermissionHandlerFn = Callable[
-    [PermissionRequestedDataPermissionRequest, dict[str, str]],
+    [PermissionRequest, dict[str, str]],
     PermissionRequestResult | Awaitable[PermissionRequestResult],
 ]
 
@@ -250,7 +250,7 @@ _PermissionHandlerFn = Callable[
 class PermissionHandler:
     @staticmethod
     def approve_all(
-        request: PermissionRequestedDataPermissionRequest, invocation: dict[str, str]
+        request: PermissionRequest, invocation: dict[str, str]
     ) -> PermissionRequestResult:
         return PermissionRequestResult(kind="approved")
 
@@ -1625,7 +1625,7 @@ class CopilotSession:
             self._permission_handler = handler
 
     async def _handle_permission_request(
-        self, request: PermissionRequestedDataPermissionRequest
+        self, request: PermissionRequest
     ) -> PermissionRequestResult:
         """
         Handle a permission request from the Copilot CLI.

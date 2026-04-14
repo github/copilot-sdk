@@ -558,10 +558,10 @@ Provide your own function to inspect each request and apply custom logic (sync o
 
 ```python
 from copilot.session import PermissionRequestResult
-from copilot.generated.session_events import PermissionRequestedDataPermissionRequest
+from copilot.generated.session_events import PermissionRequest
 
 def on_permission_request(
-    request: PermissionRequestedDataPermissionRequest, invocation: dict
+    request: PermissionRequest, invocation: dict
 ) -> PermissionRequestResult:
     # request.kind — what type of operation is being requested:
     #   "shell"       — executing a shell command
@@ -593,7 +593,7 @@ Async handlers are also supported:
 
 ```python
 async def on_permission_request(
-    request: PermissionRequestedDataPermissionRequest, invocation: dict
+    request: PermissionRequest, invocation: dict
 ) -> PermissionRequestResult:
     # Simulate an async approval check (e.g., prompting a user over a network)
     await asyncio.sleep(0)

@@ -14,15 +14,15 @@ import pytest
 
 from copilot.generated.session_events import (
     Data,
-    ElicitationCompletedDataAction,
-    ElicitationRequestedDataMode,
-    ElicitationRequestedDataRequestedSchema,
-    PermissionRequestedDataPermissionRequest,
-    PermissionRequestedDataPermissionRequestAction,
+    ElicitationCompletedAction,
+    ElicitationRequestedMode,
+    ElicitationRequestedSchema,
+    PermissionRequest,
+    PermissionRequestMemoryAction,
     SessionEventType,
     SessionTaskCompleteData,
-    UserMessageDataAgentMode,
-    UserMessageDataAttachmentsItemReferenceType,
+    UserMessageAgentMode,
+    UserMessageAttachmentGithubReferenceType,
     session_event_from_dict,
 )
 
@@ -77,12 +77,12 @@ class TestEventForwardCompatibility:
 
     def test_explicit_generated_symbols_remain_available(self):
         """Explicit generated helper symbols should remain importable."""
-        assert ElicitationCompletedDataAction.ACCEPT.value == "accept"
-        assert UserMessageDataAgentMode.INTERACTIVE.value == "interactive"
-        assert ElicitationRequestedDataMode.FORM.value == "form"
-        assert UserMessageDataAttachmentsItemReferenceType.PR.value == "pr"
+        assert ElicitationCompletedAction.ACCEPT.value == "accept"
+        assert UserMessageAgentMode.INTERACTIVE.value == "interactive"
+        assert ElicitationRequestedMode.FORM.value == "form"
+        assert UserMessageAttachmentGithubReferenceType.PR.value == "pr"
 
-        schema = ElicitationRequestedDataRequestedSchema(
+        schema = ElicitationRequestedSchema(
             properties={"answer": {"type": "string"}}, type="object"
         )
         assert schema.to_dict()["type"] == "object"
@@ -105,10 +105,8 @@ class TestEventForwardCompatibility:
 
     def test_schema_defaults_are_applied_for_missing_optional_fields(self):
         """Generated event models should honor primitive schema defaults during parsing."""
-        request = PermissionRequestedDataPermissionRequest.from_dict(
-            {"kind": "memory", "fact": "remember this"}
-        )
-        assert request.action == PermissionRequestedDataPermissionRequestAction.STORE
+        request = PermissionRequest.from_dict({"kind": "memory", "fact": "remember this"})
+        assert request.action == PermissionRequestMemoryAction.STORE
 
         task_complete = SessionTaskCompleteData.from_dict({"success": True})
         assert task_complete.summary == ""

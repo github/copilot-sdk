@@ -233,7 +233,7 @@ interface PyResolvedType {
 interface PyCodegenCtx {
     classes: string[];
     enums: string[];
-    enumsByValues: Map<string, string>;
+    enumsByName: Map<string, string>;
     generatedNames: Set<string>;
     usesTimedelta: boolean;
     usesIntegerTimedelta: boolean;
@@ -257,6 +257,58 @@ function wrapParser(resolved: PyResolvedType, arg = "x"): string {
 
 function wrapSerializer(resolved: PyResolvedType, arg = "x"): string {
     return `lambda ${arg}: ${resolved.toExpr(arg)}`;
+}
+
+const PY_SESSION_EVENT_TYPE_RENAMES: Record<string, string> = {
+    AssistantMessageDataToolRequestsItem: "AssistantMessageToolRequest",
+    AssistantMessageDataToolRequestsItemType: "AssistantMessageToolRequestType",
+    AssistantUsageDataCopilotUsage: "AssistantUsageCopilotUsage",
+    AssistantUsageDataCopilotUsageTokenDetailsItem: "AssistantUsageCopilotUsageTokenDetail",
+    AssistantUsageDataQuotaSnapshotsValue: "AssistantUsageQuotaSnapshot",
+    CapabilitiesChangedDataUi: "CapabilitiesChangedUI",
+    CommandsChangedDataCommandsItem: "CommandsChangedCommand",
+    ElicitationCompletedDataAction: "ElicitationCompletedAction",
+    ElicitationRequestedDataMode: "ElicitationRequestedMode",
+    ElicitationRequestedDataRequestedSchema: "ElicitationRequestedSchema",
+    McpOauthRequiredDataStaticClientConfig: "MCPOauthRequiredStaticClientConfig",
+    PermissionCompletedDataResultKind: "PermissionCompletedKind",
+    PermissionRequestedDataPermissionRequest: "PermissionRequest",
+    PermissionRequestedDataPermissionRequestAction: "PermissionRequestMemoryAction",
+    PermissionRequestedDataPermissionRequestCommandsItem: "PermissionRequestShellCommand",
+    PermissionRequestedDataPermissionRequestDirection: "PermissionRequestMemoryDirection",
+    PermissionRequestedDataPermissionRequestPossibleUrlsItem: "PermissionRequestShellPossibleURL",
+    SessionCompactionCompleteDataCompactionTokensUsed: "CompactionCompleteCompactionTokensUsed",
+    SessionCustomAgentsUpdatedDataAgentsItem: "CustomAgentsUpdatedAgent",
+    SessionExtensionsLoadedDataExtensionsItem: "ExtensionsLoadedExtension",
+    SessionExtensionsLoadedDataExtensionsItemSource: "ExtensionsLoadedExtensionSource",
+    SessionExtensionsLoadedDataExtensionsItemStatus: "ExtensionsLoadedExtensionStatus",
+    SessionHandoffDataRepository: "HandoffRepository",
+    SessionHandoffDataSourceType: "HandoffSourceType",
+    SessionMcpServersLoadedDataServersItem: "MCPServersLoadedServer",
+    SessionMcpServersLoadedDataServersItemStatus: "MCPServerStatus",
+    SessionShutdownDataCodeChanges: "ShutdownCodeChanges",
+    SessionShutdownDataModelMetricsValue: "ShutdownModelMetric",
+    SessionShutdownDataModelMetricsValueRequests: "ShutdownModelMetricRequests",
+    SessionShutdownDataModelMetricsValueUsage: "ShutdownModelMetricUsage",
+    SessionShutdownDataShutdownType: "ShutdownType",
+    SessionSkillsLoadedDataSkillsItem: "SkillsLoadedSkill",
+    UserMessageDataAgentMode: "UserMessageAgentMode",
+    UserMessageDataAttachmentsItem: "UserMessageAttachment",
+    UserMessageDataAttachmentsItemLineRange: "UserMessageAttachmentFileLineRange",
+    UserMessageDataAttachmentsItemReferenceType: "UserMessageAttachmentGithubReferenceType",
+    UserMessageDataAttachmentsItemSelection: "UserMessageAttachmentSelectionDetails",
+    UserMessageDataAttachmentsItemSelectionEnd: "UserMessageAttachmentSelectionDetailsEnd",
+    UserMessageDataAttachmentsItemSelectionStart: "UserMessageAttachmentSelectionDetailsStart",
+    UserMessageDataAttachmentsItemType: "UserMessageAttachmentType",
+};
+
+function postProcessPythonSessionEventCode(code: string): string {
+    for (const [from, to] of Object.entries(PY_SESSION_EVENT_TYPE_RENAMES).sort(
+        ([left], [right]) => right.length - left.length
+    )) {
+        code = code.replace(new RegExp(`\\b${from}\\b`, "g"), to);
+    }
+    return code;
 }
 
 function pyPrimitiveResolvedType(annotation: string, fromFn: string, toFn = fromFn): PyResolvedType {
@@ -394,8 +446,7 @@ function getOrCreatePyEnum(
     ctx: PyCodegenCtx,
     description?: string
 ): string {
-    const valuesKey = [...values].sort().join("|");
-    const existing = ctx.enumsByValues.get(valuesKey);
+    const existing = ctx.enumsByName.get(enumName);
     if (existing) {
         return existing;
     }
@@ -410,7 +461,7 @@ function getOrCreatePyEnum(
     for (const value of values) {
         lines.push(`    ${toEnumMemberName(value)} = ${JSON.stringify(value)}`);
     }
-    ctx.enumsByValues.set(valuesKey, enumName);
+    ctx.enumsByName.set(enumName, enumName);
     ctx.enums.push(lines.join("\n"));
     return enumName;
 }
@@ -882,7 +933,7 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     const ctx: PyCodegenCtx = {
         classes: [],
         enums: [],
-        enumsByValues: new Map(),
+        enumsByName: new Map(),
         generatedNames: new Set(),
         usesTimedelta: false,
         usesIntegerTimedelta: false,
@@ -1188,7 +1239,7 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     out.push(``);
     out.push(``);
 
-    return out.join("\n");
+    return postProcessPythonSessionEventCode(out.join("\n"));
 }
 
 async function generateSessionEvents(schemaPath?: string): Promise<void> {
