@@ -368,7 +368,7 @@ Skills listed in an agent's `skills` field are **eagerly preloaded** — their f
 
 ```typescript
 const session = await client.createSession({
-    skillDirectories: ["./skills"],
+    skillDirectories: ["./skills/security"],
     customAgents: [{
         name: "security-auditor",
         description: "Security-focused code reviewer",
@@ -378,7 +378,6 @@ const session = await client.createSession({
     onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
-
 > **Note:** Skills are opt-in — when `skills` is omitted, no skill content is injected. Sub-agents do not inherit skills from the parent; you must list them explicitly per agent.
 
 ### Skills + MCP Servers
