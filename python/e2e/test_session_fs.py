@@ -13,6 +13,7 @@ import pytest_asyncio
 
 from copilot import CopilotClient, SessionFsConfig, define_tool
 from copilot.client import ExternalServerConfig, SubprocessConfig
+from copilot.generated.session_events import SessionCompactionCompleteData
 from copilot.generated.rpc import (
     SessionFSExistsResult,
     SessionFSReaddirResult,
@@ -192,9 +193,10 @@ class TestSessionFs:
 
         def on_event(event: SessionEvent):
             nonlocal compaction_success
-            if event.type.value == "session.compaction_complete":
-                compaction_success = event.data.success
-                compaction_event.set()
+            match event.data:
+                case SessionCompactionCompleteData() as data:
+                    compaction_success = data.success
+                    compaction_event.set()
 
         session.on(on_event)
 

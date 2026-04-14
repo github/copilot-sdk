@@ -6,6 +6,7 @@ import asyncio
 
 import pytest
 
+from copilot.generated.session_events import SessionIdleData, ToolExecutionCompleteData
 from copilot.session import PermissionHandler, PermissionRequest, PermissionRequestResult
 
 from .testharness import E2ETestContext
@@ -76,17 +77,18 @@ class TestPermissions:
         done_event = asyncio.Event()
 
         def on_event(event):
-            if event.type.value == "tool.execution_complete" and event.data.success is False:
-                error = event.data.error
-                msg = (
-                    error
-                    if isinstance(error, str)
-                    else (getattr(error, "message", None) if error is not None else None)
-                )
-                if msg and "Permission denied" in msg:
-                    denied_events.append(event)
-            elif event.type.value == "session.idle":
-                done_event.set()
+            match event.data:
+                case ToolExecutionCompleteData(success=False) as data:
+                    error = data.error
+                    msg = (
+                        error
+                        if isinstance(error, str)
+                        else (getattr(error, "message", None) if error is not None else None)
+                    )
+                    if msg and "Permission denied" in msg:
+                        denied_events.append(event)
+                case SessionIdleData():
+                    done_event.set()
 
         session.on(on_event)
 
@@ -116,17 +118,18 @@ class TestPermissions:
         done_event = asyncio.Event()
 
         def on_event(event):
-            if event.type.value == "tool.execution_complete" and event.data.success is False:
-                error = event.data.error
-                msg = (
-                    error
-                    if isinstance(error, str)
-                    else (getattr(error, "message", None) if error is not None else None)
-                )
-                if msg and "Permission denied" in msg:
-                    denied_events.append(event)
-            elif event.type.value == "session.idle":
-                done_event.set()
+            match event.data:
+                case ToolExecutionCompleteData(success=False) as data:
+                    error = data.error
+                    msg = (
+                        error
+                        if isinstance(error, str)
+                        else (getattr(error, "message", None) if error is not None else None)
+                    )
+                    if msg and "Permission denied" in msg:
+                        denied_events.append(event)
+                case SessionIdleData():
+                    done_event.set()
 
         session2.on(on_event)
 

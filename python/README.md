@@ -27,7 +27,7 @@ python chat.py
 import asyncio
 
 from copilot import CopilotClient
-from copilot.generated.session_events import AssistantMessageData
+from copilot.generated.session_events import AssistantMessageData, SessionIdleData
 
 async def main():
     # Client automatically starts on enter and cleans up on exit
@@ -38,10 +38,11 @@ async def main():
             done = asyncio.Event()
 
             def on_event(event):
-                if event.type.value == "assistant.message" and isinstance(event.data, AssistantMessageData):
-                    print(event.data.content)
-                elif event.type.value == "session.idle":
-                    done.set()
+                match event.data:
+                    case AssistantMessageData() as data:
+                        print(data.content)
+                    case SessionIdleData():
+                        done.set()
 
             session.on(on_event)
 
@@ -60,7 +61,7 @@ If you need more control over the lifecycle, you can call `start()`, `stop()`, a
 import asyncio
 
 from copilot import CopilotClient
-from copilot.generated.session_events import AssistantMessageData
+from copilot.generated.session_events import AssistantMessageData, SessionIdleData
 from copilot.session import PermissionHandler
 
 async def main():
@@ -76,10 +77,11 @@ async def main():
     done = asyncio.Event()
 
     def on_event(event):
-        if event.type.value == "assistant.message" and isinstance(event.data, AssistantMessageData):
-            print(event.data.content)
-        elif event.type.value == "session.idle":
-            done.set()
+        match event.data:
+            case AssistantMessageData() as data:
+                print(data.content)
+            case SessionIdleData():
+                done.set()
 
     session.on(on_event)
     await session.send("What is 2+2?")
@@ -343,6 +345,7 @@ from copilot.generated.session_events import (
     AssistantMessageDeltaData,
     AssistantReasoningData,
     AssistantReasoningDeltaData,
+    SessionIdleData,
 )
 from copilot.session import PermissionHandler
 
@@ -357,28 +360,24 @@ async def main():
             done = asyncio.Event()
 
             def on_event(event):
-                match event.type.value:
-                    case "assistant.message_delta":
-                        if isinstance(event.data, AssistantMessageDeltaData):
-                            # Streaming message chunk - print incrementally
-                            delta = event.data.delta_content or ""
-                            print(delta, end="", flush=True)
-                    case "assistant.reasoning_delta":
-                        if isinstance(event.data, AssistantReasoningDeltaData):
-                            # Streaming reasoning chunk (if model supports reasoning)
-                            delta = event.data.delta_content or ""
-                            print(delta, end="", flush=True)
-                    case "assistant.message":
-                        if isinstance(event.data, AssistantMessageData):
-                            # Final message - complete content
-                            print("\n--- Final message ---")
-                            print(event.data.content)
-                    case "assistant.reasoning":
-                        if isinstance(event.data, AssistantReasoningData):
-                            # Final reasoning content (if model supports reasoning)
-                            print("--- Reasoning ---")
-                            print(event.data.content)
-                    case "session.idle":
+                match event.data:
+                    case AssistantMessageDeltaData() as data:
+                        # Streaming message chunk - print incrementally
+                        delta = data.delta_content or ""
+                        print(delta, end="", flush=True)
+                    case AssistantReasoningDeltaData() as data:
+                        # Streaming reasoning chunk (if model supports reasoning)
+                        delta = data.delta_content or ""
+                        print(delta, end="", flush=True)
+                    case AssistantMessageData() as data:
+                        # Final message - complete content
+                        print("\n--- Final message ---")
+                        print(data.content)
+                    case AssistantReasoningData() as data:
+                        # Final reasoning content (if model supports reasoning)
+                        print("--- Reasoning ---")
+                        print(data.content)
+                    case SessionIdleData():
                         # Session finished processing
                         done.set()
 

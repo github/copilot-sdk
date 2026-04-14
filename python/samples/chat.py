@@ -1,6 +1,11 @@
 import asyncio
 
 from copilot import CopilotClient
+from copilot.generated.session_events import (
+    AssistantMessageData,
+    AssistantReasoningData,
+    ToolExecutionStartData,
+)
 from copilot.session import PermissionHandler
 
 BLUE = "\033[34m"
@@ -14,10 +19,11 @@ async def main():
 
     def on_event(event):
         output = None
-        if event.type.value == "assistant.reasoning":
-            output = f"[reasoning: {event.data.content}]"
-        elif event.type.value == "tool.execution_start":
-            output = f"[tool: {event.data.tool_name}]"
+        match event.data:
+            case AssistantReasoningData() as data:
+                output = f"[reasoning: {data.content}]"
+            case ToolExecutionStartData() as data:
+                output = f"[tool: {data.tool_name}]"
         if output:
             print(f"{BLUE}{output}{RESET}")
 
@@ -32,7 +38,12 @@ async def main():
         print()
 
         reply = await session.send_and_wait(user_input)
-        print(f"\nAssistant: {reply.data.content if reply else None}\n")
+        assistant_output = None
+        if reply:
+            match reply.data:
+                case AssistantMessageData() as data:
+                    assistant_output = data.content
+        print(f"\nAssistant: {assistant_output}\n")
 
 
 if __name__ == "__main__":

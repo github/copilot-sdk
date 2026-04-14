@@ -17,6 +17,7 @@ import pytest_asyncio
 
 from copilot import CopilotClient
 from copilot.client import ExternalServerConfig, SubprocessConfig
+from copilot.generated.session_events import CapabilitiesChangedData
 from copilot.session import (
     ElicitationContext,
     ElicitationResult,
@@ -194,11 +195,12 @@ class TestUiElicitationMultiClient:
         cap_event_data: dict = {}
 
         def on_event(event):
-            if event.type.value == "capabilities.changed":
-                ui = getattr(event.data, "ui", None)
-                if ui:
-                    cap_event_data["elicitation"] = getattr(ui, "elicitation", None)
-                cap_changed.set()
+            match event.data:
+                case CapabilitiesChangedData() as data:
+                    ui = data.ui
+                    if ui:
+                        cap_event_data["elicitation"] = ui.elicitation
+                    cap_changed.set()
 
         unsubscribe = session1.on(on_event)
 
@@ -239,10 +241,11 @@ class TestUiElicitationMultiClient:
         cap_enabled = asyncio.Event()
 
         def on_enabled(event):
-            if event.type.value == "capabilities.changed":
-                ui = getattr(event.data, "ui", None)
-                if ui and getattr(ui, "elicitation", None) is True:
-                    cap_enabled.set()
+            match event.data:
+                case CapabilitiesChangedData() as data:
+                    ui = data.ui
+                    if ui and ui.elicitation is True:
+                        cap_enabled.set()
 
         unsub_enabled = session1.on(on_enabled)
 
@@ -269,10 +272,11 @@ class TestUiElicitationMultiClient:
         cap_disabled = asyncio.Event()
 
         def on_disabled(event):
-            if event.type.value == "capabilities.changed":
-                ui = getattr(event.data, "ui", None)
-                if ui and getattr(ui, "elicitation", None) is False:
-                    cap_disabled.set()
+            match event.data:
+                case CapabilitiesChangedData() as data:
+                    ui = data.ui
+                    if ui and ui.elicitation is False:
+                        cap_disabled.set()
 
         unsub_disabled = session1.on(on_disabled)
 
