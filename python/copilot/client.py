@@ -37,7 +37,11 @@ from .generated.rpc import (
     ServerRpc,
     register_client_session_api_handlers,
 )
-from .generated.session_events import PermissionRequest, SessionEvent, session_event_from_dict
+from .generated.session_events import (
+    PermissionRequest,
+    SessionEvent,
+    session_event_from_dict,
+)
 from .session import (
     CommandDefinition,
     CopilotSession,

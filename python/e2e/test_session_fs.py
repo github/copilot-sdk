@@ -20,7 +20,7 @@ from copilot.generated.rpc import (
     SessionFSReadFileResult,
     SessionFSStatResult,
 )
-from copilot.generated.session_events import SessionEvent
+from copilot.generated.session_events import SessionCompactionCompleteData, SessionEvent
 from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
@@ -192,9 +192,10 @@ class TestSessionFs:
 
         def on_event(event: SessionEvent):
             nonlocal compaction_success
-            if event.type.value == "session.compaction_complete":
-                compaction_success = event.data.success
-                compaction_event.set()
+            match event.data:
+                case SessionCompactionCompleteData() as data:
+                    compaction_success = data.success
+                    compaction_event.set()
 
         session.on(on_event)
 

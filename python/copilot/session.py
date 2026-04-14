@@ -45,9 +45,16 @@ from .generated.rpc import (
 )
 from .generated.rpc import ModelCapabilitiesOverride as _RpcModelCapabilitiesOverride
 from .generated.session_events import (
+    AssistantMessageData,
+    CapabilitiesChangedData,
+    CommandExecuteData,
+    ElicitationRequestedData,
+    ExternalToolRequestedData,
     PermissionRequest,
+    PermissionRequestedData,
+    SessionErrorData,
     SessionEvent,
-    SessionEventType,
+    SessionIdleData,
     session_event_from_dict,
 )
 from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
@@ -1127,9 +1134,12 @@ class CopilotSession:
             Exception: If the session has been disconnected or the connection fails.
 
         Example:
+            >>> from copilot.generated.session_events import AssistantMessageData
             >>> response = await session.send_and_wait("What is 2+2?")
             >>> if response:
-            ...     print(response.data.content)
+            ...     match response.data:
+            ...         case AssistantMessageData() as data:
+            ...             print(data.content)
         """
         idle_event = asyncio.Event()
         error_event: Exception | None = None
@@ -1137,15 +1147,14 @@ class CopilotSession:
 
         def handler(event: SessionEventTypeAlias) -> None:
             nonlocal last_assistant_message, error_event
-            if event.type == SessionEventType.ASSISTANT_MESSAGE:
-                last_assistant_message = event
-            elif event.type == SessionEventType.SESSION_IDLE:
-                idle_event.set()
-            elif event.type == SessionEventType.SESSION_ERROR:
-                error_event = Exception(
-                    f"Session error: {getattr(event.data, 'message', str(event.data))}"
-                )
-                idle_event.set()
+            match event.data:
+                case AssistantMessageData():
+                    last_assistant_message = event
+                case SessionIdleData():
+                    idle_event.set()
+                case SessionErrorData() as data:
+                    error_event = Exception(f"Session error: {data.message or str(data)}")
+                    idle_event.set()
 
         unsubscribe = self.on(handler)
         try:
@@ -1175,11 +1184,13 @@ class CopilotSession:
             A function that, when called, unsubscribes the handler.
 
         Example:
+            >>> from copilot.generated.session_events import AssistantMessageData, SessionErrorData
             >>> def handle_event(event):
-            ...     if event.type == "assistant.message":
-            ...         print(f"Assistant: {event.data.content}")
-            ...     elif event.type == "session.error":
-            ...         print(f"Error: {event.data.message}")
+            ...     match event.data:
+            ...         case AssistantMessageData() as data:
+            ...             print(f"Assistant: {data.content}")
+            ...         case SessionErrorData() as data:
+            ...             print(f"Error: {data.message}")
             >>> unsubscribe = session.on(handle_event)
             >>> # Later, to stop receiving events:
             >>> unsubscribe()
@@ -1225,88 +1236,91 @@ class CopilotSession:
         Implements the protocol v3 broadcast model where tool calls and permission requests
         are broadcast as session events to all clients.
         """
-        if event.type == SessionEventType.EXTERNAL_TOOL_REQUESTED:
-            request_id = event.data.request_id
-            tool_name = event.data.tool_name
-            if not request_id or not tool_name:
-                return
+        match event.data:
+            case ExternalToolRequestedData() as data:
+                request_id = data.request_id
+                tool_name = data.tool_name
+                if not request_id or not tool_name:
+                    return
 
-            handler = self._get_tool_handler(tool_name)
-            if not handler:
-                return  # This client doesn't handle this tool; another client will.
+                handler = self._get_tool_handler(tool_name)
+                if not handler:
+                    return  # This client doesn't handle this tool; another client will.
 
-            tool_call_id = event.data.tool_call_id or ""
-            arguments = event.data.arguments
-            tp = getattr(event.data, "traceparent", None)
-            ts = getattr(event.data, "tracestate", None)
-            asyncio.ensure_future(
-                self._execute_tool_and_respond(
-                    request_id, tool_name, tool_call_id, arguments, handler, tp, ts
+                tool_call_id = data.tool_call_id or ""
+                arguments = data.arguments
+                tp = getattr(data, "traceparent", None)
+                ts = getattr(data, "tracestate", None)
+                asyncio.ensure_future(
+                    self._execute_tool_and_respond(
+                        request_id, tool_name, tool_call_id, arguments, handler, tp, ts
+                    )
                 )
-            )
 
-        elif event.type == SessionEventType.PERMISSION_REQUESTED:
-            request_id = event.data.request_id
-            permission_request = event.data.permission_request
-            if not request_id or not permission_request:
-                return
+            case PermissionRequestedData() as data:
+                request_id = data.request_id
+                permission_request = data.permission_request
+                if not request_id or not permission_request:
+                    return
 
-            resolved_by_hook = getattr(event.data, "resolved_by_hook", None)
-            if resolved_by_hook:
-                return  # Already resolved by a permissionRequest hook; no client action needed.
+                resolved_by_hook = getattr(data, "resolved_by_hook", None)
+                if resolved_by_hook:
+                    return  # Already resolved by a permissionRequest hook; no client action needed.
 
-            with self._permission_handler_lock:
-                perm_handler = self._permission_handler
-            if not perm_handler:
-                return  # This client doesn't handle permissions; another client will.
+                with self._permission_handler_lock:
+                    perm_handler = self._permission_handler
+                if not perm_handler:
+                    return  # This client doesn't handle permissions; another client will.
 
-            asyncio.ensure_future(
-                self._execute_permission_and_respond(request_id, permission_request, perm_handler)
-            )
-
-        elif event.type == SessionEventType.COMMAND_EXECUTE:
-            request_id = event.data.request_id
-            command_name = event.data.command_name
-            command = event.data.command
-            args = event.data.args
-            if not request_id or not command_name:
-                return
-            asyncio.ensure_future(
-                self._execute_command_and_respond(
-                    request_id, command_name, command or "", args or ""
+                asyncio.ensure_future(
+                    self._execute_permission_and_respond(
+                        request_id, permission_request, perm_handler
+                    )
                 )
-            )
 
-        elif event.type == SessionEventType.ELICITATION_REQUESTED:
-            with self._elicitation_handler_lock:
-                handler = self._elicitation_handler
-            if not handler:
-                return
-            request_id = event.data.request_id
-            if not request_id:
-                return
-            context: ElicitationContext = {
-                "session_id": self.session_id,
-                "message": event.data.message or "",
-            }
-            if event.data.requested_schema is not None:
-                context["requestedSchema"] = event.data.requested_schema.to_dict()
-            if event.data.mode is not None:
-                context["mode"] = event.data.mode.value
-            if event.data.elicitation_source is not None:
-                context["elicitationSource"] = event.data.elicitation_source
-            if event.data.url is not None:
-                context["url"] = event.data.url
-            asyncio.ensure_future(self._handle_elicitation_request(context, request_id))
+            case CommandExecuteData() as data:
+                request_id = data.request_id
+                command_name = data.command_name
+                command = data.command
+                args = data.args
+                if not request_id or not command_name:
+                    return
+                asyncio.ensure_future(
+                    self._execute_command_and_respond(
+                        request_id, command_name, command or "", args or ""
+                    )
+                )
 
-        elif event.type == SessionEventType.CAPABILITIES_CHANGED:
-            cap: SessionCapabilities = {}
-            if event.data.ui is not None:
-                ui_cap: SessionUiCapabilities = {}
-                if event.data.ui.elicitation is not None:
-                    ui_cap["elicitation"] = event.data.ui.elicitation
-                cap["ui"] = ui_cap
-            self._capabilities = {**self._capabilities, **cap}
+            case ElicitationRequestedData() as data:
+                with self._elicitation_handler_lock:
+                    handler = self._elicitation_handler
+                if not handler:
+                    return
+                request_id = data.request_id
+                if not request_id:
+                    return
+                context: ElicitationContext = {
+                    "session_id": self.session_id,
+                    "message": data.message or "",
+                }
+                if data.requested_schema is not None:
+                    context["requestedSchema"] = data.requested_schema.to_dict()
+                if data.mode is not None:
+                    context["mode"] = data.mode.value
+                if data.elicitation_source is not None:
+                    context["elicitationSource"] = data.elicitation_source
+                if data.url is not None:
+                    context["url"] = data.url
+                asyncio.ensure_future(self._handle_elicitation_request(context, request_id))
+
+            case CapabilitiesChangedData() as data:
+                cap: SessionCapabilities = {}
+                if data.ui is not None:
+                    ui_cap: SessionUiCapabilities = {}
+                    if data.ui.elicitation is not None:
+                        ui_cap["elicitation"] = data.ui.elicitation
+                    cap["ui"] = ui_cap
+                self._capabilities = {**self._capabilities, **cap}
 
     async def _execute_tool_and_respond(
         self,
@@ -1795,10 +1809,12 @@ class CopilotSession:
             Exception: If the session has been disconnected or the connection fails.
 
         Example:
+            >>> from copilot.generated.session_events import AssistantMessageData
             >>> events = await session.get_messages()
             >>> for event in events:
-            ...     if event.type == "assistant.message":
-            ...         print(f"Assistant: {event.data.content}")
+            ...     match event.data:
+            ...         case AssistantMessageData() as data:
+            ...             print(f"Assistant: {data.content}")
         """
         response = await self._client.request("session.getMessages", {"sessionId": self.session_id})
         # Convert dict events to SessionEvent objects

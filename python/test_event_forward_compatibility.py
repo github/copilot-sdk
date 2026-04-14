@@ -12,7 +12,19 @@ from uuid import uuid4
 
 import pytest
 
-from copilot.generated.session_events import SessionEventType, session_event_from_dict
+from copilot.generated.session_events import (
+    Data,
+    ElicitationCompletedAction,
+    ElicitationRequestedMode,
+    ElicitationRequestedSchema,
+    PermissionRequest,
+    PermissionRequestMemoryAction,
+    SessionEventType,
+    SessionTaskCompleteData,
+    UserMessageAgentMode,
+    UserMessageAttachmentGithubReferenceType,
+    session_event_from_dict,
+)
 
 
 class TestEventForwardCompatibility:
@@ -62,3 +74,39 @@ class TestEventForwardCompatibility:
         # This should raise an error and NOT be silently suppressed
         with pytest.raises((ValueError, TypeError)):
             session_event_from_dict(malformed_event)
+
+    def test_explicit_generated_symbols_remain_available(self):
+        """Explicit generated helper symbols should remain importable."""
+        assert ElicitationCompletedAction.ACCEPT.value == "accept"
+        assert UserMessageAgentMode.INTERACTIVE.value == "interactive"
+        assert ElicitationRequestedMode.FORM.value == "form"
+        assert UserMessageAttachmentGithubReferenceType.PR.value == "pr"
+
+        schema = ElicitationRequestedSchema(
+            properties={"answer": {"type": "string"}}, type="object"
+        )
+        assert schema.to_dict()["type"] == "object"
+
+    def test_data_shim_preserves_raw_mapping_values(self):
+        """Compatibility Data should keep arbitrary nested mappings as plain dicts."""
+        parsed = Data.from_dict(
+            {
+                "arguments": {"toolCallId": "call-1"},
+                "input": {"step_name": "build"},
+            }
+        )
+        assert parsed.arguments == {"toolCallId": "call-1"}
+        assert isinstance(parsed.arguments, dict)
+        assert parsed.input == {"step_name": "build"}
+        assert isinstance(parsed.input, dict)
+
+        constructed = Data(arguments={"tool_call_id": "call-1"})
+        assert constructed.to_dict() == {"arguments": {"tool_call_id": "call-1"}}
+
+    def test_schema_defaults_are_applied_for_missing_optional_fields(self):
+        """Generated event models should honor primitive schema defaults during parsing."""
+        request = PermissionRequest.from_dict({"kind": "memory", "fact": "remember this"})
+        assert request.action == PermissionRequestMemoryAction.STORE
+
+        task_complete = SessionTaskCompleteData.from_dict({"success": True})
+        assert task_complete.summary == ""

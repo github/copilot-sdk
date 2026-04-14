@@ -7,6 +7,7 @@ import pytest
 
 from copilot import CopilotClient
 from copilot.client import SubprocessConfig
+from copilot.generated.session_events import SessionModelChangeData
 from copilot.session import PermissionHandler
 from copilot.tools import Tool, ToolResult
 
@@ -600,16 +601,20 @@ class TestSessions:
         model_change_event = asyncio.get_event_loop().create_future()
 
         def on_event(event):
-            if not model_change_event.done() and event.type.value == "session.model_change":
-                model_change_event.set_result(event)
+            if model_change_event.done():
+                return
+
+            match event.data:
+                case SessionModelChangeData() as data:
+                    model_change_event.set_result(data)
 
         session.on(on_event)
 
         await session.set_model("gpt-4.1", reasoning_effort="high")
 
-        event = await asyncio.wait_for(model_change_event, timeout=30)
-        assert event.data.new_model == "gpt-4.1"
-        assert event.data.reasoning_effort == "high"
+        data = await asyncio.wait_for(model_change_event, timeout=30)
+        assert data.new_model == "gpt-4.1"
+        assert data.reasoning_effort == "high"
 
     async def test_should_accept_blob_attachments(self, ctx: E2ETestContext):
         # Write the image to disk so the model can view it

@@ -25,8 +25,9 @@ python chat.py
 
 ```python
 import asyncio
+
 from copilot import CopilotClient
-from copilot.session import PermissionHandler
+from copilot.generated.session_events import AssistantMessageData, SessionIdleData
 
 async def main():
     # Client automatically starts on enter and cleans up on exit
@@ -37,10 +38,11 @@ async def main():
             done = asyncio.Event()
 
             def on_event(event):
-                if event.type.value == "assistant.message":
-                    print(event.data.content)
-                elif event.type.value == "session.idle":
-                    done.set()
+                match event.data:
+                    case AssistantMessageData() as data:
+                        print(data.content)
+                    case SessionIdleData():
+                        done.set()
 
             session.on(on_event)
 
@@ -57,7 +59,9 @@ If you need more control over the lifecycle, you can call `start()`, `stop()`, a
 
 ```python
 import asyncio
+
 from copilot import CopilotClient
+from copilot.generated.session_events import AssistantMessageData, SessionIdleData
 from copilot.session import PermissionHandler
 
 async def main():
@@ -73,10 +77,11 @@ async def main():
     done = asyncio.Event()
 
     def on_event(event):
-        if event.type.value == "assistant.message":
-            print(event.data.content)
-        elif event.type.value == "session.idle":
-            done.set()
+        match event.data:
+            case AssistantMessageData() as data:
+                print(data.content)
+            case SessionIdleData():
+                done.set()
 
     session.on(on_event)
     await session.send("What is 2+2?")
@@ -333,7 +338,15 @@ Enable streaming to receive assistant response chunks as they're generated:
 
 ```python
 import asyncio
+
 from copilot import CopilotClient
+from copilot.generated.session_events import (
+    AssistantMessageData,
+    AssistantMessageDeltaData,
+    AssistantReasoningData,
+    AssistantReasoningDeltaData,
+    SessionIdleData,
+)
 from copilot.session import PermissionHandler
 
 async def main():
@@ -347,24 +360,24 @@ async def main():
             done = asyncio.Event()
 
             def on_event(event):
-                match event.type.value:
-                    case "assistant.message_delta":
+                match event.data:
+                    case AssistantMessageDeltaData() as data:
                         # Streaming message chunk - print incrementally
-                        delta = event.data.delta_content or ""
+                        delta = data.delta_content or ""
                         print(delta, end="", flush=True)
-                    case "assistant.reasoning_delta":
+                    case AssistantReasoningDeltaData() as data:
                         # Streaming reasoning chunk (if model supports reasoning)
-                        delta = event.data.delta_content or ""
+                        delta = data.delta_content or ""
                         print(delta, end="", flush=True)
-                    case "assistant.message":
+                    case AssistantMessageData() as data:
                         # Final message - complete content
                         print("\n--- Final message ---")
-                        print(event.data.content)
-                    case "assistant.reasoning":
+                        print(data.content)
+                    case AssistantReasoningData() as data:
                         # Final reasoning content (if model supports reasoning)
                         print("--- Reasoning ---")
-                        print(event.data.content)
-                    case "session.idle":
+                        print(data.content)
+                    case SessionIdleData():
                         # Session finished processing
                         done.set()
 
@@ -547,7 +560,9 @@ Provide your own function to inspect each request and apply custom logic (sync o
 from copilot.session import PermissionRequestResult
 from copilot.generated.session_events import PermissionRequest
 
-def on_permission_request(request: PermissionRequest, invocation: dict) -> PermissionRequestResult:
+def on_permission_request(
+    request: PermissionRequest, invocation: dict
+) -> PermissionRequestResult:
     # request.kind — what type of operation is being requested:
     #   "shell"       — executing a shell command
     #   "write"       — writing or editing a file
@@ -577,7 +592,9 @@ session = await client.create_session(
 Async handlers are also supported:
 
 ```python
-async def on_permission_request(request: PermissionRequest, invocation: dict) -> PermissionRequestResult:
+async def on_permission_request(
+    request: PermissionRequest, invocation: dict
+) -> PermissionRequestResult:
     # Simulate an async approval check (e.g., prompting a user over a network)
     await asyncio.sleep(0)
     return PermissionRequestResult(kind="approved")
