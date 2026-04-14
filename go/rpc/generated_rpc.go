@@ -344,6 +344,19 @@ type ModeSetRequest struct {
 	Mode SessionMode `json:"mode"`
 }
 
+type NameGetResult struct {
+	// The session name, falling back to the auto-generated summary, or null if neither exists
+	Name *string `json:"name"`
+}
+
+type NameSetResult struct {
+}
+
+type NameSetRequest struct {
+	// New session name (1–100 characters, trimmed of leading/trailing whitespace)
+	Name string `json:"name"`
+}
+
 type PlanReadResult struct {
 	// The content of the plan file, or null if it does not exist
 	Content *string `json:"content"`
@@ -364,25 +377,48 @@ type PlanUpdateRequest struct {
 type PlanDeleteResult struct {
 }
 
-type WorkspaceListFilesResult struct {
+type WorkspacesGetWorkspaceResult struct {
+	// Current workspace metadata, or null if not available
+	Workspace *WorkspaceClass `json:"workspace"`
+}
+
+type WorkspaceClass struct {
+	Branch           *string           `json:"branch,omitempty"`
+	CreatedAt        *time.Time        `json:"created_at,omitempty"`
+	Cwd              *string           `json:"cwd,omitempty"`
+	GitRoot          *string           `json:"git_root,omitempty"`
+	HostType         *HostType         `json:"host_type,omitempty"`
+	ID               string            `json:"id"`
+	McLastEventID    *string           `json:"mc_last_event_id,omitempty"`
+	McSessionID      *string           `json:"mc_session_id,omitempty"`
+	McTaskID         *string           `json:"mc_task_id,omitempty"`
+	Name             *string           `json:"name,omitempty"`
+	Repository       *string           `json:"repository,omitempty"`
+	SessionSyncLevel *SessionSyncLevel `json:"session_sync_level,omitempty"`
+	Summary          *string           `json:"summary,omitempty"`
+	SummaryCount     *int64            `json:"summary_count,omitempty"`
+	UpdatedAt        *time.Time        `json:"updated_at,omitempty"`
+}
+
+type WorkspacesListFilesResult struct {
 	// Relative file paths in the workspace files directory
 	Files []string `json:"files"`
 }
 
-type WorkspaceReadFileResult struct {
+type WorkspacesReadFileResult struct {
 	// File content as a UTF-8 string
 	Content string `json:"content"`
 }
 
-type WorkspaceReadFileRequest struct {
+type WorkspacesReadFileRequest struct {
 	// Relative path within the workspace files directory
 	Path string `json:"path"`
 }
 
-type WorkspaceCreateFileResult struct {
+type WorkspacesCreateFileResult struct {
 }
 
-type WorkspaceCreateFileRequest struct {
+type WorkspacesCreateFileRequest struct {
 	// File content to write as a UTF-8 string
 	Content string `json:"content"`
 	// Relative path within the workspace files directory
@@ -1058,8 +1094,8 @@ const (
 type MCPConfigType string
 
 const (
-	MCPConfigTypeLocal MCPConfigType = "local"
 	MCPConfigTypeHTTP  MCPConfigType = "http"
+	MCPConfigTypeLocal MCPConfigType = "local"
 	MCPConfigTypeSSE   MCPConfigType = "sse"
 	MCPConfigTypeStdio MCPConfigType = "stdio"
 )
@@ -1101,6 +1137,21 @@ const (
 	SessionModeAutopilot   SessionMode = "autopilot"
 	SessionModeInteractive SessionMode = "interactive"
 	SessionModePlan        SessionMode = "plan"
+)
+
+type HostType string
+
+const (
+	HostTypeAdo    HostType = "ado"
+	HostTypeGithub HostType = "github"
+)
+
+type SessionSyncLevel string
+
+const (
+	SessionSyncLevelRepoAndUser SessionSyncLevel = "repo_and_user"
+	SessionSyncLevelLocal       SessionSyncLevel = "local"
+	SessionSyncLevelUser        SessionSyncLevel = "user"
 )
 
 // Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
@@ -1427,6 +1478,37 @@ func (a *ModeApi) Set(ctx context.Context, params *ModeSetRequest) (*ModeSetResu
 	return &result, nil
 }
 
+type NameApi sessionApi
+
+func (a *NameApi) Get(ctx context.Context) (*NameGetResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.name.get", req)
+	if err != nil {
+		return nil, err
+	}
+	var result NameGetResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *NameApi) Set(ctx context.Context, params *NameSetRequest) (*NameSetResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["name"] = params.Name
+	}
+	raw, err := a.client.Request("session.name.set", req)
+	if err != nil {
+		return nil, err
+	}
+	var result NameSetResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 type PlanApi sessionApi
 
 func (a *PlanApi) Read(ctx context.Context) (*PlanReadResult, error) {
@@ -1471,48 +1553,61 @@ func (a *PlanApi) Delete(ctx context.Context) (*PlanDeleteResult, error) {
 	return &result, nil
 }
 
-type WorkspaceApi sessionApi
+type WorkspacesApi sessionApi
 
-func (a *WorkspaceApi) ListFiles(ctx context.Context) (*WorkspaceListFilesResult, error) {
+func (a *WorkspacesApi) GetWorkspace(ctx context.Context) (*WorkspacesGetWorkspaceResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
-	raw, err := a.client.Request("session.workspace.listFiles", req)
+	raw, err := a.client.Request("session.workspaces.getWorkspace", req)
 	if err != nil {
 		return nil, err
 	}
-	var result WorkspaceListFilesResult
+	var result WorkspacesGetWorkspaceResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-func (a *WorkspaceApi) ReadFile(ctx context.Context, params *WorkspaceReadFileRequest) (*WorkspaceReadFileResult, error) {
+func (a *WorkspacesApi) ListFiles(ctx context.Context) (*WorkspacesListFilesResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.workspaces.listFiles", req)
+	if err != nil {
+		return nil, err
+	}
+	var result WorkspacesListFilesResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *WorkspacesApi) ReadFile(ctx context.Context, params *WorkspacesReadFileRequest) (*WorkspacesReadFileResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["path"] = params.Path
 	}
-	raw, err := a.client.Request("session.workspace.readFile", req)
+	raw, err := a.client.Request("session.workspaces.readFile", req)
 	if err != nil {
 		return nil, err
 	}
-	var result WorkspaceReadFileResult
+	var result WorkspacesReadFileResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-func (a *WorkspaceApi) CreateFile(ctx context.Context, params *WorkspaceCreateFileRequest) (*WorkspaceCreateFileResult, error) {
+func (a *WorkspacesApi) CreateFile(ctx context.Context, params *WorkspacesCreateFileRequest) (*WorkspacesCreateFileResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["path"] = params.Path
 		req["content"] = params.Content
 	}
-	raw, err := a.client.Request("session.workspace.createFile", req)
+	raw, err := a.client.Request("session.workspaces.createFile", req)
 	if err != nil {
 		return nil, err
 	}
-	var result WorkspaceCreateFileResult
+	var result WorkspacesCreateFileResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -2007,8 +2102,9 @@ type SessionRpc struct {
 
 	Model       *ModelApi
 	Mode        *ModeApi
+	Name        *NameApi
 	Plan        *PlanApi
-	Workspace   *WorkspaceApi
+	Workspaces  *WorkspacesApi
 	Fleet       *FleetApi
 	Agent       *AgentApi
 	Skills      *SkillsApi
@@ -2054,8 +2150,9 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 	r.common = sessionApi{client: client, sessionID: sessionID}
 	r.Model = (*ModelApi)(&r.common)
 	r.Mode = (*ModeApi)(&r.common)
+	r.Name = (*NameApi)(&r.common)
 	r.Plan = (*PlanApi)(&r.common)
-	r.Workspace = (*WorkspaceApi)(&r.common)
+	r.Workspaces = (*WorkspacesApi)(&r.common)
 	r.Fleet = (*FleetApi)(&r.common)
 	r.Agent = (*AgentApi)(&r.common)
 	r.Skills = (*SkillsApi)(&r.common)

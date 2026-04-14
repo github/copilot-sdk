@@ -493,6 +493,37 @@ internal sealed class ModeSetRequest
     public SessionMode Mode { get; set; }
 }
 
+/// <summary>RPC data type for NameGet operations.</summary>
+public sealed class NameGetResult
+{
+    /// <summary>The session name, falling back to the auto-generated summary, or null if neither exists.</summary>
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+}
+
+/// <summary>RPC data type for SessionNameGet operations.</summary>
+internal sealed class SessionNameGetRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for NameSet operations.</summary>
+internal sealed class NameSetRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>New session name (1–100 characters, trimmed of leading/trailing whitespace).</summary>
+    [MinLength(1)]
+    [MaxLength(100)]
+    [JsonPropertyName("name")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "<Pending>")]
+    public string Name { get; set; } = string.Empty;
+}
+
 /// <summary>RPC data type for PlanRead operations.</summary>
 public sealed class PlanReadResult
 {
@@ -537,32 +568,113 @@ internal sealed class SessionPlanDeleteRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for WorkspaceListFiles operations.</summary>
-public sealed class WorkspaceListFilesResult
+/// <summary>RPC data type for WorkspacesGetWorkspaceResultWorkspace operations.</summary>
+public sealed class WorkspacesGetWorkspaceResultWorkspace
 {
-    /// <summary>Relative file paths in the workspace files directory.</summary>
-    [JsonPropertyName("files")]
-    public IList<string> Files { get => field ??= []; set; }
+    /// <summary>Gets or sets the <c>id</c> value.</summary>
+    [JsonPropertyName("id")]
+    public Guid Id { get; set; }
+
+    /// <summary>Gets or sets the <c>cwd</c> value.</summary>
+    [JsonPropertyName("cwd")]
+    public string? Cwd { get; set; }
+
+    /// <summary>Gets or sets the <c>git_root</c> value.</summary>
+    [JsonPropertyName("git_root")]
+    public string? GitRoot { get; set; }
+
+    /// <summary>Gets or sets the <c>repository</c> value.</summary>
+    [JsonPropertyName("repository")]
+    public string? Repository { get; set; }
+
+    /// <summary>Gets or sets the <c>host_type</c> value.</summary>
+    [JsonPropertyName("host_type")]
+    public WorkspacesGetWorkspaceResultWorkspaceHostType? HostType { get; set; }
+
+    /// <summary>Gets or sets the <c>branch</c> value.</summary>
+    [JsonPropertyName("branch")]
+    public string? Branch { get; set; }
+
+    /// <summary>Gets or sets the <c>summary</c> value.</summary>
+    [JsonPropertyName("summary")]
+    public string? Summary { get; set; }
+
+    /// <summary>Gets or sets the <c>name</c> value.</summary>
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    /// <summary>Gets or sets the <c>summary_count</c> value.</summary>
+    [Range((double)0, (double)long.MaxValue)]
+    [JsonPropertyName("summary_count")]
+    public long? SummaryCount { get; set; }
+
+    /// <summary>Gets or sets the <c>created_at</c> value.</summary>
+    [JsonPropertyName("created_at")]
+    public DateTimeOffset? CreatedAt { get; set; }
+
+    /// <summary>Gets or sets the <c>updated_at</c> value.</summary>
+    [JsonPropertyName("updated_at")]
+    public DateTimeOffset? UpdatedAt { get; set; }
+
+    /// <summary>Gets or sets the <c>mc_task_id</c> value.</summary>
+    [JsonPropertyName("mc_task_id")]
+    public string? McTaskId { get; set; }
+
+    /// <summary>Gets or sets the <c>mc_session_id</c> value.</summary>
+    [JsonPropertyName("mc_session_id")]
+    public string? McSessionId { get; set; }
+
+    /// <summary>Gets or sets the <c>mc_last_event_id</c> value.</summary>
+    [JsonPropertyName("mc_last_event_id")]
+    public string? McLastEventId { get; set; }
+
+    /// <summary>Gets or sets the <c>session_sync_level</c> value.</summary>
+    [JsonPropertyName("session_sync_level")]
+    public WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel? SessionSyncLevel { get; set; }
 }
 
-/// <summary>RPC data type for SessionWorkspaceListFiles operations.</summary>
-internal sealed class SessionWorkspaceListFilesRequest
+/// <summary>RPC data type for WorkspacesGetWorkspace operations.</summary>
+public sealed class WorkspacesGetWorkspaceResult
+{
+    /// <summary>Current workspace metadata, or null if not available.</summary>
+    [JsonPropertyName("workspace")]
+    public WorkspacesGetWorkspaceResultWorkspace? Workspace { get; set; }
+}
+
+/// <summary>RPC data type for SessionWorkspacesGetWorkspace operations.</summary>
+internal sealed class SessionWorkspacesGetWorkspaceRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for WorkspaceReadFile operations.</summary>
-public sealed class WorkspaceReadFileResult
+/// <summary>RPC data type for WorkspacesListFiles operations.</summary>
+public sealed class WorkspacesListFilesResult
+{
+    /// <summary>Relative file paths in the workspace files directory.</summary>
+    [JsonPropertyName("files")]
+    public IList<string> Files { get => field ??= []; set; }
+}
+
+/// <summary>RPC data type for SessionWorkspacesListFiles operations.</summary>
+internal sealed class SessionWorkspacesListFilesRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for WorkspacesReadFile operations.</summary>
+public sealed class WorkspacesReadFileResult
 {
     /// <summary>File content as a UTF-8 string.</summary>
     [JsonPropertyName("content")]
     public string Content { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for WorkspaceReadFile operations.</summary>
-internal sealed class WorkspaceReadFileRequest
+/// <summary>RPC data type for WorkspacesReadFile operations.</summary>
+internal sealed class WorkspacesReadFileRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -573,8 +685,8 @@ internal sealed class WorkspaceReadFileRequest
     public string Path { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for WorkspaceCreateFile operations.</summary>
-internal sealed class WorkspaceCreateFileRequest
+/// <summary>RPC data type for WorkspacesCreateFile operations.</summary>
+internal sealed class WorkspacesCreateFileRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -1754,6 +1866,35 @@ public enum SessionMode
 }
 
 
+/// <summary>Defines the allowed values.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<WorkspacesGetWorkspaceResultWorkspaceHostType>))]
+public enum WorkspacesGetWorkspaceResultWorkspaceHostType
+{
+    /// <summary>The <c>github</c> variant.</summary>
+    [JsonStringEnumMemberName("github")]
+    Github,
+    /// <summary>The <c>ado</c> variant.</summary>
+    [JsonStringEnumMemberName("ado")]
+    Ado,
+}
+
+
+/// <summary>Defines the allowed values.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel>))]
+public enum WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel
+{
+    /// <summary>The <c>local</c> variant.</summary>
+    [JsonStringEnumMemberName("local")]
+    Local,
+    /// <summary>The <c>user</c> variant.</summary>
+    [JsonStringEnumMemberName("user")]
+    User,
+    /// <summary>The <c>repo_and_user</c> variant.</summary>
+    [JsonStringEnumMemberName("repo_and_user")]
+    RepoAndUser,
+}
+
+
 /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<McpServerStatus>))]
 public enum McpServerStatus
@@ -2036,8 +2177,9 @@ public sealed class SessionRpc
         _sessionId = sessionId;
         Model = new ModelApi(rpc, sessionId);
         Mode = new ModeApi(rpc, sessionId);
+        Name = new NameApi(rpc, sessionId);
         Plan = new PlanApi(rpc, sessionId);
-        Workspace = new WorkspaceApi(rpc, sessionId);
+        Workspaces = new WorkspacesApi(rpc, sessionId);
         Fleet = new FleetApi(rpc, sessionId);
         Agent = new AgentApi(rpc, sessionId);
         Skills = new SkillsApi(rpc, sessionId);
@@ -2059,11 +2201,14 @@ public sealed class SessionRpc
     /// <summary>Mode APIs.</summary>
     public ModeApi Mode { get; }
 
+    /// <summary>Name APIs.</summary>
+    public NameApi Name { get; }
+
     /// <summary>Plan APIs.</summary>
     public PlanApi Plan { get; }
 
-    /// <summary>Workspace APIs.</summary>
-    public WorkspaceApi Workspace { get; }
+    /// <summary>Workspaces APIs.</summary>
+    public WorkspacesApi Workspaces { get; }
 
     /// <summary>Fleet APIs.</summary>
     public FleetApi Fleet { get; }
@@ -2166,6 +2311,33 @@ public sealed class ModeApi
     }
 }
 
+/// <summary>Provides session-scoped Name APIs.</summary>
+public sealed class NameApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal NameApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.name.get".</summary>
+    public async Task<NameGetResult> GetAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new SessionNameGetRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<NameGetResult>(_rpc, "session.name.get", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.name.set".</summary>
+    public async Task SetAsync(string name, CancellationToken cancellationToken = default)
+    {
+        var request = new NameSetRequest { SessionId = _sessionId, Name = name };
+        await CopilotClient.InvokeRpcAsync(_rpc, "session.name.set", [request], cancellationToken);
+    }
+}
+
 /// <summary>Provides session-scoped Plan APIs.</summary>
 public sealed class PlanApi
 {
@@ -2200,37 +2372,44 @@ public sealed class PlanApi
     }
 }
 
-/// <summary>Provides session-scoped Workspace APIs.</summary>
-public sealed class WorkspaceApi
+/// <summary>Provides session-scoped Workspaces APIs.</summary>
+public sealed class WorkspacesApi
 {
     private readonly JsonRpc _rpc;
     private readonly string _sessionId;
 
-    internal WorkspaceApi(JsonRpc rpc, string sessionId)
+    internal WorkspacesApi(JsonRpc rpc, string sessionId)
     {
         _rpc = rpc;
         _sessionId = sessionId;
     }
 
-    /// <summary>Calls "session.workspace.listFiles".</summary>
-    public async Task<WorkspaceListFilesResult> ListFilesAsync(CancellationToken cancellationToken = default)
+    /// <summary>Calls "session.workspaces.getWorkspace".</summary>
+    public async Task<WorkspacesGetWorkspaceResult> GetWorkspaceAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionWorkspaceListFilesRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<WorkspaceListFilesResult>(_rpc, "session.workspace.listFiles", [request], cancellationToken);
+        var request = new SessionWorkspacesGetWorkspaceRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<WorkspacesGetWorkspaceResult>(_rpc, "session.workspaces.getWorkspace", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.workspace.readFile".</summary>
-    public async Task<WorkspaceReadFileResult> ReadFileAsync(string path, CancellationToken cancellationToken = default)
+    /// <summary>Calls "session.workspaces.listFiles".</summary>
+    public async Task<WorkspacesListFilesResult> ListFilesAsync(CancellationToken cancellationToken = default)
     {
-        var request = new WorkspaceReadFileRequest { SessionId = _sessionId, Path = path };
-        return await CopilotClient.InvokeRpcAsync<WorkspaceReadFileResult>(_rpc, "session.workspace.readFile", [request], cancellationToken);
+        var request = new SessionWorkspacesListFilesRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<WorkspacesListFilesResult>(_rpc, "session.workspaces.listFiles", [request], cancellationToken);
     }
 
-    /// <summary>Calls "session.workspace.createFile".</summary>
+    /// <summary>Calls "session.workspaces.readFile".</summary>
+    public async Task<WorkspacesReadFileResult> ReadFileAsync(string path, CancellationToken cancellationToken = default)
+    {
+        var request = new WorkspacesReadFileRequest { SessionId = _sessionId, Path = path };
+        return await CopilotClient.InvokeRpcAsync<WorkspacesReadFileResult>(_rpc, "session.workspaces.readFile", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "session.workspaces.createFile".</summary>
     public async Task CreateFileAsync(string path, string content, CancellationToken cancellationToken = default)
     {
-        var request = new WorkspaceCreateFileRequest { SessionId = _sessionId, Path = path, Content = content };
-        await CopilotClient.InvokeRpcAsync(_rpc, "session.workspace.createFile", [request], cancellationToken);
+        var request = new WorkspacesCreateFileRequest { SessionId = _sessionId, Path = path, Content = content };
+        await CopilotClient.InvokeRpcAsync(_rpc, "session.workspaces.createFile", [request], cancellationToken);
     }
 }
 
@@ -2812,6 +2991,8 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(ModelPolicy))]
 [JsonSerializable(typeof(ModelSwitchToRequest))]
 [JsonSerializable(typeof(ModelSwitchToResult))]
+[JsonSerializable(typeof(NameGetResult))]
+[JsonSerializable(typeof(NameSetRequest))]
 [JsonSerializable(typeof(PermissionDecisionRequest))]
 [JsonSerializable(typeof(PermissionRequestResult))]
 [JsonSerializable(typeof(PingRequest))]
@@ -2850,13 +3031,15 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionMode))]
 [JsonSerializable(typeof(SessionModeGetRequest))]
 [JsonSerializable(typeof(SessionModelGetCurrentRequest))]
+[JsonSerializable(typeof(SessionNameGetRequest))]
 [JsonSerializable(typeof(SessionPlanDeleteRequest))]
 [JsonSerializable(typeof(SessionPlanReadRequest))]
 [JsonSerializable(typeof(SessionPluginsListRequest))]
 [JsonSerializable(typeof(SessionSkillsListRequest))]
 [JsonSerializable(typeof(SessionSkillsReloadRequest))]
 [JsonSerializable(typeof(SessionUsageGetMetricsRequest))]
-[JsonSerializable(typeof(SessionWorkspaceListFilesRequest))]
+[JsonSerializable(typeof(SessionWorkspacesGetWorkspaceRequest))]
+[JsonSerializable(typeof(SessionWorkspacesListFilesRequest))]
 [JsonSerializable(typeof(SessionsForkRequest))]
 [JsonSerializable(typeof(SessionsForkResult))]
 [JsonSerializable(typeof(ShellExecRequest))]
@@ -2881,8 +3064,10 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(UsageMetricsModelMetric))]
 [JsonSerializable(typeof(UsageMetricsModelMetricRequests))]
 [JsonSerializable(typeof(UsageMetricsModelMetricUsage))]
-[JsonSerializable(typeof(WorkspaceCreateFileRequest))]
-[JsonSerializable(typeof(WorkspaceListFilesResult))]
-[JsonSerializable(typeof(WorkspaceReadFileRequest))]
-[JsonSerializable(typeof(WorkspaceReadFileResult))]
+[JsonSerializable(typeof(WorkspacesCreateFileRequest))]
+[JsonSerializable(typeof(WorkspacesGetWorkspaceResult))]
+[JsonSerializable(typeof(WorkspacesGetWorkspaceResultWorkspace))]
+[JsonSerializable(typeof(WorkspacesListFilesResult))]
+[JsonSerializable(typeof(WorkspacesReadFileRequest))]
+[JsonSerializable(typeof(WorkspacesReadFileResult))]
 internal partial class RpcJsonContext : JsonSerializerContext;
