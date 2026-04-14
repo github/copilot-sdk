@@ -400,6 +400,27 @@ def _timeout_kwargs(timeout: float | None) -> dict:
         return {"timeout": timeout}
     return {}
 
+def _patch_model_capabilities(data: dict) -> dict:
+    """Ensure model capabilities have required fields.
+
+    TODO: Remove once the runtime schema correctly marks these fields as optional.
+    Some models (e.g. embedding models) may omit 'limits' or 'supports' in their
+    capabilities, or omit 'max_context_window_tokens' within limits. The generated
+    deserializer requires these fields, so we supply defaults here.
+    """
+    for model in data.get("models", []):
+        caps = model.get("capabilities")
+        if caps is None:
+            model["capabilities"] = {"supports": {}, "limits": {"max_context_window_tokens": 0}}
+            continue
+        if "supports" not in caps:
+            caps["supports"] = {}
+        if "limits" not in caps:
+            caps["limits"] = {"max_context_window_tokens": 0}
+        elif "max_context_window_tokens" not in caps["limits"]:
+            caps["limits"]["max_context_window_tokens"] = 0
+    return data
+
 `);
 
     // Emit RPC wrapper classes
@@ -413,7 +434,19 @@ def _timeout_kwargs(timeout: float | None) -> dict:
         emitClientSessionApiRegistration(lines, schema.clientSession, resolveType);
     }
 
-    const outPath = await writeGeneratedFile("python/copilot/generated/rpc.py", lines.join("\n"));
+    // Patch models.list to normalize capabilities before deserialization
+    let finalCode = lines.join("\n");
+    finalCode = finalCode.replace(
+        `ModelList.from_dict(await self._client.request("models.list"`,
+        `ModelList.from_dict(_patch_model_capabilities(await self._client.request("models.list"`,
+    );
+    // Close the extra paren opened by _patch_model_capabilities(
+    finalCode = finalCode.replace(
+        /(_patch_model_capabilities\(await self\._client\.request\("models\.list",\s*\{[^)]*\)[^)]*\))/,
+        "$1)",
+    );
+
+    const outPath = await writeGeneratedFile("python/copilot/generated/rpc.py", finalCode);
     console.log(`  ✓ ${outPath}`);
 }
 

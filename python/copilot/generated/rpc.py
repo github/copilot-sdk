@@ -3590,13 +3590,34 @@ def _timeout_kwargs(timeout: float | None) -> dict:
         return {"timeout": timeout}
     return {}
 
+def _patch_model_capabilities(data: dict) -> dict:
+    """Ensure model capabilities have required fields.
+
+    TODO: Remove once the runtime schema correctly marks these fields as optional.
+    Some models (e.g. embedding models) may omit 'limits' or 'supports' in their
+    capabilities, or omit 'max_context_window_tokens' within limits. The generated
+    deserializer requires these fields, so we supply defaults here.
+    """
+    for model in data.get("models", []):
+        caps = model.get("capabilities")
+        if caps is None:
+            model["capabilities"] = {"supports": {}, "limits": {"max_context_window_tokens": 0}}
+            continue
+        if "supports" not in caps:
+            caps["supports"] = {}
+        if "limits" not in caps:
+            caps["limits"] = {"max_context_window_tokens": 0}
+        elif "max_context_window_tokens" not in caps["limits"]:
+            caps["limits"]["max_context_window_tokens"] = 0
+    return data
+
 
 class ServerModelsApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
     async def list(self, *, timeout: float | None = None) -> ModelList:
-        return ModelList.from_dict(await self._client.request("models.list", {}, **_timeout_kwargs(timeout)))
+        return ModelList.from_dict(_patch_model_capabilities(await self._client.request("models.list", {}, **_timeout_kwargs(timeout))))
 
 
 class ServerToolsApi:
