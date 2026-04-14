@@ -389,13 +389,8 @@ class ModelCapabilities:
         assert isinstance(obj, dict)
         supports_dict = obj.get("supports")
         limits_dict = obj.get("limits")
-        if supports_dict is None or limits_dict is None:
-            raise ValueError(
-                f"Missing required fields in ModelCapabilities: supports={supports_dict}, "
-                f"limits={limits_dict}"
-            )
-        supports = ModelSupports.from_dict(supports_dict)
-        limits = ModelLimits.from_dict(limits_dict)
+        supports = ModelSupports.from_dict(supports_dict) if supports_dict else ModelSupports()
+        limits = ModelLimits.from_dict(limits_dict) if limits_dict else ModelLimits()
         return ModelCapabilities(supports=supports, limits=limits)
 
     def to_dict(self) -> dict:
