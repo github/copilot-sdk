@@ -116,7 +116,6 @@ class SessionEventType(Enum):
     SESSION_MODE_CHANGED = "session.mode_changed"
     SESSION_PLAN_CHANGED = "session.plan_changed"
     SESSION_WORKSPACE_FILE_CHANGED = "session.workspace_file_changed"
-    SESSION_IMPORT_LEGACY = "session.import_legacy"
     SESSION_HANDOFF = "session.handoff"
     SESSION_TRUNCATION = "session.truncation"
     SESSION_SNAPSHOT_REWIND = "session.snapshot_rewind"
@@ -715,237 +714,6 @@ class SessionWorkspaceFileChangedData:
 
 
 @dataclass
-class SessionImportLegacyDataLegacySessionChatMessagesItemAudio:
-    id: str
-
-    @staticmethod
-    def from_dict(obj: Any) -> "SessionImportLegacyDataLegacySessionChatMessagesItemAudio":
-        assert isinstance(obj, dict)
-        id = from_str(obj.get("id"))
-        return SessionImportLegacyDataLegacySessionChatMessagesItemAudio(
-            id=id,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["id"] = from_str(self.id)
-        return result
-
-
-@dataclass
-class SessionImportLegacyDataLegacySessionChatMessagesItemFunctionCall:
-    name: str
-    arguments: str
-
-    @staticmethod
-    def from_dict(obj: Any) -> "SessionImportLegacyDataLegacySessionChatMessagesItemFunctionCall":
-        assert isinstance(obj, dict)
-        name = from_str(obj.get("name"))
-        arguments = from_str(obj.get("arguments"))
-        return SessionImportLegacyDataLegacySessionChatMessagesItemFunctionCall(
-            name=name,
-            arguments=arguments,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["name"] = from_str(self.name)
-        result["arguments"] = from_str(self.arguments)
-        return result
-
-
-@dataclass
-class SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItemFunction:
-    name: str
-    arguments: str
-
-    @staticmethod
-    def from_dict(obj: Any) -> "SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItemFunction":
-        assert isinstance(obj, dict)
-        name = from_str(obj.get("name"))
-        arguments = from_str(obj.get("arguments"))
-        return SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItemFunction(
-            name=name,
-            arguments=arguments,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["name"] = from_str(self.name)
-        result["arguments"] = from_str(self.arguments)
-        return result
-
-
-@dataclass
-class SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItemCustom:
-    name: str
-    input: str
-
-    @staticmethod
-    def from_dict(obj: Any) -> "SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItemCustom":
-        assert isinstance(obj, dict)
-        name = from_str(obj.get("name"))
-        input = from_str(obj.get("input"))
-        return SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItemCustom(
-            name=name,
-            input=input,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["name"] = from_str(self.name)
-        result["input"] = from_str(self.input)
-        return result
-
-
-@dataclass
-class SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItem:
-    type: SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItemType
-    id: str
-    function: SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItemFunction | None = None
-    custom: SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItemCustom | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> "SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItem":
-        assert isinstance(obj, dict)
-        type = parse_enum(SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItemType, obj.get("type"))
-        id = from_str(obj.get("id"))
-        function = from_union([from_none, lambda x: SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItemFunction.from_dict(x)], obj.get("function"))
-        custom = from_union([from_none, lambda x: SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItemCustom.from_dict(x)], obj.get("custom"))
-        return SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItem(
-            type=type,
-            id=id,
-            function=function,
-            custom=custom,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["type"] = to_enum(SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItemType, self.type)
-        result["id"] = from_str(self.id)
-        if self.function is not None:
-            result["function"] = from_union([from_none, lambda x: to_class(SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItemFunction, x)], self.function)
-        if self.custom is not None:
-            result["custom"] = from_union([from_none, lambda x: to_class(SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItemCustom, x)], self.custom)
-        return result
-
-
-@dataclass
-class SessionImportLegacyDataLegacySessionChatMessagesItem:
-    role: SessionImportLegacyDataLegacySessionChatMessagesItemRole
-    content: Any = None
-    name: str | None = None
-    refusal: str | None = None
-    audio: SessionImportLegacyDataLegacySessionChatMessagesItemAudio | None = None
-    function_call: SessionImportLegacyDataLegacySessionChatMessagesItemFunctionCall | None = None
-    tool_calls: list[SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItem] | None = None
-    tool_call_id: str | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> "SessionImportLegacyDataLegacySessionChatMessagesItem":
-        assert isinstance(obj, dict)
-        role = parse_enum(SessionImportLegacyDataLegacySessionChatMessagesItemRole, obj.get("role"))
-        content = obj.get("content")
-        name = from_union([from_none, lambda x: from_str(x)], obj.get("name"))
-        refusal = from_union([from_none, lambda x: from_str(x)], obj.get("refusal"))
-        audio = from_union([from_none, lambda x: SessionImportLegacyDataLegacySessionChatMessagesItemAudio.from_dict(x)], obj.get("audio"))
-        function_call = from_union([from_none, lambda x: SessionImportLegacyDataLegacySessionChatMessagesItemFunctionCall.from_dict(x)], obj.get("function_call"))
-        tool_calls = from_union([from_none, lambda x: from_list(SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItem.from_dict, x)], obj.get("tool_calls"))
-        tool_call_id = from_union([from_none, lambda x: from_str(x)], obj.get("tool_call_id"))
-        return SessionImportLegacyDataLegacySessionChatMessagesItem(
-            role=role,
-            content=content,
-            name=name,
-            refusal=refusal,
-            audio=audio,
-            function_call=function_call,
-            tool_calls=tool_calls,
-            tool_call_id=tool_call_id,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["role"] = to_enum(SessionImportLegacyDataLegacySessionChatMessagesItemRole, self.role)
-        if self.content is not None:
-            result["content"] = self.content
-        if self.name is not None:
-            result["name"] = from_union([from_none, lambda x: from_str(x)], self.name)
-        if self.refusal is not None:
-            result["refusal"] = from_union([from_none, lambda x: from_str(x)], self.refusal)
-        if self.audio is not None:
-            result["audio"] = from_union([from_none, lambda x: to_class(SessionImportLegacyDataLegacySessionChatMessagesItemAudio, x)], self.audio)
-        if self.function_call is not None:
-            result["function_call"] = from_union([from_none, lambda x: to_class(SessionImportLegacyDataLegacySessionChatMessagesItemFunctionCall, x)], self.function_call)
-        if self.tool_calls is not None:
-            result["tool_calls"] = from_union([from_none, lambda x: from_list(lambda x: to_class(SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItem, x), x)], self.tool_calls)
-        if self.tool_call_id is not None:
-            result["tool_call_id"] = from_union([from_none, lambda x: from_str(x)], self.tool_call_id)
-        return result
-
-
-@dataclass
-class SessionImportLegacyDataLegacySession:
-    session_id: str
-    start_time: datetime
-    chat_messages: list[SessionImportLegacyDataLegacySessionChatMessagesItem]
-    timeline: list[Any]
-    selected_model: SessionImportLegacyDataLegacySessionSelectedModel | None = None
-
-    @staticmethod
-    def from_dict(obj: Any) -> "SessionImportLegacyDataLegacySession":
-        assert isinstance(obj, dict)
-        session_id = from_str(obj.get("sessionId"))
-        start_time = from_datetime(obj.get("startTime"))
-        chat_messages = from_list(SessionImportLegacyDataLegacySessionChatMessagesItem.from_dict, obj.get("chatMessages"))
-        timeline = from_list(lambda x: x, obj.get("timeline"))
-        selected_model = from_union([from_none, lambda x: parse_enum(SessionImportLegacyDataLegacySessionSelectedModel, x)], obj.get("selectedModel"))
-        return SessionImportLegacyDataLegacySession(
-            session_id=session_id,
-            start_time=start_time,
-            chat_messages=chat_messages,
-            timeline=timeline,
-            selected_model=selected_model,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["sessionId"] = from_str(self.session_id)
-        result["startTime"] = to_datetime(self.start_time)
-        result["chatMessages"] = from_list(lambda x: to_class(SessionImportLegacyDataLegacySessionChatMessagesItem, x), self.chat_messages)
-        result["timeline"] = from_list(lambda x: x, self.timeline)
-        if self.selected_model is not None:
-            result["selectedModel"] = from_union([from_none, lambda x: to_enum(SessionImportLegacyDataLegacySessionSelectedModel, x)], self.selected_model)
-        return result
-
-
-@dataclass
-class SessionImportLegacyData:
-    "Legacy session import data including the complete session JSON, import timestamp, and source file path"
-    legacy_session: SessionImportLegacyDataLegacySession
-    import_time: datetime
-    source_file: str
-
-    @staticmethod
-    def from_dict(obj: Any) -> "SessionImportLegacyData":
-        assert isinstance(obj, dict)
-        legacy_session = SessionImportLegacyDataLegacySession.from_dict(obj.get("legacySession"))
-        import_time = from_datetime(obj.get("importTime"))
-        source_file = from_str(obj.get("sourceFile"))
-        return SessionImportLegacyData(
-            legacy_session=legacy_session,
-            import_time=import_time,
-            source_file=source_file,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["legacySession"] = to_class(SessionImportLegacyDataLegacySession, self.legacy_session)
-        result["importTime"] = to_datetime(self.import_time)
-        result["sourceFile"] = from_str(self.source_file)
-        return result
-
-
-@dataclass
 class HandoffRepository:
     "Repository context for the handed-off session"
     owner: str
@@ -1148,6 +916,7 @@ class ShutdownModelMetricUsage:
     output_tokens: float
     cache_read_tokens: float
     cache_write_tokens: float
+    reasoning_tokens: float | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "ShutdownModelMetricUsage":
@@ -1156,11 +925,13 @@ class ShutdownModelMetricUsage:
         output_tokens = from_float(obj.get("outputTokens"))
         cache_read_tokens = from_float(obj.get("cacheReadTokens"))
         cache_write_tokens = from_float(obj.get("cacheWriteTokens"))
+        reasoning_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("reasoningTokens"))
         return ShutdownModelMetricUsage(
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cache_read_tokens=cache_read_tokens,
             cache_write_tokens=cache_write_tokens,
+            reasoning_tokens=reasoning_tokens,
         )
 
     def to_dict(self) -> dict:
@@ -1169,6 +940,8 @@ class ShutdownModelMetricUsage:
         result["outputTokens"] = to_float(self.output_tokens)
         result["cacheReadTokens"] = to_float(self.cache_read_tokens)
         result["cacheWriteTokens"] = to_float(self.cache_write_tokens)
+        if self.reasoning_tokens is not None:
+            result["reasoningTokens"] = from_union([from_none, lambda x: to_float(x)], self.reasoning_tokens)
         return result
 
 
@@ -2141,6 +1914,7 @@ class AssistantUsageData:
     output_tokens: float | None = None
     cache_read_tokens: float | None = None
     cache_write_tokens: float | None = None
+    reasoning_tokens: float | None = None
     cost: float | None = None
     duration: float | None = None
     ttft_ms: float | None = None
@@ -2161,6 +1935,7 @@ class AssistantUsageData:
         output_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("outputTokens"))
         cache_read_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("cacheReadTokens"))
         cache_write_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("cacheWriteTokens"))
+        reasoning_tokens = from_union([from_none, lambda x: from_float(x)], obj.get("reasoningTokens"))
         cost = from_union([from_none, lambda x: from_float(x)], obj.get("cost"))
         duration = from_union([from_none, lambda x: from_float(x)], obj.get("duration"))
         ttft_ms = from_union([from_none, lambda x: from_float(x)], obj.get("ttftMs"))
@@ -2178,6 +1953,7 @@ class AssistantUsageData:
             output_tokens=output_tokens,
             cache_read_tokens=cache_read_tokens,
             cache_write_tokens=cache_write_tokens,
+            reasoning_tokens=reasoning_tokens,
             cost=cost,
             duration=duration,
             ttft_ms=ttft_ms,
@@ -2202,6 +1978,8 @@ class AssistantUsageData:
             result["cacheReadTokens"] = from_union([from_none, lambda x: to_float(x)], self.cache_read_tokens)
         if self.cache_write_tokens is not None:
             result["cacheWriteTokens"] = from_union([from_none, lambda x: to_float(x)], self.cache_write_tokens)
+        if self.reasoning_tokens is not None:
+            result["reasoningTokens"] = from_union([from_none, lambda x: to_float(x)], self.reasoning_tokens)
         if self.cost is not None:
             result["cost"] = from_union([from_none, lambda x: to_float(x)], self.cost)
         if self.duration is not None:
@@ -4186,42 +3964,6 @@ class SessionWorkspaceFileChangedDataOperation(Enum):
     UPDATE = "update"
 
 
-class SessionImportLegacyDataLegacySessionChatMessagesItemRole(Enum):
-    "SessionImportLegacyDataLegacySessionChatMessagesItem discriminator"
-    DEVELOPER = "developer"
-    SYSTEM = "system"
-    USER = "user"
-    ASSISTANT = "assistant"
-    TOOL = "tool"
-    FUNCTION = "function"
-
-
-class SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItemType(Enum):
-    "SessionImportLegacyDataLegacySessionChatMessagesItemToolCallsItem discriminator"
-    FUNCTION = "function"
-    CUSTOM = "custom"
-
-
-class SessionImportLegacyDataLegacySessionSelectedModel(Enum):
-    CLAUDE_SONNET_4_6 = "claude-sonnet-4.6"
-    CLAUDE_SONNET_4_5 = "claude-sonnet-4.5"
-    CLAUDE_HAIKU_4_5 = "claude-haiku-4.5"
-    CLAUDE_OPUS_4_6 = "claude-opus-4.6"
-    CLAUDE_OPUS_4_6_FAST = "claude-opus-4.6-fast"
-    CLAUDE_OPUS_4_6_1M = "claude-opus-4.6-1m"
-    CLAUDE_OPUS_4_5 = "claude-opus-4.5"
-    CLAUDE_SONNET_4 = "claude-sonnet-4"
-    GOLDENEYE = "goldeneye"
-    GPT_5_4 = "gpt-5.4"
-    GPT_5_3_CODEX = "gpt-5.3-codex"
-    GPT_5_2_CODEX = "gpt-5.2-codex"
-    GPT_5_2 = "gpt-5.2"
-    GPT_5_1 = "gpt-5.1"
-    GPT_5_4_MINI = "gpt-5.4-mini"
-    GPT_5_MINI = "gpt-5-mini"
-    GPT_4_1 = "gpt-4.1"
-
-
 class HandoffSourceType(Enum):
     "Origin type of the session being handed off"
     REMOTE = "remote"
@@ -4387,7 +4129,7 @@ class ExtensionsLoadedExtensionStatus(Enum):
     STARTING = "starting"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPlanChangedData | SessionWorkspaceFileChangedData | SessionImportLegacyData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantUsageData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPlanChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantUsageData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | RawSessionEventData | Data
 
 
 @dataclass
@@ -4423,7 +4165,6 @@ class SessionEvent:
             case SessionEventType.SESSION_MODE_CHANGED: data = SessionModeChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_PLAN_CHANGED: data = SessionPlanChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_WORKSPACE_FILE_CHANGED: data = SessionWorkspaceFileChangedData.from_dict(data_obj)
-            case SessionEventType.SESSION_IMPORT_LEGACY: data = SessionImportLegacyData.from_dict(data_obj)
             case SessionEventType.SESSION_HANDOFF: data = SessionHandoffData.from_dict(data_obj)
             case SessionEventType.SESSION_TRUNCATION: data = SessionTruncationData.from_dict(data_obj)
             case SessionEventType.SESSION_SNAPSHOT_REWIND: data = SessionSnapshotRewindData.from_dict(data_obj)

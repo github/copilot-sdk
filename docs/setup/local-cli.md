@@ -54,6 +54,7 @@ await client.stop();
 
 ```python
 from copilot import CopilotClient
+from copilot.generated.session_events import AssistantMessageData
 from copilot.session import PermissionHandler
 
 client = CopilotClient({
@@ -63,7 +64,10 @@ await client.start()
 
 session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-4.1")
 response = await session.send_and_wait("Hello!")
-print(response.data.content)
+if response:
+    match response.data:
+        case AssistantMessageData() as data:
+            print(data.content)
 
 await client.stop()
 ```
