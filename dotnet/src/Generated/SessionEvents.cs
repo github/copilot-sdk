@@ -2953,6 +2953,7 @@ public partial class UserMessageAttachmentBlob : UserMessageAttachment
     public override string Type => "blob";
 
     /// <summary>Base64-encoded content.</summary>
+    [Base64String]
     [JsonPropertyName("data")]
     public required string Data { get; set; }
 
@@ -3101,6 +3102,7 @@ public partial class ToolExecutionCompleteContentImage : ToolExecutionCompleteCo
     public override string Type => "image";
 
     /// <summary>Base64-encoded image data.</summary>
+    [Base64String]
     [JsonPropertyName("data")]
     public required string Data { get; set; }
 
@@ -3118,6 +3120,7 @@ public partial class ToolExecutionCompleteContentAudio : ToolExecutionCompleteCo
     public override string Type => "audio";
 
     /// <summary>Base64-encoded audio data.</summary>
+    [Base64String]
     [JsonPropertyName("data")]
     public required string Data { get; set; }
 
