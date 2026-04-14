@@ -228,6 +228,24 @@ function withRootTitle(schema: JSONSchema7, title: string): JSONSchema7 {
     return { ...schema, title };
 }
 
+function goRequestFallbackName(method: RpcMethod): string {
+    return toPascalCase(method.rpcMethod) + "Request";
+}
+
+function schemaSourceForNamedDefinition(
+    schema: JSONSchema7 | null | undefined,
+    resolvedSchema: JSONSchema7 | undefined
+): JSONSchema7 {
+    if (schema?.$ref && resolvedSchema) {
+        return resolvedSchema;
+    }
+    return schema ?? resolvedSchema ?? { type: "object" };
+}
+
+function isNamedGoObjectSchema(schema: JSONSchema7 | undefined): schema is JSONSchema7 {
+    return !!schema && schema.type === "object" && (schema.properties !== undefined || schema.additionalProperties === false);
+}
+
 function getMethodResultSchema(method: RpcMethod): JSONSchema7 | undefined {
     return resolveSchema(method.result, rpcDefinitions) ?? method.result ?? undefined;
 }
@@ -246,7 +264,11 @@ function goResultTypeName(method: RpcMethod): string {
 }
 
 function goParamsTypeName(method: RpcMethod): string {
-    return getRpcSchemaTypeName(getMethodParamsSchema(method), toPascalCase(method.rpcMethod) + "Request");
+    const fallback = goRequestFallbackName(method);
+    if (method.rpcMethod.startsWith("session.") && method.params?.$ref) {
+        return fallback;
+    }
+    return getRpcSchemaTypeName(getMethodParamsSchema(method), fallback);
 }
 
 // ── Session Events (custom codegen — per-event-type data structs) ───────────
@@ -387,7 +409,7 @@ function resolveGoPropertyType(
                 const enumType = getOrCreateGoEnum(typeName, resolved.enum as string[], ctx, resolved.description);
                 return isRequired ? enumType : `*${enumType}`;
             }
-            if (resolved.properties && Object.keys(resolved.properties).length > 0) {
+            if (isNamedGoObjectSchema(resolved)) {
                 emitGoStruct(typeName, resolved, ctx);
                 return isRequired ? typeName : `*${typeName}`;
             }
@@ -958,7 +980,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
             };
         } else if (method.result) {
             combinedSchema.definitions![goResultTypeName(method)] = withRootTitle(
-                method.result,
+                schemaSourceForNamedDefinition(method.result, resultSchema),
                 goResultTypeName(method)
             );
         }
@@ -981,7 +1003,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
                 }
             } else {
                 combinedSchema.definitions![goParamsTypeName(method)] = withRootTitle(
-                    method.params,
+                    schemaSourceForNamedDefinition(method.params, resolvedParams),
                     goParamsTypeName(method)
                 );
             }

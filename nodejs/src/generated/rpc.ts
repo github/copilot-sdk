@@ -13,19 +13,10 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
  */
 export type SessionMode = "interactive" | "plan" | "autopilot";
 /**
- * The agent mode. Valid values: "interactive", "plan", "autopilot".
- */
-export type SessionMode1 = "interactive" | "plan" | "autopilot";
-/**
  * The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
  */
 export type UIElicitationResponseAction = "accept" | "decline" | "cancel";
 export type UIElicitationFieldValue = string | number | boolean | string[];
-/**
- * The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
- */
-export type UIElicitationResponseAction1 = "accept" | "decline" | "cancel";
-export type UIElicitationFieldValue1 = string | number | boolean | string[];
 export type PermissionDecision =
   | {
       /**
@@ -601,7 +592,7 @@ export interface ModelCapabilitiesOverride {
 }
 
 export interface ModeSetRequest {
-  mode: SessionMode1;
+  mode: SessionMode;
 }
 
 export interface PlanReadResult {
@@ -1102,20 +1093,7 @@ export interface UIHandlePendingElicitationRequest {
    * The unique request ID from the elicitation.requested event
    */
   requestId: string;
-  result: UIElicitationResponse1;
-}
-/**
- * The elicitation response (accept with form values, decline, or cancel)
- */
-export interface UIElicitationResponse1 {
-  action: UIElicitationResponseAction1;
-  content?: UIElicitationResponseContent1;
-}
-/**
- * The form values submitted by the user (present when action is 'accept')
- */
-export interface UIElicitationResponseContent1 {
-  [k: string]: UIElicitationFieldValue1;
+  result: UIElicitationResponse;
 }
 
 export interface PermissionRequestResult {

@@ -223,6 +223,24 @@ function withRootTitle(schema: JSONSchema7, title: string): JSONSchema7 {
     return { ...schema, title };
 }
 
+function pythonRequestFallbackName(method: RpcMethod): string {
+    return toPascalCase(method.rpcMethod) + "Request";
+}
+
+function schemaSourceForNamedDefinition(
+    schema: JSONSchema7 | null | undefined,
+    resolvedSchema: JSONSchema7 | undefined
+): JSONSchema7 {
+    if (schema?.$ref && resolvedSchema) {
+        return resolvedSchema;
+    }
+    return schema ?? resolvedSchema ?? { type: "object" };
+}
+
+function isNamedPyObjectSchema(schema: JSONSchema7 | undefined): schema is JSONSchema7 {
+    return !!schema && schema.type === "object" && (schema.properties !== undefined || schema.additionalProperties === false);
+}
+
 function getMethodResultSchema(method: RpcMethod): JSONSchema7 | undefined {
     return resolveSchema(method.result, rpcDefinitions) ?? method.result ?? undefined;
 }
@@ -241,7 +259,11 @@ function pythonResultTypeName(method: RpcMethod): string {
 }
 
 function pythonParamsTypeName(method: RpcMethod): string {
-    return getRpcSchemaTypeName(getMethodParamsSchema(method), toPascalCase(method.rpcMethod) + "Request");
+    const fallback = pythonRequestFallbackName(method);
+    if (method.rpcMethod.startsWith("session.") && method.params?.$ref) {
+        return fallback;
+    }
+    return getRpcSchemaTypeName(getMethodParamsSchema(method), fallback);
 }
 
 // ── Session Events ──────────────────────────────────────────────────────────
@@ -531,7 +553,7 @@ function resolvePyPropertyType(
             }
 
             const resolvedObject = resolveObjectSchema(propSchema, ctx.definitions);
-            if (resolvedObject?.properties && Object.keys(resolvedObject.properties).length > 0) {
+            if (isNamedPyObjectSchema(resolvedObject)) {
                 emitPyClass(typeName, resolvedObject, ctx, resolvedObject.description);
                 const objectResolved: PyResolvedType = {
                     annotation: typeName,
@@ -1366,7 +1388,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         const resultSchema = getMethodResultSchema(method);
         if (!isVoidSchema(resultSchema)) {
             combinedSchema.definitions![pythonResultTypeName(method)] = withRootTitle(
-                method.result ?? resultSchema ?? { type: "object" },
+                schemaSourceForNamedDefinition(method.result, resultSchema),
                 pythonResultTypeName(method)
             );
         }
@@ -1388,7 +1410,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
                 }
             } else {
                 combinedSchema.definitions![pythonParamsTypeName(method)] = withRootTitle(
-                    method.params,
+                    schemaSourceForNamedDefinition(method.params, resolvedParams),
                     pythonParamsTypeName(method)
                 );
             }

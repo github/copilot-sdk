@@ -13,6 +13,7 @@ import {
     getApiSchemaPath,
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
+    normalizeSchemaTitles,
     postProcessSchema,
     writeGeneratedFile,
     collectDefinitionCollections,
@@ -177,6 +178,65 @@ function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
     return rewrite(root) as JSONSchema7;
 }
 
+function stableStringify(value: unknown): string {
+    if (Array.isArray(value)) {
+        return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+    }
+    if (value && typeof value === "object") {
+        const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b));
+        return `{${entries.map(([key, child]) => `${JSON.stringify(key)}:${stableStringify(child)}`).join(",")}}`;
+    }
+    return JSON.stringify(value);
+}
+
+function replaceDuplicateTitledSchemasWithRefs(
+    value: unknown,
+    definitions: Record<string, unknown>,
+    isRoot = false
+): unknown {
+    if (Array.isArray(value)) {
+        return value.map((item) => replaceDuplicateTitledSchemasWithRefs(item, definitions));
+    }
+    if (!value || typeof value !== "object") {
+        return value;
+    }
+
+    const rewritten = Object.fromEntries(
+        Object.entries(value as Record<string, unknown>).map(([key, child]) => [
+            key,
+            replaceDuplicateTitledSchemasWithRefs(child, definitions),
+        ])
+    ) as Record<string, unknown>;
+
+    if (!isRoot && typeof rewritten.title === "string") {
+        const sharedSchema = definitions[rewritten.title];
+        if (
+            sharedSchema &&
+            typeof sharedSchema === "object" &&
+            stableStringify(normalizeSchemaTitles(rewritten as JSONSchema7)) ===
+                stableStringify(normalizeSchemaTitles(sharedSchema as JSONSchema7))
+        ) {
+            return { $ref: `#/definitions/${rewritten.title}` };
+        }
+    }
+
+    return rewritten;
+}
+
+function reuseSharedTitledSchemas(schema: JSONSchema7): JSONSchema7 {
+    const definitions = { ...((schema.definitions ?? {}) as Record<string, unknown>) };
+
+    return {
+        ...schema,
+        definitions: Object.fromEntries(
+            Object.entries(definitions).map(([name, definition]) => [
+                name,
+                replaceDuplicateTitledSchemasWithRefs(definition, definitions, true),
+            ])
+        ),
+    };
+}
+
 // ── Session Events ──────────────────────────────────────────────────────────
 
 async function generateSessionEvents(schemaPath?: string): Promise<void> {
@@ -213,6 +273,20 @@ function withRootTitle(schema: JSONSchema7, title: string): JSONSchema7 {
     return { ...schema, title };
 }
 
+function rpcRequestFallbackName(method: RpcMethod): string {
+    return method.rpcMethod.split(".").map(toPascalCase).join("") + "Request";
+}
+
+function schemaSourceForNamedDefinition(
+    schema: JSONSchema7 | null | undefined,
+    resolvedSchema: JSONSchema7 | undefined
+): JSONSchema7 {
+    if (schema?.$ref && resolvedSchema) {
+        return resolvedSchema;
+    }
+    return schema ?? resolvedSchema ?? { type: "object" };
+}
+
 function getMethodResultSchema(method: RpcMethod): JSONSchema7 | undefined {
     return resolveSchema(method.result, rpcDefinitions) ?? method.result ?? undefined;
 }
@@ -234,10 +308,11 @@ function resultTypeName(method: RpcMethod): string {
 }
 
 function paramsTypeName(method: RpcMethod): string {
-    return getRpcSchemaTypeName(
-        getMethodParamsSchema(method),
-        method.rpcMethod.split(".").map(toPascalCase).join("") + "Request"
-    );
+    const fallback = rpcRequestFallbackName(method);
+    if (method.rpcMethod.startsWith("session.") && method.params?.$ref) {
+        return fallback;
+    }
+    return getRpcSchemaTypeName(getMethodParamsSchema(method), fallback);
 }
 
 async function generateRpc(schemaPath?: string): Promise<void> {
@@ -277,7 +352,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
         const resultSchema = getMethodResultSchema(method);
         if (!isVoidSchema(resultSchema)) {
             combinedSchema.definitions![resultTypeName(method)] = withRootTitle(
-                method.result ?? resultSchema ?? { type: "object" },
+                schemaSourceForNamedDefinition(method.result, resultSchema),
                 resultTypeName(method)
             );
             if (method.stability === "experimental") {
@@ -306,7 +381,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
                 }
             } else {
                 combinedSchema.definitions![paramsTypeName(method)] = withRootTitle(
-                    method.params,
+                    schemaSourceForNamedDefinition(method.params, resolvedParams),
                     paramsTypeName(method)
                 );
                 if (method.stability === "experimental") {
@@ -316,7 +391,9 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
         }
     }
 
-    const compiled = await compile(normalizeSchemaForTypeScript(stripNonAnnotationTitles(combinedSchema)), "_RpcSchemaRoot", {
+    const schemaForCompile = reuseSharedTitledSchemas(stripNonAnnotationTitles(combinedSchema));
+
+    const compiled = await compile(normalizeSchemaForTypeScript(schemaForCompile), "_RpcSchemaRoot", {
         bannerComment: "",
         additionalProperties: false,
         unreachableDefinitions: true,
