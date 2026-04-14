@@ -214,7 +214,7 @@ interface GoEventVariant {
 interface GoCodegenCtx {
     structs: string[];
     enums: string[];
-    enumsByValues: Map<string, string>; // sorted-values-key → enumName
+    enumsByName: Map<string, string>; // enumName → enumName (dedup by type name, not values)
     generatedNames: Set<string>;
 }
 
@@ -268,7 +268,8 @@ function findGoDiscriminator(
 }
 
 /**
- * Get or create a Go enum type, deduplicating by value set.
+ * Get or create a Go enum type, deduplicating by type name (not by value set).
+ * Two enums with the same values but different names are distinct types.
  */
 function getOrCreateGoEnum(
     enumName: string,
@@ -276,8 +277,7 @@ function getOrCreateGoEnum(
     ctx: GoCodegenCtx,
     description?: string
 ): string {
-    const valuesKey = [...values].sort().join("|");
-    const existing = ctx.enumsByValues.get(valuesKey);
+    const existing = ctx.enumsByName.get(enumName);
     if (existing) return existing;
 
     const lines: string[] = [];
@@ -302,7 +302,7 @@ function getOrCreateGoEnum(
     }
     lines.push(`)`);
 
-    ctx.enumsByValues.set(valuesKey, enumName);
+    ctx.enumsByName.set(enumName, enumName);
     ctx.enums.push(lines.join("\n"));
     return enumName;
 }
@@ -578,7 +578,7 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
     const ctx: GoCodegenCtx = {
         structs: [],
         enums: [],
-        enumsByValues: new Map(),
+        enumsByName: new Map(),
         generatedNames: new Set(),
     };
 

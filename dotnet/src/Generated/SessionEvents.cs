@@ -1486,7 +1486,7 @@ public partial class SessionContextChangedData
     /// <summary>Hosting platform type of the repository (github or ado).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("hostType")]
-    public StartContextHostType? HostType { get; set; }
+    public ContextChangedHostType? HostType { get; set; }
 
     /// <summary>Current git branch name.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2658,7 +2658,7 @@ public partial class SessionMcpServerStatusChangedData
 
     /// <summary>New connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
     [JsonPropertyName("status")]
-    public required McpServersLoadedServerStatus Status { get; set; }
+    public required McpServerStatusChangedStatus Status { get; set; }
 }
 
 /// <summary>Event payload for <see cref="SessionExtensionsLoadedEvent"/>.</summary>
@@ -2729,7 +2729,7 @@ public partial class ResumeContext
     /// <summary>Hosting platform type of the repository (github or ado).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("hostType")]
-    public StartContextHostType? HostType { get; set; }
+    public ResumeContextHostType? HostType { get; set; }
 
     /// <summary>Current git branch name.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3876,6 +3876,18 @@ public enum StartContextHostType
     Ado,
 }
 
+/// <summary>Hosting platform type of the repository (github or ado).</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ResumeContextHostType>))]
+public enum ResumeContextHostType
+{
+    /// <summary>The <c>github</c> variant.</summary>
+    [JsonStringEnumMemberName("github")]
+    Github,
+    /// <summary>The <c>ado</c> variant.</summary>
+    [JsonStringEnumMemberName("ado")]
+    Ado,
+}
+
 /// <summary>The type of operation performed on the plan file.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<PlanChangedOperation>))]
 public enum PlanChangedOperation
@@ -3925,6 +3937,18 @@ public enum ShutdownType
     /// <summary>The <c>error</c> variant.</summary>
     [JsonStringEnumMemberName("error")]
     Error,
+}
+
+/// <summary>Hosting platform type of the repository (github or ado).</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ContextChangedHostType>))]
+public enum ContextChangedHostType
+{
+    /// <summary>The <c>github</c> variant.</summary>
+    [JsonStringEnumMemberName("github")]
+    Github,
+    /// <summary>The <c>ado</c> variant.</summary>
+    [JsonStringEnumMemberName("ado")]
+    Ado,
 }
 
 /// <summary>Type of GitHub reference.</summary>
@@ -4086,6 +4110,30 @@ public enum ElicitationCompletedAction
 /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<McpServersLoadedServerStatus>))]
 public enum McpServersLoadedServerStatus
+{
+    /// <summary>The <c>connected</c> variant.</summary>
+    [JsonStringEnumMemberName("connected")]
+    Connected,
+    /// <summary>The <c>failed</c> variant.</summary>
+    [JsonStringEnumMemberName("failed")]
+    Failed,
+    /// <summary>The <c>needs-auth</c> variant.</summary>
+    [JsonStringEnumMemberName("needs-auth")]
+    NeedsAuth,
+    /// <summary>The <c>pending</c> variant.</summary>
+    [JsonStringEnumMemberName("pending")]
+    Pending,
+    /// <summary>The <c>disabled</c> variant.</summary>
+    [JsonStringEnumMemberName("disabled")]
+    Disabled,
+    /// <summary>The <c>not_configured</c> variant.</summary>
+    [JsonStringEnumMemberName("not_configured")]
+    NotConfigured,
+}
+
+/// <summary>New connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<McpServerStatusChangedStatus>))]
+public enum McpServerStatusChangedStatus
 {
     /// <summary>The <c>connected</c> variant.</summary>
     [JsonStringEnumMemberName("connected")]

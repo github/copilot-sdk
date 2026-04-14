@@ -302,11 +302,9 @@ interface EventVariant {
 let generatedEnums = new Map<string, { enumName: string; values: string[] }>();
 
 function getOrCreateEnum(parentClassName: string, propName: string, values: string[], enumOutput: string[], description?: string, explicitName?: string): string {
-    const valuesKey = [...values].sort().join("|");
-    for (const [, existing] of generatedEnums) {
-        if ([...existing.values].sort().join("|") === valuesKey) return existing.enumName;
-    }
     const enumName = explicitName ?? `${parentClassName}${propName}`;
+    const existing = generatedEnums.get(enumName);
+    if (existing) return existing.enumName;
     generatedEnums.set(enumName, { enumName, values });
 
     const lines: string[] = [];
@@ -992,10 +990,10 @@ function emitServerInstanceMethod(
         const isReq = requiredSet.has(pName);
         const jsonSchema = pSchema as JSONSchema7;
         let csType: string;
-        // If the property has an enum, resolve to the generated enum type
+        // If the property has an enum, resolve to the generated enum type by title
         if (jsonSchema.enum && Array.isArray(jsonSchema.enum) && requestClassName) {
-            const valuesKey = [...jsonSchema.enum].sort().join("|");
-            const match = [...generatedEnums.values()].find((e) => [...e.values].sort().join("|") === valuesKey);
+            const enumTitle = (jsonSchema.title as string) ?? `${requestClassName}${toPascalCase(pName)}`;
+            const match = generatedEnums.get(enumTitle);
             csType = match ? (isReq ? match.enumName : `${match.enumName}?`) : schemaTypeToCSharp(jsonSchema, isReq, rpcKnownTypes);
         } else {
             csType = schemaTypeToCSharp(jsonSchema, isReq, rpcKnownTypes);

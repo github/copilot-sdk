@@ -865,7 +865,7 @@ type SessionContextChangedData struct {
 	// Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps)
 	Repository *string `json:"repository,omitempty"`
 	// Hosting platform type of the repository (github or ado)
-	HostType *StartContextHostType `json:"hostType,omitempty"`
+	HostType *ContextChangedHostType `json:"hostType,omitempty"`
 	// Current git branch name
 	Branch *string `json:"branch,omitempty"`
 	// Head commit of current git branch at session start time
@@ -1618,7 +1618,7 @@ type SessionMcpServerStatusChangedData struct {
 	// Name of the MCP server whose status changed
 	ServerName string `json:"serverName"`
 	// New connection status: connected, failed, needs-auth, pending, disabled, or not_configured
-	Status McpServersLoadedServerStatus `json:"status"`
+	Status McpServerStatusChangedStatus `json:"status"`
 }
 
 func (*SessionMcpServerStatusChangedData) sessionEventData() {}
@@ -1658,7 +1658,7 @@ type ResumeContext struct {
 	// Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps)
 	Repository *string `json:"repository,omitempty"`
 	// Hosting platform type of the repository (github or ado)
-	HostType *StartContextHostType `json:"hostType,omitempty"`
+	HostType *ResumeContextHostType `json:"hostType,omitempty"`
 	// Current git branch name
 	Branch *string `json:"branch,omitempty"`
 	// Head commit of current git branch at session start time
@@ -2116,6 +2116,14 @@ const (
 	StartContextHostTypeAdo    StartContextHostType = "ado"
 )
 
+// Hosting platform type of the repository (github or ado)
+type ResumeContextHostType string
+
+const (
+	ResumeContextHostTypeGithub ResumeContextHostType = "github"
+	ResumeContextHostTypeAdo    ResumeContextHostType = "ado"
+)
+
 // The type of operation performed on the plan file
 type PlanChangedOperation string
 
@@ -2147,6 +2155,14 @@ type ShutdownType string
 const (
 	ShutdownTypeRoutine ShutdownType = "routine"
 	ShutdownTypeError   ShutdownType = "error"
+)
+
+// Hosting platform type of the repository (github or ado)
+type ContextChangedHostType string
+
+const (
+	ContextChangedHostTypeGithub ContextChangedHostType = "github"
+	ContextChangedHostTypeAdo    ContextChangedHostType = "ado"
 )
 
 // Type discriminator for UserMessageAttachment.
@@ -2302,6 +2318,18 @@ const (
 	McpServersLoadedServerStatusPending       McpServersLoadedServerStatus = "pending"
 	McpServersLoadedServerStatusDisabled      McpServersLoadedServerStatus = "disabled"
 	McpServersLoadedServerStatusNotConfigured McpServersLoadedServerStatus = "not_configured"
+)
+
+// New connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+type McpServerStatusChangedStatus string
+
+const (
+	McpServerStatusChangedStatusConnected     McpServerStatusChangedStatus = "connected"
+	McpServerStatusChangedStatusFailed        McpServerStatusChangedStatus = "failed"
+	McpServerStatusChangedStatusNeedsAuth     McpServerStatusChangedStatus = "needs-auth"
+	McpServerStatusChangedStatusPending       McpServerStatusChangedStatus = "pending"
+	McpServerStatusChangedStatusDisabled      McpServerStatusChangedStatus = "disabled"
+	McpServerStatusChangedStatusNotConfigured McpServerStatusChangedStatus = "not_configured"
 )
 
 // Discovery source

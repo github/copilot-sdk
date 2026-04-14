@@ -855,7 +855,7 @@ public sealed class McpServer
 
     /// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
     [JsonPropertyName("source")]
-    public DiscoveredMcpServerSource? Source { get; set; }
+    public McpServerSource? Source { get; set; }
 
     /// <summary>Error message if the server failed to connect.</summary>
     [JsonPropertyName("error")]
@@ -1776,6 +1776,25 @@ public enum McpServerStatus
     /// <summary>The <c>not_configured</c> variant.</summary>
     [JsonStringEnumMemberName("not_configured")]
     NotConfigured,
+}
+
+
+/// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<McpServerSource>))]
+public enum McpServerSource
+{
+    /// <summary>The <c>user</c> variant.</summary>
+    [JsonStringEnumMemberName("user")]
+    User,
+    /// <summary>The <c>workspace</c> variant.</summary>
+    [JsonStringEnumMemberName("workspace")]
+    Workspace,
+    /// <summary>The <c>plugin</c> variant.</summary>
+    [JsonStringEnumMemberName("plugin")]
+    Plugin,
+    /// <summary>The <c>builtin</c> variant.</summary>
+    [JsonStringEnumMemberName("builtin")]
+    Builtin,
 }
 
 
