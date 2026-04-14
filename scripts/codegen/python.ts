@@ -1454,6 +1454,14 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     typesCode = modernizePython(typesCode);
     typesCode = collapsePlaceholderPythonDataclasses(typesCode);
 
+    // Strip quicktype's import block and preamble — we provide our own unified header.
+    // The preamble ends just before the first helper function (e.g. "def from_str")
+    // or class definition.
+    typesCode = typesCode.replace(/^[\s\S]*?(?=^(?:def |@dataclass|class )\w)/m, "");
+
+    // Strip trailing whitespace from blank lines (e.g. inside multi-line docstrings)
+    typesCode = typesCode.replace(/^\s+$/gm, "");
+
     // Annotate experimental data types
     const experimentalTypeNames = new Set<string>();
     for (const method of allMethods) {
@@ -1494,7 +1502,15 @@ if TYPE_CHECKING:
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Protocol
+from datetime import datetime
+from enum import Enum
+from typing import Any, Protocol, TypeVar, cast
+from uuid import UUID
+
+import dateutil.parser
+
+T = TypeVar("T")
+EnumT = TypeVar("EnumT", bound=Enum)
 
 `);
     lines.push(typesCode);

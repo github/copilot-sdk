@@ -10,18 +10,16 @@ if TYPE_CHECKING:
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Protocol
-
-
-from dataclasses import dataclass
-from typing import Any, TypeVar, Callable, cast
 from datetime import datetime
 from enum import Enum
+from typing import Any, Protocol, TypeVar, cast
 from uuid import UUID
+
 import dateutil.parser
 
 T = TypeVar("T")
 EnumT = TypeVar("EnumT", bound=Enum)
+
 
 def from_str(x: Any) -> str:
     assert isinstance(x, str)
@@ -766,7 +764,7 @@ class MCPConfigRemoveRequest:
 
 class MCPServerSource(Enum):
     """Configuration source
-    
+
     Configuration source: user, workspace, plugin, or builtin
     """
     BUILTIN = "builtin"
@@ -2344,15 +2342,15 @@ class Kind(Enum):
 class PermissionDecision:
     kind: Kind
     """The permission request was approved
-    
+
     Denied because approval rules explicitly blocked it
-    
+
     Denied because no approval rule matched and user confirmation was unavailable
-    
+
     Denied by the user during an interactive prompt
-    
+
     Denied by the organization's content exclusion policy
-    
+
     Denied by a permission request hook registered by an extension or plugin
     """
     rules: list[Any] | None = None
@@ -2363,7 +2361,7 @@ class PermissionDecision:
 
     message: str | None = None
     """Human-readable explanation of why the path was excluded
-    
+
     Optional message from the hook explaining the denial
     """
     path: str | None = None
