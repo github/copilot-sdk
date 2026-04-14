@@ -52,9 +52,8 @@ from .generated.session_events import (
     ExternalToolRequestedData,
     PermissionRequest,
     PermissionRequestedData,
-    SessionEvent,
     SessionErrorData,
-    SessionEventType,
+    SessionEvent,
     SessionIdleData,
     session_event_from_dict,
 )
@@ -1274,7 +1273,9 @@ class CopilotSession:
                     return  # This client doesn't handle permissions; another client will.
 
                 asyncio.ensure_future(
-                    self._execute_permission_and_respond(request_id, permission_request, perm_handler)
+                    self._execute_permission_and_respond(
+                        request_id, permission_request, perm_handler
+                    )
                 )
 
             case CommandExecuteData() as data:

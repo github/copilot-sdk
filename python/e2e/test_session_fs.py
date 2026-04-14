@@ -13,7 +13,6 @@ import pytest_asyncio
 
 from copilot import CopilotClient, SessionFsConfig, define_tool
 from copilot.client import ExternalServerConfig, SubprocessConfig
-from copilot.generated.session_events import SessionCompactionCompleteData
 from copilot.generated.rpc import (
     SessionFSExistsResult,
     SessionFSReaddirResult,
@@ -21,7 +20,7 @@ from copilot.generated.rpc import (
     SessionFSReadFileResult,
     SessionFSStatResult,
 )
-from copilot.generated.session_events import SessionEvent
+from copilot.generated.session_events import SessionCompactionCompleteData, SessionEvent
 from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
