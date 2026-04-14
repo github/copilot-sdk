@@ -120,7 +120,10 @@ describe("python session event codegen", () => {
                                                             type: "array",
                                                             items: {
                                                                 type: "object",
-                                                                required: ["identifier", "readOnly"],
+                                                                required: [
+                                                                    "identifier",
+                                                                    "readOnly",
+                                                                ],
                                                                 properties: {
                                                                     identifier: { type: "string" },
                                                                     readOnly: { type: "boolean" },
@@ -136,11 +139,17 @@ describe("python session event codegen", () => {
                                                             items: {
                                                                 type: "object",
                                                                 required: ["url"],
-                                                                properties: { url: { type: "string" } },
+                                                                properties: {
+                                                                    url: { type: "string" },
+                                                                },
                                                             },
                                                         },
-                                                        hasWriteFileRedirection: { type: "boolean" },
-                                                        canOfferSessionApproval: { type: "boolean" },
+                                                        hasWriteFileRedirection: {
+                                                            type: "boolean",
+                                                        },
+                                                        canOfferSessionApproval: {
+                                                            type: "boolean",
+                                                        },
                                                     },
                                                 },
                                                 {

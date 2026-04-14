@@ -80,7 +80,11 @@ function splitTopLevelCommas(s: string): string[] {
 }
 
 function pyDocstringLiteral(text: string): string {
-    return JSON.stringify(text);
+    const normalized = text
+        .split(/\r?\n/)
+        .map((line) => line.replace(/\s+$/g, ""))
+        .join("\n");
+    return JSON.stringify(normalized);
 }
 
 function modernizePython(code: string): string {
