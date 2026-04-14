@@ -36,7 +36,7 @@ func TestRpc(t *testing.T) {
 		}
 
 		if result.Timestamp < 0 {
-			t.Errorf("Expected timestamp >= 0, got %f", result.Timestamp)
+			t.Errorf("Expected timestamp >= 0, got %d", result.Timestamp)
 		}
 
 		if err := client.Stop(); err != nil {
@@ -223,12 +223,9 @@ func TestSessionRpc(t *testing.T) {
 		}
 
 		// Switch to plan mode
-		planResult, err := session.RPC.Mode.Set(t.Context(), &rpc.ModeSetRequest{Mode: rpc.SessionModePlan})
+		_, err = session.RPC.Mode.Set(t.Context(), &rpc.ModeSetRequest{Mode: rpc.SessionModePlan})
 		if err != nil {
 			t.Fatalf("Failed to set mode to plan: %v", err)
-		}
-		if *planResult != rpc.SessionModePlan {
-			t.Errorf("Expected mode 'plan', got %q", *planResult)
 		}
 
 		// Verify mode persisted
@@ -241,12 +238,9 @@ func TestSessionRpc(t *testing.T) {
 		}
 
 		// Switch back to interactive
-		interactiveResult, err := session.RPC.Mode.Set(t.Context(), &rpc.ModeSetRequest{Mode: rpc.SessionModeInteractive})
+		_, err = session.RPC.Mode.Set(t.Context(), &rpc.ModeSetRequest{Mode: rpc.SessionModeInteractive})
 		if err != nil {
 			t.Fatalf("Failed to set mode to interactive: %v", err)
-		}
-		if *interactiveResult != rpc.SessionModeInteractive {
-			t.Errorf("Expected mode 'interactive', got %q", *interactiveResult)
 		}
 	})
 

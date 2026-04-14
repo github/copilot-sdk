@@ -24,7 +24,6 @@ from ._telemetry import get_trace_context, trace_context
 from .generated.rpc import (
     ClientSessionApiHandlers,
     CommandsHandlePendingCommandRequest,
-    UIHandlePendingElicitationRequest,
     Kind,
     LogRequest,
     ModelSwitchToRequest,
@@ -36,12 +35,13 @@ from .generated.rpc import (
     SessionRpc,
     ToolCallResult,
     ToolsHandlePendingToolCallRequest,
-    UIElicitationResponseAction,
     UIElicitationRequest,
     UIElicitationResponse,
+    UIElicitationResponseAction,
     UIElicitationSchema,
     UIElicitationSchemaProperty,
     UIElicitationSchemaPropertyNumberType,
+    UIHandlePendingElicitationRequest,
 )
 from .generated.rpc import ModelCapabilitiesOverride as _RpcModelCapabilitiesOverride
 from .generated.session_events import (
