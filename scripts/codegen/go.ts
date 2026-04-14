@@ -8,7 +8,7 @@
 
 import { execFile } from "child_process";
 import fs from "fs/promises";
-import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
+import type { JSONSchema7 } from "json-schema";
 import { FetchingJSONSchemaStore, InputData, JSONSchemaInput, quicktype } from "quicktype-core";
 import { promisify } from "util";
 import {
@@ -17,16 +17,20 @@ import {
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
     hoistTitledSchemas,
+    hasSchemaPayload,
     isNodeFullyExperimental,
     isVoidSchema,
     isRpcMethod,
     postProcessSchema,
     writeGeneratedFile,
-    collectDefinitions,
+    collectDefinitionCollections,
+    resolveObjectSchema,
+    resolveSchema,
     withSharedDefinitions,
     refTypeName,
     resolveRef,
     type ApiSchema,
+    type DefinitionCollections,
     type RpcMethod,
 } from "./utils.js";
 
@@ -177,12 +181,24 @@ function extractFieldNames(qtCode: string): Map<string, Map<string, string>> {
     return result;
 }
 
-function goResultTypeName(method: RpcMethod): string {
-    return getRpcSchemaTypeName(method.result, toPascalCase(method.rpcMethod) + "Result");
-}
+function extractQuicktypeImports(qtCode: string): { code: string; imports: string[] } {
+    const collectedImports: string[] = [];
+    let code = qtCode.replace(/^import \(\n([\s\S]*?)^\)\n+/m, (_match, block: string) => {
+        for (const line of block.split(/\r?\n/)) {
+            const trimmed = line.trim();
+            if (trimmed.length > 0) {
+                collectedImports.push(trimmed);
+            }
+        }
+        return "";
+    });
 
-function goParamsTypeName(method: RpcMethod): string {
-    return getRpcSchemaTypeName(method.params, toPascalCase(method.rpcMethod) + "Request");
+    code = code.replace(/^import ("[^"]+")\n+/m, (_match, singleImport: string) => {
+        collectedImports.push(singleImport.trim());
+        return "";
+    });
+
+    return { code, imports: collectedImports };
 }
 
 async function formatGoFile(filePath: string): Promise<void> {
@@ -206,6 +222,33 @@ function collectRpcMethods(node: Record<string, unknown>): RpcMethod[] {
     return results;
 }
 
+let rpcDefinitions: DefinitionCollections = { definitions: {}, $defs: {} };
+
+function withRootTitle(schema: JSONSchema7, title: string): JSONSchema7 {
+    return { ...schema, title };
+}
+
+function getMethodResultSchema(method: RpcMethod): JSONSchema7 | undefined {
+    return resolveSchema(method.result, rpcDefinitions) ?? method.result ?? undefined;
+}
+
+function getMethodParamsSchema(method: RpcMethod): JSONSchema7 | undefined {
+    return (
+        resolveObjectSchema(method.params, rpcDefinitions) ??
+        resolveSchema(method.params, rpcDefinitions) ??
+        method.params ??
+        undefined
+    );
+}
+
+function goResultTypeName(method: RpcMethod): string {
+    return getRpcSchemaTypeName(getMethodResultSchema(method), toPascalCase(method.rpcMethod) + "Result");
+}
+
+function goParamsTypeName(method: RpcMethod): string {
+    return getRpcSchemaTypeName(getMethodParamsSchema(method), toPascalCase(method.rpcMethod) + "Request");
+}
+
 // ── Session Events (custom codegen — per-event-type data structs) ───────────
 
 interface GoEventVariant {
@@ -220,20 +263,30 @@ interface GoCodegenCtx {
     enums: string[];
     enumsByName: Map<string, string>; // enumName → enumName (dedup by type name, not values)
     generatedNames: Set<string>;
-    definitions?: Record<string, JSONSchema7Definition>;
+    definitions?: DefinitionCollections;
 }
 
 function extractGoEventVariants(schema: JSONSchema7): GoEventVariant[] {
-    const sessionEvent = schema.definitions?.SessionEvent as JSONSchema7;
+    const definitionCollections = collectDefinitionCollections(schema as Record<string, unknown>);
+    const sessionEvent =
+        resolveSchema({ $ref: "#/definitions/SessionEvent" }, definitionCollections) ??
+        resolveSchema({ $ref: "#/$defs/SessionEvent" }, definitionCollections);
     if (!sessionEvent?.anyOf) throw new Error("Schema must have SessionEvent definition with anyOf");
 
     return (sessionEvent.anyOf as JSONSchema7[])
         .map((variant) => {
-            if (typeof variant !== "object" || !variant.properties) throw new Error("Invalid variant");
-            const typeSchema = variant.properties.type as JSONSchema7;
+            const resolvedVariant =
+                resolveObjectSchema(variant as JSONSchema7, definitionCollections) ??
+                resolveSchema(variant as JSONSchema7, definitionCollections) ??
+                (variant as JSONSchema7);
+            if (typeof resolvedVariant !== "object" || !resolvedVariant.properties) throw new Error("Invalid variant");
+            const typeSchema = resolvedVariant.properties.type as JSONSchema7;
             const typeName = typeSchema?.const as string;
             if (!typeName) throw new Error("Variant must have type.const");
-            const dataSchema = (variant.properties.data as JSONSchema7) || {};
+            const dataSchema =
+                resolveObjectSchema(resolvedVariant.properties.data as JSONSchema7, definitionCollections) ??
+                resolveSchema(resolvedVariant.properties.data as JSONSchema7, definitionCollections) ??
+                ((resolvedVariant.properties.data as JSONSchema7) || {});
             return {
                 typeName,
                 dataClassName: `${toPascalCase(typeName)}Data`,
@@ -327,14 +380,18 @@ function resolveGoPropertyType(
 
     // Handle $ref — resolve the reference and generate the referenced type
     if (propSchema.$ref && typeof propSchema.$ref === "string") {
-        const typeName = toGoFieldName(refTypeName(propSchema.$ref));
+        const typeName = toGoFieldName(refTypeName(propSchema.$ref, ctx.definitions));
         const resolved = resolveRef(propSchema.$ref, ctx.definitions);
         if (resolved) {
             if (resolved.enum) {
-                return getOrCreateGoEnum(typeName, resolved.enum as string[], ctx, resolved.description);
+                const enumType = getOrCreateGoEnum(typeName, resolved.enum as string[], ctx, resolved.description);
+                return isRequired ? enumType : `*${enumType}`;
             }
-            emitGoStruct(typeName, resolved, ctx);
-            return isRequired ? typeName : `*${typeName}`;
+            if (resolved.properties && Object.keys(resolved.properties).length > 0) {
+                emitGoStruct(typeName, resolved, ctx);
+                return isRequired ? typeName : `*${typeName}`;
+            }
+            return resolveGoPropertyType(resolved, parentTypeName, jsonPropName, isRequired, ctx);
         }
         // Fallback: use the type name directly
         return isRequired ? typeName : `*${typeName}`;
@@ -600,7 +657,7 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
         enums: [],
         enumsByName: new Map(),
         generatedNames: new Set(),
-        definitions: schema.definitions as Record<string, JSONSchema7Definition> | undefined,
+        definitions: collectDefinitionCollections(schema as Record<string, unknown>),
     };
 
     // Generate per-event data structs
@@ -881,49 +938,69 @@ async function generateRpc(schemaPath?: string): Promise<void> {
 
     // Build a combined schema for quicktype — prefix types to avoid conflicts.
     // Include shared definitions from the API schema for $ref resolution.
-    const sharedDefs = collectDefinitions(schema as Record<string, unknown>);
+    rpcDefinitions = collectDefinitionCollections(schema as Record<string, unknown>);
     const combinedSchema = withSharedDefinitions(
         {
             $schema: "http://json-schema.org/draft-07/schema#",
         },
-        sharedDefs
+        rpcDefinitions
     );
 
     for (const method of allMethods) {
-        if (isVoidSchema(method.result)) {
+        const resultSchema = getMethodResultSchema(method);
+        if (isVoidSchema(resultSchema)) {
             // Emit an empty struct for void results (forward-compatible with adding fields later)
-            combinedSchema.definitions![goResultTypeName(method)] = { type: "object", properties: {}, additionalProperties: false };
-        } else {
-            combinedSchema.definitions![goResultTypeName(method)] = method.result;
+            combinedSchema.definitions![goResultTypeName(method)] = {
+                title: goResultTypeName(method),
+                type: "object",
+                properties: {},
+                additionalProperties: false,
+            };
+        } else if (method.result) {
+            combinedSchema.definitions![goResultTypeName(method)] = withRootTitle(
+                method.result,
+                goResultTypeName(method)
+            );
         }
-        if (method.params?.properties && Object.keys(method.params.properties).length > 0) {
+        const resolvedParams = getMethodParamsSchema(method);
+        if (method.params && hasSchemaPayload(resolvedParams)) {
             // For session methods, filter out sessionId from params type
-            if (method.rpcMethod.startsWith("session.")) {
+            if (method.rpcMethod.startsWith("session.") && resolvedParams?.properties) {
                 const filtered: JSONSchema7 = {
-                    ...method.params,
+                    ...resolvedParams,
                     properties: Object.fromEntries(
-                        Object.entries(method.params.properties).filter(([k]) => k !== "sessionId")
+                        Object.entries(resolvedParams.properties).filter(([k]) => k !== "sessionId")
                     ),
-                    required: method.params.required?.filter((r) => r !== "sessionId"),
+                    required: resolvedParams.required?.filter((r) => r !== "sessionId"),
                 };
-                if (Object.keys(filtered.properties!).length > 0) {
-                    combinedSchema.definitions![goParamsTypeName(method)] = filtered;
+                if (hasSchemaPayload(filtered)) {
+                    combinedSchema.definitions![goParamsTypeName(method)] = withRootTitle(
+                        filtered,
+                        goParamsTypeName(method)
+                    );
                 }
             } else {
-                combinedSchema.definitions![goParamsTypeName(method)] = method.params;
+                combinedSchema.definitions![goParamsTypeName(method)] = withRootTitle(
+                    method.params,
+                    goParamsTypeName(method)
+                );
             }
         }
     }
 
     const { rootDefinitions, sharedDefinitions } = hoistTitledSchemas(combinedSchema.definitions! as Record<string, JSONSchema7>);
     const allDefinitions = { ...rootDefinitions, ...sharedDefinitions };
+    const allDefinitionCollections: DefinitionCollections = {
+        definitions: { ...(combinedSchema.$defs ?? {}), ...allDefinitions },
+        $defs: { ...allDefinitions, ...(combinedSchema.$defs ?? {}) },
+    };
 
     // Generate types via quicktype
     const schemaInput = new JSONSchemaInput(new FetchingJSONSchemaStore());
     for (const [name, def] of Object.entries(rootDefinitions)) {
         const schemaWithDefs = withSharedDefinitions(
             typeof def === "object" ? (def as JSONSchema7) : {},
-            allDefinitions
+            allDefinitionCollections
         );
         await schemaInput.addSource({ name, schema: JSON.stringify(schemaWithDefs) });
     }
@@ -937,21 +1014,10 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         rendererOptions: { package: "copilot", "just-types": "true" },
     });
 
-    // Post-process quicktype output: fix enum constant names
+    // Post-process quicktype output: hoist quicktype's imports into the file-level import block
     let qtCode = qtResult.lines.filter((l) => !l.startsWith("package ")).join("\n");
-    // Extract any imports quicktype emitted (e.g., "time") and hoist them
-    const qtImports: string[] = [];
-    qtCode = qtCode.replace(/^import\s+"([^"]+)"\s*$/gm, (_match, imp) => {
-        qtImports.push(`"${imp}"`);
-        return "";
-    });
-    qtCode = qtCode.replace(/^import\s+\(([^)]*)\)\s*$/gm, (_match, block) => {
-        for (const line of block.split("\n")) {
-            const trimmed = line.trim();
-            if (trimmed) qtImports.push(trimmed);
-        }
-        return "";
-    });
+    const quicktypeImports = extractQuicktypeImports(qtCode);
+    qtCode = quicktypeImports.code;
     qtCode = postProcessEnumConstants(qtCode);
     qtCode = collapsePlaceholderGoStructs(qtCode);
     // Strip trailing whitespace from quicktype output (gofmt requirement)
@@ -959,7 +1025,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
 
     // Extract actual type names generated by quicktype (may differ from toPascalCase)
     const actualTypeNames = new Map<string, string>();
-    const typeRe = /^type\s+(\w+)\s+/gm;
+    const typeRe = /^type\s+(\w+)\b/gm;
     let sm;
     while ((sm = typeRe.exec(qtCode)) !== null) {
         actualTypeNames.set(sm[1].toLowerCase(), sm[1]);
@@ -998,14 +1064,15 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     lines.push(`package rpc`);
     lines.push(``);
     const imports = [`"context"`, `"encoding/json"`];
+    for (const imp of quicktypeImports.imports) {
+        if (!imports.includes(imp)) {
+            imports.push(imp);
+        }
+    }
     if (schema.clientSession) {
         imports.push(`"errors"`, `"fmt"`);
     }
     imports.push(`"github.com/github/copilot-sdk/go/internal/jsonrpc2"`);
-    // Add any imports hoisted from quicktype output
-    for (const qi of qtImports) {
-        if (!imports.includes(qi)) imports.push(qi);
-    }
 
     lines.push(`import (`);
     for (const imp of imports) {
@@ -1114,10 +1181,11 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
     const methodName = toPascalCase(name);
     const resultType = resolveType(goResultTypeName(method));
 
-    const paramProps = method.params?.properties || {};
-    const requiredParams = new Set(method.params?.required || []);
+    const effectiveParams = getMethodParamsSchema(method);
+    const paramProps = effectiveParams?.properties || {};
+    const requiredParams = new Set(effectiveParams?.required || []);
     const nonSessionParams = Object.keys(paramProps).filter((k) => k !== "sessionId");
-    const hasParams = isSession ? nonSessionParams.length > 0 : Object.keys(paramProps).length > 0;
+    const hasParams = isSession ? nonSessionParams.length > 0 : hasSchemaPayload(effectiveParams);
     const paramsType = hasParams ? resolveType(goParamsTypeName(method)) : "";
 
     // For wrapper-level methods, access fields through a.common; for service type aliases, use a directly

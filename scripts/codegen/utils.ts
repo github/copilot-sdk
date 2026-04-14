@@ -24,9 +24,12 @@ export const REPO_ROOT = path.resolve(__dirname, "../..");
 /** Event types to exclude from generation (internal/legacy types) */
 export const EXCLUDED_EVENT_TYPES = new Set(["session.import_legacy"]);
 
-export interface JSONSchema7WithDefs extends JSONSchema7 {
+export interface DefinitionCollections {
+    definitions?: Record<string, JSONSchema7Definition>;
     $defs?: Record<string, JSONSchema7Definition>;
 }
+
+export interface JSONSchema7WithDefs extends JSONSchema7, DefinitionCollections {}
 
 export type SchemaWithSharedDefinitions<T extends JSONSchema7 = JSONSchema7> = T & {
     definitions: Record<string, JSONSchema7Definition>;
@@ -95,14 +98,27 @@ export function postProcessSchema(schema: JSONSchema7): JSONSchema7 {
         }
     }
 
-    const definitions = collectDefinitions(processed as Record<string, unknown>);
+    const { definitions, $defs } = collectDefinitionCollections(processed as Record<string, unknown>);
+    let newDefs: Record<string, JSONSchema7Definition> | undefined;
     if (Object.keys(definitions).length > 0) {
-        const newDefs: Record<string, JSONSchema7Definition> = {};
+        newDefs = {};
         for (const [key, value] of Object.entries(definitions)) {
             newDefs[key] = typeof value === "object" ? postProcessSchema(value as JSONSchema7) : value;
         }
         processed.definitions = newDefs;
-        processed.$defs = newDefs;
+    }
+    let newDraftDefs: Record<string, JSONSchema7Definition> | undefined;
+    if (Object.keys($defs).length > 0) {
+        newDraftDefs = {};
+        for (const [key, value] of Object.entries($defs)) {
+            newDraftDefs[key] = typeof value === "object" ? postProcessSchema(value as JSONSchema7) : value;
+        }
+        processed.$defs = newDraftDefs;
+    }
+    if (processed.definitions && !processed.$defs) {
+        processed.$defs = { ...(newDefs ?? processed.definitions) };
+    } else if (processed.$defs && !processed.definitions) {
+        processed.definitions = { ...processed.$defs };
     }
 
     if (typeof processed.additionalProperties === "object") {
@@ -306,6 +322,135 @@ export function isRpcMethod(node: unknown): node is RpcMethod {
     return typeof node === "object" && node !== null && "rpcMethod" in node;
 }
 
+function normalizeSchemaDefinitionTitles(definition: JSONSchema7Definition): JSONSchema7Definition {
+    return typeof definition === "object" && definition !== null
+        ? normalizeSchemaTitles(definition as JSONSchema7)
+        : definition;
+}
+
+export function normalizeSchemaTitles(schema: JSONSchema7): JSONSchema7 {
+    if (typeof schema !== "object" || schema === null) return schema;
+
+    const normalized = { ...schema } as JSONSchema7WithDefs & Record<string, unknown>;
+    delete normalized.title;
+    delete normalized.titleSource;
+
+    if (normalized.properties) {
+        const newProps: Record<string, JSONSchema7Definition> = {};
+        for (const [key, value] of Object.entries(normalized.properties)) {
+            newProps[key] = normalizeSchemaDefinitionTitles(value);
+        }
+        normalized.properties = newProps;
+    }
+
+    if (normalized.items) {
+        if (typeof normalized.items === "object" && !Array.isArray(normalized.items)) {
+            normalized.items = normalizeSchemaTitles(normalized.items as JSONSchema7);
+        } else if (Array.isArray(normalized.items)) {
+            normalized.items = normalized.items.map((item) => normalizeSchemaDefinitionTitles(item)) as JSONSchema7Definition[];
+        }
+    }
+
+    for (const combiner of ["anyOf", "allOf", "oneOf"] as const) {
+        if (normalized[combiner]) {
+            normalized[combiner] = normalized[combiner]!.map((item) => normalizeSchemaDefinitionTitles(item)) as JSONSchema7Definition[];
+        }
+    }
+
+    if (normalized.additionalProperties && typeof normalized.additionalProperties === "object") {
+        normalized.additionalProperties = normalizeSchemaTitles(normalized.additionalProperties as JSONSchema7);
+    }
+
+    if (normalized.propertyNames && typeof normalized.propertyNames === "object" && !Array.isArray(normalized.propertyNames)) {
+        normalized.propertyNames = normalizeSchemaTitles(normalized.propertyNames as JSONSchema7);
+    }
+
+    if (normalized.contains && typeof normalized.contains === "object" && !Array.isArray(normalized.contains)) {
+        normalized.contains = normalizeSchemaTitles(normalized.contains as JSONSchema7);
+    }
+
+    if (normalized.not && typeof normalized.not === "object" && !Array.isArray(normalized.not)) {
+        normalized.not = normalizeSchemaTitles(normalized.not as JSONSchema7);
+    }
+
+    if (normalized.if && typeof normalized.if === "object" && !Array.isArray(normalized.if)) {
+        normalized.if = normalizeSchemaTitles(normalized.if as JSONSchema7);
+    }
+    if (normalized.then && typeof normalized.then === "object" && !Array.isArray(normalized.then)) {
+        normalized.then = normalizeSchemaTitles(normalized.then as JSONSchema7);
+    }
+    if (normalized.else && typeof normalized.else === "object" && !Array.isArray(normalized.else)) {
+        normalized.else = normalizeSchemaTitles(normalized.else as JSONSchema7);
+    }
+
+    if (normalized.patternProperties) {
+        const newPatternProps: Record<string, JSONSchema7Definition> = {};
+        for (const [key, value] of Object.entries(normalized.patternProperties)) {
+            newPatternProps[key] = normalizeSchemaDefinitionTitles(value);
+        }
+        normalized.patternProperties = newPatternProps;
+    }
+
+    const { definitions, $defs } = collectDefinitionCollections(normalized as Record<string, unknown>);
+    if (Object.keys(definitions).length > 0) {
+        const newDefs: Record<string, JSONSchema7Definition> = {};
+        for (const [key, value] of Object.entries(definitions)) {
+            newDefs[key] = normalizeSchemaDefinitionTitles(value);
+        }
+        normalized.definitions = newDefs;
+    }
+    if (Object.keys($defs).length > 0) {
+        const newDraftDefs: Record<string, JSONSchema7Definition> = {};
+        for (const [key, value] of Object.entries($defs)) {
+            newDraftDefs[key] = normalizeSchemaDefinitionTitles(value);
+        }
+        normalized.$defs = newDraftDefs;
+    }
+
+    return normalized;
+}
+
+function normalizeApiNode(node: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+    if (!node) return undefined;
+
+    const normalizedNode: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(node)) {
+        if (isRpcMethod(value)) {
+            const method = value as RpcMethod;
+            normalizedNode[key] = {
+                ...method,
+                params: method.params ? normalizeSchemaTitles(method.params) : method.params,
+                result: method.result ? normalizeSchemaTitles(method.result) : method.result,
+            };
+        } else if (typeof value === "object" && value !== null) {
+            normalizedNode[key] = normalizeApiNode(value as Record<string, unknown>);
+        } else {
+            normalizedNode[key] = value;
+        }
+    }
+
+    return normalizedNode;
+}
+
+export function normalizeApiSchema(schema: ApiSchema): ApiSchema {
+    return {
+        ...schema,
+        definitions: schema.definitions
+            ? Object.fromEntries(
+                  Object.entries(schema.definitions).map(([key, value]) => [key, normalizeSchemaDefinitionTitles(value)])
+              )
+            : schema.definitions,
+        $defs: schema.$defs
+            ? Object.fromEntries(
+                  Object.entries(schema.$defs).map(([key, value]) => [key, normalizeSchemaDefinitionTitles(value)])
+              )
+            : schema.$defs,
+        server: normalizeApiNode(schema.server),
+        session: normalizeApiNode(schema.session),
+        clientSession: normalizeApiNode(schema.clientSession),
+    };
+}
+
 /** Returns true when every leaf RPC method inside `node` is marked experimental. */
 export function isNodeFullyExperimental(node: Record<string, unknown>): boolean {
     const methods: RpcMethod[] = [];
@@ -323,39 +468,160 @@ export function isNodeFullyExperimental(node: Record<string, unknown>): boolean 
 
 // ── $ref resolution ─────────────────────────────────────────────────────────
 
-/** Extract the type name from a `$ref` path (e.g. "#/definitions/Model" → "Model"). */
-export function refTypeName(ref: string): string {
-    return ref.split("/").pop()!;
+/** Extract the generated type name from a `$ref` path (e.g. "#/definitions/Model" → "Model"). */
+export function refTypeName(ref: string, definitions?: DefinitionCollections): string {
+    const baseName = ref.split("/").pop()!;
+    const match = ref.match(/^#\/(definitions|\$defs)\/(.+)$/);
+    if (!match || match[1] !== "$defs" || !definitions) return baseName;
+
+    const key = match[2];
+    const legacyDefinition = definitions.definitions?.[key];
+    const draftDefinition = definitions.$defs?.[key];
+    if (
+        legacyDefinition !== undefined &&
+        draftDefinition !== undefined &&
+        stableStringify(legacyDefinition) !== stableStringify(draftDefinition)
+    ) {
+        return `Draft${baseName}`;
+    }
+
+    return baseName;
 }
 
 /** Resolve a `$ref` path against a definitions map, returning the referenced schema. */
 export function resolveRef(
     ref: string,
-    definitions: Record<string, JSONSchema7Definition> | undefined
+    definitions: DefinitionCollections | undefined
 ): JSONSchema7 | undefined {
     const match = ref.match(/^#\/(definitions|\$defs)\/(.+)$/);
     if (!match || !definitions) return undefined;
-    const def = definitions[match[2]];
+    const [, namespace, key] = match;
+    const primary = namespace === "$defs" ? definitions.$defs : definitions.definitions;
+    const fallback = namespace === "$defs" ? definitions.definitions : definitions.$defs;
+    const def = primary?.[key] ?? fallback?.[key];
     return typeof def === "object" ? (def as JSONSchema7) : undefined;
+}
+
+export function resolveSchema(
+    schema: JSONSchema7 | null | undefined,
+    definitions: DefinitionCollections | undefined
+): JSONSchema7 | undefined {
+    let current = schema ?? undefined;
+    const seenRefs = new Set<string>();
+    while (current?.$ref) {
+        if (seenRefs.has(current.$ref)) break;
+        seenRefs.add(current.$ref);
+        const resolved = resolveRef(current.$ref, definitions);
+        if (!resolved) break;
+        current = resolved;
+    }
+    return current;
+}
+
+export function resolveObjectSchema(
+    schema: JSONSchema7 | null | undefined,
+    definitions: DefinitionCollections | undefined
+): JSONSchema7 | undefined {
+    const resolved = resolveSchema(schema, definitions) ?? schema ?? undefined;
+    if (!resolved) return undefined;
+    if (resolved.properties || resolved.additionalProperties || resolved.type === "object") return resolved;
+
+    if (resolved.allOf) {
+        const mergedProperties: Record<string, JSONSchema7Definition> = {};
+        const mergedRequired = new Set<string>();
+        const merged: JSONSchema7 = {
+            type: "object",
+            description: resolved.description,
+        };
+        let hasObjectShape = false;
+
+        for (const item of resolved.allOf) {
+            if (typeof item !== "object") continue;
+            const objectSchema = resolveObjectSchema(item as JSONSchema7, definitions);
+            if (!objectSchema) continue;
+
+            if (objectSchema.properties) {
+                Object.assign(mergedProperties, objectSchema.properties);
+                hasObjectShape = true;
+            }
+            if (objectSchema.required) {
+                for (const name of objectSchema.required) {
+                    mergedRequired.add(name);
+                }
+            }
+            if (objectSchema.additionalProperties !== undefined) {
+                merged.additionalProperties = objectSchema.additionalProperties;
+                hasObjectShape = true;
+            }
+            if (!merged.description && objectSchema.description) {
+                merged.description = objectSchema.description;
+            }
+        }
+
+        if (!hasObjectShape) return resolved;
+        if (Object.keys(mergedProperties).length > 0) {
+            merged.properties = mergedProperties;
+        }
+        if (mergedRequired.size > 0) {
+            merged.required = [...mergedRequired];
+        }
+        return merged;
+    }
+
+    const singleBranch = (resolved.anyOf ?? resolved.oneOf)
+        ?.filter((item): item is JSONSchema7 => typeof item === "object" && (item as JSONSchema7).type !== "null");
+    if (singleBranch && singleBranch.length === 1) {
+        return resolveObjectSchema(singleBranch[0], definitions);
+    }
+
+    return resolved;
+}
+
+export function hasSchemaPayload(schema: JSONSchema7 | null | undefined): boolean {
+    if (!schema) return false;
+    if (schema.properties) return Object.keys(schema.properties).length > 0;
+    if (schema.additionalProperties) return true;
+    if (schema.items) return true;
+    if (schema.anyOf || schema.oneOf || schema.allOf) return true;
+    if (schema.enum && schema.enum.length > 0) return true;
+    if (schema.const !== undefined) return true;
+    if (schema.$ref) return true;
+    if (Array.isArray(schema.type)) return schema.type.length > 0 && !(schema.type.length === 1 && schema.type[0] === "object");
+    return schema.type !== undefined && schema.type !== "object";
+}
+
+export function collectDefinitionCollections(
+    schema: Record<string, unknown>
+): Required<DefinitionCollections> {
+    return {
+        definitions: { ...((schema.definitions ?? {}) as Record<string, JSONSchema7Definition>) },
+        $defs: { ...((schema.$defs ?? {}) as Record<string, JSONSchema7Definition>) },
+    };
 }
 
 /** Collect the shared definitions from a schema (handles both `definitions` and `$defs`). */
 export function collectDefinitions(
     schema: Record<string, unknown>
 ): Record<string, JSONSchema7Definition> {
-    const legacyDefinitions = (schema.definitions ?? {}) as Record<string, JSONSchema7Definition>;
-    const draft2019Definitions = (schema.$defs ?? {}) as Record<string, JSONSchema7Definition>;
-    return { ...draft2019Definitions, ...legacyDefinitions };
+    const { definitions, $defs } = collectDefinitionCollections(schema);
+    return { ...$defs, ...definitions };
 }
 
 export function withSharedDefinitions<T extends JSONSchema7>(
     schema: T,
-    definitions: Record<string, JSONSchema7Definition>
+    definitions: DefinitionCollections
 ): SchemaWithSharedDefinitions<T> {
-    const sharedDefinitions = { ...definitions };
+    const legacyDefinitions = { ...(definitions.definitions ?? {}) };
+    const draft2019Definitions = { ...(definitions.$defs ?? {}) };
+
+    const sharedLegacyDefinitions =
+        Object.keys(legacyDefinitions).length > 0 ? legacyDefinitions : { ...draft2019Definitions };
+    const sharedDraftDefinitions =
+        Object.keys(draft2019Definitions).length > 0 ? draft2019Definitions : { ...legacyDefinitions };
+
     return {
         ...schema,
-        definitions: sharedDefinitions,
-        $defs: sharedDefinitions,
+        definitions: sharedLegacyDefinitions,
+        $defs: sharedDraftDefinitions,
     };
 }

@@ -5,6 +5,93 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
+/**
+ * The agent mode. Valid values: "interactive", "plan", "autopilot".
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMode".
+ */
+export type SessionMode = "interactive" | "plan" | "autopilot";
+/**
+ * The agent mode. Valid values: "interactive", "plan", "autopilot".
+ */
+export type SessionMode1 = "interactive" | "plan" | "autopilot";
+/**
+ * The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
+ */
+export type UIElicitationResponseAction = "accept" | "decline" | "cancel";
+export type UIElicitationFieldValue = string | number | boolean | string[];
+/**
+ * The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
+ */
+export type UIElicitationResponseAction1 = "accept" | "decline" | "cancel";
+export type UIElicitationFieldValue1 = string | number | boolean | string[];
+export type PermissionDecision =
+  | {
+      /**
+       * The permission request was approved
+       */
+      kind: "approved";
+    }
+  | {
+      /**
+       * Denied because approval rules explicitly blocked it
+       */
+      kind: "denied-by-rules";
+      /**
+       * Rules that denied the request
+       */
+      rules: unknown[];
+    }
+  | {
+      /**
+       * Denied because no approval rule matched and user confirmation was unavailable
+       */
+      kind: "denied-no-approval-rule-and-could-not-request-from-user";
+    }
+  | {
+      /**
+       * Denied by the user during an interactive prompt
+       */
+      kind: "denied-interactively-by-user";
+      /**
+       * Optional feedback from the user explaining the denial
+       */
+      feedback?: string;
+    }
+  | {
+      /**
+       * Denied by the organization's content exclusion policy
+       */
+      kind: "denied-by-content-exclusion-policy";
+      /**
+       * File path that triggered the exclusion
+       */
+      path: string;
+      /**
+       * Human-readable explanation of why the path was excluded
+       */
+      message: string;
+    }
+  | {
+      /**
+       * Denied by a permission request hook registered by an extension or plugin
+       */
+      kind: "denied-by-permission-request-hook";
+      /**
+       * Optional message from the hook explaining the denial
+       */
+      message?: string;
+      /**
+       * Whether to interrupt the current agent turn
+       */
+      interrupt?: boolean;
+    };
+/**
+ * Log severity level. Determines how the message is displayed in the timeline. Defaults to "info".
+ */
+export type SessionLogLevel = "info" | "warning" | "error";
+
 export interface PingResult {
   /**
    * Echoed message (or default greeting)
@@ -457,13 +544,6 @@ export interface CurrentModel {
   modelId?: string;
 }
 
-export interface SessionModelGetCurrentRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-}
-
 export interface ModelSwitchToResult {
   /**
    * Currently active model identifier after the switch
@@ -472,10 +552,6 @@ export interface ModelSwitchToResult {
 }
 
 export interface ModelSwitchToRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
   /**
    * Model identifier to switch to
    */
@@ -524,24 +600,8 @@ export interface ModelCapabilitiesOverride {
   };
 }
 
-/**
- * The agent mode. Valid values: "interactive", "plan", "autopilot".
- */
-export type SessionMode = "interactive" | "plan" | "autopilot";
-
-export interface SessionModeGetRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-}
-
 export interface ModeSetRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-  mode: SessionMode;
+  mode: SessionMode1;
 }
 
 export interface PlanReadResult {
@@ -559,29 +619,11 @@ export interface PlanReadResult {
   path: string | null;
 }
 
-export interface SessionPlanReadRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-}
-
 export interface PlanUpdateRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
   /**
    * The new content for the plan file
    */
   content: string;
-}
-
-export interface SessionPlanDeleteRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
 }
 
 export interface WorkspaceListFilesResult {
@@ -589,13 +631,6 @@ export interface WorkspaceListFilesResult {
    * Relative file paths in the workspace files directory
    */
   files: string[];
-}
-
-export interface SessionWorkspaceListFilesRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
 }
 
 export interface WorkspaceReadFileResult {
@@ -607,20 +642,12 @@ export interface WorkspaceReadFileResult {
 
 export interface WorkspaceReadFileRequest {
   /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
    * Relative path within the workspace files directory
    */
   path: string;
 }
 
 export interface WorkspaceCreateFileRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
   /**
    * Relative path within the workspace files directory
    */
@@ -641,10 +668,6 @@ export interface FleetStartResult {
 
 /** @experimental */
 export interface FleetStartRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
   /**
    * Optional user prompt to combine with fleet instructions
    */
@@ -673,14 +696,6 @@ export interface AgentList {
 }
 
 /** @experimental */
-export interface SessionAgentListRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-}
-
-/** @experimental */
 export interface AgentGetCurrentResult {
   /**
    * Currently selected custom agent, or null if using the default agent
@@ -699,14 +714,6 @@ export interface AgentGetCurrentResult {
      */
     description: string;
   } | null;
-}
-
-/** @experimental */
-export interface SessionAgentGetCurrentRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
 }
 
 /** @experimental */
@@ -733,21 +740,9 @@ export interface AgentSelectResult {
 /** @experimental */
 export interface AgentSelectRequest {
   /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
    * Name of the custom agent to select
    */
   name: string;
-}
-
-/** @experimental */
-export interface SessionAgentDeselectRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
 }
 
 /** @experimental */
@@ -769,14 +764,6 @@ export interface AgentReloadResult {
      */
     description: string;
   }[];
-}
-
-/** @experimental */
-export interface SessionAgentReloadRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
 }
 
 /** @experimental */
@@ -813,19 +800,7 @@ export interface SkillList {
 }
 
 /** @experimental */
-export interface SessionSkillsListRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-}
-
-/** @experimental */
 export interface SkillsEnableRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
   /**
    * Name of the skill to enable
    */
@@ -835,21 +810,9 @@ export interface SkillsEnableRequest {
 /** @experimental */
 export interface SkillsDisableRequest {
   /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
    * Name of the skill to disable
    */
   name: string;
-}
-
-/** @experimental */
-export interface SessionSkillsReloadRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
 }
 
 /** @experimental */
@@ -878,19 +841,7 @@ export interface McpServerList {
 }
 
 /** @experimental */
-export interface SessionMcpListRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-}
-
-/** @experimental */
 export interface McpEnableRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
   /**
    * Name of the MCP server to enable
    */
@@ -900,21 +851,9 @@ export interface McpEnableRequest {
 /** @experimental */
 export interface McpDisableRequest {
   /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
    * Name of the MCP server to disable
    */
   serverName: string;
-}
-
-/** @experimental */
-export interface SessionMcpReloadRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
 }
 
 /** @experimental */
@@ -940,14 +879,6 @@ export interface PluginList {
      */
     enabled: boolean;
   }[];
-}
-
-/** @experimental */
-export interface SessionPluginsListRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
 }
 
 /** @experimental */
@@ -980,19 +911,7 @@ export interface ExtensionList {
 }
 
 /** @experimental */
-export interface SessionExtensionsListRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-}
-
-/** @experimental */
 export interface ExtensionsEnableRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
   /**
    * Source-qualified extension ID to enable
    */
@@ -1002,21 +921,9 @@ export interface ExtensionsEnableRequest {
 /** @experimental */
 export interface ExtensionsDisableRequest {
   /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
    * Source-qualified extension ID to disable
    */
   id: string;
-}
-
-/** @experimental */
-export interface SessionExtensionsReloadRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
 }
 
 export interface HandleToolCallResult {
@@ -1027,10 +934,6 @@ export interface HandleToolCallResult {
 }
 
 export interface ToolsHandlePendingToolCallRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
   /**
    * Request ID of the pending tool call
    */
@@ -1074,10 +977,6 @@ export interface CommandsHandlePendingCommandResult {
 
 export interface CommandsHandlePendingCommandRequest {
   /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
    * Request ID from the command invocation event
    */
   requestId: string;
@@ -1086,14 +985,11 @@ export interface CommandsHandlePendingCommandRequest {
    */
   error?: string;
 }
-
-/**
- * The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
- */
-export type UIElicitationResponseAction = "accept" | "decline" | "cancel";
-export type UIElicitationFieldValue = string | number | boolean | string[];
 /**
  * The elicitation response (accept with form values, decline, or cancel)
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "UIElicitationResponse".
  */
 export interface UIElicitationResponse {
   action: UIElicitationResponseAction;
@@ -1107,10 +1003,6 @@ export interface UIElicitationResponseContent {
 }
 
 export interface UIElicitationRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
   /**
    * Message describing what information is needed from the user
    */
@@ -1207,14 +1099,23 @@ export interface UIElicitationResult {
 
 export interface UIHandlePendingElicitationRequest {
   /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
    * The unique request ID from the elicitation.requested event
    */
   requestId: string;
-  result: UIElicitationResponse;
+  result: UIElicitationResponse1;
+}
+/**
+ * The elicitation response (accept with form values, decline, or cancel)
+ */
+export interface UIElicitationResponse1 {
+  action: UIElicitationResponseAction1;
+  content?: UIElicitationResponseContent1;
+}
+/**
+ * The form values submitted by the user (present when action is 'accept')
+ */
+export interface UIElicitationResponseContent1 {
+  [k: string]: UIElicitationFieldValue1;
 }
 
 export interface PermissionRequestResult {
@@ -1224,73 +1125,7 @@ export interface PermissionRequestResult {
   success: boolean;
 }
 
-export type PermissionDecision =
-  | {
-      /**
-       * The permission request was approved
-       */
-      kind: "approved";
-    }
-| {
-      /**
-       * Denied because approval rules explicitly blocked it
-       */
-      kind: "denied-by-rules";
-      /**
-       * Rules that denied the request
-       */
-      rules: unknown[];
-    }
-  | {
-      /**
-       * Denied because no approval rule matched and user confirmation was unavailable
-       */
-      kind: "denied-no-approval-rule-and-could-not-request-from-user";
-    }
-  | {
-      /**
-       * Denied by the user during an interactive prompt
-       */
-      kind: "denied-interactively-by-user";
-      /**
-       * Optional feedback from the user explaining the denial
-       */
-      feedback?: string;
-    }
-  | {
-      /**
-       * Denied by the organization's content exclusion policy
-       */
-      kind: "denied-by-content-exclusion-policy";
-      /**
-       * File path that triggered the exclusion
-       */
-      path: string;
-      /**
-       * Human-readable explanation of why the path was excluded
-       */
-      message: string;
-    }
-  | {
-      /**
-       * Denied by a permission request hook registered by an extension or plugin
-       */
-      kind: "denied-by-permission-request-hook";
-      /**
-       * Optional message from the hook explaining the denial
-       */
-      message?: string;
-      /**
-       * Whether to interrupt the current agent turn
-       */
-      interrupt?: boolean;
-    };
-
 export interface PermissionDecisionRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
   /**
    * Request ID of the pending permission request
    */
@@ -1305,15 +1140,7 @@ export interface LogResult {
   eventId: string;
 }
 
-/**
- * Log severity level. Determines how the message is displayed in the timeline. Defaults to "info".
- */
-export type SessionLogLevel = "info" | "warning" | "error";
 export interface LogRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
   /**
    * Human-readable message
    */
@@ -1338,10 +1165,6 @@ export interface ShellExecResult {
 
 export interface ShellExecRequest {
   /**
-   * Target session identifier
-   */
-  sessionId: string;
-  /**
    * Shell command to execute
    */
   command: string;
@@ -1363,10 +1186,6 @@ export interface ShellKillResult {
 }
 
 export interface ShellKillRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
   /**
    * Process identifier returned by shell.exec
    */
@@ -1423,14 +1242,6 @@ export interface HistoryCompactResult {
 }
 
 /** @experimental */
-export interface SessionHistoryCompactRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
-}
-
-/** @experimental */
 export interface HistoryTruncateResult {
   /**
    * Number of events that were removed
@@ -1440,10 +1251,6 @@ export interface HistoryTruncateResult {
 
 /** @experimental */
 export interface HistoryTruncateRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
   /**
    * Event ID to truncate to. This event and all events after it are removed from the session.
    */
@@ -1542,14 +1349,6 @@ export interface UsageGetMetricsResult {
    * Output tokens from the most recent main-agent API call
    */
   lastCallOutputTokens: number;
-}
-
-/** @experimental */
-export interface SessionUsageGetMetricsRequest {
-  /**
-   * Target session identifier
-   */
-  sessionId: string;
 }
 
 export interface SessionFsReadFileResult {

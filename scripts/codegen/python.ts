@@ -22,9 +22,14 @@ import {
     isNodeFullyExperimental,
     postProcessSchema,
     writeGeneratedFile,
-    collectDefinitions,
+    collectDefinitionCollections,
+    hasSchemaPayload,
+    refTypeName,
+    resolveObjectSchema,
+    resolveSchema,
     withSharedDefinitions,
     type ApiSchema,
+    type DefinitionCollections,
     type RpcMethod,
 } from "./utils.js";
 
@@ -212,12 +217,31 @@ function collectRpcMethods(node: Record<string, unknown>): RpcMethod[] {
     return results;
 }
 
+let rpcDefinitions: DefinitionCollections = { definitions: {}, $defs: {} };
+
+function withRootTitle(schema: JSONSchema7, title: string): JSONSchema7 {
+    return { ...schema, title };
+}
+
+function getMethodResultSchema(method: RpcMethod): JSONSchema7 | undefined {
+    return resolveSchema(method.result, rpcDefinitions) ?? method.result ?? undefined;
+}
+
+function getMethodParamsSchema(method: RpcMethod): JSONSchema7 | undefined {
+    return (
+        resolveObjectSchema(method.params, rpcDefinitions) ??
+        resolveSchema(method.params, rpcDefinitions) ??
+        method.params ??
+        undefined
+    );
+}
+
 function pythonResultTypeName(method: RpcMethod): string {
-    return getRpcSchemaTypeName(method.result, toPascalCase(method.rpcMethod) + "Result");
+    return getRpcSchemaTypeName(getMethodResultSchema(method), toPascalCase(method.rpcMethod) + "Result");
 }
 
 function pythonParamsTypeName(method: RpcMethod): string {
-    return getRpcSchemaTypeName(method.params, toPascalCase(method.rpcMethod) + "Request");
+    return getRpcSchemaTypeName(getMethodParamsSchema(method), toPascalCase(method.rpcMethod) + "Request");
 }
 
 // ── Session Events ──────────────────────────────────────────────────────────
@@ -243,6 +267,7 @@ interface PyCodegenCtx {
     generatedNames: Set<string>;
     usesTimedelta: boolean;
     usesIntegerTimedelta: boolean;
+    definitions: DefinitionCollections;
 }
 
 function toEnumMemberName(value: string): string {
@@ -374,24 +399,34 @@ function toPythonLiteral(value: unknown): string | undefined {
 }
 
 function extractPyEventVariants(schema: JSONSchema7): PyEventVariant[] {
-    const sessionEvent = schema.definitions?.SessionEvent as JSONSchema7;
+    const definitionCollections = collectDefinitionCollections(schema as Record<string, unknown>);
+    const sessionEvent =
+        resolveSchema({ $ref: "#/definitions/SessionEvent" }, definitionCollections) ??
+        resolveSchema({ $ref: "#/$defs/SessionEvent" }, definitionCollections);
     if (!sessionEvent?.anyOf) {
         throw new Error("Schema must have SessionEvent definition with anyOf");
     }
 
     return (sessionEvent.anyOf as JSONSchema7[])
         .map((variant) => {
-            if (typeof variant !== "object" || !variant.properties) {
+            const resolvedVariant =
+                resolveObjectSchema(variant as JSONSchema7, definitionCollections) ??
+                resolveSchema(variant as JSONSchema7, definitionCollections) ??
+                (variant as JSONSchema7);
+            if (typeof resolvedVariant !== "object" || !resolvedVariant.properties) {
                 throw new Error("Invalid event variant");
             }
 
-            const typeSchema = variant.properties.type as JSONSchema7;
+            const typeSchema = resolvedVariant.properties.type as JSONSchema7;
             const typeName = typeSchema?.const as string;
             if (!typeName) {
                 throw new Error("Event variant must define type.const");
             }
 
-            const dataSchema = (variant.properties.data as JSONSchema7) || {};
+            const dataSchema =
+                resolveObjectSchema(resolvedVariant.properties.data as JSONSchema7, definitionCollections) ??
+                resolveSchema(resolvedVariant.properties.data as JSONSchema7, definitionCollections) ??
+                ((resolvedVariant.properties.data as JSONSchema7) || {});
             return {
                 typeName,
                 dataClassName: `${toPascalCase(typeName)}Data`,
@@ -481,6 +516,35 @@ function resolvePyPropertyType(
 ): PyResolvedType {
     const nestedName = parentTypeName + toPascalCase(jsonPropName);
 
+    if (propSchema.$ref && typeof propSchema.$ref === "string") {
+        const typeName = toPascalCase(refTypeName(propSchema.$ref, ctx.definitions));
+        const resolved = resolveSchema(propSchema, ctx.definitions);
+        if (resolved && resolved !== propSchema) {
+            if (resolved.enum && Array.isArray(resolved.enum) && resolved.enum.every((value) => typeof value === "string")) {
+                const enumType = getOrCreatePyEnum(typeName, resolved.enum as string[], ctx, resolved.description);
+                const enumResolved: PyResolvedType = {
+                    annotation: enumType,
+                    fromExpr: (expr) => `parse_enum(${enumType}, ${expr})`,
+                    toExpr: (expr) => `to_enum(${enumType}, ${expr})`,
+                };
+                return isRequired ? enumResolved : pyOptionalResolvedType(enumResolved);
+            }
+
+            const resolvedObject = resolveObjectSchema(propSchema, ctx.definitions);
+            if (resolvedObject?.properties && Object.keys(resolvedObject.properties).length > 0) {
+                emitPyClass(typeName, resolvedObject, ctx, resolvedObject.description);
+                const objectResolved: PyResolvedType = {
+                    annotation: typeName,
+                    fromExpr: (expr) => `${typeName}.from_dict(${expr})`,
+                    toExpr: (expr) => `to_class(${typeName}, ${expr})`,
+                };
+                return isRequired ? objectResolved : pyOptionalResolvedType(objectResolved);
+            }
+
+            return resolvePyPropertyType(resolved, parentTypeName, jsonPropName, isRequired, ctx);
+        }
+    }
+
     if (propSchema.allOf && propSchema.allOf.length === 1 && typeof propSchema.allOf[0] === "object") {
         return resolvePyPropertyType(
             propSchema.allOf[0] as JSONSchema7,
@@ -492,7 +556,14 @@ function resolvePyPropertyType(
     }
 
     if (propSchema.anyOf) {
-        const variants = (propSchema.anyOf as JSONSchema7[]).filter((item) => typeof item === "object");
+        const variants = (propSchema.anyOf as JSONSchema7[])
+            .filter((item) => typeof item === "object")
+            .map(
+                (item) =>
+                    resolveObjectSchema(item as JSONSchema7, ctx.definitions) ??
+                    resolveSchema(item as JSONSchema7, ctx.definitions) ??
+                    (item as JSONSchema7)
+            );
         const nonNull = variants.filter((item) => item.type !== "null");
         const hasNull = variants.length !== nonNull.length;
 
@@ -636,6 +707,12 @@ function resolvePyPropertyType(
         if (items.anyOf) {
             const itemVariants = (items.anyOf as JSONSchema7[])
                 .filter((variant) => typeof variant === "object")
+                .map(
+                    (variant) =>
+                        resolveObjectSchema(variant as JSONSchema7, ctx.definitions) ??
+                        resolveSchema(variant as JSONSchema7, ctx.definitions) ??
+                        (variant as JSONSchema7)
+                )
                 .filter((variant) => variant.type !== "null");
             const discriminator = findPyDiscriminator(itemVariants);
             if (discriminator) {
@@ -943,6 +1020,7 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
         generatedNames: new Set(),
         usesTimedelta: false,
         usesIntegerTimedelta: false,
+        definitions: collectDefinitionCollections(schema as Record<string, unknown>),
     };
 
     for (const variant of variants) {
@@ -1276,45 +1354,60 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     ];
 
     // Build a combined schema for quicktype, including shared definitions from the API schema
-    const sharedDefs = collectDefinitions(schema as Record<string, unknown>);
+    rpcDefinitions = collectDefinitionCollections(schema as Record<string, unknown>);
     const combinedSchema = withSharedDefinitions(
         {
             $schema: "http://json-schema.org/draft-07/schema#",
         },
-        sharedDefs
+        rpcDefinitions
     );
 
     for (const method of allMethods) {
-        if (!isVoidSchema(method.result)) {
-            combinedSchema.definitions![pythonResultTypeName(method)] = method.result;
+        const resultSchema = getMethodResultSchema(method);
+        if (!isVoidSchema(resultSchema)) {
+            combinedSchema.definitions![pythonResultTypeName(method)] = withRootTitle(
+                method.result ?? resultSchema ?? { type: "object" },
+                pythonResultTypeName(method)
+            );
         }
-        if (method.params?.properties && Object.keys(method.params.properties).length > 0) {
-            if (method.rpcMethod.startsWith("session.")) {
+        const resolvedParams = getMethodParamsSchema(method);
+        if (method.params && hasSchemaPayload(resolvedParams)) {
+            if (method.rpcMethod.startsWith("session.") && resolvedParams?.properties) {
                 const filtered: JSONSchema7 = {
-                    ...method.params,
+                    ...resolvedParams,
                     properties: Object.fromEntries(
-                        Object.entries(method.params.properties).filter(([k]) => k !== "sessionId")
+                        Object.entries(resolvedParams.properties).filter(([k]) => k !== "sessionId")
                     ),
-                    required: method.params.required?.filter((r) => r !== "sessionId"),
+                    required: resolvedParams.required?.filter((r) => r !== "sessionId"),
                 };
-                if (Object.keys(filtered.properties!).length > 0) {
-                    combinedSchema.definitions![pythonParamsTypeName(method)] = filtered;
+                if (hasSchemaPayload(filtered)) {
+                    combinedSchema.definitions![pythonParamsTypeName(method)] = withRootTitle(
+                        filtered,
+                        pythonParamsTypeName(method)
+                    );
                 }
             } else {
-                combinedSchema.definitions![pythonParamsTypeName(method)] = method.params;
+                combinedSchema.definitions![pythonParamsTypeName(method)] = withRootTitle(
+                    method.params,
+                    pythonParamsTypeName(method)
+                );
             }
         }
     }
 
     const { rootDefinitions, sharedDefinitions } = hoistTitledSchemas(combinedSchema.definitions! as Record<string, JSONSchema7>);
     const allDefinitions = { ...rootDefinitions, ...sharedDefinitions };
+    const allDefinitionCollections: DefinitionCollections = {
+        definitions: { ...(combinedSchema.$defs ?? {}), ...allDefinitions },
+        $defs: { ...allDefinitions, ...(combinedSchema.$defs ?? {}) },
+    };
 
     // Generate types via quicktype
     const schemaInput = new JSONSchemaInput(new FetchingJSONSchemaStore());
     for (const [name, def] of Object.entries(rootDefinitions)) {
         const schemaWithDefs = withSharedDefinitions(
             typeof def === "object" ? (def as JSONSchema7) : {},
-            allDefinitions
+            allDefinitionCollections
         );
         await schemaInput.addSource({ name, schema: JSON.stringify(schemaWithDefs) });
     }
@@ -1506,13 +1599,15 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
 
 function emitMethod(lines: string[], name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, groupExperimental = false): void {
     const methodName = toSnakeCase(name);
-    const hasResult = !isVoidSchema(method.result);
+    const resultSchema = getMethodResultSchema(method);
+    const hasResult = !isVoidSchema(resultSchema);
     const resultType = hasResult ? resolveType(pythonResultTypeName(method)) : "None";
-    const resultIsObject = isObjectSchema(method.result);
+    const resultIsObject = isObjectSchema(resultSchema);
 
-    const paramProps = method.params?.properties || {};
+    const effectiveParams = getMethodParamsSchema(method);
+    const paramProps = effectiveParams?.properties || {};
     const nonSessionParams = Object.keys(paramProps).filter((k) => k !== "sessionId");
-    const hasParams = isSession ? nonSessionParams.length > 0 : Object.keys(paramProps).length > 0;
+    const hasParams = isSession ? nonSessionParams.length > 0 : hasSchemaPayload(effectiveParams);
     const paramsType = resolveType(pythonParamsTypeName(method));
 
     // Build signature with typed params + optional timeout
@@ -1629,7 +1724,8 @@ function emitClientSessionHandlerMethod(
     groupExperimental = false
 ): void {
     const paramsType = resolveType(pythonParamsTypeName(method));
-    const resultType = !isVoidSchema(method.result) ? resolveType(pythonResultTypeName(method)) : "None";
+    const resultSchema = getMethodResultSchema(method);
+    const resultType = !isVoidSchema(resultSchema) ? resolveType(pythonResultTypeName(method)) : "None";
     lines.push(`    async def ${toSnakeCase(name)}(self, params: ${paramsType}) -> ${resultType}:`);
     if (method.stability === "experimental" && !groupExperimental) {
         lines.push(`        """.. warning:: This API is experimental and may change or be removed in future versions."""`);
@@ -1646,7 +1742,8 @@ function emitClientSessionRegistrationMethod(
 ): void {
     const handlerVariableName = `handle_${toSnakeCase(groupName)}_${toSnakeCase(methodName)}`;
     const paramsType = resolveType(pythonParamsTypeName(method));
-    const resultType = !isVoidSchema(method.result) ? resolveType(pythonResultTypeName(method)) : null;
+    const resultSchema = getMethodResultSchema(method);
+    const resultType = !isVoidSchema(resultSchema) ? resolveType(pythonResultTypeName(method)) : null;
     const handlerField = toSnakeCase(groupName);
     const handlerMethod = toSnakeCase(methodName);
 
@@ -1658,7 +1755,7 @@ function emitClientSessionRegistrationMethod(
     );
     if (resultType) {
         lines.push(`        result = await handler.${handlerMethod}(request)`);
-        if (isObjectSchema(method.result)) {
+        if (isObjectSchema(resultSchema)) {
             lines.push(`        return result.to_dict()`);
         } else {
             lines.push(`        return result.value if hasattr(result, 'value') else result`);
