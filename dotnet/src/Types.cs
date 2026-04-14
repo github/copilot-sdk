@@ -1647,7 +1647,7 @@ public class CustomAgentConfig
     /// When omitted, no skills are injected (opt-in model).
     /// </summary>
     [JsonPropertyName("skills")]
-    public List<string>? Skills { get; set; }
+    public IList<string>? Skills { get; set; }
 }
 
 /// <summary>
