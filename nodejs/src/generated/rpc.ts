@@ -595,6 +595,20 @@ export interface ModeSetRequest {
   mode: SessionMode;
 }
 
+export interface NameGetResult {
+  /**
+   * The session name, falling back to the auto-generated summary, or null if neither exists
+   */
+  name: string | null;
+}
+
+export interface NameSetRequest {
+  /**
+   * New session name (1–100 characters, trimmed of leading/trailing whitespace)
+   */
+  name: string;
+}
+
 export interface PlanReadResult {
   /**
    * Whether the plan file exists in the workspace
@@ -617,28 +631,51 @@ export interface PlanUpdateRequest {
   content: string;
 }
 
-export interface WorkspaceListFilesResult {
+export interface WorkspacesGetWorkspaceResult {
+  /**
+   * Current workspace metadata, or null if not available
+   */
+  workspace: {
+    id: string;
+    cwd?: string;
+    git_root?: string;
+    repository?: string;
+    host_type?: "github" | "ado";
+    branch?: string;
+    summary?: string;
+    name?: string;
+    summary_count?: number;
+    created_at?: string;
+    updated_at?: string;
+    mc_task_id?: string;
+    mc_session_id?: string;
+    mc_last_event_id?: string;
+    session_sync_level?: "local" | "user" | "repo_and_user";
+  } | null;
+}
+
+export interface WorkspacesListFilesResult {
   /**
    * Relative file paths in the workspace files directory
    */
   files: string[];
 }
 
-export interface WorkspaceReadFileResult {
+export interface WorkspacesReadFileResult {
   /**
    * File content as a UTF-8 string
    */
   content: string;
 }
 
-export interface WorkspaceReadFileRequest {
+export interface WorkspacesReadFileRequest {
   /**
    * Relative path within the workspace files directory
    */
   path: string;
 }
 
-export interface WorkspaceCreateFileRequest {
+export interface WorkspacesCreateFileRequest {
   /**
    * Relative path within the workspace files directory
    */
@@ -1593,6 +1630,12 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             set: async (params: Omit<ModeSetRequest, "sessionId">): Promise<void> =>
                 connection.sendRequest("session.mode.set", { sessionId, ...params }),
         },
+        name: {
+            get: async (): Promise<NameGetResult> =>
+                connection.sendRequest("session.name.get", { sessionId }),
+            set: async (params: Omit<NameSetRequest, "sessionId">): Promise<void> =>
+                connection.sendRequest("session.name.set", { sessionId, ...params }),
+        },
         plan: {
             read: async (): Promise<PlanReadResult> =>
                 connection.sendRequest("session.plan.read", { sessionId }),
@@ -1601,13 +1644,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             delete: async (): Promise<void> =>
                 connection.sendRequest("session.plan.delete", { sessionId }),
         },
-        workspace: {
-            listFiles: async (): Promise<WorkspaceListFilesResult> =>
-                connection.sendRequest("session.workspace.listFiles", { sessionId }),
-            readFile: async (params: Omit<WorkspaceReadFileRequest, "sessionId">): Promise<WorkspaceReadFileResult> =>
-                connection.sendRequest("session.workspace.readFile", { sessionId, ...params }),
-            createFile: async (params: Omit<WorkspaceCreateFileRequest, "sessionId">): Promise<void> =>
-                connection.sendRequest("session.workspace.createFile", { sessionId, ...params }),
+        workspaces: {
+            getWorkspace: async (): Promise<WorkspacesGetWorkspaceResult> =>
+                connection.sendRequest("session.workspaces.getWorkspace", { sessionId }),
+            listFiles: async (): Promise<WorkspacesListFilesResult> =>
+                connection.sendRequest("session.workspaces.listFiles", { sessionId }),
+            readFile: async (params: Omit<WorkspacesReadFileRequest, "sessionId">): Promise<WorkspacesReadFileResult> =>
+                connection.sendRequest("session.workspaces.readFile", { sessionId, ...params }),
+            createFile: async (params: Omit<WorkspacesCreateFileRequest, "sessionId">): Promise<void> =>
+                connection.sendRequest("session.workspaces.createFile", { sessionId, ...params }),
         },
         /** @experimental */
         fleet: {

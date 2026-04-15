@@ -135,25 +135,25 @@ public class RpcTests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETes
         var session = await CreateSessionAsync();
 
         // Initially no files
-        var initialFiles = await session.Rpc.Workspace.ListFilesAsync();
+        var initialFiles = await session.Rpc.Workspaces.ListFilesAsync();
         Assert.Empty(initialFiles.Files);
 
         // Create a file
         var fileContent = "Hello, workspace!";
-        await session.Rpc.Workspace.CreateFileAsync("test.txt", fileContent);
+        await session.Rpc.Workspaces.CreateFileAsync("test.txt", fileContent);
 
         // List files
-        var afterCreate = await session.Rpc.Workspace.ListFilesAsync();
+        var afterCreate = await session.Rpc.Workspaces.ListFilesAsync();
         Assert.Contains("test.txt", afterCreate.Files);
 
         // Read file
-        var readResult = await session.Rpc.Workspace.ReadFileAsync("test.txt");
+        var readResult = await session.Rpc.Workspaces.ReadFileAsync("test.txt");
         Assert.Equal(fileContent, readResult.Content);
 
         // Create nested file
-        await session.Rpc.Workspace.CreateFileAsync("subdir/nested.txt", "Nested content");
+        await session.Rpc.Workspaces.CreateFileAsync("subdir/nested.txt", "Nested content");
 
-        var afterNested = await session.Rpc.Workspace.ListFilesAsync();
+        var afterNested = await session.Rpc.Workspaces.ListFilesAsync();
         Assert.Contains("test.txt", afterNested.Files);
         Assert.Contains(afterNested.Files, f => f.Contains("nested.txt"));
     }

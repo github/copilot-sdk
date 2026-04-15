@@ -258,6 +258,11 @@ function emitDataAnnotations(schema: JSONSchema7, indent: string): string[] {
     }
 
     // [MinLength] / [MaxLength] for string constraints
+    if (typeof schema.minLength === "number" || typeof schema.maxLength === "number") {
+        attrs.push(
+            `${indent}[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]`
+        );
+    }
     if (typeof schema.minLength === "number") {
         attrs.push(`${indent}[MinLength(${schema.minLength})]`);
     }

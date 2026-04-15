@@ -187,8 +187,8 @@ class TestSessionRpc:
     async def test_create_list_and_read_workspace_files(self):
         """Test creating, listing, and reading workspace files"""
         from copilot.generated.rpc import (
-            WorkspaceCreateFileRequest,
-            WorkspaceReadFileRequest,
+            WorkspacesCreateFileRequest,
+            WorkspacesReadFileRequest,
         )
 
         client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
@@ -200,31 +200,31 @@ class TestSessionRpc:
             )
 
             # Initially no files
-            initial_files = await session.rpc.workspace.list_files()
+            initial_files = await session.rpc.workspaces.list_files()
             assert initial_files.files == []
 
             # Create a file
             file_content = "Hello, workspace!"
-            await session.rpc.workspace.create_file(
-                WorkspaceCreateFileRequest(content=file_content, path="test.txt")
+            await session.rpc.workspaces.create_file(
+                WorkspacesCreateFileRequest(content=file_content, path="test.txt")
             )
 
             # List files
-            after_create = await session.rpc.workspace.list_files()
+            after_create = await session.rpc.workspaces.list_files()
             assert "test.txt" in after_create.files
 
             # Read file
-            read_result = await session.rpc.workspace.read_file(
-                WorkspaceReadFileRequest(path="test.txt")
+            read_result = await session.rpc.workspaces.read_file(
+                WorkspacesReadFileRequest(path="test.txt")
             )
             assert read_result.content == file_content
 
             # Create nested file
-            await session.rpc.workspace.create_file(
-                WorkspaceCreateFileRequest(content="Nested content", path="subdir/nested.txt")
+            await session.rpc.workspaces.create_file(
+                WorkspacesCreateFileRequest(content="Nested content", path="subdir/nested.txt")
             )
 
-            after_nested = await session.rpc.workspace.list_files()
+            after_nested = await session.rpc.workspaces.list_files()
             assert "test.txt" in after_nested.files
             assert any("nested.txt" in f for f in after_nested.files)
 

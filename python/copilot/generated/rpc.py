@@ -10,18 +10,16 @@ if TYPE_CHECKING:
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Protocol
-
-
-from dataclasses import dataclass
-from typing import Any, TypeVar, Callable, cast
 from datetime import datetime
 from enum import Enum
+from typing import Any, Protocol, TypeVar, cast
 from uuid import UUID
+
 import dateutil.parser
 
 T = TypeVar("T")
 EnumT = TypeVar("EnumT", bound=Enum)
+
 
 def from_str(x: Any) -> str:
     assert isinstance(x, str)
@@ -766,7 +764,7 @@ class MCPConfigRemoveRequest:
 
 class MCPServerSource(Enum):
     """Configuration source
-    
+
     Configuration source: user, workspace, plugin, or builtin
     """
     BUILTIN = "builtin"
@@ -1131,6 +1129,38 @@ class ModeSetRequest:
         return result
 
 @dataclass
+class NameGetResult:
+    name: str | None = None
+    """The session name, falling back to the auto-generated summary, or null if neither exists"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'NameGetResult':
+        assert isinstance(obj, dict)
+        name = from_union([from_none, from_str], obj.get("name"))
+        return NameGetResult(name)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["name"] = from_union([from_none, from_str], self.name)
+        return result
+
+@dataclass
+class NameSetRequest:
+    name: str
+    """New session name (1–100 characters, trimmed of leading/trailing whitespace)"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'NameSetRequest':
+        assert isinstance(obj, dict)
+        name = from_str(obj.get("name"))
+        return NameSetRequest(name)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["name"] = from_str(self.name)
+        return result
+
+@dataclass
 class PlanReadResult:
     exists: bool
     """Whether the plan file exists in the workspace"""
@@ -1172,16 +1202,112 @@ class PlanUpdateRequest:
         result["content"] = from_str(self.content)
         return result
 
+class HostType(Enum):
+    ADO = "ado"
+    GITHUB = "github"
+
+class SessionSyncLevel(Enum):
+    LOCAL = "local"
+    REPO_AND_USER = "repo_and_user"
+    USER = "user"
+
 @dataclass
-class WorkspaceListFilesResult:
+class Workspace:
+    id: UUID
+    branch: str | None = None
+    created_at: datetime | None = None
+    cwd: str | None = None
+    git_root: str | None = None
+    host_type: HostType | None = None
+    mc_last_event_id: str | None = None
+    mc_session_id: str | None = None
+    mc_task_id: str | None = None
+    name: str | None = None
+    repository: str | None = None
+    session_sync_level: SessionSyncLevel | None = None
+    summary: str | None = None
+    summary_count: int | None = None
+    updated_at: datetime | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'Workspace':
+        assert isinstance(obj, dict)
+        id = UUID(obj.get("id"))
+        branch = from_union([from_str, from_none], obj.get("branch"))
+        created_at = from_union([from_datetime, from_none], obj.get("created_at"))
+        cwd = from_union([from_str, from_none], obj.get("cwd"))
+        git_root = from_union([from_str, from_none], obj.get("git_root"))
+        host_type = from_union([HostType, from_none], obj.get("host_type"))
+        mc_last_event_id = from_union([from_str, from_none], obj.get("mc_last_event_id"))
+        mc_session_id = from_union([from_str, from_none], obj.get("mc_session_id"))
+        mc_task_id = from_union([from_str, from_none], obj.get("mc_task_id"))
+        name = from_union([from_str, from_none], obj.get("name"))
+        repository = from_union([from_str, from_none], obj.get("repository"))
+        session_sync_level = from_union([SessionSyncLevel, from_none], obj.get("session_sync_level"))
+        summary = from_union([from_str, from_none], obj.get("summary"))
+        summary_count = from_union([from_int, from_none], obj.get("summary_count"))
+        updated_at = from_union([from_datetime, from_none], obj.get("updated_at"))
+        return Workspace(id, branch, created_at, cwd, git_root, host_type, mc_last_event_id, mc_session_id, mc_task_id, name, repository, session_sync_level, summary, summary_count, updated_at)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["id"] = str(self.id)
+        if self.branch is not None:
+            result["branch"] = from_union([from_str, from_none], self.branch)
+        if self.created_at is not None:
+            result["created_at"] = from_union([lambda x: x.isoformat(), from_none], self.created_at)
+        if self.cwd is not None:
+            result["cwd"] = from_union([from_str, from_none], self.cwd)
+        if self.git_root is not None:
+            result["git_root"] = from_union([from_str, from_none], self.git_root)
+        if self.host_type is not None:
+            result["host_type"] = from_union([lambda x: to_enum(HostType, x), from_none], self.host_type)
+        if self.mc_last_event_id is not None:
+            result["mc_last_event_id"] = from_union([from_str, from_none], self.mc_last_event_id)
+        if self.mc_session_id is not None:
+            result["mc_session_id"] = from_union([from_str, from_none], self.mc_session_id)
+        if self.mc_task_id is not None:
+            result["mc_task_id"] = from_union([from_str, from_none], self.mc_task_id)
+        if self.name is not None:
+            result["name"] = from_union([from_str, from_none], self.name)
+        if self.repository is not None:
+            result["repository"] = from_union([from_str, from_none], self.repository)
+        if self.session_sync_level is not None:
+            result["session_sync_level"] = from_union([lambda x: to_enum(SessionSyncLevel, x), from_none], self.session_sync_level)
+        if self.summary is not None:
+            result["summary"] = from_union([from_str, from_none], self.summary)
+        if self.summary_count is not None:
+            result["summary_count"] = from_union([from_int, from_none], self.summary_count)
+        if self.updated_at is not None:
+            result["updated_at"] = from_union([lambda x: x.isoformat(), from_none], self.updated_at)
+        return result
+
+@dataclass
+class WorkspacesGetWorkspaceResult:
+    workspace: Workspace | None = None
+    """Current workspace metadata, or null if not available"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'WorkspacesGetWorkspaceResult':
+        assert isinstance(obj, dict)
+        workspace = from_union([Workspace.from_dict, from_none], obj.get("workspace"))
+        return WorkspacesGetWorkspaceResult(workspace)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["workspace"] = from_union([lambda x: to_class(Workspace, x), from_none], self.workspace)
+        return result
+
+@dataclass
+class WorkspacesListFilesResult:
     files: list[str]
     """Relative file paths in the workspace files directory"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'WorkspaceListFilesResult':
+    def from_dict(obj: Any) -> 'WorkspacesListFilesResult':
         assert isinstance(obj, dict)
         files = from_list(from_str, obj.get("files"))
-        return WorkspaceListFilesResult(files)
+        return WorkspacesListFilesResult(files)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -1189,15 +1315,15 @@ class WorkspaceListFilesResult:
         return result
 
 @dataclass
-class WorkspaceReadFileResult:
+class WorkspacesReadFileResult:
     content: str
     """File content as a UTF-8 string"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'WorkspaceReadFileResult':
+    def from_dict(obj: Any) -> 'WorkspacesReadFileResult':
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
-        return WorkspaceReadFileResult(content)
+        return WorkspacesReadFileResult(content)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -1205,15 +1331,15 @@ class WorkspaceReadFileResult:
         return result
 
 @dataclass
-class WorkspaceReadFileRequest:
+class WorkspacesReadFileRequest:
     path: str
     """Relative path within the workspace files directory"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'WorkspaceReadFileRequest':
+    def from_dict(obj: Any) -> 'WorkspacesReadFileRequest':
         assert isinstance(obj, dict)
         path = from_str(obj.get("path"))
-        return WorkspaceReadFileRequest(path)
+        return WorkspacesReadFileRequest(path)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -1221,7 +1347,7 @@ class WorkspaceReadFileRequest:
         return result
 
 @dataclass
-class WorkspaceCreateFileRequest:
+class WorkspacesCreateFileRequest:
     content: str
     """File content to write as a UTF-8 string"""
 
@@ -1229,11 +1355,11 @@ class WorkspaceCreateFileRequest:
     """Relative path within the workspace files directory"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'WorkspaceCreateFileRequest':
+    def from_dict(obj: Any) -> 'WorkspacesCreateFileRequest':
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         path = from_str(obj.get("path"))
-        return WorkspaceCreateFileRequest(content, path)
+        return WorkspacesCreateFileRequest(content, path)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -2216,15 +2342,15 @@ class Kind(Enum):
 class PermissionDecision:
     kind: Kind
     """The permission request was approved
-    
+
     Denied because approval rules explicitly blocked it
-    
+
     Denied because no approval rule matched and user confirmation was unavailable
-    
+
     Denied by the user during an interactive prompt
-    
+
     Denied by the organization's content exclusion policy
-    
+
     Denied by a permission request hook registered by an extension or plugin
     """
     rules: list[Any] | None = None
@@ -2235,7 +2361,7 @@ class PermissionDecision:
 
     message: str | None = None
     """Human-readable explanation of why the path was excluded
-    
+
     Optional message from the hook explaining the denial
     """
     path: str | None = None
@@ -3235,6 +3361,18 @@ def mode_set_request_from_dict(s: Any) -> ModeSetRequest:
 def mode_set_request_to_dict(x: ModeSetRequest) -> Any:
     return to_class(ModeSetRequest, x)
 
+def name_get_result_from_dict(s: Any) -> NameGetResult:
+    return NameGetResult.from_dict(s)
+
+def name_get_result_to_dict(x: NameGetResult) -> Any:
+    return to_class(NameGetResult, x)
+
+def name_set_request_from_dict(s: Any) -> NameSetRequest:
+    return NameSetRequest.from_dict(s)
+
+def name_set_request_to_dict(x: NameSetRequest) -> Any:
+    return to_class(NameSetRequest, x)
+
 def plan_read_result_from_dict(s: Any) -> PlanReadResult:
     return PlanReadResult.from_dict(s)
 
@@ -3247,29 +3385,35 @@ def plan_update_request_from_dict(s: Any) -> PlanUpdateRequest:
 def plan_update_request_to_dict(x: PlanUpdateRequest) -> Any:
     return to_class(PlanUpdateRequest, x)
 
-def workspace_list_files_result_from_dict(s: Any) -> WorkspaceListFilesResult:
-    return WorkspaceListFilesResult.from_dict(s)
+def workspaces_get_workspace_result_from_dict(s: Any) -> WorkspacesGetWorkspaceResult:
+    return WorkspacesGetWorkspaceResult.from_dict(s)
 
-def workspace_list_files_result_to_dict(x: WorkspaceListFilesResult) -> Any:
-    return to_class(WorkspaceListFilesResult, x)
+def workspaces_get_workspace_result_to_dict(x: WorkspacesGetWorkspaceResult) -> Any:
+    return to_class(WorkspacesGetWorkspaceResult, x)
 
-def workspace_read_file_result_from_dict(s: Any) -> WorkspaceReadFileResult:
-    return WorkspaceReadFileResult.from_dict(s)
+def workspaces_list_files_result_from_dict(s: Any) -> WorkspacesListFilesResult:
+    return WorkspacesListFilesResult.from_dict(s)
 
-def workspace_read_file_result_to_dict(x: WorkspaceReadFileResult) -> Any:
-    return to_class(WorkspaceReadFileResult, x)
+def workspaces_list_files_result_to_dict(x: WorkspacesListFilesResult) -> Any:
+    return to_class(WorkspacesListFilesResult, x)
 
-def workspace_read_file_request_from_dict(s: Any) -> WorkspaceReadFileRequest:
-    return WorkspaceReadFileRequest.from_dict(s)
+def workspaces_read_file_result_from_dict(s: Any) -> WorkspacesReadFileResult:
+    return WorkspacesReadFileResult.from_dict(s)
 
-def workspace_read_file_request_to_dict(x: WorkspaceReadFileRequest) -> Any:
-    return to_class(WorkspaceReadFileRequest, x)
+def workspaces_read_file_result_to_dict(x: WorkspacesReadFileResult) -> Any:
+    return to_class(WorkspacesReadFileResult, x)
 
-def workspace_create_file_request_from_dict(s: Any) -> WorkspaceCreateFileRequest:
-    return WorkspaceCreateFileRequest.from_dict(s)
+def workspaces_read_file_request_from_dict(s: Any) -> WorkspacesReadFileRequest:
+    return WorkspacesReadFileRequest.from_dict(s)
 
-def workspace_create_file_request_to_dict(x: WorkspaceCreateFileRequest) -> Any:
-    return to_class(WorkspaceCreateFileRequest, x)
+def workspaces_read_file_request_to_dict(x: WorkspacesReadFileRequest) -> Any:
+    return to_class(WorkspacesReadFileRequest, x)
+
+def workspaces_create_file_request_from_dict(s: Any) -> WorkspacesCreateFileRequest:
+    return WorkspacesCreateFileRequest.from_dict(s)
+
+def workspaces_create_file_request_to_dict(x: WorkspacesCreateFileRequest) -> Any:
+    return to_class(WorkspacesCreateFileRequest, x)
 
 def fleet_start_result_from_dict(s: Any) -> FleetStartResult:
     return FleetStartResult.from_dict(s)
@@ -3709,6 +3853,20 @@ class ModeApi:
         await self._client.request("session.mode.set", params_dict, **_timeout_kwargs(timeout))
 
 
+class NameApi:
+    def __init__(self, client: "JsonRpcClient", session_id: str):
+        self._client = client
+        self._session_id = session_id
+
+    async def get(self, *, timeout: float | None = None) -> NameGetResult:
+        return NameGetResult.from_dict(await self._client.request("session.name.get", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+
+    async def set(self, params: NameSetRequest, *, timeout: float | None = None) -> None:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        await self._client.request("session.name.set", params_dict, **_timeout_kwargs(timeout))
+
+
 class PlanApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
@@ -3726,23 +3884,26 @@ class PlanApi:
         await self._client.request("session.plan.delete", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
 
-class WorkspaceApi:
+class WorkspacesApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
         self._session_id = session_id
 
-    async def list_files(self, *, timeout: float | None = None) -> WorkspaceListFilesResult:
-        return WorkspaceListFilesResult.from_dict(await self._client.request("session.workspace.listFiles", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+    async def get_workspace(self, *, timeout: float | None = None) -> WorkspacesGetWorkspaceResult:
+        return WorkspacesGetWorkspaceResult.from_dict(await self._client.request("session.workspaces.getWorkspace", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
-    async def read_file(self, params: WorkspaceReadFileRequest, *, timeout: float | None = None) -> WorkspaceReadFileResult:
+    async def list_files(self, *, timeout: float | None = None) -> WorkspacesListFilesResult:
+        return WorkspacesListFilesResult.from_dict(await self._client.request("session.workspaces.listFiles", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
+
+    async def read_file(self, params: WorkspacesReadFileRequest, *, timeout: float | None = None) -> WorkspacesReadFileResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return WorkspaceReadFileResult.from_dict(await self._client.request("session.workspace.readFile", params_dict, **_timeout_kwargs(timeout)))
+        return WorkspacesReadFileResult.from_dict(await self._client.request("session.workspaces.readFile", params_dict, **_timeout_kwargs(timeout)))
 
-    async def create_file(self, params: WorkspaceCreateFileRequest, *, timeout: float | None = None) -> None:
+    async def create_file(self, params: WorkspacesCreateFileRequest, *, timeout: float | None = None) -> None:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        await self._client.request("session.workspace.createFile", params_dict, **_timeout_kwargs(timeout))
+        await self._client.request("session.workspaces.createFile", params_dict, **_timeout_kwargs(timeout))
 
 
 # Experimental: this API group is experimental and may change or be removed.
@@ -3957,8 +4118,9 @@ class SessionRpc:
         self._session_id = session_id
         self.model = ModelApi(client, session_id)
         self.mode = ModeApi(client, session_id)
+        self.name = NameApi(client, session_id)
         self.plan = PlanApi(client, session_id)
-        self.workspace = WorkspaceApi(client, session_id)
+        self.workspaces = WorkspacesApi(client, session_id)
         self.fleet = FleetApi(client, session_id)
         self.agent = AgentApi(client, session_id)
         self.skills = SkillsApi(client, session_id)
