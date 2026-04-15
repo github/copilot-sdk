@@ -156,28 +156,28 @@ describe("Session RPC", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
 
         // Initially no files
-        const initialFiles = await session.rpc.workspace.listFiles();
+        const initialFiles = await session.rpc.workspaces.listFiles();
         expect(initialFiles.files).toEqual([]);
 
         // Create a file
         const fileContent = "Hello, workspace!";
-        await session.rpc.workspace.createFile({ path: "test.txt", content: fileContent });
+        await session.rpc.workspaces.createFile({ path: "test.txt", content: fileContent });
 
         // List files
-        const afterCreate = await session.rpc.workspace.listFiles();
+        const afterCreate = await session.rpc.workspaces.listFiles();
         expect(afterCreate.files).toContain("test.txt");
 
         // Read file
-        const readResult = await session.rpc.workspace.readFile({ path: "test.txt" });
+        const readResult = await session.rpc.workspaces.readFile({ path: "test.txt" });
         expect(readResult.content).toBe(fileContent);
 
         // Create nested file
-        await session.rpc.workspace.createFile({
+        await session.rpc.workspaces.createFile({
             path: "subdir/nested.txt",
             content: "Nested content",
         });
 
-        const afterNested = await session.rpc.workspace.listFiles();
+        const afterNested = await session.rpc.workspaces.listFiles();
         expect(afterNested.files).toContain("test.txt");
         expect(afterNested.files.some((f) => f.includes("nested.txt"))).toBe(true);
     });

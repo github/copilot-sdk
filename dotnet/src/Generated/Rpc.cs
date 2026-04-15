@@ -517,10 +517,10 @@ internal sealed class NameSetRequest
     public string SessionId { get; set; } = string.Empty;
 
     /// <summary>New session name (1–100 characters, trimmed of leading/trailing whitespace).</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
     [MinLength(1)]
     [MaxLength(100)]
     [JsonPropertyName("name")]
-    [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "<Pending>")]
     public string Name { get; set; } = string.Empty;
 }
 

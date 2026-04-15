@@ -307,7 +307,7 @@ func TestSessionRpc(t *testing.T) {
 		}
 
 		// Initially no files
-		initialFiles, err := session.RPC.Workspace.ListFiles(t.Context())
+		initialFiles, err := session.RPC.Workspaces.ListFiles(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to list files: %v", err)
 		}
@@ -317,7 +317,7 @@ func TestSessionRpc(t *testing.T) {
 
 		// Create a file
 		fileContent := "Hello, workspace!"
-		_, err = session.RPC.Workspace.CreateFile(t.Context(), &rpc.WorkspaceCreateFileRequest{
+		_, err = session.RPC.Workspaces.CreateFile(t.Context(), &rpc.WorkspacesCreateFileRequest{
 			Path:    "test.txt",
 			Content: fileContent,
 		})
@@ -326,7 +326,7 @@ func TestSessionRpc(t *testing.T) {
 		}
 
 		// List files
-		afterCreate, err := session.RPC.Workspace.ListFiles(t.Context())
+		afterCreate, err := session.RPC.Workspaces.ListFiles(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to list files after create: %v", err)
 		}
@@ -335,7 +335,7 @@ func TestSessionRpc(t *testing.T) {
 		}
 
 		// Read file
-		readResult, err := session.RPC.Workspace.ReadFile(t.Context(), &rpc.WorkspaceReadFileRequest{
+		readResult, err := session.RPC.Workspaces.ReadFile(t.Context(), &rpc.WorkspacesReadFileRequest{
 			Path: "test.txt",
 		})
 		if err != nil {
@@ -346,7 +346,7 @@ func TestSessionRpc(t *testing.T) {
 		}
 
 		// Create nested file
-		_, err = session.RPC.Workspace.CreateFile(t.Context(), &rpc.WorkspaceCreateFileRequest{
+		_, err = session.RPC.Workspaces.CreateFile(t.Context(), &rpc.WorkspacesCreateFileRequest{
 			Path:    "subdir/nested.txt",
 			Content: "Nested content",
 		})
@@ -354,7 +354,7 @@ func TestSessionRpc(t *testing.T) {
 			t.Fatalf("Failed to create nested file: %v", err)
 		}
 
-		afterNested, err := session.RPC.Workspace.ListFiles(t.Context())
+		afterNested, err := session.RPC.Workspaces.ListFiles(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to list files after nested: %v", err)
 		}
