@@ -1638,6 +1638,16 @@ public class CustomAgentConfig
     /// </summary>
     [JsonPropertyName("infer")]
     public bool? Infer { get; set; }
+
+    /// <summary>
+    /// List of skill names to preload into this agent's context.
+    /// When set, the full content of each listed skill is eagerly injected into
+    /// the agent's context at startup. Skills are resolved by name from the
+    /// session's configured skill directories (<see cref="SessionConfig.SkillDirectories"/>).
+    /// When omitted, no skills are injected (opt-in model).
+    /// </summary>
+    [JsonPropertyName("skills")]
+    public IList<string>? Skills { get; set; }
 }
 
 /// <summary>

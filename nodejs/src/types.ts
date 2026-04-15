@@ -1104,6 +1104,14 @@ export interface CustomAgentConfig {
      * @default true
      */
     infer?: boolean;
+    /**
+     * List of skill names to preload into this agent's context.
+     * When set, the full content of each listed skill is eagerly injected into
+     * the agent's context at startup. Skills are resolved by name from the
+     * session's configured skill directories (`skillDirectories`).
+     * When omitted, no skills are injected (opt-in model).
+     */
+    skills?: string[];
 }
 
 /**

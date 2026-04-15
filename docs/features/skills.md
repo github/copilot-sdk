@@ -364,7 +364,7 @@ The markdown body contains the instructions that are injected into the session c
 
 ### Skills + Custom Agents
 
-Skills work alongside custom agents:
+Skills listed in an agent's `skills` field are **eagerly preloaded** — their full content is injected into the agent's context at startup, so the agent has access to the skill instructions immediately without needing to invoke a skill tool. Skill names are resolved from the session-level `skillDirectories`.
 
 ```typescript
 const session = await client.createSession({
@@ -373,10 +373,12 @@ const session = await client.createSession({
         name: "security-auditor",
         description: "Security-focused code reviewer",
         prompt: "Focus on OWASP Top 10 vulnerabilities",
+        skills: ["security-scan", "dependency-check"],
     }],
     onPermissionRequest: async () => ({ kind: "approved" }),
 });
 ```
+> **Note:** Skills are opt-in — when `skills` is omitted, no skill content is injected. Sub-agents do not inherit skills from the parent; you must list them explicitly per agent.
 
 ### Skills + MCP Servers
 
