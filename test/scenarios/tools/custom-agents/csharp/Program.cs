@@ -25,7 +25,7 @@ try
     {
         Model = "claude-haiku-4.5",
         Tools = [analyzeCodebase],
-        defaultAgent = new DefaultAgentConfig
+        DefaultAgent = new DefaultAgentConfig
         {
             ExcludedTools = ["analyze-codebase"],
         },

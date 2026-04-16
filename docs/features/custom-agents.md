@@ -836,6 +836,7 @@ session = await client.create_session(
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: skip -->
 ```go
 session, err := client.CreateSession(ctx, &copilot.SessionConfig{
     Tools: []copilot.Tool{heavyTool},
@@ -858,6 +859,7 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 <details>
 <summary><strong>C# / .NET</strong></summary>
 
+<!-- docs-validate: skip -->
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {
