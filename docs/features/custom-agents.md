@@ -775,8 +775,7 @@ This is useful when:
 import { CopilotClient, defineTool, approveAll } from "@github/copilot-sdk";
 import { z } from "zod";
 
-const heavyContextTool = defineTool({
-    name: "analyze-codebase",
+const heavyContextTool = defineTool("analyze-codebase", {
     description: "Performs deep analysis of the codebase, generating extensive context",
     parameters: z.object({ query: z.string() }),
     handler: async ({ query }) => {

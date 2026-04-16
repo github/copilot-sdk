@@ -1,8 +1,7 @@
 import { CopilotClient, defineTool } from "@github/copilot-sdk";
 import { z } from "zod";
 
-const analyzeCodebase = defineTool({
-    name: "analyze-codebase",
+const analyzeCodebase = defineTool("analyze-codebase", {
     description: "Performs deep analysis of the codebase, generating extensive context",
     parameters: z.object({ query: z.string().describe("The analysis query") }),
     handler: async ({ query }) => {
