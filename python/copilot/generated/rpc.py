@@ -165,7 +165,7 @@ class ModelCapabilitiesLimitsVision:
 class ModelCapabilitiesLimits:
     """Token limits for prompts, outputs, and context window"""
 
-    max_context_window_tokens: int
+    max_context_window_tokens: int | None = None
     """Maximum total context window size in tokens"""
 
     max_output_tokens: int | None = None
@@ -180,7 +180,7 @@ class ModelCapabilitiesLimits:
     @staticmethod
     def from_dict(obj: Any) -> 'ModelCapabilitiesLimits':
         assert isinstance(obj, dict)
-        max_context_window_tokens = from_int(obj.get("max_context_window_tokens"))
+        max_context_window_tokens = from_union([from_int, from_none], obj.get("max_context_window_tokens"))
         max_output_tokens = from_union([from_int, from_none], obj.get("max_output_tokens"))
         max_prompt_tokens = from_union([from_int, from_none], obj.get("max_prompt_tokens"))
         vision = from_union([ModelCapabilitiesLimitsVision.from_dict, from_none], obj.get("vision"))
@@ -188,7 +188,8 @@ class ModelCapabilitiesLimits:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["max_context_window_tokens"] = from_int(self.max_context_window_tokens)
+        if self.max_context_window_tokens is not None:
+            result["max_context_window_tokens"] = from_union([from_int, from_none], self.max_context_window_tokens)
         if self.max_output_tokens is not None:
             result["max_output_tokens"] = from_union([from_int, from_none], self.max_output_tokens)
         if self.max_prompt_tokens is not None:
@@ -226,23 +227,25 @@ class ModelCapabilitiesSupports:
 class ModelCapabilities:
     """Model capabilities and limits"""
 
-    limits: ModelCapabilitiesLimits
+    limits: ModelCapabilitiesLimits | None = None
     """Token limits for prompts, outputs, and context window"""
 
-    supports: ModelCapabilitiesSupports
+    supports: ModelCapabilitiesSupports | None = None
     """Feature flags indicating what the model supports"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'ModelCapabilities':
         assert isinstance(obj, dict)
-        limits = ModelCapabilitiesLimits.from_dict(obj.get("limits"))
-        supports = ModelCapabilitiesSupports.from_dict(obj.get("supports"))
+        limits = from_union([ModelCapabilitiesLimits.from_dict, from_none], obj.get("limits"))
+        supports = from_union([ModelCapabilitiesSupports.from_dict, from_none], obj.get("supports"))
         return ModelCapabilities(limits, supports)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["limits"] = to_class(ModelCapabilitiesLimits, self.limits)
-        result["supports"] = to_class(ModelCapabilitiesSupports, self.supports)
+        if self.limits is not None:
+            result["limits"] = from_union([lambda x: to_class(ModelCapabilitiesLimits, x), from_none], self.limits)
+        if self.supports is not None:
+            result["supports"] = from_union([lambda x: to_class(ModelCapabilitiesSupports, x), from_none], self.supports)
         return result
 
 @dataclass
@@ -473,6 +476,8 @@ class MCPConfigFilterMappingString(Enum):
     NONE = "none"
 
 class MCPConfigType(Enum):
+    """Remote transport type. Defaults to "http" when omitted."""
+
     HTTP = "http"
     LOCAL = "local"
     SSE = "sse"
@@ -495,6 +500,8 @@ class MCPConfigServer:
     """Tools to include. Defaults to all tools if not specified."""
 
     type: MCPConfigType | None = None
+    """Remote transport type. Defaults to "http" when omitted."""
+
     headers: dict[str, str] | None = None
     oauth_client_id: str | None = None
     oauth_public_client: bool | None = None
@@ -581,6 +588,8 @@ class MCPConfigAddConfig:
     """Tools to include. Defaults to all tools if not specified."""
 
     type: MCPConfigType | None = None
+    """Remote transport type. Defaults to "http" when omitted."""
+
     headers: dict[str, str] | None = None
     oauth_client_id: str | None = None
     oauth_public_client: bool | None = None
@@ -672,6 +681,8 @@ class MCPConfigUpdateConfig:
     """Tools to include. Defaults to all tools if not specified."""
 
     type: MCPConfigType | None = None
+    """Remote transport type. Defaults to "http" when omitted."""
+
     headers: dict[str, str] | None = None
     oauth_client_id: str | None = None
     oauth_public_client: bool | None = None
@@ -843,6 +854,109 @@ class MCPDiscoverRequest:
         result: dict = {}
         if self.working_directory is not None:
             result["workingDirectory"] = from_union([from_str, from_none], self.working_directory)
+        return result
+
+@dataclass
+class SkillsConfigSetDisabledSkillsRequest:
+    disabled_skills: list[str]
+    """List of skill names to disable"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillsConfigSetDisabledSkillsRequest':
+        assert isinstance(obj, dict)
+        disabled_skills = from_list(from_str, obj.get("disabledSkills"))
+        return SkillsConfigSetDisabledSkillsRequest(disabled_skills)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["disabledSkills"] = from_list(from_str, self.disabled_skills)
+        return result
+
+@dataclass
+class ServerSkill:
+    description: str
+    """Description of what the skill does"""
+
+    enabled: bool
+    """Whether the skill is currently enabled (based on global config)"""
+
+    name: str
+    """Unique identifier for the skill"""
+
+    source: str
+    """Source location type (e.g., project, personal-copilot, plugin, builtin)"""
+
+    user_invocable: bool
+    """Whether the skill can be invoked by the user as a slash command"""
+
+    path: str | None = None
+    """Absolute path to the skill file"""
+
+    project_path: str | None = None
+    """The project path this skill belongs to (only for project/inherited skills)"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ServerSkill':
+        assert isinstance(obj, dict)
+        description = from_str(obj.get("description"))
+        enabled = from_bool(obj.get("enabled"))
+        name = from_str(obj.get("name"))
+        source = from_str(obj.get("source"))
+        user_invocable = from_bool(obj.get("userInvocable"))
+        path = from_union([from_str, from_none], obj.get("path"))
+        project_path = from_union([from_str, from_none], obj.get("projectPath"))
+        return ServerSkill(description, enabled, name, source, user_invocable, path, project_path)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["description"] = from_str(self.description)
+        result["enabled"] = from_bool(self.enabled)
+        result["name"] = from_str(self.name)
+        result["source"] = from_str(self.source)
+        result["userInvocable"] = from_bool(self.user_invocable)
+        if self.path is not None:
+            result["path"] = from_union([from_str, from_none], self.path)
+        if self.project_path is not None:
+            result["projectPath"] = from_union([from_str, from_none], self.project_path)
+        return result
+
+@dataclass
+class ServerSkillList:
+    skills: list[ServerSkill]
+    """All discovered skills across all sources"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'ServerSkillList':
+        assert isinstance(obj, dict)
+        skills = from_list(ServerSkill.from_dict, obj.get("skills"))
+        return ServerSkillList(skills)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["skills"] = from_list(lambda x: to_class(ServerSkill, x), self.skills)
+        return result
+
+@dataclass
+class SkillsDiscoverRequest:
+    project_paths: list[str] | None = None
+    """Optional list of project directory paths to scan for project-scoped skills"""
+
+    skill_directories: list[str] | None = None
+    """Optional list of additional skill directory paths to include"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SkillsDiscoverRequest':
+        assert isinstance(obj, dict)
+        project_paths = from_union([lambda x: from_list(from_str, x), from_none], obj.get("projectPaths"))
+        skill_directories = from_union([lambda x: from_list(from_str, x), from_none], obj.get("skillDirectories"))
+        return SkillsDiscoverRequest(project_paths, skill_directories)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.project_paths is not None:
+            result["projectPaths"] = from_union([lambda x: from_list(from_str, x), from_none], self.project_paths)
+        if self.skill_directories is not None:
+            result["skillDirectories"] = from_union([lambda x: from_list(from_str, x), from_none], self.skill_directories)
         return result
 
 @dataclass
@@ -3315,6 +3429,24 @@ def mcp_discover_request_from_dict(s: Any) -> MCPDiscoverRequest:
 def mcp_discover_request_to_dict(x: MCPDiscoverRequest) -> Any:
     return to_class(MCPDiscoverRequest, x)
 
+def skills_config_set_disabled_skills_request_from_dict(s: Any) -> SkillsConfigSetDisabledSkillsRequest:
+    return SkillsConfigSetDisabledSkillsRequest.from_dict(s)
+
+def skills_config_set_disabled_skills_request_to_dict(x: SkillsConfigSetDisabledSkillsRequest) -> Any:
+    return to_class(SkillsConfigSetDisabledSkillsRequest, x)
+
+def server_skill_list_from_dict(s: Any) -> ServerSkillList:
+    return ServerSkillList.from_dict(s)
+
+def server_skill_list_to_dict(x: ServerSkillList) -> Any:
+    return to_class(ServerSkillList, x)
+
+def skills_discover_request_from_dict(s: Any) -> SkillsDiscoverRequest:
+    return SkillsDiscoverRequest.from_dict(s)
+
+def skills_discover_request_to_dict(x: SkillsDiscoverRequest) -> Any:
+    return to_class(SkillsDiscoverRequest, x)
+
 def session_fs_set_provider_result_from_dict(s: Any) -> SessionFSSetProviderResult:
     return SessionFSSetProviderResult.from_dict(s)
 
@@ -3798,6 +3930,15 @@ class ServerMcpApi:
         return MCPDiscoverResult.from_dict(await self._client.request("mcp.discover", params_dict, **_timeout_kwargs(timeout)))
 
 
+class ServerSkillsApi:
+    def __init__(self, client: "JsonRpcClient"):
+        self._client = client
+
+    async def discover(self, params: SkillsDiscoverRequest, *, timeout: float | None = None) -> ServerSkillList:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        return ServerSkillList.from_dict(await self._client.request("skills.discover", params_dict, **_timeout_kwargs(timeout)))
+
+
 class ServerSessionFsApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
@@ -3825,6 +3966,7 @@ class ServerRpc:
         self.tools = ServerToolsApi(client)
         self.account = ServerAccountApi(client)
         self.mcp = ServerMcpApi(client)
+        self.skills = ServerSkillsApi(client)
         self.session_fs = ServerSessionFsApi(client)
         self.sessions = ServerSessionsApi(client)
 

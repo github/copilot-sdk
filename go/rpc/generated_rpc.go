@@ -57,15 +57,15 @@ type ModelBilling struct {
 // Model capabilities and limits
 type ModelCapabilities struct {
 	// Token limits for prompts, outputs, and context window
-	Limits ModelCapabilitiesLimits `json:"limits"`
+	Limits *ModelCapabilitiesLimits `json:"limits,omitempty"`
 	// Feature flags indicating what the model supports
-	Supports ModelCapabilitiesSupports `json:"supports"`
+	Supports *ModelCapabilitiesSupports `json:"supports,omitempty"`
 }
 
 // Token limits for prompts, outputs, and context window
 type ModelCapabilitiesLimits struct {
 	// Maximum total context window size in tokens
-	MaxContextWindowTokens int64 `json:"max_context_window_tokens"`
+	MaxContextWindowTokens *int64 `json:"max_context_window_tokens,omitempty"`
 	// Maximum number of output/completion tokens
 	MaxOutputTokens *int64 `json:"max_output_tokens,omitempty"`
 	// Maximum number of prompt/input tokens
@@ -161,7 +161,8 @@ type MCPConfigServer struct {
 	// Timeout in milliseconds for tool calls to this server.
 	Timeout *int64 `json:"timeout,omitempty"`
 	// Tools to include. Defaults to all tools if not specified.
-	Tools             []string          `json:"tools,omitempty"`
+	Tools []string `json:"tools,omitempty"`
+	// Remote transport type. Defaults to "http" when omitted.
 	Type              *MCPConfigType    `json:"type,omitempty"`
 	Headers           map[string]string `json:"headers,omitempty"`
 	OauthClientID     *string           `json:"oauthClientId,omitempty"`
@@ -190,7 +191,8 @@ type MCPConfigAddConfig struct {
 	// Timeout in milliseconds for tool calls to this server.
 	Timeout *int64 `json:"timeout,omitempty"`
 	// Tools to include. Defaults to all tools if not specified.
-	Tools             []string          `json:"tools,omitempty"`
+	Tools []string `json:"tools,omitempty"`
+	// Remote transport type. Defaults to "http" when omitted.
 	Type              *MCPConfigType    `json:"type,omitempty"`
 	Headers           map[string]string `json:"headers,omitempty"`
 	OauthClientID     *string           `json:"oauthClientId,omitempty"`
@@ -219,7 +221,8 @@ type MCPConfigUpdateConfig struct {
 	// Timeout in milliseconds for tool calls to this server.
 	Timeout *int64 `json:"timeout,omitempty"`
 	// Tools to include. Defaults to all tools if not specified.
-	Tools             []string          `json:"tools,omitempty"`
+	Tools []string `json:"tools,omitempty"`
+	// Remote transport type. Defaults to "http" when omitted.
 	Type              *MCPConfigType    `json:"type,omitempty"`
 	Headers           map[string]string `json:"headers,omitempty"`
 	OauthClientID     *string           `json:"oauthClientId,omitempty"`
@@ -254,6 +257,43 @@ type DiscoveredMCPServer struct {
 type MCPDiscoverRequest struct {
 	// Working directory used as context for discovery (e.g., plugin resolution)
 	WorkingDirectory *string `json:"workingDirectory,omitempty"`
+}
+
+type SkillsConfigSetDisabledSkillsResult struct {
+}
+
+type SkillsConfigSetDisabledSkillsRequest struct {
+	// List of skill names to disable
+	DisabledSkills []string `json:"disabledSkills"`
+}
+
+type ServerSkillList struct {
+	// All discovered skills across all sources
+	Skills []ServerSkill `json:"skills"`
+}
+
+type ServerSkill struct {
+	// Description of what the skill does
+	Description string `json:"description"`
+	// Whether the skill is currently enabled (based on global config)
+	Enabled bool `json:"enabled"`
+	// Unique identifier for the skill
+	Name string `json:"name"`
+	// Absolute path to the skill file
+	Path *string `json:"path,omitempty"`
+	// The project path this skill belongs to (only for project/inherited skills)
+	ProjectPath *string `json:"projectPath,omitempty"`
+	// Source location type (e.g., project, personal-copilot, plugin, builtin)
+	Source string `json:"source"`
+	// Whether the skill can be invoked by the user as a slash command
+	UserInvocable bool `json:"userInvocable"`
+}
+
+type SkillsDiscoverRequest struct {
+	// Optional list of project directory paths to scan for project-scoped skills
+	ProjectPaths []string `json:"projectPaths,omitempty"`
+	// Optional list of additional skill directory paths to include
+	SkillDirectories []string `json:"skillDirectories,omitempty"`
 }
 
 type SessionFSSetProviderResult struct {
@@ -1093,6 +1133,7 @@ const (
 	MCPConfigFilterMappingStringNone             MCPConfigFilterMappingString = "none"
 )
 
+// Remote transport type. Defaults to "http" when omitted.
 type MCPConfigType string
 
 const (
@@ -1342,6 +1383,20 @@ func (a *ServerMcpApi) Discover(ctx context.Context, params *MCPDiscoverRequest)
 	return &result, nil
 }
 
+type ServerSkillsApi serverApi
+
+func (a *ServerSkillsApi) Discover(ctx context.Context, params *SkillsDiscoverRequest) (*ServerSkillList, error) {
+	raw, err := a.client.Request("skills.discover", params)
+	if err != nil {
+		return nil, err
+	}
+	var result ServerSkillList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 type ServerSessionFsApi serverApi
 
 func (a *ServerSessionFsApi) SetProvider(ctx context.Context, params *SessionFSSetProviderRequest) (*SessionFSSetProviderResult, error) {
@@ -1379,6 +1434,7 @@ type ServerRpc struct {
 	Tools     *ServerToolsApi
 	Account   *ServerAccountApi
 	Mcp       *ServerMcpApi
+	Skills    *ServerSkillsApi
 	SessionFs *ServerSessionFsApi
 	Sessions  *ServerSessionsApi
 }
@@ -1402,6 +1458,7 @@ func NewServerRpc(client *jsonrpc2.Client) *ServerRpc {
 	r.Tools = (*ServerToolsApi)(&r.common)
 	r.Account = (*ServerAccountApi)(&r.common)
 	r.Mcp = (*ServerMcpApi)(&r.common)
+	r.Skills = (*ServerSkillsApi)(&r.common)
 	r.SessionFs = (*ServerSessionFsApi)(&r.common)
 	r.Sessions = (*ServerSessionsApi)(&r.common)
 	return r
