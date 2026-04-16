@@ -103,6 +103,7 @@ jobs:
             echo "Pull request for branch '$BRANCH' already exists; updated branch only."
           else
             gh pr create \
+              --draft \
               --title "Update @github/copilot to $VERSION" \
               --body "Automated update of \`@github/copilot\` to version \`$VERSION\`.
 
@@ -110,6 +111,9 @@ jobs:
           - Updated \`@github/copilot\` in \`nodejs/package.json\` and \`test/harness/package.json\`
           - Re-ran all code generators (\`scripts/codegen\`)
           - Formatted generated output
+
+          ### Next steps
+          When ready, click **Ready for review** to trigger CI checks.
 
           > Created by the **Update @github/copilot Dependency** workflow." \
               --base main \

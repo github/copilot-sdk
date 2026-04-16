@@ -2,6 +2,7 @@ name: Verify compiled workflows
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - '.github/workflows/*.md'
       - '.github/workflows/*.lock.yml'
