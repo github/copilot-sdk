@@ -2,6 +2,7 @@ name: "Scenario Build Verification"
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "test/scenarios/**"
       - "nodejs/src/**"

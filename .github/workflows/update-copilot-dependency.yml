@@ -100,9 +100,15 @@ jobs:
           git push origin "$BRANCH" --force-with-lease
 
           if gh pr view "$BRANCH" >/dev/null 2>&1; then
-            echo "Pull request for branch '$BRANCH' already exists; updated branch only."
+            if [ "$(gh pr view "$BRANCH" --json isDraft --jq '.isDraft')" = "false" ]; then
+              gh pr ready "$BRANCH" --undo
+              echo "Pull request for branch '$BRANCH' already existed and was moved back to draft after updating the branch."
+            else
+              echo "Pull request for branch '$BRANCH' already exists and is already a draft; updated branch only."
+            fi
           else
             gh pr create \
+              --draft \
               --title "Update @github/copilot to $VERSION" \
               --body "Automated update of \`@github/copilot\` to version \`$VERSION\`.
 
@@ -110,6 +116,9 @@ jobs:
           - Updated \`@github/copilot\` in \`nodejs/package.json\` and \`test/harness/package.json\`
           - Re-ran all code generators (\`scripts/codegen\`)
           - Formatted generated output
+
+          ### Next steps
+          When ready, click **Ready for review** to trigger CI checks.
 
           > Created by the **Update @github/copilot Dependency** workflow." \
               --base main \
