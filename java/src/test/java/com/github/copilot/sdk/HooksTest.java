@@ -36,8 +36,8 @@ import com.github.copilot.sdk.json.SessionHooks;
  *
  * <p>
  * Note: Tests for userPromptSubmitted, sessionStart, and sessionEnd hooks are
- * not included as they are not tested in the upstream .NET or Node.js SDKs and
- * require test harness updates to properly invoke these hooks.
+ * not included as they are not tested in the reference implementation .NET or
+ * Node.js SDKs and require test harness updates to properly invoke these hooks.
  * </p>
  */
 public class HooksTest {

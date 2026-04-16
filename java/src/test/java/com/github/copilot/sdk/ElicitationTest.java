@@ -29,7 +29,8 @@ import com.github.copilot.sdk.json.SessionUiCapabilities;
  * Unit tests for the Elicitation feature and Session Capabilities.
  *
  * <p>
- * Ported from {@code ElicitationTests.cs} in the upstream dotnet SDK.
+ * Ported from {@code ElicitationTests.cs} in the reference implementation
+ * dotnet SDK.
  * </p>
  */
 class ElicitationTest {

@@ -25,7 +25,8 @@ import com.github.copilot.sdk.json.SessionConfig;
  * representation).
  *
  * <p>
- * Ported from {@code CommandsTests.cs} in the upstream dotnet SDK.
+ * Ported from {@code CommandsTests.cs} in the reference implementation dotnet
+ * SDK.
  * </p>
  */
 class CommandsTest {
