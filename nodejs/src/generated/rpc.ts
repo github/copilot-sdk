@@ -651,6 +651,8 @@ export interface WorkspacesGetWorkspaceResult {
     mc_session_id?: string;
     mc_last_event_id?: string;
     session_sync_level?: "local" | "user" | "repo_and_user";
+    pr_create_sync_dismissed?: boolean;
+    chronicle_sync_dismissed?: boolean;
   } | null;
 }
 

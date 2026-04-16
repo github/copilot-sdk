@@ -1215,6 +1215,7 @@ class SessionSyncLevel(Enum):
 class Workspace:
     id: UUID
     branch: str | None = None
+    chronicle_sync_dismissed: bool | None = None
     created_at: datetime | None = None
     cwd: str | None = None
     git_root: str | None = None
@@ -1223,6 +1224,7 @@ class Workspace:
     mc_session_id: str | None = None
     mc_task_id: str | None = None
     name: str | None = None
+    pr_create_sync_dismissed: bool | None = None
     repository: str | None = None
     session_sync_level: SessionSyncLevel | None = None
     summary: str | None = None
@@ -1234,6 +1236,7 @@ class Workspace:
         assert isinstance(obj, dict)
         id = UUID(obj.get("id"))
         branch = from_union([from_str, from_none], obj.get("branch"))
+        chronicle_sync_dismissed = from_union([from_bool, from_none], obj.get("chronicle_sync_dismissed"))
         created_at = from_union([from_datetime, from_none], obj.get("created_at"))
         cwd = from_union([from_str, from_none], obj.get("cwd"))
         git_root = from_union([from_str, from_none], obj.get("git_root"))
@@ -1242,18 +1245,21 @@ class Workspace:
         mc_session_id = from_union([from_str, from_none], obj.get("mc_session_id"))
         mc_task_id = from_union([from_str, from_none], obj.get("mc_task_id"))
         name = from_union([from_str, from_none], obj.get("name"))
+        pr_create_sync_dismissed = from_union([from_bool, from_none], obj.get("pr_create_sync_dismissed"))
         repository = from_union([from_str, from_none], obj.get("repository"))
         session_sync_level = from_union([SessionSyncLevel, from_none], obj.get("session_sync_level"))
         summary = from_union([from_str, from_none], obj.get("summary"))
         summary_count = from_union([from_int, from_none], obj.get("summary_count"))
         updated_at = from_union([from_datetime, from_none], obj.get("updated_at"))
-        return Workspace(id, branch, created_at, cwd, git_root, host_type, mc_last_event_id, mc_session_id, mc_task_id, name, repository, session_sync_level, summary, summary_count, updated_at)
+        return Workspace(id, branch, chronicle_sync_dismissed, created_at, cwd, git_root, host_type, mc_last_event_id, mc_session_id, mc_task_id, name, pr_create_sync_dismissed, repository, session_sync_level, summary, summary_count, updated_at)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["id"] = str(self.id)
         if self.branch is not None:
             result["branch"] = from_union([from_str, from_none], self.branch)
+        if self.chronicle_sync_dismissed is not None:
+            result["chronicle_sync_dismissed"] = from_union([from_bool, from_none], self.chronicle_sync_dismissed)
         if self.created_at is not None:
             result["created_at"] = from_union([lambda x: x.isoformat(), from_none], self.created_at)
         if self.cwd is not None:
@@ -1270,6 +1276,8 @@ class Workspace:
             result["mc_task_id"] = from_union([from_str, from_none], self.mc_task_id)
         if self.name is not None:
             result["name"] = from_union([from_str, from_none], self.name)
+        if self.pr_create_sync_dismissed is not None:
+            result["pr_create_sync_dismissed"] = from_union([from_bool, from_none], self.pr_create_sync_dismissed)
         if self.repository is not None:
             result["repository"] = from_union([from_str, from_none], self.repository)
         if self.session_sync_level is not None:

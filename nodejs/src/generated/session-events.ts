@@ -2673,6 +2673,10 @@ export type SessionEvent =
                * Complete new file contents for newly created files
                */
               newFileContents?: string;
+              /**
+               * Whether the UI can offer session-wide approval for file write operations
+               */
+              canOfferSessionApproval: boolean;
             }
           | {
               /**
