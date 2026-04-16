@@ -631,6 +631,14 @@ public sealed class WorkspacesGetWorkspaceResultWorkspace
     /// <summary>Gets or sets the <c>session_sync_level</c> value.</summary>
     [JsonPropertyName("session_sync_level")]
     public WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel? SessionSyncLevel { get; set; }
+
+    /// <summary>Gets or sets the <c>pr_create_sync_dismissed</c> value.</summary>
+    [JsonPropertyName("pr_create_sync_dismissed")]
+    public bool? PrCreateSyncDismissed { get; set; }
+
+    /// <summary>Gets or sets the <c>chronicle_sync_dismissed</c> value.</summary>
+    [JsonPropertyName("chronicle_sync_dismissed")]
+    public bool? ChronicleSyncDismissed { get; set; }
 }
 
 /// <summary>RPC data type for WorkspacesGetWorkspace operations.</summary>

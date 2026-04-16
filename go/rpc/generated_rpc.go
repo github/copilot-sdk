@@ -383,21 +383,23 @@ type WorkspacesGetWorkspaceResult struct {
 }
 
 type WorkspaceClass struct {
-	Branch           *string           `json:"branch,omitempty"`
-	CreatedAt        *time.Time        `json:"created_at,omitempty"`
-	Cwd              *string           `json:"cwd,omitempty"`
-	GitRoot          *string           `json:"git_root,omitempty"`
-	HostType         *HostType         `json:"host_type,omitempty"`
-	ID               string            `json:"id"`
-	McLastEventID    *string           `json:"mc_last_event_id,omitempty"`
-	McSessionID      *string           `json:"mc_session_id,omitempty"`
-	McTaskID         *string           `json:"mc_task_id,omitempty"`
-	Name             *string           `json:"name,omitempty"`
-	Repository       *string           `json:"repository,omitempty"`
-	SessionSyncLevel *SessionSyncLevel `json:"session_sync_level,omitempty"`
-	Summary          *string           `json:"summary,omitempty"`
-	SummaryCount     *int64            `json:"summary_count,omitempty"`
-	UpdatedAt        *time.Time        `json:"updated_at,omitempty"`
+	Branch                 *string           `json:"branch,omitempty"`
+	ChronicleSyncDismissed *bool             `json:"chronicle_sync_dismissed,omitempty"`
+	CreatedAt              *time.Time        `json:"created_at,omitempty"`
+	Cwd                    *string           `json:"cwd,omitempty"`
+	GitRoot                *string           `json:"git_root,omitempty"`
+	HostType               *HostType         `json:"host_type,omitempty"`
+	ID                     string            `json:"id"`
+	McLastEventID          *string           `json:"mc_last_event_id,omitempty"`
+	McSessionID            *string           `json:"mc_session_id,omitempty"`
+	McTaskID               *string           `json:"mc_task_id,omitempty"`
+	Name                   *string           `json:"name,omitempty"`
+	PRCreateSyncDismissed  *bool             `json:"pr_create_sync_dismissed,omitempty"`
+	Repository             *string           `json:"repository,omitempty"`
+	SessionSyncLevel       *SessionSyncLevel `json:"session_sync_level,omitempty"`
+	Summary                *string           `json:"summary,omitempty"`
+	SummaryCount           *int64            `json:"summary_count,omitempty"`
+	UpdatedAt              *time.Time        `json:"updated_at,omitempty"`
 }
 
 type WorkspacesListFilesResult struct {

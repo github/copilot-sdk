@@ -3492,6 +3492,10 @@ public partial class PermissionRequestWrite : PermissionRequest
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("newFileContents")]
     public string? NewFileContents { get; set; }
+
+    /// <summary>Whether the UI can offer session-wide approval for file write operations.</summary>
+    [JsonPropertyName("canOfferSessionApproval")]
+    public required bool CanOfferSessionApproval { get; set; }
 }
 
 /// <summary>File or directory read permission request.</summary>
