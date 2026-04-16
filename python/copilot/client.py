@@ -2131,6 +2131,12 @@ class CopilotClient:
                 wire_azure["apiVersion"] = azure["api_version"]
             if wire_azure:
                 wire_provider["azure"] = wire_azure
+        if "max_output_tokens" in provider:
+            wire_provider["maxOutputTokens"] = provider["max_output_tokens"]
+        if "max_prompt_tokens" in provider:
+            wire_provider["maxPromptTokens"] = provider["max_prompt_tokens"]
+        if "model_limits_id" in provider:
+            wire_provider["modelLimitsId"] = provider["model_limits_id"]
         return wire_provider
 
     def _convert_custom_agent_to_wire_format(

@@ -1403,6 +1403,26 @@ export interface ProviderConfig {
          */
         apiVersion?: string;
     };
+
+    /**
+     * Maximum number of tokens the model can generate in a single response.
+     * When hit, the model stops generating and returns a truncated response.
+     */
+    maxOutputTokens?: number;
+
+    /**
+     * Maximum number of tokens allowed in the prompt for a single LLM API request.
+     * Used by the runtime to trigger conversation compaction before sending a request
+     * when the prompt (system message, history, tool definitions, user message) exceeds this limit.
+     */
+    maxPromptTokens?: number;
+
+    /**
+     * Specifies the model ID used to look up default token limits from the capability catalog.
+     * When unset, the session's configured model ID is used.
+     * This is useful for fine-tuned models that share the same limits as a base model.
+     */
+    modelLimitsId?: string;
 }
 
 /**
