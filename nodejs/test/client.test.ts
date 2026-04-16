@@ -98,6 +98,67 @@ describe("CopilotClient", () => {
         spy.mockRestore();
     });
 
+    it("forwards provider headers in session.create request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            provider: {
+                baseUrl: "https://example.com/provider",
+                headers: { Authorization: "Bearer provider-token" },
+            },
+        });
+
+        const payload = spy.mock.calls.find(([method]) => method === "session.create")![1] as any;
+        expect(payload.provider).toEqual(
+            expect.objectContaining({
+                baseUrl: "https://example.com/provider",
+                headers: { Authorization: "Bearer provider-token" },
+            })
+        );
+        spy.mockRestore();
+    });
+
+    it("forwards provider headers in session.resume request", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            provider: {
+                baseUrl: "https://example.com/provider",
+                headers: { Authorization: "Bearer resume-token" },
+            },
+        });
+
+        const payload = spy.mock.calls.find(([method]) => method === "session.resume")![1] as any;
+        expect(payload.provider).toEqual(
+            expect.objectContaining({
+                baseUrl: "https://example.com/provider",
+                headers: { Authorization: "Bearer resume-token" },
+            })
+        );
+        spy.mockRestore();
+    });
+
     it("does not request permissions on session.resume when using the default joinSession handler", async () => {
         const client = new CopilotClient();
         await client.start();
@@ -716,6 +777,33 @@ describe("CopilotClient", () => {
                 "session.send",
                 expect.objectContaining({
                     traceparent: "00-fedcba0987654321fedcba0987654321-abcdef1234567890-01",
+                })
+            );
+        });
+
+        it("forwards requestHeaders in session.send request", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            const spy = vi
+                .spyOn((client as any).connection!, "sendRequest")
+                .mockImplementation(async (method: string) => {
+                    if (method === "session.send") return { messageId: "m1" };
+                    throw new Error(`Unexpected method: ${method}`);
+                });
+
+            await session.send({
+                prompt: "hello",
+                requestHeaders: { Authorization: "Bearer turn-token" },
+            });
+
+            expect(spy).toHaveBeenCalledWith(
+                "session.send",
+                expect.objectContaining({
+                    prompt: "hello",
+                    requestHeaders: { Authorization: "Bearer turn-token" },
                 })
             );
         });

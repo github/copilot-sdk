@@ -2124,6 +2124,8 @@ class CopilotClient:
             wire_provider["wireApi"] = provider["wire_api"]
         if "bearer_token" in provider:
             wire_provider["bearerToken"] = provider["bearer_token"]
+        if "headers" in provider:
+            wire_provider["headers"] = provider["headers"]
         if "azure" in provider:
             azure = provider["azure"]
             wire_azure: dict[str, Any] = {}

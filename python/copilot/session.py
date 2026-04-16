@@ -825,6 +825,7 @@ class ProviderConfig(TypedDict, total=False):
     # Takes precedence over api_key when both are set.
     bearer_token: str
     azure: AzureProviderOptions  # Azure-specific options
+    headers: dict[str, str]
 
 
 class SessionConfig(TypedDict, total=False):
@@ -1066,6 +1067,7 @@ class CopilotSession:
         *,
         attachments: list[Attachment] | None = None,
         mode: Literal["enqueue", "immediate"] | None = None,
+        request_headers: dict[str, str] | None = None,
     ) -> str:
         """
         Send a message to this session.
@@ -1078,6 +1080,7 @@ class CopilotSession:
             prompt: The message text to send.
             attachments: Optional file, directory, or selection attachments.
             mode: Message delivery mode (``"enqueue"`` or ``"immediate"``).
+            request_headers: Optional per-turn HTTP headers for outbound model requests.
 
         Returns:
             The message ID assigned by the server, which can be used to correlate events.
@@ -1099,6 +1102,8 @@ class CopilotSession:
             params["attachments"] = attachments
         if mode is not None:
             params["mode"] = mode
+        if request_headers is not None:
+            params["requestHeaders"] = request_headers
         params.update(get_trace_context())
 
         response = await self._client.request("session.send", params)
@@ -1110,6 +1115,7 @@ class CopilotSession:
         *,
         attachments: list[Attachment] | None = None,
         mode: Literal["enqueue", "immediate"] | None = None,
+        request_headers: dict[str, str] | None = None,
         timeout: float = 60.0,
     ) -> SessionEvent | None:
         """
@@ -1125,6 +1131,7 @@ class CopilotSession:
             prompt: The message text to send.
             attachments: Optional file, directory, or selection attachments.
             mode: Message delivery mode (``"enqueue"`` or ``"immediate"``).
+            request_headers: Optional per-turn HTTP headers for outbound model requests.
             timeout: Timeout in seconds (default: 60). Controls how long to wait;
                 does not abort in-flight agent work.
 
@@ -1160,7 +1167,12 @@ class CopilotSession:
 
         unsubscribe = self.on(handler)
         try:
-            await self.send(prompt, attachments=attachments, mode=mode)
+            await self.send(
+                prompt,
+                attachments=attachments,
+                mode=mode,
+                request_headers=request_headers,
+            )
             await asyncio.wait_for(idle_event.wait(), timeout=timeout)
             if error_event:
                 raise error_event

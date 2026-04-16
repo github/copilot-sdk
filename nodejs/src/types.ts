@@ -1403,6 +1403,11 @@ export interface ProviderConfig {
          */
         apiVersion?: string;
     };
+
+    /**
+     * Custom HTTP headers to include in outbound provider requests.
+     */
+    headers?: Record<string, string>;
 }
 
 /**
@@ -1452,6 +1457,11 @@ export interface MessageOptions {
      * - "immediate": Send immediately
      */
     mode?: "enqueue" | "immediate";
+
+    /**
+     * Custom HTTP headers to include in outbound model requests for this turn.
+     */
+    requestHeaders?: Record<string, string>;
 }
 
 /**

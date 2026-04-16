@@ -445,6 +445,103 @@ class TestSessionConfigForwarding:
             await client.force_stop()
 
     @pytest.mark.asyncio
+    async def test_create_session_forwards_provider_headers(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.create":
+                    return {"sessionId": params["sessionId"]}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                provider={
+                    "base_url": "https://example.com/provider",
+                    "headers": {"Authorization": "Bearer provider-token"},
+                },
+            )
+
+            provider = captured["session.create"]["provider"]
+            assert provider["baseUrl"] == "https://example.com/provider"
+            assert provider["headers"] == {"Authorization": "Bearer provider-token"}
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_resume_session_forwards_provider_headers(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all
+            )
+
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.resume":
+                    return {"sessionId": session.session_id}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                provider={
+                    "base_url": "https://example.com/provider",
+                    "headers": {"Authorization": "Bearer resume-token"},
+                },
+            )
+
+            provider = captured["session.resume"]["provider"]
+            assert provider["baseUrl"] == "https://example.com/provider"
+            assert provider["headers"] == {"Authorization": "Bearer resume-token"}
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_session_send_forwards_request_headers(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+
+        try:
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all
+            )
+
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.send":
+                    return {"messageId": "msg-1"}
+                return await original_request(method, params)
+
+            client._client.request = mock_request
+            await session.send(
+                "hello",
+                request_headers={"Authorization": "Bearer turn-token"},
+            )
+
+            assert captured["session.send"]["prompt"] == "hello"
+            assert captured["session.send"]["requestHeaders"] == {
+                "Authorization": "Bearer turn-token"
+            }
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
     async def test_create_session_forwards_agent(self):
         client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
         await client.start()

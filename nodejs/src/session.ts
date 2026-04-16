@@ -184,6 +184,7 @@ export class CopilotSession {
             prompt: options.prompt,
             attachments: options.attachments,
             mode: options.mode,
+            requestHeaders: options.requestHeaders,
         });
 
         return (response as { messageId: string }).messageId;

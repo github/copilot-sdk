@@ -783,6 +783,8 @@ type ProviderConfig struct {
 	BearerToken string `json:"bearerToken,omitempty"`
 	// Azure contains Azure-specific options
 	Azure *AzureProviderOptions `json:"azure,omitempty"`
+	// Headers are custom HTTP headers included in outbound provider requests.
+	Headers map[string]string `json:"headers,omitempty"`
 }
 
 // AzureProviderOptions contains Azure-specific provider configuration
@@ -807,6 +809,8 @@ type MessageOptions struct {
 	Attachments []Attachment
 	// Mode is the message delivery mode (default: "enqueue")
 	Mode string
+	// RequestHeaders are custom per-turn HTTP headers for outbound model requests.
+	RequestHeaders map[string]string
 }
 
 // SessionEventHandler is a callback for session events
@@ -1142,12 +1146,13 @@ type sessionAbortRequest struct {
 }
 
 type sessionSendRequest struct {
-	SessionID   string       `json:"sessionId"`
-	Prompt      string       `json:"prompt"`
-	Attachments []Attachment `json:"attachments,omitempty"`
-	Mode        string       `json:"mode,omitempty"`
-	Traceparent string       `json:"traceparent,omitempty"`
-	Tracestate  string       `json:"tracestate,omitempty"`
+	SessionID      string            `json:"sessionId"`
+	Prompt         string            `json:"prompt"`
+	Attachments    []Attachment      `json:"attachments,omitempty"`
+	Mode           string            `json:"mode,omitempty"`
+	Traceparent    string            `json:"traceparent,omitempty"`
+	Tracestate     string            `json:"tracestate,omitempty"`
+	RequestHeaders map[string]string `json:"requestHeaders,omitempty"`
 }
 
 // sessionSendResponse is the response from session.send
