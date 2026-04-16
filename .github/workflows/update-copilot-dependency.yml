@@ -99,7 +99,8 @@ jobs:
           - Formatted generated code"
           git push origin "$BRANCH" --force-with-lease
 
-          if gh pr view "$BRANCH" >/dev/null 2>&1; then
+          PR_STATE="$(gh pr view "$BRANCH" --json state --jq '.state' 2>/dev/null || echo "")"
+          if [ "$PR_STATE" = "OPEN" ]; then
             if [ "$(gh pr view "$BRANCH" --json isDraft --jq '.isDraft')" = "false" ]; then
               gh pr ready "$BRANCH" --undo
               echo "Pull request for branch '$BRANCH' already existed and was moved back to draft after updating the branch."
