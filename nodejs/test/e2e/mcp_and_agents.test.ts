@@ -6,12 +6,7 @@ import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import type {
-    CustomAgentConfig,
-    DefaultAgentConfig,
-    MCPStdioServerConfig,
-    MCPServerConfig,
-} from "../../src/index.js";
+import type { CustomAgentConfig, MCPStdioServerConfig, MCPServerConfig } from "../../src/index.js";
 import { approveAll, defineTool } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
@@ -332,9 +327,7 @@ describe("MCP Servers and Custom Agents", async () => {
             // The real assertion: verify the runtime excluded the tool from the CAPI request
             const exchanges = await openAiEndpoint.getExchanges();
             const toolNames = exchanges.flatMap((e) =>
-                (e.request.tools ?? []).map((t) =>
-                    "function" in t ? t.function.name : "",
-                ),
+                (e.request.tools ?? []).map((t) => ("function" in t ? t.function.name : ""))
             );
             expect(toolNames).not.toContain("secret_tool");
 

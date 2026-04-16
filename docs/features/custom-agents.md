@@ -840,7 +840,7 @@ session = await client.create_session(
 ```go
 session, err := client.CreateSession(ctx, &copilot.SessionConfig{
     Tools: []copilot.Tool{heavyTool},
-    defaultAgent: &copilot.DefaultAgentConfig{
+    DefaultAgent: &copilot.DefaultAgentConfig{
         ExcludedTools: []string{"analyze-codebase"},
     },
     CustomAgents: []copilot.CustomAgentConfig{
@@ -863,7 +863,7 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 var session = await client.CreateSessionAsync(new SessionConfig
 {
     Tools = [analyzeCodebaseTool],
-    defaultAgent = new DefaultAgentConfig
+    DefaultAgent = new DefaultAgentConfig
     {
         ExcludedTools = ["analyze-codebase"],
     },
