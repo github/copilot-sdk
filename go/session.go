@@ -132,12 +132,13 @@ func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string)
 func (s *Session) Send(ctx context.Context, options MessageOptions) (string, error) {
 	traceparent, tracestate := getTraceContext(ctx)
 	req := sessionSendRequest{
-		SessionID:   s.SessionID,
-		Prompt:      options.Prompt,
-		Attachments: options.Attachments,
-		Mode:        options.Mode,
-		Traceparent: traceparent,
-		Tracestate:  tracestate,
+		SessionID:      s.SessionID,
+		Prompt:         options.Prompt,
+		Attachments:    options.Attachments,
+		Mode:           options.Mode,
+		Traceparent:    traceparent,
+		Tracestate:     tracestate,
+		RequestHeaders: options.RequestHeaders,
 	}
 
 	result, err := s.client.Request("session.send", req)

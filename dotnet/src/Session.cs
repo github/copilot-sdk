@@ -192,7 +192,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
             Attachments = options.Attachments,
             Mode = options.Mode,
             Traceparent = traceparent,
-            Tracestate = tracestate
+            Tracestate = tracestate,
+            RequestHeaders = options.RequestHeaders,
         };
 
         var response = await InvokeRpcAsync<SendMessageResponse>(
@@ -1223,6 +1224,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         public string? Mode { get; init; }
         public string? Traceparent { get; init; }
         public string? Tracestate { get; init; }
+        public IDictionary<string, string>? RequestHeaders { get; init; }
     }
 
     internal record SendMessageResponse

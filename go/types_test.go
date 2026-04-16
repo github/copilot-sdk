@@ -91,3 +91,60 @@ func TestPermissionRequestResult_JSONSerialize(t *testing.T) {
 		t.Errorf("expected %s, got %s", expected, string(data))
 	}
 }
+
+func TestProviderConfig_JSONIncludesHeaders(t *testing.T) {
+	config := ProviderConfig{
+		BaseURL: "https://example.com/provider",
+		Headers: map[string]string{"Authorization": "Bearer provider-token"},
+	}
+
+	data, err := json.Marshal(config)
+	if err != nil {
+		t.Fatalf("failed to marshal provider config: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal provider config: %v", err)
+	}
+
+	if decoded["baseUrl"] != "https://example.com/provider" {
+		t.Fatalf("expected baseUrl to round-trip, got %v", decoded["baseUrl"])
+	}
+	headers, ok := decoded["headers"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected headers object, got %T", decoded["headers"])
+	}
+	if headers["Authorization"] != "Bearer provider-token" {
+		t.Fatalf("expected Authorization header, got %v", headers["Authorization"])
+	}
+}
+
+func TestSessionSendRequest_JSONIncludesRequestHeaders(t *testing.T) {
+	req := sessionSendRequest{
+		SessionID:      "session-1",
+		Prompt:         "hello",
+		RequestHeaders: map[string]string{"Authorization": "Bearer turn-token"},
+	}
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("failed to marshal session send request: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal session send request: %v", err)
+	}
+
+	if decoded["prompt"] != "hello" {
+		t.Fatalf("expected prompt to round-trip, got %v", decoded["prompt"])
+	}
+	headers, ok := decoded["requestHeaders"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected requestHeaders object, got %T", decoded["requestHeaders"])
+	}
+	if headers["Authorization"] != "Bearer turn-token" {
+		t.Fatalf("expected Authorization header, got %v", headers["Authorization"])
+	}
+}

@@ -1483,6 +1483,12 @@ public class ProviderConfig
     /// </summary>
     [JsonPropertyName("azure")]
     public AzureOptions? Azure { get; set; }
+
+    /// <summary>
+    /// Custom HTTP headers to include in outbound provider requests.
+    /// </summary>
+    [JsonPropertyName("headers")]
+    public IDictionary<string, string>? Headers { get; set; }
 }
 
 /// <summary>
@@ -2157,6 +2163,9 @@ public class MessageOptions
         Attachments = other.Attachments is not null ? [.. other.Attachments] : null;
         Mode = other.Mode;
         Prompt = other.Prompt;
+        RequestHeaders = other.RequestHeaders is not null
+            ? new Dictionary<string, string>(other.RequestHeaders)
+            : null;
     }
 
     /// <summary>
@@ -2171,6 +2180,10 @@ public class MessageOptions
     /// Interaction mode for the message (e.g., "plan", "edit").
     /// </summary>
     public string? Mode { get; set; }
+    /// <summary>
+    /// Custom per-turn HTTP headers for outbound model requests.
+    /// </summary>
+    public IDictionary<string, string>? RequestHeaders { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="MessageOptions"/> instance.
