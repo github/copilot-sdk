@@ -3921,18 +3921,49 @@ class ServerAccountApi:
         return AccountGetQuotaResult.from_dict(await self._client.request("account.getQuota", {}, **_timeout_kwargs(timeout)))
 
 
+class ServerMcpConfigApi:
+    def __init__(self, client: "JsonRpcClient"):
+        self._client = client
+
+    async def list(self, *, timeout: float | None = None) -> MCPConfigList:
+        return MCPConfigList.from_dict(await self._client.request("mcp.config.list", {}, **_timeout_kwargs(timeout)))
+
+    async def add(self, params: MCPConfigAddRequest, *, timeout: float | None = None) -> None:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        await self._client.request("mcp.config.add", params_dict, **_timeout_kwargs(timeout))
+
+    async def update(self, params: MCPConfigUpdateRequest, *, timeout: float | None = None) -> None:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        await self._client.request("mcp.config.update", params_dict, **_timeout_kwargs(timeout))
+
+    async def remove(self, params: MCPConfigRemoveRequest, *, timeout: float | None = None) -> None:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        await self._client.request("mcp.config.remove", params_dict, **_timeout_kwargs(timeout))
+
+
 class ServerMcpApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
+        self.config = ServerMcpConfigApi(client)
 
     async def discover(self, params: MCPDiscoverRequest, *, timeout: float | None = None) -> MCPDiscoverResult:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
         return MCPDiscoverResult.from_dict(await self._client.request("mcp.discover", params_dict, **_timeout_kwargs(timeout)))
 
 
+class ServerSkillsConfigApi:
+    def __init__(self, client: "JsonRpcClient"):
+        self._client = client
+
+    async def set_disabled_skills(self, params: SkillsConfigSetDisabledSkillsRequest, *, timeout: float | None = None) -> None:
+        params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
+        await self._client.request("skills.config.setDisabledSkills", params_dict, **_timeout_kwargs(timeout))
+
+
 class ServerSkillsApi:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
+        self.config = ServerSkillsConfigApi(client)
 
     async def discover(self, params: SkillsDiscoverRequest, *, timeout: float | None = None) -> ServerSkillList:
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}

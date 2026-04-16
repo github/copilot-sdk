@@ -1383,6 +1383,60 @@ func (a *ServerMcpApi) Discover(ctx context.Context, params *MCPDiscoverRequest)
 	return &result, nil
 }
 
+type ServerMcpConfigApi serverApi
+
+func (a *ServerMcpConfigApi) List(ctx context.Context) (*MCPConfigList, error) {
+	raw, err := a.client.Request("mcp.config.list", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPConfigList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *ServerMcpConfigApi) Add(ctx context.Context, params *MCPConfigAddRequest) (*MCPConfigAddResult, error) {
+	raw, err := a.client.Request("mcp.config.add", params)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPConfigAddResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *ServerMcpConfigApi) Update(ctx context.Context, params *MCPConfigUpdateRequest) (*MCPConfigUpdateResult, error) {
+	raw, err := a.client.Request("mcp.config.update", params)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPConfigUpdateResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (a *ServerMcpConfigApi) Remove(ctx context.Context, params *MCPConfigRemoveRequest) (*MCPConfigRemoveResult, error) {
+	raw, err := a.client.Request("mcp.config.remove", params)
+	if err != nil {
+		return nil, err
+	}
+	var result MCPConfigRemoveResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (s *ServerMcpApi) Config() *ServerMcpConfigApi {
+	return (*ServerMcpConfigApi)(s)
+}
+
 type ServerSkillsApi serverApi
 
 func (a *ServerSkillsApi) Discover(ctx context.Context, params *SkillsDiscoverRequest) (*ServerSkillList, error) {
@@ -1395,6 +1449,24 @@ func (a *ServerSkillsApi) Discover(ctx context.Context, params *SkillsDiscoverRe
 		return nil, err
 	}
 	return &result, nil
+}
+
+type ServerSkillsConfigApi serverApi
+
+func (a *ServerSkillsConfigApi) SetDisabledSkills(ctx context.Context, params *SkillsConfigSetDisabledSkillsRequest) (*SkillsConfigSetDisabledSkillsResult, error) {
+	raw, err := a.client.Request("skills.config.setDisabledSkills", params)
+	if err != nil {
+		return nil, err
+	}
+	var result SkillsConfigSetDisabledSkillsResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (s *ServerSkillsApi) Config() *ServerSkillsConfigApi {
+	return (*ServerSkillsConfigApi)(s)
 }
 
 type ServerSessionFsApi serverApi
