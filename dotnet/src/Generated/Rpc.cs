@@ -90,7 +90,7 @@ public sealed class ModelCapabilitiesLimits
     /// <summary>Maximum total context window size in tokens.</summary>
     [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("max_context_window_tokens")]
-    public long MaxContextWindowTokens { get; set; }
+    public long? MaxContextWindowTokens { get; set; }
 
     /// <summary>Vision-specific limits.</summary>
     [JsonPropertyName("vision")]
@@ -102,11 +102,11 @@ public sealed class ModelCapabilities
 {
     /// <summary>Feature flags indicating what the model supports.</summary>
     [JsonPropertyName("supports")]
-    public ModelCapabilitiesSupports Supports { get => field ??= new(); set; }
+    public ModelCapabilitiesSupports? Supports { get; set; }
 
     /// <summary>Token limits for prompts, outputs, and context window.</summary>
     [JsonPropertyName("limits")]
-    public ModelCapabilitiesLimits Limits { get => field ??= new(); set; }
+    public ModelCapabilitiesLimits? Limits { get; set; }
 }
 
 /// <summary>Policy state (if applicable).</summary>
@@ -282,6 +282,109 @@ internal sealed class McpDiscoverRequest
     /// <summary>Working directory used as context for discovery (e.g., plugin resolution).</summary>
     [JsonPropertyName("workingDirectory")]
     public string? WorkingDirectory { get; set; }
+}
+
+/// <summary>RPC data type for McpConfigList operations.</summary>
+public sealed class McpConfigList
+{
+    /// <summary>All MCP servers from user config, keyed by name.</summary>
+    [JsonPropertyName("servers")]
+    public IDictionary<string, object> Servers { get => field ??= new Dictionary<string, object>(); set; }
+}
+
+/// <summary>RPC data type for McpConfigAdd operations.</summary>
+internal sealed class McpConfigAddRequest
+{
+    /// <summary>Unique name for the MCP server.</summary>
+    [RegularExpression("^[0-9a-zA-Z_.@-]+(\\/[0-9a-zA-Z_.@-]+)*$")]
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>MCP server configuration (local/stdio or remote/http).</summary>
+    [JsonPropertyName("config")]
+    public object Config { get; set; } = null!;
+}
+
+/// <summary>RPC data type for McpConfigUpdate operations.</summary>
+internal sealed class McpConfigUpdateRequest
+{
+    /// <summary>Name of the MCP server to update.</summary>
+    [RegularExpression("^[0-9a-zA-Z_.@-]+(\\/[0-9a-zA-Z_.@-]+)*$")]
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>MCP server configuration (local/stdio or remote/http).</summary>
+    [JsonPropertyName("config")]
+    public object Config { get; set; } = null!;
+}
+
+/// <summary>RPC data type for McpConfigRemove operations.</summary>
+internal sealed class McpConfigRemoveRequest
+{
+    /// <summary>Name of the MCP server to remove.</summary>
+    [RegularExpression("^[0-9a-zA-Z_.@-]+(\\/[0-9a-zA-Z_.@-]+)*$")]
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+}
+
+/// <summary>RPC data type for ServerSkill operations.</summary>
+public sealed class ServerSkill
+{
+    /// <summary>Unique identifier for the skill.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Description of what the skill does.</summary>
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>Source location type (e.g., project, personal-copilot, plugin, builtin).</summary>
+    [JsonPropertyName("source")]
+    public string Source { get; set; } = string.Empty;
+
+    /// <summary>Whether the skill can be invoked by the user as a slash command.</summary>
+    [JsonPropertyName("userInvocable")]
+    public bool UserInvocable { get; set; }
+
+    /// <summary>Whether the skill is currently enabled (based on global config).</summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+
+    /// <summary>Absolute path to the skill file.</summary>
+    [JsonPropertyName("path")]
+    public string? Path { get; set; }
+
+    /// <summary>The project path this skill belongs to (only for project/inherited skills).</summary>
+    [JsonPropertyName("projectPath")]
+    public string? ProjectPath { get; set; }
+}
+
+/// <summary>RPC data type for ServerSkillList operations.</summary>
+public sealed class ServerSkillList
+{
+    /// <summary>All discovered skills across all sources.</summary>
+    [JsonPropertyName("skills")]
+    public IList<ServerSkill> Skills { get => field ??= []; set; }
+}
+
+/// <summary>RPC data type for SkillsDiscover operations.</summary>
+internal sealed class SkillsDiscoverRequest
+{
+    /// <summary>Optional list of project directory paths to scan for project-scoped skills.</summary>
+    [JsonPropertyName("projectPaths")]
+    public IList<string>? ProjectPaths { get; set; }
+
+    /// <summary>Optional list of additional skill directory paths to include.</summary>
+    [JsonPropertyName("skillDirectories")]
+    public IList<string>? SkillDirectories { get; set; }
+}
+
+/// <summary>RPC data type for SkillsConfigSetDisabledSkills operations.</summary>
+internal sealed class SkillsConfigSetDisabledSkillsRequest
+{
+    /// <summary>List of skill names to disable.</summary>
+    [JsonPropertyName("disabledSkills")]
+    public IList<string> DisabledSkills { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for SessionFsSetProvider operations.</summary>
@@ -2036,6 +2139,7 @@ public sealed class ServerRpc
         Tools = new ServerToolsApi(rpc);
         Account = new ServerAccountApi(rpc);
         Mcp = new ServerMcpApi(rpc);
+        Skills = new ServerSkillsApi(rpc);
         SessionFs = new ServerSessionFsApi(rpc);
         Sessions = new ServerSessionsApi(rpc);
     }
@@ -2058,6 +2162,9 @@ public sealed class ServerRpc
 
     /// <summary>Mcp APIs.</summary>
     public ServerMcpApi Mcp { get; }
+
+    /// <summary>Skills APIs.</summary>
+    public ServerSkillsApi Skills { get; }
 
     /// <summary>SessionFs APIs.</summary>
     public ServerSessionFsApi SessionFs { get; }
@@ -2126,6 +2233,7 @@ public sealed class ServerMcpApi
     internal ServerMcpApi(JsonRpc rpc)
     {
         _rpc = rpc;
+        Config = new ServerMcpConfigApi(rpc);
     }
 
     /// <summary>Calls "mcp.discover".</summary>
@@ -2133,6 +2241,87 @@ public sealed class ServerMcpApi
     {
         var request = new McpDiscoverRequest { WorkingDirectory = workingDirectory };
         return await CopilotClient.InvokeRpcAsync<McpDiscoverResult>(_rpc, "mcp.discover", [request], cancellationToken);
+    }
+
+    /// <summary>Config APIs.</summary>
+    public ServerMcpConfigApi Config { get; }
+}
+
+/// <summary>Provides server-scoped McpConfig APIs.</summary>
+public sealed class ServerMcpConfigApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerMcpConfigApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Calls "mcp.config.list".</summary>
+    public async Task<McpConfigList> ListAsync(CancellationToken cancellationToken = default)
+    {
+        return await CopilotClient.InvokeRpcAsync<McpConfigList>(_rpc, "mcp.config.list", [], cancellationToken);
+    }
+
+    /// <summary>Calls "mcp.config.add".</summary>
+    public async Task AddAsync(string name, object config, CancellationToken cancellationToken = default)
+    {
+        var request = new McpConfigAddRequest { Name = name, Config = config };
+        await CopilotClient.InvokeRpcAsync(_rpc, "mcp.config.add", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "mcp.config.update".</summary>
+    public async Task UpdateAsync(string name, object config, CancellationToken cancellationToken = default)
+    {
+        var request = new McpConfigUpdateRequest { Name = name, Config = config };
+        await CopilotClient.InvokeRpcAsync(_rpc, "mcp.config.update", [request], cancellationToken);
+    }
+
+    /// <summary>Calls "mcp.config.remove".</summary>
+    public async Task RemoveAsync(string name, CancellationToken cancellationToken = default)
+    {
+        var request = new McpConfigRemoveRequest { Name = name };
+        await CopilotClient.InvokeRpcAsync(_rpc, "mcp.config.remove", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides server-scoped Skills APIs.</summary>
+public sealed class ServerSkillsApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerSkillsApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+        Config = new ServerSkillsConfigApi(rpc);
+    }
+
+    /// <summary>Calls "skills.discover".</summary>
+    public async Task<ServerSkillList> DiscoverAsync(IList<string>? projectPaths = null, IList<string>? skillDirectories = null, CancellationToken cancellationToken = default)
+    {
+        var request = new SkillsDiscoverRequest { ProjectPaths = projectPaths, SkillDirectories = skillDirectories };
+        return await CopilotClient.InvokeRpcAsync<ServerSkillList>(_rpc, "skills.discover", [request], cancellationToken);
+    }
+
+    /// <summary>Config APIs.</summary>
+    public ServerSkillsConfigApi Config { get; }
+}
+
+/// <summary>Provides server-scoped SkillsConfig APIs.</summary>
+public sealed class ServerSkillsConfigApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerSkillsConfigApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Calls "skills.config.setDisabledSkills".</summary>
+    public async Task SetDisabledSkillsAsync(IList<string> disabledSkills, CancellationToken cancellationToken = default)
+    {
+        var request = new SkillsConfigSetDisabledSkillsRequest { DisabledSkills = disabledSkills };
+        await CopilotClient.InvokeRpcAsync(_rpc, "skills.config.setDisabledSkills", [request], cancellationToken);
     }
 }
 
@@ -2978,6 +3167,10 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(HistoryTruncateResult))]
 [JsonSerializable(typeof(LogRequest))]
 [JsonSerializable(typeof(LogResult))]
+[JsonSerializable(typeof(McpConfigAddRequest))]
+[JsonSerializable(typeof(McpConfigList))]
+[JsonSerializable(typeof(McpConfigRemoveRequest))]
+[JsonSerializable(typeof(McpConfigUpdateRequest))]
 [JsonSerializable(typeof(McpDisableRequest))]
 [JsonSerializable(typeof(McpDiscoverRequest))]
 [JsonSerializable(typeof(McpDiscoverResult))]
@@ -3009,6 +3202,8 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(PlanUpdateRequest))]
 [JsonSerializable(typeof(Plugin))]
 [JsonSerializable(typeof(PluginList))]
+[JsonSerializable(typeof(ServerSkill))]
+[JsonSerializable(typeof(ServerSkillList))]
 [JsonSerializable(typeof(SessionAgentDeselectRequest))]
 [JsonSerializable(typeof(SessionAgentGetCurrentRequest))]
 [JsonSerializable(typeof(SessionAgentListRequest))]
@@ -3056,7 +3251,9 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(ShellKillResult))]
 [JsonSerializable(typeof(Skill))]
 [JsonSerializable(typeof(SkillList))]
+[JsonSerializable(typeof(SkillsConfigSetDisabledSkillsRequest))]
 [JsonSerializable(typeof(SkillsDisableRequest))]
+[JsonSerializable(typeof(SkillsDiscoverRequest))]
 [JsonSerializable(typeof(SkillsEnableRequest))]
 [JsonSerializable(typeof(Tool))]
 [JsonSerializable(typeof(ToolList))]

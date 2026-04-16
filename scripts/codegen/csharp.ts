@@ -986,15 +986,18 @@ function emitServerRpcClasses(node: Record<string, unknown>, classes: string[]):
 
     // Per-group API classes
     for (const [groupName, groupNode] of groups) {
-        result.push(emitServerApiClass(`Server${toPascalCase(groupName)}Api`, groupNode as Record<string, unknown>, classes));
+        result.push(...emitServerApiClass(`Server${toPascalCase(groupName)}Api`, groupNode as Record<string, unknown>, classes));
     }
 
     return result;
 }
 
-function emitServerApiClass(className: string, node: Record<string, unknown>, classes: string[]): string {
+function emitServerApiClass(className: string, node: Record<string, unknown>, classes: string[]): string[] {
+    const parts: string[] = [];
     const lines: string[] = [];
     const displayName = className.replace(/^Server/, "").replace(/Api$/, "");
+    const subGroups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
+
     lines.push(`/// <summary>Provides server-scoped ${displayName} APIs.</summary>`);
     const groupExperimental = isNodeFullyExperimental(node);
     if (groupExperimental) {
@@ -1007,6 +1010,10 @@ function emitServerApiClass(className: string, node: Record<string, unknown>, cl
     lines.push(`    internal ${className}(JsonRpc rpc)`);
     lines.push(`    {`);
     lines.push(`        _rpc = rpc;`);
+    for (const [subGroupName] of subGroups) {
+        const subClassName = className.replace(/Api$/, "") + toPascalCase(subGroupName) + "Api";
+        lines.push(`        ${toPascalCase(subGroupName)} = new ${subClassName}(rpc);`);
+    }
     lines.push(`    }`);
 
     for (const [key, value] of Object.entries(node)) {
@@ -1014,8 +1021,22 @@ function emitServerApiClass(className: string, node: Record<string, unknown>, cl
         emitServerInstanceMethod(key, value, lines, classes, "    ", groupExperimental);
     }
 
+    for (const [subGroupName] of subGroups) {
+        const subClassName = className.replace(/Api$/, "") + toPascalCase(subGroupName) + "Api";
+        lines.push("");
+        lines.push(`    /// <summary>${toPascalCase(subGroupName)} APIs.</summary>`);
+        lines.push(`    public ${subClassName} ${toPascalCase(subGroupName)} { get; }`);
+    }
+
     lines.push(`}`);
-    return lines.join("\n");
+    parts.push(lines.join("\n"));
+
+    for (const [subGroupName, subGroupNode] of subGroups) {
+        const subClassName = className.replace(/Api$/, "") + toPascalCase(subGroupName) + "Api";
+        parts.push(...emitServerApiClass(subClassName, subGroupNode as Record<string, unknown>, classes));
+    }
+
+    return parts;
 }
 
 function emitServerInstanceMethod(
@@ -1116,7 +1137,7 @@ function emitSessionRpcClasses(node: Record<string, unknown>, classes: string[])
     result.push(srLines.join("\n"));
 
     for (const [groupName, groupNode] of groups) {
-        result.push(emitSessionApiClass(`${toPascalCase(groupName)}Api`, groupNode as Record<string, unknown>, classes));
+        result.push(...emitSessionApiClass(`${toPascalCase(groupName)}Api`, groupNode as Record<string, unknown>, classes));
     }
     return result;
 }
@@ -1181,19 +1202,42 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     }
 }
 
-function emitSessionApiClass(className: string, node: Record<string, unknown>, classes: string[]): string {
+function emitSessionApiClass(className: string, node: Record<string, unknown>, classes: string[]): string[] {
+    const parts: string[] = [];
     const displayName = className.replace(/Api$/, "");
     const groupExperimental = isNodeFullyExperimental(node);
     const experimentalAttr = groupExperimental ? `[Experimental(Diagnostics.Experimental)]\n` : "";
+    const subGroups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
+
     const lines = [`/// <summary>Provides session-scoped ${displayName} APIs.</summary>`, `${experimentalAttr}public sealed class ${className}`, `{`, `    private readonly JsonRpc _rpc;`, `    private readonly string _sessionId;`, ""];
-    lines.push(`    internal ${className}(JsonRpc rpc, string sessionId)`, `    {`, `        _rpc = rpc;`, `        _sessionId = sessionId;`, `    }`);
+    lines.push(`    internal ${className}(JsonRpc rpc, string sessionId)`, `    {`, `        _rpc = rpc;`, `        _sessionId = sessionId;`);
+    for (const [subGroupName] of subGroups) {
+        const subClassName = className.replace(/Api$/, "") + toPascalCase(subGroupName) + "Api";
+        lines.push(`        ${toPascalCase(subGroupName)} = new ${subClassName}(rpc, sessionId);`);
+    }
+    lines.push(`    }`);
 
     for (const [key, value] of Object.entries(node)) {
         if (!isRpcMethod(value)) continue;
         emitSessionMethod(key, value, lines, classes, "    ", groupExperimental);
     }
+
+    for (const [subGroupName] of subGroups) {
+        const subClassName = className.replace(/Api$/, "") + toPascalCase(subGroupName) + "Api";
+        lines.push("");
+        lines.push(`    /// <summary>${toPascalCase(subGroupName)} APIs.</summary>`);
+        lines.push(`    public ${subClassName} ${toPascalCase(subGroupName)} { get; }`);
+    }
+
     lines.push(`}`);
-    return lines.join("\n");
+    parts.push(lines.join("\n"));
+
+    for (const [subGroupName, subGroupNode] of subGroups) {
+        const subClassName = className.replace(/Api$/, "") + toPascalCase(subGroupName) + "Api";
+        parts.push(...emitSessionApiClass(subClassName, subGroupNode as Record<string, unknown>, classes));
+    }
+
+    return parts;
 }
 
 function collectClientGroups(node: Record<string, unknown>): Array<{ groupName: string; groupNode: Record<string, unknown>; methods: RpcMethod[] }> {

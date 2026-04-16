@@ -1126,6 +1126,44 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     await formatGoFile(outPath);
 }
 
+function emitApiGroup(
+    lines: string[],
+    apiName: string,
+    node: Record<string, unknown>,
+    isSession: boolean,
+    serviceName: string,
+    resolveType: (name: string) => string,
+    fieldNames: Map<string, Map<string, string>>,
+    groupExperimental: boolean
+): void {
+    const subGroups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
+
+    if (groupExperimental) {
+        lines.push(`// Experimental: ${apiName} contains experimental APIs that may change or be removed.`);
+    }
+    lines.push(`type ${apiName} ${serviceName}`);
+    lines.push(``);
+
+    for (const [key, value] of Object.entries(node)) {
+        if (!isRpcMethod(value)) continue;
+        emitMethod(lines, apiName, key, value, isSession, resolveType, fieldNames, groupExperimental);
+    }
+
+    for (const [subGroupName, subGroupNode] of subGroups) {
+        const subApiName = apiName.replace(/Api$/, "") + toPascalCase(subGroupName) + "Api";
+        const subGroupExperimental = isNodeFullyExperimental(subGroupNode as Record<string, unknown>);
+        emitApiGroup(lines, subApiName, subGroupNode as Record<string, unknown>, isSession, serviceName, resolveType, fieldNames, subGroupExperimental);
+
+        if (subGroupExperimental) {
+            lines.push(`// Experimental: ${toPascalCase(subGroupName)} returns experimental APIs that may change or be removed.`);
+        }
+        lines.push(`func (s *${apiName}) ${toPascalCase(subGroupName)}() *${subApiName} {`);
+        lines.push(`\treturn (*${subApiName})(s)`);
+        lines.push(`}`);
+        lines.push(``);
+    }
+}
+
 function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSession: boolean, resolveType: (name: string) => string, fieldNames: Map<string, Map<string, string>>): void {
     const groups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
     const topLevelMethods = Object.entries(node).filter(([, v]) => isRpcMethod(v));
@@ -1146,15 +1184,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
         const prefix = isSession ? "" : "Server";
         const apiName = prefix + toPascalCase(groupName) + apiSuffix;
         const groupExperimental = isNodeFullyExperimental(groupNode as Record<string, unknown>);
-        if (groupExperimental) {
-            lines.push(`// Experimental: ${apiName} contains experimental APIs that may change or be removed.`);
-        }
-        lines.push(`type ${apiName} ${serviceName}`);
-        lines.push(``);
-        for (const [key, value] of Object.entries(groupNode as Record<string, unknown>)) {
-            if (!isRpcMethod(value)) continue;
-            emitMethod(lines, apiName, key, value, isSession, resolveType, fieldNames, groupExperimental);
-        }
+        emitApiGroup(lines, apiName, groupNode as Record<string, unknown>, isSession, serviceName, resolveType, fieldNames, groupExperimental);
     }
 
     // Compute field name lengths for gofmt-compatible column alignment

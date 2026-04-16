@@ -158,7 +158,7 @@ export interface ModelCapabilities {
   /**
    * Feature flags indicating what the model supports
    */
-  supports: {
+  supports?: {
     /**
      * Whether this model supports vision/image input
      */
@@ -171,7 +171,7 @@ export interface ModelCapabilities {
   /**
    * Token limits for prompts, outputs, and context window
    */
-  limits: {
+  limits?: {
     /**
      * Maximum number of prompt/input tokens
      */
@@ -183,7 +183,7 @@ export interface ModelCapabilities {
     /**
      * Maximum total context window size in tokens
      */
-    max_context_window_tokens: number;
+    max_context_window_tokens?: number;
     /**
      * Vision-specific limits
      */
@@ -312,7 +312,10 @@ export interface McpConfigList {
            * Tools to include. Defaults to all tools if not specified.
            */
           tools?: string[];
-          type: "http" | "sse";
+          /**
+           * Remote transport type. Defaults to "http" when omitted.
+           */
+          type?: "http" | "sse";
           isDefaultServer?: boolean;
           filterMapping?:
             | {
@@ -370,7 +373,10 @@ export interface McpConfigAddRequest {
          * Tools to include. Defaults to all tools if not specified.
          */
         tools?: string[];
-        type: "http" | "sse";
+        /**
+         * Remote transport type. Defaults to "http" when omitted.
+         */
+        type?: "http" | "sse";
         isDefaultServer?: boolean;
         filterMapping?:
           | {
@@ -427,7 +433,10 @@ export interface McpConfigUpdateRequest {
          * Tools to include. Defaults to all tools if not specified.
          */
         tools?: string[];
-        type: "http" | "sse";
+        /**
+         * Remote transport type. Defaults to "http" when omitted.
+         */
+        type?: "http" | "sse";
         isDefaultServer?: boolean;
         filterMapping?:
           | {
@@ -484,6 +493,61 @@ export interface McpDiscoverRequest {
    * Working directory used as context for discovery (e.g., plugin resolution)
    */
   workingDirectory?: string;
+}
+
+export interface SkillsConfigSetDisabledSkillsRequest {
+  /**
+   * List of skill names to disable
+   */
+  disabledSkills: string[];
+}
+
+export interface ServerSkillList {
+  /**
+   * All discovered skills across all sources
+   */
+  skills: ServerSkill[];
+}
+export interface ServerSkill {
+  /**
+   * Unique identifier for the skill
+   */
+  name: string;
+  /**
+   * Description of what the skill does
+   */
+  description: string;
+  /**
+   * Source location type (e.g., project, personal-copilot, plugin, builtin)
+   */
+  source: string;
+  /**
+   * Whether the skill can be invoked by the user as a slash command
+   */
+  userInvocable: boolean;
+  /**
+   * Whether the skill is currently enabled (based on global config)
+   */
+  enabled: boolean;
+  /**
+   * Absolute path to the skill file
+   */
+  path?: string;
+  /**
+   * The project path this skill belongs to (only for project/inherited skills)
+   */
+  projectPath?: string;
+}
+
+export interface SkillsDiscoverRequest {
+  /**
+   * Optional list of project directory paths to scan for project-scoped skills
+   */
+  projectPaths?: string[];
+  /**
+   * Optional list of additional skill directory paths to include
+   */
+  skillDirectories?: string[];
 }
 
 export interface SessionFsSetProviderResult {
@@ -1604,6 +1668,14 @@ export function createServerRpc(connection: MessageConnection) {
             },
             discover: async (params: McpDiscoverRequest): Promise<McpDiscoverResult> =>
                 connection.sendRequest("mcp.discover", params),
+        },
+        skills: {
+            config: {
+                setDisabledSkills: async (params: SkillsConfigSetDisabledSkillsRequest): Promise<void> =>
+                    connection.sendRequest("skills.config.setDisabledSkills", params),
+            },
+            discover: async (params: SkillsDiscoverRequest): Promise<ServerSkillList> =>
+                connection.sendRequest("skills.discover", params),
         },
         sessionFs: {
             setProvider: async (params: SessionFsSetProviderRequest): Promise<SessionFsSetProviderResult> =>

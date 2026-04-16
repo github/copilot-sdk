@@ -1571,39 +1571,65 @@ def _patch_model_capabilities(data: dict) -> dict:
     console.log(`  ✓ ${outPath}`);
 }
 
+function emitPyApiGroup(
+    lines: string[],
+    apiName: string,
+    node: Record<string, unknown>,
+    isSession: boolean,
+    resolveType: (name: string) => string,
+    groupExperimental: boolean
+): void {
+    const subGroups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
+
+    // Emit sub-group classes first (Python needs definitions before use)
+    for (const [subGroupName, subGroupNode] of subGroups) {
+        const subApiName = apiName.replace(/Api$/, "") + toPascalCase(subGroupName) + "Api";
+        const subGroupExperimental = isNodeFullyExperimental(subGroupNode as Record<string, unknown>);
+        emitPyApiGroup(lines, subApiName, subGroupNode as Record<string, unknown>, isSession, resolveType, subGroupExperimental);
+    }
+
+    // Emit this class
+    if (groupExperimental) {
+        lines.push(`# Experimental: this API group is experimental and may change or be removed.`);
+    }
+    lines.push(`class ${apiName}:`);
+    if (isSession) {
+        lines.push(`    def __init__(self, client: "JsonRpcClient", session_id: str):`);
+        lines.push(`        self._client = client`);
+        lines.push(`        self._session_id = session_id`);
+        for (const [subGroupName] of subGroups) {
+            const subApiName = apiName.replace(/Api$/, "") + toPascalCase(subGroupName) + "Api";
+            lines.push(`        self.${toSnakeCase(subGroupName)} = ${subApiName}(client, session_id)`);
+        }
+    } else {
+        lines.push(`    def __init__(self, client: "JsonRpcClient"):`);
+        lines.push(`        self._client = client`);
+        for (const [subGroupName] of subGroups) {
+            const subApiName = apiName.replace(/Api$/, "") + toPascalCase(subGroupName) + "Api";
+            lines.push(`        self.${toSnakeCase(subGroupName)} = ${subApiName}(client)`);
+        }
+    }
+    lines.push(``);
+
+    for (const [key, value] of Object.entries(node)) {
+        if (!isRpcMethod(value)) continue;
+        emitMethod(lines, key, value, isSession, resolveType, groupExperimental);
+    }
+    lines.push(``);
+}
+
 function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSession: boolean, resolveType: (name: string) => string): void {
     const groups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
     const topLevelMethods = Object.entries(node).filter(([, v]) => isRpcMethod(v));
 
     const wrapperName = isSession ? "SessionRpc" : "ServerRpc";
 
-    // Emit API classes for groups
+    // Emit API classes for groups (recursively handles sub-groups)
     for (const [groupName, groupNode] of groups) {
         const prefix = isSession ? "" : "Server";
         const apiName = prefix + toPascalCase(groupName) + "Api";
         const groupExperimental = isNodeFullyExperimental(groupNode as Record<string, unknown>);
-        if (isSession) {
-            if (groupExperimental) {
-                lines.push(`# Experimental: this API group is experimental and may change or be removed.`);
-            }
-            lines.push(`class ${apiName}:`);
-            lines.push(`    def __init__(self, client: "JsonRpcClient", session_id: str):`);
-            lines.push(`        self._client = client`);
-            lines.push(`        self._session_id = session_id`);
-        } else {
-            if (groupExperimental) {
-                lines.push(`# Experimental: this API group is experimental and may change or be removed.`);
-            }
-            lines.push(`class ${apiName}:`);
-            lines.push(`    def __init__(self, client: "JsonRpcClient"):`);
-            lines.push(`        self._client = client`);
-        }
-        lines.push(``);
-        for (const [key, value] of Object.entries(groupNode as Record<string, unknown>)) {
-            if (!isRpcMethod(value)) continue;
-            emitMethod(lines, key, value, isSession, resolveType, groupExperimental);
-        }
-        lines.push(``);
+        emitPyApiGroup(lines, apiName, groupNode as Record<string, unknown>, isSession, resolveType, groupExperimental);
     }
 
     // Emit wrapper class
