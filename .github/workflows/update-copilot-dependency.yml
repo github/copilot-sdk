@@ -79,8 +79,9 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           if git rev-parse --verify "origin/$BRANCH" >/dev/null 2>&1; then
+            git fetch origin "$BRANCH"
             git checkout "$BRANCH"
-            git reset --hard HEAD
+            git reset --hard "origin/$BRANCH"
           else
             git checkout -b "$BRANCH"
           fi
