@@ -361,7 +361,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
             if (method.stability === "experimental") {
                 experimentalTypes.add(resultTypeName(method));
             }
-            if (method.deprecated) {
+            if (method.deprecated && !method.result?.$ref) {
                 deprecatedTypes.add(resultTypeName(method));
             }
         }
@@ -396,7 +396,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
                 if (method.stability === "experimental") {
                     experimentalTypes.add(paramsTypeName(method));
                 }
-                if (method.deprecated) {
+                if (method.deprecated && !method.params?.$ref) {
                     deprecatedTypes.add(paramsTypeName(method));
                 }
             }

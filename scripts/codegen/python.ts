@@ -1500,10 +1500,14 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     const deprecatedTypeNames = new Set<string>();
     for (const method of allMethods) {
         if (!method.deprecated) continue;
-        deprecatedTypeNames.add(pythonResultTypeName(method));
-        const paramsTypeName = pythonParamsTypeName(method);
-        if (rootDefinitions[paramsTypeName]) {
-            deprecatedTypeNames.add(paramsTypeName);
+        if (!method.result?.$ref) {
+            deprecatedTypeNames.add(pythonResultTypeName(method));
+        }
+        if (!method.params?.$ref) {
+            const paramsTypeName = pythonParamsTypeName(method);
+            if (rootDefinitions[paramsTypeName]) {
+                deprecatedTypeNames.add(paramsTypeName);
+            }
         }
     }
     for (const typeName of deprecatedTypeNames) {
