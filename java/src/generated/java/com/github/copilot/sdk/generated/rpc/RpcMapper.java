@@ -22,7 +22,7 @@ import javax.annotation.processing.Generated;
 final class RpcMapper {
 
     static final com.fasterxml.jackson.databind.ObjectMapper INSTANCE =
-        new com.fasterxml.jackson.databind.ObjectMapper();
+        com.github.copilot.sdk.JsonRpcClient.getObjectMapper();
 
     private RpcMapper() {}
 }

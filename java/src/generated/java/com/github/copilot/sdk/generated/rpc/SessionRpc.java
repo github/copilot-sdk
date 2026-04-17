@@ -93,6 +93,9 @@ public final class SessionRpc {
 
     /**
      * Invokes {@code session.log}.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
      * @since 1.0.0
      */
     public CompletableFuture<SessionLogResult> log(SessionLogParams params) {

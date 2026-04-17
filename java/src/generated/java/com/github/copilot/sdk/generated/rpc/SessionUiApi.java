@@ -31,6 +31,9 @@ public final class SessionUiApi {
 
     /**
      * Invokes {@code session.ui.elicitation}.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
      * @since 1.0.0
      */
     public CompletableFuture<SessionUiElicitationResult> elicitation(SessionUiElicitationParams params) {
@@ -41,6 +44,9 @@ public final class SessionUiApi {
 
     /**
      * Invokes {@code session.ui.handlePendingElicitation}.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
      * @since 1.0.0
      */
     public CompletableFuture<SessionUiHandlePendingElicitationResult> handlePendingElicitation(SessionUiHandlePendingElicitationParams params) {

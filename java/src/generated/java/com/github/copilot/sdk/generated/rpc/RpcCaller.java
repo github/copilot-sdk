@@ -14,12 +14,11 @@ import javax.annotation.processing.Generated;
  * Interface for invoking JSON-RPC methods with typed responses.
  * <p>
  * Implementations delegate to the underlying transport layer
- * (e.g., a {@code JsonRpcClient} instance). Use a method reference:
+ * (e.g., a {@code JsonRpcClient} instance). A method reference is typically the clearest
+ * way to adapt a generic {@code invoke} method to this interface:
  * <pre>{@code
  * RpcCaller caller = jsonRpcClient::invoke;
  * }</pre>
- * Note: because the {@code invoke} method has a type parameter, this interface cannot
- * be implemented using a lambda expression — use a method reference or anonymous class.
  *
  * @since 1.0.0
  */

@@ -39,6 +39,9 @@ public final class SessionWorkspaceApi {
 
     /**
      * Invokes {@code session.workspace.readFile}.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
      * @since 1.0.0
      */
     public CompletableFuture<SessionWorkspaceReadFileResult> readFile(SessionWorkspaceReadFileParams params) {
@@ -49,6 +52,9 @@ public final class SessionWorkspaceApi {
 
     /**
      * Invokes {@code session.workspace.createFile}.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
      * @since 1.0.0
      */
     public CompletableFuture<Void> createFile(SessionWorkspaceCreateFileParams params) {

@@ -39,6 +39,9 @@ public final class SessionModelApi {
 
     /**
      * Invokes {@code session.model.switchTo}.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
      * @since 1.0.0
      */
     public CompletableFuture<SessionModelSwitchToResult> switchTo(SessionModelSwitchToParams params) {

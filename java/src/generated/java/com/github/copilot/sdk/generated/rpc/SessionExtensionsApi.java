@@ -41,6 +41,9 @@ public final class SessionExtensionsApi {
 
     /**
      * Invokes {@code session.extensions.enable}.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -53,6 +56,9 @@ public final class SessionExtensionsApi {
 
     /**
      * Invokes {@code session.extensions.disable}.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
