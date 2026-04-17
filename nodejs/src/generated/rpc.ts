@@ -642,6 +642,22 @@ export interface PermissionRequestResult {
    */
   success: boolean;
 }
+/**
+ * Describes a filesystem error.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFsError".
+ */
+export interface SessionFsError {
+  /**
+   * Error classification
+   */
+  code: "ENOENT" | "UNKNOWN";
+  /**
+   * Free-form detail about the error, for logging/diagnostics
+   */
+  message?: string;
+}
 
 export interface PingResult {
   /**
@@ -1176,7 +1192,6 @@ export interface WorkspacesGetWorkspaceResult {
     mc_session_id?: string;
     mc_last_event_id?: string;
     session_sync_level?: "local" | "user" | "repo_and_user";
-    pr_create_sync_dismissed?: boolean;
     chronicle_sync_dismissed?: boolean;
   } | null;
 }
@@ -1767,6 +1782,20 @@ export interface SessionFsReadFileResult {
    * File content as UTF-8 string
    */
   content: string;
+  error?: SessionFsError1;
+}
+/**
+ * Describes a filesystem error.
+ */
+export interface SessionFsError1 {
+  /**
+   * Error classification
+   */
+  code: "ENOENT" | "UNKNOWN";
+  /**
+   * Free-form detail about the error, for logging/diagnostics
+   */
+  message?: string;
 }
 
 export interface SessionFsReadFileRequest {
@@ -1778,6 +1807,23 @@ export interface SessionFsReadFileRequest {
    * Path using SessionFs conventions
    */
   path: string;
+}
+
+export interface SessionFsWriteFileResult {
+  error?: SessionFsError2;
+}
+/**
+ * Describes a filesystem error.
+ */
+export interface SessionFsError2 {
+  /**
+   * Error classification
+   */
+  code: "ENOENT" | "UNKNOWN";
+  /**
+   * Free-form detail about the error, for logging/diagnostics
+   */
+  message?: string;
 }
 
 export interface SessionFsWriteFileRequest {
@@ -1797,6 +1843,23 @@ export interface SessionFsWriteFileRequest {
    * Optional POSIX-style mode for newly created files
    */
   mode?: number;
+}
+
+export interface SessionFsAppendFileResult {
+  error?: SessionFsError3;
+}
+/**
+ * Describes a filesystem error.
+ */
+export interface SessionFsError3 {
+  /**
+   * Error classification
+   */
+  code: "ENOENT" | "UNKNOWN";
+  /**
+   * Free-form detail about the error, for logging/diagnostics
+   */
+  message?: string;
 }
 
 export interface SessionFsAppendFileRequest {
@@ -1857,6 +1920,20 @@ export interface SessionFsStatResult {
    * ISO 8601 timestamp of creation
    */
   birthtime: string;
+  error?: SessionFsError4;
+}
+/**
+ * Describes a filesystem error.
+ */
+export interface SessionFsError4 {
+  /**
+   * Error classification
+   */
+  code: "ENOENT" | "UNKNOWN";
+  /**
+   * Free-form detail about the error, for logging/diagnostics
+   */
+  message?: string;
 }
 
 export interface SessionFsStatRequest {
@@ -1868,6 +1945,23 @@ export interface SessionFsStatRequest {
    * Path using SessionFs conventions
    */
   path: string;
+}
+
+export interface SessionFsMkdirResult {
+  error?: SessionFsError5;
+}
+/**
+ * Describes a filesystem error.
+ */
+export interface SessionFsError5 {
+  /**
+   * Error classification
+   */
+  code: "ENOENT" | "UNKNOWN";
+  /**
+   * Free-form detail about the error, for logging/diagnostics
+   */
+  message?: string;
 }
 
 export interface SessionFsMkdirRequest {
@@ -1894,6 +1988,20 @@ export interface SessionFsReaddirResult {
    * Entry names in the directory
    */
   entries: string[];
+  error?: SessionFsError6;
+}
+/**
+ * Describes a filesystem error.
+ */
+export interface SessionFsError6 {
+  /**
+   * Error classification
+   */
+  code: "ENOENT" | "UNKNOWN";
+  /**
+   * Free-form detail about the error, for logging/diagnostics
+   */
+  message?: string;
 }
 
 export interface SessionFsReaddirRequest {
@@ -1921,6 +2029,20 @@ export interface SessionFsReaddirWithTypesResult {
      */
     type: "file" | "directory";
   }[];
+  error?: SessionFsError7;
+}
+/**
+ * Describes a filesystem error.
+ */
+export interface SessionFsError7 {
+  /**
+   * Error classification
+   */
+  code: "ENOENT" | "UNKNOWN";
+  /**
+   * Free-form detail about the error, for logging/diagnostics
+   */
+  message?: string;
 }
 
 export interface SessionFsReaddirWithTypesRequest {
@@ -1932,6 +2054,23 @@ export interface SessionFsReaddirWithTypesRequest {
    * Path using SessionFs conventions
    */
   path: string;
+}
+
+export interface SessionFsRmResult {
+  error?: SessionFsError8;
+}
+/**
+ * Describes a filesystem error.
+ */
+export interface SessionFsError8 {
+  /**
+   * Error classification
+   */
+  code: "ENOENT" | "UNKNOWN";
+  /**
+   * Free-form detail about the error, for logging/diagnostics
+   */
+  message?: string;
 }
 
 export interface SessionFsRmRequest {
@@ -1951,6 +2090,23 @@ export interface SessionFsRmRequest {
    * Ignore errors if the path does not exist
    */
   force?: boolean;
+}
+
+export interface SessionFsRenameResult {
+  error?: SessionFsError9;
+}
+/**
+ * Describes a filesystem error.
+ */
+export interface SessionFsError9 {
+  /**
+   * Error classification
+   */
+  code: "ENOENT" | "UNKNOWN";
+  /**
+   * Free-form detail about the error, for logging/diagnostics
+   */
+  message?: string;
 }
 
 export interface SessionFsRenameRequest {
@@ -2324,6 +2480,22 @@ export interface $Defs_PermissionRequestResult {
    */
   success: boolean;
 }
+/**
+ * Describes a filesystem error.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "$defs_SessionFsError".
+ */
+export interface $Defs_SessionFsError {
+  /**
+   * Error classification
+   */
+  code: "ENOENT" | "UNKNOWN";
+  /**
+   * Free-form detail about the error, for logging/diagnostics
+   */
+  message?: string;
+}
 
 /** Create typed server-scoped RPC methods (no session required). */
 export function createServerRpc(connection: MessageConnection) {
@@ -2519,15 +2691,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
 /** Handler for `sessionFs` client session API methods. */
 export interface SessionFsHandler {
     readFile(params: SessionFsReadFileRequest): Promise<SessionFsReadFileResult>;
-    writeFile(params: SessionFsWriteFileRequest): Promise<void>;
-    appendFile(params: SessionFsAppendFileRequest): Promise<void>;
+    writeFile(params: SessionFsWriteFileRequest): Promise<SessionFsWriteFileResult>;
+    appendFile(params: SessionFsAppendFileRequest): Promise<SessionFsAppendFileResult>;
     exists(params: SessionFsExistsRequest): Promise<SessionFsExistsResult>;
     stat(params: SessionFsStatRequest): Promise<SessionFsStatResult>;
-    mkdir(params: SessionFsMkdirRequest): Promise<void>;
+    mkdir(params: SessionFsMkdirRequest): Promise<SessionFsMkdirResult>;
     readdir(params: SessionFsReaddirRequest): Promise<SessionFsReaddirResult>;
     readdirWithTypes(params: SessionFsReaddirWithTypesRequest): Promise<SessionFsReaddirWithTypesResult>;
-    rm(params: SessionFsRmRequest): Promise<void>;
-    rename(params: SessionFsRenameRequest): Promise<void>;
+    rm(params: SessionFsRmRequest): Promise<SessionFsRmResult>;
+    rename(params: SessionFsRenameRequest): Promise<SessionFsRenameResult>;
 }
 
 /** All client session API handler groups. */

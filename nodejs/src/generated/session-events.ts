@@ -21,10 +21,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.start";
       /**
        * Session initialization metadata including context and configuration
@@ -58,7 +54,39 @@ export type SessionEvent =
          * Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh")
          */
         reasoningEffort?: string;
-        context?: WorkingDirectoryContext;
+        /**
+         * Working directory and git context at session start
+         */
+        context?: {
+          /**
+           * Current working directory path
+           */
+          cwd: string;
+          /**
+           * Root directory of the git repository, resolved via git rev-parse
+           */
+          gitRoot?: string;
+          /**
+           * Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps)
+           */
+          repository?: string;
+          /**
+           * Hosting platform type of the repository (github or ado)
+           */
+          hostType?: "github" | "ado";
+          /**
+           * Current git branch name
+           */
+          branch?: string;
+          /**
+           * Head commit of current git branch at session start time
+           */
+          headCommit?: string;
+          /**
+           * Base commit of current git branch at session start time
+           */
+          baseCommit?: string;
+        };
         /**
          * Whether the session was already in use by another client at start time
          */
@@ -86,10 +114,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.resume";
       /**
        * Session resume metadata including current context and event count
@@ -111,7 +135,39 @@ export type SessionEvent =
          * Reasoning effort level used for model calls, if applicable (e.g. "low", "medium", "high", "xhigh")
          */
         reasoningEffort?: string;
-        context?: WorkingDirectoryContext1;
+        /**
+         * Updated working directory and git context at resume time
+         */
+        context?: {
+          /**
+           * Current working directory path
+           */
+          cwd: string;
+          /**
+           * Root directory of the git repository, resolved via git rev-parse
+           */
+          gitRoot?: string;
+          /**
+           * Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps)
+           */
+          repository?: string;
+          /**
+           * Hosting platform type of the repository (github or ado)
+           */
+          hostType?: "github" | "ado";
+          /**
+           * Current git branch name
+           */
+          branch?: string;
+          /**
+           * Head commit of current git branch at session start time
+           */
+          headCommit?: string;
+          /**
+           * Base commit of current git branch at session start time
+           */
+          baseCommit?: string;
+        };
         /**
          * Whether the session was already in use by another client at resume time
          */
@@ -139,10 +195,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.remote_steerable_changed";
       /**
        * Notifies Mission Control that the session's remote steering capability has changed
@@ -171,10 +223,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.error";
       /**
        * Error details for timeline display including message and optional diagnostic information
@@ -220,10 +268,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.idle";
       /**
        * Payload indicating the session is idle with no background agents in flight
@@ -249,10 +293,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.title_changed";
       /**
        * Session title change payload containing the new display title
@@ -276,10 +316,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.info";
       /**
        * Informational message for timeline display with categorization
@@ -316,10 +352,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.warning";
       /**
        * Warning message for timeline display with categorization
@@ -356,10 +388,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.model_change";
       /**
        * Model change details including previous and new model identifiers
@@ -400,10 +428,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.mode_changed";
       /**
        * Agent mode change details including previous and new modes
@@ -436,10 +460,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.plan_changed";
       /**
        * Plan file operation details indicating what changed
@@ -468,10 +488,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.workspace_file_changed";
       /**
        * Workspace file change details including path and operation type
@@ -504,10 +520,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.handoff";
       /**
        * Session handoff metadata including source, context, and repository information
@@ -573,10 +585,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.truncation";
       /**
        * Conversation truncation statistics including token counts and removed content metrics
@@ -630,10 +638,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.snapshot_rewind";
       /**
        * Session rewind details including target event and count of removed events
@@ -666,10 +670,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.shutdown";
       /**
        * Session termination metrics including usage statistics, code changes, and shutdown reason
@@ -796,12 +796,40 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.context_changed";
-      data: WorkingDirectoryContext2;
+      /**
+       * Updated working directory and git context after the change
+       */
+      data: {
+        /**
+         * Current working directory path
+         */
+        cwd: string;
+        /**
+         * Root directory of the git repository, resolved via git rev-parse
+         */
+        gitRoot?: string;
+        /**
+         * Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps)
+         */
+        repository?: string;
+        /**
+         * Hosting platform type of the repository (github or ado)
+         */
+        hostType?: "github" | "ado";
+        /**
+         * Current git branch name
+         */
+        branch?: string;
+        /**
+         * Head commit of current git branch at session start time
+         */
+        headCommit?: string;
+        /**
+         * Base commit of current git branch at session start time
+         */
+        baseCommit?: string;
+      };
     }
   | {
       /**
@@ -817,10 +845,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.usage_info";
       /**
        * Current context window usage statistics including token and message counts
@@ -873,10 +897,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.compaction_start";
       /**
        * Context window breakdown at the start of LLM-powered conversation compaction
@@ -913,10 +933,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.compaction_complete";
       /**
        * Conversation compaction results including success status, metrics, and optional error details
@@ -1014,10 +1030,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.task_complete";
       /**
        * Task completion notification with summary from the agent
@@ -1050,10 +1062,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "user.message";
       data: {
         /**
@@ -1200,14 +1208,6 @@ export type SessionEvent =
             }
         )[];
         /**
-         * Normalized document MIME types that were sent natively instead of through tagged_files XML
-         */
-        supportedNativeDocumentMimeTypes?: string[];
-        /**
-         * Path-backed native document attachments that stayed on the tagged_files path flow because native upload would exceed the request size limit
-         */
-        nativeDocumentPathFallbackPaths?: string[];
-        /**
          * Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected messages that should be hidden from the user)
          */
         source?: string;
@@ -1235,10 +1235,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "pending_messages.modified";
       /**
        * Empty payload; the event signals that the pending message queue has changed
@@ -1262,10 +1258,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "assistant.turn_start";
       /**
        * Turn initialization metadata including identifier and interaction tracking
@@ -1295,10 +1287,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "assistant.intent";
       /**
        * Agent intent description for current activity or plan
@@ -1327,10 +1315,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "assistant.reasoning";
       /**
        * Assistant reasoning content for timeline display with complete thinking text
@@ -1360,10 +1344,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "assistant.reasoning_delta";
       /**
        * Streaming reasoning delta for incremental extended thinking updates
@@ -1393,10 +1373,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "assistant.streaming_delta";
       /**
        * Streaming response progress with cumulative byte count
@@ -1425,10 +1401,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "assistant.message";
       /**
        * Assistant response containing text content, optional tool requests, and interaction metadata
@@ -1506,7 +1478,6 @@ export type SessionEvent =
          */
         requestId?: string;
         /**
-         * @deprecated
          * Tool call ID of the parent tool invocation when this event originates from a sub-agent
          */
         parentToolCallId?: string;
@@ -1526,10 +1497,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "assistant.message_delta";
       /**
        * Streaming assistant message delta for incremental response updates
@@ -1544,7 +1511,6 @@ export type SessionEvent =
          */
         deltaContent: string;
         /**
-         * @deprecated
          * Tool call ID of the parent tool invocation when this event originates from a sub-agent
          */
         parentToolCallId?: string;
@@ -1567,10 +1533,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "assistant.turn_end";
       /**
        * Turn completion metadata including the turn identifier
@@ -1596,10 +1558,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "assistant.usage";
       /**
        * LLM API call usage metrics including tokens, costs, quotas, and billing information
@@ -1658,7 +1616,6 @@ export type SessionEvent =
          */
         providerCallId?: string;
         /**
-         * @deprecated
          * Parent tool call ID when this usage originates from a sub-agent
          */
         parentToolCallId?: string;
@@ -1754,10 +1711,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "abort";
       /**
        * Turn abort information including the reason for termination
@@ -1786,10 +1739,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "tool.user_requested";
       /**
        * User-initiated tool invocation request with tool name and arguments
@@ -1828,10 +1777,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "tool.execution_start";
       /**
        * Tool execution startup details including MCP server information when applicable
@@ -1860,7 +1805,6 @@ export type SessionEvent =
          */
         mcpToolName?: string;
         /**
-         * @deprecated
          * Tool call ID of the parent tool invocation when this event originates from a sub-agent
          */
         parentToolCallId?: string;
@@ -1880,10 +1824,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "tool.execution_partial_result";
       /**
        * Streaming tool execution output for incremental result display
@@ -1913,10 +1853,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "tool.execution_progress";
       /**
        * Tool execution progress notification with status message
@@ -1949,10 +1885,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "tool.execution_complete";
       /**
        * Tool execution completion results including success status, detailed output, and error information
@@ -2129,7 +2061,6 @@ export type SessionEvent =
           [k: string]: unknown;
         };
         /**
-         * @deprecated
          * Tool call ID of the parent tool invocation when this event originates from a sub-agent
          */
         parentToolCallId?: string;
@@ -2152,10 +2083,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "skill.invoked";
       /**
        * Skill invocation details including content, allowed tools, and plugin metadata
@@ -2208,10 +2135,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "subagent.started";
       /**
        * Sub-agent startup details including parent tool call and agent information
@@ -2252,10 +2175,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "subagent.completed";
       /**
        * Sub-agent completion details for successful execution
@@ -2308,10 +2227,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "subagent.failed";
       /**
        * Sub-agent failure details including error message and agent information
@@ -2368,10 +2283,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "subagent.selected";
       /**
        * Custom agent selection details including name and available tools
@@ -2408,10 +2319,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "subagent.deselected";
       /**
        * Empty payload; the event signals that the custom agent was deselected, returning to the default agent
@@ -2435,10 +2342,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "hook.start";
       /**
        * Hook invocation start details including type and input data
@@ -2477,10 +2380,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "hook.end";
       /**
        * Hook invocation completion details including output, success status, and error information
@@ -2536,17 +2435,13 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "system.message";
       /**
-       * System/developer instruction content with role and optional template metadata
+       * System or developer message content with role and optional template metadata
        */
       data: {
         /**
-         * The system or developer prompt text sent as model input
+         * The system or developer prompt text
          */
         content: string;
         /**
@@ -2591,10 +2486,6 @@ export type SessionEvent =
        * When true, the event is transient and not persisted to the session event log on disk
        */
       ephemeral?: boolean;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "system.notification";
       /**
        * System-generated notification for runtime events like background task completion
@@ -2688,10 +2579,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "permission.requested";
       /**
        * Permission request notification requiring client approval with request details
@@ -2786,10 +2673,6 @@ export type SessionEvent =
                * Complete new file contents for newly created files
                */
               newFileContents?: string;
-              /**
-               * Whether the UI can offer session-wide approval for file write operations
-               */
-              canOfferSessionApproval: boolean;
             }
           | {
               /**
@@ -2961,10 +2844,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "permission.completed";
       /**
        * Permission request completion notification signaling UI dismissal
@@ -3005,10 +2884,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "user_input.requested";
       /**
        * User input request notification with question and optional predefined choices
@@ -3050,10 +2925,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "user_input.completed";
       /**
        * User input request completion with the user's response
@@ -3087,10 +2958,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "elicitation.requested";
       /**
        * Elicitation request; may be form-based (structured input) or URL-based (browser redirect)
@@ -3156,10 +3023,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "elicitation.completed";
       /**
        * Elicitation request completion with the user's response
@@ -3195,10 +3058,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "sampling.requested";
       /**
        * Sampling request from an MCP server; contains the server name and a requestId for correlation
@@ -3233,10 +3092,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "sampling.completed";
       /**
        * Sampling request completion notification signaling UI dismissal
@@ -3262,10 +3117,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "mcp.oauth_required";
       /**
        * OAuth authentication request for an MCP server
@@ -3312,10 +3163,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "mcp.oauth_completed";
       /**
        * MCP OAuth request completion notification
@@ -3341,10 +3188,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "external_tool.requested";
       /**
        * External tool invocation request for client-side tool execution
@@ -3396,10 +3239,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "external_tool.completed";
       /**
        * External tool completion notification signaling UI dismissal
@@ -3425,10 +3264,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "command.queued";
       /**
        * Queued slash command dispatch request for client execution
@@ -3458,10 +3293,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "command.execute";
       /**
        * Registered command dispatch request routed to the owning client
@@ -3499,10 +3330,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "command.completed";
       /**
        * Queued command completion notification signaling UI dismissal
@@ -3528,10 +3355,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "commands.changed";
       /**
        * SDK command registration change notification
@@ -3560,10 +3383,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "capabilities.changed";
       /**
        * Session capability change notification
@@ -3594,10 +3413,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "exit_plan_mode.requested";
       /**
        * Plan approval request with plan content and available user actions
@@ -3639,10 +3454,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "exit_plan_mode.completed";
       /**
        * Plan mode exit completion with the user's approval decision and optional feedback
@@ -3684,10 +3495,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.tools_updated";
       data: {
         model: string;
@@ -3707,10 +3514,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.background_tasks_changed";
       data: {};
     }
@@ -3728,10 +3531,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.skills_loaded";
       data: {
         /**
@@ -3779,10 +3578,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.custom_agents_updated";
       data: {
         /**
@@ -3846,10 +3641,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.mcp_servers_loaded";
       data: {
         /**
@@ -3889,10 +3680,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.mcp_server_status_changed";
       data: {
         /**
@@ -3919,10 +3706,6 @@ export type SessionEvent =
        */
       parentId: string | null;
       ephemeral: true;
-      /**
-       * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-       */
-      agentId?: string;
       type: "session.extensions_loaded";
       data: {
         /**
@@ -3949,105 +3732,6 @@ export type SessionEvent =
       };
     };
 
-/**
- * Working directory and git context at session start
- */
-export interface WorkingDirectoryContext {
-  /**
-   * Current working directory path
-   */
-  cwd: string;
-  /**
-   * Root directory of the git repository, resolved via git rev-parse
-   */
-  gitRoot?: string;
-  /**
-   * Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps)
-   */
-  repository?: string;
-  /**
-   * Hosting platform type of the repository (github or ado)
-   */
-  hostType?: "github" | "ado";
-  /**
-   * Current git branch name
-   */
-  branch?: string;
-  /**
-   * Head commit of current git branch at session start time
-   */
-  headCommit?: string;
-  /**
-   * Base commit of current git branch at session start time
-   */
-  baseCommit?: string;
-}
-/**
- * Updated working directory and git context at resume time
- */
-export interface WorkingDirectoryContext1 {
-  /**
-   * Current working directory path
-   */
-  cwd: string;
-  /**
-   * Root directory of the git repository, resolved via git rev-parse
-   */
-  gitRoot?: string;
-  /**
-   * Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps)
-   */
-  repository?: string;
-  /**
-   * Hosting platform type of the repository (github or ado)
-   */
-  hostType?: "github" | "ado";
-  /**
-   * Current git branch name
-   */
-  branch?: string;
-  /**
-   * Head commit of current git branch at session start time
-   */
-  headCommit?: string;
-  /**
-   * Base commit of current git branch at session start time
-   */
-  baseCommit?: string;
-}
-/**
- * Updated working directory and git context after the change
- */
-export interface WorkingDirectoryContext2 {
-  /**
-   * Current working directory path
-   */
-  cwd: string;
-  /**
-   * Root directory of the git repository, resolved via git rev-parse
-   */
-  gitRoot?: string;
-  /**
-   * Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps)
-   */
-  repository?: string;
-  /**
-   * Hosting platform type of the repository (github or ado)
-   */
-  hostType?: "github" | "ado";
-  /**
-   * Current git branch name
-   */
-  branch?: string;
-  /**
-   * Head commit of current git branch at session start time
-   */
-  headCommit?: string;
-  /**
-   * Base commit of current git branch at session start time
-   */
-  baseCommit?: string;
-}
 export interface EmbeddedTextResourceContents {
   /**
    * URI identifying the resource
