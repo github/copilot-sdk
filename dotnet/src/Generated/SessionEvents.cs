@@ -1807,7 +1807,7 @@ public partial class AssistantMessageData
     public string? RequestId { get; set; }
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
-    [Obsolete]
+    [Obsolete("This member is deprecated and will be removed in a future version.")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
@@ -1825,7 +1825,7 @@ public partial class AssistantMessageDeltaData
     public required string DeltaContent { get; set; }
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
-    [Obsolete]
+    [Obsolete("This member is deprecated and will be removed in a future version.")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
@@ -1907,7 +1907,7 @@ public partial class AssistantUsageData
     public string? ProviderCallId { get; set; }
 
     /// <summary>Parent tool call ID when this usage originates from a sub-agent.</summary>
-    [Obsolete]
+    [Obsolete("This member is deprecated and will be removed in a future version.")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
@@ -1980,7 +1980,7 @@ public partial class ToolExecutionStartData
     public string? McpToolName { get; set; }
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
-    [Obsolete]
+    [Obsolete("This member is deprecated and will be removed in a future version.")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
@@ -2052,7 +2052,7 @@ public partial class ToolExecutionCompleteData
     public IDictionary<string, object>? ToolTelemetry { get; set; }
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
-    [Obsolete]
+    [Obsolete("This member is deprecated and will be removed in a future version.")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }

@@ -326,7 +326,7 @@ function getOrCreateEnum(parentClassName: string, propName: string, values: stri
 
     const lines: string[] = [];
     lines.push(...xmlDocEnumComment(description, ""));
-    if (deprecated) lines.push(`[Obsolete]`);
+    if (deprecated) lines.push(`[Obsolete("This member is deprecated and will be removed in a future version.")]`);
     lines.push(`[JsonConverter(typeof(JsonStringEnumConverter<${enumName}>))]`, `public enum ${enumName}`, `{`);
     for (const value of values) {
         lines.push(`    /// <summary>The <c>${escapeXml(value)}</c> variant.</summary>`);
@@ -461,7 +461,7 @@ function generateDerivedClass(
     const required = new Set(schema.required || []);
 
     lines.push(...xmlDocCommentWithFallback(schema.description, `The <c>${escapeXml(discriminatorValue)}</c> variant of <see cref="${baseClassName}"/>.`, ""));
-    if (isSchemaDeprecated(schema)) lines.push(`[Obsolete]`);
+    if (isSchemaDeprecated(schema)) lines.push(`[Obsolete("This member is deprecated and will be removed in a future version.")]`);
     lines.push(`public partial class ${className} : ${baseClassName}`);
     lines.push(`{`);
     lines.push(`    /// <inheritdoc />`);
@@ -480,7 +480,7 @@ function generateDerivedClass(
 
             lines.push(...xmlDocPropertyComment((propSchema as JSONSchema7).description, propName, "    "));
             lines.push(...emitDataAnnotations(propSchema as JSONSchema7, "    "));
-            if (isSchemaDeprecated(propSchema as JSONSchema7)) lines.push(`    [Obsolete]`);
+            if (isSchemaDeprecated(propSchema as JSONSchema7)) lines.push(`    [Obsolete("This member is deprecated and will be removed in a future version.")]`);
             if (isDurationProperty(propSchema as JSONSchema7)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
             if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
             lines.push(`    [JsonPropertyName("${propName}")]`);
@@ -504,7 +504,7 @@ function generateNestedClass(
     const required = new Set(schema.required || []);
     const lines: string[] = [];
     lines.push(...xmlDocCommentWithFallback(schema.description, `Nested data type for <c>${className}</c>.`, ""));
-    if (isSchemaDeprecated(schema)) lines.push(`[Obsolete]`);
+    if (isSchemaDeprecated(schema)) lines.push(`[Obsolete("This member is deprecated and will be removed in a future version.")]`);
     lines.push(`public partial class ${className}`, `{`);
 
     for (const [propName, propSchema] of Object.entries(schema.properties || {})) {
@@ -516,7 +516,7 @@ function generateNestedClass(
 
         lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
         lines.push(...emitDataAnnotations(prop, "    "));
-        if (isSchemaDeprecated(prop)) lines.push(`    [Obsolete]`);
+        if (isSchemaDeprecated(prop)) lines.push(`    [Obsolete("This member is deprecated and will be removed in a future version.")]`);
         if (isDurationProperty(prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
         lines.push(`    [JsonPropertyName("${propName}")]`);
@@ -615,7 +615,7 @@ function generateDataClass(variant: EventVariant, knownTypes: Map<string, string
         lines.push(...rawXmlDocSummary(`Event payload for <see cref="${variant.className}"/>.`, ""));
     }
     if (isSchemaDeprecated(variant.dataSchema)) {
-        lines.push(`[Obsolete]`);
+        lines.push(`[Obsolete("This member is deprecated and will be removed in a future version.")]`);
     }
     lines.push(`public partial class ${variant.dataClassName}`, `{`);
 
@@ -627,7 +627,7 @@ function generateDataClass(variant: EventVariant, knownTypes: Map<string, string
 
         lines.push(...xmlDocPropertyComment((propSchema as JSONSchema7).description, propName, "    "));
         lines.push(...emitDataAnnotations(propSchema as JSONSchema7, "    "));
-        if (isSchemaDeprecated(propSchema as JSONSchema7)) lines.push(`    [Obsolete]`);
+        if (isSchemaDeprecated(propSchema as JSONSchema7)) lines.push(`    [Obsolete("This member is deprecated and will be removed in a future version.")]`);
         if (isDurationProperty(propSchema as JSONSchema7)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
         lines.push(`    [JsonPropertyName("${propName}")]`);
@@ -906,7 +906,7 @@ function emitRpcClass(
         lines.push(`[Experimental(Diagnostics.Experimental)]`);
     }
     if (isSchemaDeprecated(schema) || isSchemaDeprecated(effectiveSchema)) {
-        lines.push(`[Obsolete]`);
+        lines.push(`[Obsolete("This member is deprecated and will be removed in a future version.")]`);
     }
     lines.push(`${visibility} sealed class ${className}`, `{`);
 
@@ -921,7 +921,7 @@ function emitRpcClass(
 
         lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
         lines.push(...emitDataAnnotations(prop, "    "));
-        if (isSchemaDeprecated(prop)) lines.push(`    [Obsolete]`);
+        if (isSchemaDeprecated(prop)) lines.push(`    [Obsolete("This member is deprecated and will be removed in a future version.")]`);
         if (isDurationProperty(prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         lines.push(`    [JsonPropertyName("${propName}")]`);
 
@@ -1024,7 +1024,7 @@ function emitServerApiClass(className: string, node: Record<string, unknown>, cl
         lines.push(`[Experimental(Diagnostics.Experimental)]`);
     }
     if (groupDeprecated) {
-        lines.push(`[Obsolete]`);
+        lines.push(`[Obsolete("This member is deprecated and will be removed in a future version.")]`);
     }
     lines.push(`public sealed class ${className}`);
     lines.push(`{`);
@@ -1104,7 +1104,7 @@ function emitServerInstanceMethod(
         lines.push(`${indent}[Experimental(Diagnostics.Experimental)]`);
     }
     if (method.deprecated && !groupDeprecated) {
-        lines.push(`${indent}[Obsolete]`);
+        lines.push(`${indent}[Obsolete("This member is deprecated and will be removed in a future version.")]`);
     }
 
     const sigParams: string[] = [];
@@ -1208,7 +1208,7 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
         lines.push(`${indent}[Experimental(Diagnostics.Experimental)]`);
     }
     if (method.deprecated && !groupDeprecated) {
-        lines.push(`${indent}[Obsolete]`);
+        lines.push(`${indent}[Obsolete("This member is deprecated and will be removed in a future version.")]`);
     }
     const sigParams: string[] = [];
     const bodyAssignments = [`SessionId = _sessionId`];
@@ -1238,7 +1238,7 @@ function emitSessionApiClass(className: string, node: Record<string, unknown>, c
     const groupExperimental = isNodeFullyExperimental(node);
     const groupDeprecated = isNodeFullyDeprecated(node);
     const experimentalAttr = groupExperimental ? `[Experimental(Diagnostics.Experimental)]\n` : "";
-    const deprecatedAttr = groupDeprecated ? `[Obsolete]\n` : "";
+    const deprecatedAttr = groupDeprecated ? `[Obsolete("This member is deprecated and will be removed in a future version.")]\n` : "";
     const subGroups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
 
     const lines = [`/// <summary>Provides session-scoped ${displayName} APIs.</summary>`, `${experimentalAttr}${deprecatedAttr}public sealed class ${className}`, `{`, `    private readonly JsonRpc _rpc;`, `    private readonly string _sessionId;`, ""];
@@ -1328,7 +1328,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
             lines.push(`[Experimental(Diagnostics.Experimental)]`);
         }
         if (groupDeprecated) {
-            lines.push(`[Obsolete]`);
+            lines.push(`[Obsolete("This member is deprecated and will be removed in a future version.")]`);
         }
         lines.push(`public interface ${interfaceName}`);
         lines.push(`{`);
@@ -1342,7 +1342,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
                 lines.push(`    [Experimental(Diagnostics.Experimental)]`);
             }
             if (method.deprecated && !groupDeprecated) {
-                lines.push(`    [Obsolete]`);
+                lines.push(`    [Obsolete("This member is deprecated and will be removed in a future version.")]`);
             }
             if (hasParams) {
                 lines.push(`    ${taskType} ${clientHandlerMethodName(method.rpcMethod)}(${paramsTypeName(method)} request, CancellationToken cancellationToken = default);`);
