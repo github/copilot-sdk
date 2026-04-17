@@ -19,6 +19,8 @@ import {
     hoistTitledSchemas,
     hasSchemaPayload,
     isNodeFullyExperimental,
+    isNodeFullyDeprecated,
+    isSchemaDeprecated,
     isVoidSchema,
     isRpcMethod,
     postProcessSchema,
@@ -355,7 +357,8 @@ function getOrCreateGoEnum(
     enumName: string,
     values: string[],
     ctx: GoCodegenCtx,
-    description?: string
+    description?: string,
+    deprecated?: boolean
 ): string {
     const existing = ctx.enumsByName.get(enumName);
     if (existing) return existing;
@@ -365,6 +368,9 @@ function getOrCreateGoEnum(
         for (const line of description.split(/\r?\n/)) {
             lines.push(`// ${line}`);
         }
+    }
+    if (deprecated) {
+        lines.push(`// Deprecated: ${enumName} is deprecated and will be removed in a future version.`);
     }
     lines.push(`type ${enumName} string`);
     lines.push(``);
@@ -406,7 +412,7 @@ function resolveGoPropertyType(
         const resolved = resolveRef(propSchema.$ref, ctx.definitions);
         if (resolved) {
             if (resolved.enum) {
-                const enumType = getOrCreateGoEnum(typeName, resolved.enum as string[], ctx, resolved.description);
+                const enumType = getOrCreateGoEnum(typeName, resolved.enum as string[], ctx, resolved.description, isSchemaDeprecated(resolved));
                 return isRequired ? enumType : `*${enumType}`;
             }
             if (isNamedGoObjectSchema(resolved)) {
@@ -450,7 +456,7 @@ function resolveGoPropertyType(
 
     // Handle enum
     if (propSchema.enum && Array.isArray(propSchema.enum)) {
-        const enumType = getOrCreateGoEnum((propSchema.title as string) || nestedName, propSchema.enum as string[], ctx, propSchema.description);
+        const enumType = getOrCreateGoEnum((propSchema.title as string) || nestedName, propSchema.enum as string[], ctx, propSchema.description, isSchemaDeprecated(propSchema));
         return isRequired ? enumType : `*${enumType}`;
     }
 
@@ -559,6 +565,9 @@ function emitGoStruct(
             lines.push(`// ${line}`);
         }
     }
+    if (isSchemaDeprecated(schema)) {
+        lines.push(`// Deprecated: ${typeName} is deprecated and will be removed in a future version.`);
+    }
     lines.push(`type ${typeName} struct {`);
 
     for (const [propName, propSchema] of Object.entries(schema.properties || {})) {
@@ -571,6 +580,9 @@ function emitGoStruct(
 
         if (prop.description) {
             lines.push(`\t// ${prop.description}`);
+        }
+        if (isSchemaDeprecated(prop)) {
+            lines.push(`\t// Deprecated: ${goName} is deprecated.`);
         }
         lines.push(`\t${goName} ${goType} \`json:"${propName}${omit}"\``);
     }
@@ -662,6 +674,9 @@ function emitGoFlatDiscriminatedUnion(
         if (info.schema.description) {
             lines.push(`\t// ${info.schema.description}`);
         }
+        if (isSchemaDeprecated(info.schema)) {
+            lines.push(`\t// Deprecated: ${goName} is deprecated.`);
+        }
         lines.push(`\t${goName} ${goType} \`json:"${propName}${omit}"\``);
     }
 
@@ -707,6 +722,9 @@ function generateGoSessionEventsCode(schema: JSONSchema7): string {
 
             if (prop.description) {
                 lines.push(`\t// ${prop.description}`);
+            }
+            if (isSchemaDeprecated(prop)) {
+                lines.push(`\t// Deprecated: ${goName} is deprecated.`);
             }
             lines.push(`\t${goName} ${goType} \`json:"${propName}${omit}"\``);
         }
@@ -1073,6 +1091,23 @@ async function generateRpc(schemaPath?: string): Promise<void> {
             `// Experimental: ${typeName} is part of an experimental API and may change or be removed.\n$1`
         );
     }
+
+    // Annotate deprecated data types
+    const deprecatedTypeNames = new Set<string>();
+    for (const method of allMethods) {
+        if (!method.deprecated) continue;
+        deprecatedTypeNames.add(goResultTypeName(method));
+        const paramsTypeName = goParamsTypeName(method);
+        if (rootDefinitions[paramsTypeName]) {
+            deprecatedTypeNames.add(paramsTypeName);
+        }
+    }
+    for (const typeName of deprecatedTypeNames) {
+        qtCode = qtCode.replace(
+            new RegExp(`^(type ${typeName} struct)`, "m"),
+            `// Deprecated: ${typeName} is deprecated and will be removed in a future version.\n$1`
+        );
+    }
     // Remove trailing blank lines from quicktype output before appending
     qtCode = qtCode.replace(/\n+$/, "");
     // Replace interface{} with any (quicktype emits the pre-1.18 form)
@@ -1134,10 +1169,14 @@ function emitApiGroup(
     serviceName: string,
     resolveType: (name: string) => string,
     fieldNames: Map<string, Map<string, string>>,
-    groupExperimental: boolean
+    groupExperimental: boolean,
+    groupDeprecated: boolean = false
 ): void {
     const subGroups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
 
+    if (groupDeprecated) {
+        lines.push(`// Deprecated: ${apiName} contains deprecated APIs that will be removed in a future version.`);
+    }
     if (groupExperimental) {
         lines.push(`// Experimental: ${apiName} contains experimental APIs that may change or be removed.`);
     }
@@ -1146,13 +1185,14 @@ function emitApiGroup(
 
     for (const [key, value] of Object.entries(node)) {
         if (!isRpcMethod(value)) continue;
-        emitMethod(lines, apiName, key, value, isSession, resolveType, fieldNames, groupExperimental);
+        emitMethod(lines, apiName, key, value, isSession, resolveType, fieldNames, groupExperimental, false, groupDeprecated);
     }
 
     for (const [subGroupName, subGroupNode] of subGroups) {
         const subApiName = apiName.replace(/Api$/, "") + toPascalCase(subGroupName) + "Api";
         const subGroupExperimental = isNodeFullyExperimental(subGroupNode as Record<string, unknown>);
-        emitApiGroup(lines, subApiName, subGroupNode as Record<string, unknown>, isSession, serviceName, resolveType, fieldNames, subGroupExperimental);
+        const subGroupDeprecated = isNodeFullyDeprecated(subGroupNode as Record<string, unknown>);
+        emitApiGroup(lines, subApiName, subGroupNode as Record<string, unknown>, isSession, serviceName, resolveType, fieldNames, subGroupExperimental, subGroupDeprecated);
 
         if (subGroupExperimental) {
             lines.push(`// Experimental: ${toPascalCase(subGroupName)} returns experimental APIs that may change or be removed.`);
@@ -1184,7 +1224,8 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
         const prefix = isSession ? "" : "Server";
         const apiName = prefix + toPascalCase(groupName) + apiSuffix;
         const groupExperimental = isNodeFullyExperimental(groupNode as Record<string, unknown>);
-        emitApiGroup(lines, apiName, groupNode as Record<string, unknown>, isSession, serviceName, resolveType, fieldNames, groupExperimental);
+        const groupDeprecated = isNodeFullyDeprecated(groupNode as Record<string, unknown>);
+        emitApiGroup(lines, apiName, groupNode as Record<string, unknown>, isSession, serviceName, resolveType, fieldNames, groupExperimental, groupDeprecated);
     }
 
     // Compute field name lengths for gofmt-compatible column alignment
@@ -1229,7 +1270,7 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
     lines.push(``);
 }
 
-function emitMethod(lines: string[], receiver: string, name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, fieldNames: Map<string, Map<string, string>>, groupExperimental = false, isWrapper = false): void {
+function emitMethod(lines: string[], receiver: string, name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, fieldNames: Map<string, Map<string, string>>, groupExperimental = false, isWrapper = false, groupDeprecated = false): void {
     const methodName = toPascalCase(name);
     const resultType = resolveType(goResultTypeName(method));
 
@@ -1244,6 +1285,9 @@ function emitMethod(lines: string[], receiver: string, name: string, method: Rpc
     const clientRef = isWrapper ? "a.common.client" : "a.client";
     const sessionIDRef = isWrapper ? "a.common.sessionID" : "a.sessionID";
 
+    if (method.deprecated && !groupDeprecated) {
+        lines.push(`// Deprecated: ${methodName} is deprecated and will be removed in a future version.`);
+    }
     if (method.stability === "experimental" && !groupExperimental) {
         lines.push(`// Experimental: ${methodName} is an experimental API and may change or be removed in future versions.`);
     }
@@ -1323,11 +1367,18 @@ function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<
     for (const { groupName, groupNode, methods } of groups) {
         const interfaceName = clientHandlerInterfaceName(groupName);
         const groupExperimental = isNodeFullyExperimental(groupNode);
+        const groupDeprecated = isNodeFullyDeprecated(groupNode);
+        if (groupDeprecated) {
+            lines.push(`// Deprecated: ${interfaceName} contains deprecated APIs that will be removed in a future version.`);
+        }
         if (groupExperimental) {
             lines.push(`// Experimental: ${interfaceName} contains experimental APIs that may change or be removed.`);
         }
         lines.push(`type ${interfaceName} interface {`);
         for (const method of methods) {
+            if (method.deprecated && !groupDeprecated) {
+                lines.push(`\t// Deprecated: ${clientHandlerMethodName(method.rpcMethod)} is deprecated and will be removed in a future version.`);
+            }
             if (method.stability === "experimental" && !groupExperimental) {
                 lines.push(`\t// Experimental: ${clientHandlerMethodName(method.rpcMethod)} is an experimental API and may change or be removed in future versions.`);
             }

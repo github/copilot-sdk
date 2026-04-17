@@ -144,6 +144,7 @@ export interface RpcMethod {
     params: JSONSchema7 | null;
     result: JSONSchema7 | null;
     stability?: string;
+    deprecated?: boolean;
 }
 
 export function getRpcSchemaTypeName(schema: JSONSchema7 | null | undefined, fallback: string): string {
@@ -464,6 +465,26 @@ export function isNodeFullyExperimental(node: Record<string, unknown>): boolean 
         }
     })(node);
     return methods.length > 0 && methods.every(m => m.stability === "experimental");
+}
+
+/** Returns true when every leaf RPC method inside `node` is marked deprecated. */
+export function isNodeFullyDeprecated(node: Record<string, unknown>): boolean {
+    const methods: RpcMethod[] = [];
+    (function collect(n: Record<string, unknown>) {
+        for (const value of Object.values(n)) {
+            if (isRpcMethod(value)) {
+                methods.push(value);
+            } else if (typeof value === "object" && value !== null) {
+                collect(value as Record<string, unknown>);
+            }
+        }
+    })(node);
+    return methods.length > 0 && methods.every(m => m.deprecated === true);
+}
+
+/** Returns true when a JSON Schema node is marked as deprecated. */
+export function isSchemaDeprecated(schema: JSONSchema7 | null | undefined): boolean {
+    return typeof schema === "object" && schema !== null && (schema as Record<string, unknown>).deprecated === true;
 }
 
 // ── $ref resolution ─────────────────────────────────────────────────────────
