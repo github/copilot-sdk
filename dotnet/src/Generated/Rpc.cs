@@ -815,6 +815,58 @@ internal sealed class WorkspacesCreateFileRequest
     public string Content { get; set; } = string.Empty;
 }
 
+/// <summary>RPC data type for InstructionsSources operations.</summary>
+public sealed class InstructionsSources
+{
+    /// <summary>Unique identifier for this source (used for toggling).</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Human-readable label.</summary>
+    [JsonPropertyName("label")]
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>File path relative to repo or absolute for home.</summary>
+    [JsonPropertyName("sourcePath")]
+    public string SourcePath { get; set; } = string.Empty;
+
+    /// <summary>Raw content of the instruction file.</summary>
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>Category of instruction source — used for merge logic.</summary>
+    [JsonPropertyName("type")]
+    public InstructionsSourcesType Type { get; set; }
+
+    /// <summary>Where this source lives — used for UI grouping.</summary>
+    [JsonPropertyName("location")]
+    public InstructionsSourcesLocation Location { get; set; }
+
+    /// <summary>Glob pattern from frontmatter — when set, this instruction applies only to matching files.</summary>
+    [JsonPropertyName("applyTo")]
+    public string? ApplyTo { get; set; }
+
+    /// <summary>Short description (body after frontmatter) for use in instruction tables.</summary>
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+}
+
+/// <summary>RPC data type for InstructionsGetSources operations.</summary>
+public sealed class InstructionsGetSourcesResult
+{
+    /// <summary>Instruction sources for the session.</summary>
+    [JsonPropertyName("sources")]
+    public IList<InstructionsSources> Sources { get => field ??= []; set; }
+}
+
+/// <summary>RPC data type for SessionInstructionsGetSources operations.</summary>
+internal sealed class SessionInstructionsGetSourcesRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>RPC data type for FleetStart operations.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class FleetStartResult
@@ -837,8 +889,8 @@ internal sealed class FleetStartRequest
     public string? Prompt { get; set; }
 }
 
-/// <summary>RPC data type for Agent operations.</summary>
-public sealed class Agent
+/// <summary>RPC data type for AgentInfo operations.</summary>
+public sealed class AgentInfo
 {
     /// <summary>Unique identifier of the custom agent.</summary>
     [JsonPropertyName("name")]
@@ -859,7 +911,7 @@ public sealed class AgentList
 {
     /// <summary>Available custom agents.</summary>
     [JsonPropertyName("agents")]
-    public IList<Agent> Agents { get => field ??= []; set; }
+    public IList<AgentInfo> Agents { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for SessionAgentList operations.</summary>
@@ -871,29 +923,13 @@ internal sealed class SessionAgentListRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for AgentGetCurrentResultAgent operations.</summary>
-public sealed class AgentGetCurrentResultAgent
-{
-    /// <summary>Unique identifier of the custom agent.</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-
-    /// <summary>Human-readable display name.</summary>
-    [JsonPropertyName("displayName")]
-    public string DisplayName { get; set; } = string.Empty;
-
-    /// <summary>Description of the agent's purpose.</summary>
-    [JsonPropertyName("description")]
-    public string Description { get; set; } = string.Empty;
-}
-
 /// <summary>RPC data type for AgentGetCurrent operations.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class AgentGetCurrentResult
 {
     /// <summary>Currently selected custom agent, or null if using the default agent.</summary>
     [JsonPropertyName("agent")]
-    public AgentGetCurrentResultAgent? Agent { get; set; }
+    public AgentInfo Agent { get => field ??= new(); set; }
 }
 
 /// <summary>RPC data type for SessionAgentGetCurrent operations.</summary>
@@ -905,29 +941,13 @@ internal sealed class SessionAgentGetCurrentRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>The newly selected custom agent.</summary>
-public sealed class AgentSelectAgent
-{
-    /// <summary>Unique identifier of the custom agent.</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-
-    /// <summary>Human-readable display name.</summary>
-    [JsonPropertyName("displayName")]
-    public string DisplayName { get; set; } = string.Empty;
-
-    /// <summary>Description of the agent's purpose.</summary>
-    [JsonPropertyName("description")]
-    public string Description { get; set; } = string.Empty;
-}
-
 /// <summary>RPC data type for AgentSelect operations.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class AgentSelectResult
 {
     /// <summary>The newly selected custom agent.</summary>
     [JsonPropertyName("agent")]
-    public AgentSelectAgent Agent { get => field ??= new(); set; }
+    public AgentInfo Agent { get => field ??= new(); set; }
 }
 
 /// <summary>RPC data type for AgentSelect operations.</summary>
@@ -952,29 +972,13 @@ internal sealed class SessionAgentDeselectRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>RPC data type for AgentReloadAgent operations.</summary>
-public sealed class AgentReloadAgent
-{
-    /// <summary>Unique identifier of the custom agent.</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-
-    /// <summary>Human-readable display name.</summary>
-    [JsonPropertyName("displayName")]
-    public string DisplayName { get; set; } = string.Empty;
-
-    /// <summary>Description of the agent's purpose.</summary>
-    [JsonPropertyName("description")]
-    public string Description { get; set; } = string.Empty;
-}
-
 /// <summary>RPC data type for AgentReload operations.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class AgentReloadResult
 {
     /// <summary>Reloaded custom agents.</summary>
     [JsonPropertyName("agents")]
-    public IList<AgentReloadAgent> Agents { get => field ??= []; set; }
+    public IList<AgentInfo> Agents { get => field ??= []; set; }
 }
 
 /// <summary>RPC data type for SessionAgentReload operations.</summary>
@@ -2009,6 +2013,47 @@ public enum WorkspacesGetWorkspaceResultWorkspaceSessionSyncLevel
 }
 
 
+/// <summary>Category of instruction source — used for merge logic.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<InstructionsSourcesType>))]
+public enum InstructionsSourcesType
+{
+    /// <summary>The <c>home</c> variant.</summary>
+    [JsonStringEnumMemberName("home")]
+    Home,
+    /// <summary>The <c>repo</c> variant.</summary>
+    [JsonStringEnumMemberName("repo")]
+    Repo,
+    /// <summary>The <c>model</c> variant.</summary>
+    [JsonStringEnumMemberName("model")]
+    Model,
+    /// <summary>The <c>vscode</c> variant.</summary>
+    [JsonStringEnumMemberName("vscode")]
+    Vscode,
+    /// <summary>The <c>nested-agents</c> variant.</summary>
+    [JsonStringEnumMemberName("nested-agents")]
+    NestedAgents,
+    /// <summary>The <c>child-instructions</c> variant.</summary>
+    [JsonStringEnumMemberName("child-instructions")]
+    ChildInstructions,
+}
+
+
+/// <summary>Where this source lives — used for UI grouping.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<InstructionsSourcesLocation>))]
+public enum InstructionsSourcesLocation
+{
+    /// <summary>The <c>user</c> variant.</summary>
+    [JsonStringEnumMemberName("user")]
+    User,
+    /// <summary>The <c>repository</c> variant.</summary>
+    [JsonStringEnumMemberName("repository")]
+    Repository,
+    /// <summary>The <c>working-directory</c> variant.</summary>
+    [JsonStringEnumMemberName("working-directory")]
+    WorkingDirectory,
+}
+
+
 /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<McpServerStatus>))]
 public enum McpServerStatus
@@ -2380,6 +2425,7 @@ public sealed class SessionRpc
         Name = new NameApi(rpc, sessionId);
         Plan = new PlanApi(rpc, sessionId);
         Workspaces = new WorkspacesApi(rpc, sessionId);
+        Instructions = new InstructionsApi(rpc, sessionId);
         Fleet = new FleetApi(rpc, sessionId);
         Agent = new AgentApi(rpc, sessionId);
         Skills = new SkillsApi(rpc, sessionId);
@@ -2409,6 +2455,9 @@ public sealed class SessionRpc
 
     /// <summary>Workspaces APIs.</summary>
     public WorkspacesApi Workspaces { get; }
+
+    /// <summary>Instructions APIs.</summary>
+    public InstructionsApi Instructions { get; }
 
     /// <summary>Fleet APIs.</summary>
     public FleetApi Fleet { get; }
@@ -2610,6 +2659,26 @@ public sealed class WorkspacesApi
     {
         var request = new WorkspacesCreateFileRequest { SessionId = _sessionId, Path = path, Content = content };
         await CopilotClient.InvokeRpcAsync(_rpc, "session.workspaces.createFile", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped Instructions APIs.</summary>
+public sealed class InstructionsApi
+{
+    private readonly JsonRpc _rpc;
+    private readonly string _sessionId;
+
+    internal InstructionsApi(JsonRpc rpc, string sessionId)
+    {
+        _rpc = rpc;
+        _sessionId = sessionId;
+    }
+
+    /// <summary>Calls "session.instructions.getSources".</summary>
+    public async Task<InstructionsGetSourcesResult> GetSourcesAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new SessionInstructionsGetSourcesRequest { SessionId = _sessionId };
+        return await CopilotClient.InvokeRpcAsync<InstructionsGetSourcesResult>(_rpc, "session.instructions.getSources", [request], cancellationToken);
     }
 }
 
@@ -3144,13 +3213,10 @@ public static class ClientSessionApiRegistration
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(AccountGetQuotaResult))]
 [JsonSerializable(typeof(AccountQuotaSnapshot))]
-[JsonSerializable(typeof(Agent))]
 [JsonSerializable(typeof(AgentGetCurrentResult))]
-[JsonSerializable(typeof(AgentGetCurrentResultAgent))]
+[JsonSerializable(typeof(AgentInfo))]
 [JsonSerializable(typeof(AgentList))]
-[JsonSerializable(typeof(AgentReloadAgent))]
 [JsonSerializable(typeof(AgentReloadResult))]
-[JsonSerializable(typeof(AgentSelectAgent))]
 [JsonSerializable(typeof(AgentSelectRequest))]
 [JsonSerializable(typeof(AgentSelectResult))]
 [JsonSerializable(typeof(CommandsHandlePendingCommandRequest))]
@@ -3168,6 +3234,8 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(HistoryCompactResult))]
 [JsonSerializable(typeof(HistoryTruncateRequest))]
 [JsonSerializable(typeof(HistoryTruncateResult))]
+[JsonSerializable(typeof(InstructionsGetSourcesResult))]
+[JsonSerializable(typeof(InstructionsSources))]
 [JsonSerializable(typeof(LogRequest))]
 [JsonSerializable(typeof(LogResult))]
 [JsonSerializable(typeof(McpConfigAddRequest))]
@@ -3232,6 +3300,7 @@ public static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionFsStatResult))]
 [JsonSerializable(typeof(SessionFsWriteFileRequest))]
 [JsonSerializable(typeof(SessionHistoryCompactRequest))]
+[JsonSerializable(typeof(SessionInstructionsGetSourcesRequest))]
 [JsonSerializable(typeof(SessionMcpListRequest))]
 [JsonSerializable(typeof(SessionMcpReloadRequest))]
 [JsonSerializable(typeof(SessionMode))]

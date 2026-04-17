@@ -342,7 +342,7 @@ public partial class SessionShutdownEvent : SessionEvent
     public required SessionShutdownData Data { get; set; }
 }
 
-/// <summary>Updated working directory and git context after the change.</summary>
+/// <summary>Working directory and git context at session start.</summary>
 /// <remarks>Represents the <c>session.context_changed</c> event.</remarks>
 public partial class SessionContextChangedEvent : SessionEvent
 {
@@ -731,7 +731,7 @@ public partial class HookEndEvent : SessionEvent
     public required HookEndData Data { get; set; }
 }
 
-/// <summary>System or developer message content with role and optional template metadata.</summary>
+/// <summary>System/developer instruction content with role and optional template metadata.</summary>
 /// <remarks>Represents the <c>system.message</c> event.</remarks>
 public partial class SystemMessageEvent : SessionEvent
 {
@@ -1124,7 +1124,7 @@ public partial class SessionStartData
     /// <summary>Working directory and git context at session start.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("context")]
-    public StartContext? Context { get; set; }
+    public WorkingDirectoryContext? Context { get; set; }
 
     /// <summary>Whether the session was already in use by another client at start time.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1161,7 +1161,7 @@ public partial class SessionResumeData
     /// <summary>Updated working directory and git context at resume time.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("context")]
-    public ResumeContext? Context { get; set; }
+    public WorkingDirectoryContext? Context { get; set; }
 
     /// <summary>Whether the session was already in use by another client at resume time.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1469,7 +1469,7 @@ public partial class SessionShutdownData
     public double? ToolDefinitionsTokens { get; set; }
 }
 
-/// <summary>Updated working directory and git context after the change.</summary>
+/// <summary>Working directory and git context at session start.</summary>
 public partial class SessionContextChangedData
 {
     /// <summary>Current working directory path.</summary>
@@ -1489,7 +1489,7 @@ public partial class SessionContextChangedData
     /// <summary>Hosting platform type of the repository (github or ado).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("hostType")]
-    public ContextChangedHostType? HostType { get; set; }
+    public WorkingDirectoryContextHostType? HostType { get; set; }
 
     /// <summary>Current git branch name.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1671,6 +1671,16 @@ public partial class UserMessageData
     [JsonPropertyName("attachments")]
     public UserMessageAttachment[]? Attachments { get; set; }
 
+    /// <summary>Normalized document MIME types that were sent natively instead of through tagged_files XML.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("supportedNativeDocumentMimeTypes")]
+    public string[]? SupportedNativeDocumentMimeTypes { get; set; }
+
+    /// <summary>Path-backed native document attachments that stayed on the tagged_files path flow because native upload would exceed the request size limit.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("nativeDocumentPathFallbackPaths")]
+    public string[]? NativeDocumentPathFallbackPaths { get; set; }
+
     /// <summary>Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected messages that should be hidden from the user).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("source")]
@@ -1797,6 +1807,7 @@ public partial class AssistantMessageData
     public string? RequestId { get; set; }
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
+    [Obsolete]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
@@ -1814,6 +1825,7 @@ public partial class AssistantMessageDeltaData
     public required string DeltaContent { get; set; }
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
+    [Obsolete]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
@@ -1895,6 +1907,7 @@ public partial class AssistantUsageData
     public string? ProviderCallId { get; set; }
 
     /// <summary>Parent tool call ID when this usage originates from a sub-agent.</summary>
+    [Obsolete]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
@@ -1967,6 +1980,7 @@ public partial class ToolExecutionStartData
     public string? McpToolName { get; set; }
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
+    [Obsolete]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
@@ -2038,6 +2052,7 @@ public partial class ToolExecutionCompleteData
     public IDictionary<string, object>? ToolTelemetry { get; set; }
 
     /// <summary>Tool call ID of the parent tool invocation when this event originates from a sub-agent.</summary>
+    [Obsolete]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
@@ -2239,10 +2254,10 @@ public partial class HookEndData
     public HookEndError? Error { get; set; }
 }
 
-/// <summary>System or developer message content with role and optional template metadata.</summary>
+/// <summary>System/developer instruction content with role and optional template metadata.</summary>
 public partial class SystemMessageData
 {
-    /// <summary>The system or developer prompt text.</summary>
+    /// <summary>The system or developer prompt text sent as model input.</summary>
     [JsonPropertyName("content")]
     public required string Content { get; set; }
 
@@ -2673,8 +2688,8 @@ public partial class SessionExtensionsLoadedData
 }
 
 /// <summary>Working directory and git context at session start.</summary>
-/// <remarks>Nested data type for <c>StartContext</c>.</remarks>
-public partial class StartContext
+/// <remarks>Nested data type for <c>WorkingDirectoryContext</c>.</remarks>
+public partial class WorkingDirectoryContext
 {
     /// <summary>Current working directory path.</summary>
     [JsonPropertyName("cwd")]
@@ -2693,46 +2708,7 @@ public partial class StartContext
     /// <summary>Hosting platform type of the repository (github or ado).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("hostType")]
-    public StartContextHostType? HostType { get; set; }
-
-    /// <summary>Current git branch name.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("branch")]
-    public string? Branch { get; set; }
-
-    /// <summary>Head commit of current git branch at session start time.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("headCommit")]
-    public string? HeadCommit { get; set; }
-
-    /// <summary>Base commit of current git branch at session start time.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("baseCommit")]
-    public string? BaseCommit { get; set; }
-}
-
-/// <summary>Updated working directory and git context at resume time.</summary>
-/// <remarks>Nested data type for <c>ResumeContext</c>.</remarks>
-public partial class ResumeContext
-{
-    /// <summary>Current working directory path.</summary>
-    [JsonPropertyName("cwd")]
-    public required string Cwd { get; set; }
-
-    /// <summary>Root directory of the git repository, resolved via git rev-parse.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("gitRoot")]
-    public string? GitRoot { get; set; }
-
-    /// <summary>Repository identifier derived from the git remote URL ("owner/name" for GitHub, "org/project/repo" for Azure DevOps).</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("repository")]
-    public string? Repository { get; set; }
-
-    /// <summary>Hosting platform type of the repository (github or ado).</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("hostType")]
-    public ResumeContextHostType? HostType { get; set; }
+    public WorkingDirectoryContextHostType? HostType { get; set; }
 
     /// <summary>Current git branch name.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3872,20 +3848,8 @@ public partial class ExtensionsLoadedExtension
 }
 
 /// <summary>Hosting platform type of the repository (github or ado).</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<StartContextHostType>))]
-public enum StartContextHostType
-{
-    /// <summary>The <c>github</c> variant.</summary>
-    [JsonStringEnumMemberName("github")]
-    Github,
-    /// <summary>The <c>ado</c> variant.</summary>
-    [JsonStringEnumMemberName("ado")]
-    Ado,
-}
-
-/// <summary>Hosting platform type of the repository (github or ado).</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<ResumeContextHostType>))]
-public enum ResumeContextHostType
+[JsonConverter(typeof(JsonStringEnumConverter<WorkingDirectoryContextHostType>))]
+public enum WorkingDirectoryContextHostType
 {
     /// <summary>The <c>github</c> variant.</summary>
     [JsonStringEnumMemberName("github")]
@@ -3944,18 +3908,6 @@ public enum ShutdownType
     /// <summary>The <c>error</c> variant.</summary>
     [JsonStringEnumMemberName("error")]
     Error,
-}
-
-/// <summary>Hosting platform type of the repository (github or ado).</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<ContextChangedHostType>))]
-public enum ContextChangedHostType
-{
-    /// <summary>The <c>github</c> variant.</summary>
-    [JsonStringEnumMemberName("github")]
-    Github,
-    /// <summary>The <c>ado</c> variant.</summary>
-    [JsonStringEnumMemberName("ado")]
-    Ado,
 }
 
 /// <summary>Type of GitHub reference.</summary>
@@ -4278,7 +4230,6 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(PermissionRequestWrite))]
 [JsonSerializable(typeof(PermissionRequestedData))]
 [JsonSerializable(typeof(PermissionRequestedEvent))]
-[JsonSerializable(typeof(ResumeContext))]
 [JsonSerializable(typeof(SamplingCompletedData))]
 [JsonSerializable(typeof(SamplingCompletedEvent))]
 [JsonSerializable(typeof(SamplingRequestedData))]
@@ -4344,7 +4295,6 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(SkillInvokedData))]
 [JsonSerializable(typeof(SkillInvokedEvent))]
 [JsonSerializable(typeof(SkillsLoadedSkill))]
-[JsonSerializable(typeof(StartContext))]
 [JsonSerializable(typeof(SubagentCompletedData))]
 [JsonSerializable(typeof(SubagentCompletedEvent))]
 [JsonSerializable(typeof(SubagentDeselectedData))]
@@ -4401,5 +4351,6 @@ public enum ExtensionsLoadedExtensionStatus
 [JsonSerializable(typeof(UserMessageAttachmentSelectionDetailsStart))]
 [JsonSerializable(typeof(UserMessageData))]
 [JsonSerializable(typeof(UserMessageEvent))]
+[JsonSerializable(typeof(WorkingDirectoryContext))]
 [JsonSerializable(typeof(JsonElement))]
 internal partial class SessionEventsJsonContext : JsonSerializerContext;
