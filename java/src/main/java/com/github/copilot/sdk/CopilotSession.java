@@ -29,16 +29,26 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.copilot.sdk.events.AbstractSessionEvent;
-import com.github.copilot.sdk.events.AssistantMessageEvent;
-import com.github.copilot.sdk.events.CapabilitiesChangedEvent;
-import com.github.copilot.sdk.events.CommandExecuteEvent;
-import com.github.copilot.sdk.events.ElicitationRequestedEvent;
-import com.github.copilot.sdk.events.ExternalToolRequestedEvent;
-import com.github.copilot.sdk.events.PermissionRequestedEvent;
-import com.github.copilot.sdk.events.SessionErrorEvent;
-import com.github.copilot.sdk.events.SessionEventParser;
-import com.github.copilot.sdk.events.SessionIdleEvent;
+import com.github.copilot.sdk.generated.AssistantMessageEvent;
+import com.github.copilot.sdk.generated.rpc.SessionCommandsHandlePendingCommandParams;
+import com.github.copilot.sdk.generated.rpc.SessionLogParams;
+import com.github.copilot.sdk.generated.rpc.SessionModelSwitchToParams;
+import com.github.copilot.sdk.generated.rpc.SessionPermissionsHandlePendingPermissionRequestParams;
+import com.github.copilot.sdk.generated.rpc.SessionRpc;
+import com.github.copilot.sdk.generated.rpc.SessionToolsHandlePendingToolCallParams;
+import com.github.copilot.sdk.generated.rpc.SessionUiElicitationParams;
+import com.github.copilot.sdk.generated.rpc.SessionUiElicitationResult;
+import com.github.copilot.sdk.generated.rpc.SessionUiHandlePendingElicitationParams;
+import com.github.copilot.sdk.generated.rpc.SessionUiHandlePendingElicitationParams.SessionUiHandlePendingElicitationParamsResult;
+import com.github.copilot.sdk.generated.rpc.SessionUiHandlePendingElicitationParams.SessionUiHandlePendingElicitationParamsResult.SessionUiHandlePendingElicitationParamsResultAction;
+import com.github.copilot.sdk.generated.CapabilitiesChangedEvent;
+import com.github.copilot.sdk.generated.CommandExecuteEvent;
+import com.github.copilot.sdk.generated.ElicitationRequestedEvent;
+import com.github.copilot.sdk.generated.ExternalToolRequestedEvent;
+import com.github.copilot.sdk.generated.PermissionRequestedEvent;
+import com.github.copilot.sdk.generated.SessionErrorEvent;
+import com.github.copilot.sdk.generated.SessionEvent;
+import com.github.copilot.sdk.generated.SessionIdleEvent;
 import com.github.copilot.sdk.json.AgentInfo;
 import com.github.copilot.sdk.json.CommandContext;
 import com.github.copilot.sdk.json.CommandDefinition;
@@ -116,7 +126,7 @@ import com.github.copilot.sdk.json.UserPromptSubmittedHookInput;
  * @see CopilotClient#createSession(com.github.copilot.sdk.json.SessionConfig)
  * @see CopilotClient#resumeSession(String,
  *      com.github.copilot.sdk.json.ResumeSessionConfig)
- * @see AbstractSessionEvent
+ * @see SessionEvent
  * @since 1.0.0
  */
 public final class CopilotSession implements AutoCloseable {
@@ -135,7 +145,8 @@ public final class CopilotSession implements AutoCloseable {
     private volatile SessionCapabilities capabilities = new SessionCapabilities();
     private final SessionUiApi ui;
     private final JsonRpcClient rpc;
-    private final Set<Consumer<AbstractSessionEvent>> eventHandlers = ConcurrentHashMap.newKeySet();
+    private volatile SessionRpc sessionRpc;
+    private final Set<Consumer<SessionEvent>> eventHandlers = ConcurrentHashMap.newKeySet();
     private final Map<String, ToolDefinition> toolHandlers = new ConcurrentHashMap<>();
     private final Map<String, CommandHandler> commandHandlers = new ConcurrentHashMap<>();
     private final AtomicReference<PermissionHandler> permissionHandler = new AtomicReference<>();
@@ -220,6 +231,7 @@ public final class CopilotSession implements AutoCloseable {
      */
     void setActiveSessionId(String sessionId) {
         this.sessionId = sessionId;
+        this.sessionRpc = null; // Reset so getRpc() lazily re-creates with the new sessionId
     }
 
     /**
@@ -268,6 +280,39 @@ public final class CopilotSession implements AutoCloseable {
      */
     public SessionUiApi getUi() {
         return ui;
+    }
+
+    /**
+     * Returns the typed RPC client for this session.
+     * <p>
+     * Provides strongly-typed access to all session-level API namespaces. The
+     * {@code sessionId} is injected automatically into every call.
+     * <p>
+     * Example usage:
+     *
+     * <pre>{@code
+     * var agents = session.getRpc().agent.list().get();
+     * }</pre>
+     *
+     * @return the session-scoped typed RPC client (never {@code null})
+     * @throws IllegalStateException
+     *             if the session is not connected
+     * @since 1.0.0
+     */
+    public SessionRpc getRpc() {
+        if (rpc == null) {
+            throw new IllegalStateException("Session is not connected — RPC client is unavailable");
+        }
+        SessionRpc current = sessionRpc;
+        if (current == null) {
+            synchronized (this) {
+                current = sessionRpc;
+                if (current == null) {
+                    sessionRpc = current = new SessionRpc(rpc::invoke, sessionId);
+                }
+            }
+        }
+        return current;
     }
 
     /**
@@ -450,7 +495,7 @@ public final class CopilotSession implements AutoCloseable {
         var future = new CompletableFuture<AssistantMessageEvent>();
         var lastAssistantMessage = new AtomicReference<AssistantMessageEvent>();
 
-        Consumer<AbstractSessionEvent> handler = evt -> {
+        Consumer<SessionEvent> handler = evt -> {
             if (evt instanceof AssistantMessageEvent msg) {
                 lastAssistantMessage.set(msg);
             } else if (evt instanceof SessionIdleEvent) {
@@ -563,7 +608,7 @@ public final class CopilotSession implements AutoCloseable {
      *
      * <pre>{@code
      * // Collect all events
-     * var events = new ArrayList<AbstractSessionEvent>();
+     * var events = new ArrayList<SessionEvent>();
      * session.on(events::add);
      * }</pre>
      *
@@ -573,10 +618,10 @@ public final class CopilotSession implements AutoCloseable {
      * @throws IllegalStateException
      *             if this session has been terminated
      * @see #on(Class, Consumer)
-     * @see AbstractSessionEvent
+     * @see SessionEvent
      * @see #setEventErrorPolicy(EventErrorPolicy)
      */
-    public Closeable on(Consumer<AbstractSessionEvent> handler) {
+    public Closeable on(Consumer<SessionEvent> handler) {
         ensureNotTerminated();
         eventHandlers.add(handler);
         return () -> eventHandlers.remove(handler);
@@ -626,11 +671,11 @@ public final class CopilotSession implements AutoCloseable {
      * @throws IllegalStateException
      *             if this session has been terminated
      * @see #on(Consumer)
-     * @see AbstractSessionEvent
+     * @see SessionEvent
      */
-    public <T extends AbstractSessionEvent> Closeable on(Class<T> eventType, Consumer<T> handler) {
+    public <T extends SessionEvent> Closeable on(Class<T> eventType, Consumer<T> handler) {
         ensureNotTerminated();
-        Consumer<AbstractSessionEvent> wrapper = event -> {
+        Consumer<SessionEvent> wrapper = event -> {
             if (eventType.isInstance(event)) {
                 handler.accept(eventType.cast(event));
             }
@@ -662,12 +707,12 @@ public final class CopilotSession implements AutoCloseable {
      * @see #setEventErrorHandler(EventErrorHandler)
      * @see #setEventErrorPolicy(EventErrorPolicy)
      */
-    void dispatchEvent(AbstractSessionEvent event) {
+    void dispatchEvent(SessionEvent event) {
         // Handle broadcast request events (protocol v3) before dispatching to user
         // handlers. These are fire-and-forget: the response is sent asynchronously.
         handleBroadcastEventAsync(event);
 
-        for (Consumer<AbstractSessionEvent> handler : eventHandlers) {
+        for (Consumer<SessionEvent> handler : eventHandlers) {
             try {
                 handler.accept(event);
             } catch (Exception e) {
@@ -697,7 +742,7 @@ public final class CopilotSession implements AutoCloseable {
      * @param event
      *            the event to handle
      */
-    private void handleBroadcastEventAsync(AbstractSessionEvent event) {
+    private void handleBroadcastEventAsync(SessionEvent event) {
         if (event instanceof ExternalToolRequestedEvent toolEvent) {
             var data = toolEvent.getData();
             if (data == null || data.requestId() == null || data.toolName() == null) {
@@ -721,7 +766,8 @@ public final class CopilotSession implements AutoCloseable {
             if (handler == null) {
                 return; // This client doesn't handle permissions; another client will
             }
-            executePermissionAndRespondAsync(data.requestId(), data.permissionRequest(), handler);
+            executePermissionAndRespondAsync(data.requestId(),
+                    MAPPER.convertValue(data.permissionRequest(), PermissionRequest.class), handler);
         } else if (event instanceof CommandExecuteEvent cmdEvent) {
             var data = cmdEvent.getData();
             if (data == null || data.requestId() == null || data.commandName() == null) {
@@ -742,8 +788,8 @@ public final class CopilotSession implements AutoCloseable {
                             .setRequired(data.requestedSchema().required());
                 }
                 var context = new ElicitationContext().setSessionId(sessionId).setMessage(data.message())
-                        .setRequestedSchema(schema).setMode(data.mode()).setElicitationSource(data.elicitationSource())
-                        .setUrl(data.url());
+                        .setRequestedSchema(schema).setMode(data.mode() != null ? data.mode().getValue() : null)
+                        .setElicitationSource(data.elicitationSource()).setUrl(data.url());
                 handleElicitationRequestAsync(context, data.requestId());
             }
         } else if (event instanceof CapabilitiesChangedEvent capEvent) {
@@ -783,18 +829,15 @@ public final class CopilotSession implements AutoCloseable {
                             toolResult = ToolResultObject
                                     .success(result instanceof String s ? s : MAPPER.writeValueAsString(result));
                         }
-                        rpc.invoke("session.tools.handlePendingToolCall",
-                                Map.of("sessionId", sessionId, "requestId", requestId, "result", toolResult),
-                                Object.class);
+                        getRpc().tools.handlePendingToolCall(
+                                new SessionToolsHandlePendingToolCallParams(sessionId, requestId, toolResult, null));
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Error sending tool result for requestId=" + requestId, e);
                     }
                 }).exceptionally(ex -> {
                     try {
-                        rpc.invoke(
-                                "session.tools.handlePendingToolCall", Map.of("sessionId", sessionId, "requestId",
-                                        requestId, "error", ex.getMessage() != null ? ex.getMessage() : ex.toString()),
-                                Object.class);
+                        getRpc().tools.handlePendingToolCall(new SessionToolsHandlePendingToolCallParams(sessionId,
+                                requestId, null, ex.getMessage() != null ? ex.getMessage() : ex.toString()));
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Error sending tool error for requestId=" + requestId, e);
                     }
@@ -803,10 +846,8 @@ public final class CopilotSession implements AutoCloseable {
             } catch (Exception e) {
                 LOG.log(Level.WARNING, "Error executing tool for requestId=" + requestId, e);
                 try {
-                    rpc.invoke(
-                            "session.tools.handlePendingToolCall", Map.of("sessionId", sessionId, "requestId",
-                                    requestId, "error", e.getMessage() != null ? e.getMessage() : e.toString()),
-                            Object.class);
+                    getRpc().tools.handlePendingToolCall(new SessionToolsHandlePendingToolCallParams(sessionId,
+                            requestId, null, e.getMessage() != null ? e.getMessage() : e.toString()));
                 } catch (Exception sendEx) {
                     LOG.log(Level.WARNING, "Error sending tool error for requestId=" + requestId, sendEx);
                 }
@@ -822,6 +863,17 @@ public final class CopilotSession implements AutoCloseable {
             LOG.log(Level.WARNING, "Executor rejected tool task for requestId=" + requestId + "; running inline", e);
             task.run();
         }
+    }
+
+    /**
+     * Builds a {@link SessionUiHandlePendingElicitationParams} carrying a
+     * {@code cancel} action, used when an elicitation handler throws or the handler
+     * future completes exceptionally.
+     */
+    private SessionUiHandlePendingElicitationParams buildElicitationCancelParams(String requestId) {
+        var cancelResult = new SessionUiHandlePendingElicitationParamsResult(
+                SessionUiHandlePendingElicitationParamsResultAction.CANCEL, null);
+        return new SessionUiHandlePendingElicitationParams(sessionId, requestId, cancelResult);
     }
 
     /**
@@ -842,8 +894,9 @@ public final class CopilotSession implements AutoCloseable {
                             // so another client can handle it.
                             return;
                         }
-                        rpc.invoke("session.permissions.handlePendingPermissionRequest",
-                                Map.of("sessionId", sessionId, "requestId", requestId, "result", result), Object.class);
+                        getRpc().permissions.handlePendingPermissionRequest(
+                                new SessionPermissionsHandlePendingPermissionRequestParams(sessionId, requestId,
+                                        result));
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Error sending permission result for requestId=" + requestId, e);
                     }
@@ -851,8 +904,9 @@ public final class CopilotSession implements AutoCloseable {
                     try {
                         PermissionRequestResult denied = new PermissionRequestResult();
                         denied.setKind(PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER);
-                        rpc.invoke("session.permissions.handlePendingPermissionRequest",
-                                Map.of("sessionId", sessionId, "requestId", requestId, "result", denied), Object.class);
+                        getRpc().permissions.handlePendingPermissionRequest(
+                                new SessionPermissionsHandlePendingPermissionRequestParams(sessionId, requestId,
+                                        denied));
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Error sending permission denied for requestId=" + requestId, e);
                     }
@@ -863,8 +917,8 @@ public final class CopilotSession implements AutoCloseable {
                 try {
                     PermissionRequestResult denied = new PermissionRequestResult();
                     denied.setKind(PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER);
-                    rpc.invoke("session.permissions.handlePendingPermissionRequest",
-                            Map.of("sessionId", sessionId, "requestId", requestId, "result", denied), Object.class);
+                    getRpc().permissions.handlePendingPermissionRequest(
+                            new SessionPermissionsHandlePendingPermissionRequestParams(sessionId, requestId, denied));
                 } catch (Exception sendEx) {
                     LOG.log(Level.WARNING, "Error sending permission denied for requestId=" + requestId, sendEx);
                 }
@@ -908,8 +962,8 @@ public final class CopilotSession implements AutoCloseable {
         Runnable task = () -> {
             if (handler == null) {
                 try {
-                    rpc.invoke("session.commands.handlePendingCommand", Map.of("sessionId", sessionId, "requestId",
-                            requestId, "error", "Unknown command: " + commandName), Object.class);
+                    getRpc().commands.handlePendingCommand(new SessionCommandsHandlePendingCommandParams(sessionId,
+                            requestId, "Unknown command: " + commandName));
                 } catch (Exception e) {
                     LOG.log(Level.WARNING, "Error sending command error for requestId=" + requestId, e);
                 }
@@ -920,16 +974,16 @@ public final class CopilotSession implements AutoCloseable {
                         .setArgs(args);
                 handler.handle(ctx).thenRun(() -> {
                     try {
-                        rpc.invoke("session.commands.handlePendingCommand",
-                                Map.of("sessionId", sessionId, "requestId", requestId), Object.class);
+                        getRpc().commands.handlePendingCommand(
+                                new SessionCommandsHandlePendingCommandParams(sessionId, requestId, null));
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Error sending command result for requestId=" + requestId, e);
                     }
                 }).exceptionally(ex -> {
                     try {
                         String msg = ex.getMessage() != null ? ex.getMessage() : ex.toString();
-                        rpc.invoke("session.commands.handlePendingCommand",
-                                Map.of("sessionId", sessionId, "requestId", requestId, "error", msg), Object.class);
+                        getRpc().commands.handlePendingCommand(
+                                new SessionCommandsHandlePendingCommandParams(sessionId, requestId, msg));
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Error sending command error for requestId=" + requestId, e);
                     }
@@ -939,8 +993,8 @@ public final class CopilotSession implements AutoCloseable {
                 LOG.log(Level.WARNING, "Error executing command for requestId=" + requestId, e);
                 try {
                     String msg = e.getMessage() != null ? e.getMessage() : e.toString();
-                    rpc.invoke("session.commands.handlePendingCommand",
-                            Map.of("sessionId", sessionId, "requestId", requestId, "error", msg), Object.class);
+                    getRpc().commands.handlePendingCommand(
+                            new SessionCommandsHandlePendingCommandParams(sessionId, requestId, msg));
                 } catch (Exception sendEx) {
                     LOG.log(Level.WARNING, "Error sending command error for requestId=" + requestId, sendEx);
                 }
@@ -974,20 +1028,17 @@ public final class CopilotSession implements AutoCloseable {
                         String actionStr = result.getAction() != null
                                 ? result.getAction().getValue()
                                 : ElicitationResultAction.CANCEL.getValue();
-                        Map<String, Object> resultMap = result.getContent() != null
-                                ? Map.of("action", actionStr, "content", result.getContent())
-                                : Map.of("action", actionStr);
-                        rpc.invoke("session.ui.handlePendingElicitation",
-                                Map.of("sessionId", sessionId, "requestId", requestId, "result", resultMap),
-                                Object.class);
+                        var parsedAction = SessionUiHandlePendingElicitationParamsResultAction.fromValue(actionStr);
+                        var elicitationResult = new SessionUiHandlePendingElicitationParamsResult(parsedAction,
+                                result.getContent());
+                        getRpc().ui.handlePendingElicitation(
+                                new SessionUiHandlePendingElicitationParams(sessionId, requestId, elicitationResult));
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Error sending elicitation result for requestId=" + requestId, e);
                     }
                 }).exceptionally(ex -> {
                     try {
-                        rpc.invoke("session.ui.handlePendingElicitation", Map.of("sessionId", sessionId, "requestId",
-                                requestId, "result", Map.of("action", ElicitationResultAction.CANCEL.getValue())),
-                                Object.class);
+                        getRpc().ui.handlePendingElicitation(buildElicitationCancelParams(requestId));
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Error sending elicitation cancel for requestId=" + requestId, e);
                     }
@@ -996,10 +1047,7 @@ public final class CopilotSession implements AutoCloseable {
             } catch (Exception e) {
                 LOG.log(Level.WARNING, "Error executing elicitation handler for requestId=" + requestId, e);
                 try {
-                    rpc.invoke(
-                            "session.ui.handlePendingElicitation", Map.of("sessionId", sessionId, "requestId",
-                                    requestId, "result", Map.of("action", ElicitationResultAction.CANCEL.getValue())),
-                            Object.class);
+                    getRpc().ui.handlePendingElicitation(buildElicitationCancelParams(requestId));
                 } catch (Exception sendEx) {
                     LOG.log(Level.WARNING, "Error sending elicitation cancel for requestId=" + requestId, sendEx);
                 }
@@ -1037,19 +1085,15 @@ public final class CopilotSession implements AutoCloseable {
         @Override
         public CompletableFuture<ElicitationResult> elicitation(ElicitationParams params) {
             assertElicitation();
-            var schema = new java.util.HashMap<String, Object>();
-            schema.put("type", params.getRequestedSchema().getType());
-            schema.put("properties", params.getRequestedSchema().getProperties());
-            if (params.getRequestedSchema().getRequired() != null) {
-                schema.put("required", params.getRequestedSchema().getRequired());
-            }
-            return rpc.invoke("session.ui.elicitation",
-                    Map.of("sessionId", sessionId, "message", params.getMessage(), "requestedSchema", schema),
-                    ElicitationRpcResponse.class).thenApply(resp -> {
+            return getRpc().ui.elicitation(new SessionUiElicitationParams(sessionId, params.getMessage(),
+                    new SessionUiElicitationParams.SessionUiElicitationParamsRequestedSchema(
+                            params.getRequestedSchema().getType(), params.getRequestedSchema().getProperties(),
+                            params.getRequestedSchema().getRequired())))
+                    .thenApply(resp -> {
                         var result = new ElicitationResult();
                         if (resp.action() != null) {
                             for (ElicitationResultAction a : ElicitationResultAction.values()) {
-                                if (a.getValue().equalsIgnoreCase(resp.action())) {
+                                if (a.getValue().equalsIgnoreCase(resp.action().getValue())) {
                                     result.setAction(a);
                                     break;
                                 }
@@ -1067,12 +1111,14 @@ public final class CopilotSession implements AutoCloseable {
         public CompletableFuture<Boolean> confirm(String message) {
             assertElicitation();
             var field = Map.of("type", "boolean", "default", (Object) true);
-            var schema = Map.of("type", (Object) "object", "properties", (Object) Map.of("confirmed", (Object) field),
-                    "required", (Object) new String[]{"confirmed"});
-            return rpc.invoke("session.ui.elicitation",
-                    Map.of("sessionId", sessionId, "message", message, "requestedSchema", schema),
-                    ElicitationRpcResponse.class).thenApply(resp -> {
-                        if ("accept".equalsIgnoreCase(resp.action()) && resp.content() != null) {
+            return getRpc().ui
+                    .elicitation(
+                            new SessionUiElicitationParams(sessionId, message,
+                                    new SessionUiElicitationParams.SessionUiElicitationParamsRequestedSchema("object",
+                                            Map.of("confirmed", (Object) field), List.of("confirmed"))))
+                    .thenApply(resp -> {
+                        if (resp.action() == SessionUiElicitationResult.SessionUiElicitationResultAction.ACCEPT
+                                && resp.content() != null) {
                             Object val = resp.content().get("confirmed");
                             if (val instanceof Boolean b) {
                                 return b;
@@ -1092,12 +1138,14 @@ public final class CopilotSession implements AutoCloseable {
         public CompletableFuture<String> select(String message, String[] options) {
             assertElicitation();
             var field = Map.of("type", (Object) "string", "enum", (Object) options);
-            var schema = Map.of("type", (Object) "object", "properties", (Object) Map.of("selection", (Object) field),
-                    "required", (Object) new String[]{"selection"});
-            return rpc.invoke("session.ui.elicitation",
-                    Map.of("sessionId", sessionId, "message", message, "requestedSchema", schema),
-                    ElicitationRpcResponse.class).thenApply(resp -> {
-                        if ("accept".equalsIgnoreCase(resp.action()) && resp.content() != null) {
+            return getRpc().ui
+                    .elicitation(
+                            new SessionUiElicitationParams(sessionId, message,
+                                    new SessionUiElicitationParams.SessionUiElicitationParamsRequestedSchema("object",
+                                            Map.of("selection", (Object) field), List.of("selection"))))
+                    .thenApply(resp -> {
+                        if (resp.action() == SessionUiElicitationResult.SessionUiElicitationResultAction.ACCEPT
+                                && resp.content() != null) {
                             Object val = resp.content().get("selection");
                             return val != null ? val.toString() : null;
                         }
@@ -1124,23 +1172,18 @@ public final class CopilotSession implements AutoCloseable {
                 if (options.getDefaultValue() != null)
                     field.put("default", options.getDefaultValue());
             }
-            var schema = Map.of("type", (Object) "object", "properties", (Object) Map.of("value", (Object) field),
-                    "required", (Object) new String[]{"value"});
-            return rpc.invoke("session.ui.elicitation",
-                    Map.of("sessionId", sessionId, "message", message, "requestedSchema", schema),
-                    ElicitationRpcResponse.class).thenApply(resp -> {
-                        if ("accept".equalsIgnoreCase(resp.action()) && resp.content() != null) {
+            return getRpc().ui.elicitation(new SessionUiElicitationParams(sessionId, message,
+                    new SessionUiElicitationParams.SessionUiElicitationParamsRequestedSchema("object",
+                            Map.of("value", (Object) field), List.of("value"))))
+                    .thenApply(resp -> {
+                        if (resp.action() == SessionUiElicitationResult.SessionUiElicitationResultAction.ACCEPT
+                                && resp.content() != null) {
                             Object val = resp.content().get("value");
                             return val != null ? val.toString() : null;
                         }
                         return null;
                     });
         }
-    }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    private record ElicitationRpcResponse(@JsonProperty("action") String action,
-            @JsonProperty("content") Map<String, Object> content) {
     }
 
     /**
@@ -1436,17 +1479,17 @@ public final class CopilotSession implements AutoCloseable {
      * @return a future that resolves with a list of all session events
      * @throws IllegalStateException
      *             if this session has been terminated
-     * @see AbstractSessionEvent
+     * @see SessionEvent
      */
-    public CompletableFuture<List<AbstractSessionEvent>> getMessages() {
+    public CompletableFuture<List<SessionEvent>> getMessages() {
         ensureNotTerminated();
         return rpc.invoke("session.getMessages", Map.of("sessionId", sessionId), GetMessagesResponse.class)
                 .thenApply(response -> {
-                    var events = new ArrayList<AbstractSessionEvent>();
+                    var events = new ArrayList<SessionEvent>();
                     if (response.events() != null) {
                         for (JsonNode eventNode : response.events()) {
                             try {
-                                AbstractSessionEvent event = SessionEventParser.parse(eventNode);
+                                SessionEvent event = MAPPER.treeToValue(eventNode, SessionEvent.class);
                                 if (event != null) {
                                     events.add(event);
                                 }
@@ -1497,13 +1540,8 @@ public final class CopilotSession implements AutoCloseable {
      */
     public CompletableFuture<Void> setModel(String model, String reasoningEffort) {
         ensureNotTerminated();
-        var params = new java.util.HashMap<String, Object>();
-        params.put("sessionId", sessionId);
-        params.put("modelId", model);
-        if (reasoningEffort != null) {
-            params.put("reasoningEffort", reasoningEffort);
-        }
-        return rpc.invoke("session.model.switchTo", params, Void.class);
+        return getRpc().model.switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort, null))
+                .thenApply(r -> null);
     }
 
     /**
@@ -1561,19 +1599,15 @@ public final class CopilotSession implements AutoCloseable {
      */
     public CompletableFuture<Void> log(String message, String level, Boolean ephemeral, String url) {
         ensureNotTerminated();
-        var params = new java.util.HashMap<String, Object>();
-        params.put("sessionId", sessionId);
-        params.put("message", message);
+        SessionLogParams.SessionLogParamsLevel rpcLevel = null;
         if (level != null) {
-            params.put("level", level);
+            try {
+                rpcLevel = SessionLogParams.SessionLogParamsLevel.fromValue(level);
+            } catch (IllegalArgumentException e) {
+                rpcLevel = SessionLogParams.SessionLogParamsLevel.INFO;
+            }
         }
-        if (ephemeral != null) {
-            params.put("ephemeral", ephemeral);
-        }
-        if (url != null) {
-            params.put("url", url);
-        }
-        return rpc.invoke("session.log", params, Void.class);
+        return getRpc().log(new SessionLogParams(sessionId, message, rpcLevel, ephemeral, url)).thenApply(r -> null);
     }
 
     /**

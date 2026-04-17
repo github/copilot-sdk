@@ -22,13 +22,14 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import com.github.copilot.sdk.events.AbstractSessionEvent;
-import com.github.copilot.sdk.events.AbortEvent;
-import com.github.copilot.sdk.events.AssistantMessageEvent;
-import com.github.copilot.sdk.events.SessionIdleEvent;
-import com.github.copilot.sdk.events.SessionStartEvent;
-import com.github.copilot.sdk.events.ToolExecutionStartEvent;
-import com.github.copilot.sdk.events.UserMessageEvent;
+import com.github.copilot.sdk.generated.SessionEvent;
+import com.github.copilot.sdk.generated.AbortEvent;
+import com.github.copilot.sdk.generated.AssistantMessageEvent;
+import com.github.copilot.sdk.generated.SessionIdleEvent;
+import com.github.copilot.sdk.generated.SessionStartEvent;
+import com.github.copilot.sdk.generated.ToolExecutionStartEvent;
+import com.github.copilot.sdk.generated.UserMessageEvent;
+import com.github.copilot.sdk.generated.rpc.SessionRpc;
 import com.github.copilot.sdk.json.MessageOptions;
 import com.github.copilot.sdk.json.PermissionHandler;
 import com.github.copilot.sdk.json.ResumeSessionConfig;
@@ -76,7 +77,7 @@ public class CopilotSessionTest {
             assertNotNull(session.getSessionId());
             assertTrue(session.getSessionId().matches("^[a-f0-9-]+$"));
 
-            List<AbstractSessionEvent> messages = session.getMessages().get();
+            List<SessionEvent> messages = session.getMessages().get();
             assertFalse(messages.isEmpty());
             assertTrue(messages.get(0) instanceof SessionStartEvent);
 
@@ -143,7 +144,7 @@ public class CopilotSessionTest {
             CopilotSession session = client
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
-            List<AbstractSessionEvent> receivedEvents = new ArrayList<>();
+            List<SessionEvent> receivedEvents = new ArrayList<>();
             CompletableFuture<Void> idleReceived = new CompletableFuture<>();
 
             session.on(evt -> {
@@ -281,7 +282,7 @@ public class CopilotSessionTest {
             assertEquals(sessionId, session2.getSessionId());
 
             // Verify resumed session has the previous messages
-            List<AbstractSessionEvent> messages = session2.getMessages().get(60, TimeUnit.SECONDS);
+            List<SessionEvent> messages = session2.getMessages().get(60, TimeUnit.SECONDS);
             boolean hasAssistantMessage = messages.stream().filter(m -> m instanceof AssistantMessageEvent)
                     .map(m -> (AssistantMessageEvent) m).anyMatch(m -> m.getData().content().contains("2"));
             assertTrue(hasAssistantMessage, "Should find previous assistant message containing 2");
@@ -329,7 +330,7 @@ public class CopilotSessionTest {
                 assertEquals(sessionId, session2.getSessionId());
 
                 // When resuming with a new client, validate messages contain expected types
-                List<AbstractSessionEvent> messages = session2.getMessages().get(60, TimeUnit.SECONDS);
+                List<SessionEvent> messages = session2.getMessages().get(60, TimeUnit.SECONDS);
                 assertTrue(messages.stream().anyMatch(m -> m instanceof UserMessageEvent),
                         "Should contain user.message event");
                 assertTrue(messages.stream().anyMatch(m -> "session.resume".equals(m.getType())),
@@ -451,7 +452,7 @@ public class CopilotSessionTest {
             sessionIdleFuture.get(30, TimeUnit.SECONDS);
 
             // The session should still be alive and usable after abort
-            List<AbstractSessionEvent> messages = session.getMessages().get(60, TimeUnit.SECONDS);
+            List<SessionEvent> messages = session.getMessages().get(60, TimeUnit.SECONDS);
             assertFalse(messages.isEmpty());
 
             // Verify an abort event exists in messages
@@ -845,6 +846,32 @@ public class CopilotSessionTest {
             // A non-existent session should return null
             var notFound = client.getSessionMetadata("non-existent-session-id").get(30, TimeUnit.SECONDS);
             assertNull(notFound, "Non-existent session should return null");
+
+            session.close();
+        }
+    }
+
+    /**
+     * Verifies that {@link CopilotSession#getRpc()} returns a non-null
+     * {@link SessionRpc} wired to the session's ID and that all namespace fields
+     * are present.
+     */
+    @Test
+    void testGetRpcReturnsSessionRpcWithCorrectSessionId() throws Exception {
+        ctx.configureForTest("session", "should_receive_session_events");
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+
+            SessionRpc rpc = session.getRpc();
+            assertNotNull(rpc, "getRpc() must not return null");
+            assertNotNull(rpc.agent, "SessionRpc.agent must not be null");
+            assertNotNull(rpc.model, "SessionRpc.model must not be null");
+            assertNotNull(rpc.tools, "SessionRpc.tools must not be null");
+            assertNotNull(rpc.permissions, "SessionRpc.permissions must not be null");
+            assertNotNull(rpc.commands, "SessionRpc.commands must not be null");
+            assertNotNull(rpc.ui, "SessionRpc.ui must not be null");
 
             session.close();
         }

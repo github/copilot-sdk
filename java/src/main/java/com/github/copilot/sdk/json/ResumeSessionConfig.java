@@ -12,7 +12,7 @@ import java.util.function.Consumer;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
-import com.github.copilot.sdk.events.AbstractSessionEvent;
+import com.github.copilot.sdk.generated.SessionEvent;
 
 /**
  * Configuration for resuming an existing Copilot session.
@@ -57,7 +57,7 @@ public class ResumeSessionConfig {
     private List<String> skillDirectories;
     private List<String> disabledSkills;
     private InfiniteSessionConfig infiniteSessions;
-    private Consumer<AbstractSessionEvent> onEvent;
+    private Consumer<SessionEvent> onEvent;
     private List<CommandDefinition> commands;
     private ElicitationHandler onElicitationRequest;
 
@@ -536,7 +536,7 @@ public class ResumeSessionConfig {
      *
      * @return the event handler, or {@code null} if not set
      */
-    public Consumer<AbstractSessionEvent> getOnEvent() {
+    public Consumer<SessionEvent> getOnEvent() {
         return onEvent;
     }
 
@@ -552,7 +552,7 @@ public class ResumeSessionConfig {
      *            the event handler to register before session resumption
      * @return this config for method chaining
      */
-    public ResumeSessionConfig setOnEvent(Consumer<AbstractSessionEvent> onEvent) {
+    public ResumeSessionConfig setOnEvent(Consumer<SessionEvent> onEvent) {
         this.onEvent = onEvent;
         return this;
     }

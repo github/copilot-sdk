@@ -14,11 +14,7 @@ import com.github.copilot.sdk.json.SessionConfig;
 import com.github.copilot.sdk.json.SessionLifecycleEvent;
 import com.github.copilot.sdk.json.SessionLifecycleEventTypes;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.lang.reflect.Field;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -38,53 +34,7 @@ public class CopilotClientTest {
 
     @BeforeAll
     static void setup() {
-        cliPath = getCliPath();
-    }
-
-    private static String getCliPath() {
-        // First, try to find 'copilot' in PATH
-        String copilotInPath = findCopilotInPath();
-        if (copilotInPath != null) {
-            return copilotInPath;
-        }
-
-        // Fall back to COPILOT_CLI_PATH environment variable
-        String envPath = System.getenv("COPILOT_CLI_PATH");
-        if (envPath != null && !envPath.isEmpty()) {
-            return envPath;
-        }
-
-        // Search for the CLI in the parent directories (nodejs module)
-        Path current = Paths.get(System.getProperty("user.dir"));
-        while (current != null) {
-            Path cliPath = current.resolve("nodejs/node_modules/@github/copilot/index.js");
-            if (cliPath.toFile().exists()) {
-                return cliPath.toString();
-            }
-            current = current.getParent();
-        }
-
-        return null;
-    }
-
-    private static String findCopilotInPath() {
-        try {
-            // Use 'where' on Windows, 'which' on Unix-like systems
-            String command = System.getProperty("os.name").toLowerCase().contains("win") ? "where" : "which";
-            var pb = new ProcessBuilder(command, "copilot");
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line = reader.readLine();
-                int exitCode = process.waitFor();
-                if (exitCode == 0 && line != null && !line.isEmpty()) {
-                    return line.trim();
-                }
-            }
-        } catch (Exception e) {
-            // Ignore - copilot not found in PATH
-        }
-        return null;
+        cliPath = TestUtil.findCliPath();
     }
 
     @Test
@@ -133,10 +83,7 @@ public class CopilotClientTest {
 
     @Test
     void testStartAndConnectUsingStdio() throws Exception {
-        if (cliPath == null) {
-            System.out.println("Skipping test: CLI not found");
-            return;
-        }
+        assertNotNull(cliPath, "Copilot CLI not found in PATH or COPILOT_CLI_PATH");
 
         try (var client = new CopilotClient(new CopilotClientOptions().setCliPath(cliPath).setUseStdio(true))) {
             client.start().get();
@@ -153,10 +100,7 @@ public class CopilotClientTest {
 
     @Test
     void testShouldReportErrorWithStderrWhenCliFailsToStart() throws Exception {
-        if (cliPath == null) {
-            System.out.println("Skipping test: CLI not found");
-            return;
-        }
+        assertNotNull(cliPath, "Copilot CLI not found in PATH or COPILOT_CLI_PATH");
 
         var options = new CopilotClientOptions().setCliPath(cliPath)
                 .setCliArgs(new String[]{"--nonexistent-flag-for-testing"}).setUseStdio(true);
@@ -173,10 +117,7 @@ public class CopilotClientTest {
 
     @Test
     void testStartAndConnectUsingTcp() throws Exception {
-        if (cliPath == null) {
-            System.out.println("Skipping test: CLI not found");
-            return;
-        }
+        assertNotNull(cliPath, "Copilot CLI not found in PATH or COPILOT_CLI_PATH");
 
         try (var client = new CopilotClient(new CopilotClientOptions().setCliPath(cliPath).setUseStdio(false))) {
             client.start().get();
@@ -191,10 +132,7 @@ public class CopilotClientTest {
 
     @Test
     void testForceStopWithoutCleanup() throws Exception {
-        if (cliPath == null) {
-            System.out.println("Skipping test: CLI not found");
-            return;
-        }
+        assertNotNull(cliPath, "Copilot CLI not found in PATH or COPILOT_CLI_PATH");
 
         try (var client = new CopilotClient(new CopilotClientOptions().setCliPath(cliPath))) {
             client.createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
@@ -448,10 +386,7 @@ public class CopilotClientTest {
 
     @Test
     void testCloseSessionAfterStoppingClientDoesNotThrow() throws Exception {
-        if (cliPath == null) {
-            System.out.println("Skipping test: CLI not found");
-            return;
-        }
+        assertNotNull(cliPath, "Copilot CLI not found in PATH or COPILOT_CLI_PATH");
 
         try (var client = new CopilotClient(new CopilotClientOptions().setCliPath(cliPath))) {
             var session = client

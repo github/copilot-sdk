@@ -21,10 +21,10 @@ import java.util.logging.Logger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.github.copilot.sdk.events.AbstractSessionEvent;
-import com.github.copilot.sdk.events.AssistantMessageEvent;
-import com.github.copilot.sdk.events.SessionIdleEvent;
-import com.github.copilot.sdk.events.SessionStartEvent;
+import com.github.copilot.sdk.generated.SessionEvent;
+import com.github.copilot.sdk.generated.AssistantMessageEvent;
+import com.github.copilot.sdk.generated.SessionIdleEvent;
+import com.github.copilot.sdk.generated.SessionStartEvent;
 
 /**
  * Unit tests for session event handling API.
@@ -52,7 +52,7 @@ public class SessionEventHandlingTest {
 
     @Test
     void testGenericEventHandler() {
-        var receivedEvents = new ArrayList<AbstractSessionEvent>();
+        var receivedEvents = new ArrayList<SessionEvent>();
 
         session.on(event -> receivedEvents.add(event));
 
@@ -179,7 +179,8 @@ public class SessionEventHandlingTest {
         });
 
         SessionStartEvent startEvent = createSessionStartEvent();
-        startEvent.setData(new SessionStartEvent.SessionStartData("my-session-123", 0, null, null, null, null));
+        startEvent.setData(new SessionStartEvent.SessionStartEventData("my-session-123", null, null, null, null, null,
+                null, null, null, null));
         dispatchEvent(startEvent);
 
         AssistantMessageEvent msgEvent = createAssistantMessageEvent("Test content");
@@ -417,7 +418,7 @@ public class SessionEventHandlingTest {
 
     @Test
     void testCustomEventErrorHandlerReceivesEventAndException() {
-        var capturedEvents = new ArrayList<AbstractSessionEvent>();
+        var capturedEvents = new ArrayList<SessionEvent>();
         var capturedExceptions = new ArrayList<Exception>();
 
         Logger sessionLogger = Logger.getLogger(CopilotSession.class.getName());
@@ -547,7 +548,7 @@ public class SessionEventHandlingTest {
 
     @Test
     void testErrorHandlerReceivesCorrectEventType() {
-        var capturedEvents = new ArrayList<AbstractSessionEvent>();
+        var capturedEvents = new ArrayList<SessionEvent>();
 
         Logger sessionLogger = Logger.getLogger(CopilotSession.class.getName());
         Level originalLevel = sessionLogger.getLevel();
@@ -838,9 +839,9 @@ public class SessionEventHandlingTest {
     // Helper methods
     // ====================================================================
 
-    private void dispatchEvent(AbstractSessionEvent event) {
+    private void dispatchEvent(SessionEvent event) {
         try {
-            Method dispatchMethod = CopilotSession.class.getDeclaredMethod("dispatchEvent", AbstractSessionEvent.class);
+            Method dispatchMethod = CopilotSession.class.getDeclaredMethod("dispatchEvent", SessionEvent.class);
             dispatchMethod.setAccessible(true);
             dispatchMethod.invoke(session, event);
         } catch (Exception e) {
@@ -855,14 +856,16 @@ public class SessionEventHandlingTest {
 
     private SessionStartEvent createSessionStartEvent(String sessionId) {
         var event = new SessionStartEvent();
-        var data = new SessionStartEvent.SessionStartData(sessionId, 0, null, null, null, null);
+        var data = new SessionStartEvent.SessionStartEventData(sessionId, null, null, null, null, null, null, null,
+                null, null);
         event.setData(data);
         return event;
     }
 
     private AssistantMessageEvent createAssistantMessageEvent(String content) {
         var event = new AssistantMessageEvent();
-        var data = new AssistantMessageEvent.AssistantMessageData(null, content, null, null, null, null, null, null);
+        var data = new AssistantMessageEvent.AssistantMessageEventData(null, content, null, null, null, null, null,
+                null, null, null, null);
         event.setData(data);
         return event;
     }

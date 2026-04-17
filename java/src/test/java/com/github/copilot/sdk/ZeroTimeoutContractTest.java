@@ -12,7 +12,7 @@ import java.util.concurrent.CompletableFuture;
 
 import org.junit.jupiter.api.Test;
 
-import com.github.copilot.sdk.events.AssistantMessageEvent;
+import com.github.copilot.sdk.generated.AssistantMessageEvent;
 import com.github.copilot.sdk.json.MessageOptions;
 
 /**

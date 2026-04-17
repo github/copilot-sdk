@@ -43,8 +43,8 @@
  *
  * <h2>Related Packages</h2>
  * <ul>
- * <li>{@link com.github.copilot.sdk.events} - Event types emitted during
- * session processing</li>
+ * <li>{@link com.github.copilot.sdk.generated} - Auto-generated event types
+ * emitted during session processing</li>
  * <li>{@link com.github.copilot.sdk.json} - Configuration and data transfer
  * objects</li>
  * </ul>
