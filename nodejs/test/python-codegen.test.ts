@@ -74,13 +74,60 @@ describe("python session event codegen", () => {
             'action = from_union([from_none, lambda x: parse_enum(SessionSyntheticDataAction, x)], obj.get("action", "store"))'
         );
         expect(code).toContain(
-            'summary = from_union([from_none, lambda x: from_str(x)], obj.get("summary", ""))'
+            'summary = from_union([from_none, from_str], obj.get("summary", ""))'
         );
         expect(code).toContain("uri: str");
         expect(code).toContain("pattern: str");
         expect(code).toContain("payload: str");
         expect(code).toContain("encoded: str");
         expect(code).toContain("count: int");
+    });
+
+    it("collapses redundant callable wrapper lambdas", () => {
+        const schema: JSONSchema7 = {
+            definitions: {
+                SessionEvent: {
+                    anyOf: [
+                        {
+                            type: "object",
+                            required: ["type", "data"],
+                            properties: {
+                                type: { const: "session.synthetic" },
+                                data: {
+                                    type: "object",
+                                    properties: {
+                                        summary: { type: "string" },
+                                        tags: {
+                                            type: "array",
+                                            items: { type: "string" },
+                                        },
+                                        context: {
+                                            type: "object",
+                                            properties: {
+                                                gitRoot: { type: "string" },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+        };
+
+        const code = generatePythonSessionEventsCode(schema);
+
+        expect(code).toContain('summary = from_union([from_none, from_str], obj.get("summary"))');
+        expect(code).toContain(
+            'tags = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("tags"))'
+        );
+        expect(code).toContain(
+            'context = from_union([from_none, SessionSyntheticDataContext.from_dict], obj.get("context"))'
+        );
+        expect(code).not.toContain("lambda x: from_str(x)");
+        expect(code).not.toContain("lambda x: SessionSyntheticDataContext.from_dict(x)");
+        expect(code).not.toContain("from_list(lambda x: from_str(x), x)");
     });
 
     it("preserves key shortened nested type names", () => {
